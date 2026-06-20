@@ -312,6 +312,34 @@ export function getExplorerStyles(surface: ExplorerSurface): string {
       overflow: auto;
     }
 
+    .tree-section {
+      display: flex;
+      min-height: 0;
+      flex-direction: column;
+      gap: 2px;
+      border-top: 1px solid var(--vscode-panel-border);
+      padding-top: 6px;
+    }
+
+    .framework-section {
+      flex: 0 1 auto;
+      max-height: 34vh;
+    }
+
+    .files-section {
+      flex: 1 1 auto;
+    }
+
+    .tree-section-title {
+      overflow: hidden;
+      color: var(--vscode-descriptionForeground);
+      font-size: 11px;
+      font-weight: 600;
+      text-overflow: ellipsis;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+
     .explorer-tree {
       gap: 0;
       padding: 2px 0;
@@ -439,6 +467,20 @@ export function getExplorerStyles(surface: ExplorerSurface): string {
     .tree-row.external-row .tree-file-icon::before {
       border-style: dashed;
       opacity: 0.62;
+    }
+
+    .tree-row.framework-row .tree-file-icon::before {
+      border-color: var(--vscode-charts-blue, currentColor);
+      opacity: 0.9;
+    }
+
+    .tree-row.semantic-row .tree-file-icon::before {
+      top: 8px;
+      left: 5px;
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      opacity: 0.68;
     }
 
     .tree-label-group {

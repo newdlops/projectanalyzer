@@ -97,6 +97,48 @@ export type DetectedFramework = {
   evidence: string[];
 };
 
+/** Framework-level semantic unit kinds shown above raw file imports. */
+export type FrameworkUnitKind =
+  | "app"
+  | "route"
+  | "controller"
+  | "view"
+  | "model"
+  | "serializer"
+  | "component"
+  | "service"
+  | "repository"
+  | "entity"
+  | "schema"
+  | "dependency"
+  | "configuration"
+  | "command"
+  | "module"
+  | "provider"
+  | "middleware"
+  | "unknown";
+
+/** Framework semantic unit mapped back to source files and ranges. */
+export type FrameworkUnit = {
+  id: string;
+  framework: string;
+  rootPath: string;
+  kind: FrameworkUnitKind;
+  name: string;
+  filePath: string;
+  range?: SourceRange;
+  parentId?: string;
+  metadata?: Record<string, unknown>;
+};
+
+/** Directed relationship between framework semantic units. */
+export type FrameworkUnitEdge = {
+  kind: "contains" | "routesTo" | "usesModel" | "renders" | "injects" | "calls" | "configures";
+  sourceId: string;
+  targetId: string;
+  metadata?: Record<string, unknown>;
+};
+
 /** Normalized graph payload shared by analyzer, storage, and Webview protocol. */
 export type ProjectGraph = {
   workspaceRoot: string;
@@ -109,6 +151,8 @@ export type ProjectGraph = {
     languages: string[];
     languageSummary?: LanguageSummary[];
     frameworks?: DetectedFramework[];
+    frameworkUnits?: FrameworkUnit[];
+    frameworkUnitEdges?: FrameworkUnitEdge[];
     fileCount: number;
     symbolCount: number;
     edgeCount: number;

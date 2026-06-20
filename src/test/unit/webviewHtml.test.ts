@@ -53,12 +53,18 @@ test("sidebar HTML renders file navigation as an import tree", () => {
   assert.match(html, /Detected project stack/);
   assert.match(html, /id="language-summary"/);
   assert.match(html, /id="framework-summary"/);
+  assert.match(html, /id="framework-tree"/);
+  assert.match(html, /Framework semantic tree/);
+  assert.match(html, /Files/);
   assert.match(scriptMatch[1], /createImportTreeIndex/);
+  assert.match(scriptMatch[1], /createFrameworkTreeRows/);
   assert.match(scriptMatch[1], /childrenByImporterId/);
   assert.match(scriptMatch[1], /tree-file-icon/);
   assert.match(scriptMatch[1], /aria-expanded/);
   assert.match(scriptMatch[1], /renderProjectSummary/);
+  assert.match(scriptMatch[1], /renderFrameworkTree/);
   assert.match(scriptMatch[1], /getDetectedFrameworks/);
+  assert.match(scriptMatch[1], /getFrameworkSemanticBuckets/);
   assert.match(scriptMatch[1], /getFileName/);
   assert.match(scriptMatch[1], /external module usage/);
   assert.doesNotMatch(scriptMatch[1], /insertFileNode/);

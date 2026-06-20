@@ -33,6 +33,7 @@ export function getExplorerSidebarScript(): string {
       edges: document.getElementById("edges"),
       languageSummary: document.getElementById("language-summary"),
       frameworkSummary: document.getElementById("framework-summary"),
+      frameworkTree: document.getElementById("framework-tree"),
       explorerTree: document.getElementById("explorer-tree")
     };
 
@@ -108,6 +109,7 @@ export function getExplorerSidebarScript(): string {
     function render() {
       renderStats();
       renderProjectSummary();
+      renderFrameworkTree();
       renderFileTree();
       renderActions();
     }
@@ -160,98 +162,230 @@ export function getExplorerSidebarScript(): string {
       }
     }
 
+    function renderFrameworkTree() {
+      elements.frameworkTree.replaceChildren();
+
+      if (!state.graph) {
+        appendEmptyTree(elements.frameworkTree, "Analyze a workspace to load frameworks");
+        return;
+      }
+
+      const rows = createFrameworkTreeRows(state.graph);
+
+      if (rows.length === 0) {
+        appendEmptyTree(elements.frameworkTree, "No frameworks detected");
+        return;
+      }
+
+      for (const row of rows) {
+        appendTreeRow(elements.frameworkTree, row);
+      }
+    }
+
     function renderFileTree() {
       elements.explorerTree.replaceChildren();
 
       if (!state.graph) {
-        appendEmptyTree("Analyze a workspace to load files");
+        appendEmptyTree(elements.explorerTree, "Analyze a workspace to load files");
         return;
       }
 
       const rows = createFileTreeRows(state.graph);
 
       if (rows.length === 0) {
-        appendEmptyTree("No files in graph");
+        appendEmptyTree(elements.explorerTree, "No files in graph");
         return;
       }
 
       for (const row of rows) {
-        const button = document.createElement("button");
-        const disclosure = document.createElement("span");
-        const icon = document.createElement("span");
-        const text = document.createElement("span");
-        const name = document.createElement("span");
-        const detail = document.createElement("span");
-        const rowClasses = ["tree-row", row.kind + "-row"];
+        appendTreeRow(elements.explorerTree, row);
+      }
+    }
 
-        button.type = "button";
+    function appendTreeRow(parent, row) {
+      const button = document.createElement("button");
+      const disclosure = document.createElement("span");
+      const icon = document.createElement("span");
+      const text = document.createElement("span");
+      const name = document.createElement("span");
+      const detail = document.createElement("span");
+      const rowClasses = ["tree-row", row.kind + "-row"];
+
+      button.type = "button";
+      if (row.hasChildren) {
+        rowClasses.push("expandable");
+      }
+      if (row.expanded) {
+        rowClasses.push("expanded");
+      }
+      if (state.selectedTreeId === row.id) {
+        rowClasses.push("selected");
+      }
+
+      button.className = rowClasses.join(" ");
+      button.style.paddingLeft = String(4 + row.depth * 16) + "px";
+      button.title = row.label;
+      button.setAttribute("role", "treeitem");
+      button.setAttribute("aria-level", String(row.depth + 1));
+      if (row.hasChildren) {
+        button.setAttribute("aria-expanded", row.expanded ? "true" : "false");
+      }
+
+      disclosure.className = "tree-disclosure";
+      icon.className = "tree-file-icon";
+      text.className = "tree-label-group";
+      name.className = "tree-label";
+      detail.className = "tree-detail";
+      name.textContent = row.name;
+      detail.textContent = row.detail;
+
+      text.append(name);
+      if (row.detail) {
+        text.append(detail);
+      }
+      button.append(disclosure, icon, text);
+      button.addEventListener("click", () => {
+        state.selectedTreeId = row.id;
+
         if (row.hasChildren) {
-          rowClasses.push("expandable");
-        }
-        if (row.expanded) {
-          rowClasses.push("expanded");
-        }
-        if (state.selectedTreeId === row.id) {
-          rowClasses.push("selected");
+          toggleTreeRow(row.id);
         }
 
-        button.className = rowClasses.join(" ");
-        button.style.paddingLeft = String(4 + row.depth * 16) + "px";
-        button.title = row.label;
-        button.setAttribute("role", "treeitem");
-        button.setAttribute("aria-level", String(row.depth + 1));
-        if (row.hasChildren) {
-          button.setAttribute("aria-expanded", row.expanded ? "true" : "false");
-        }
+        render();
 
-        disclosure.className = "tree-disclosure";
-        icon.className = "tree-file-icon";
-        text.className = "tree-label-group";
-        name.className = "tree-label";
-        detail.className = "tree-detail";
-        name.textContent = row.name;
-        detail.textContent = row.detail;
-
-        text.append(name);
-        if (row.detail) {
-          text.append(detail);
+        if (row.nodeId) {
+          postRequest("graph/focusNode", { nodeId: row.nodeId }, "Opening graph browser");
         }
-        button.append(disclosure, icon, text);
-        button.addEventListener("click", () => {
+      });
+      button.addEventListener("keydown", (event) => {
+        if (event.key === "ArrowRight" && row.hasChildren && !row.expanded) {
+          event.preventDefault();
           state.selectedTreeId = row.id;
-
-          if (row.hasChildren) {
-            toggleTreeRow(row.id);
-          }
-
+          toggleTreeRow(row.id);
           render();
+        }
 
-          if (row.nodeId) {
-            postRequest("graph/focusNode", { nodeId: row.nodeId }, "Opening graph browser");
-          }
-        });
-        button.addEventListener("keydown", (event) => {
-          if (event.key === "ArrowRight" && row.hasChildren && !row.expanded) {
-            event.preventDefault();
-            state.selectedTreeId = row.id;
-            toggleTreeRow(row.id);
-            render();
-          }
+        if (event.key === "ArrowLeft" && row.hasChildren && row.expanded) {
+          event.preventDefault();
+          state.selectedTreeId = row.id;
+          toggleTreeRow(row.id);
+          render();
+        }
+      });
+      button.addEventListener("dblclick", () => {
+        if (row.nodeId) {
+          vscode.postMessage({ type: "node/openSource", payload: { nodeId: row.nodeId } });
+        }
+      });
 
-          if (event.key === "ArrowLeft" && row.hasChildren && row.expanded) {
-            event.preventDefault();
-            state.selectedTreeId = row.id;
-            toggleTreeRow(row.id);
-            render();
-          }
-        });
-        button.addEventListener("dblclick", () => {
-          if (row.nodeId) {
-            vscode.postMessage({ type: "node/openSource", payload: { nodeId: row.nodeId } });
-          }
-        });
+      parent.append(button);
+    }
 
-        elements.explorerTree.append(button);
+    function createFrameworkTreeRows(graph) {
+      const rows = [];
+      const frameworks = getDetectedFrameworks(graph);
+      const units = getFrameworkUnits(graph);
+      const unitsByFramework = new Map();
+
+      for (const unit of units) {
+        const key = getFrameworkKey(unit.framework, unit.rootPath);
+        const existing = unitsByFramework.get(key) ?? [];
+        existing.push(unit);
+        unitsByFramework.set(key, existing);
+      }
+
+      for (const framework of frameworks) {
+        appendFrameworkRows(graph, framework, unitsByFramework, rows);
+      }
+
+      return rows;
+    }
+
+    function appendFrameworkRows(graph, framework, unitsByFramework, rows) {
+      const rootPath = framework.rootPath || ".";
+      const rowId = getFrameworkRowId(framework);
+      const frameworkUnits = unitsByFramework.get(getFrameworkKey(framework.name, rootPath)) ?? [];
+      const buckets = getFrameworkSemanticBuckets(framework);
+      const hasChildren = frameworkUnits.length > 0 || buckets.length > 0;
+      const expanded = hasChildren && state.expandedTreeIds.has(rowId);
+
+      rows.push({
+        id: rowId,
+        label: framework.name + " / " + rootPath,
+        name: framework.name,
+        detail: rootPath + " / " + framework.category,
+        kind: "framework",
+        depth: 0,
+        hasChildren,
+        expanded
+      });
+
+      if (!expanded) {
+        return;
+      }
+
+      if (frameworkUnits.length > 0) {
+        appendFrameworkUnitRows(graph, frameworkUnits, rows, rowId, 1);
+        return;
+      }
+
+      for (const bucket of buckets) {
+        rows.push({
+          id: rowId + ":" + bucket.toLowerCase().replace(/\\s+/g, "-"),
+          label: bucket,
+          name: bucket,
+          detail: framework.name,
+          kind: "semantic",
+          depth: 1,
+          hasChildren: false,
+          expanded: false
+        });
+      }
+    }
+
+    function appendFrameworkUnitRows(graph, units, rows, parentTreeId, depth) {
+      const childrenByParentId = new Map();
+      const rootUnits = [];
+
+      for (const unit of units) {
+        if (unit.parentId) {
+          const children = childrenByParentId.get(unit.parentId) ?? [];
+          children.push(unit);
+          childrenByParentId.set(unit.parentId, children);
+        } else {
+          rootUnits.push(unit);
+        }
+      }
+
+      for (const unit of rootUnits.sort(compareFrameworkUnits)) {
+        appendFrameworkUnitRow(graph, unit, childrenByParentId, rows, parentTreeId, depth);
+      }
+    }
+
+    function appendFrameworkUnitRow(graph, unit, childrenByParentId, rows, parentTreeId, depth) {
+      const rowId = parentTreeId + ":unit:" + unit.id;
+      const children = (childrenByParentId.get(unit.id) ?? []).sort(compareFrameworkUnits);
+      const hasChildren = children.length > 0;
+      const expanded = hasChildren && state.expandedTreeIds.has(rowId);
+
+      rows.push({
+        id: rowId,
+        label: unit.name,
+        name: unit.name,
+        detail: unit.kind,
+        kind: "semantic",
+        nodeId: getFileNodeIdByPath(graph, unit.filePath),
+        depth,
+        hasChildren,
+        expanded
+      });
+
+      if (!expanded) {
+        return;
+      }
+
+      for (const child of children) {
+        appendFrameworkUnitRow(graph, child, childrenByParentId, rows, rowId, depth + 1);
       }
     }
 
@@ -354,11 +488,11 @@ export function getExplorerSidebarScript(): string {
       }
     }
 
-    function appendEmptyTree(message) {
+    function appendEmptyTree(parent, message) {
       const empty = document.createElement("div");
       empty.className = "empty-state";
       empty.textContent = message;
-      elements.explorerTree.append(empty);
+      parent.append(empty);
     }
 
     function appendSummaryEmpty(parent, message) {
@@ -401,6 +535,86 @@ export function getExplorerSidebarScript(): string {
       }
 
       return graph.metadata.frameworks;
+    }
+
+    function getFrameworkUnits(graph) {
+      if (!Array.isArray(graph.metadata.frameworkUnits)) {
+        return [];
+      }
+
+      return graph.metadata.frameworkUnits;
+    }
+
+    function getFrameworkKey(name, rootPath) {
+      return String(rootPath || ".") + "::" + String(name || "").toLowerCase();
+    }
+
+    function getFrameworkRowId(framework) {
+      return "framework:" + getFrameworkKey(framework.name, framework.rootPath || ".");
+    }
+
+    function getFileNodeIdByPath(graph, filePath) {
+      if (!filePath) {
+        return undefined;
+      }
+
+      const fileNode = graph.nodes.find((node) => node.kind === "file" && node.filePath === filePath);
+      return fileNode?.id;
+    }
+
+    function compareFrameworkUnits(left, right) {
+      return String(left.kind).localeCompare(String(right.kind)) ||
+        String(left.name).localeCompare(String(right.name));
+    }
+
+    function getFrameworkSemanticBuckets(framework) {
+      const name = String(framework.name || "").toLowerCase();
+
+      if (name === "django") {
+        return ["Apps", "URLs", "Views", "Models", "Serializers", "Management Commands", "Settings"];
+      }
+
+      if (name === "next.js") {
+        return ["App Routes", "Pages", "API Routes", "Layouts", "Components", "Server Actions"];
+      }
+
+      if (name === "react") {
+        return ["Components", "Hooks", "Routes", "State"];
+      }
+
+      if (name === "fastapi") {
+        return ["Routers", "Endpoints", "Dependencies", "Schemas"];
+      }
+
+      if (name === "flask") {
+        return ["Blueprints", "Routes", "Views", "Templates", "Config"];
+      }
+
+      if (name === "nestjs") {
+        return ["Modules", "Controllers", "Providers", "DTOs"];
+      }
+
+      if (name === "express") {
+        return ["Routers", "Middleware", "Handlers"];
+      }
+
+      if (name === "spring boot") {
+        return ["Controllers", "Services", "Repositories", "Entities", "Configuration"];
+      }
+
+      if (["vue", "nuxt", "svelte", "sveltekit"].includes(name)) {
+        return ["Routes", "Pages", "Components", "Stores"];
+      }
+
+      if (["axum", "actix web", "rocket", "gin", "echo", "fiber"].includes(name)) {
+        return ["Routes", "Handlers", "Middleware", "State"];
+      }
+
+      if (["laravel", "symfony", "rails"].includes(name)) {
+        return ["Routes", "Controllers", "Models", "Views", "Commands"];
+      }
+
+      return ["Entry Points", "Configuration"];
     }
 
     function renderActions() {

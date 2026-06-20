@@ -105,6 +105,8 @@ export class InMemoryGraphStore implements GraphStore {
         languages,
         languageSummary: createLanguageSummaryFromNodes(nodes),
         frameworks: this.baseGraph.metadata.frameworks ?? [],
+        frameworkUnits: this.baseGraph.metadata.frameworkUnits ?? [],
+        frameworkUnitEdges: this.baseGraph.metadata.frameworkUnitEdges ?? [],
         symbolCount: nodes.length,
         edgeCount: edges.length
       }

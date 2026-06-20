@@ -34,7 +34,9 @@ export function normalizeProjectGraphMetadata(graph: ProjectGraph): ProjectGraph
     metadata: {
       ...graph.metadata,
       languageSummary: graph.metadata.languageSummary ?? createLanguageSummaryFromNodes(graph.nodes),
-      frameworks: graph.metadata.frameworks ?? []
+      frameworks: graph.metadata.frameworks ?? [],
+      frameworkUnits: graph.metadata.frameworkUnits ?? [],
+      frameworkUnitEdges: graph.metadata.frameworkUnitEdges ?? []
     }
   };
 }

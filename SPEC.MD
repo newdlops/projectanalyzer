@@ -406,6 +406,8 @@ type ProjectGraph = {
     languages: string[];
     languageSummary?: LanguageSummary[];
     frameworks?: DetectedFramework[];
+    frameworkUnits?: FrameworkUnit[];
+    frameworkUnitEdges?: FrameworkUnitEdge[];
     fileCount: number;
     symbolCount: number;
     edgeCount: number;
@@ -428,11 +430,55 @@ type DetectedFramework = {
   rootPath?: string;
   evidence: string[];
 };
+
+type FrameworkUnit = {
+  id: string;
+  framework: string;
+  rootPath: string;
+  kind:
+    | "app"
+    | "route"
+    | "controller"
+    | "view"
+    | "model"
+    | "serializer"
+    | "component"
+    | "service"
+    | "repository"
+    | "entity"
+    | "schema"
+    | "dependency"
+    | "configuration"
+    | "command"
+    | "module"
+    | "provider"
+    | "middleware"
+    | "unknown";
+  name: string;
+  filePath: string;
+  range?: SourceRange;
+  parentId?: string;
+  metadata?: Record<string, unknown>;
+};
+
+type FrameworkUnitEdge = {
+  kind: "contains" | "routesTo" | "usesModel" | "renders" | "injects" | "calls" | "configures";
+  sourceId: string;
+  targetId: string;
+  metadata?: Record<string, unknown>;
+};
 ```
 
 프레임워크 감지는 import graph보다 먼저 프로젝트 실행 모델을 이해하기 위한 상위
 metadata로 취급한다. 모노레포에서는 framework `rootPath`를 기준으로 앱 단위
 엔트리포인트 후보를 분리한다.
+
+프레임워크가 감지되면 UI의 기본 탐색 단위는 file import가 아니라
+`FrameworkUnit`이다. 예를 들어 Django는 `URLs -> Views -> Models`,
+Next.js는 `App Routes -> Layouts -> Components`, FastAPI는
+`Routers -> Endpoints -> Dependencies -> Schemas`처럼 프레임워크가 실제로
+실행되는 의미 단위로 먼저 보여준다. file import tree는 raw dependency를
+확인하는 보조 뷰로 유지한다.
 
 ### 7.3 Diagnostics
 

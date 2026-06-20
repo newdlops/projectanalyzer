@@ -73,7 +73,14 @@ function getSidebarHtml(options: WebviewHtmlOptions): string {
         <div id="framework-summary" class="summary-list"></div>
       </div>
     </div>
-    <div id="explorer-tree" class="list explorer-tree" role="tree" aria-label="Project import tree"></div>
+    <div class="tree-section framework-section">
+      <div class="tree-section-title">Frameworks</div>
+      <div id="framework-tree" class="list explorer-tree framework-tree" role="tree" aria-label="Framework semantic tree"></div>
+    </div>
+    <div class="tree-section files-section">
+      <div class="tree-section-title">Files</div>
+      <div id="explorer-tree" class="list explorer-tree" role="tree" aria-label="Project import tree"></div>
+    </div>
   </div>
   <script nonce="${options.nonce}">${clientScript}</script>
 </body>
