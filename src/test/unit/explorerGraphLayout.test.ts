@@ -88,6 +88,25 @@ test("createGraphScene layers unselected directed graphs instead of stacking one
   assert.ok(scene.edges.every((edge) => edge.path.startsWith("M ")));
 });
 
+test("createGraphScene separates dense expanded children around a selected node", () => {
+  const childIds = Array.from({ length: 10 }, (_, index) => `child-${index}`);
+  const graph = createLayoutGraph([
+    createTestNode("root"),
+    ...childIds.map((childId) => createTestNode(childId))
+  ], childIds.map((childId) => createCallEdge(`root-${childId}`, "root", childId)));
+
+  const scene = createGraphScene(graph, {
+    mode: "call",
+    query: "",
+    selectedNodeId: "root",
+    maxNodes: 20,
+    width: 420,
+    height: 320
+  });
+
+  assertNodeCirclesSeparated(scene, 32);
+});
+
 /**
  * Creates a minimal graph payload for layout tests.
  */
@@ -159,4 +178,25 @@ function requireSceneNode(
 
   assert.ok(node, `missing scene node ${nodeId}`);
   return node;
+}
+
+/**
+ * Ensures generated layout coordinates leave room for node circles.
+ */
+function assertNodeCirclesSeparated(
+  scene: ReturnType<typeof createGraphScene>,
+  minimumDistance: number
+): void {
+  for (let leftIndex = 0; leftIndex < scene.nodes.length; leftIndex += 1) {
+    for (let rightIndex = leftIndex + 1; rightIndex < scene.nodes.length; rightIndex += 1) {
+      const left = scene.nodes[leftIndex];
+      const right = scene.nodes[rightIndex];
+      const distance = Math.hypot(right.x - left.x, right.y - left.y);
+
+      assert.ok(
+        distance >= minimumDistance,
+        `${left.id} and ${right.id} are too close: ${distance}`
+      );
+    }
+  }
 }

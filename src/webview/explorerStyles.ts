@@ -47,6 +47,8 @@ export function getExplorerStyles(surface: ExplorerSurface): string {
     .toolbar,
     .button-grid,
     .action-grid,
+    .panel-header,
+    .graph-toolbar,
     .mode-switch,
     .stats {
       display: flex;
@@ -55,6 +57,14 @@ export function getExplorerStyles(surface: ExplorerSurface): string {
 
     .toolbar {
       align-items: center;
+    }
+
+    .panel-header {
+      align-items: center;
+    }
+
+    .graph-toolbar {
+      margin-left: auto;
     }
 
     .button-grid,
@@ -67,7 +77,8 @@ export function getExplorerStyles(surface: ExplorerSurface): string {
     .secondary-button,
     .action-button,
     .mode-button,
-    .view-button {
+    .view-button,
+    .icon-button {
       border: 1px solid var(--vscode-button-border, transparent);
       border-radius: 4px;
       cursor: pointer;
@@ -141,6 +152,22 @@ export function getExplorerStyles(surface: ExplorerSurface): string {
       background: var(--vscode-button-secondaryBackground);
     }
 
+    .icon-button {
+      width: 30px;
+      height: 28px;
+      padding: 0;
+      color: var(--vscode-button-secondaryForeground);
+      background: var(--vscode-button-secondaryBackground);
+    }
+
+    .icon-button.wide {
+      width: 48px;
+    }
+
+    .icon-button:hover {
+      background: var(--vscode-button-secondaryHoverBackground);
+    }
+
     .search {
       width: 100%;
       box-sizing: border-box;
@@ -170,69 +197,23 @@ export function getExplorerStyles(surface: ExplorerSurface): string {
       overflow: hidden;
     }
 
-    .graph-canvas {
-      display: block;
-      width: 100%;
-      height: ${graphHeight};
-    }
-
-    .graph-edge {
-      fill: none;
-      stroke: var(--vscode-descriptionForeground);
-      stroke-width: 1.2;
-      opacity: 0.55;
-    }
-
-    .graph-edge.unresolved {
-      stroke-dasharray: 4 3;
-      opacity: 0.45;
-    }
-
-    .graph-edge.selected {
-      stroke: var(--vscode-charts-green);
-      stroke-width: 1.8;
-      opacity: 0.85;
-    }
-
-    .graph-edge.dimmed,
-    .graph-node.dimmed {
-      opacity: 0.32;
-    }
-
-    .graph-node {
-      cursor: pointer;
-      outline: none;
-    }
-
-    .graph-node circle {
-      fill: var(--vscode-sideBar-background);
-      stroke: var(--vscode-charts-blue);
-      stroke-width: 1.5;
-    }
-
-    .graph-node.selected circle,
-    .graph-node:focus circle {
-      fill: var(--vscode-button-background);
-      stroke: var(--vscode-button-foreground);
-      stroke-width: 2;
-    }
-
-    .graph-node.external circle {
-      stroke: var(--vscode-charts-yellow);
-    }
-
-    .graph-label {
-      fill: var(--vscode-foreground);
-      font-size: 10px;
-      pointer-events: none;
-      text-anchor: middle;
-    }
-
-    .graph-message {
-      fill: var(--vscode-descriptionForeground);
-      font-size: 11px;
-      text-anchor: middle;
-    }
+	    .graph-canvas {
+	      display: block;
+	      width: 100%;
+	      height: ${graphHeight};
+	      outline: none;
+	      cursor: grab;
+	      touch-action: none;
+	      user-select: none;
+	    }
+	
+	    .graph-canvas:focus {
+	      box-shadow: inset 0 0 0 1px var(--vscode-focusBorder);
+	    }
+	
+	    .graph-canvas.panning {
+	      cursor: grabbing;
+	    }
 
     .stat {
       min-width: 0;

@@ -96,16 +96,31 @@ function getGraphPanelHtml(options: WebviewHtmlOptions): string {
 </head>
 <body>
   <div class="shell panel-shell">
-    <div class="mode-switch" role="tablist">
-      <button class="mode-button active" type="button" data-mode="file">Files</button>
-      <button class="mode-button" type="button" data-mode="call">Calls</button>
-      <button class="mode-button" type="button" data-mode="class">Classes</button>
+    <div class="panel-header">
+      <div class="mode-switch" role="tablist">
+        <button class="mode-button active" type="button" data-mode="file">Files</button>
+        <button class="mode-button" type="button" data-mode="call">Calls</button>
+        <button class="mode-button" type="button" data-mode="class">Classes</button>
+      </div>
+      <div class="graph-toolbar" aria-label="Graph controls">
+        <button id="zoom-out" class="icon-button" type="button" title="Zoom out">-</button>
+        <button id="zoom-reset" class="icon-button wide" type="button" title="Reset zoom">100%</button>
+        <button id="zoom-in" class="icon-button" type="button" title="Zoom in">+</button>
+      </div>
     </div>
-    <div id="status" class="status">Ready</div>
-    <div class="graph-panel" aria-label="Graph canvas">
-      <svg id="graph-canvas" class="graph-canvas" viewBox="0 0 ${canvasWidth} ${canvasHeight}" role="img"></svg>
-    </div>
-  </div>
+	    <div id="status" class="status">Ready</div>
+	    <div class="graph-panel" aria-label="Graph canvas">
+	      <canvas
+	        id="graph-canvas"
+	        class="graph-canvas"
+	        width="${canvasWidth}"
+	        height="${canvasHeight}"
+	        role="application"
+	        tabindex="0"
+	        aria-label="Project graph canvas"
+	      ></canvas>
+	    </div>
+	  </div>
   <script nonce="${options.nonce}">${clientScript}</script>
 </body>
 </html>`;

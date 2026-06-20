@@ -4,6 +4,8 @@
  */
 
 import { createGraphScene } from "./explorerGraphLayout";
+import { clampNumber, getSeparationSign, moveToward } from "./explorerGraphGeometry";
+import { getExplorerCanvasRendererSource } from "./explorerCanvasRenderer";
 
 /** Data injected into the browser-side explorer script. */
 export type ExplorerClientScriptOptions = {
@@ -19,9 +21,17 @@ export type ExplorerClientScriptOptions = {
  */
 export function getExplorerClientScript(options: ExplorerClientScriptOptions): string {
   const createGraphSceneSource = createGraphScene.toString();
+  const canvasRendererSource = getExplorerCanvasRendererSource();
+  const graphGeometrySource = [
+    `const clampNumber = ${clampNumber.toString()};`,
+    `const getSeparationSign = ${getSeparationSign.toString()};`,
+    `const moveToward = ${moveToward.toString()};`
+  ].join("\n");
 
   return /* js */ `
+    ${graphGeometrySource}
     const createGraphScene = ${createGraphSceneSource};
+    ${canvasRendererSource}
     const vscode = acquireVsCodeApi();
     const virtualRootId = "virtual::workspace-root";
     const state = {
@@ -29,26 +39,58 @@ export function getExplorerClientScript(options: ExplorerClientScriptOptions): s
       mode: ${JSON.stringify(options.initialMode)},
       selectedNodeId: virtualRootId,
       analysisState: "idle",
-      expandedGraphNodeIds: new Set()
+      expandedGraphNodeIds: new Set(),
+      viewport: { scale: 1, x: 0, y: 0 },
+      pan: { active: false, pointerId: undefined, lastClientX: 0, lastClientY: 0 },
+      pointerDownNodeId: undefined
     };
     const defaultDepth = ${JSON.stringify(options.defaultDepth)};
     const canvasHeight = ${JSON.stringify(options.canvasHeight)};
     const canvasWidth = ${JSON.stringify(options.canvasWidth)};
     const maxNodes = ${JSON.stringify(options.maxNodes)};
+    const minZoom = 0.35;
+    const maxZoom = 3.5;
+    const zoomStep = 1.2;
     const elements = {
       status: document.getElementById("status"),
       graphCanvas: document.getElementById("graph-canvas"),
+      zoomIn: document.getElementById("zoom-in"),
+      zoomOut: document.getElementById("zoom-out"),
+      zoomReset: document.getElementById("zoom-reset"),
       modeButtons: Array.from(document.querySelectorAll(".mode-button"))
     };
+    const graphRenderer = createGraphCanvasRenderer(elements.graphCanvas, {
+      height: canvasHeight,
+      width: canvasWidth
+    });
 
     for (const button of elements.modeButtons) {
       button.addEventListener("click", () => {
         state.mode = button.dataset.mode;
         resetGraphFocus();
+        resetViewport();
         postRequest("graph/load", { mode: state.mode, depth: defaultDepth }, "Switching view");
         render();
       });
     }
+
+    elements.zoomIn?.addEventListener("click", () => {
+      zoomViewport(zoomStep, getCanvasCenter());
+    });
+    elements.zoomOut?.addEventListener("click", () => {
+      zoomViewport(1 / zoomStep, getCanvasCenter());
+    });
+    elements.zoomReset?.addEventListener("click", () => {
+      resetViewport();
+    });
+    elements.graphCanvas.addEventListener("wheel", handleGraphWheel, { passive: false });
+    elements.graphCanvas.addEventListener("pointerdown", handleGraphPointerDown);
+    elements.graphCanvas.addEventListener("pointermove", handleGraphPointerMove);
+    elements.graphCanvas.addEventListener("pointerup", finishGraphPan);
+    elements.graphCanvas.addEventListener("pointercancel", finishGraphPan);
+    elements.graphCanvas.addEventListener("dblclick", handleGraphDoubleClick);
+    elements.graphCanvas.addEventListener("keydown", handleGraphKeyDown);
+    window.addEventListener("resize", () => graphRenderer.requestDraw());
 
     window.addEventListener("message", (event) => {
       const message = event.data;
@@ -61,6 +103,7 @@ export function getExplorerClientScript(options: ExplorerClientScriptOptions): s
       if (message.type === "graph/loaded" || message.type === "graph/updated") {
         state.graph = message.payload;
         resetGraphFocus();
+        resetViewport();
         elements.status.textContent = "Loaded";
         render();
         return;
@@ -80,6 +123,7 @@ export function getExplorerClientScript(options: ExplorerClientScriptOptions): s
       if (message.type === "graph/cleared") {
         state.graph = undefined;
         resetGraphFocus();
+        resetViewport();
         state.analysisState = "idle";
         render();
         return;
@@ -118,10 +162,8 @@ export function getExplorerClientScript(options: ExplorerClientScriptOptions): s
     }
 
     function renderGraphCanvas() {
-      elements.graphCanvas.replaceChildren();
-
       if (!state.graph) {
-        appendCanvasMessage("Analyze to render graph");
+        graphRenderer.clearWithMessage("Analyze to render graph");
         return;
       }
 
@@ -136,99 +178,11 @@ export function getExplorerClientScript(options: ExplorerClientScriptOptions): s
       });
 
       if (scene.nodes.length === 0) {
-        appendCanvasMessage("No graph nodes in this view");
+        graphRenderer.clearWithMessage("No graph nodes in this view");
         return;
       }
 
-      appendArrowMarker();
-
-      for (const edge of scene.edges) {
-        const path = createSvgElement("path");
-        path.setAttribute("class", classNames([
-          "graph-edge",
-          edge.confidence,
-          edge.isSelected ? "selected" : "",
-          edge.isDimmed ? "dimmed" : ""
-        ]));
-        path.setAttribute("d", edge.path);
-        path.setAttribute("marker-end", "url(#arrow)");
-        elements.graphCanvas.append(path);
-      }
-
-      for (const node of scene.nodes) {
-        appendGraphNode(node);
-      }
-    }
-
-    function appendArrowMarker() {
-      const defs = createSvgElement("defs");
-      const marker = createSvgElement("marker");
-      const path = createSvgElement("path");
-
-      marker.setAttribute("id", "arrow");
-      marker.setAttribute("viewBox", "0 0 10 10");
-      marker.setAttribute("refX", "8");
-      marker.setAttribute("refY", "5");
-      marker.setAttribute("markerWidth", "4");
-      marker.setAttribute("markerHeight", "4");
-      marker.setAttribute("orient", "auto-start-reverse");
-      path.setAttribute("d", "M 0 0 L 10 5 L 0 10 z");
-      path.setAttribute("fill", "var(--vscode-descriptionForeground)");
-      marker.append(path);
-      defs.append(marker);
-      elements.graphCanvas.append(defs);
-    }
-
-    function appendCanvasMessage(message) {
-      const text = createSvgElement("text");
-
-      text.setAttribute("class", "graph-message");
-      text.setAttribute("x", String(canvasWidth / 2));
-      text.setAttribute("y", String(canvasHeight / 2));
-      text.textContent = message;
-      elements.graphCanvas.append(text);
-    }
-
-    function appendGraphNode(node) {
-      const group = createSvgElement("g");
-      const circle = createSvgElement("circle");
-      const label = createSvgElement("text");
-      const title = createSvgElement("title");
-
-      group.setAttribute("class", classNames([
-        "graph-node",
-        node.kind,
-        node.isSelected ? "selected" : "",
-        node.isDimmed ? "dimmed" : ""
-      ]));
-      group.setAttribute("tabindex", "0");
-      group.setAttribute("role", "button");
-      group.setAttribute("aria-label", node.label);
-      group.setAttribute("transform", "translate(" + node.x + " " + node.y + ")");
-      circle.setAttribute("r", String(node.radius));
-      label.setAttribute("class", "graph-label");
-      label.setAttribute("x", "0");
-      label.setAttribute("y", "22");
-      label.textContent = node.label;
-      title.textContent = node.label + " · " + node.kind;
-
-      group.append(title, circle, label);
-      group.addEventListener("click", () => {
-        selectAndToggleNode(node.id);
-      });
-      group.addEventListener("dblclick", () => {
-        if (!isVirtualNodeId(node.id)) {
-          vscode.postMessage({ type: "node/openSource", payload: { nodeId: node.id } });
-        }
-      });
-      group.addEventListener("keydown", (event) => {
-        if (event.key === "Enter" || event.key === " ") {
-          event.preventDefault();
-          selectAndToggleNode(node.id);
-        }
-      });
-
-      elements.graphCanvas.append(group);
+      graphRenderer.setScene(scene);
     }
 
     function selectAndToggleNode(nodeId) {
@@ -252,12 +206,144 @@ export function getExplorerClientScript(options: ExplorerClientScriptOptions): s
 
       state.selectedNodeId = nodeId;
       revealPathToNode(nodeId);
+      resetViewport();
       render();
     }
 
     function resetGraphFocus() {
       state.selectedNodeId = virtualRootId;
       state.expandedGraphNodeIds = new Set();
+    }
+
+    function handleGraphWheel(event) {
+      event.preventDefault();
+
+      const factor = event.deltaY < 0 ? zoomStep : 1 / zoomStep;
+      zoomViewport(factor, getCanvasPoint(event));
+    }
+
+    function handleGraphPointerDown(event) {
+      const hitNode = graphRenderer.hitTestNode(getCanvasPoint(event), state.viewport);
+
+      if (event.button !== 0) {
+        return;
+      }
+
+      elements.graphCanvas.focus();
+      state.pointerDownNodeId = hitNode?.id;
+
+      if (hitNode) {
+        event.preventDefault();
+        return;
+      }
+
+      state.pan = {
+        active: true,
+        pointerId: event.pointerId,
+        lastClientX: event.clientX,
+        lastClientY: event.clientY
+      };
+      elements.graphCanvas.classList.add("panning");
+      elements.graphCanvas.setPointerCapture(event.pointerId);
+    }
+
+    function handleGraphPointerMove(event) {
+      if (!state.pan.active || state.pan.pointerId !== event.pointerId) {
+        return;
+      }
+
+      const rect = elements.graphCanvas.getBoundingClientRect();
+      const scaleX = canvasWidth / Math.max(1, rect.width);
+      const scaleY = canvasHeight / Math.max(1, rect.height);
+      const deltaX = (event.clientX - state.pan.lastClientX) * scaleX;
+      const deltaY = (event.clientY - state.pan.lastClientY) * scaleY;
+
+      event.preventDefault();
+      state.pan.lastClientX = event.clientX;
+      state.pan.lastClientY = event.clientY;
+      state.viewport.x += deltaX;
+      state.viewport.y += deltaY;
+      applyViewportTransform();
+    }
+
+    function finishGraphPan(event) {
+      const hitNode = graphRenderer.hitTestNode(getCanvasPoint(event), state.viewport);
+
+      if (!state.pan.active && state.pointerDownNodeId && hitNode?.id === state.pointerDownNodeId) {
+        selectAndToggleNode(hitNode.id);
+        state.pointerDownNodeId = undefined;
+        return;
+      }
+
+      state.pointerDownNodeId = undefined;
+
+      if (!state.pan.active || state.pan.pointerId !== event.pointerId) {
+        return;
+      }
+
+      state.pan.active = false;
+      state.pan.pointerId = undefined;
+      elements.graphCanvas.classList.remove("panning");
+
+      if (elements.graphCanvas.hasPointerCapture(event.pointerId)) {
+        elements.graphCanvas.releasePointerCapture(event.pointerId);
+      }
+    }
+
+    function handleGraphDoubleClick(event) {
+      const hitNode = graphRenderer.hitTestNode(getCanvasPoint(event), state.viewport);
+
+      if (hitNode && !isVirtualNodeId(hitNode.id)) {
+        vscode.postMessage({ type: "node/openSource", payload: { nodeId: hitNode.id } });
+      }
+    }
+
+    function handleGraphKeyDown(event) {
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        selectAndToggleNode(state.selectedNodeId);
+      }
+    }
+
+    function zoomViewport(factor, origin) {
+      const nextScale = clamp(state.viewport.scale * factor, minZoom, maxZoom);
+      const worldX = (origin.x - state.viewport.x) / state.viewport.scale;
+      const worldY = (origin.y - state.viewport.y) / state.viewport.scale;
+
+      state.viewport.scale = nextScale;
+      state.viewport.x = origin.x - worldX * nextScale;
+      state.viewport.y = origin.y - worldY * nextScale;
+      applyViewportTransform();
+      renderZoomControls();
+    }
+
+    function resetViewport() {
+      state.viewport = { scale: 1, x: 0, y: 0 };
+      applyViewportTransform();
+      renderZoomControls();
+    }
+
+    function applyViewportTransform() {
+      graphRenderer.setViewport(state.viewport);
+    }
+
+    function renderZoomControls() {
+      if (elements.zoomReset) {
+        elements.zoomReset.textContent = Math.round(state.viewport.scale * 100) + "%";
+      }
+    }
+
+    function getCanvasCenter() {
+      return { x: canvasWidth / 2, y: canvasHeight / 2 };
+    }
+
+    function getCanvasPoint(event) {
+      const rect = elements.graphCanvas.getBoundingClientRect();
+
+      return graphRenderer.screenToCanvas({
+        x: event.clientX - rect.left,
+        y: event.clientY - rect.top
+      });
     }
 
     function createProgressiveGraph(graph) {
@@ -509,12 +595,8 @@ export function getExplorerClientScript(options: ExplorerClientScriptOptions): s
       };
     }
 
-    function createSvgElement(name) {
-      return document.createElementNS("http://www.w3.org/2000/svg", name);
-    }
-
-    function classNames(values) {
-      return values.filter(Boolean).join(" ");
+    function clamp(value, min, max) {
+      return Math.min(max, Math.max(min, value));
     }
 
     function getRelativePath(graph, filePath) {

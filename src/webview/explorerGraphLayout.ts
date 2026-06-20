@@ -6,6 +6,7 @@
 
 import type { GraphViewMode } from "../protocol/messages";
 import type { EdgeConfidence, EdgeKind, ProjectGraph, SymbolKind } from "../shared/types";
+import { clampNumber, getSeparationSign, moveToward } from "./explorerGraphGeometry";
 
 /** Options that describe the currently visible graph viewport. */
 export type ExplorerGraphSceneOptions = {
@@ -110,7 +111,12 @@ export function createGraphScene(
   const visibleEdges = relevantEdges.filter(
     (edge) => includedNodeIds.has(edge.sourceId) && includedNodeIds.has(edge.targetId)
   );
-  const positions = createNodePositions(limitedNodes, visibleEdges, selectedNodeId, width, height);
+  const positions = separateNodePositions(
+    createNodePositions(limitedNodes, visibleEdges, selectedNodeId, width, height),
+    selectedNodeId,
+    width,
+    height
+  );
   const reachableFromSelection = selectedNodeId
     ? createReachableSet(selectedNodeId, visibleEdges)
     : new Set<string>();
@@ -315,8 +321,71 @@ export function createGraphScene(
     if (edges.length > 0) {
       return createLayeredPositions(nodes, edges, sceneWidth, sceneHeight);
     }
-
     return createGridPositions(nodes, sceneWidth, sceneHeight);
+  }
+
+  /**
+   * Applies a small deterministic collision pass after the structural layout so
+   * expanded children do not sit directly on top of nodes or labels.
+   */
+  function separateNodePositions(
+    positions: Map<string, { x: number; y: number }>,
+    anchorId: string | undefined,
+    sceneWidth: number,
+    sceneHeight: number
+  ): Map<string, { x: number; y: number }> {
+    const relaxed = new Map<string, { x: number; y: number }>();
+
+    for (const [nodeId, position] of positions) {
+      relaxed.set(nodeId, { ...position });
+    }
+
+    const entries = [...relaxed.entries()];
+    const minGapX = 76;
+    const minGapY = 50;
+    const margin = 30;
+
+    for (let pass = 0; pass < 7; pass += 1) {
+      let changed = false;
+
+      for (let leftIndex = 0; leftIndex < entries.length; leftIndex += 1) {
+        for (let rightIndex = leftIndex + 1; rightIndex < entries.length; rightIndex += 1) {
+          const [leftId, left] = entries[leftIndex];
+          const [rightId, right] = entries[rightIndex];
+          const deltaX = right.x - left.x;
+          const deltaY = right.y - left.y;
+          const overlapX = minGapX - Math.abs(deltaX);
+          const overlapY = minGapY - Math.abs(deltaY);
+
+          if (overlapX <= 0 || overlapY <= 0) {
+            continue;
+          }
+
+          const axis = overlapX < overlapY ? "x" : "y";
+          const sign = getSeparationSign(axis === "x" ? deltaX : deltaY, leftIndex, rightIndex);
+          const amount = ((axis === "x" ? overlapX : overlapY) / 2) + 1;
+          const limit = axis === "x" ? sceneWidth - margin : sceneHeight - margin;
+          const leftLocked = leftId === anchorId;
+          const rightLocked = rightId === anchorId;
+
+          if (!leftLocked) {
+            left[axis] = clampNumber(left[axis] - sign * (rightLocked ? amount * 2 : amount), margin, limit);
+          }
+
+          if (!rightLocked) {
+            right[axis] = clampNumber(right[axis] + sign * (leftLocked ? amount * 2 : amount), margin, limit);
+          }
+
+          changed = true;
+        }
+      }
+
+      if (!changed) {
+        break;
+      }
+    }
+
+    return relaxed;
   }
 
   /**
@@ -525,22 +594,38 @@ export function createGraphScene(
     const maxDepth = Math.max(1, depths.at(-1) ?? 1);
     const centerX = sceneWidth / 2;
     const horizontalSpan = side === "incoming" ? centerX - marginX : sceneWidth - marginX - centerX;
+    const rowCapacity = getColumnRowCapacity(sceneHeight);
 
     for (const depth of depths) {
       const ids = (groups.get(depth) ?? []).filter((nodeId) => !assigned.has(nodeId));
-      const x = side === "incoming"
+      const baseX = side === "incoming"
         ? centerX - (horizontalSpan * depth) / (maxDepth + 0.35)
         : centerX + (horizontalSpan * depth) / (maxDepth + 0.35);
+      const laneCount = Math.max(1, Math.ceil(ids.length / rowCapacity));
+      const laneDirection = side === "incoming" ? -1 : 1;
 
       ids.sort();
       ids.forEach((nodeId, index) => {
+        const laneIndex = Math.floor(index / rowCapacity);
+        const rowIndex = index % rowCapacity;
+        const rowCount = Math.min(rowCapacity, ids.length - laneIndex * rowCapacity);
+        const laneOffset = (laneIndex - (laneCount - 1) / 2) * 58 * laneDirection;
+
         assigned.add(nodeId);
         positions.set(nodeId, {
-          x,
-          y: distributeStaggered(index, ids.length, depth, sceneHeight, 54)
+          x: clampNumber(baseX + laneOffset, 34, sceneWidth - 34),
+          y: distributeStaggered(rowIndex, rowCount, depth + laneIndex, sceneHeight, 54)
         });
       });
     }
+  }
+
+  /**
+   * Computes how many items can fit vertically before a relationship depth
+   * should fan into a neighboring lane.
+   */
+  function getColumnRowCapacity(sceneHeight: number): number {
+    return Math.max(1, Math.floor(Math.max(1, sceneHeight - 108) / 54) + 1);
   }
 
   /**
@@ -641,12 +726,16 @@ export function createGraphScene(
    * Creates a curved edge path so parallel directional structure is readable.
    */
   function createEdgePath(x1: number, y1: number, x2: number, y2: number): string {
-    const deltaX = x2 - x1;
+    const start = moveToward(x1, y1, x2, y2, 18);
+    const end = moveToward(x2, y2, x1, y1, 20);
+    const deltaX = end.x - start.x;
+    const deltaY = end.y - start.y;
     const controlOffset = Math.max(36, Math.abs(deltaX) * 0.42);
-    const controlX1 = x1 + (deltaX >= 0 ? controlOffset : -controlOffset);
-    const controlX2 = x2 - (deltaX >= 0 ? controlOffset : -controlOffset);
+    const bend = Math.sign(deltaY || deltaX || 1) * Math.min(42, Math.max(10, Math.abs(deltaY) * 0.18));
+    const controlX1 = start.x + (deltaX >= 0 ? controlOffset : -controlOffset);
+    const controlX2 = end.x - (deltaX >= 0 ? controlOffset : -controlOffset);
 
-    return `M ${x1} ${y1} C ${controlX1} ${y1}, ${controlX2} ${y2}, ${x2} ${y2}`;
+    return `M ${start.x} ${start.y} C ${controlX1} ${start.y + bend}, ${controlX2} ${end.y - bend}, ${end.x} ${end.y}`;
   }
 
   /**
