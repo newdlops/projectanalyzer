@@ -1,5 +1,5 @@
 /**
- * Unit tests for the sidebar graph scene layout. These tests keep core visual
+ * Unit tests for the graph browser scene layout. These tests keep core visual
  * decisions deterministic without needing a VS Code Webview runtime.
  */
 

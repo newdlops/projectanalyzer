@@ -1,5 +1,5 @@
 /**
- * Browser-side script factory for the sidebar explorer Webview. The returned
+ * Browser-side script factory for the graph browser WebviewPanel. The returned
  * script is dependency-free and runs under the Webview CSP nonce.
  */
 
@@ -7,8 +7,11 @@ import { createGraphScene } from "./explorerGraphLayout";
 
 /** Data injected into the browser-side explorer script. */
 export type ExplorerClientScriptOptions = {
+  canvasHeight: number;
+  canvasWidth: number;
   defaultDepth: number;
   initialMode: "call" | "file" | "class";
+  maxNodes: number;
 };
 
 /**
@@ -28,12 +31,11 @@ export function getExplorerClientScript(options: ExplorerClientScriptOptions): s
       analysisState: "idle"
     };
     const defaultDepth = ${JSON.stringify(options.defaultDepth)};
+    const canvasHeight = ${JSON.stringify(options.canvasHeight)};
+    const canvasWidth = ${JSON.stringify(options.canvasWidth)};
+    const maxNodes = ${JSON.stringify(options.maxNodes)};
     const elements = {
-      analyzeWorkspace: document.getElementById("analyze-workspace"),
-      analyzeCurrent: document.getElementById("analyze-current"),
-      cancelAnalysis: document.getElementById("cancel-analysis"),
       exportJson: document.getElementById("export-json"),
-      clearCache: document.getElementById("clear-cache"),
       openSource: document.getElementById("open-source"),
       showCallers: document.getElementById("show-callers"),
       showCallees: document.getElementById("show-callees"),
@@ -49,24 +51,8 @@ export function getExplorerClientScript(options: ExplorerClientScriptOptions): s
       modeButtons: Array.from(document.querySelectorAll(".mode-button"))
     };
 
-    elements.analyzeWorkspace.addEventListener("click", () => {
-      postRequest("analysis/run", { scope: "workspace" }, "Analyze workspace requested");
-    });
-
-    elements.analyzeCurrent.addEventListener("click", () => {
-      postRequest("analysis/run", { scope: "currentFile" }, "Analyze current file requested");
-    });
-
-    elements.cancelAnalysis.addEventListener("click", () => {
-      postRequest("analysis/cancel", {}, "Cancel requested");
-    });
-
     elements.exportJson.addEventListener("click", () => {
       postRequest("export/run", { format: "json" }, "Export requested");
-    });
-
-    elements.clearCache.addEventListener("click", () => {
-      postRequest("cache/clear", {}, "Clear requested");
     });
 
     elements.openSource.addEventListener("click", () => {
@@ -175,9 +161,9 @@ export function getExplorerClientScript(options: ExplorerClientScriptOptions): s
         mode: state.mode,
         query: state.query,
         selectedNodeId: state.selectedNodeId,
-        maxNodes: 36,
-        width: 320,
-        height: 220
+        maxNodes,
+        width: canvasWidth,
+        height: canvasHeight
       });
 
       if (!graph || scene.nodes.length === 0) {
@@ -231,8 +217,8 @@ export function getExplorerClientScript(options: ExplorerClientScriptOptions): s
       const text = createSvgElement("text");
 
       text.setAttribute("class", "graph-message");
-      text.setAttribute("x", "160");
-      text.setAttribute("y", "112");
+      text.setAttribute("x", String(canvasWidth / 2));
+      text.setAttribute("y", String(canvasHeight / 2));
       text.textContent = message;
       elements.graphCanvas.append(text);
     }
@@ -332,14 +318,10 @@ export function getExplorerClientScript(options: ExplorerClientScriptOptions): s
     function renderActions() {
       const hasSelection = Boolean(state.selectedNodeId);
       const analysisRunning = state.analysisState === "running";
-      elements.analyzeWorkspace.disabled = analysisRunning;
-      elements.analyzeCurrent.disabled = analysisRunning;
-      elements.cancelAnalysis.disabled = !analysisRunning;
       elements.openSource.disabled = !hasSelection;
       elements.showCallers.disabled = !hasSelection;
       elements.showCallees.disabled = !hasSelection;
       elements.exportJson.disabled = !state.graph || analysisRunning;
-      elements.clearCache.disabled = analysisRunning;
     }
 
     function postSelectedNode(type) {

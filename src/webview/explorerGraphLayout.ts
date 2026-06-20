@@ -1,5 +1,5 @@
 /**
- * Pure graph scene layout for the sidebar Visual Explorer. It converts a
+ * Pure graph scene layout for the editor-tab Visual Explorer. It converts a
  * ProjectGraph plus GUI filters into bounded SVG-ready nodes and edges without
  * depending on VS Code, DOM APIs, or browser globals.
  */
@@ -17,7 +17,7 @@ export type ExplorerGraphSceneOptions = {
   height: number;
 };
 
-/** SVG-ready node record used by the sidebar canvas renderer. */
+/** SVG-ready node record used by the graph browser canvas renderer. */
 export type ExplorerGraphSceneNode = {
   id: string;
   label: string;
@@ -32,7 +32,7 @@ export type ExplorerGraphSceneNode = {
   isDimmed: boolean;
 };
 
-/** SVG-ready edge record used by the sidebar canvas renderer. */
+/** SVG-ready edge record used by the graph browser canvas renderer. */
 export type ExplorerGraphSceneEdge = {
   id: string;
   kind: EdgeKind;
@@ -58,7 +58,7 @@ export type ExplorerGraphScene = {
 };
 
 /**
- * Builds a deterministic graph scene for a sidebar-sized SVG canvas. The
+ * Builds a deterministic graph scene for a bounded SVG canvas. The
  * selected node, when present, becomes the flow anchor so callers/callees and
  * structural relationships read left-to-right without force simulation.
  */
@@ -195,7 +195,7 @@ export function createGraphScene(
   }
 
   /**
-   * Applies sidebar search across stable graph identity and display fields.
+   * Applies graph browser search across stable graph identity and display fields.
    */
   function matchesQuery(node: { id: string; name: string; qualifiedName: string; filePath: string; kind: string }, value: string): boolean {
     if (!value) {
@@ -293,7 +293,7 @@ export function createGraphScene(
 
   /**
    * Lays out selected graphs as directional columns and unselected graphs as a
-   * stable grid sized to the current sidebar viewport.
+   * stable grid sized to the current graph browser viewport.
    */
   function createNodePositions(
     nodes: readonly { id: string }[],
@@ -512,7 +512,7 @@ export function createGraphScene(
   }
 
   /**
-   * Keeps labels compact enough for sidebar SVG text.
+   * Keeps labels compact enough for SVG text.
    */
   function truncateLabel(label: string): string {
     const normalized = label.trim();

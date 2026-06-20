@@ -46,6 +46,7 @@ export type NodeRelationshipRequest = {
 export type WebviewRequest =
   | { type: "ui/ready"; payload: Record<string, never> }
   | { type: "graph/load"; payload: GraphLoadRequest }
+  | { type: "graph/openPanel"; payload: Record<string, never> }
   | { type: "graph/expand"; payload: ExpandRequest }
   | { type: "analysis/run"; payload: AnalysisRunRequest }
   | { type: "analysis/cancel"; payload: Record<string, never> }

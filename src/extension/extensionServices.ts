@@ -14,12 +14,14 @@ import { RustAnalyzerBackend } from "../analyzer/rust/rustAnalyzerBackend";
 import { MemoryAnalysisCacheStore } from "../storage/cacheStore";
 import { readProjectAnalyzerConfig } from "../vscode/configuration";
 import { VsCodeWorkspaceFileSystem } from "../vscode/workspaceFileSystem";
+import { ExplorerGraphPanelProvider } from "../webview/explorerGraphPanelProvider";
 import { ExplorerViewProvider } from "../webview/explorerViewProvider";
 
 /** Runtime services shared by command handlers. */
 export type ExtensionServices = {
   analyzer: AnalysisBackend;
   cacheStore: MemoryAnalysisCacheStore;
+  explorerGraphPanelProvider: ExplorerGraphPanelProvider;
   explorerViewProvider: ExplorerViewProvider;
 };
 
@@ -41,16 +43,23 @@ export function createExtensionServices(context: vscode.ExtensionContext): Exten
     maxFileSizeKb: config.maxFileSizeKb,
     fallbackBackend: fallbackAnalyzer
   });
+  const explorerGraphPanelProvider = new ExplorerGraphPanelProvider({
+    context,
+    cacheStore,
+    config
+  });
   const explorerViewProvider = new ExplorerViewProvider({
     context,
     analyzer,
     cacheStore,
-    config
+    config,
+    graphPanelProvider: explorerGraphPanelProvider
   });
 
   return {
     analyzer,
     cacheStore,
+    explorerGraphPanelProvider,
     explorerViewProvider
   };
 }

@@ -1,25 +1,23 @@
 /**
- * Sidebar Visual Explorer provider. It owns the WebviewView lifecycle, handles
- * GUI-originated requests, and keeps the sidebar synchronized with analysis data.
+ * Sidebar control provider. It owns the Activity Bar WebviewView lifecycle and
+ * opens the editor-tab graph browser for visual exploration.
  */
 
-import * as crypto from "node:crypto";
 import * as vscode from "vscode";
 import type { AnalysisBackend } from "../analyzer/core/analysisBackend";
-import { InMemoryGraphStore } from "../graph/graphStore";
-import { createTraversalSubgraph, traverseCallRelationship } from "../graph/graphTraversal";
 import type {
   AnalysisStatusPayload,
   ExportRequest,
   ExtensionResponse,
-  GraphViewMode,
   WebviewRequest
 } from "../protocol/messages";
 import { createContentHash } from "../shared/hash";
-import type { ProjectGraph, SymbolNode } from "../shared/types";
+import type { ProjectGraph } from "../shared/types";
 import type { AnalysisCacheStore } from "../storage/cacheStore";
 import type { ProjectAnalyzerConfig } from "../vscode/configuration";
+import type { ExplorerGraphPanelProvider } from "./explorerGraphPanelProvider";
 import { getExplorerHtml } from "./webviewHtml";
+import { createNonce, exportGraphToJson } from "./webviewHostActions";
 
 /** Dependencies required by the sidebar explorer provider. */
 export type ExplorerViewProviderDependencies = {
@@ -27,6 +25,7 @@ export type ExplorerViewProviderDependencies = {
   analyzer: AnalysisBackend;
   cacheStore: AnalysisCacheStore;
   config: ProjectAnalyzerConfig;
+  graphPanelProvider: ExplorerGraphPanelProvider;
 };
 
 /**
@@ -37,9 +36,6 @@ export class ExplorerViewProvider implements vscode.WebviewViewProvider {
 
   /** Current sidebar view instance, available only after VS Code resolves it. */
   private view: vscode.WebviewView | undefined;
-
-  /** Active graph mode selected by the sidebar GUI. */
-  private mode: GraphViewMode = "file";
 
   /** Guards workspace analysis so repeated GUI clicks do not overlap scans. */
   private analysisRunning = false;
@@ -63,7 +59,7 @@ export class ExplorerViewProvider implements vscode.WebviewViewProvider {
       extensionUri: this.dependencies.context.extensionUri,
       nonce: createNonce(),
       defaultDepth: this.dependencies.config.defaultDepth,
-      initialMode: this.mode,
+      initialMode: "file",
       surface: "sidebar"
     });
 
@@ -73,18 +69,11 @@ export class ExplorerViewProvider implements vscode.WebviewViewProvider {
   }
 
   /**
-   * Sends a graph payload to the sidebar when it is visible.
+   * Sends graph availability to the sidebar and any open graph panel.
    */
   public async publishGraph(graph: ProjectGraph): Promise<void> {
     await this.postMessage({ type: "graph/loaded", payload: graph });
-  }
-
-  /**
-   * Updates the active explorer mode and notifies the GUI when it is visible.
-   */
-  public async setMode(mode: GraphViewMode): Promise<void> {
-    this.mode = mode;
-    await this.postMessage({ type: "view/modeChanged", payload: { mode } });
+    await this.dependencies.graphPanelProvider.publishGraph(graph);
   }
 
   /**
@@ -105,14 +94,16 @@ export class ExplorerViewProvider implements vscode.WebviewViewProvider {
         await this.clearCache();
         break;
       case "graph/load":
-        await this.setMode(message.payload.mode);
         await this.postLatestGraph();
         break;
+      case "graph/openPanel":
+        await this.openGraphPanel();
+        break;
       case "node/openSource":
-        await this.openSourceNode(message.payload.nodeId);
+        await this.dependencies.graphPanelProvider.openGraph();
         break;
       case "node/showRelationship":
-        await this.showNodeRelationship(message.payload.nodeId, message.payload.direction);
+        await this.dependencies.graphPanelProvider.openGraph();
         break;
       case "export/run":
         await this.exportGraph(message.payload);
@@ -165,6 +156,7 @@ export class ExplorerViewProvider implements vscode.WebviewViewProvider {
       const result = await this.dependencies.analyzer.analyzeWorkspace();
       await this.dependencies.cacheStore.saveLatestGraph(result.graph);
       await this.publishGraph(result.graph);
+      await this.dependencies.graphPanelProvider.openGraph(result.graph);
       await this.postStatus(
         "complete",
         `Indexed ${result.graph.metadata.fileCount} files, ${result.graph.nodes.length} nodes`
@@ -215,6 +207,7 @@ export class ExplorerViewProvider implements vscode.WebviewViewProvider {
 
       await this.dependencies.cacheStore.saveLatestGraph(result.graph);
       await this.publishGraph(result.graph);
+      await this.dependencies.graphPanelProvider.openGraph(result.graph);
       await this.postStatus("complete", `Analyzed ${document.fileName}, ${result.graph.nodes.length} nodes`);
     } catch (error) {
       await this.postStatus("failed", "Current-file analysis failed");
@@ -236,6 +229,7 @@ export class ExplorerViewProvider implements vscode.WebviewViewProvider {
   private async clearCache(): Promise<void> {
     await this.dependencies.cacheStore.clear();
     await this.postMessage({ type: "graph/cleared", payload: {} });
+    await this.dependencies.graphPanelProvider.clearGraph();
     await this.postStatus("idle", "Cache cleared");
   }
 
@@ -249,52 +243,6 @@ export class ExplorerViewProvider implements vscode.WebviewViewProvider {
     }
 
     await this.postStatus("running", "Cancellation will stop future analyzer workers");
-  }
-
-  /**
-   * Handles caller/callee exploration requests from the selected GUI node.
-   */
-  private async showNodeRelationship(
-    nodeId: string,
-    direction: "callers" | "callees"
-  ): Promise<void> {
-    const graph = await this.dependencies.cacheStore.getLatestGraph();
-
-    if (!graph) {
-      await this.postStatus("idle", "Analyze before exploring call relationships");
-      return;
-    }
-
-    const node = graph.nodes.find((candidate) => candidate.id === nodeId);
-
-    if (!node) {
-      await this.postStatus("idle", "Selected node is not available");
-      return;
-    }
-
-    const relationshipDepth = Math.max(0, Math.floor(this.dependencies.config.defaultDepth));
-    const store = new InMemoryGraphStore(graph);
-    const result = traverseCallRelationship(store, {
-      rootNodeId: nodeId,
-      direction,
-      maxDepth: relationshipDepth
-    });
-    const subgraph = createTraversalSubgraph(graph, result);
-    const relationshipLabel = direction === "callers" ? "callers" : "callees";
-    const nodeLabel = getNodeDisplayName(node);
-
-    await this.setMode("call");
-    await this.postMessage({ type: "graph/updated", payload: subgraph });
-
-    if (result.edges.length === 0) {
-      await this.postStatus("idle", `No ${relationshipLabel} found for ${nodeLabel}`);
-      return;
-    }
-
-    await this.postStatus(
-      "complete",
-      `Showing ${relationshipLabel} for ${nodeLabel} (${formatCount(result.edges.length, "call edge")}, depth ${relationshipDepth})`
-    );
   }
 
   /**
@@ -313,22 +261,24 @@ export class ExplorerViewProvider implements vscode.WebviewViewProvider {
       return;
     }
 
-    const uri = await vscode.window.showSaveDialog({
-      defaultUri: vscode.Uri.file("project-analyzer-graph.json"),
-      filters: {
-        JSON: ["json"]
-      },
-      saveLabel: "Export Graph"
-    });
+    const message = await exportGraphToJson(graph);
+    await this.postStatus(message ? "complete" : "idle", message ?? "Export canceled");
+  }
 
-    if (!uri) {
-      await this.postStatus("idle", "Export canceled");
+  /**
+   * Opens the latest graph in a separate editor-tab WebviewPanel.
+   */
+  private async openGraphPanel(): Promise<void> {
+    const graph = await this.dependencies.cacheStore.getLatestGraph();
+
+    if (!graph) {
+      await this.dependencies.graphPanelProvider.openGraph();
+      await this.postStatus("idle", "Graph browser opened; analyze to load graph");
       return;
     }
 
-    const serializedGraph = JSON.stringify(graph, null, 2);
-    await vscode.workspace.fs.writeFile(uri, Buffer.from(serializedGraph, "utf8"));
-    await this.postStatus("complete", `Exported ${graph.nodes.length} nodes`);
+    await this.dependencies.graphPanelProvider.openGraph(graph);
+    await this.postStatus("complete", "Graph browser opened");
   }
 
   /**
@@ -343,21 +293,6 @@ export class ExplorerViewProvider implements vscode.WebviewViewProvider {
     }
 
     await this.postStatus("idle", "No graph loaded");
-  }
-
-  /**
-   * Opens the source location represented by a graph node.
-   */
-  private async openSourceNode(nodeId: string): Promise<void> {
-    const graph = await this.dependencies.cacheStore.getLatestGraph();
-    const node = graph?.nodes.find((candidate) => candidate.id === nodeId);
-
-    if (!node) {
-      await this.postStatus("idle", "Node is not available");
-      return;
-    }
-
-    await openNodeInEditor(node);
   }
 
   /**
@@ -380,41 +315,4 @@ export class ExplorerViewProvider implements vscode.WebviewViewProvider {
 
     await this.view.webview.postMessage(message);
   }
-}
-
-/**
- * Opens a graph node's source range in the active editor group.
- */
-async function openNodeInEditor(node: SymbolNode): Promise<void> {
-  const document = await vscode.workspace.openTextDocument(vscode.Uri.file(node.filePath));
-  const editor = await vscode.window.showTextDocument(document);
-  const position = new vscode.Position(node.selectionRange.startLine, node.selectionRange.startCharacter);
-  const range = new vscode.Range(
-    position,
-    new vscode.Position(node.selectionRange.endLine, node.selectionRange.endCharacter)
-  );
-
-  editor.selection = new vscode.Selection(range.start, range.end);
-  editor.revealRange(range, vscode.TextEditorRevealType.InCenterIfOutsideViewport);
-}
-
-/**
- * Creates a nonce for Webview script CSP.
- */
-function createNonce(): string {
-  return crypto.randomBytes(16).toString("base64");
-}
-
-/**
- * Returns the shortest stable display label for status messages.
- */
-function getNodeDisplayName(node: SymbolNode): string {
-  return node.name || node.qualifiedName || node.id;
-}
-
-/**
- * Formats counted nouns for compact sidebar status messages.
- */
-function formatCount(count: number, noun: string): string {
-  return `${count} ${noun}${count === 1 ? "" : "s"}`;
 }
