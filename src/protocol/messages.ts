@@ -44,6 +44,7 @@ export type NodeRelationshipRequest = {
 
 /** Messages sent from Webview to Extension Host. */
 export type WebviewRequest =
+  | { type: "ui/ready"; payload: Record<string, never> }
   | { type: "graph/load"; payload: GraphLoadRequest }
   | { type: "graph/expand"; payload: ExpandRequest }
   | { type: "analysis/run"; payload: AnalysisRunRequest }
@@ -75,6 +76,7 @@ export type AnalysisStatusPayload = {
 
 /** Messages sent from Extension Host to Webview. */
 export type ExtensionResponse =
+  | { type: "ui/ready"; payload: Record<string, never> }
   | { type: "graph/loaded"; payload: ProjectGraph }
   | { type: "graph/updated"; payload: ProjectGraph }
   | { type: "graph/cleared"; payload: Record<string, never> }

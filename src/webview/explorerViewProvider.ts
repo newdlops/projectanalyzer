@@ -42,6 +42,9 @@ export class ExplorerViewProvider implements vscode.WebviewViewProvider {
   /** Guards workspace analysis so repeated GUI clicks do not overlap scans. */
   private analysisRunning = false;
 
+  /** Tracks whether the Webview script has loaded and can receive responses. */
+  private webviewReady = false;
+
   public constructor(private readonly dependencies: ExplorerViewProviderDependencies) {}
 
   /**
@@ -49,6 +52,7 @@ export class ExplorerViewProvider implements vscode.WebviewViewProvider {
    */
   public resolveWebviewView(webviewView: vscode.WebviewView): void {
     this.view = webviewView;
+    this.webviewReady = false;
     this.view.webview.options = {
       enableScripts: true
     };
@@ -64,13 +68,6 @@ export class ExplorerViewProvider implements vscode.WebviewViewProvider {
     this.view.webview.onDidReceiveMessage((message: WebviewRequest) => {
       void this.handleMessage(message);
     });
-
-    if (this.dependencies.config.autoAnalyze) {
-      void this.runWorkspaceAnalysis();
-      return;
-    }
-
-    void this.postLatestGraph();
   }
 
   /**
@@ -93,6 +90,9 @@ export class ExplorerViewProvider implements vscode.WebviewViewProvider {
    */
   private async handleMessage(message: WebviewRequest): Promise<void> {
     switch (message.type) {
+      case "ui/ready":
+        await this.handleWebviewReady();
+        break;
       case "analysis/run":
         await this.runAnalysis(message.payload.scope);
         break;
@@ -121,6 +121,21 @@ export class ExplorerViewProvider implements vscode.WebviewViewProvider {
   }
 
   /**
+   * Handles the Webview readiness handshake before sending graph or status data.
+   */
+  private async handleWebviewReady(): Promise<void> {
+    this.webviewReady = true;
+    await this.postMessage({ type: "ui/ready", payload: {} });
+
+    if (this.dependencies.config.autoAnalyze) {
+      await this.runWorkspaceAnalysis();
+      return;
+    }
+
+    await this.postLatestGraph();
+  }
+
+  /**
    * Routes a GUI analysis request to the requested analysis scope.
    */
   private async runAnalysis(scope: "workspace" | "currentFile"): Promise<void> {
@@ -137,6 +152,7 @@ export class ExplorerViewProvider implements vscode.WebviewViewProvider {
    */
   private async runWorkspaceAnalysis(): Promise<void> {
     if (this.analysisRunning) {
+      await this.postStatus("running", "Analysis already running");
       return;
     }
 
@@ -146,8 +162,11 @@ export class ExplorerViewProvider implements vscode.WebviewViewProvider {
     try {
       const result = await this.dependencies.analyzer.analyzeWorkspace();
       await this.dependencies.cacheStore.saveLatestGraph(result.graph);
-      await this.postStatus("complete", `Indexed ${result.graph.metadata.fileCount} files`);
       await this.publishGraph(result.graph);
+      await this.postStatus(
+        "complete",
+        `Indexed ${result.graph.metadata.fileCount} files, ${result.graph.nodes.length} nodes`
+      );
     } catch (error) {
       await this.postStatus("failed", "Analysis failed");
       await this.postMessage({
@@ -167,6 +186,7 @@ export class ExplorerViewProvider implements vscode.WebviewViewProvider {
    */
   private async runCurrentFileAnalysis(): Promise<void> {
     if (this.analysisRunning) {
+      await this.postStatus("running", "Analysis already running");
       return;
     }
 
@@ -192,8 +212,8 @@ export class ExplorerViewProvider implements vscode.WebviewViewProvider {
       });
 
       await this.dependencies.cacheStore.saveLatestGraph(result.graph);
-      await this.postStatus("complete", `Analyzed ${document.fileName}`);
       await this.publishGraph(result.graph);
+      await this.postStatus("complete", `Analyzed ${document.fileName}, ${result.graph.nodes.length} nodes`);
     } catch (error) {
       await this.postStatus("failed", "Current-file analysis failed");
       await this.postMessage({
@@ -325,7 +345,7 @@ export class ExplorerViewProvider implements vscode.WebviewViewProvider {
    * Posts a typed response to the Webview when it has been resolved.
    */
   private async postMessage(message: ExtensionResponse): Promise<void> {
-    if (!this.view) {
+    if (!this.view || (!this.webviewReady && message.type !== "ui/ready")) {
       return;
     }
 

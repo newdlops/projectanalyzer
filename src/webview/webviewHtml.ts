@@ -244,6 +244,14 @@ export function getExplorerHtml(options: WebviewHtmlOptions): string {
       line-height: 1.4;
       overflow-wrap: anywhere;
     }
+
+    .empty-state {
+      padding: 12px 8px;
+      color: var(--vscode-descriptionForeground);
+      border: 1px dashed var(--vscode-panel-border);
+      border-radius: 4px;
+      text-align: center;
+    }
   </style>
 </head>
 <body>
@@ -286,7 +294,8 @@ export function getExplorerHtml(options: WebviewHtmlOptions): string {
       graph: undefined,
       mode: ${JSON.stringify(options.initialMode)},
       query: "",
-      selectedNodeId: undefined
+      selectedNodeId: undefined,
+      analysisState: "idle"
     };
     const defaultDepth = ${JSON.stringify(options.defaultDepth)};
     const elements = {
@@ -310,23 +319,23 @@ export function getExplorerHtml(options: WebviewHtmlOptions): string {
     };
 
     elements.analyzeWorkspace.addEventListener("click", () => {
-      vscode.postMessage({ type: "analysis/run", payload: { scope: "workspace" } });
+      postRequest("analysis/run", { scope: "workspace" }, "Analyze workspace requested");
     });
 
     elements.analyzeCurrent.addEventListener("click", () => {
-      vscode.postMessage({ type: "analysis/run", payload: { scope: "currentFile" } });
+      postRequest("analysis/run", { scope: "currentFile" }, "Analyze current file requested");
     });
 
     elements.cancelAnalysis.addEventListener("click", () => {
-      vscode.postMessage({ type: "analysis/cancel", payload: {} });
+      postRequest("analysis/cancel", {}, "Cancel requested");
     });
 
     elements.exportJson.addEventListener("click", () => {
-      vscode.postMessage({ type: "export/run", payload: { format: "json" } });
+      postRequest("export/run", { format: "json" }, "Export requested");
     });
 
     elements.clearCache.addEventListener("click", () => {
-      vscode.postMessage({ type: "cache/clear", payload: {} });
+      postRequest("cache/clear", {}, "Clear requested");
     });
 
     elements.openSource.addEventListener("click", () => {
@@ -349,13 +358,18 @@ export function getExplorerHtml(options: WebviewHtmlOptions): string {
     for (const button of elements.modeButtons) {
       button.addEventListener("click", () => {
         state.mode = button.dataset.mode;
-        vscode.postMessage({ type: "graph/load", payload: { mode: state.mode, depth: defaultDepth } });
+        postRequest("graph/load", { mode: state.mode, depth: defaultDepth }, "Switching view");
         render();
       });
     }
 
     window.addEventListener("message", (event) => {
       const message = event.data;
+
+      if (message.type === "ui/ready") {
+        elements.status.textContent = "Connected";
+        return;
+      }
 
       if (message.type === "graph/loaded" || message.type === "graph/updated") {
         state.graph = message.payload;
@@ -365,13 +379,16 @@ export function getExplorerHtml(options: WebviewHtmlOptions): string {
       }
 
       if (message.type === "analysis/status") {
+        state.analysisState = message.payload.state;
         elements.status.textContent = message.payload.message;
+        renderActions();
         return;
       }
 
       if (message.type === "graph/cleared") {
         state.graph = undefined;
         state.selectedNodeId = undefined;
+        state.analysisState = "idle";
         render();
         return;
       }
@@ -383,11 +400,20 @@ export function getExplorerHtml(options: WebviewHtmlOptions): string {
       }
 
       if (message.type === "error") {
+        state.analysisState = "failed";
         elements.status.textContent = message.payload.message;
+        renderActions();
       }
     });
 
-    vscode.postMessage({ type: "graph/load", payload: { mode: state.mode, depth: defaultDepth } });
+    render();
+    postRequest("ui/ready", {}, "Connecting");
+    postRequest("graph/load", { mode: state.mode, depth: defaultDepth }, "Loading graph");
+
+    function postRequest(type, payload, statusText) {
+      elements.status.textContent = statusText;
+      vscode.postMessage({ type, payload });
+    }
 
     function render() {
       renderModeButtons();
@@ -412,8 +438,17 @@ export function getExplorerHtml(options: WebviewHtmlOptions): string {
 
     function renderList() {
       elements.list.replaceChildren();
+      const visibleNodes = getVisibleNodes();
 
-      for (const node of getVisibleNodes()) {
+      if (visibleNodes.length === 0) {
+        const empty = document.createElement("div");
+        empty.className = "empty-state";
+        empty.textContent = state.graph ? "No nodes in this view" : "Analyze a workspace to load nodes";
+        elements.list.append(empty);
+        return;
+      }
+
+      for (const node of visibleNodes) {
         const row = document.createElement("button");
         const name = document.createElement("span");
         const meta = document.createElement("span");
@@ -456,10 +491,15 @@ export function getExplorerHtml(options: WebviewHtmlOptions): string {
 
     function renderActions() {
       const hasSelection = Boolean(state.selectedNodeId);
+      const analysisRunning = state.analysisState === "running";
+      elements.analyzeWorkspace.disabled = analysisRunning;
+      elements.analyzeCurrent.disabled = analysisRunning;
+      elements.cancelAnalysis.disabled = !analysisRunning;
       elements.openSource.disabled = !hasSelection;
       elements.showCallers.disabled = !hasSelection;
       elements.showCallees.disabled = !hasSelection;
-      elements.exportJson.disabled = !state.graph;
+      elements.exportJson.disabled = !state.graph || analysisRunning;
+      elements.clearCache.disabled = analysisRunning;
     }
 
     function postSelectedNode(type) {
@@ -467,7 +507,7 @@ export function getExplorerHtml(options: WebviewHtmlOptions): string {
         return;
       }
 
-      vscode.postMessage({ type, payload: { nodeId: state.selectedNodeId } });
+      postRequest(type, { nodeId: state.selectedNodeId }, "Opening source");
     }
 
     function postSelectedRelationship(direction) {
@@ -475,13 +515,10 @@ export function getExplorerHtml(options: WebviewHtmlOptions): string {
         return;
       }
 
-      vscode.postMessage({
-        type: "node/showRelationship",
-        payload: {
-          nodeId: state.selectedNodeId,
-          direction
-        }
-      });
+      postRequest("node/showRelationship", {
+        nodeId: state.selectedNodeId,
+        direction
+      }, direction === "callers" ? "Loading callers" : "Loading callees");
     }
 
     function getVisibleNodes() {
