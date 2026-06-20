@@ -27,12 +27,6 @@ pub(super) struct CallCandidate {
     pub(super) expression: CallExpression,
 }
 
-/// State carried while masking comments across line boundaries.
-#[derive(Default)]
-pub(super) struct LineMaskState {
-    in_block_comment: bool,
-}
-
 /// Resolved target node and confidence for a call edge.
 struct ResolvedCallTarget {
     target_id: String,
@@ -186,73 +180,6 @@ pub(super) fn collect_call_expressions(
     }
 
     calls
-}
-
-/// Masks comments and string contents while preserving byte offsets.
-pub(super) fn mask_non_code(line: &str, state: &mut LineMaskState) -> String {
-    let mut output = String::with_capacity(line.len());
-    let mut chars = line.chars().peekable();
-    let mut string_delimiter: Option<char> = None;
-    let mut escaped = false;
-
-    while let Some(character) = chars.next() {
-        if state.in_block_comment {
-            push_masked_character(&mut output, character);
-
-            if character == '*' && chars.peek() == Some(&'/') {
-                let slash = chars.next().unwrap_or('/');
-                push_masked_character(&mut output, slash);
-                state.in_block_comment = false;
-            }
-
-            continue;
-        }
-
-        if let Some(delimiter) = string_delimiter {
-            push_masked_character(&mut output, character);
-
-            if escaped {
-                escaped = false;
-            } else if character == '\\' {
-                escaped = true;
-            } else if character == delimiter {
-                string_delimiter = None;
-            }
-
-            continue;
-        }
-
-        if character == '/' && chars.peek() == Some(&'/') {
-            push_masked_character(&mut output, character);
-            let slash = chars.next().unwrap_or('/');
-            push_masked_character(&mut output, slash);
-
-            for trailing in chars {
-                push_masked_character(&mut output, trailing);
-            }
-
-            break;
-        }
-
-        if character == '/' && chars.peek() == Some(&'*') {
-            push_masked_character(&mut output, character);
-            let star = chars.next().unwrap_or('*');
-            push_masked_character(&mut output, star);
-            state.in_block_comment = true;
-            continue;
-        }
-
-        if matches!(character, '"' | '\'' | '`') {
-            push_masked_character(&mut output, character);
-            string_delimiter = Some(character);
-            escaped = false;
-            continue;
-        }
-
-        output.push(character);
-    }
-
-    output
 }
 
 /// Resolves a call to a same-file callable when the line-based evidence is safe.
@@ -489,11 +416,4 @@ fn is_skipped_call_name(name: &str) -> bool {
         name,
         "if" | "for" | "while" | "switch" | "catch" | "function" | "class"
     )
-}
-
-/// Appends spaces matching the UTF-8 width of a masked character.
-fn push_masked_character(output: &mut String, character: char) {
-    for _ in 0..character.len_utf8() {
-        output.push(' ');
-    }
 }

@@ -5,14 +5,16 @@
 //! changing the graph builder contract.
 
 mod calls;
+mod frontend;
+mod syntax;
 
 use crate::graph::{NewSymbol, ProjectGraphBuilder};
 use crate::model::{SourceInput, SourceRange};
 use calls::{
     add_call_edges, collect_call_expressions, current_call_source, declaration_body_depth,
-    declaration_call_scan_start, is_callable_kind, mask_non_code, CallCandidate, CallSource,
-    LineMaskState,
+    declaration_call_scan_start, is_callable_kind, CallCandidate, CallSource,
 };
+use syntax::SyntaxScanner;
 
 /// Scope entry used to associate declarations and calls with surrounding symbols.
 #[derive(Clone)]
@@ -41,14 +43,14 @@ pub fn extract_symbols(
     let mut scopes: Vec<ScopeEntry> = Vec::new();
     let mut symbols: Vec<SymbolRecord> = Vec::new();
     let mut calls: Vec<CallCandidate> = Vec::new();
-    let mut mask_state = LineMaskState::default();
-    let mut brace_depth = 0isize;
+    let mut syntax_scanner = SyntaxScanner::default();
 
     for (line_index, line) in file.content.lines().enumerate() {
-        let code_line = mask_non_code(line, &mut mask_state);
-        close_finished_scopes(&mut scopes, brace_depth);
-        let trimmed = code_line.trim_start();
-        let start_character = code_line.len().saturating_sub(trimmed.len());
+        let syntax_line = syntax_scanner.scan_line(line_index, line);
+        close_finished_scopes(&mut scopes, syntax_line.start_brace_depth());
+        let code_line = syntax_line.code();
+        let trimmed = syntax_line.trimmed_code();
+        let start_character = syntax_line.trimmed_start_character();
         let mut call_scan_start = 0usize;
         let mut line_call_source: Option<CallSource> = None;
 
@@ -80,9 +82,11 @@ pub fn extract_symbols(
                 qualified_name,
             });
 
-            call_scan_start = declaration_call_scan_start(&code_line, &kind);
+            call_scan_start = declaration_call_scan_start(code_line, &kind);
 
-            if let Some(body_depth) = declaration_body_depth(&code_line, brace_depth, &kind) {
+            if let Some(body_depth) =
+                declaration_body_depth(code_line, syntax_line.start_brace_depth(), &kind)
+            {
                 scopes.push(ScopeEntry {
                     id: id.clone(),
                     name,
@@ -103,7 +107,7 @@ pub fn extract_symbols(
         }
 
         if let Some(source) = line_call_source.or_else(|| current_call_source(&scopes)) {
-            for expression in collect_call_expressions(line_index, &code_line, call_scan_start) {
+            for expression in collect_call_expressions(line_index, code_line, call_scan_start) {
                 calls.push(CallCandidate {
                     source_id: source.id.clone(),
                     source_scope_names: source.scope_names.clone(),
@@ -111,8 +115,6 @@ pub fn extract_symbols(
                 });
             }
         }
-
-        brace_depth += count_braces(&code_line);
     }
 
     add_call_edges(builder, file, &symbols, calls);
@@ -277,21 +279,6 @@ fn read_identifier(value: &str) -> Option<String> {
     } else {
         Some(identifier)
     }
-}
-
-/// Counts brace depth changes on a line.
-fn count_braces(line: &str) -> isize {
-    let mut depth = 0isize;
-
-    for character in line.chars() {
-        if character == '{' {
-            depth += 1;
-        } else if character == '}' {
-            depth -= 1;
-        }
-    }
-
-    depth
 }
 
 /// Returns the full declaration line range.

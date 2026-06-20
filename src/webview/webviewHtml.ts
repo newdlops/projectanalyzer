@@ -1,9 +1,10 @@
 /**
- * Webview HTML factory for the Project Analyzer GUI. The current implementation
- * is a dependency-free sidebar shell that can render real graph payloads.
+ * Webview HTML factory for the Project Analyzer GUI. It owns document assembly
+ * while browser-side behavior lives in explorerClientScript.ts.
  */
 
 import * as vscode from "vscode";
+import { getExplorerClientScript } from "./explorerClientScript";
 
 /** Data required to construct the explorer Webview HTML. */
 export type WebviewHtmlOptions = {
@@ -20,6 +21,10 @@ export type WebviewHtmlOptions = {
  */
 export function getExplorerHtml(options: WebviewHtmlOptions): string {
   const cspSource = options.webview.cspSource;
+  const clientScript = getExplorerClientScript({
+    defaultDepth: options.defaultDepth,
+    initialMode: options.initialMode
+  });
 
   return /* html */ `<!DOCTYPE html>
 <html lang="en">
@@ -28,7 +33,55 @@ export function getExplorerHtml(options: WebviewHtmlOptions): string {
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${cspSource} 'unsafe-inline'; script-src 'nonce-${options.nonce}';">
   <title>Project Analyzer</title>
-  <style>
+  <style>${getExplorerStyles()}</style>
+</head>
+<body>
+  <div class="shell">
+    <div class="toolbar">
+      <button id="analyze-workspace" class="primary-button" type="button">Analyze Workspace</button>
+    </div>
+    <div class="button-grid">
+      <button id="analyze-current" class="secondary-button" type="button">Current File</button>
+      <button id="cancel-analysis" class="secondary-button" type="button">Cancel</button>
+      <button id="export-json" class="secondary-button" type="button">Export JSON</button>
+      <button id="clear-cache" class="secondary-button" type="button">Clear</button>
+    </div>
+    <div class="mode-switch" role="tablist">
+      <button class="mode-button active" type="button" data-mode="file">Files</button>
+      <button class="mode-button" type="button" data-mode="call">Calls</button>
+      <button class="mode-button" type="button" data-mode="class">Classes</button>
+    </div>
+    <input id="search" class="search" type="search" placeholder="Search" aria-label="Search">
+    <div id="status" class="status">Ready</div>
+    <div class="stats" aria-label="Graph summary">
+      <div class="stat"><span id="files" class="stat-value">0</span><span class="stat-label">Files</span></div>
+      <div class="stat"><span id="symbols" class="stat-value">0</span><span class="stat-label">Nodes</span></div>
+      <div class="stat"><span id="edges" class="stat-value">0</span><span class="stat-label">Edges</span></div>
+    </div>
+    <div class="graph-panel" aria-label="Graph canvas">
+      <svg id="graph-canvas" class="graph-canvas" viewBox="0 0 320 220" role="img"></svg>
+    </div>
+    <div id="list" class="list" aria-label="Graph nodes"></div>
+    <section class="detail" aria-label="Selected node">
+      <div id="detail-title" class="detail-title">No selection</div>
+      <div id="detail-meta" class="detail-meta"></div>
+      <div class="action-grid">
+        <button id="open-source" class="action-button" type="button" disabled>Open</button>
+        <button id="show-callers" class="action-button" type="button" disabled>Callers</button>
+        <button id="show-callees" class="action-button" type="button" disabled>Callees</button>
+      </div>
+    </section>
+  </div>
+  <script nonce="${options.nonce}">${clientScript}</script>
+</body>
+</html>`;
+}
+
+/**
+ * Returns theme-aware CSS for the sidebar explorer shell and graph canvas.
+ */
+function getExplorerStyles(): string {
+  return /* css */ `
     :root {
       color-scheme: light dark;
     }
@@ -161,6 +214,77 @@ export function getExplorerHtml(options: WebviewHtmlOptions): string {
       grid-template-columns: repeat(3, minmax(0, 1fr));
     }
 
+    .graph-panel {
+      min-height: 220px;
+      border: 1px solid var(--vscode-panel-border);
+      border-radius: 4px;
+      background: var(--vscode-editor-background);
+      overflow: hidden;
+    }
+
+    .graph-canvas {
+      display: block;
+      width: 100%;
+      height: 220px;
+    }
+
+    .graph-edge {
+      stroke: var(--vscode-descriptionForeground);
+      stroke-width: 1.2;
+      opacity: 0.55;
+    }
+
+    .graph-edge.unresolved {
+      stroke-dasharray: 4 3;
+      opacity: 0.45;
+    }
+
+    .graph-edge.selected {
+      stroke: var(--vscode-charts-green);
+      stroke-width: 1.8;
+      opacity: 0.85;
+    }
+
+    .graph-edge.dimmed,
+    .graph-node.dimmed {
+      opacity: 0.32;
+    }
+
+    .graph-node {
+      cursor: pointer;
+      outline: none;
+    }
+
+    .graph-node circle {
+      fill: var(--vscode-sideBar-background);
+      stroke: var(--vscode-charts-blue);
+      stroke-width: 1.5;
+    }
+
+    .graph-node.selected circle,
+    .graph-node:focus circle {
+      fill: var(--vscode-button-background);
+      stroke: var(--vscode-button-foreground);
+      stroke-width: 2;
+    }
+
+    .graph-node.external circle {
+      stroke: var(--vscode-charts-yellow);
+    }
+
+    .graph-label {
+      fill: var(--vscode-foreground);
+      font-size: 10px;
+      pointer-events: none;
+      text-anchor: middle;
+    }
+
+    .graph-message {
+      fill: var(--vscode-descriptionForeground);
+      font-size: 11px;
+      text-anchor: middle;
+    }
+
     .stat {
       min-width: 0;
       padding: 6px;
@@ -252,313 +376,5 @@ export function getExplorerHtml(options: WebviewHtmlOptions): string {
       border-radius: 4px;
       text-align: center;
     }
-  </style>
-</head>
-<body>
-  <div class="shell">
-    <div class="toolbar">
-      <button id="analyze-workspace" class="primary-button" type="button">Analyze Workspace</button>
-    </div>
-    <div class="button-grid">
-      <button id="analyze-current" class="secondary-button" type="button">Current File</button>
-      <button id="cancel-analysis" class="secondary-button" type="button">Cancel</button>
-      <button id="export-json" class="secondary-button" type="button">Export JSON</button>
-      <button id="clear-cache" class="secondary-button" type="button">Clear</button>
-    </div>
-    <div class="mode-switch" role="tablist">
-      <button class="mode-button active" type="button" data-mode="file">Files</button>
-      <button class="mode-button" type="button" data-mode="call">Calls</button>
-      <button class="mode-button" type="button" data-mode="class">Classes</button>
-    </div>
-    <input id="search" class="search" type="search" placeholder="Search" aria-label="Search">
-    <div id="status" class="status">Ready</div>
-    <div class="stats" aria-label="Graph summary">
-      <div class="stat"><span id="files" class="stat-value">0</span><span class="stat-label">Files</span></div>
-      <div class="stat"><span id="symbols" class="stat-value">0</span><span class="stat-label">Nodes</span></div>
-      <div class="stat"><span id="edges" class="stat-value">0</span><span class="stat-label">Edges</span></div>
-    </div>
-    <div id="list" class="list" aria-label="Graph nodes"></div>
-    <section class="detail" aria-label="Selected node">
-      <div id="detail-title" class="detail-title">No selection</div>
-      <div id="detail-meta" class="detail-meta"></div>
-      <div class="action-grid">
-        <button id="open-source" class="action-button" type="button" disabled>Open</button>
-        <button id="show-callers" class="action-button" type="button" disabled>Callers</button>
-        <button id="show-callees" class="action-button" type="button" disabled>Callees</button>
-      </div>
-    </section>
-  </div>
-  <script nonce="${options.nonce}">
-    const vscode = acquireVsCodeApi();
-    const state = {
-      graph: undefined,
-      mode: ${JSON.stringify(options.initialMode)},
-      query: "",
-      selectedNodeId: undefined,
-      analysisState: "idle"
-    };
-    const defaultDepth = ${JSON.stringify(options.defaultDepth)};
-    const elements = {
-      analyzeWorkspace: document.getElementById("analyze-workspace"),
-      analyzeCurrent: document.getElementById("analyze-current"),
-      cancelAnalysis: document.getElementById("cancel-analysis"),
-      exportJson: document.getElementById("export-json"),
-      clearCache: document.getElementById("clear-cache"),
-      openSource: document.getElementById("open-source"),
-      showCallers: document.getElementById("show-callers"),
-      showCallees: document.getElementById("show-callees"),
-      search: document.getElementById("search"),
-      status: document.getElementById("status"),
-      files: document.getElementById("files"),
-      symbols: document.getElementById("symbols"),
-      edges: document.getElementById("edges"),
-      list: document.getElementById("list"),
-      detailTitle: document.getElementById("detail-title"),
-      detailMeta: document.getElementById("detail-meta"),
-      modeButtons: Array.from(document.querySelectorAll(".mode-button"))
-    };
-
-    elements.analyzeWorkspace.addEventListener("click", () => {
-      postRequest("analysis/run", { scope: "workspace" }, "Analyze workspace requested");
-    });
-
-    elements.analyzeCurrent.addEventListener("click", () => {
-      postRequest("analysis/run", { scope: "currentFile" }, "Analyze current file requested");
-    });
-
-    elements.cancelAnalysis.addEventListener("click", () => {
-      postRequest("analysis/cancel", {}, "Cancel requested");
-    });
-
-    elements.exportJson.addEventListener("click", () => {
-      postRequest("export/run", { format: "json" }, "Export requested");
-    });
-
-    elements.clearCache.addEventListener("click", () => {
-      postRequest("cache/clear", {}, "Clear requested");
-    });
-
-    elements.openSource.addEventListener("click", () => {
-      postSelectedNode("node/openSource");
-    });
-
-    elements.showCallers.addEventListener("click", () => {
-      postSelectedRelationship("callers");
-    });
-
-    elements.showCallees.addEventListener("click", () => {
-      postSelectedRelationship("callees");
-    });
-
-    elements.search.addEventListener("input", (event) => {
-      state.query = event.target.value.toLowerCase();
-      render();
-    });
-
-    for (const button of elements.modeButtons) {
-      button.addEventListener("click", () => {
-        state.mode = button.dataset.mode;
-        postRequest("graph/load", { mode: state.mode, depth: defaultDepth }, "Switching view");
-        render();
-      });
-    }
-
-    window.addEventListener("message", (event) => {
-      const message = event.data;
-
-      if (message.type === "ui/ready") {
-        elements.status.textContent = "Connected";
-        return;
-      }
-
-      if (message.type === "graph/loaded" || message.type === "graph/updated") {
-        state.graph = message.payload;
-        elements.status.textContent = "Loaded";
-        render();
-        return;
-      }
-
-      if (message.type === "analysis/status") {
-        state.analysisState = message.payload.state;
-        elements.status.textContent = message.payload.message;
-        renderActions();
-        return;
-      }
-
-      if (message.type === "graph/cleared") {
-        state.graph = undefined;
-        state.selectedNodeId = undefined;
-        state.analysisState = "idle";
-        render();
-        return;
-      }
-
-      if (message.type === "view/modeChanged") {
-        state.mode = message.payload.mode;
-        render();
-        return;
-      }
-
-      if (message.type === "error") {
-        state.analysisState = "failed";
-        elements.status.textContent = message.payload.message;
-        renderActions();
-      }
-    });
-
-    render();
-    postRequest("ui/ready", {}, "Connecting");
-    postRequest("graph/load", { mode: state.mode, depth: defaultDepth }, "Loading graph");
-
-    function postRequest(type, payload, statusText) {
-      elements.status.textContent = statusText;
-      vscode.postMessage({ type, payload });
-    }
-
-    function render() {
-      renderModeButtons();
-      renderStats();
-      renderList();
-      renderDetail();
-      renderActions();
-    }
-
-    function renderModeButtons() {
-      for (const button of elements.modeButtons) {
-        button.classList.toggle("active", button.dataset.mode === state.mode);
-      }
-    }
-
-    function renderStats() {
-      const graph = state.graph;
-      elements.files.textContent = graph ? String(graph.metadata.fileCount) : "0";
-      elements.symbols.textContent = graph ? String(graph.metadata.symbolCount) : "0";
-      elements.edges.textContent = graph ? String(graph.metadata.edgeCount) : "0";
-    }
-
-    function renderList() {
-      elements.list.replaceChildren();
-      const visibleNodes = getVisibleNodes();
-
-      if (visibleNodes.length === 0) {
-        const empty = document.createElement("div");
-        empty.className = "empty-state";
-        empty.textContent = state.graph ? "No nodes in this view" : "Analyze a workspace to load nodes";
-        elements.list.append(empty);
-        return;
-      }
-
-      for (const node of visibleNodes) {
-        const row = document.createElement("button");
-        const name = document.createElement("span");
-        const meta = document.createElement("span");
-
-        row.type = "button";
-        row.className = "node-row";
-        row.classList.toggle("selected", node.id === state.selectedNodeId);
-        name.className = "node-name";
-        meta.className = "node-meta";
-        name.textContent = node.name || node.qualifiedName;
-        meta.textContent = node.kind + " · " + compactPath(node.filePath);
-
-        row.append(name, meta);
-        row.addEventListener("click", () => {
-          state.selectedNodeId = node.id;
-          render();
-        });
-        row.addEventListener("dblclick", () => {
-          vscode.postMessage({ type: "node/openSource", payload: { nodeId: node.id } });
-        });
-
-        elements.list.append(row);
-      }
-    }
-
-    function renderDetail() {
-      const node = state.graph?.nodes.find((candidate) => candidate.id === state.selectedNodeId);
-
-      if (!node) {
-        elements.detailTitle.textContent = "No selection";
-        elements.detailMeta.textContent = "";
-        return;
-      }
-
-      elements.detailTitle.textContent = node.qualifiedName;
-      elements.detailMeta.textContent =
-        node.kind + " · " + node.language + " · " + compactPath(node.filePath) +
-        " · " + (node.selectionRange.startLine + 1) + ":" + (node.selectionRange.startCharacter + 1);
-    }
-
-    function renderActions() {
-      const hasSelection = Boolean(state.selectedNodeId);
-      const analysisRunning = state.analysisState === "running";
-      elements.analyzeWorkspace.disabled = analysisRunning;
-      elements.analyzeCurrent.disabled = analysisRunning;
-      elements.cancelAnalysis.disabled = !analysisRunning;
-      elements.openSource.disabled = !hasSelection;
-      elements.showCallers.disabled = !hasSelection;
-      elements.showCallees.disabled = !hasSelection;
-      elements.exportJson.disabled = !state.graph || analysisRunning;
-      elements.clearCache.disabled = analysisRunning;
-    }
-
-    function postSelectedNode(type) {
-      if (!state.selectedNodeId) {
-        return;
-      }
-
-      postRequest(type, { nodeId: state.selectedNodeId }, "Opening source");
-    }
-
-    function postSelectedRelationship(direction) {
-      if (!state.selectedNodeId) {
-        return;
-      }
-
-      postRequest("node/showRelationship", {
-        nodeId: state.selectedNodeId,
-        direction
-      }, direction === "callers" ? "Loading callers" : "Loading callees");
-    }
-
-    function getVisibleNodes() {
-      const graph = state.graph;
-
-      if (!graph) {
-        return [];
-      }
-
-      return graph.nodes
-        .filter((node) => isNodeInMode(node))
-        .filter((node) => {
-          if (!state.query) {
-            return true;
-          }
-
-          return [node.name, node.qualifiedName, node.filePath, node.kind]
-            .filter(Boolean)
-            .some((value) => value.toLowerCase().includes(state.query));
-        })
-        .slice(0, 200);
-    }
-
-    function isNodeInMode(node) {
-      if (state.mode === "file") {
-        return node.kind === "file" || node.kind === "folder";
-      }
-
-      if (state.mode === "class") {
-        return node.kind === "class" || node.kind === "interface" || node.kind === "enum";
-      }
-
-      return node.kind === "function" || node.kind === "method" || node.kind === "constructor";
-    }
-
-    function compactPath(filePath) {
-      const parts = filePath.split(/[\\\\/]/);
-      return parts.slice(Math.max(0, parts.length - 3)).join("/");
-    }
-  </script>
-</body>
-</html>`;
+  `;
 }
