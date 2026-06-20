@@ -27,3 +27,8 @@ pub fn analyze_source_file(
         }
     }
 }
+
+/// Adds workspace-level edges that require the full source file set.
+pub fn analyze_workspace_edges(builder: &mut ProjectGraphBuilder, files: &[SourceInput]) {
+    javascript_like::add_import_edges(builder, files);
+}

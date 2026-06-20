@@ -47,6 +47,14 @@ export type GraphFocusNodeRequest = {
   nodeId: string;
 };
 
+/** Browser-side diagnostic log emitted by Webview scripts. */
+export type WebviewLogRequest = {
+  fields?: Record<string, unknown>;
+  level: "debug" | "info" | "warn" | "error";
+  message: string;
+  source: "graphPanel" | "sidebar";
+};
+
 /** Messages sent from Webview to Extension Host. */
 export type WebviewRequest =
   | { type: "ui/ready"; payload: Record<string, never> }
@@ -60,7 +68,8 @@ export type WebviewRequest =
   | { type: "node/openSource"; payload: { nodeId: string } }
   | { type: "node/showRelationship"; payload: NodeRelationshipRequest }
   | { type: "search/query"; payload: SearchRequest }
-  | { type: "export/run"; payload: ExportRequest };
+  | { type: "export/run"; payload: ExportRequest }
+  | { type: "telemetry/log"; payload: WebviewLogRequest };
 
 /** Search result returned to the Webview. */
 export type SearchResult = {

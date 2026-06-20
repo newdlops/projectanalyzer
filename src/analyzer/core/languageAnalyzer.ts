@@ -13,6 +13,7 @@ export type ParsedFile = {
 
 /** Context shared with language analyzers during edge extraction. */
 export type AnalysisContext = {
+  sourceFiles: readonly SourceFile[];
   workspaceRoot: string;
 };
 

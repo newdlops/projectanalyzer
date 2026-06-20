@@ -12,6 +12,16 @@ import {
   shouldUseLayeredSelection
 } from "./explorerGraphOrdering";
 import { getExplorerCanvasRendererSource } from "./explorerCanvasRenderer";
+import {
+  compareFileNodes,
+  createProgressiveGraphIndex,
+  getFileNodes,
+  getGraphRelativePath,
+  getImportedFileChildren,
+  getImportRootChildren,
+  pushProgressiveChild,
+  sortProgressiveChildMap
+} from "./explorerProgressiveFileGraph";
 
 /** Data injected into the browser-side explorer script. */
 export type ExplorerClientScriptOptions = {
@@ -39,16 +49,28 @@ export function getExplorerClientScript(options: ExplorerClientScriptOptions): s
     `const getSeparationSign = ${getSeparationSign.toString()};`,
     `const moveToward = ${moveToward.toString()};`
   ].join("\n");
+  const progressiveFileGraphSource = [
+    `const getGraphRelativePath = ${getGraphRelativePath.toString()};`,
+    `const compareFileNodes = ${compareFileNodes.toString()};`,
+    `const getFileNodes = ${getFileNodes.toString()};`,
+    `const pushProgressiveChild = ${pushProgressiveChild.toString()};`,
+    `const sortProgressiveChildMap = ${sortProgressiveChildMap.toString()};`,
+    `const createProgressiveGraphIndex = ${createProgressiveGraphIndex.toString()};`,
+    `const getImportRootChildren = ${getImportRootChildren.toString()};`,
+    `const getImportedFileChildren = ${getImportedFileChildren.toString()};`
+  ].join("\n");
 
   return /* js */ `
     ${graphGeometrySource}
     ${graphOrderingSource}
+    ${progressiveFileGraphSource}
     const createGraphScene = ${createGraphSceneSource};
     ${canvasRendererSource}
     const vscode = acquireVsCodeApi();
     const virtualRootId = "virtual::workspace-root";
     const state = {
       graph: undefined,
+      graphIndex: undefined,
       mode: ${JSON.stringify(options.initialMode)},
       selectedNodeId: virtualRootId,
       analysisState: "idle",
@@ -78,6 +100,7 @@ export function getExplorerClientScript(options: ExplorerClientScriptOptions): s
       height: canvasHeight,
       width: canvasWidth
     });
+    logWebview("info", "init", { mode: state.mode });
 
     for (const button of elements.modeButtons) {
       button.addEventListener("click", () => {
@@ -124,6 +147,12 @@ export function getExplorerClientScript(options: ExplorerClientScriptOptions): s
 
       if (message.type === "graph/loaded" || message.type === "graph/updated") {
         state.graph = message.payload;
+        logWebview("info", "graph.received", summarizeGraph(message.payload));
+        state.graphIndex = createProgressiveGraphIndex(state.graph);
+        logWebview("info", "graph.indexed", {
+          fileImportEdges: state.graphIndex.fileImportEdges.length,
+          fileNodes: state.graphIndex.fileNodes.length
+        });
         resetGraphFocus();
         resetViewport();
         elements.status.textContent = "Loaded";
@@ -144,6 +173,7 @@ export function getExplorerClientScript(options: ExplorerClientScriptOptions): s
 
       if (message.type === "graph/cleared") {
         state.graph = undefined;
+        state.graphIndex = undefined;
         resetGraphFocus();
         resetViewport();
         state.analysisState = "idle";
@@ -165,7 +195,6 @@ export function getExplorerClientScript(options: ExplorerClientScriptOptions): s
 
     render();
     postRequest("ui/ready", {}, "Connecting");
-    postRequest("graph/load", { mode: state.mode, depth: defaultDepth }, "Loading graph");
 
     function postRequest(type, payload, statusText) {
       elements.status.textContent = statusText;
@@ -184,6 +213,19 @@ export function getExplorerClientScript(options: ExplorerClientScriptOptions): s
     }
 
     function renderGraphCanvas() {
+      try {
+        renderGraphCanvasUnsafe();
+      } catch (error) {
+        reportGraphRenderError(error);
+      }
+    }
+
+    function renderGraphCanvasUnsafe() {
+      logWebview("debug", "render.start", {
+        hasGraph: Boolean(state.graph),
+        mode: state.mode
+      });
+
       if (!state.graph) {
         graphRenderer.clearWithMessage("Analyze to render graph");
         return;
@@ -198,6 +240,11 @@ export function getExplorerClientScript(options: ExplorerClientScriptOptions): s
         width: canvasWidth,
         height: canvasHeight
       });
+      logWebview("debug", "scene.created", {
+        edges: scene.edges.length,
+        nodes: scene.nodes.length,
+        omitted: scene.omittedNodeCount
+      });
 
       if (scene.nodes.length === 0) {
         graphRenderer.clearWithMessage("No graph nodes in this view");
@@ -205,6 +252,15 @@ export function getExplorerClientScript(options: ExplorerClientScriptOptions): s
       }
 
       graphRenderer.setScene(scene);
+      logWebview("debug", "render.queued", graphRenderer.getSceneBounds() || {});
+    }
+
+    function reportGraphRenderError(error) {
+      const message = error instanceof Error ? error.message : "Unknown graph render failure";
+      elements.status.textContent = "Render failed: " + message;
+      graphRenderer.clearWithMessage("Render failed");
+      logWebview("error", "render.failed", { message });
+      console.error(error);
     }
 
     function selectAndToggleNode(nodeId) {
@@ -439,7 +495,7 @@ export function getExplorerClientScript(options: ExplorerClientScriptOptions): s
       const edgesById = new Map();
       const visitedNodeIds = new Set();
 
-      appendProgressiveBranch(graph, virtualRootId, nodesById, edgesById, visitedNodeIds);
+      appendProgressiveBranch(graph, virtualRootId, nodesById, edgesById, visitedNodeIds, maxNodes);
 
       if (state.selectedNodeId && state.selectedNodeId !== virtualRootId) {
         const selectedNode = resolveProgressiveNode(graph, state.selectedNodeId);
@@ -448,6 +504,12 @@ export function getExplorerClientScript(options: ExplorerClientScriptOptions): s
           addNode(nodesById, selectedNode);
         }
       }
+
+      logWebview("debug", "progressive.created", {
+        edges: edgesById.size,
+        expanded: state.expandedGraphNodeIds.size,
+        nodes: nodesById.size
+      });
 
       return {
         ...graph,
@@ -461,7 +523,7 @@ export function getExplorerClientScript(options: ExplorerClientScriptOptions): s
       };
     }
 
-    function appendProgressiveBranch(graph, nodeId, nodesById, edgesById, visitedNodeIds) {
+    function appendProgressiveBranch(graph, nodeId, nodesById, edgesById, visitedNodeIds, nodeLimit) {
       if (visitedNodeIds.has(nodeId)) {
         return;
       }
@@ -469,6 +531,10 @@ export function getExplorerClientScript(options: ExplorerClientScriptOptions): s
       const parentNode = resolveProgressiveNode(graph, nodeId);
 
       if (!parentNode) {
+        return;
+      }
+
+      if (!nodesById.has(parentNode.id) && nodesById.size >= nodeLimit && parentNode.id !== virtualRootId) {
         return;
       }
 
@@ -480,9 +546,13 @@ export function getExplorerClientScript(options: ExplorerClientScriptOptions): s
       }
 
       for (const child of getProgressiveChildren(graph, nodeId)) {
+        if (!nodesById.has(child.node.id) && nodesById.size >= nodeLimit) {
+          break;
+        }
+
         addNode(nodesById, child.node);
         addEdge(edgesById, createProgressiveEdge(parentNode.id, child.node.id, child.edgeKind));
-        appendProgressiveBranch(graph, child.node.id, nodesById, edgesById, visitedNodeIds);
+        appendProgressiveBranch(graph, child.node.id, nodesById, edgesById, visitedNodeIds, nodeLimit);
       }
     }
 
@@ -492,42 +562,38 @@ export function getExplorerClientScript(options: ExplorerClientScriptOptions): s
       }
 
       if (nodeId === virtualRootId) {
-        return getPathChildren(graph, "");
+        return state.mode === "file" ? getImportRootChildren(graph, state.graphIndex) : getPathChildren(graph, "");
       }
 
-      if (nodeId.startsWith("virtual::path::")) {
+      if (state.mode !== "file" && nodeId.startsWith("virtual::path::")) {
         return getPathChildren(graph, nodeId.slice("virtual::path::".length));
       }
 
-      const node = graph.nodes.find((candidate) => candidate.id === nodeId);
+      const node = state.graphIndex?.nodesById.get(nodeId);
 
       if (!node) {
         return [];
       }
 
       if (node.kind === "file") {
-        return graph.edges
-          .filter((edge) => edge.kind === "contains" && edge.sourceId === node.id)
-          .map((edge) => graph.nodes.find((candidate) => candidate.id === edge.targetId))
-          .filter(Boolean)
-          .filter((candidate) => isSymbolVisibleInMode(candidate))
-          .map((candidate) => ({ node: candidate, edgeKind: "contains" }));
+        if (state.mode === "file") {
+          return getImportedFileChildren(graph, node.id, state.graphIndex);
+        }
+
+        return (state.graphIndex?.containsChildrenBySourceId.get(node.id) ?? [])
+          .filter((child) => isSymbolVisibleInMode(child.node));
       }
 
-      return graph.edges
-        .filter((edge) => isExpandableEdge(edge) && edge.sourceId === node.id)
-        .map((edge) => graph.nodes.find((candidate) => candidate.id === edge.targetId))
-        .filter(Boolean)
-        .filter((candidate) => candidate.id !== node.id)
-        .map((candidate) => ({ node: candidate, edgeKind: "calls" }));
+      return (state.graphIndex?.edgesBySourceId.get(node.id) ?? [])
+        .filter((child) => isExpandableEdgeKind(child.edgeKind) && child.node.id !== node.id);
     }
 
     function getPathChildren(graph, prefix) {
-      const fileNodes = graph.nodes.filter((node) => node.kind === "file");
+      const fileNodes = state.graphIndex?.fileNodes ?? [];
       const children = new Map();
 
       for (const fileNode of fileNodes) {
-        const relativePath = getRelativePath(graph, fileNode.filePath);
+        const relativePath = getGraphRelativePath(graph, fileNode.filePath);
 
         if (prefix && !relativePath.startsWith(prefix + "/")) {
           continue;
@@ -568,7 +634,7 @@ export function getExplorerClientScript(options: ExplorerClientScriptOptions): s
     }
 
     function revealPathToNode(nodeId) {
-      const node = state.graph.nodes.find((candidate) => candidate.id === nodeId);
+      const node = state.graphIndex?.nodesById.get(nodeId);
 
       if (!node) {
         return;
@@ -576,7 +642,7 @@ export function getExplorerClientScript(options: ExplorerClientScriptOptions): s
 
       state.expandedGraphNodeIds.add(virtualRootId);
 
-      const relativePath = getRelativePath(state.graph, node.filePath);
+      const relativePath = getGraphRelativePath(state.graph, node.filePath);
       const parts = relativePath.split("/").filter(Boolean);
       let currentPath = "";
 
@@ -585,9 +651,7 @@ export function getExplorerClientScript(options: ExplorerClientScriptOptions): s
         state.expandedGraphNodeIds.add("virtual::path::" + currentPath);
       }
 
-      const fileNode = state.graph.nodes.find((candidate) =>
-        candidate.kind === "file" && candidate.filePath === node.filePath
-      );
+      const fileNode = (state.graphIndex?.fileNodes ?? []).find((candidate) => candidate.filePath === node.filePath);
 
       if (fileNode && fileNode.id !== node.id) {
         state.expandedGraphNodeIds.add(fileNode.id);
@@ -606,23 +670,23 @@ export function getExplorerClientScript(options: ExplorerClientScriptOptions): s
         return createVirtualNode(nodeId, label, "folder", path);
       }
 
-      return graph.nodes.find((node) => node.id === nodeId);
+      return state.graphIndex?.nodesById.get(nodeId);
     }
 
-    function isExpandableEdge(edge) {
-      if (edge.kind === "contains") {
+    function isExpandableEdgeKind(kind) {
+      if (kind === "contains") {
         return true;
       }
 
       if (state.mode === "call") {
-        return edge.kind === "calls";
+        return kind === "calls";
       }
 
       if (state.mode === "class") {
-        return ["extends", "implements", "overrides", "instantiates"].includes(edge.kind);
+        return ["extends", "implements", "overrides", "instantiates"].includes(kind);
       }
 
-      return ["imports", "exports"].includes(edge.kind);
+      return ["imports", "exports"].includes(kind);
     }
 
     function isSymbolVisibleInMode(node) {
@@ -687,15 +751,24 @@ export function getExplorerClientScript(options: ExplorerClientScriptOptions): s
       return Math.min(max, Math.max(min, value));
     }
 
-    function getRelativePath(graph, filePath) {
-      const workspaceRoot = graph.workspaceRoot.replace(/\\\\/g, "/");
-      const normalized = filePath.replace(/\\\\/g, "/");
+    function summarizeGraph(graph) {
+      return {
+        edges: graph?.edges?.length ?? 0,
+        files: graph?.metadata?.fileCount ?? 0,
+        nodes: graph?.nodes?.length ?? 0
+      };
+    }
 
-      if (normalized.startsWith(workspaceRoot + "/")) {
-        return normalized.slice(workspaceRoot.length + 1);
-      }
-
-      return normalized.split("/").slice(-3).join("/");
+    function logWebview(level, message, fields) {
+      vscode.postMessage({
+        type: "telemetry/log",
+        payload: {
+          fields,
+          level,
+          message,
+          source: "graphPanel"
+        }
+      });
     }
   `;
 }

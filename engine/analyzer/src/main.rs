@@ -13,7 +13,7 @@ mod model;
 
 use std::io::{self, Read};
 
-use analyzer::{analyze_source_file, SourceInput};
+use analyzer::{analyze_source_file, analyze_workspace_edges, SourceInput};
 use cli::{Command, EngineArgs};
 use fs_scan::{scan_workspace, ScanOptions};
 use graph::ProjectGraphBuilder;
@@ -37,10 +37,11 @@ fn run() -> Result<(), String> {
             })?;
             let mut builder = ProjectGraphBuilder::new(options.workspace_root);
 
-            for file in files {
+            for file in files.iter().cloned() {
                 analyze_source_file(&mut builder, file)?;
             }
 
+            analyze_workspace_edges(&mut builder, &files);
             println!("{}", builder.finish().to_json());
             Ok(())
         }

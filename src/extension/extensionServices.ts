@@ -11,6 +11,7 @@ import { JavaScriptAnalyzer } from "../analyzer/languages/javascript";
 import { PythonAnalyzer } from "../analyzer/languages/python";
 import { TypeScriptAnalyzer } from "../analyzer/languages/typescript";
 import { RustAnalyzerBackend } from "../analyzer/rust/rustAnalyzerBackend";
+import { createProjectAnalyzerLogger } from "../observability/logger";
 import { MemoryAnalysisCacheStore } from "../storage/cacheStore";
 import { readProjectAnalyzerConfig } from "../vscode/configuration";
 import { VsCodeWorkspaceFileSystem } from "../vscode/workspaceFileSystem";
@@ -29,6 +30,7 @@ export type ExtensionServices = {
  * Creates the extension service graph for the current activation.
  */
 export function createExtensionServices(context: vscode.ExtensionContext): ExtensionServices {
+  const logger = createProjectAnalyzerLogger(context);
   const config = readProjectAnalyzerConfig();
   const fileSystem = new VsCodeWorkspaceFileSystem(config);
   const cacheStore = new MemoryAnalysisCacheStore();
@@ -41,19 +43,22 @@ export function createExtensionServices(context: vscode.ExtensionContext): Exten
     engineRoot: path.join(context.extensionUri.fsPath, "engine", "analyzer"),
     getWorkspaceRoot: () => fileSystem.getWorkspaceRoot(),
     maxFileSizeKb: config.maxFileSizeKb,
-    fallbackBackend: fallbackAnalyzer
+    fallbackBackend: fallbackAnalyzer,
+    logger
   });
   const explorerGraphPanelProvider = new ExplorerGraphPanelProvider({
     context,
     cacheStore,
-    config
+    config,
+    logger
   });
   const explorerViewProvider = new ExplorerViewProvider({
     context,
     analyzer,
     cacheStore,
     config,
-    graphPanelProvider: explorerGraphPanelProvider
+    graphPanelProvider: explorerGraphPanelProvider,
+    logger
   });
 
   return {

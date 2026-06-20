@@ -136,6 +136,22 @@ impl ProjectGraphBuilder {
         });
     }
 
+    /// Adds a resolved file-to-file import or export edge.
+    pub fn add_file_dependency_edge(&mut self, edge: NewFileDependencyEdge) {
+        let source_id = create_file_node_id(&edge.source_path);
+        let target_id = create_file_node_id(&edge.target_path);
+
+        self.edges.push(GraphEdge {
+            id: create_edge_id(&edge.kind, &source_id, &target_id),
+            kind: edge.kind,
+            source_id,
+            target_id,
+            file_path: edge.source_path.to_string_lossy().to_string(),
+            range: edge.range,
+            confidence: "resolved".to_string(),
+        });
+    }
+
     /// Adds a file-scoped diagnostic.
     pub fn add_diagnostic(&mut self, code: &str, message: String, file_path: Option<String>) {
         self.diagnostics.push(AnalysisDiagnostic {
@@ -190,6 +206,14 @@ pub struct NewCallEdge {
     pub file_path: PathBuf,
     pub range: SourceRange,
     pub confidence: String,
+}
+
+/// New file dependency edge supplied by workspace-level import analysis.
+pub struct NewFileDependencyEdge {
+    pub kind: String,
+    pub source_path: PathBuf,
+    pub target_path: PathBuf,
+    pub range: SourceRange,
 }
 
 /// Builds a stable file node ID.

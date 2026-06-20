@@ -11,6 +11,7 @@ import {
   extractTypeScriptLikeSymbols,
   parseTypeScriptLikeSource
 } from "../typescriptLike/typescriptLikeSymbolExtractor";
+import { extractTypeScriptLikeImportEdges } from "../typescriptLike/typescriptLikeImportExtractor";
 
 /** Language analyzer for `.ts` and `.tsx` files. */
 export class TypeScriptAnalyzer implements LanguageAnalyzer {
@@ -37,9 +38,9 @@ export class TypeScriptAnalyzer implements LanguageAnalyzer {
   }
 
   /**
-   * Extracts TypeScript relationship edges. Full extraction is planned for the analyzer milestone.
+   * Extracts TypeScript file-to-file import/export relationships.
    */
-  public async extractEdges(_parsed: ParsedFile, _context: AnalysisContext): Promise<GraphEdge[]> {
-    return [];
+  public async extractEdges(parsed: ParsedFile, context: AnalysisContext): Promise<GraphEdge[]> {
+    return extractTypeScriptLikeImportEdges(parsed, context);
   }
 }

@@ -11,11 +11,14 @@ import type {
   ExportRequest,
   ExtensionResponse,
   GraphViewMode,
+  WebviewLogRequest,
   WebviewRequest
 } from "../protocol/messages";
+import type { ProjectAnalyzerLogger } from "../observability/logger";
 import type { ProjectGraph } from "../shared/types";
 import type { AnalysisCacheStore } from "../storage/cacheStore";
 import type { ProjectAnalyzerConfig } from "../vscode/configuration";
+import { projectGraphForView, summarizeProjectedGraph } from "./graphProjection";
 import { getExplorerHtml } from "./webviewHtml";
 import {
   createNonce,
@@ -30,6 +33,7 @@ export type ExplorerGraphPanelProviderDependencies = {
   context: vscode.ExtensionContext;
   cacheStore: AnalysisCacheStore;
   config: ProjectAnalyzerConfig;
+  logger: ProjectAnalyzerLogger;
 };
 
 /**
@@ -59,6 +63,11 @@ export class ExplorerGraphPanelProvider {
    * Opens or reveals the graph browser tab and optionally publishes a graph.
    */
   public async openGraph(graph?: ProjectGraph): Promise<void> {
+    this.dependencies.logger.info("graphPanel.openGraph", {
+      hasGraph: Boolean(graph),
+      hasPanel: Boolean(this.panel)
+    });
+
     if (graph) {
       this.pendingGraph = graph;
     }
@@ -104,12 +113,19 @@ export class ExplorerGraphPanelProvider {
    */
   public async publishGraph(graph: ProjectGraph): Promise<void> {
     this.pendingGraph = graph;
+    this.dependencies.logger.info("graphPanel.publishGraph", {
+      edges: graph.edges.length,
+      nodes: graph.nodes.length,
+      ready: this.webviewReady
+    });
 
     if (!this.panel || !this.webviewReady) {
       return;
     }
 
-    await this.postMessage({ type: "graph/loaded", payload: graph });
+    const projectedGraph = projectGraphForView(graph, this.mode);
+    this.dependencies.logger.info("graphPanel.publishGraph.projected", summarizeProjectedGraph(projectedGraph));
+    await this.postMessage({ type: "graph/loaded", payload: projectedGraph });
     this.pendingGraph = undefined;
   }
 
@@ -138,6 +154,8 @@ export class ExplorerGraphPanelProvider {
    * Handles typed Webview requests from the graph browser tab.
    */
   private async handleMessage(message: WebviewRequest): Promise<void> {
+    this.dependencies.logger.debug("graphPanel.message", { type: message.type });
+
     switch (message.type) {
       case "ui/ready":
         await this.handleWebviewReady();
@@ -155,6 +173,9 @@ export class ExplorerGraphPanelProvider {
       case "export/run":
         await this.exportGraph(message.payload);
         break;
+      case "telemetry/log":
+        this.logWebviewMessage(message.payload);
+        break;
       default:
         break;
     }
@@ -165,6 +186,10 @@ export class ExplorerGraphPanelProvider {
    */
   private async handleWebviewReady(): Promise<void> {
     this.webviewReady = true;
+    this.dependencies.logger.info("graphPanel.ready", {
+      hasPendingFocus: Boolean(this.pendingFocusNodeId),
+      hasPendingGraph: Boolean(this.pendingGraph)
+    });
     await this.postMessage({ type: "ui/ready", payload: {} });
 
     if (this.pendingGraph) {
@@ -195,6 +220,7 @@ export class ExplorerGraphPanelProvider {
    */
   private async postLatestGraph(): Promise<void> {
     const graph = await this.dependencies.cacheStore.getLatestGraph();
+    this.dependencies.logger.info("graphPanel.postLatestGraph", { hasGraph: Boolean(graph) });
 
     if (graph) {
       await this.publishGraph(graph);
@@ -300,9 +326,20 @@ export class ExplorerGraphPanelProvider {
    */
   private async postMessage(message: ExtensionResponse): Promise<void> {
     if (!this.panel || (!this.webviewReady && message.type !== "ui/ready")) {
+      this.dependencies.logger.debug("graphPanel.postMessage.skipped", {
+        hasPanel: Boolean(this.panel),
+        ready: this.webviewReady,
+        type: message.type
+      });
       return;
     }
 
+    this.dependencies.logger.debug("graphPanel.postMessage", { type: message.type });
     await this.panel.webview.postMessage(message);
+  }
+
+  /** Routes browser-side diagnostics into the extension output channel. */
+  private logWebviewMessage(payload: WebviewLogRequest): void {
+    this.dependencies.logger[payload.level](`webview.${payload.source}.${payload.message}`, payload.fields);
   }
 }

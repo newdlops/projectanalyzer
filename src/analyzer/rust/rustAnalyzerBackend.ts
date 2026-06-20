@@ -8,6 +8,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import type { AnalysisBackend } from "../core/analysisBackend";
 import type { AnalyzeResult } from "../core/analyzerPipeline";
+import type { ProjectAnalyzerLogger } from "../../observability/logger";
 import type { ProjectGraph, SourceFile } from "../../shared/types";
 
 /** Options required to run the Rust analyzer engine. */
@@ -16,6 +17,7 @@ export type RustAnalyzerBackendOptions = {
   getWorkspaceRoot: () => string | undefined;
   maxFileSizeKb: number;
   fallbackBackend: AnalysisBackend;
+  logger: ProjectAnalyzerLogger;
 };
 
 /** Spawn command and arguments for one engine invocation. */
@@ -38,10 +40,15 @@ export class RustAnalyzerBackend implements AnalysisBackend {
     const workspaceRoot = this.options.getWorkspaceRoot();
 
     if (!workspaceRoot) {
+      this.options.logger.warn("rust.workspace.noWorkspaceRoot");
       return this.options.fallbackBackend.analyzeWorkspace();
     }
 
     try {
+      this.options.logger.info("rust.workspace.start", {
+        maxFileSizeKb: this.options.maxFileSizeKb,
+        workspaceRoot
+      });
       const graph = await this.runEngine([
         "analyze-workspace",
         "--workspace",
@@ -50,8 +57,10 @@ export class RustAnalyzerBackend implements AnalysisBackend {
         String(this.options.maxFileSizeKb)
       ]);
 
+      this.options.logger.info("rust.workspace.complete", summarizeGraph(graph));
       return { graph };
     } catch (error) {
+      this.options.logger.error("rust.workspace.failed", { error: formatError(error) });
       return this.analyzeWithFallback("analysis.rustWorkspaceFailed", error, () =>
         this.options.fallbackBackend.analyzeWorkspace()
       );
@@ -66,6 +75,11 @@ export class RustAnalyzerBackend implements AnalysisBackend {
     const workspaceRoot = this.options.getWorkspaceRoot() ?? path.dirname(file.path);
 
     try {
+      this.options.logger.info("rust.file.start", {
+        languageId: file.languageId,
+        path: file.path,
+        sizeBytes: file.sizeBytes
+      });
       const graph = await this.runEngine(
         [
           "analyze-stdin",
@@ -79,8 +93,10 @@ export class RustAnalyzerBackend implements AnalysisBackend {
         file.content
       );
 
+      this.options.logger.info("rust.file.complete", summarizeGraph(graph));
       return { graph };
     } catch (error) {
+      this.options.logger.error("rust.file.failed", { error: formatError(error), path: file.path });
       return this.analyzeWithFallback("analysis.rustFileFailed", error, () =>
         this.options.fallbackBackend.analyzeFile(file)
       );
@@ -92,7 +108,17 @@ export class RustAnalyzerBackend implements AnalysisBackend {
    */
   private async runEngine(engineArgs: string[], stdin?: string): Promise<ProjectGraph> {
     const invocation = resolveEngineInvocation(this.options.engineRoot, engineArgs);
-    const output = await runProcess(invocation, stdin);
+    const startedAt = Date.now();
+    this.options.logger.debug("rust.process.spawn", {
+      args: invocation.args,
+      command: invocation.command,
+      stdinBytes: stdin ? Buffer.byteLength(stdin, "utf8") : 0
+    });
+    const output = await runProcess(invocation, this.options.logger, stdin);
+    this.options.logger.debug("rust.process.stdout", {
+      durationMs: Date.now() - startedAt,
+      stdoutBytes: Buffer.byteLength(output, "utf8")
+    });
     const graph = JSON.parse(output) as ProjectGraph;
 
     if (!graph || !Array.isArray(graph.nodes) || !Array.isArray(graph.edges)) {
@@ -111,6 +137,7 @@ export class RustAnalyzerBackend implements AnalysisBackend {
     runFallback: () => Promise<AnalyzeResult>
   ): Promise<AnalyzeResult> {
     const result = await runFallback();
+    this.options.logger.warn("rust.fallback.complete", summarizeGraph(result.graph));
     result.graph.diagnostics.push({
       severity: "warning",
       code,
@@ -146,8 +173,13 @@ function resolveEngineInvocation(engineRoot: string, engineArgs: string[]): Engi
 /**
  * Runs a child process and returns stdout when it exits successfully.
  */
-function runProcess(invocation: EngineInvocation, stdin?: string): Promise<string> {
+function runProcess(
+  invocation: EngineInvocation,
+  logger: ProjectAnalyzerLogger,
+  stdin?: string
+): Promise<string> {
   return new Promise((resolve, reject) => {
+    const startedAt = Date.now();
     const child = childProcess.spawn(invocation.command, invocation.args, {
       stdio: ["pipe", "pipe", "pipe"]
     });
@@ -156,15 +188,26 @@ function runProcess(invocation: EngineInvocation, stdin?: string): Promise<strin
 
     child.stdout.on("data", (chunk: Buffer) => {
       stdoutChunks.push(chunk);
+      logger.debug("rust.process.stdoutChunk", { bytes: chunk.length });
     });
     child.stderr.on("data", (chunk: Buffer) => {
       stderrChunks.push(chunk);
+      logger.warn("rust.process.stderrChunk", {
+        bytes: chunk.length,
+        preview: chunk.toString("utf8").slice(0, 300)
+      });
     });
     child.on("error", (error) => {
+      logger.error("rust.process.error", { error: formatError(error) });
       reject(error);
     });
     child.on("close", (code) => {
       const stderr = Buffer.concat(stderrChunks).toString("utf8");
+      logger.debug("rust.process.close", {
+        code,
+        durationMs: Date.now() - startedAt,
+        stderrBytes: Buffer.byteLength(stderr, "utf8")
+      });
 
       if (code !== 0) {
         reject(new Error(stderr || `Rust analyzer exited with code ${code ?? "unknown"}`));
@@ -180,4 +223,18 @@ function runProcess(invocation: EngineInvocation, stdin?: string): Promise<strin
       child.stdin.end();
     }
   });
+}
+
+/** Builds a small graph summary for log lines. */
+function summarizeGraph(graph: ProjectGraph): Record<string, unknown> {
+  return {
+    edges: graph.edges.length,
+    files: graph.metadata.fileCount,
+    nodes: graph.nodes.length
+  };
+}
+
+/** Converts an unknown error to a stable log payload. */
+function formatError(error: unknown): string {
+  return error instanceof Error ? error.stack ?? error.message : String(error);
 }

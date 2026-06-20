@@ -9,8 +9,10 @@ import type {
   AnalysisStatusPayload,
   ExportRequest,
   ExtensionResponse,
+  WebviewLogRequest,
   WebviewRequest
 } from "../protocol/messages";
+import type { ProjectAnalyzerLogger } from "../observability/logger";
 import { createContentHash } from "../shared/hash";
 import type { ProjectGraph } from "../shared/types";
 import type { AnalysisCacheStore } from "../storage/cacheStore";
@@ -26,6 +28,7 @@ export type ExplorerViewProviderDependencies = {
   cacheStore: AnalysisCacheStore;
   config: ProjectAnalyzerConfig;
   graphPanelProvider: ExplorerGraphPanelProvider;
+  logger: ProjectAnalyzerLogger;
 };
 
 /**
@@ -80,6 +83,8 @@ export class ExplorerViewProvider implements vscode.WebviewViewProvider {
    * Handles typed Webview requests from the sidebar GUI.
    */
   private async handleMessage(message: WebviewRequest): Promise<void> {
+    this.dependencies.logger.debug("sidebar.message", { type: message.type });
+
     switch (message.type) {
       case "ui/ready":
         await this.handleWebviewReady();
@@ -111,6 +116,9 @@ export class ExplorerViewProvider implements vscode.WebviewViewProvider {
       case "export/run":
         await this.exportGraph(message.payload);
         break;
+      case "telemetry/log":
+        this.logWebviewMessage(message.payload);
+        break;
       default:
         break;
     }
@@ -121,6 +129,9 @@ export class ExplorerViewProvider implements vscode.WebviewViewProvider {
    */
   private async handleWebviewReady(): Promise<void> {
     this.webviewReady = true;
+    this.dependencies.logger.info("sidebar.ready", {
+      autoAnalyze: this.dependencies.config.autoAnalyze
+    });
     await this.postMessage({ type: "ui/ready", payload: {} });
 
     if (this.dependencies.config.autoAnalyze) {
@@ -148,15 +159,22 @@ export class ExplorerViewProvider implements vscode.WebviewViewProvider {
    */
   private async runWorkspaceAnalysis(): Promise<void> {
     if (this.analysisRunning) {
+      this.dependencies.logger.warn("sidebar.workspaceAnalysis.alreadyRunning");
       await this.postStatus("running", "Analysis already running");
       return;
     }
 
     this.analysisRunning = true;
+    this.dependencies.logger.info("sidebar.workspaceAnalysis.start");
     await this.postStatus("running", "Analyzing workspace");
 
     try {
       const result = await this.dependencies.analyzer.analyzeWorkspace();
+      this.dependencies.logger.info("sidebar.workspaceAnalysis.complete", {
+        edges: result.graph.edges.length,
+        files: result.graph.metadata.fileCount,
+        nodes: result.graph.nodes.length
+      });
       await this.dependencies.cacheStore.saveLatestGraph(result.graph);
       await this.publishGraph(result.graph);
       await this.dependencies.graphPanelProvider.openGraph(result.graph);
@@ -165,6 +183,9 @@ export class ExplorerViewProvider implements vscode.WebviewViewProvider {
         `Indexed ${result.graph.metadata.fileCount} files, ${result.graph.nodes.length} nodes`
       );
     } catch (error) {
+      this.dependencies.logger.error("sidebar.workspaceAnalysis.failed", {
+        error: error instanceof Error ? error.stack ?? error.message : String(error)
+      });
       await this.postStatus("failed", "Analysis failed");
       await this.postMessage({
         type: "error",
@@ -183,6 +204,7 @@ export class ExplorerViewProvider implements vscode.WebviewViewProvider {
    */
   private async runCurrentFileAnalysis(): Promise<void> {
     if (this.analysisRunning) {
+      this.dependencies.logger.warn("sidebar.currentFileAnalysis.alreadyRunning");
       await this.postStatus("running", "Analysis already running");
       return;
     }
@@ -195,6 +217,10 @@ export class ExplorerViewProvider implements vscode.WebviewViewProvider {
     }
 
     this.analysisRunning = true;
+    this.dependencies.logger.info("sidebar.currentFileAnalysis.start", {
+      fileName: editor.document.fileName,
+      languageId: editor.document.languageId
+    });
     await this.postStatus("running", "Analyzing current file");
 
     try {
@@ -208,11 +234,18 @@ export class ExplorerViewProvider implements vscode.WebviewViewProvider {
         contentHash: createContentHash(content)
       });
 
+      this.dependencies.logger.info("sidebar.currentFileAnalysis.complete", {
+        edges: result.graph.edges.length,
+        nodes: result.graph.nodes.length
+      });
       await this.dependencies.cacheStore.saveLatestGraph(result.graph);
       await this.publishGraph(result.graph);
       await this.dependencies.graphPanelProvider.openGraph(result.graph);
       await this.postStatus("complete", `Analyzed ${document.fileName}, ${result.graph.nodes.length} nodes`);
     } catch (error) {
+      this.dependencies.logger.error("sidebar.currentFileAnalysis.failed", {
+        error: error instanceof Error ? error.stack ?? error.message : String(error)
+      });
       await this.postStatus("failed", "Current-file analysis failed");
       await this.postMessage({
         type: "error",
@@ -273,6 +306,7 @@ export class ExplorerViewProvider implements vscode.WebviewViewProvider {
    */
   private async openGraphPanel(): Promise<void> {
     const graph = await this.dependencies.cacheStore.getLatestGraph();
+    this.dependencies.logger.info("sidebar.openGraphPanel", { hasGraph: Boolean(graph) });
 
     if (!graph) {
       await this.dependencies.graphPanelProvider.openGraph();
@@ -319,6 +353,7 @@ export class ExplorerViewProvider implements vscode.WebviewViewProvider {
    */
   private async postLatestGraph(): Promise<void> {
     const graph = await this.dependencies.cacheStore.getLatestGraph();
+    this.dependencies.logger.debug("sidebar.postLatestGraph", { hasGraph: Boolean(graph) });
 
     if (graph) {
       await this.publishGraph(graph);
@@ -343,9 +378,20 @@ export class ExplorerViewProvider implements vscode.WebviewViewProvider {
    */
   private async postMessage(message: ExtensionResponse): Promise<void> {
     if (!this.view || (!this.webviewReady && message.type !== "ui/ready")) {
+      this.dependencies.logger.debug("sidebar.postMessage.skipped", {
+        hasView: Boolean(this.view),
+        ready: this.webviewReady,
+        type: message.type
+      });
       return;
     }
 
+    this.dependencies.logger.debug("sidebar.postMessage", { type: message.type });
     await this.view.webview.postMessage(message);
+  }
+
+  /** Routes browser-side diagnostics into the extension output channel. */
+  private logWebviewMessage(payload: WebviewLogRequest): void {
+    this.dependencies.logger[payload.level](`webview.${payload.source}.${payload.message}`, payload.fields);
   }
 }

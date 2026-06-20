@@ -30,8 +30,9 @@ test("graph panel HTML exposes canvas viewer controls", () => {
   assert.match(script, /handleGraphClick/);
   assert.match(script, /getSceneBounds/);
   assert.match(script, /screenToCanvas/);
-  assert.match(script, /expandedGraphNodeIds: createDefaultExpandedNodeIds\(\)/);
-  assert.match(script, /return new Set\(\[virtualRootId\]\)/);
+  assert.match(script, /expandedGraphNodeIds: createDefaultExpandedNodeIds/);
+  assert.match(script, /getImportRootChildren/);
+  assert.match(script, /getImportedFileChildren/);
   assert.doesNotThrow(() => new Function("acquireVsCodeApi", script));
 });
 
@@ -52,7 +53,13 @@ test("graph panel script renders a loaded graph without module-loader globals", 
   try {
     new Function(scriptMatch[1])();
 
-    assert.deepEqual(runtime.messages.map((message) => message.type), ["ui/ready", "graph/load"]);
+    assert.ok(runtime.messages.some((message) => message.type === "telemetry/log"));
+    assert.deepEqual(
+      runtime.messages
+        .filter((message) => message.type !== "telemetry/log")
+        .map((message) => message.type),
+      ["ui/ready"]
+    );
     runtime.dispatchMessage({
       type: "graph/loaded",
       payload: {
@@ -60,18 +67,30 @@ test("graph panel script renders a loaded graph without module-loader globals", 
         version: "test",
         generatedAt: "2026-06-20T00:00:00.000Z",
         nodes: [
-          createGraphNode("file-1", "file", "main.ts", "/workspace/src/main.ts")
+          createGraphNode("file-1", "file", "main.ts", "/workspace/src/main.ts"),
+          createGraphNode("file-2", "file", "service.ts", "/workspace/src/service.ts")
         ],
-        edges: [],
+        edges: [
+          {
+            id: "edge::imports::file-1::file-2",
+            kind: "imports",
+            sourceId: "file-1",
+            targetId: "file-2",
+            filePath: "/workspace/src/main.ts",
+            confidence: "resolved"
+          }
+        ],
         diagnostics: [],
         metadata: {
           languages: ["typescript"],
-          fileCount: 1,
-          symbolCount: 1,
-          edgeCount: 0
+          fileCount: 2,
+          symbolCount: 2,
+          edgeCount: 1
         }
       }
     });
+    assert.ok(runtime.labels.includes("main.ts"));
+    assert.ok(!runtime.labels.includes("service.ts"));
   } finally {
     runtime.restore();
   }
@@ -83,6 +102,7 @@ test("graph panel script renders a loaded graph without module-loader globals", 
  */
 function installGraphWebviewRuntime(): {
   dispatchMessage: (message: unknown) => void;
+  labels: string[];
   messages: Array<{ type: string; payload: unknown }>;
   restore: () => void;
 } {
@@ -92,9 +112,10 @@ function installGraphWebviewRuntime(): {
   const previousGetComputedStyle = Reflect.get(globalThis, "getComputedStyle");
   const previousAcquireVsCodeApi = Reflect.get(globalThis, "acquireVsCodeApi");
   const messages: Array<{ type: string; payload: unknown }> = [];
+  const labels: string[] = [];
   const listeners = new Map<string, (event: { data: unknown }) => void>();
   const elements = new Map<string, FakeElement>();
-  const modeButtons = ["file", "call", "class"].map((mode) => createFakeElement(mode));
+  const modeButtons = ["file", "call", "class"].map((mode) => createFakeElement(mode, labels));
 
   for (const button of modeButtons) {
     button.dataset.mode = button.id;
@@ -107,7 +128,7 @@ function installGraphWebviewRuntime(): {
     devicePixelRatio: 1,
     requestAnimationFrame(callback: FrameRequestCallback) {
       callback(0);
-      return 1;
+      return 0;
     },
     setTimeout(callback: () => void) {
       callback();
@@ -122,7 +143,7 @@ function installGraphWebviewRuntime(): {
         return existing;
       }
 
-      const created = createFakeElement(id);
+      const created = createFakeElement(id, labels);
       elements.set(id, created);
       return created;
     },
@@ -132,7 +153,7 @@ function installGraphWebviewRuntime(): {
   });
   Reflect.set(globalThis, "requestAnimationFrame", (callback: FrameRequestCallback) => {
     callback(0);
-    return 1;
+    return 0;
   });
   Reflect.set(globalThis, "getComputedStyle", () => ({
     getPropertyValue() {
@@ -152,6 +173,7 @@ function installGraphWebviewRuntime(): {
       assert.ok(handler, "missing message listener");
       handler({ data: message });
     },
+    labels,
     messages,
     restore() {
       restoreGlobal("window", previousWindow);
@@ -166,7 +188,7 @@ function installGraphWebviewRuntime(): {
 /**
  * Creates a fake DOM element or canvas element for Webview runtime tests.
  */
-function createFakeElement(id: string): FakeElement {
+function createFakeElement(id: string, labels: string[]): FakeElement {
   return {
     id,
     classList: {
@@ -194,7 +216,7 @@ function createFakeElement(id: string): FakeElement {
       };
     },
     getContext() {
-      return createFakeCanvasContext();
+      return createFakeCanvasContext(labels);
     },
     hasPointerCapture() {
       return false;
@@ -246,9 +268,15 @@ function restoreGlobal(name: string, value: unknown): void {
  * Canvas context calls are not under test, but layout-time exceptions must
  * surface, so every context operation is a harmless callable placeholder.
  */
-function createFakeCanvasContext(): CanvasRenderingContext2D {
+function createFakeCanvasContext(labels: string[]): CanvasRenderingContext2D {
   return new Proxy<Record<PropertyKey, unknown>>({}, {
     get(target, property) {
+      if (property === "fillText") {
+        return (text: unknown) => {
+          labels.push(String(text));
+        };
+      }
+
       if (!(property in target)) {
         target[property] = () => undefined;
       }

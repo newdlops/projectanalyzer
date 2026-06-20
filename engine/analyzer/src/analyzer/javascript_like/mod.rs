@@ -6,6 +6,7 @@
 
 mod calls;
 mod frontend;
+mod imports;
 mod syntax;
 
 use crate::graph::{NewSymbol, ProjectGraphBuilder};
@@ -15,6 +16,8 @@ use calls::{
     declaration_call_scan_start, is_callable_kind, CallCandidate, CallSource,
 };
 use syntax::SyntaxScanner;
+
+pub use imports::add_import_edges;
 
 /// Scope entry used to associate declarations and calls with surrounding symbols.
 #[derive(Clone)]

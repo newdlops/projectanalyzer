@@ -75,7 +75,7 @@ export class AnalyzerPipeline implements AnalysisBackend {
     for (const file of files) {
       const fileNode = createFileNode(file, workspaceRoot);
       store.addNode(fileNode);
-      await this.analyzeFileIntoStore(file, fileNode, workspaceRoot, store, graph);
+      await this.analyzeFileIntoStore(file, fileNode, files, workspaceRoot, store, graph);
     }
 
     return store.toProjectGraph();
@@ -87,6 +87,7 @@ export class AnalyzerPipeline implements AnalysisBackend {
   private async analyzeFileIntoStore(
     file: SourceFile,
     fileNode: SymbolNode,
+    files: readonly SourceFile[],
     workspaceRoot: string,
     store: InMemoryGraphStore,
     graph: ProjectGraph
@@ -100,7 +101,7 @@ export class AnalyzerPipeline implements AnalysisBackend {
     try {
       const parsed = await analyzer.parse(file);
       const symbols = await analyzer.extractSymbols(parsed);
-      const edges = await analyzer.extractEdges(parsed, { workspaceRoot });
+      const edges = await analyzer.extractEdges(parsed, { sourceFiles: files, workspaceRoot });
 
       for (const symbol of symbols) {
         store.addNode(symbol);
