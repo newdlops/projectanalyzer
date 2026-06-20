@@ -39,6 +39,7 @@ export type ExplorerGraphSceneEdge = {
   confidence: EdgeConfidence;
   sourceId: string;
   targetId: string;
+  path: string;
   x1: number;
   y1: number;
   x2: number;
@@ -144,6 +145,7 @@ export function createGraphScene(
       confidence: edge.confidence,
       sourceId: edge.sourceId,
       targetId: edge.targetId,
+      path: createEdgePath(source?.x ?? 0, source?.y ?? 0, target?.x ?? 0, target?.y ?? 0),
       x1: source?.x ?? 0,
       y1: source?.y ?? 0,
       x2: target?.x ?? 0,
@@ -306,6 +308,10 @@ export function createGraphScene(
       return createFlowPositions(nodes, edges, selectedId, sceneWidth, sceneHeight);
     }
 
+    if (edges.length > 0) {
+      return createLayeredPositions(nodes, edges, sceneWidth, sceneHeight);
+    }
+
     return createGridPositions(nodes, sceneWidth, sceneHeight);
   }
 
@@ -322,8 +328,8 @@ export function createGraphScene(
   ): Map<string, { x: number; y: number }> {
     const positions = new Map<string, { x: number; y: number }>();
     const assigned = new Set<string>([selectedId]);
-    const center = { x: sceneWidth / 2, y: sceneHeight * 0.44 };
-    const marginX = Math.max(42, sceneWidth * 0.13);
+    const center = { x: sceneWidth / 2, y: sceneHeight / 2 };
+    const marginX = Math.max(64, sceneWidth * 0.12);
     const incomingDepths = createDepthMap(selectedId, edges, "incoming");
     const outgoingDepths = createDepthMap(selectedId, edges, "outgoing");
 
@@ -332,8 +338,8 @@ export function createGraphScene(
     placeDepthColumns(groupByDepth(outgoingDepths), "outgoing", assigned, positions, marginX, sceneWidth, sceneHeight);
 
     const remaining = nodes.filter((node) => !assigned.has(node.id));
-    const remainingPositions = createGridPositions(remaining, sceneWidth, Math.max(90, sceneHeight * 0.28));
-    const offsetY = sceneHeight * 0.72;
+    const remainingPositions = createGridPositions(remaining, sceneWidth, Math.max(100, sceneHeight * 0.24));
+    const offsetY = sceneHeight * 0.76;
 
     for (const node of remaining) {
       const position = remainingPositions.get(node.id);
@@ -347,6 +353,102 @@ export function createGraphScene(
     }
 
     return positions;
+  }
+
+  /**
+   * Creates a left-to-right relationship layout when no node is selected.
+   */
+  function createLayeredPositions(
+    nodes: readonly { id: string }[],
+    edges: readonly { sourceId: string; targetId: string }[],
+    sceneWidth: number,
+    sceneHeight: number
+  ): Map<string, { x: number; y: number }> {
+    const positions = new Map<string, { x: number; y: number }>();
+    const ranks = createLayerRanks(nodes, edges);
+    const grouped = new Map<number, string[]>();
+
+    for (const node of nodes) {
+      const rank = ranks.get(node.id) ?? 0;
+      const group = grouped.get(rank) ?? [];
+      group.push(node.id);
+      grouped.set(rank, group);
+    }
+
+    const orderedRanks = [...grouped.keys()].sort((left, right) => left - right);
+
+    orderedRanks.forEach((rank, columnIndex) => {
+      const nodeIds = (grouped.get(rank) ?? []).sort();
+      const x = distribute(columnIndex, orderedRanks.length, sceneWidth, 62);
+
+      nodeIds.forEach((nodeId, rowIndex) => {
+        positions.set(nodeId, {
+          x,
+          y: distributeStaggered(rowIndex, nodeIds.length, columnIndex, sceneHeight, 54)
+        });
+      });
+    });
+
+    return positions;
+  }
+
+  /**
+   * Assigns graph layers by walking outgoing edges from source-like roots.
+   */
+  function createLayerRanks(
+    nodes: readonly { id: string }[],
+    edges: readonly { sourceId: string; targetId: string }[]
+  ): Map<string, number> {
+    const nodeIds = new Set(nodes.map((node) => node.id));
+    const incomingCounts = new Map<string, number>();
+    const outgoingByNodeId = new Map<string, string[]>();
+
+    for (const edge of edges) {
+      if (!nodeIds.has(edge.sourceId) || !nodeIds.has(edge.targetId)) {
+        continue;
+      }
+
+      incomingCounts.set(edge.targetId, (incomingCounts.get(edge.targetId) ?? 0) + 1);
+      const outgoing = outgoingByNodeId.get(edge.sourceId) ?? [];
+      outgoing.push(edge.targetId);
+      outgoingByNodeId.set(edge.sourceId, outgoing);
+    }
+
+    const roots = nodes
+      .map((node) => node.id)
+      .filter((nodeId) => (incomingCounts.get(nodeId) ?? 0) === 0);
+    const queue: Array<{ nodeId: string; rank: number }> = (roots.length > 0 ? roots : [nodes[0]?.id])
+      .filter((nodeId): nodeId is string => Boolean(nodeId))
+      .map((nodeId) => ({ nodeId, rank: 0 }));
+    const ranks = new Map<string, number>();
+
+    while (queue.length > 0) {
+      const current = queue.shift();
+
+      if (!current) {
+        continue;
+      }
+
+      const existingRank = ranks.get(current.nodeId);
+
+      if (existingRank !== undefined && existingRank <= current.rank) {
+        continue;
+      }
+
+      ranks.set(current.nodeId, current.rank);
+
+      for (const targetId of outgoingByNodeId.get(current.nodeId) ?? []) {
+        queue.push({ nodeId: targetId, rank: current.rank + 1 });
+      }
+    }
+
+    for (const node of nodes) {
+      if (!ranks.has(node.id)) {
+        ranks.set(node.id, Math.min(3, ranks.size % 4));
+      }
+    }
+
+    return ranks;
   }
 
   /**
@@ -431,7 +533,7 @@ export function createGraphScene(
         assigned.add(nodeId);
         positions.set(nodeId, {
           x,
-          y: distribute(index, ids.length, sceneHeight, 34)
+          y: distributeStaggered(index, ids.length, depth, sceneHeight, 54)
         });
       });
     }
@@ -460,7 +562,7 @@ export function createGraphScene(
 
       positions.set(node.id, {
         x: distribute(column, columns, sceneWidth, 34),
-        y: distribute(row, rows, sceneHeight, 34)
+        y: distributeStaggered(row, rows, column, sceneHeight, 54)
       });
     });
 
@@ -509,6 +611,38 @@ export function createGraphScene(
     }
 
     return margin + (index * (size - margin * 2)) / (count - 1);
+  }
+
+  /**
+   * Distributes a column while staggering singleton rows away from a flat line.
+   */
+  function distributeStaggered(
+    index: number,
+    count: number,
+    columnIndex: number,
+    size: number,
+    margin: number
+  ): number {
+    if (count <= 1) {
+      const offset = Math.min(74, size * 0.16);
+      const direction = columnIndex % 2 === 0 ? -1 : 1;
+
+      return size / 2 + offset * direction;
+    }
+
+    return distribute(index, count, size, margin);
+  }
+
+  /**
+   * Creates a curved edge path so parallel directional structure is readable.
+   */
+  function createEdgePath(x1: number, y1: number, x2: number, y2: number): string {
+    const deltaX = x2 - x1;
+    const controlOffset = Math.max(36, Math.abs(deltaX) * 0.42);
+    const controlX1 = x1 + (deltaX >= 0 ? controlOffset : -controlOffset);
+    const controlX2 = x2 - (deltaX >= 0 ? controlOffset : -controlOffset);
+
+    return `M ${x1} ${y1} C ${controlX1} ${y1}, ${controlX2} ${y2}, ${x2} ${y2}`;
   }
 
   /**

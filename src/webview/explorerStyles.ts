@@ -66,7 +66,8 @@ export function getExplorerStyles(surface: ExplorerSurface): string {
     .primary-button,
     .secondary-button,
     .action-button,
-    .mode-button {
+    .mode-button,
+    .view-button {
       border: 1px solid var(--vscode-button-border, transparent);
       border-radius: 4px;
       cursor: pointer;
@@ -115,7 +116,18 @@ export function getExplorerStyles(surface: ExplorerSurface): string {
       border-radius: 5px;
     }
 
-    .mode-button {
+    .view-switch {
+      display: flex;
+      width: fit-content;
+      max-width: 100%;
+      gap: 4px;
+      padding: 2px;
+      border: 1px solid var(--vscode-panel-border);
+      border-radius: 5px;
+    }
+
+    .mode-button,
+    .view-button {
       flex: 1;
       min-width: 0;
       padding: 4px 6px;
@@ -123,7 +135,8 @@ export function getExplorerStyles(surface: ExplorerSurface): string {
       background: transparent;
     }
 
-    .mode-button.active {
+    .mode-button.active,
+    .view-button.active {
       color: var(--vscode-button-foreground);
       background: var(--vscode-button-secondaryBackground);
     }
@@ -164,6 +177,7 @@ export function getExplorerStyles(surface: ExplorerSurface): string {
     }
 
     .graph-edge {
+      fill: none;
       stroke: var(--vscode-descriptionForeground);
       stroke-width: 1.2;
       opacity: 0.55;
@@ -253,6 +267,9 @@ export function getExplorerStyles(surface: ExplorerSurface): string {
     }
 
     .node-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
       width: 100%;
       min-width: 0;
       padding: 7px 8px;
@@ -262,6 +279,11 @@ export function getExplorerStyles(surface: ExplorerSurface): string {
       border-radius: 4px;
       text-align: left;
       cursor: pointer;
+    }
+
+    .node-row.tree-row {
+      padding-top: 4px;
+      padding-bottom: 4px;
     }
 
     .node-row:hover,
@@ -276,6 +298,23 @@ export function getExplorerStyles(surface: ExplorerSurface): string {
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
+    }
+
+    .node-text {
+      min-width: 0;
+      flex: 1;
+    }
+
+    .tree-disclosure {
+      display: inline-flex;
+      width: 14px;
+      flex: 0 0 14px;
+      justify-content: center;
+      color: var(--vscode-descriptionForeground);
+    }
+
+    .tree-disclosure.empty {
+      opacity: 0;
     }
 
     .node-meta {

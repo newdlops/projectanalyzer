@@ -81,7 +81,7 @@ function getGraphPanelHtml(options: WebviewHtmlOptions): string {
     canvasWidth,
     defaultDepth: options.defaultDepth,
     initialMode: options.initialMode,
-    maxNodes: 140
+    maxNodes: 72
   });
 
   return /* html */ `<!DOCTYPE html>
@@ -112,6 +112,10 @@ function getGraphPanelHtml(options: WebviewHtmlOptions): string {
     </div>
     <div class="graph-panel" aria-label="Graph canvas">
       <svg id="graph-canvas" class="graph-canvas" viewBox="0 0 ${canvasWidth} ${canvasHeight}" role="img"></svg>
+    </div>
+    <div class="view-switch" role="tablist" aria-label="Node browser mode">
+      <button class="view-button active" type="button" data-node-view="tree">Tree</button>
+      <button class="view-button" type="button" data-node-view="list">List</button>
     </div>
     <div id="list" class="list" aria-label="Graph nodes"></div>
     <section class="detail" aria-label="Selected node">

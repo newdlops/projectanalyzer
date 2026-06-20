@@ -58,6 +58,36 @@ test("createGraphScene keeps the selected node inside a capped scene", () => {
   assert.equal(scene.omittedNodeCount, 2);
 });
 
+test("createGraphScene layers unselected directed graphs instead of stacking one column", () => {
+  const graph = createLayoutGraph([
+    createTestNode("entry"),
+    createTestNode("service"),
+    createTestNode("repo"),
+    createTestNode("view")
+  ], [
+    createCallEdge("entry-service", "entry", "service"),
+    createCallEdge("service-repo", "service", "repo"),
+    createCallEdge("entry-view", "entry", "view")
+  ]);
+
+  const scene = createGraphScene(graph, {
+    mode: "call",
+    query: "",
+    maxNodes: 10,
+    width: 960,
+    height: 560
+  });
+  const entry = requireSceneNode(scene, "entry");
+  const service = requireSceneNode(scene, "service");
+  const repo = requireSceneNode(scene, "repo");
+  const uniqueColumns = new Set(scene.nodes.map((node) => Math.round(node.x)));
+
+  assert.ok(uniqueColumns.size >= 3);
+  assert.ok(entry.x < service.x);
+  assert.ok(service.x < repo.x);
+  assert.ok(scene.edges.every((edge) => edge.path.startsWith("M ")));
+});
+
 /**
  * Creates a minimal graph payload for layout tests.
  */

@@ -26,9 +26,11 @@ export function getExplorerClientScript(options: ExplorerClientScriptOptions): s
     const state = {
       graph: undefined,
       mode: ${JSON.stringify(options.initialMode)},
+      nodeViewMode: "tree",
       query: "",
       selectedNodeId: undefined,
-      analysisState: "idle"
+      analysisState: "idle",
+      expandedTreeIds: new Set()
     };
     const defaultDepth = ${JSON.stringify(options.defaultDepth)};
     const canvasHeight = ${JSON.stringify(options.canvasHeight)};
@@ -48,7 +50,8 @@ export function getExplorerClientScript(options: ExplorerClientScriptOptions): s
       list: document.getElementById("list"),
       detailTitle: document.getElementById("detail-title"),
       detailMeta: document.getElementById("detail-meta"),
-      modeButtons: Array.from(document.querySelectorAll(".mode-button"))
+      modeButtons: Array.from(document.querySelectorAll(".mode-button")),
+      nodeViewButtons: Array.from(document.querySelectorAll(".view-button"))
     };
 
     elements.exportJson.addEventListener("click", () => {
@@ -76,6 +79,13 @@ export function getExplorerClientScript(options: ExplorerClientScriptOptions): s
       button.addEventListener("click", () => {
         state.mode = button.dataset.mode;
         postRequest("graph/load", { mode: state.mode, depth: defaultDepth }, "Switching view");
+        render();
+      });
+    }
+
+    for (const button of elements.nodeViewButtons) {
+      button.addEventListener("click", () => {
+        state.nodeViewMode = button.dataset.nodeView;
         render();
       });
     }
@@ -134,6 +144,7 @@ export function getExplorerClientScript(options: ExplorerClientScriptOptions): s
 
     function render() {
       renderModeButtons();
+      renderNodeViewButtons();
       renderStats();
       renderGraphCanvas();
       renderList();
@@ -144,6 +155,12 @@ export function getExplorerClientScript(options: ExplorerClientScriptOptions): s
     function renderModeButtons() {
       for (const button of elements.modeButtons) {
         button.classList.toggle("active", button.dataset.mode === state.mode);
+      }
+    }
+
+    function renderNodeViewButtons() {
+      for (const button of elements.nodeViewButtons) {
+        button.classList.toggle("active", button.dataset.nodeView === state.nodeViewMode);
       }
     }
 
@@ -174,23 +191,24 @@ export function getExplorerClientScript(options: ExplorerClientScriptOptions): s
       appendArrowMarker();
 
       for (const edge of scene.edges.slice(0, 90)) {
-        const line = createSvgElement("line");
-        line.setAttribute("class", classNames([
+        const path = createSvgElement("path");
+        path.setAttribute("class", classNames([
           "graph-edge",
           edge.confidence,
           edge.isSelected ? "selected" : "",
           edge.isDimmed ? "dimmed" : ""
         ]));
-        line.setAttribute("x1", String(edge.x1));
-        line.setAttribute("y1", String(edge.y1));
-        line.setAttribute("x2", String(edge.x2));
-        line.setAttribute("y2", String(edge.y2));
-        line.setAttribute("marker-end", "url(#arrow)");
-        elements.graphCanvas.append(line);
+        path.setAttribute("d", edge.path);
+        path.setAttribute("marker-end", "url(#arrow)");
+        elements.graphCanvas.append(path);
       }
 
       for (const node of scene.nodes) {
         appendGraphNode(node);
+      }
+
+      if (scene.omittedNodeCount > 0) {
+        appendCanvasNotice(String(scene.omittedNodeCount) + " nodes hidden by render limit");
       }
     }
 
@@ -219,6 +237,16 @@ export function getExplorerClientScript(options: ExplorerClientScriptOptions): s
       text.setAttribute("class", "graph-message");
       text.setAttribute("x", String(canvasWidth / 2));
       text.setAttribute("y", String(canvasHeight / 2));
+      text.textContent = message;
+      elements.graphCanvas.append(text);
+    }
+
+    function appendCanvasNotice(message) {
+      const text = createSvgElement("text");
+
+      text.setAttribute("class", "graph-message");
+      text.setAttribute("x", String(canvasWidth / 2));
+      text.setAttribute("y", String(canvasHeight - 18));
       text.textContent = message;
       elements.graphCanvas.append(text);
     }
@@ -265,6 +293,16 @@ export function getExplorerClientScript(options: ExplorerClientScriptOptions): s
 
     function renderList() {
       elements.list.replaceChildren();
+
+      if (state.nodeViewMode === "tree") {
+        renderTree();
+        return;
+      }
+
+      renderFlatList();
+    }
+
+    function renderFlatList() {
       const visibleNodes = getVisibleNodes();
 
       if (visibleNodes.length === 0) {
@@ -297,6 +335,59 @@ export function getExplorerClientScript(options: ExplorerClientScriptOptions): s
         });
 
         elements.list.append(row);
+      }
+    }
+
+    function renderTree() {
+      const rows = getTreeRows();
+
+      if (rows.length === 0) {
+        const empty = document.createElement("div");
+        empty.className = "empty-state";
+        empty.textContent = state.graph ? "No nodes in this tree" : "Analyze a workspace to load nodes";
+        elements.list.append(empty);
+        return;
+      }
+
+      for (const row of rows.slice(0, 500)) {
+        const button = document.createElement("button");
+        const disclosure = document.createElement("span");
+        const text = document.createElement("span");
+        const name = document.createElement("span");
+        const meta = document.createElement("span");
+
+        button.type = "button";
+        button.className = "node-row tree-row";
+        button.style.paddingLeft = String(8 + row.depth * 16) + "px";
+        button.classList.toggle("selected", row.nodeId === state.selectedNodeId);
+        disclosure.className = "tree-disclosure" + (row.hasChildren ? "" : " empty");
+        disclosure.textContent = row.hasChildren ? (row.expanded ? "-" : "+") : "-";
+        text.className = "node-text";
+        name.className = "node-name";
+        meta.className = "node-meta";
+        name.textContent = row.label;
+        meta.textContent = row.meta;
+
+        text.append(name, meta);
+        button.append(disclosure, text);
+        button.addEventListener("click", () => {
+          if (row.hasChildren) {
+            toggleTreeRow(row.id);
+          }
+
+          if (row.nodeId) {
+            selectNode(row.nodeId);
+          } else {
+            render();
+          }
+        });
+        button.addEventListener("dblclick", () => {
+          if (row.nodeId) {
+            vscode.postMessage({ type: "node/openSource", payload: { nodeId: row.nodeId } });
+          }
+        });
+
+        elements.list.append(button);
       }
     }
 
@@ -343,7 +434,7 @@ export function getExplorerClientScript(options: ExplorerClientScriptOptions): s
       }, direction === "callers" ? "Loading callers" : "Loading callees");
     }
 
-    function getVisibleNodes() {
+    function getVisibleNodes(limit = 200) {
       const graph = state.graph;
 
       if (!graph) {
@@ -361,7 +452,152 @@ export function getExplorerClientScript(options: ExplorerClientScriptOptions): s
             .filter(Boolean)
             .some((value) => value.toLowerCase().includes(state.query));
         })
-        .slice(0, 200);
+        .slice(0, limit);
+    }
+
+    function getTreeRows() {
+      const graph = state.graph;
+
+      if (!graph) {
+        return [];
+      }
+
+      const root = createTreeEntry("root", "", "workspace", "", undefined);
+      const nodes = getVisibleNodes(1000);
+
+      for (const node of nodes) {
+        insertNodeIntoTree(root, graph, node);
+      }
+
+      const rows = [];
+      appendTreeRows(root, rows, -1);
+      return rows;
+    }
+
+    function insertNodeIntoTree(root, graph, node) {
+      const relativePath = getRelativePath(graph, node.filePath);
+      const pathParts = relativePath.split(/[\\\\/]/).filter(Boolean);
+      let current = root;
+      let currentPath = "";
+
+      for (let index = 0; index < pathParts.length; index += 1) {
+        const part = pathParts[index];
+        const isFile = index === pathParts.length - 1;
+        currentPath = currentPath ? currentPath + "/" + part : part;
+        current = getOrCreateTreeChild(
+          current,
+          "path:" + currentPath,
+          part,
+          isFile ? "file" : "folder",
+          isFile && state.mode === "file" ? node.id : undefined
+        );
+      }
+
+      if (state.mode === "file") {
+        return;
+      }
+
+      const symbolParts = (node.qualifiedName || node.name || node.id)
+        .split(".")
+        .filter(Boolean);
+      let symbolPath = current.id;
+
+      for (let index = 0; index < symbolParts.length; index += 1) {
+        const part = symbolParts[index];
+        const isLeaf = index === symbolParts.length - 1;
+        symbolPath += "::" + part;
+        current = getOrCreateTreeChild(
+          current,
+          "symbol:" + node.id + ":" + symbolPath,
+          part,
+          isLeaf ? node.kind : "namespace",
+          isLeaf ? node.id : undefined
+        );
+      }
+    }
+
+    function createTreeEntry(id, label, kind, meta, nodeId) {
+      return {
+        id,
+        label,
+        kind,
+        meta,
+        nodeId,
+        children: new Map()
+      };
+    }
+
+    function getOrCreateTreeChild(parent, id, label, kind, nodeId) {
+      const existing = parent.children.get(id);
+
+      if (existing) {
+        if (nodeId) {
+          existing.nodeId = nodeId;
+        }
+
+        return existing;
+      }
+
+      const child = createTreeEntry(id, label, kind, kind, nodeId);
+      parent.children.set(id, child);
+      return child;
+    }
+
+    function appendTreeRows(parent, rows, depth) {
+      const children = [...parent.children.values()].sort(compareTreeEntries);
+
+      for (const child of children) {
+        const hasChildren = child.children.size > 0;
+        const expanded = hasChildren && isTreeRowExpanded(child.id, depth + 1);
+
+        rows.push({
+          id: child.id,
+          label: child.label,
+          meta: child.meta,
+          nodeId: child.nodeId,
+          depth: depth + 1,
+          hasChildren,
+          expanded
+        });
+
+        if (expanded) {
+          appendTreeRows(child, rows, depth + 1);
+        }
+      }
+    }
+
+    function compareTreeEntries(left, right) {
+      const leftGroup = left.children.size > 0 && left.kind !== "file" ? 0 : 1;
+      const rightGroup = right.children.size > 0 && right.kind !== "file" ? 0 : 1;
+
+      if (leftGroup !== rightGroup) {
+        return leftGroup - rightGroup;
+      }
+
+      return left.label.localeCompare(right.label);
+    }
+
+    function isTreeRowExpanded(treeId, depth) {
+      return depth < 2 || state.expandedTreeIds.has(treeId);
+    }
+
+    function toggleTreeRow(treeId) {
+      if (state.expandedTreeIds.has(treeId)) {
+        state.expandedTreeIds.delete(treeId);
+      } else {
+        state.expandedTreeIds.add(treeId);
+      }
+    }
+
+    function getRelativePath(graph, filePath) {
+      const workspaceRoot = graph.workspaceRoot.replace(/\\\\/g, "/");
+      const normalized = filePath.replace(/\\\\/g, "/");
+
+      if (normalized.startsWith(workspaceRoot + "/")) {
+        return normalized.slice(workspaceRoot.length + 1);
+      }
+
+      return compactPath(filePath);
     }
 
     function selectNode(nodeId) {
