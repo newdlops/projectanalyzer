@@ -19,6 +19,7 @@ pub struct ProjectGraphBuilder {
     edges: Vec<GraphEdge>,
     diagnostics: Vec<AnalysisDiagnostic>,
     languages: BTreeSet<String>,
+    external_node_ids: BTreeSet<String>,
     file_count: usize,
 }
 
@@ -31,6 +32,7 @@ impl ProjectGraphBuilder {
             edges: Vec::new(),
             diagnostics: Vec::new(),
             languages: BTreeSet::new(),
+            external_node_ids: BTreeSet::new(),
             file_count: 0,
         }
     }
@@ -95,6 +97,45 @@ impl ProjectGraphBuilder {
         symbol_id
     }
 
+    /// Adds an external target node used by unresolved call edges.
+    pub fn add_external_symbol(&mut self, symbol: NewExternalSymbol) -> String {
+        let file_path = symbol.file_path.to_string_lossy().to_string();
+        let symbol_id = create_external_node_id(&symbol.file_path, &symbol.qualified_name);
+
+        if self.external_node_ids.insert(symbol_id.clone()) {
+            self.nodes.push(SymbolNode {
+                id: symbol_id.clone(),
+                kind: "external".to_string(),
+                name: symbol.name,
+                qualified_name: symbol.qualified_name,
+                file_path,
+                range: symbol.range.clone(),
+                selection_range: symbol.selection_range,
+                language: symbol.language,
+                parent_id: None,
+                size_bytes: None,
+            });
+        }
+
+        symbol_id
+    }
+
+    /// Adds a call edge between a caller symbol and a resolved or external target.
+    pub fn add_call_edge(&mut self, edge: NewCallEdge) {
+        let file_path = edge.file_path.to_string_lossy().to_string();
+        let edge_id = create_ranged_edge_id("calls", &edge.source_id, &edge.target_id, &edge.range);
+
+        self.edges.push(GraphEdge {
+            id: edge_id,
+            kind: "calls".to_string(),
+            source_id: edge.source_id,
+            target_id: edge.target_id,
+            file_path,
+            range: edge.range,
+            confidence: edge.confidence,
+        });
+    }
+
     /// Adds a file-scoped diagnostic.
     pub fn add_diagnostic(&mut self, code: &str, message: String, file_path: Option<String>) {
         self.diagnostics.push(AnalysisDiagnostic {
@@ -132,6 +173,25 @@ pub struct NewSymbol {
     pub parent_id: String,
 }
 
+/// New external node data supplied for unresolved references.
+pub struct NewExternalSymbol {
+    pub name: String,
+    pub qualified_name: String,
+    pub file_path: PathBuf,
+    pub range: SourceRange,
+    pub selection_range: SourceRange,
+    pub language: String,
+}
+
+/// New call edge data supplied by language analyzers.
+pub struct NewCallEdge {
+    pub source_id: String,
+    pub target_id: String,
+    pub file_path: PathBuf,
+    pub range: SourceRange,
+    pub confidence: String,
+}
+
 /// Builds a stable file node ID.
 pub fn create_file_node_id(file_path: &Path) -> String {
     format!("file::{}", file_path.to_string_lossy())
@@ -154,9 +214,31 @@ fn create_symbol_node_id(
     )
 }
 
+/// Builds a stable external node ID scoped to the source file that observed it.
+fn create_external_node_id(file_path: &Path, qualified_name: &str) -> String {
+    format!(
+        "external::{}::{}",
+        file_path.to_string_lossy(),
+        qualified_name
+    )
+}
+
 /// Builds a stable edge ID.
 fn create_edge_id(kind: &str, source_id: &str, target_id: &str) -> String {
     format!("edge::{kind}::{source_id}::{target_id}")
+}
+
+/// Builds a stable edge ID for source-positioned semantic edges.
+fn create_ranged_edge_id(
+    kind: &str,
+    source_id: &str,
+    target_id: &str,
+    range: &SourceRange,
+) -> String {
+    format!(
+        "edge::{kind}::{source_id}::{target_id}::{}::{}",
+        range.start_line, range.start_character
+    )
 }
 
 /// Returns a relative display path when the file is under the workspace root.

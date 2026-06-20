@@ -3,7 +3,7 @@
  * stack growth and to keep cycle handling explicit for large project graphs.
  */
 
-import type { EdgeKind, GraphEdge, SymbolNode } from "../shared/types";
+import type { EdgeKind, GraphEdge, ProjectGraph, SymbolNode } from "../shared/types";
 import type { GraphStore } from "./graphStore";
 
 /** Direction used when expanding callers, callees, or file dependencies. */
@@ -21,6 +21,16 @@ export type TraversalOptions = {
 export type TraversalResult = {
   nodes: SymbolNode[];
   edges: GraphEdge[];
+};
+
+/** Direction names used by the GUI caller/callee relationship actions. */
+export type CallRelationshipDirection = "callers" | "callees";
+
+/** Query options for bounded calls-only relationship expansion. */
+export type CallRelationshipOptions = {
+  rootNodeId: string;
+  direction: CallRelationshipDirection;
+  maxDepth: number;
 };
 
 /**
@@ -84,6 +94,44 @@ export function traverseGraph(store: GraphStore, options: TraversalOptions): Tra
   }
 
   return { nodes, edges };
+}
+
+/**
+ * Expands a callers/callees subgraph using only calls edges. The helper keeps the
+ * GUI relationship vocabulary out of generic traversal callers.
+ */
+export function traverseCallRelationship(
+  store: GraphStore,
+  options: CallRelationshipOptions
+): TraversalResult {
+  return traverseGraph(store, {
+    rootNodeId: options.rootNodeId,
+    direction: options.direction === "callees" ? "outgoing" : "incoming",
+    maxDepth: options.maxDepth,
+    edgeKinds: ["calls"]
+  });
+}
+
+/**
+ * Creates a ProjectGraph payload for a bounded traversal result while preserving
+ * original graph identity fields and edge confidence records.
+ */
+export function createTraversalSubgraph(baseGraph: ProjectGraph, result: TraversalResult): ProjectGraph {
+  const languages = [...new Set(result.nodes.map((node) => node.language).filter(Boolean))].sort();
+  const fileCount = new Set(result.nodes.map((node) => node.filePath).filter(Boolean)).size;
+
+  return {
+    ...baseGraph,
+    nodes: result.nodes,
+    edges: result.edges,
+    metadata: {
+      ...baseGraph.metadata,
+      languages,
+      fileCount,
+      symbolCount: result.nodes.length,
+      edgeCount: result.edges.length
+    }
+  };
 }
 
 /**

@@ -6,6 +6,8 @@
 import * as crypto from "node:crypto";
 import * as vscode from "vscode";
 import type { AnalysisBackend } from "../analyzer/core/analysisBackend";
+import { InMemoryGraphStore } from "../graph/graphStore";
+import { createTraversalSubgraph, traverseCallRelationship } from "../graph/graphTraversal";
 import type {
   AnalysisStatusPayload,
   ExportRequest,
@@ -257,15 +259,42 @@ export class ExplorerViewProvider implements vscode.WebviewViewProvider {
     direction: "callers" | "callees"
   ): Promise<void> {
     const graph = await this.dependencies.cacheStore.getLatestGraph();
-    const node = graph?.nodes.find((candidate) => candidate.id === nodeId);
 
-    if (!node) {
-      await this.postStatus("idle", "Select a graph node first");
+    if (!graph) {
+      await this.postStatus("idle", "Analyze before exploring call relationships");
       return;
     }
 
+    const node = graph.nodes.find((candidate) => candidate.id === nodeId);
+
+    if (!node) {
+      await this.postStatus("idle", "Selected node is not available");
+      return;
+    }
+
+    const relationshipDepth = Math.max(0, Math.floor(this.dependencies.config.defaultDepth));
+    const store = new InMemoryGraphStore(graph);
+    const result = traverseCallRelationship(store, {
+      rootNodeId: nodeId,
+      direction,
+      maxDepth: relationshipDepth
+    });
+    const subgraph = createTraversalSubgraph(graph, result);
+    const relationshipLabel = direction === "callers" ? "callers" : "callees";
+    const nodeLabel = getNodeDisplayName(node);
+
     await this.setMode("call");
-    await this.postStatus("idle", `${direction === "callers" ? "Callers" : "Callees"} view needs call edges`);
+    await this.postMessage({ type: "graph/updated", payload: subgraph });
+
+    if (result.edges.length === 0) {
+      await this.postStatus("idle", `No ${relationshipLabel} found for ${nodeLabel}`);
+      return;
+    }
+
+    await this.postStatus(
+      "complete",
+      `Showing ${relationshipLabel} for ${nodeLabel} (${formatCount(result.edges.length, "call edge")}, depth ${relationshipDepth})`
+    );
   }
 
   /**
@@ -374,4 +403,18 @@ async function openNodeInEditor(node: SymbolNode): Promise<void> {
  */
 function createNonce(): string {
   return crypto.randomBytes(16).toString("base64");
+}
+
+/**
+ * Returns the shortest stable display label for status messages.
+ */
+function getNodeDisplayName(node: SymbolNode): string {
+  return node.name || node.qualifiedName || node.id;
+}
+
+/**
+ * Formats counted nouns for compact sidebar status messages.
+ */
+function formatCount(count: number, noun: string): string {
+  return `${count} ${noun}${count === 1 ? "" : "s"}`;
 }
