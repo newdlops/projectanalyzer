@@ -14,18 +14,7 @@
     "Other"
   ],
   "activationEvents": [
-    "onView:projectAnalyzer.explorerView",
-    "onCommand:projectAnalyzer.openExplorer",
-    "onCommand:projectAnalyzer.analyzeWorkspace",
-    "onCommand:projectAnalyzer.analyzeCurrentFile",
-    "onCommand:projectAnalyzer.showCallGraph",
-    "onCommand:projectAnalyzer.showFileGraph",
-    "onCommand:projectAnalyzer.showClassGraph",
-    "onCommand:projectAnalyzer.findCallers",
-    "onCommand:projectAnalyzer.findCallees",
-    "onCommand:projectAnalyzer.exportGraph",
-    "onCommand:projectAnalyzer.clearCache",
-    "onCommand:projectAnalyzer.cancelAnalysis"
+    "onView:projectAnalyzer.explorerView"
   ],
   "main": "./out/extension/activate.js",
   "contributes": {
@@ -47,52 +36,6 @@
         }
       ]
     },
-    "commands": [
-      {
-        "command": "projectAnalyzer.openExplorer",
-        "title": "Project Analyzer: Open Explorer"
-      },
-      {
-        "command": "projectAnalyzer.analyzeWorkspace",
-        "title": "Project Analyzer: Analyze Workspace"
-      },
-      {
-        "command": "projectAnalyzer.analyzeCurrentFile",
-        "title": "Project Analyzer: Analyze Current File"
-      },
-      {
-        "command": "projectAnalyzer.showCallGraph",
-        "title": "Project Analyzer: Show Call Graph"
-      },
-      {
-        "command": "projectAnalyzer.showFileGraph",
-        "title": "Project Analyzer: Show File Graph"
-      },
-      {
-        "command": "projectAnalyzer.showClassGraph",
-        "title": "Project Analyzer: Show Class Graph"
-      },
-      {
-        "command": "projectAnalyzer.findCallers",
-        "title": "Project Analyzer: Find Callers"
-      },
-      {
-        "command": "projectAnalyzer.findCallees",
-        "title": "Project Analyzer: Find Callees"
-      },
-      {
-        "command": "projectAnalyzer.exportGraph",
-        "title": "Project Analyzer: Export Graph"
-      },
-      {
-        "command": "projectAnalyzer.clearCache",
-        "title": "Project Analyzer: Clear Cache"
-      },
-      {
-        "command": "projectAnalyzer.cancelAnalysis",
-        "title": "Project Analyzer: Cancel Analysis"
-      }
-    ],
     "configuration": {
       "title": "Project Analyzer",
       "properties": {
@@ -172,15 +115,6 @@
           "description": "Maximum persisted analysis cache size in MiB."
         }
       }
-    },
-    "menus": {
-      "view/title": [
-        {
-          "command": "projectAnalyzer.analyzeWorkspace",
-          "when": "view == projectAnalyzer.explorerView",
-          "group": "navigation"
-        }
-      ]
     }
   },
   "dependencies": {

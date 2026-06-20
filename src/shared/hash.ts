@@ -1,6 +1,6 @@
 /**
  * Hash helpers for source snapshots and cache keys. Centralizing hashing keeps
- * workspace scans and current-file commands consistent.
+ * workspace scans and current-file GUI actions consistent.
  */
 
 import * as crypto from "node:crypto";

@@ -57,6 +57,8 @@ export function getExplorerHtml(options: WebviewHtmlOptions): string {
     }
 
     .toolbar,
+    .button-grid,
+    .action-grid,
     .mode-switch,
     .stats {
       display: flex;
@@ -67,23 +69,56 @@ export function getExplorerHtml(options: WebviewHtmlOptions): string {
       align-items: center;
     }
 
+    .button-grid,
+    .action-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
     .primary-button,
+    .secondary-button,
+    .action-button,
     .mode-button {
       border: 1px solid var(--vscode-button-border, transparent);
       border-radius: 4px;
       cursor: pointer;
+      overflow: hidden;
+      text-overflow: ellipsis;
       white-space: nowrap;
     }
 
-    .primary-button {
+    .primary-button,
+    .secondary-button,
+    .action-button {
       flex: 1;
       padding: 6px 8px;
+    }
+
+    .primary-button {
       color: var(--vscode-button-foreground);
       background: var(--vscode-button-background);
     }
 
     .primary-button:hover {
       background: var(--vscode-button-hoverBackground);
+    }
+
+    .secondary-button,
+    .action-button {
+      color: var(--vscode-button-secondaryForeground);
+      background: var(--vscode-button-secondaryBackground);
+    }
+
+    .secondary-button:hover,
+    .action-button:hover {
+      background: var(--vscode-button-secondaryHoverBackground);
+    }
+
+    .secondary-button:disabled,
+    .action-button:disabled,
+    .primary-button:disabled {
+      cursor: default;
+      opacity: 0.55;
     }
 
     .mode-switch {
@@ -214,7 +249,13 @@ export function getExplorerHtml(options: WebviewHtmlOptions): string {
 <body>
   <div class="shell">
     <div class="toolbar">
-      <button id="analyze" class="primary-button" type="button">Analyze</button>
+      <button id="analyze-workspace" class="primary-button" type="button">Analyze Workspace</button>
+    </div>
+    <div class="button-grid">
+      <button id="analyze-current" class="secondary-button" type="button">Current File</button>
+      <button id="cancel-analysis" class="secondary-button" type="button">Cancel</button>
+      <button id="export-json" class="secondary-button" type="button">Export JSON</button>
+      <button id="clear-cache" class="secondary-button" type="button">Clear</button>
     </div>
     <div class="mode-switch" role="tablist">
       <button class="mode-button active" type="button" data-mode="file">Files</button>
@@ -232,6 +273,11 @@ export function getExplorerHtml(options: WebviewHtmlOptions): string {
     <section class="detail" aria-label="Selected node">
       <div id="detail-title" class="detail-title">No selection</div>
       <div id="detail-meta" class="detail-meta"></div>
+      <div class="action-grid">
+        <button id="open-source" class="action-button" type="button" disabled>Open</button>
+        <button id="show-callers" class="action-button" type="button" disabled>Callers</button>
+        <button id="show-callees" class="action-button" type="button" disabled>Callees</button>
+      </div>
     </section>
   </div>
   <script nonce="${options.nonce}">
@@ -244,7 +290,14 @@ export function getExplorerHtml(options: WebviewHtmlOptions): string {
     };
     const defaultDepth = ${JSON.stringify(options.defaultDepth)};
     const elements = {
-      analyze: document.getElementById("analyze"),
+      analyzeWorkspace: document.getElementById("analyze-workspace"),
+      analyzeCurrent: document.getElementById("analyze-current"),
+      cancelAnalysis: document.getElementById("cancel-analysis"),
+      exportJson: document.getElementById("export-json"),
+      clearCache: document.getElementById("clear-cache"),
+      openSource: document.getElementById("open-source"),
+      showCallers: document.getElementById("show-callers"),
+      showCallees: document.getElementById("show-callees"),
       search: document.getElementById("search"),
       status: document.getElementById("status"),
       files: document.getElementById("files"),
@@ -256,8 +309,36 @@ export function getExplorerHtml(options: WebviewHtmlOptions): string {
       modeButtons: Array.from(document.querySelectorAll(".mode-button"))
     };
 
-    elements.analyze.addEventListener("click", () => {
+    elements.analyzeWorkspace.addEventListener("click", () => {
       vscode.postMessage({ type: "analysis/run", payload: { scope: "workspace" } });
+    });
+
+    elements.analyzeCurrent.addEventListener("click", () => {
+      vscode.postMessage({ type: "analysis/run", payload: { scope: "currentFile" } });
+    });
+
+    elements.cancelAnalysis.addEventListener("click", () => {
+      vscode.postMessage({ type: "analysis/cancel", payload: {} });
+    });
+
+    elements.exportJson.addEventListener("click", () => {
+      vscode.postMessage({ type: "export/run", payload: { format: "json" } });
+    });
+
+    elements.clearCache.addEventListener("click", () => {
+      vscode.postMessage({ type: "cache/clear", payload: {} });
+    });
+
+    elements.openSource.addEventListener("click", () => {
+      postSelectedNode("node/openSource");
+    });
+
+    elements.showCallers.addEventListener("click", () => {
+      postSelectedRelationship("callers");
+    });
+
+    elements.showCallees.addEventListener("click", () => {
+      postSelectedRelationship("callees");
     });
 
     elements.search.addEventListener("input", (event) => {
@@ -288,6 +369,13 @@ export function getExplorerHtml(options: WebviewHtmlOptions): string {
         return;
       }
 
+      if (message.type === "graph/cleared") {
+        state.graph = undefined;
+        state.selectedNodeId = undefined;
+        render();
+        return;
+      }
+
       if (message.type === "view/modeChanged") {
         state.mode = message.payload.mode;
         render();
@@ -306,6 +394,7 @@ export function getExplorerHtml(options: WebviewHtmlOptions): string {
       renderStats();
       renderList();
       renderDetail();
+      renderActions();
     }
 
     function renderModeButtons() {
@@ -363,6 +452,36 @@ export function getExplorerHtml(options: WebviewHtmlOptions): string {
       elements.detailMeta.textContent =
         node.kind + " · " + node.language + " · " + compactPath(node.filePath) +
         " · " + (node.selectionRange.startLine + 1) + ":" + (node.selectionRange.startCharacter + 1);
+    }
+
+    function renderActions() {
+      const hasSelection = Boolean(state.selectedNodeId);
+      elements.openSource.disabled = !hasSelection;
+      elements.showCallers.disabled = !hasSelection;
+      elements.showCallees.disabled = !hasSelection;
+      elements.exportJson.disabled = !state.graph;
+    }
+
+    function postSelectedNode(type) {
+      if (!state.selectedNodeId) {
+        return;
+      }
+
+      vscode.postMessage({ type, payload: { nodeId: state.selectedNodeId } });
+    }
+
+    function postSelectedRelationship(direction) {
+      if (!state.selectedNodeId) {
+        return;
+      }
+
+      vscode.postMessage({
+        type: "node/showRelationship",
+        payload: {
+          nodeId: state.selectedNodeId,
+          direction
+        }
+      });
     }
 
     function getVisibleNodes() {

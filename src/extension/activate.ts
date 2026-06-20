@@ -1,10 +1,9 @@
 /**
  * VS Code extension activation entrypoint. It creates runtime services and
- * registers contributed commands.
+ * registers GUI views.
  */
 
 import * as vscode from "vscode";
-import { registerProjectAnalyzerCommands } from "./commands";
 import { createExtensionServices } from "./extensionServices";
 import { registerProjectAnalyzerViews } from "./views";
 
@@ -14,7 +13,6 @@ import { registerProjectAnalyzerViews } from "./views";
 export function activate(context: vscode.ExtensionContext): void {
   const services = createExtensionServices(context);
   registerProjectAnalyzerViews(context, services);
-  registerProjectAnalyzerCommands(context, services);
 }
 
 /**

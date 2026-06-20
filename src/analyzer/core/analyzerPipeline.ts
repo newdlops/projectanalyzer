@@ -12,7 +12,7 @@ import type { LanguageAnalyzer } from "./languageAnalyzer";
 import { WorkspaceScanner } from "./workspaceScanner";
 import type { WorkspaceFileSystem } from "./workspaceScanner";
 
-/** Result returned by workspace and file analysis commands. */
+/** Result returned by workspace and current-file analysis requests. */
 export type AnalyzeResult = {
   graph: ProjectGraph;
 };

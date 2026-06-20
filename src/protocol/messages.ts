@@ -33,7 +33,13 @@ export type ExportRequest = {
 
 /** Analysis request emitted by the GUI. */
 export type AnalysisRunRequest = {
-  scope: "workspace";
+  scope: "workspace" | "currentFile";
+};
+
+/** Node relationship exploration request emitted by the GUI. */
+export type NodeRelationshipRequest = {
+  nodeId: string;
+  direction: "callers" | "callees";
 };
 
 /** Messages sent from Webview to Extension Host. */
@@ -41,7 +47,10 @@ export type WebviewRequest =
   | { type: "graph/load"; payload: GraphLoadRequest }
   | { type: "graph/expand"; payload: ExpandRequest }
   | { type: "analysis/run"; payload: AnalysisRunRequest }
+  | { type: "analysis/cancel"; payload: Record<string, never> }
+  | { type: "cache/clear"; payload: Record<string, never> }
   | { type: "node/openSource"; payload: { nodeId: string } }
+  | { type: "node/showRelationship"; payload: NodeRelationshipRequest }
   | { type: "search/query"; payload: SearchRequest }
   | { type: "export/run"; payload: ExportRequest };
 
@@ -68,6 +77,7 @@ export type AnalysisStatusPayload = {
 export type ExtensionResponse =
   | { type: "graph/loaded"; payload: ProjectGraph }
   | { type: "graph/updated"; payload: ProjectGraph }
+  | { type: "graph/cleared"; payload: Record<string, never> }
   | { type: "analysis/status"; payload: AnalysisStatusPayload }
   | { type: "view/modeChanged"; payload: { mode: GraphViewMode } }
   | { type: "search/results"; payload: SearchResult[] }

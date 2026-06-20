@@ -1,6 +1,6 @@
 /**
  * In-memory graph store for normalized nodes and edges. The store owns lookup
- * indexes used by analyzers, commands, traversal helpers, and export features.
+ * indexes used by analyzers, GUI actions, traversal helpers, and export features.
  */
 
 import type { GraphEdge, ProjectGraph, SymbolNode } from "../shared/types";

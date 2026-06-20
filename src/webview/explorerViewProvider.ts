@@ -8,10 +8,12 @@ import * as vscode from "vscode";
 import type { AnalyzerPipeline } from "../analyzer/core/analyzerPipeline";
 import type {
   AnalysisStatusPayload,
+  ExportRequest,
   ExtensionResponse,
   GraphViewMode,
   WebviewRequest
 } from "../protocol/messages";
+import { createContentHash } from "../shared/hash";
 import type { ProjectGraph, SymbolNode } from "../shared/types";
 import type { AnalysisCacheStore } from "../storage/cacheStore";
 import type { ProjectAnalyzerConfig } from "../vscode/configuration";
@@ -34,7 +36,7 @@ export class ExplorerViewProvider implements vscode.WebviewViewProvider {
   /** Current sidebar view instance, available only after VS Code resolves it. */
   private view: vscode.WebviewView | undefined;
 
-  /** Active graph mode selected by commands or the GUI. */
+  /** Active graph mode selected by the sidebar GUI. */
   private mode: GraphViewMode = "file";
 
   /** Guards workspace analysis so repeated GUI clicks do not overlap scans. */
@@ -92,7 +94,13 @@ export class ExplorerViewProvider implements vscode.WebviewViewProvider {
   private async handleMessage(message: WebviewRequest): Promise<void> {
     switch (message.type) {
       case "analysis/run":
-        await this.runWorkspaceAnalysis();
+        await this.runAnalysis(message.payload.scope);
+        break;
+      case "analysis/cancel":
+        await this.requestAnalysisCancellation();
+        break;
+      case "cache/clear":
+        await this.clearCache();
         break;
       case "graph/load":
         await this.setMode(message.payload.mode);
@@ -101,9 +109,27 @@ export class ExplorerViewProvider implements vscode.WebviewViewProvider {
       case "node/openSource":
         await this.openSourceNode(message.payload.nodeId);
         break;
+      case "node/showRelationship":
+        await this.showNodeRelationship(message.payload.nodeId, message.payload.direction);
+        break;
+      case "export/run":
+        await this.exportGraph(message.payload);
+        break;
       default:
         break;
     }
+  }
+
+  /**
+   * Routes a GUI analysis request to the requested analysis scope.
+   */
+  private async runAnalysis(scope: "workspace" | "currentFile"): Promise<void> {
+    if (scope === "currentFile") {
+      await this.runCurrentFileAnalysis();
+      return;
+    }
+
+    await this.runWorkspaceAnalysis();
   }
 
   /**
@@ -134,6 +160,126 @@ export class ExplorerViewProvider implements vscode.WebviewViewProvider {
     } finally {
       this.analysisRunning = false;
     }
+  }
+
+  /**
+   * Runs analysis for the active editor document.
+   */
+  private async runCurrentFileAnalysis(): Promise<void> {
+    if (this.analysisRunning) {
+      return;
+    }
+
+    const editor = vscode.window.activeTextEditor;
+
+    if (!editor) {
+      await this.postStatus("idle", "Open a source file first");
+      return;
+    }
+
+    this.analysisRunning = true;
+    await this.postStatus("running", "Analyzing current file");
+
+    try {
+      const document = editor.document;
+      const content = document.getText();
+      const result = await this.dependencies.analyzer.analyzeFile({
+        path: document.uri.fsPath,
+        languageId: document.languageId,
+        content,
+        sizeBytes: Buffer.byteLength(content, "utf8"),
+        contentHash: createContentHash(content)
+      });
+
+      await this.dependencies.cacheStore.saveLatestGraph(result.graph);
+      await this.postStatus("complete", `Analyzed ${document.fileName}`);
+      await this.publishGraph(result.graph);
+    } catch (error) {
+      await this.postStatus("failed", "Current-file analysis failed");
+      await this.postMessage({
+        type: "error",
+        payload: {
+          code: "analysis.currentFileFailed",
+          message: error instanceof Error ? error.message : "Unknown current-file analysis failure"
+        }
+      });
+    } finally {
+      this.analysisRunning = false;
+    }
+  }
+
+  /**
+   * Clears cached graph data and tells the GUI to reset its state.
+   */
+  private async clearCache(): Promise<void> {
+    await this.dependencies.cacheStore.clear();
+    await this.postMessage({ type: "graph/cleared", payload: {} });
+    await this.postStatus("idle", "Cache cleared");
+  }
+
+  /**
+   * Handles cancellation requests until cancellation tokens are wired into analysis.
+   */
+  private async requestAnalysisCancellation(): Promise<void> {
+    if (!this.analysisRunning) {
+      await this.postStatus("idle", "No analysis is running");
+      return;
+    }
+
+    await this.postStatus("running", "Cancellation will stop future analyzer workers");
+  }
+
+  /**
+   * Handles caller/callee exploration requests from the selected GUI node.
+   */
+  private async showNodeRelationship(
+    nodeId: string,
+    direction: "callers" | "callees"
+  ): Promise<void> {
+    const graph = await this.dependencies.cacheStore.getLatestGraph();
+    const node = graph?.nodes.find((candidate) => candidate.id === nodeId);
+
+    if (!node) {
+      await this.postStatus("idle", "Select a graph node first");
+      return;
+    }
+
+    await this.setMode("call");
+    await this.postStatus("idle", `${direction === "callers" ? "Callers" : "Callees"} view needs call edges`);
+  }
+
+  /**
+   * Exports the latest graph to a user-selected file.
+   */
+  private async exportGraph(request: ExportRequest): Promise<void> {
+    const graph = await this.dependencies.cacheStore.getLatestGraph();
+
+    if (!graph) {
+      await this.postStatus("idle", "Analyze before exporting");
+      return;
+    }
+
+    if (request.format !== "json") {
+      await this.postStatus("idle", `${request.format.toUpperCase()} export is not implemented yet`);
+      return;
+    }
+
+    const uri = await vscode.window.showSaveDialog({
+      defaultUri: vscode.Uri.file("project-analyzer-graph.json"),
+      filters: {
+        JSON: ["json"]
+      },
+      saveLabel: "Export Graph"
+    });
+
+    if (!uri) {
+      await this.postStatus("idle", "Export canceled");
+      return;
+    }
+
+    const serializedGraph = JSON.stringify(graph, null, 2);
+    await vscode.workspace.fs.writeFile(uri, Buffer.from(serializedGraph, "utf8"));
+    await this.postStatus("complete", `Exported ${graph.nodes.length} nodes`);
   }
 
   /**
