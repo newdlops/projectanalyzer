@@ -48,8 +48,13 @@ test("sidebar HTML renders file navigation as an import tree", () => {
   const scriptMatch = html.match(/<script nonce="nonce">([\s\S]*)<\/script>/);
 
   assert.ok(scriptMatch, "missing sidebar script");
+  assert.match(html, /role="tree"/);
+  assert.match(html, /Project import tree/);
   assert.match(scriptMatch[1], /createImportTreeIndex/);
   assert.match(scriptMatch[1], /childrenByImporterId/);
+  assert.match(scriptMatch[1], /tree-file-icon/);
+  assert.match(scriptMatch[1], /aria-expanded/);
+  assert.match(scriptMatch[1], /getFileName/);
   assert.doesNotMatch(scriptMatch[1], /insertFileNode/);
   assert.doesNotThrow(() => new Function("acquireVsCodeApi", scriptMatch[1]));
 });

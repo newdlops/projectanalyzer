@@ -258,6 +258,11 @@ export function getExplorerStyles(surface: ExplorerSurface): string {
       overflow: auto;
     }
 
+    .explorer-tree {
+      gap: 0;
+      padding: 2px 0;
+    }
+
     .node-row {
       display: flex;
       align-items: center;
@@ -273,9 +278,36 @@ export function getExplorerStyles(surface: ExplorerSurface): string {
       cursor: pointer;
     }
 
-    .node-row.tree-row {
-      padding-top: 4px;
-      padding-bottom: 4px;
+    .tree-row {
+      display: grid;
+      grid-template-columns: 16px 16px minmax(0, 1fr);
+      align-items: center;
+      width: 100%;
+      min-width: 0;
+      height: 22px;
+      padding-top: 0;
+      padding-right: 8px;
+      padding-bottom: 0;
+      color: var(--vscode-foreground);
+      background: transparent;
+      border: 0;
+      border-radius: 0;
+      text-align: left;
+      cursor: pointer;
+    }
+
+    .tree-row:hover {
+      background: var(--vscode-list-hoverBackground);
+    }
+
+    .tree-row.selected {
+      color: var(--vscode-list-activeSelectionForeground, var(--vscode-foreground));
+      background: var(--vscode-list-activeSelectionBackground, var(--vscode-list-hoverBackground));
+    }
+
+    .tree-row:focus-visible {
+      outline: 1px solid var(--vscode-focusBorder);
+      outline-offset: -1px;
     }
 
     .node-row:hover,
@@ -298,15 +330,82 @@ export function getExplorerStyles(surface: ExplorerSurface): string {
     }
 
     .tree-disclosure {
-      display: inline-flex;
-      width: 14px;
-      flex: 0 0 14px;
-      justify-content: center;
-      color: var(--vscode-descriptionForeground);
+      position: relative;
+      width: 16px;
+      height: 22px;
+      opacity: 0;
     }
 
-    .tree-disclosure.empty {
-      opacity: 0;
+    .tree-row.expandable .tree-disclosure {
+      opacity: 1;
+    }
+
+    .tree-disclosure::before {
+      position: absolute;
+      top: 7px;
+      left: 5px;
+      width: 0;
+      height: 0;
+      border-top: 4px solid transparent;
+      border-bottom: 4px solid transparent;
+      border-left: 5px solid var(--vscode-icon-foreground);
+      content: "";
+      opacity: 0.82;
+    }
+
+    .tree-row.expanded .tree-disclosure::before {
+      transform: rotate(90deg);
+      transform-origin: 2px 4px;
+    }
+
+    .tree-file-icon {
+      position: relative;
+      width: 16px;
+      height: 22px;
+      color: var(--vscode-icon-foreground);
+    }
+
+    .tree-file-icon::before {
+      position: absolute;
+      top: 5px;
+      left: 4px;
+      width: 8px;
+      height: 10px;
+      border: 1px solid currentColor;
+      border-radius: 1px;
+      content: "";
+      opacity: 0.76;
+    }
+
+    .tree-row.entry-row .tree-file-icon::before {
+      border-color: var(--vscode-charts-green, currentColor);
+      opacity: 0.95;
+    }
+
+    .tree-label-group {
+      display: flex;
+      min-width: 0;
+      align-items: baseline;
+      gap: 6px;
+    }
+
+    .tree-label,
+    .tree-detail {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .tree-label {
+      min-width: 0;
+    }
+
+    .tree-detail {
+      min-width: 24px;
+      max-width: 58%;
+      flex: 0 1 auto;
+      color: var(--vscode-descriptionForeground);
+      font-size: 11px;
     }
 
     .node-meta {

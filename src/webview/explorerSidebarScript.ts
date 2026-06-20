@@ -17,7 +17,8 @@ export function getExplorerSidebarScript(): string {
     const state = {
       graph: undefined,
       analysisState: "idle",
-      expandedTreeIds: new Set(["root"])
+      expandedTreeIds: new Set(["root"]),
+      selectedTreeId: undefined
     };
     const elements = {
       analyzeWorkspace: document.getElementById("analyze-workspace"),
@@ -133,31 +134,70 @@ export function getExplorerSidebarScript(): string {
       for (const row of rows) {
         const button = document.createElement("button");
         const disclosure = document.createElement("span");
+        const icon = document.createElement("span");
         const text = document.createElement("span");
         const name = document.createElement("span");
-        const meta = document.createElement("span");
+        const detail = document.createElement("span");
+        const rowClasses = ["tree-row", row.kind + "-row"];
 
         button.type = "button";
-        button.className = "node-row tree-row";
-        button.style.paddingLeft = String(8 + row.depth * 16) + "px";
-        disclosure.className = "tree-disclosure" + (row.hasChildren ? "" : " empty");
-        disclosure.textContent = row.hasChildren ? (row.expanded ? "-" : "+") : "-";
-        text.className = "node-text";
-        name.className = "node-name";
-        meta.className = "node-meta";
-        name.textContent = row.label;
-        meta.textContent = row.kind;
+        if (row.hasChildren) {
+          rowClasses.push("expandable");
+        }
+        if (row.expanded) {
+          rowClasses.push("expanded");
+        }
+        if (state.selectedTreeId === row.id) {
+          rowClasses.push("selected");
+        }
 
-        text.append(name, meta);
-        button.append(disclosure, text);
+        button.className = rowClasses.join(" ");
+        button.style.paddingLeft = String(4 + row.depth * 16) + "px";
+        button.title = row.label;
+        button.setAttribute("role", "treeitem");
+        button.setAttribute("aria-level", String(row.depth + 1));
+        if (row.hasChildren) {
+          button.setAttribute("aria-expanded", row.expanded ? "true" : "false");
+        }
+
+        disclosure.className = "tree-disclosure";
+        icon.className = "tree-file-icon";
+        text.className = "tree-label-group";
+        name.className = "tree-label";
+        detail.className = "tree-detail";
+        name.textContent = row.name;
+        detail.textContent = row.detail;
+
+        text.append(name);
+        if (row.detail) {
+          text.append(detail);
+        }
+        button.append(disclosure, icon, text);
         button.addEventListener("click", () => {
+          state.selectedTreeId = row.id;
+
           if (row.hasChildren) {
             toggleTreeRow(row.id);
           }
 
+          render();
+
           if (row.nodeId) {
             postRequest("graph/focusNode", { nodeId: row.nodeId }, "Opening graph browser");
-          } else {
+          }
+        });
+        button.addEventListener("keydown", (event) => {
+          if (event.key === "ArrowRight" && row.hasChildren && !row.expanded) {
+            event.preventDefault();
+            state.selectedTreeId = row.id;
+            toggleTreeRow(row.id);
+            render();
+          }
+
+          if (event.key === "ArrowLeft" && row.hasChildren && row.expanded) {
+            event.preventDefault();
+            state.selectedTreeId = row.id;
+            toggleTreeRow(row.id);
             render();
           }
         });
@@ -232,6 +272,7 @@ export function getExplorerSidebarScript(): string {
     function appendImportRows(graph, index, fileNode, rows, ancestorIds, depth) {
       const nextAncestorIds = [...ancestorIds, fileNode.id];
       const rowId = "import:" + nextAncestorIds.join(">");
+      const relativePath = getRelativePath(graph, fileNode.filePath);
       const children = (index.childrenByImporterId.get(fileNode.id) ?? [])
         .filter((child) => !nextAncestorIds.includes(child.id));
       const hasChildren = children.length > 0;
@@ -239,7 +280,9 @@ export function getExplorerSidebarScript(): string {
 
       rows.push({
         id: rowId,
-        label: getRelativePath(graph, fileNode.filePath),
+        label: relativePath,
+        name: getFileName(relativePath),
+        detail: getDirectoryName(relativePath),
         kind: depth === 0 ? "entry" : "import",
         nodeId: fileNode.id,
         depth,
@@ -292,6 +335,17 @@ export function getExplorerSidebarScript(): string {
       }
 
       return normalized.split("/").slice(-3).join("/");
+    }
+
+    function getFileName(relativePath) {
+      const parts = relativePath.split("/");
+      return parts[parts.length - 1] || relativePath;
+    }
+
+    function getDirectoryName(relativePath) {
+      const parts = relativePath.split("/");
+      parts.pop();
+      return parts.join("/");
     }
   `;
 }
