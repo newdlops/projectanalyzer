@@ -106,21 +106,23 @@ function getGraphPanelHtml(options: WebviewHtmlOptions): string {
         <button id="zoom-out" class="icon-button" type="button" title="Zoom out">-</button>
         <button id="zoom-reset" class="icon-button wide" type="button" title="Reset zoom">100%</button>
         <button id="zoom-in" class="icon-button" type="button" title="Zoom in">+</button>
+        <button id="fit-view" class="icon-button wide" type="button" title="Fit graph to view">Fit</button>
+        <button id="center-view" class="icon-button wide" type="button" title="Move graph to center">Center</button>
       </div>
     </div>
-	    <div id="status" class="status">Ready</div>
-	    <div class="graph-panel" aria-label="Graph canvas">
-	      <canvas
-	        id="graph-canvas"
-	        class="graph-canvas"
-	        width="${canvasWidth}"
-	        height="${canvasHeight}"
-	        role="application"
-	        tabindex="0"
-	        aria-label="Project graph canvas"
-	      ></canvas>
-	    </div>
-	  </div>
+    <div id="status" class="status">Ready</div>
+    <div class="graph-panel" aria-label="Graph canvas">
+      <canvas
+        id="graph-canvas"
+        class="graph-canvas"
+        width="${canvasWidth}"
+        height="${canvasHeight}"
+        role="application"
+        tabindex="0"
+        aria-label="Project graph canvas"
+      ></canvas>
+    </div>
+  </div>
   <script nonce="${options.nonce}">${clientScript}</script>
 </body>
 </html>`;

@@ -41,8 +41,8 @@ export function getExplorerClientScript(options: ExplorerClientScriptOptions): s
       analysisState: "idle",
       expandedGraphNodeIds: new Set(),
       viewport: { scale: 1, x: 0, y: 0 },
-      pan: { active: false, pointerId: undefined, lastClientX: 0, lastClientY: 0 },
-      pointerDownNodeId: undefined
+      pan: { active: false, pointerId: undefined, lastClientX: 0, lastClientY: 0, moved: false },
+      suppressNextClick: false
     };
     const defaultDepth = ${JSON.stringify(options.defaultDepth)};
     const canvasHeight = ${JSON.stringify(options.canvasHeight)};
@@ -54,6 +54,8 @@ export function getExplorerClientScript(options: ExplorerClientScriptOptions): s
     const elements = {
       status: document.getElementById("status"),
       graphCanvas: document.getElementById("graph-canvas"),
+      centerView: document.getElementById("center-view"),
+      fitView: document.getElementById("fit-view"),
       zoomIn: document.getElementById("zoom-in"),
       zoomOut: document.getElementById("zoom-out"),
       zoomReset: document.getElementById("zoom-reset"),
@@ -83,6 +85,13 @@ export function getExplorerClientScript(options: ExplorerClientScriptOptions): s
     elements.zoomReset?.addEventListener("click", () => {
       resetViewport();
     });
+    elements.fitView?.addEventListener("click", () => {
+      fitGraphToView();
+    });
+    elements.centerView?.addEventListener("click", () => {
+      centerGraphInView();
+    });
+    elements.graphCanvas.addEventListener("click", handleGraphClick);
     elements.graphCanvas.addEventListener("wheel", handleGraphWheel, { passive: false });
     elements.graphCanvas.addEventListener("pointerdown", handleGraphPointerDown);
     elements.graphCanvas.addEventListener("pointermove", handleGraphPointerMove);
@@ -230,10 +239,8 @@ export function getExplorerClientScript(options: ExplorerClientScriptOptions): s
       }
 
       elements.graphCanvas.focus();
-      state.pointerDownNodeId = hitNode?.id;
 
       if (hitNode) {
-        event.preventDefault();
         return;
       }
 
@@ -241,7 +248,8 @@ export function getExplorerClientScript(options: ExplorerClientScriptOptions): s
         active: true,
         pointerId: event.pointerId,
         lastClientX: event.clientX,
-        lastClientY: event.clientY
+        lastClientY: event.clientY,
+        moved: false
       };
       elements.graphCanvas.classList.add("panning");
       elements.graphCanvas.setPointerCapture(event.pointerId);
@@ -252,13 +260,13 @@ export function getExplorerClientScript(options: ExplorerClientScriptOptions): s
         return;
       }
 
-      const rect = elements.graphCanvas.getBoundingClientRect();
-      const scaleX = canvasWidth / Math.max(1, rect.width);
-      const scaleY = canvasHeight / Math.max(1, rect.height);
-      const deltaX = (event.clientX - state.pan.lastClientX) * scaleX;
-      const deltaY = (event.clientY - state.pan.lastClientY) * scaleY;
+      const previousPoint = getCanvasPointFromClient(state.pan.lastClientX, state.pan.lastClientY);
+      const currentPoint = getCanvasPointFromClient(event.clientX, event.clientY);
+      const deltaX = currentPoint.x - previousPoint.x;
+      const deltaY = currentPoint.y - previousPoint.y;
 
       event.preventDefault();
+      state.pan.moved = true;
       state.pan.lastClientX = event.clientX;
       state.pan.lastClientY = event.clientY;
       state.viewport.x += deltaX;
@@ -267,26 +275,39 @@ export function getExplorerClientScript(options: ExplorerClientScriptOptions): s
     }
 
     function finishGraphPan(event) {
-      const hitNode = graphRenderer.hitTestNode(getCanvasPoint(event), state.viewport);
-
-      if (!state.pan.active && state.pointerDownNodeId && hitNode?.id === state.pointerDownNodeId) {
-        selectAndToggleNode(hitNode.id);
-        state.pointerDownNodeId = undefined;
-        return;
-      }
-
-      state.pointerDownNodeId = undefined;
-
       if (!state.pan.active || state.pan.pointerId !== event.pointerId) {
         return;
       }
 
+      const wasMoved = state.pan.moved;
+
       state.pan.active = false;
       state.pan.pointerId = undefined;
+      state.pan.moved = false;
       elements.graphCanvas.classList.remove("panning");
 
       if (elements.graphCanvas.hasPointerCapture(event.pointerId)) {
         elements.graphCanvas.releasePointerCapture(event.pointerId);
+      }
+
+      if (wasMoved) {
+        state.suppressNextClick = true;
+        window.setTimeout(() => {
+          state.suppressNextClick = false;
+        }, 0);
+      }
+    }
+
+    function handleGraphClick(event) {
+      if (state.suppressNextClick) {
+        state.suppressNextClick = false;
+        return;
+      }
+
+      const hitNode = graphRenderer.hitTestNode(getCanvasPoint(event), state.viewport);
+
+      if (hitNode) {
+        selectAndToggleNode(hitNode.id);
       }
     }
 
@@ -323,6 +344,52 @@ export function getExplorerClientScript(options: ExplorerClientScriptOptions): s
       renderZoomControls();
     }
 
+    function fitGraphToView() {
+      const bounds = graphRenderer.getSceneBounds();
+
+      if (!bounds) {
+        resetViewport();
+        return;
+      }
+
+      const padding = 56;
+      const width = Math.max(1, bounds.right - bounds.left);
+      const height = Math.max(1, bounds.bottom - bounds.top);
+      const scale = clamp(
+        Math.min((canvasWidth - padding * 2) / width, (canvasHeight - padding * 2) / height),
+        minZoom,
+        maxZoom
+      );
+
+      state.viewport = createCenteredViewport(bounds, scale);
+      applyViewportTransform();
+      renderZoomControls();
+    }
+
+    function centerGraphInView() {
+      const bounds = graphRenderer.getSceneBounds();
+
+      if (!bounds) {
+        resetViewport();
+        return;
+      }
+
+      state.viewport = createCenteredViewport(bounds, state.viewport.scale);
+      applyViewportTransform();
+      renderZoomControls();
+    }
+
+    function createCenteredViewport(bounds, scale) {
+      const centerX = (bounds.left + bounds.right) / 2;
+      const centerY = (bounds.top + bounds.bottom) / 2;
+
+      return {
+        scale,
+        x: canvasWidth / 2 - centerX * scale,
+        y: canvasHeight / 2 - centerY * scale
+      };
+    }
+
     function applyViewportTransform() {
       graphRenderer.setViewport(state.viewport);
     }
@@ -338,11 +405,15 @@ export function getExplorerClientScript(options: ExplorerClientScriptOptions): s
     }
 
     function getCanvasPoint(event) {
+      return getCanvasPointFromClient(event.clientX, event.clientY);
+    }
+
+    function getCanvasPointFromClient(clientX, clientY) {
       const rect = elements.graphCanvas.getBoundingClientRect();
 
       return graphRenderer.screenToCanvas({
-        x: event.clientX - rect.left,
-        y: event.clientY - rect.top
+        x: clientX - rect.left,
+        y: clientY - rect.top
       });
     }
 

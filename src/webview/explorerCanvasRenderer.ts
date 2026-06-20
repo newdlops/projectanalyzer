@@ -21,6 +21,7 @@ export function getExplorerCanvasRendererSource(): string {
         viewport: { scale: 1, x: 0, y: 0 },
         nodes: [],
         edges: [],
+        bounds: undefined,
         frameId: 0,
         lastPixelWidth: 0,
         lastPixelHeight: 0,
@@ -34,6 +35,7 @@ export function getExplorerCanvasRendererSource(): string {
       return {
         clearWithMessage,
         drawNow,
+        getSceneBounds,
         hitTestNode,
         requestDraw,
         resize,
@@ -48,6 +50,7 @@ export function getExplorerCanvasRendererSource(): string {
         rendererState.message = "";
         rendererState.nodes = scene.nodes.map(createRenderNode);
         rendererState.edges = scene.edges.map(createRenderEdge);
+        rendererState.bounds = createSceneBounds(rendererState.nodes, rendererState.edges);
         requestDraw();
       }
 
@@ -65,6 +68,7 @@ export function getExplorerCanvasRendererSource(): string {
         rendererState.message = message;
         rendererState.nodes = [];
         rendererState.edges = [];
+        rendererState.bounds = undefined;
         requestDraw();
       }
 
@@ -227,6 +231,10 @@ export function getExplorerCanvasRendererSource(): string {
         return undefined;
       }
 
+      function getSceneBounds() {
+        return rendererState.bounds;
+      }
+
       function screenToWorld(point, viewport) {
         const activeViewport = viewport || rendererState.viewport;
         const zoom = Math.max(0.01, activeViewport.scale);
@@ -310,6 +318,24 @@ export function getExplorerCanvasRendererSource(): string {
           ...edge,
           ...curve,
           bounds: createCurveBounds(curve)
+        };
+      }
+
+      function createSceneBounds(nodes, edges) {
+        const boundsList = [
+          ...nodes.map((node) => node.bounds),
+          ...edges.map((edge) => edge.bounds)
+        ];
+
+        if (boundsList.length === 0) {
+          return undefined;
+        }
+
+        return {
+          bottom: Math.max(...boundsList.map((bounds) => bounds.bottom)),
+          left: Math.min(...boundsList.map((bounds) => bounds.left)),
+          right: Math.max(...boundsList.map((bounds) => bounds.right)),
+          top: Math.min(...boundsList.map((bounds) => bounds.top))
         };
       }
 

@@ -40,6 +40,7 @@ export function getExplorerStyles(surface: ExplorerSurface): string {
     }
 
     .panel-shell {
+      width: 100%;
       max-width: 1280px;
       margin: 0 auto;
     }
@@ -61,9 +62,12 @@ export function getExplorerStyles(surface: ExplorerSurface): string {
 
     .panel-header {
       align-items: center;
+      flex-wrap: wrap;
     }
 
     .graph-toolbar {
+      flex-wrap: wrap;
+      justify-content: flex-end;
       margin-left: auto;
     }
 
@@ -161,7 +165,7 @@ export function getExplorerStyles(surface: ExplorerSurface): string {
     }
 
     .icon-button.wide {
-      width: 48px;
+      width: 64px;
     }
 
     .icon-button:hover {
@@ -190,30 +194,37 @@ export function getExplorerStyles(surface: ExplorerSurface): string {
     }
 
     .graph-panel {
-      min-height: ${graphHeight};
+      box-sizing: border-box;
+      width: 100%;
+      min-width: ${surface === "panel" ? "360px" : "0"};
+      max-width: 100%;
+      height: ${graphHeight};
+      min-height: ${surface === "panel" ? "300px" : graphHeight};
+      max-height: ${surface === "panel" ? "calc(100vh - 130px)" : graphHeight};
       border: 1px solid var(--vscode-panel-border);
       border-radius: 4px;
       background: var(--vscode-editor-background);
       overflow: hidden;
+      ${surface === "panel" ? "resize: both;" : ""}
     }
 
-	    .graph-canvas {
-	      display: block;
-	      width: 100%;
-	      height: ${graphHeight};
-	      outline: none;
-	      cursor: grab;
-	      touch-action: none;
-	      user-select: none;
-	    }
-	
-	    .graph-canvas:focus {
-	      box-shadow: inset 0 0 0 1px var(--vscode-focusBorder);
-	    }
-	
-	    .graph-canvas.panning {
-	      cursor: grabbing;
-	    }
+    .graph-canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      outline: none;
+      cursor: grab;
+      touch-action: none;
+      user-select: none;
+    }
+
+    .graph-canvas:focus {
+      box-shadow: inset 0 0 0 1px var(--vscode-focusBorder);
+    }
+
+    .graph-canvas.panning {
+      cursor: grabbing;
+    }
 
     .stat {
       min-width: 0;
