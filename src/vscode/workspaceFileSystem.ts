@@ -31,8 +31,8 @@ export class VsCodeWorkspaceFileSystem implements WorkspaceFileSystem {
    */
   public async findSourceFiles(): Promise<SourceFile[]> {
     const files: SourceFile[] = [];
-    const includePattern = `{${this.config.include.join(",")}}`;
-    const excludePattern = `{${this.config.exclude.join(",")}}`;
+    const includePattern = createWorkspaceGlob(this.config.include);
+    const excludePattern = createWorkspaceGlob(this.config.exclude);
     const uris = await vscode.workspace.findFiles(includePattern, excludePattern, DEFAULT_FIND_LIMIT);
 
     for (const uri of uris) {
@@ -56,4 +56,19 @@ export class VsCodeWorkspaceFileSystem implements WorkspaceFileSystem {
 
     return files;
   }
+}
+
+/**
+ * Creates a VS Code workspace glob from one or more configured patterns.
+ */
+function createWorkspaceGlob(patterns: readonly string[]): string {
+  if (patterns.length === 0) {
+    return "";
+  }
+
+  if (patterns.length === 1) {
+    return patterns[0];
+  }
+
+  return `{${patterns.join(",")}}`;
 }

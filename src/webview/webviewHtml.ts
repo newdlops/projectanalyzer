@@ -1,6 +1,6 @@
 /**
- * Webview HTML factory. The shell intentionally avoids external assets until
- * the frontend build pipeline is introduced.
+ * Webview HTML factory for the Project Analyzer GUI. The current implementation
+ * is a dependency-free sidebar shell that can render real graph payloads.
  */
 
 import * as vscode from "vscode";
@@ -10,10 +10,13 @@ export type WebviewHtmlOptions = {
   webview: vscode.Webview;
   extensionUri: vscode.Uri;
   nonce: string;
+  defaultDepth: number;
+  initialMode: "call" | "file" | "class";
+  surface: "sidebar";
 };
 
 /**
- * Builds the initial Visual Explorer HTML document.
+ * Builds the Visual Explorer HTML document for the sidebar Webview.
  */
 export function getExplorerHtml(options: WebviewHtmlOptions): string {
   const cspSource = options.webview.cspSource;
@@ -26,62 +29,379 @@ export function getExplorerHtml(options: WebviewHtmlOptions): string {
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${cspSource} 'unsafe-inline'; script-src 'nonce-${options.nonce}';">
   <title>Project Analyzer</title>
   <style>
+    :root {
+      color-scheme: light dark;
+    }
+
     body {
       margin: 0;
       color: var(--vscode-foreground);
-      background: var(--vscode-editor-background);
+      background: var(--vscode-sideBar-background);
       font-family: var(--vscode-font-family);
+      font-size: var(--vscode-font-size);
     }
 
-    .layout {
-      display: grid;
-      grid-template-columns: 260px 1fr 320px;
-      height: 100vh;
+    button,
+    input {
+      font: inherit;
     }
 
-    aside,
-    main {
-      padding: 12px;
-      border-right: 1px solid var(--vscode-panel-border);
+    .shell {
+      display: flex;
+      min-width: 0;
+      min-height: 100vh;
+      flex-direction: column;
+      gap: 10px;
+      padding: 10px;
+      box-sizing: border-box;
     }
 
-    main {
-      border-right: 1px solid var(--vscode-panel-border);
+    .toolbar,
+    .mode-switch,
+    .stats {
+      display: flex;
+      gap: 6px;
     }
 
-    h1,
-    h2 {
-      margin: 0 0 12px;
-      font-size: 13px;
-      font-weight: 600;
+    .toolbar {
+      align-items: center;
     }
 
-    .placeholder {
-      display: grid;
-      place-items: center;
-      height: calc(100vh - 24px);
+    .primary-button,
+    .mode-button {
+      border: 1px solid var(--vscode-button-border, transparent);
+      border-radius: 4px;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+
+    .primary-button {
+      flex: 1;
+      padding: 6px 8px;
+      color: var(--vscode-button-foreground);
+      background: var(--vscode-button-background);
+    }
+
+    .primary-button:hover {
+      background: var(--vscode-button-hoverBackground);
+    }
+
+    .mode-switch {
+      padding: 2px;
+      border: 1px solid var(--vscode-panel-border);
+      border-radius: 5px;
+    }
+
+    .mode-button {
+      flex: 1;
+      min-width: 0;
+      padding: 4px 6px;
+      color: var(--vscode-foreground);
+      background: transparent;
+    }
+
+    .mode-button.active {
+      color: var(--vscode-button-foreground);
+      background: var(--vscode-button-secondaryBackground);
+    }
+
+    .search {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 6px 8px;
+      color: var(--vscode-input-foreground);
+      background: var(--vscode-input-background);
+      border: 1px solid var(--vscode-input-border, var(--vscode-panel-border));
+      border-radius: 4px;
+    }
+
+    .status {
+      min-height: 18px;
       color: var(--vscode-descriptionForeground);
-      border: 1px dashed var(--vscode-panel-border);
+      font-size: 12px;
+    }
+
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .stat {
+      min-width: 0;
+      padding: 6px;
+      border: 1px solid var(--vscode-panel-border);
+      border-radius: 4px;
+    }
+
+    .stat-value {
+      display: block;
+      font-size: 16px;
+      font-weight: 600;
+      line-height: 1.1;
+    }
+
+    .stat-label {
+      display: block;
+      overflow: hidden;
+      color: var(--vscode-descriptionForeground);
+      font-size: 11px;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .list {
+      display: flex;
+      min-height: 0;
+      flex: 1;
+      flex-direction: column;
+      gap: 4px;
+      overflow: auto;
+    }
+
+    .node-row {
+      width: 100%;
+      min-width: 0;
+      padding: 7px 8px;
+      color: var(--vscode-foreground);
+      background: transparent;
+      border: 1px solid transparent;
+      border-radius: 4px;
+      text-align: left;
+      cursor: pointer;
+    }
+
+    .node-row:hover,
+    .node-row.selected {
+      background: var(--vscode-list-hoverBackground);
+      border-color: var(--vscode-panel-border);
+    }
+
+    .node-name,
+    .node-meta {
+      display: block;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .node-meta {
+      margin-top: 2px;
+      color: var(--vscode-descriptionForeground);
+      font-size: 11px;
+    }
+
+    .detail {
+      padding-top: 8px;
+      border-top: 1px solid var(--vscode-panel-border);
+    }
+
+    .detail-title {
+      overflow: hidden;
+      margin-bottom: 3px;
+      font-weight: 600;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .detail-meta {
+      color: var(--vscode-descriptionForeground);
+      font-size: 11px;
+      line-height: 1.4;
+      overflow-wrap: anywhere;
     }
   </style>
 </head>
 <body>
-  <div class="layout">
-    <aside>
-      <h1>Project Analyzer</h1>
-      <div>Search and filters will be added here.</div>
-    </aside>
-    <main>
-      <div class="placeholder">Graph canvas scaffold</div>
-    </main>
-    <aside>
-      <h2>Details</h2>
-      <div>Select a graph node to inspect it.</div>
-    </aside>
+  <div class="shell">
+    <div class="toolbar">
+      <button id="analyze" class="primary-button" type="button">Analyze</button>
+    </div>
+    <div class="mode-switch" role="tablist">
+      <button class="mode-button active" type="button" data-mode="file">Files</button>
+      <button class="mode-button" type="button" data-mode="call">Calls</button>
+      <button class="mode-button" type="button" data-mode="class">Classes</button>
+    </div>
+    <input id="search" class="search" type="search" placeholder="Search" aria-label="Search">
+    <div id="status" class="status">Ready</div>
+    <div class="stats" aria-label="Graph summary">
+      <div class="stat"><span id="files" class="stat-value">0</span><span class="stat-label">Files</span></div>
+      <div class="stat"><span id="symbols" class="stat-value">0</span><span class="stat-label">Nodes</span></div>
+      <div class="stat"><span id="edges" class="stat-value">0</span><span class="stat-label">Edges</span></div>
+    </div>
+    <div id="list" class="list" aria-label="Graph nodes"></div>
+    <section class="detail" aria-label="Selected node">
+      <div id="detail-title" class="detail-title">No selection</div>
+      <div id="detail-meta" class="detail-meta"></div>
+    </section>
   </div>
   <script nonce="${options.nonce}">
     const vscode = acquireVsCodeApi();
-    vscode.postMessage({ type: "graph/load", payload: { mode: "file", depth: 1 } });
+    const state = {
+      graph: undefined,
+      mode: ${JSON.stringify(options.initialMode)},
+      query: "",
+      selectedNodeId: undefined
+    };
+    const defaultDepth = ${JSON.stringify(options.defaultDepth)};
+    const elements = {
+      analyze: document.getElementById("analyze"),
+      search: document.getElementById("search"),
+      status: document.getElementById("status"),
+      files: document.getElementById("files"),
+      symbols: document.getElementById("symbols"),
+      edges: document.getElementById("edges"),
+      list: document.getElementById("list"),
+      detailTitle: document.getElementById("detail-title"),
+      detailMeta: document.getElementById("detail-meta"),
+      modeButtons: Array.from(document.querySelectorAll(".mode-button"))
+    };
+
+    elements.analyze.addEventListener("click", () => {
+      vscode.postMessage({ type: "analysis/run", payload: { scope: "workspace" } });
+    });
+
+    elements.search.addEventListener("input", (event) => {
+      state.query = event.target.value.toLowerCase();
+      render();
+    });
+
+    for (const button of elements.modeButtons) {
+      button.addEventListener("click", () => {
+        state.mode = button.dataset.mode;
+        vscode.postMessage({ type: "graph/load", payload: { mode: state.mode, depth: defaultDepth } });
+        render();
+      });
+    }
+
+    window.addEventListener("message", (event) => {
+      const message = event.data;
+
+      if (message.type === "graph/loaded" || message.type === "graph/updated") {
+        state.graph = message.payload;
+        elements.status.textContent = "Loaded";
+        render();
+        return;
+      }
+
+      if (message.type === "analysis/status") {
+        elements.status.textContent = message.payload.message;
+        return;
+      }
+
+      if (message.type === "view/modeChanged") {
+        state.mode = message.payload.mode;
+        render();
+        return;
+      }
+
+      if (message.type === "error") {
+        elements.status.textContent = message.payload.message;
+      }
+    });
+
+    vscode.postMessage({ type: "graph/load", payload: { mode: state.mode, depth: defaultDepth } });
+
+    function render() {
+      renderModeButtons();
+      renderStats();
+      renderList();
+      renderDetail();
+    }
+
+    function renderModeButtons() {
+      for (const button of elements.modeButtons) {
+        button.classList.toggle("active", button.dataset.mode === state.mode);
+      }
+    }
+
+    function renderStats() {
+      const graph = state.graph;
+      elements.files.textContent = graph ? String(graph.metadata.fileCount) : "0";
+      elements.symbols.textContent = graph ? String(graph.metadata.symbolCount) : "0";
+      elements.edges.textContent = graph ? String(graph.metadata.edgeCount) : "0";
+    }
+
+    function renderList() {
+      elements.list.replaceChildren();
+
+      for (const node of getVisibleNodes()) {
+        const row = document.createElement("button");
+        const name = document.createElement("span");
+        const meta = document.createElement("span");
+
+        row.type = "button";
+        row.className = "node-row";
+        row.classList.toggle("selected", node.id === state.selectedNodeId);
+        name.className = "node-name";
+        meta.className = "node-meta";
+        name.textContent = node.name || node.qualifiedName;
+        meta.textContent = node.kind + " · " + compactPath(node.filePath);
+
+        row.append(name, meta);
+        row.addEventListener("click", () => {
+          state.selectedNodeId = node.id;
+          render();
+        });
+        row.addEventListener("dblclick", () => {
+          vscode.postMessage({ type: "node/openSource", payload: { nodeId: node.id } });
+        });
+
+        elements.list.append(row);
+      }
+    }
+
+    function renderDetail() {
+      const node = state.graph?.nodes.find((candidate) => candidate.id === state.selectedNodeId);
+
+      if (!node) {
+        elements.detailTitle.textContent = "No selection";
+        elements.detailMeta.textContent = "";
+        return;
+      }
+
+      elements.detailTitle.textContent = node.qualifiedName;
+      elements.detailMeta.textContent =
+        node.kind + " · " + node.language + " · " + compactPath(node.filePath) +
+        " · " + (node.selectionRange.startLine + 1) + ":" + (node.selectionRange.startCharacter + 1);
+    }
+
+    function getVisibleNodes() {
+      const graph = state.graph;
+
+      if (!graph) {
+        return [];
+      }
+
+      return graph.nodes
+        .filter((node) => isNodeInMode(node))
+        .filter((node) => {
+          if (!state.query) {
+            return true;
+          }
+
+          return [node.name, node.qualifiedName, node.filePath, node.kind]
+            .filter(Boolean)
+            .some((value) => value.toLowerCase().includes(state.query));
+        })
+        .slice(0, 200);
+    }
+
+    function isNodeInMode(node) {
+      if (state.mode === "file") {
+        return node.kind === "file" || node.kind === "folder";
+      }
+
+      if (state.mode === "class") {
+        return node.kind === "class" || node.kind === "interface" || node.kind === "enum";
+      }
+
+      return node.kind === "function" || node.kind === "method" || node.kind === "constructor";
+    }
+
+    function compactPath(filePath) {
+      const parts = filePath.split(/[\\\\/]/);
+      return parts.slice(Math.max(0, parts.length - 3)).join("/");
+    }
   </script>
 </body>
 </html>`;

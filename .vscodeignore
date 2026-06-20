@@ -2,7 +2,6 @@
 .vscode-test/**
 src/**
 test/**
-node_modules/**
 out/test/**
 coverage/**
 *.map

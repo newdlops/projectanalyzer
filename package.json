@@ -14,6 +14,7 @@
     "Other"
   ],
   "activationEvents": [
+    "onView:projectAnalyzer.explorerView",
     "onCommand:projectAnalyzer.openExplorer",
     "onCommand:projectAnalyzer.analyzeWorkspace",
     "onCommand:projectAnalyzer.analyzeCurrentFile",
@@ -28,6 +29,24 @@
   ],
   "main": "./out/extension/activate.js",
   "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "projectAnalyzer",
+          "title": "Project Analyzer",
+          "icon": "media/project-analyzer.svg"
+        }
+      ]
+    },
+    "views": {
+      "projectAnalyzer": [
+        {
+          "id": "projectAnalyzer.explorerView",
+          "name": "Structure Explorer",
+          "type": "webview"
+        }
+      ]
+    },
     "commands": [
       {
         "command": "projectAnalyzer.openExplorer",
@@ -153,7 +172,19 @@
           "description": "Maximum persisted analysis cache size in MiB."
         }
       }
+    },
+    "menus": {
+      "view/title": [
+        {
+          "command": "projectAnalyzer.analyzeWorkspace",
+          "when": "view == projectAnalyzer.explorerView",
+          "group": "navigation"
+        }
+      ]
     }
+  },
+  "dependencies": {
+    "typescript": "^5.8.3"
   },
   "scripts": {
     "compile": "tsc -p ./tsconfig.json",
@@ -164,7 +195,6 @@
   },
   "devDependencies": {
     "@types/node": "^22.15.30",
-    "@types/vscode": "^1.92.0",
-    "typescript": "^5.8.3"
+    "@types/vscode": "^1.92.0"
   }
 }

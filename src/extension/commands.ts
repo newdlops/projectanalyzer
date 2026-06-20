@@ -4,6 +4,7 @@
  */
 
 import * as vscode from "vscode";
+import type { GraphViewMode } from "../protocol/messages";
 import { createContentHash } from "../shared/hash";
 import type { ExtensionServices } from "./extensionServices";
 
@@ -30,8 +31,8 @@ export function registerProjectAnalyzerCommands(
   services: ExtensionServices
 ): void {
   context.subscriptions.push(
-    vscode.commands.registerCommand(COMMANDS.openExplorer, () => {
-      services.explorerPanel.open();
+    vscode.commands.registerCommand(COMMANDS.openExplorer, async () => {
+      await openExplorerSidebar(services, "file");
     }),
     vscode.commands.registerCommand(COMMANDS.analyzeWorkspace, async () => {
       await analyzeWorkspace(services);
@@ -39,14 +40,14 @@ export function registerProjectAnalyzerCommands(
     vscode.commands.registerCommand(COMMANDS.analyzeCurrentFile, async () => {
       await analyzeCurrentFile(services);
     }),
-    vscode.commands.registerCommand(COMMANDS.showCallGraph, () => {
-      services.explorerPanel.open();
+    vscode.commands.registerCommand(COMMANDS.showCallGraph, async () => {
+      await openExplorerSidebar(services, "call");
     }),
-    vscode.commands.registerCommand(COMMANDS.showFileGraph, () => {
-      services.explorerPanel.open();
+    vscode.commands.registerCommand(COMMANDS.showFileGraph, async () => {
+      await openExplorerSidebar(services, "file");
     }),
-    vscode.commands.registerCommand(COMMANDS.showClassGraph, () => {
-      services.explorerPanel.open();
+    vscode.commands.registerCommand(COMMANDS.showClassGraph, async () => {
+      await openExplorerSidebar(services, "class");
     }),
     vscode.commands.registerCommand(COMMANDS.findCallers, () => {
       void vscode.window.showInformationMessage("Find Callers will be implemented with call graph traversal.");
@@ -73,6 +74,7 @@ export function registerProjectAnalyzerCommands(
 async function analyzeWorkspace(services: ExtensionServices): Promise<void> {
   const result = await services.analyzer.analyzeWorkspace();
   await services.cacheStore.saveLatestGraph(result.graph);
+  await services.explorerViewProvider.publishGraph(result.graph);
   await vscode.window.showInformationMessage(
     `Project Analyzer indexed ${result.graph.metadata.fileCount} files.`
   );
@@ -100,5 +102,17 @@ async function analyzeCurrentFile(services: ExtensionServices): Promise<void> {
   });
 
   await services.cacheStore.saveLatestGraph(result.graph);
+  await services.explorerViewProvider.publishGraph(result.graph);
   await vscode.window.showInformationMessage(`Project Analyzer analyzed ${document.fileName}.`);
+}
+
+/**
+ * Reveals the Project Analyzer sidebar container and sets the requested graph mode.
+ */
+async function openExplorerSidebar(
+  services: ExtensionServices,
+  mode: GraphViewMode
+): Promise<void> {
+  await vscode.commands.executeCommand("workbench.view.extension.projectAnalyzer");
+  await services.explorerViewProvider.setMode(mode);
 }

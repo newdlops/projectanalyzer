@@ -11,13 +11,13 @@ import { TypeScriptAnalyzer } from "../analyzer/languages/typescript";
 import { MemoryAnalysisCacheStore } from "../storage/cacheStore";
 import { readProjectAnalyzerConfig } from "../vscode/configuration";
 import { VsCodeWorkspaceFileSystem } from "../vscode/workspaceFileSystem";
-import { ExplorerPanel } from "../webview/explorerPanel";
+import { ExplorerViewProvider } from "../webview/explorerViewProvider";
 
 /** Runtime services shared by command handlers. */
 export type ExtensionServices = {
   analyzer: AnalyzerPipeline;
   cacheStore: MemoryAnalysisCacheStore;
-  explorerPanel: ExplorerPanel;
+  explorerViewProvider: ExplorerViewProvider;
 };
 
 /**
@@ -32,11 +32,16 @@ export function createExtensionServices(context: vscode.ExtensionContext): Exten
     new JavaScriptAnalyzer(),
     new PythonAnalyzer()
   ]);
-  const explorerPanel = new ExplorerPanel({ context, cacheStore });
+  const explorerViewProvider = new ExplorerViewProvider({
+    context,
+    analyzer,
+    cacheStore,
+    config
+  });
 
   return {
     analyzer,
     cacheStore,
-    explorerPanel
+    explorerViewProvider
   };
 }

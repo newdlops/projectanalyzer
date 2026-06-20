@@ -31,10 +31,16 @@ export type ExportRequest = {
   format: "json" | "graphml" | "mermaid" | "dot" | "svg" | "png" | "markdown";
 };
 
+/** Analysis request emitted by the GUI. */
+export type AnalysisRunRequest = {
+  scope: "workspace";
+};
+
 /** Messages sent from Webview to Extension Host. */
 export type WebviewRequest =
   | { type: "graph/load"; payload: GraphLoadRequest }
   | { type: "graph/expand"; payload: ExpandRequest }
+  | { type: "analysis/run"; payload: AnalysisRunRequest }
   | { type: "node/openSource"; payload: { nodeId: string } }
   | { type: "search/query"; payload: SearchRequest }
   | { type: "export/run"; payload: ExportRequest };
@@ -52,9 +58,17 @@ export type ErrorPayload = {
   message: string;
 };
 
+/** Analysis lifecycle update displayed by the Webview. */
+export type AnalysisStatusPayload = {
+  state: "idle" | "running" | "complete" | "failed";
+  message: string;
+};
+
 /** Messages sent from Extension Host to Webview. */
 export type ExtensionResponse =
   | { type: "graph/loaded"; payload: ProjectGraph }
   | { type: "graph/updated"; payload: ProjectGraph }
+  | { type: "analysis/status"; payload: AnalysisStatusPayload }
+  | { type: "view/modeChanged"; payload: { mode: GraphViewMode } }
   | { type: "search/results"; payload: SearchResult[] }
   | { type: "error"; payload: ErrorPayload };

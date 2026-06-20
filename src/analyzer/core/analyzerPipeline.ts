@@ -1,10 +1,13 @@
 /**
  * Analyzer pipeline entrypoint. It coordinates workspace scanning and language
- * analyzers while keeping the scaffold safe before full parser integrations land.
+ * analyzers and normalizes extracted results into a project graph.
  */
 
+import { InMemoryGraphStore } from "../../graph/graphStore";
+import { createEdgeId } from "../../shared/ids";
 import { createEmptyProjectGraph } from "../../graph/emptyGraph";
-import type { ProjectGraph, SourceFile } from "../../shared/types";
+import type { GraphEdge, ProjectGraph, SourceFile, SymbolNode } from "../../shared/types";
+import { createFileNode } from "./graphNodes";
 import type { LanguageAnalyzer } from "./languageAnalyzer";
 import { WorkspaceScanner } from "./workspaceScanner";
 import type { WorkspaceFileSystem } from "./workspaceScanner";
@@ -39,26 +42,15 @@ export class AnalyzerPipeline {
     const workspaceRoot = this.fileSystem.getWorkspaceRoot() ?? "";
     const scanner = new WorkspaceScanner(this.fileSystem);
     const files = await scanner.scan();
-    const graph = createEmptyProjectGraph(workspaceRoot);
-
-    graph.metadata.fileCount = files.length;
-    graph.metadata.languages = getLanguages(files);
-
-    return { graph };
+    return { graph: await this.analyzeFiles(workspaceRoot, files) };
   }
 
   /**
-   * Analyzes a single source file. Parser integration will populate symbols and
-   * edges in later milestones.
+   * Analyzes a single source file and returns a normalized graph.
    */
   public async analyzeFile(file: SourceFile): Promise<AnalyzeResult> {
     const workspaceRoot = this.fileSystem.getWorkspaceRoot() ?? "";
-    const graph = createEmptyProjectGraph(workspaceRoot);
-
-    graph.metadata.fileCount = 1;
-    graph.metadata.languages = [file.languageId];
-
-    return { graph };
+    return { graph: await this.analyzeFiles(workspaceRoot, [file]) };
   }
 
   /**
@@ -68,6 +60,79 @@ export class AnalyzerPipeline {
     const extension = getFileExtension(filePath);
     return this.analyzersByExtension.get(extension);
   }
+
+  /**
+   * Runs language analyzers over source files and merges their nodes and edges.
+   */
+  private async analyzeFiles(workspaceRoot: string, files: readonly SourceFile[]): Promise<ProjectGraph> {
+    const graph = createEmptyProjectGraph(workspaceRoot);
+    const store = new InMemoryGraphStore(graph);
+
+    graph.metadata.fileCount = files.length;
+    graph.metadata.languages = getLanguages(files);
+
+    for (const file of files) {
+      const fileNode = createFileNode(file, workspaceRoot);
+      store.addNode(fileNode);
+      await this.analyzeFileIntoStore(file, fileNode, workspaceRoot, store, graph);
+    }
+
+    return store.toProjectGraph();
+  }
+
+  /**
+   * Parses one file and appends extracted symbols and edges into the graph store.
+   */
+  private async analyzeFileIntoStore(
+    file: SourceFile,
+    fileNode: SymbolNode,
+    workspaceRoot: string,
+    store: InMemoryGraphStore,
+    graph: ProjectGraph
+  ): Promise<void> {
+    const analyzer = this.getAnalyzerForPath(file.path);
+
+    if (!analyzer) {
+      return;
+    }
+
+    try {
+      const parsed = await analyzer.parse(file);
+      const symbols = await analyzer.extractSymbols(parsed);
+      const edges = await analyzer.extractEdges(parsed, { workspaceRoot });
+
+      for (const symbol of symbols) {
+        store.addNode(symbol);
+        store.addEdge(createContainsEdge(symbol.parentId ?? fileNode.id, symbol));
+      }
+
+      for (const edge of edges) {
+        store.addEdge(edge);
+      }
+    } catch (error) {
+      graph.diagnostics.push({
+        severity: "error",
+        code: "analysis.fileFailed",
+        message: error instanceof Error ? error.message : "Unknown file analysis failure",
+        filePath: file.path
+      });
+    }
+  }
+}
+
+/**
+ * Creates a structural containment edge for a symbol node.
+ */
+function createContainsEdge(parentId: string, child: SymbolNode): GraphEdge {
+  return {
+    id: createEdgeId("contains", parentId, child.id),
+    kind: "contains",
+    sourceId: parentId,
+    targetId: child.id,
+    filePath: child.filePath,
+    range: child.range,
+    confidence: "exact"
+  };
 }
 
 /**
