@@ -17,7 +17,7 @@ import type { AnalysisCacheStore } from "../storage/cacheStore";
 import type { ProjectAnalyzerConfig } from "../vscode/configuration";
 import type { ExplorerGraphPanelProvider } from "./explorerGraphPanelProvider";
 import { getExplorerHtml } from "./webviewHtml";
-import { createNonce, exportGraphToJson } from "./webviewHostActions";
+import { createNonce, exportGraphToJson, openNodeInEditor } from "./webviewHostActions";
 
 /** Dependencies required by the sidebar explorer provider. */
 export type ExplorerViewProviderDependencies = {
@@ -99,8 +99,11 @@ export class ExplorerViewProvider implements vscode.WebviewViewProvider {
       case "graph/openPanel":
         await this.openGraphPanel();
         break;
+      case "graph/focusNode":
+        await this.focusGraphNode(message.payload.nodeId);
+        break;
       case "node/openSource":
-        await this.dependencies.graphPanelProvider.openGraph();
+        await this.openSourceNode(message.payload.nodeId);
         break;
       case "node/showRelationship":
         await this.dependencies.graphPanelProvider.openGraph();
@@ -279,6 +282,36 @@ export class ExplorerViewProvider implements vscode.WebviewViewProvider {
 
     await this.dependencies.graphPanelProvider.openGraph(graph);
     await this.postStatus("complete", "Graph browser opened");
+  }
+
+  /**
+   * Opens the graph browser and reveals a node selected from the sidebar tree.
+   */
+  private async focusGraphNode(nodeId: string): Promise<void> {
+    const graph = await this.dependencies.cacheStore.getLatestGraph();
+
+    if (!graph) {
+      await this.postStatus("idle", "Analyze before focusing graph nodes");
+      return;
+    }
+
+    await this.dependencies.graphPanelProvider.focusNode(nodeId, graph);
+    await this.postStatus("complete", "Graph browser focused");
+  }
+
+  /**
+   * Opens the source location represented by a graph node.
+   */
+  private async openSourceNode(nodeId: string): Promise<void> {
+    const graph = await this.dependencies.cacheStore.getLatestGraph();
+    const node = graph?.nodes.find((candidate) => candidate.id === nodeId);
+
+    if (!node) {
+      await this.postStatus("idle", "Node is not available");
+      return;
+    }
+
+    await openNodeInEditor(node);
   }
 
   /**

@@ -1,6 +1,6 @@
 /**
- * Browser-side script factory for the graph browser WebviewPanel. The returned
- * script is dependency-free and runs under the Webview CSP nonce.
+ * Browser-side script factory for the graph browser WebviewPanel. The panel is
+ * intentionally visual-only: it renders a progressively expanded graph canvas.
  */
 
 import { createGraphScene } from "./explorerGraphLayout";
@@ -15,7 +15,7 @@ export type ExplorerClientScriptOptions = {
 };
 
 /**
- * Builds the browser script that owns local rendering and GUI event wiring.
+ * Builds the browser script that owns graph rendering and node expansion.
  */
 export function getExplorerClientScript(options: ExplorerClientScriptOptions): string {
   const createGraphSceneSource = createGraphScene.toString();
@@ -23,69 +23,29 @@ export function getExplorerClientScript(options: ExplorerClientScriptOptions): s
   return /* js */ `
     const createGraphScene = ${createGraphSceneSource};
     const vscode = acquireVsCodeApi();
+    const virtualRootId = "virtual::workspace-root";
     const state = {
       graph: undefined,
       mode: ${JSON.stringify(options.initialMode)},
-      nodeViewMode: "tree",
-      query: "",
-      selectedNodeId: undefined,
+      selectedNodeId: virtualRootId,
       analysisState: "idle",
-      expandedTreeIds: new Set()
+      expandedGraphNodeIds: new Set()
     };
     const defaultDepth = ${JSON.stringify(options.defaultDepth)};
     const canvasHeight = ${JSON.stringify(options.canvasHeight)};
     const canvasWidth = ${JSON.stringify(options.canvasWidth)};
     const maxNodes = ${JSON.stringify(options.maxNodes)};
     const elements = {
-      exportJson: document.getElementById("export-json"),
-      openSource: document.getElementById("open-source"),
-      showCallers: document.getElementById("show-callers"),
-      showCallees: document.getElementById("show-callees"),
-      search: document.getElementById("search"),
       status: document.getElementById("status"),
-      files: document.getElementById("files"),
-      symbols: document.getElementById("symbols"),
-      edges: document.getElementById("edges"),
       graphCanvas: document.getElementById("graph-canvas"),
-      list: document.getElementById("list"),
-      detailTitle: document.getElementById("detail-title"),
-      detailMeta: document.getElementById("detail-meta"),
-      modeButtons: Array.from(document.querySelectorAll(".mode-button")),
-      nodeViewButtons: Array.from(document.querySelectorAll(".view-button"))
+      modeButtons: Array.from(document.querySelectorAll(".mode-button"))
     };
-
-    elements.exportJson.addEventListener("click", () => {
-      postRequest("export/run", { format: "json" }, "Export requested");
-    });
-
-    elements.openSource.addEventListener("click", () => {
-      postSelectedNode("node/openSource");
-    });
-
-    elements.showCallers.addEventListener("click", () => {
-      postSelectedRelationship("callers");
-    });
-
-    elements.showCallees.addEventListener("click", () => {
-      postSelectedRelationship("callees");
-    });
-
-    elements.search.addEventListener("input", (event) => {
-      state.query = event.target.value.toLowerCase();
-      render();
-    });
 
     for (const button of elements.modeButtons) {
       button.addEventListener("click", () => {
         state.mode = button.dataset.mode;
+        resetGraphFocus();
         postRequest("graph/load", { mode: state.mode, depth: defaultDepth }, "Switching view");
-        render();
-      });
-    }
-
-    for (const button of elements.nodeViewButtons) {
-      button.addEventListener("click", () => {
-        state.nodeViewMode = button.dataset.nodeView;
         render();
       });
     }
@@ -100,21 +60,26 @@ export function getExplorerClientScript(options: ExplorerClientScriptOptions): s
 
       if (message.type === "graph/loaded" || message.type === "graph/updated") {
         state.graph = message.payload;
+        resetGraphFocus();
         elements.status.textContent = "Loaded";
         render();
+        return;
+      }
+
+      if (message.type === "graph/focusNode") {
+        focusGraphNode(message.payload.nodeId);
         return;
       }
 
       if (message.type === "analysis/status") {
         state.analysisState = message.payload.state;
         elements.status.textContent = message.payload.message;
-        renderActions();
         return;
       }
 
       if (message.type === "graph/cleared") {
         state.graph = undefined;
-        state.selectedNodeId = undefined;
+        resetGraphFocus();
         state.analysisState = "idle";
         render();
         return;
@@ -122,14 +87,13 @@ export function getExplorerClientScript(options: ExplorerClientScriptOptions): s
 
       if (message.type === "view/modeChanged") {
         state.mode = message.payload.mode;
-        render();
+        renderModeButtons();
         return;
       }
 
       if (message.type === "error") {
         state.analysisState = "failed";
         elements.status.textContent = message.payload.message;
-        renderActions();
       }
     });
 
@@ -144,12 +108,7 @@ export function getExplorerClientScript(options: ExplorerClientScriptOptions): s
 
     function render() {
       renderModeButtons();
-      renderNodeViewButtons();
-      renderStats();
       renderGraphCanvas();
-      renderList();
-      renderDetail();
-      renderActions();
     }
 
     function renderModeButtons() {
@@ -158,39 +117,32 @@ export function getExplorerClientScript(options: ExplorerClientScriptOptions): s
       }
     }
 
-    function renderNodeViewButtons() {
-      for (const button of elements.nodeViewButtons) {
-        button.classList.toggle("active", button.dataset.nodeView === state.nodeViewMode);
-      }
-    }
-
-    function renderStats() {
-      const graph = state.graph;
-      elements.files.textContent = graph ? String(graph.metadata.fileCount) : "0";
-      elements.symbols.textContent = graph ? String(graph.metadata.symbolCount) : "0";
-      elements.edges.textContent = graph ? String(graph.metadata.edgeCount) : "0";
-    }
-
     function renderGraphCanvas() {
       elements.graphCanvas.replaceChildren();
-      const graph = state.graph;
-      const scene = createGraphScene(graph, {
+
+      if (!state.graph) {
+        appendCanvasMessage("Analyze to render graph");
+        return;
+      }
+
+      const progressiveGraph = createProgressiveGraph(state.graph);
+      const scene = createGraphScene(progressiveGraph, {
         mode: state.mode,
-        query: state.query,
+        query: "",
         selectedNodeId: state.selectedNodeId,
         maxNodes,
         width: canvasWidth,
         height: canvasHeight
       });
 
-      if (!graph || scene.nodes.length === 0) {
-        appendCanvasMessage(graph ? "No graph nodes in this view" : "Analyze to render graph");
+      if (scene.nodes.length === 0) {
+        appendCanvasMessage("No graph nodes in this view");
         return;
       }
 
       appendArrowMarker();
 
-      for (const edge of scene.edges.slice(0, 90)) {
+      for (const edge of scene.edges) {
         const path = createSvgElement("path");
         path.setAttribute("class", classNames([
           "graph-edge",
@@ -205,10 +157,6 @@ export function getExplorerClientScript(options: ExplorerClientScriptOptions): s
 
       for (const node of scene.nodes) {
         appendGraphNode(node);
-      }
-
-      if (scene.omittedNodeCount > 0) {
-        appendCanvasNotice(String(scene.omittedNodeCount) + " nodes hidden by render limit");
       }
     }
 
@@ -241,16 +189,6 @@ export function getExplorerClientScript(options: ExplorerClientScriptOptions): s
       elements.graphCanvas.append(text);
     }
 
-    function appendCanvasNotice(message) {
-      const text = createSvgElement("text");
-
-      text.setAttribute("class", "graph-message");
-      text.setAttribute("x", String(canvasWidth / 2));
-      text.setAttribute("y", String(canvasHeight - 18));
-      text.textContent = message;
-      elements.graphCanvas.append(text);
-    }
-
     function appendGraphNode(node) {
       const group = createSvgElement("g");
       const circle = createSvgElement("circle");
@@ -276,333 +214,299 @@ export function getExplorerClientScript(options: ExplorerClientScriptOptions): s
 
       group.append(title, circle, label);
       group.addEventListener("click", () => {
-        selectNode(node.id);
+        selectAndToggleNode(node.id);
       });
       group.addEventListener("dblclick", () => {
-        vscode.postMessage({ type: "node/openSource", payload: { nodeId: node.id } });
+        if (!isVirtualNodeId(node.id)) {
+          vscode.postMessage({ type: "node/openSource", payload: { nodeId: node.id } });
+        }
       });
       group.addEventListener("keydown", (event) => {
         if (event.key === "Enter" || event.key === " ") {
           event.preventDefault();
-          selectNode(node.id);
+          selectAndToggleNode(node.id);
         }
       });
 
       elements.graphCanvas.append(group);
     }
 
-    function renderList() {
-      elements.list.replaceChildren();
+    function selectAndToggleNode(nodeId) {
+      state.selectedNodeId = nodeId;
 
-      if (state.nodeViewMode === "tree") {
-        renderTree();
+      if (getProgressiveChildren(state.graph, nodeId).length > 0) {
+        if (state.expandedGraphNodeIds.has(nodeId)) {
+          state.expandedGraphNodeIds.delete(nodeId);
+        } else {
+          state.expandedGraphNodeIds.add(nodeId);
+        }
+      }
+
+      render();
+    }
+
+    function focusGraphNode(nodeId) {
+      if (!state.graph) {
         return;
       }
 
-      renderFlatList();
+      state.selectedNodeId = nodeId;
+      revealPathToNode(nodeId);
+      render();
     }
 
-    function renderFlatList() {
-      const visibleNodes = getVisibleNodes();
-
-      if (visibleNodes.length === 0) {
-        const empty = document.createElement("div");
-        empty.className = "empty-state";
-        empty.textContent = state.graph ? "No nodes in this view" : "Analyze a workspace to load nodes";
-        elements.list.append(empty);
-        return;
-      }
-
-      for (const node of visibleNodes) {
-        const row = document.createElement("button");
-        const name = document.createElement("span");
-        const meta = document.createElement("span");
-
-        row.type = "button";
-        row.className = "node-row";
-        row.classList.toggle("selected", node.id === state.selectedNodeId);
-        name.className = "node-name";
-        meta.className = "node-meta";
-        name.textContent = node.name || node.qualifiedName;
-        meta.textContent = node.kind + " · " + compactPath(node.filePath);
-
-        row.append(name, meta);
-        row.addEventListener("click", () => {
-          selectNode(node.id);
-        });
-        row.addEventListener("dblclick", () => {
-          vscode.postMessage({ type: "node/openSource", payload: { nodeId: node.id } });
-        });
-
-        elements.list.append(row);
-      }
+    function resetGraphFocus() {
+      state.selectedNodeId = virtualRootId;
+      state.expandedGraphNodeIds = new Set();
     }
 
-    function renderTree() {
-      const rows = getTreeRows();
+    function createProgressiveGraph(graph) {
+      const nodesById = new Map();
+      const edgesById = new Map();
+      const visitedNodeIds = new Set();
 
-      if (rows.length === 0) {
-        const empty = document.createElement("div");
-        empty.className = "empty-state";
-        empty.textContent = state.graph ? "No nodes in this tree" : "Analyze a workspace to load nodes";
-        elements.list.append(empty);
-        return;
+      appendProgressiveBranch(graph, virtualRootId, nodesById, edgesById, visitedNodeIds);
+
+      if (state.selectedNodeId && state.selectedNodeId !== virtualRootId) {
+        const selectedNode = resolveProgressiveNode(graph, state.selectedNodeId);
+
+        if (selectedNode) {
+          addNode(nodesById, selectedNode);
+        }
       }
 
-      for (const row of rows.slice(0, 500)) {
-        const button = document.createElement("button");
-        const disclosure = document.createElement("span");
-        const text = document.createElement("span");
-        const name = document.createElement("span");
-        const meta = document.createElement("span");
-
-        button.type = "button";
-        button.className = "node-row tree-row";
-        button.style.paddingLeft = String(8 + row.depth * 16) + "px";
-        button.classList.toggle("selected", row.nodeId === state.selectedNodeId);
-        disclosure.className = "tree-disclosure" + (row.hasChildren ? "" : " empty");
-        disclosure.textContent = row.hasChildren ? (row.expanded ? "-" : "+") : "-";
-        text.className = "node-text";
-        name.className = "node-name";
-        meta.className = "node-meta";
-        name.textContent = row.label;
-        meta.textContent = row.meta;
-
-        text.append(name, meta);
-        button.append(disclosure, text);
-        button.addEventListener("click", () => {
-          if (row.hasChildren) {
-            toggleTreeRow(row.id);
-          }
-
-          if (row.nodeId) {
-            selectNode(row.nodeId);
-          } else {
-            render();
-          }
-        });
-        button.addEventListener("dblclick", () => {
-          if (row.nodeId) {
-            vscode.postMessage({ type: "node/openSource", payload: { nodeId: row.nodeId } });
-          }
-        });
-
-        elements.list.append(button);
-      }
-    }
-
-    function renderDetail() {
-      const node = state.graph?.nodes.find((candidate) => candidate.id === state.selectedNodeId);
-
-      if (!node) {
-        elements.detailTitle.textContent = "No selection";
-        elements.detailMeta.textContent = "";
-        return;
-      }
-
-      elements.detailTitle.textContent = node.qualifiedName;
-      elements.detailMeta.textContent =
-        node.kind + " · " + node.language + " · " + compactPath(node.filePath) +
-        " · " + (node.selectionRange.startLine + 1) + ":" + (node.selectionRange.startCharacter + 1);
-    }
-
-    function renderActions() {
-      const hasSelection = Boolean(state.selectedNodeId);
-      const analysisRunning = state.analysisState === "running";
-      elements.openSource.disabled = !hasSelection;
-      elements.showCallers.disabled = !hasSelection;
-      elements.showCallees.disabled = !hasSelection;
-      elements.exportJson.disabled = !state.graph || analysisRunning;
-    }
-
-    function postSelectedNode(type) {
-      if (!state.selectedNodeId) {
-        return;
-      }
-
-      postRequest(type, { nodeId: state.selectedNodeId }, "Opening source");
-    }
-
-    function postSelectedRelationship(direction) {
-      if (!state.selectedNodeId) {
-        return;
-      }
-
-      postRequest("node/showRelationship", {
-        nodeId: state.selectedNodeId,
-        direction
-      }, direction === "callers" ? "Loading callers" : "Loading callees");
-    }
-
-    function getVisibleNodes(limit = 200) {
-      const graph = state.graph;
-
-      if (!graph) {
-        return [];
-      }
-
-      return graph.nodes
-        .filter((node) => isNodeInMode(node))
-        .filter((node) => {
-          if (!state.query) {
-            return true;
-          }
-
-          return [node.name, node.qualifiedName, node.filePath, node.kind]
-            .filter(Boolean)
-            .some((value) => value.toLowerCase().includes(state.query));
-        })
-        .slice(0, limit);
-    }
-
-    function getTreeRows() {
-      const graph = state.graph;
-
-      if (!graph) {
-        return [];
-      }
-
-      const root = createTreeEntry("root", "", "workspace", "", undefined);
-      const nodes = getVisibleNodes(1000);
-
-      for (const node of nodes) {
-        insertNodeIntoTree(root, graph, node);
-      }
-
-      const rows = [];
-      appendTreeRows(root, rows, -1);
-      return rows;
-    }
-
-    function insertNodeIntoTree(root, graph, node) {
-      const relativePath = getRelativePath(graph, node.filePath);
-      const pathParts = relativePath.split(/[\\\\/]/).filter(Boolean);
-      let current = root;
-      let currentPath = "";
-
-      for (let index = 0; index < pathParts.length; index += 1) {
-        const part = pathParts[index];
-        const isFile = index === pathParts.length - 1;
-        currentPath = currentPath ? currentPath + "/" + part : part;
-        current = getOrCreateTreeChild(
-          current,
-          "path:" + currentPath,
-          part,
-          isFile ? "file" : "folder",
-          isFile && state.mode === "file" ? node.id : undefined
-        );
-      }
-
-      if (state.mode === "file") {
-        return;
-      }
-
-      const symbolParts = (node.qualifiedName || node.name || node.id)
-        .split(".")
-        .filter(Boolean);
-      let symbolPath = current.id;
-
-      for (let index = 0; index < symbolParts.length; index += 1) {
-        const part = symbolParts[index];
-        const isLeaf = index === symbolParts.length - 1;
-        symbolPath += "::" + part;
-        current = getOrCreateTreeChild(
-          current,
-          "symbol:" + node.id + ":" + symbolPath,
-          part,
-          isLeaf ? node.kind : "namespace",
-          isLeaf ? node.id : undefined
-        );
-      }
-    }
-
-    function createTreeEntry(id, label, kind, meta, nodeId) {
       return {
-        id,
-        label,
-        kind,
-        meta,
-        nodeId,
-        children: new Map()
+        ...graph,
+        nodes: [...nodesById.values()],
+        edges: [...edgesById.values()],
+        metadata: {
+          ...graph.metadata,
+          symbolCount: nodesById.size,
+          edgeCount: edgesById.size
+        }
       };
     }
 
-    function getOrCreateTreeChild(parent, id, label, kind, nodeId) {
-      const existing = parent.children.get(id);
-
-      if (existing) {
-        if (nodeId) {
-          existing.nodeId = nodeId;
-        }
-
-        return existing;
+    function appendProgressiveBranch(graph, nodeId, nodesById, edgesById, visitedNodeIds) {
+      if (visitedNodeIds.has(nodeId)) {
+        return;
       }
 
-      const child = createTreeEntry(id, label, kind, kind, nodeId);
-      parent.children.set(id, child);
-      return child;
+      const parentNode = resolveProgressiveNode(graph, nodeId);
+
+      if (!parentNode) {
+        return;
+      }
+
+      visitedNodeIds.add(nodeId);
+      addNode(nodesById, parentNode);
+
+      if (!state.expandedGraphNodeIds.has(nodeId)) {
+        return;
+      }
+
+      for (const child of getProgressiveChildren(graph, nodeId)) {
+        addNode(nodesById, child.node);
+        addEdge(edgesById, createProgressiveEdge(parentNode.id, child.node.id, child.edgeKind));
+        appendProgressiveBranch(graph, child.node.id, nodesById, edgesById, visitedNodeIds);
+      }
     }
 
-    function appendTreeRows(parent, rows, depth) {
-      const children = [...parent.children.values()].sort(compareTreeEntries);
+    function getProgressiveChildren(graph, nodeId) {
+      if (!graph) {
+        return [];
+      }
 
-      for (const child of children) {
-        const hasChildren = child.children.size > 0;
-        const expanded = hasChildren && isTreeRowExpanded(child.id, depth + 1);
+      if (nodeId === virtualRootId) {
+        return getPathChildren(graph, "");
+      }
 
-        rows.push({
-          id: child.id,
-          label: child.label,
-          meta: child.meta,
-          nodeId: child.nodeId,
-          depth: depth + 1,
-          hasChildren,
-          expanded
+      if (nodeId.startsWith("virtual::path::")) {
+        return getPathChildren(graph, nodeId.slice("virtual::path::".length));
+      }
+
+      const node = graph.nodes.find((candidate) => candidate.id === nodeId);
+
+      if (!node) {
+        return [];
+      }
+
+      if (node.kind === "file") {
+        return graph.edges
+          .filter((edge) => edge.kind === "contains" && edge.sourceId === node.id)
+          .map((edge) => graph.nodes.find((candidate) => candidate.id === edge.targetId))
+          .filter(Boolean)
+          .filter((candidate) => isSymbolVisibleInMode(candidate))
+          .map((candidate) => ({ node: candidate, edgeKind: "contains" }));
+      }
+
+      return graph.edges
+        .filter((edge) => isExpandableEdge(edge) && edge.sourceId === node.id)
+        .map((edge) => graph.nodes.find((candidate) => candidate.id === edge.targetId))
+        .filter(Boolean)
+        .filter((candidate) => candidate.id !== node.id)
+        .map((candidate) => ({ node: candidate, edgeKind: "calls" }));
+    }
+
+    function getPathChildren(graph, prefix) {
+      const fileNodes = graph.nodes.filter((node) => node.kind === "file");
+      const children = new Map();
+
+      for (const fileNode of fileNodes) {
+        const relativePath = getRelativePath(graph, fileNode.filePath);
+
+        if (prefix && !relativePath.startsWith(prefix + "/")) {
+          continue;
+        }
+
+        const remainder = prefix ? relativePath.slice(prefix.length + 1) : relativePath;
+        const parts = remainder.split("/").filter(Boolean);
+        const nextPart = parts[0];
+
+        if (!nextPart) {
+          continue;
+        }
+
+        if (parts.length === 1) {
+          children.set("file:" + fileNode.id, {
+            node: fileNode,
+            edgeKind: "contains"
+          });
+          continue;
+        }
+
+        const childPath = prefix ? prefix + "/" + nextPart : nextPart;
+        const folderNode = createVirtualNode(
+          "virtual::path::" + childPath,
+          nextPart,
+          "folder",
+          childPath
+        );
+        children.set(folderNode.id, {
+          node: folderNode,
+          edgeKind: "contains"
         });
+      }
 
-        if (expanded) {
-          appendTreeRows(child, rows, depth + 1);
-        }
+      return [...children.values()].sort((left, right) =>
+        left.node.name.localeCompare(right.node.name)
+      );
+    }
+
+    function revealPathToNode(nodeId) {
+      const node = state.graph.nodes.find((candidate) => candidate.id === nodeId);
+
+      if (!node) {
+        return;
+      }
+
+      state.expandedGraphNodeIds.add(virtualRootId);
+
+      const relativePath = getRelativePath(state.graph, node.filePath);
+      const parts = relativePath.split("/").filter(Boolean);
+      let currentPath = "";
+
+      for (let index = 0; index < parts.length - 1; index += 1) {
+        currentPath = currentPath ? currentPath + "/" + parts[index] : parts[index];
+        state.expandedGraphNodeIds.add("virtual::path::" + currentPath);
+      }
+
+      const fileNode = state.graph.nodes.find((candidate) =>
+        candidate.kind === "file" && candidate.filePath === node.filePath
+      );
+
+      if (fileNode && fileNode.id !== node.id) {
+        state.expandedGraphNodeIds.add(fileNode.id);
       }
     }
 
-    function compareTreeEntries(left, right) {
-      const leftGroup = left.children.size > 0 && left.kind !== "file" ? 0 : 1;
-      const rightGroup = right.children.size > 0 && right.kind !== "file" ? 0 : 1;
-
-      if (leftGroup !== rightGroup) {
-        return leftGroup - rightGroup;
+    function resolveProgressiveNode(graph, nodeId) {
+      if (nodeId === virtualRootId) {
+        return createVirtualNode(virtualRootId, "Project Root", "workspace", graph.workspaceRoot);
       }
 
-      return left.label.localeCompare(right.label);
-    }
+      if (nodeId.startsWith("virtual::path::")) {
+        const path = nodeId.slice("virtual::path::".length);
+        const label = path.split("/").filter(Boolean).at(-1) || path;
 
-    function isTreeRowExpanded(treeId, depth) {
-      return depth < 2 || state.expandedTreeIds.has(treeId);
-    }
-
-    function toggleTreeRow(treeId) {
-      if (state.expandedTreeIds.has(treeId)) {
-        state.expandedTreeIds.delete(treeId);
-      } else {
-        state.expandedTreeIds.add(treeId);
-      }
-    }
-
-    function getRelativePath(graph, filePath) {
-      const workspaceRoot = graph.workspaceRoot.replace(/\\\\/g, "/");
-      const normalized = filePath.replace(/\\\\/g, "/");
-
-      if (normalized.startsWith(workspaceRoot + "/")) {
-        return normalized.slice(workspaceRoot.length + 1);
+        return createVirtualNode(nodeId, label, "folder", path);
       }
 
-      return compactPath(filePath);
+      return graph.nodes.find((node) => node.id === nodeId);
     }
 
-    function selectNode(nodeId) {
-      state.selectedNodeId = nodeId;
-      render();
+    function isExpandableEdge(edge) {
+      if (edge.kind === "contains") {
+        return true;
+      }
+
+      if (state.mode === "call") {
+        return edge.kind === "calls";
+      }
+
+      if (state.mode === "class") {
+        return ["extends", "implements", "overrides", "instantiates"].includes(edge.kind);
+      }
+
+      return ["imports", "exports"].includes(edge.kind);
+    }
+
+    function isSymbolVisibleInMode(node) {
+      if (state.mode === "file") {
+        return node.kind !== "external";
+      }
+
+      if (state.mode === "class") {
+        return ["class", "interface", "enum", "method", "constructor", "property"].includes(node.kind);
+      }
+
+      return ["function", "method", "constructor"].includes(node.kind);
+    }
+
+    function createVirtualNode(id, name, kind, filePath) {
+      return {
+        id,
+        kind,
+        name,
+        qualifiedName: name,
+        filePath,
+        range: emptyRange(),
+        selectionRange: emptyRange(),
+        language: "virtual"
+      };
+    }
+
+    function createProgressiveEdge(sourceId, targetId, kind) {
+      return {
+        id: "edge::progressive::" + sourceId + "::" + targetId,
+        kind,
+        sourceId,
+        targetId,
+        filePath: "",
+        range: emptyRange(),
+        confidence: "exact"
+      };
+    }
+
+    function addNode(nodesById, node) {
+      nodesById.set(node.id, node);
+    }
+
+    function addEdge(edgesById, edge) {
+      edgesById.set(edge.id, edge);
+    }
+
+    function isVirtualNodeId(nodeId) {
+      return nodeId.startsWith("virtual::");
+    }
+
+    function emptyRange() {
+      return {
+        startLine: 0,
+        startCharacter: 0,
+        endLine: 0,
+        endCharacter: 0
+      };
     }
 
     function createSvgElement(name) {
@@ -613,21 +517,15 @@ export function getExplorerClientScript(options: ExplorerClientScriptOptions): s
       return values.filter(Boolean).join(" ");
     }
 
-    function isNodeInMode(node) {
-      if (state.mode === "file") {
-        return node.kind === "file" || node.kind === "folder";
+    function getRelativePath(graph, filePath) {
+      const workspaceRoot = graph.workspaceRoot.replace(/\\\\/g, "/");
+      const normalized = filePath.replace(/\\\\/g, "/");
+
+      if (normalized.startsWith(workspaceRoot + "/")) {
+        return normalized.slice(workspaceRoot.length + 1);
       }
 
-      if (state.mode === "class") {
-        return node.kind === "class" || node.kind === "interface" || node.kind === "enum";
-      }
-
-      return node.kind === "function" || node.kind === "method" || node.kind === "constructor";
-    }
-
-    function compactPath(filePath) {
-      const parts = filePath.split(/[\\\\/]/);
-      return parts.slice(Math.max(0, parts.length - 3)).join("/");
+      return normalized.split("/").slice(-3).join("/");
     }
   `;
 }

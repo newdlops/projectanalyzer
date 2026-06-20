@@ -185,6 +185,10 @@ export function createGraphScene(
    * graph even before advanced import and call extraction is available.
    */
   function isNodeInMode(kind: SymbolKind, mode: GraphViewMode): boolean {
+    if (["workspace", "folder", "file"].includes(kind)) {
+      return true;
+    }
+
     if (mode === "call") {
       return ["function", "method", "constructor"].includes(kind);
     }

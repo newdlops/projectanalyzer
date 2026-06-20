@@ -50,6 +50,9 @@ export class ExplorerGraphPanelProvider {
   /** Graph payload to send after a newly created panel reports readiness. */
   private pendingGraph: ProjectGraph | undefined;
 
+  /** Node focus request to send after a newly created panel reports readiness. */
+  private pendingFocusNodeId: string | undefined;
+
   public constructor(private readonly dependencies: ExplorerGraphPanelProviderDependencies) {}
 
   /**
@@ -119,6 +122,19 @@ export class ExplorerGraphPanelProvider {
   }
 
   /**
+   * Opens the graph browser and asks the panel to reveal a specific graph node.
+   */
+  public async focusNode(nodeId: string, graph?: ProjectGraph): Promise<void> {
+    this.pendingFocusNodeId = nodeId;
+    await this.openGraph(graph);
+
+    if (this.webviewReady) {
+      await this.postMessage({ type: "graph/focusNode", payload: { nodeId } });
+      this.pendingFocusNodeId = undefined;
+    }
+  }
+
+  /**
    * Handles typed Webview requests from the graph browser tab.
    */
   private async handleMessage(message: WebviewRequest): Promise<void> {
@@ -153,10 +169,17 @@ export class ExplorerGraphPanelProvider {
 
     if (this.pendingGraph) {
       await this.publishGraph(this.pendingGraph);
-      return;
+    } else {
+      await this.postLatestGraph();
     }
 
-    await this.postLatestGraph();
+    if (this.pendingFocusNodeId) {
+      await this.postMessage({
+        type: "graph/focusNode",
+        payload: { nodeId: this.pendingFocusNodeId }
+      });
+      this.pendingFocusNodeId = undefined;
+    }
   }
 
   /**

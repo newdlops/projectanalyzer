@@ -63,6 +63,7 @@ function getSidebarHtml(options: WebviewHtmlOptions): string {
       <div class="stat"><span id="symbols" class="stat-value">0</span><span class="stat-label">Nodes</span></div>
       <div class="stat"><span id="edges" class="stat-value">0</span><span class="stat-label">Edges</span></div>
     </div>
+    <div id="explorer-tree" class="list explorer-tree" aria-label="Project files"></div>
   </div>
   <script nonce="${options.nonce}">${clientScript}</script>
 </body>
@@ -81,7 +82,7 @@ function getGraphPanelHtml(options: WebviewHtmlOptions): string {
     canvasWidth,
     defaultDepth: options.defaultDepth,
     initialMode: options.initialMode,
-    maxNodes: 72
+    maxNodes: 1000
   });
 
   return /* html */ `<!DOCTYPE html>
@@ -95,38 +96,15 @@ function getGraphPanelHtml(options: WebviewHtmlOptions): string {
 </head>
 <body>
   <div class="shell panel-shell">
-    <div class="toolbar">
-      <button id="export-json" class="secondary-button" type="button">Export JSON</button>
-    </div>
     <div class="mode-switch" role="tablist">
       <button class="mode-button active" type="button" data-mode="file">Files</button>
       <button class="mode-button" type="button" data-mode="call">Calls</button>
       <button class="mode-button" type="button" data-mode="class">Classes</button>
     </div>
-    <input id="search" class="search" type="search" placeholder="Search" aria-label="Search">
     <div id="status" class="status">Ready</div>
-    <div class="stats" aria-label="Graph summary">
-      <div class="stat"><span id="files" class="stat-value">0</span><span class="stat-label">Files</span></div>
-      <div class="stat"><span id="symbols" class="stat-value">0</span><span class="stat-label">Nodes</span></div>
-      <div class="stat"><span id="edges" class="stat-value">0</span><span class="stat-label">Edges</span></div>
-    </div>
     <div class="graph-panel" aria-label="Graph canvas">
       <svg id="graph-canvas" class="graph-canvas" viewBox="0 0 ${canvasWidth} ${canvasHeight}" role="img"></svg>
     </div>
-    <div class="view-switch" role="tablist" aria-label="Node browser mode">
-      <button class="view-button active" type="button" data-node-view="tree">Tree</button>
-      <button class="view-button" type="button" data-node-view="list">List</button>
-    </div>
-    <div id="list" class="list" aria-label="Graph nodes"></div>
-    <section class="detail" aria-label="Selected node">
-      <div id="detail-title" class="detail-title">No selection</div>
-      <div id="detail-meta" class="detail-meta"></div>
-      <div class="action-grid">
-        <button id="open-source" class="action-button" type="button" disabled>Open</button>
-        <button id="show-callers" class="action-button" type="button" disabled>Callers</button>
-        <button id="show-callees" class="action-button" type="button" disabled>Callees</button>
-      </div>
-    </section>
   </div>
   <script nonce="${options.nonce}">${clientScript}</script>
 </body>

@@ -42,11 +42,17 @@ export type NodeRelationshipRequest = {
   direction: "callers" | "callees";
 };
 
+/** Request to reveal a graph node inside the editor-tab graph browser. */
+export type GraphFocusNodeRequest = {
+  nodeId: string;
+};
+
 /** Messages sent from Webview to Extension Host. */
 export type WebviewRequest =
   | { type: "ui/ready"; payload: Record<string, never> }
   | { type: "graph/load"; payload: GraphLoadRequest }
   | { type: "graph/openPanel"; payload: Record<string, never> }
+  | { type: "graph/focusNode"; payload: GraphFocusNodeRequest }
   | { type: "graph/expand"; payload: ExpandRequest }
   | { type: "analysis/run"; payload: AnalysisRunRequest }
   | { type: "analysis/cancel"; payload: Record<string, never> }
@@ -80,6 +86,7 @@ export type ExtensionResponse =
   | { type: "ui/ready"; payload: Record<string, never> }
   | { type: "graph/loaded"; payload: ProjectGraph }
   | { type: "graph/updated"; payload: ProjectGraph }
+  | { type: "graph/focusNode"; payload: GraphFocusNodeRequest }
   | { type: "graph/cleared"; payload: Record<string, never> }
   | { type: "analysis/status"; payload: AnalysisStatusPayload }
   | { type: "view/modeChanged"; payload: { mode: GraphViewMode } }
