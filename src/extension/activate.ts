@@ -1,0 +1,23 @@
+/**
+ * VS Code extension activation entrypoint. It creates runtime services and
+ * registers contributed commands.
+ */
+
+import * as vscode from "vscode";
+import { registerProjectAnalyzerCommands } from "./commands";
+import { createExtensionServices } from "./extensionServices";
+
+/**
+ * Activates Project Analyzer for the current VS Code extension host session.
+ */
+export function activate(context: vscode.ExtensionContext): void {
+  const services = createExtensionServices(context);
+  registerProjectAnalyzerCommands(context, services);
+}
+
+/**
+ * Deactivation hook reserved for future analyzer worker cleanup.
+ */
+export function deactivate(): void {
+  return;
+}

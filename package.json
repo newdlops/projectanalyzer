@@ -1,0 +1,170 @@
+{
+  "name": "project-analyzer",
+  "displayName": "Project Analyzer",
+  "description": "Structure based visual explorer for static project call, file, and class relationships.",
+  "version": "0.0.1",
+  "publisher": "local",
+  "private": true,
+  "license": "UNLICENSED",
+  "engines": {
+    "vscode": "^1.92.0"
+  },
+  "categories": [
+    "Visualization",
+    "Other"
+  ],
+  "activationEvents": [
+    "onCommand:projectAnalyzer.openExplorer",
+    "onCommand:projectAnalyzer.analyzeWorkspace",
+    "onCommand:projectAnalyzer.analyzeCurrentFile",
+    "onCommand:projectAnalyzer.showCallGraph",
+    "onCommand:projectAnalyzer.showFileGraph",
+    "onCommand:projectAnalyzer.showClassGraph",
+    "onCommand:projectAnalyzer.findCallers",
+    "onCommand:projectAnalyzer.findCallees",
+    "onCommand:projectAnalyzer.exportGraph",
+    "onCommand:projectAnalyzer.clearCache",
+    "onCommand:projectAnalyzer.cancelAnalysis"
+  ],
+  "main": "./out/extension/activate.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "projectAnalyzer.openExplorer",
+        "title": "Project Analyzer: Open Explorer"
+      },
+      {
+        "command": "projectAnalyzer.analyzeWorkspace",
+        "title": "Project Analyzer: Analyze Workspace"
+      },
+      {
+        "command": "projectAnalyzer.analyzeCurrentFile",
+        "title": "Project Analyzer: Analyze Current File"
+      },
+      {
+        "command": "projectAnalyzer.showCallGraph",
+        "title": "Project Analyzer: Show Call Graph"
+      },
+      {
+        "command": "projectAnalyzer.showFileGraph",
+        "title": "Project Analyzer: Show File Graph"
+      },
+      {
+        "command": "projectAnalyzer.showClassGraph",
+        "title": "Project Analyzer: Show Class Graph"
+      },
+      {
+        "command": "projectAnalyzer.findCallers",
+        "title": "Project Analyzer: Find Callers"
+      },
+      {
+        "command": "projectAnalyzer.findCallees",
+        "title": "Project Analyzer: Find Callees"
+      },
+      {
+        "command": "projectAnalyzer.exportGraph",
+        "title": "Project Analyzer: Export Graph"
+      },
+      {
+        "command": "projectAnalyzer.clearCache",
+        "title": "Project Analyzer: Clear Cache"
+      },
+      {
+        "command": "projectAnalyzer.cancelAnalysis",
+        "title": "Project Analyzer: Cancel Analysis"
+      }
+    ],
+    "configuration": {
+      "title": "Project Analyzer",
+      "properties": {
+        "projectAnalyzer.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable Project Analyzer extension features."
+        },
+        "projectAnalyzer.autoAnalyze": {
+          "type": "boolean",
+          "default": true,
+          "description": "Analyze the workspace automatically when the explorer opens."
+        },
+        "projectAnalyzer.include": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "**/*.{ts,tsx,js,jsx,py}"
+          ],
+          "description": "Glob patterns included in project analysis."
+        },
+        "projectAnalyzer.exclude": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "**/node_modules/**",
+            "**/.git/**",
+            "**/dist/**",
+            "**/build/**",
+            "**/coverage/**",
+            "**/.venv/**",
+            "**/venv/**"
+          ],
+          "description": "Glob patterns excluded from project analysis."
+        },
+        "projectAnalyzer.maxFileSizeKb": {
+          "type": "number",
+          "default": 1024,
+          "minimum": 1,
+          "description": "Maximum source file size in KiB for static analysis."
+        },
+        "projectAnalyzer.maxRenderedNodes": {
+          "type": "number",
+          "default": 500,
+          "minimum": 1,
+          "description": "Maximum graph nodes rendered in a single explorer view."
+        },
+        "projectAnalyzer.defaultDepth": {
+          "type": "number",
+          "default": 2,
+          "minimum": 0,
+          "description": "Default graph expansion depth for caller and callee exploration."
+        },
+        "projectAnalyzer.includeExternalDependencies": {
+          "type": "boolean",
+          "default": false,
+          "description": "Include external dependency nodes in graph views."
+        },
+        "projectAnalyzer.showUnresolvedEdges": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show graph edges whose target cannot be resolved statically."
+        },
+        "projectAnalyzer.cache.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Persist analysis cache in VS Code workspace storage."
+        },
+        "projectAnalyzer.cache.maxSizeMb": {
+          "type": "number",
+          "default": 256,
+          "minimum": 1,
+          "description": "Maximum persisted analysis cache size in MiB."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p ./tsconfig.json",
+    "watch": "tsc -watch -p ./tsconfig.json",
+    "check": "tsc -p ./tsconfig.json --noEmit",
+    "test": "npm run compile && node --test out/test/unit/*.test.js",
+    "vscode:prepublish": "npm run compile"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.30",
+    "@types/vscode": "^1.92.0",
+    "typescript": "^5.8.3"
+  }
+}
