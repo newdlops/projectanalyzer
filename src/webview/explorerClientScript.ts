@@ -12,16 +12,7 @@ import {
   shouldUseLayeredSelection
 } from "./explorerGraphOrdering";
 import { getExplorerCanvasRendererSource } from "./explorerCanvasRenderer";
-import {
-  compareFileNodes,
-  createProgressiveGraphIndex,
-  getFileNodes,
-  getGraphRelativePath,
-  getImportedFileChildren,
-  getImportRootChildren,
-  pushProgressiveChild,
-  sortProgressiveChildMap
-} from "./explorerProgressiveFileGraph";
+import { getProgressiveFileGraphBrowserSource } from "./explorerProgressiveFileGraph";
 import { createCrossFreeTreePositions } from "./explorerGraphTreeLayout";
 
 /** Data injected into the browser-side explorer script. */
@@ -51,16 +42,7 @@ export function getExplorerClientScript(options: ExplorerClientScriptOptions): s
     `const moveToward = ${moveToward.toString()};`
   ].join("\n");
   const graphTreeLayoutSource = `const createCrossFreeTreePositions = ${createCrossFreeTreePositions.toString()};`;
-  const progressiveFileGraphSource = [
-    `const getGraphRelativePath = ${getGraphRelativePath.toString()};`,
-    `const compareFileNodes = ${compareFileNodes.toString()};`,
-    `const getFileNodes = ${getFileNodes.toString()};`,
-    `const pushProgressiveChild = ${pushProgressiveChild.toString()};`,
-    `const sortProgressiveChildMap = ${sortProgressiveChildMap.toString()};`,
-    `const createProgressiveGraphIndex = ${createProgressiveGraphIndex.toString()};`,
-    `const getImportRootChildren = ${getImportRootChildren.toString()};`,
-    `const getImportedFileChildren = ${getImportedFileChildren.toString()};`
-  ].join("\n");
+  const progressiveFileGraphSource = getProgressiveFileGraphBrowserSource();
 
   return /* js */ `
     ${graphGeometrySource}
@@ -569,7 +551,7 @@ export function getExplorerClientScript(options: ExplorerClientScriptOptions): s
       }
 
       if (nodeId === virtualRootId) {
-        return state.mode === "file" ? getImportRootChildren(graph, state.graphIndex) : getPathChildren(graph, "");
+        return state.mode === "file" ? getApplicationEntryChildren(graph, state.graphIndex) : getPathChildren(graph, "");
       }
 
       if (state.mode !== "file" && nodeId.startsWith("virtual::path::")) {

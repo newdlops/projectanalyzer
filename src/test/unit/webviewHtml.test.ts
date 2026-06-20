@@ -31,7 +31,7 @@ test("graph panel HTML exposes canvas viewer controls", () => {
   assert.match(script, /getSceneBounds/);
   assert.match(script, /screenToCanvas/);
   assert.match(script, /expandedGraphNodeIds: createDefaultExpandedNodeIds/);
-  assert.match(script, /getImportRootChildren/);
+  assert.match(script, /getApplicationEntryChildren/);
   assert.match(script, /getImportedFileChildren/);
   assert.doesNotThrow(() => new Function("acquireVsCodeApi", script));
 });

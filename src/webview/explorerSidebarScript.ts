@@ -3,11 +3,16 @@
  * Explorer-like file tree and keeps analysis controls close to navigation.
  */
 
+import { getProgressiveFileGraphBrowserSource } from "./explorerProgressiveFileGraph";
+
 /**
  * Builds the sidebar control and file-tree script.
  */
 export function getExplorerSidebarScript(): string {
+  const progressiveFileGraphSource = getProgressiveFileGraphBrowserSource();
+
   return /* js */ `
+    ${progressiveFileGraphSource}
     const vscode = acquireVsCodeApi();
     const state = {
       graph: undefined,
@@ -170,7 +175,7 @@ export function getExplorerSidebarScript(): string {
       const index = createImportTreeIndex(graph);
       const rows = [];
 
-      for (const rootNode of getImportRootNodes(index)) {
+      for (const rootNode of getApplicationEntryNodes(graph, index)) {
         appendImportRows(graph, index, rootNode, rows, [], 0);
       }
 
@@ -211,22 +216,17 @@ export function getExplorerSidebarScript(): string {
 
       return {
         childrenByImporterId,
+        fileImportChildrenBySourceId: childrenByImporterId,
         fileNodes,
+        fileImportEdges: graph.edges.filter((edge) =>
+          ["imports", "exports"].includes(edge.kind) &&
+          fileNodesById.has(edge.sourceId) &&
+          fileNodesById.has(edge.targetId)
+        ),
         importedFileIds,
-        importerFileIds
+        importerFileIds,
+        nodesById: fileNodesById
       };
-    }
-
-    function getImportRootNodes(index) {
-      let roots = index.fileNodes.filter((node) =>
-        !index.importedFileIds.has(node.id) && (index.importerFileIds.has(node.id) || index.importerFileIds.size === 0)
-      );
-
-      if (roots.length === 0 && index.importerFileIds.size > 0) {
-        roots = index.fileNodes.filter((node) => index.importerFileIds.has(node.id));
-      }
-
-      return roots.length > 0 ? roots : index.fileNodes;
     }
 
     function appendImportRows(graph, index, fileNode, rows, ancestorIds, depth) {

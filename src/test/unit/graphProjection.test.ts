@@ -41,6 +41,8 @@ test("summarizeFileImportGraph reports entry roots and import coverage", () => {
   const graph = createProjectionFixture();
 
   assert.deepEqual(summarizeFileImportGraph(graph), {
+    applicationEntrypoints: 1,
+    applicationEntrypointFiles: ["a.ts"],
     entryRoots: 1,
     entryRootDirectories: [{ count: 1, path: "." }],
     fileNodes: 2,
@@ -50,23 +52,42 @@ test("summarizeFileImportGraph reports entry roots and import coverage", () => {
   });
 });
 
-function createProjectionFixture(): ProjectGraph {
-  const nodes = [
+test("summarizeFileImportGraph separates app entrypoints from many import roots", () => {
+  const graph = createProjectionFixture([
+    createNode("main", "file", "main.tsx", "/workspace/apps/web/src/main.tsx"),
+    createNode("app", "file", "app.tsx", "/workspace/apps/web/src/app.tsx"),
+    createNode("page-a", "file", "page-a.tsx", "/workspace/apps/web/src/legal/example-page/page-a.tsx"),
+    createNode("story", "file", "button.stories.tsx", "/workspace/apps/web/stories/button.stories.tsx")
+  ], [
+    createEdge("imports", "main", "app"),
+    createEdge("imports", "page-a", "app"),
+    createEdge("imports", "story", "app")
+  ]);
+
+  const summary = summarizeFileImportGraph(graph);
+
+  assert.equal(summary.entryRoots, 3);
+  assert.deepEqual(summary.applicationEntrypointFiles, ["apps/web/src/main.tsx"]);
+  assert.equal(summary.applicationEntrypoints, 1);
+});
+
+function createProjectionFixture(
+  nodes: SymbolNode[] = [
     createNode("file-a", "file", "a.ts", "/workspace/a.ts"),
     createNode("file-b", "file", "b.ts", "/workspace/b.ts"),
     createNode("function-a", "function", "a", "/workspace/a.ts"),
     createNode("function-b", "function", "b", "/workspace/b.ts"),
     createNode("class-a", "class", "A", "/workspace/a.ts")
-  ];
-  const edges = [
+  ],
+  edges: GraphEdge[] = [
     createEdge("imports", "file-a", "file-b"),
     createEdge("contains", "file-a", "function-a"),
     createEdge("contains", "file-b", "function-b"),
     createEdge("contains", "file-a", "class-a"),
     createEdge("calls", "function-a", "function-b"),
     createEdge("extends", "class-a", "function-b")
-  ];
-
+  ]
+): ProjectGraph {
   return {
     workspaceRoot: "/workspace",
     version: "test",

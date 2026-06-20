@@ -6,6 +6,12 @@
 
 import type { GraphViewMode } from "../protocol/messages";
 import type { EdgeKind, GraphEdge, ProjectGraph, SymbolKind } from "../shared/types";
+import {
+  createProgressiveGraphIndex,
+  getApplicationEntryNodes,
+  getGraphRelativePath,
+  getImportRootNodes
+} from "./explorerProgressiveFileGraph";
 
 /** Small summary used by host-side logging. */
 export type GraphProjectionSummary = {
@@ -15,6 +21,8 @@ export type GraphProjectionSummary = {
 
 /** Import graph health summary used to diagnose entry-point explosions. */
 export type FileImportGraphSummary = {
+  applicationEntrypoints: number;
+  applicationEntrypointFiles: string[];
   entryRoots: number;
   entryRootDirectories: Array<{ count: number; path: string }>;
   fileNodes: number;
@@ -80,21 +88,20 @@ export function summarizeProjectedGraph(graph: ProjectGraph): GraphProjectionSum
 
 /** Builds root and edge counts for the file import graph. */
 export function summarizeFileImportGraph(graph: ProjectGraph): FileImportGraphSummary {
-  const fileNodes = graph.nodes.filter((node) => node.kind === "file");
-  const fileNodeIds = new Set(fileNodes.map((node) => node.id));
-  const importEdges = graph.edges.filter((edge) =>
-    (edge.kind === "imports" || edge.kind === "exports") &&
-    fileNodeIds.has(edge.sourceId) &&
-    fileNodeIds.has(edge.targetId)
-  );
+  const index = createProgressiveGraphIndex(graph);
+  const fileNodes = index.fileNodes;
+  const importEdges = index.fileImportEdges;
   const importedFileIds = new Set(importEdges.map((edge) => edge.targetId));
   const importerFileIds = new Set(importEdges.map((edge) => edge.sourceId));
-  const entryRoots = fileNodes.filter((node) =>
-    !importedFileIds.has(node.id) && (importerFileIds.has(node.id) || importEdges.length === 0)
-  );
+  const entryRoots = getImportRootNodes(graph, index);
+  const applicationEntries = getApplicationEntryNodes(graph, index);
   const entryRootDirectories = createTopEntryRootDirectories(graph.workspaceRoot, entryRoots);
 
   return {
+    applicationEntrypoints: applicationEntries.length,
+    applicationEntrypointFiles: applicationEntries
+      .slice(0, 24)
+      .map((node) => getGraphRelativePath(graph, node.filePath)),
     entryRoots: entryRoots.length,
     entryRootDirectories,
     fileNodes: fileNodes.length,
