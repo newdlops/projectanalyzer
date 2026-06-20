@@ -152,6 +152,30 @@ impl ProjectGraphBuilder {
         });
     }
 
+    /// Adds an unresolved import/export edge to an external module leaf.
+    pub fn add_external_dependency_edge(&mut self, edge: NewExternalDependencyEdge) {
+        let source_id = create_file_node_id(&edge.source_path);
+        let target_id = self.add_external_symbol(NewExternalSymbol {
+            name: edge.module_specifier.clone(),
+            qualified_name: edge.module_specifier,
+            file_path: edge.source_path.clone(),
+            range: edge.range.clone(),
+            selection_range: edge.range.clone(),
+            language: edge.language,
+        });
+        let file_path = edge.source_path.to_string_lossy().to_string();
+
+        self.edges.push(GraphEdge {
+            id: create_ranged_edge_id(&edge.kind, &source_id, &target_id, &edge.range),
+            kind: edge.kind,
+            source_id,
+            target_id,
+            file_path,
+            range: edge.range,
+            confidence: "unresolved".to_string(),
+        });
+    }
+
     /// Adds a file-scoped diagnostic.
     pub fn add_diagnostic(&mut self, code: &str, message: String, file_path: Option<String>) {
         self.diagnostics.push(AnalysisDiagnostic {
@@ -214,6 +238,15 @@ pub struct NewFileDependencyEdge {
     pub source_path: PathBuf,
     pub target_path: PathBuf,
     pub range: SourceRange,
+}
+
+/// New external module dependency supplied by workspace-level import analysis.
+pub struct NewExternalDependencyEdge {
+    pub kind: String,
+    pub source_path: PathBuf,
+    pub module_specifier: String,
+    pub range: SourceRange,
+    pub language: String,
 }
 
 /// Builds a stable file node ID.

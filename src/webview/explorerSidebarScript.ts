@@ -226,6 +226,7 @@ export function getExplorerSidebarScript(): string {
       const fileNodes = graph.nodes
         .filter((node) => node.kind === "file")
         .sort((left, right) => getRelativePath(graph, left.filePath).localeCompare(getRelativePath(graph, right.filePath)));
+      const nodesById = new Map(graph.nodes.map((node) => [node.id, node]));
       const fileNodesById = new Map(fileNodes.map((node) => [node.id, node]));
       const importedFileIds = new Set();
       const importerFileIds = new Set();
@@ -237,13 +238,15 @@ export function getExplorerSidebarScript(): string {
         }
 
         const source = fileNodesById.get(edge.sourceId);
-        const target = fileNodesById.get(edge.targetId);
+        const target = nodesById.get(edge.targetId);
 
-        if (!source || !target) {
+        if (!source || !target || !["file", "external"].includes(target.kind)) {
           continue;
         }
 
-        importedFileIds.add(target.id);
+        if (target.kind === "file") {
+          importedFileIds.add(target.id);
+        }
         importerFileIds.add(source.id);
         const children = childrenByImporterId.get(source.id) ?? [];
         children.push(target);
@@ -251,7 +254,7 @@ export function getExplorerSidebarScript(): string {
       }
 
       for (const children of childrenByImporterId.values()) {
-        children.sort((left, right) => getRelativePath(graph, left.filePath).localeCompare(getRelativePath(graph, right.filePath)));
+        children.sort((left, right) => getTreeNodeLabel(graph, left).localeCompare(getTreeNodeLabel(graph, right)));
       }
 
       return {
@@ -261,29 +264,29 @@ export function getExplorerSidebarScript(): string {
         fileImportEdges: graph.edges.filter((edge) =>
           ["imports", "exports"].includes(edge.kind) &&
           fileNodesById.has(edge.sourceId) &&
-          fileNodesById.has(edge.targetId)
+          ["file", "external"].includes(nodesById.get(edge.targetId)?.kind)
         ),
         importedFileIds,
         importerFileIds,
-        nodesById: fileNodesById
+        nodesById
       };
     }
 
     function appendImportRows(graph, index, fileNode, rows, ancestorIds, depth) {
       const nextAncestorIds = [...ancestorIds, fileNode.id];
       const rowId = "import:" + nextAncestorIds.join(">");
-      const relativePath = getRelativePath(graph, fileNode.filePath);
+      const relativePath = getTreeNodeLabel(graph, fileNode);
       const children = (index.childrenByImporterId.get(fileNode.id) ?? [])
         .filter((child) => !nextAncestorIds.includes(child.id));
-      const hasChildren = children.length > 0;
+      const hasChildren = fileNode.kind === "file" && children.length > 0;
       const expanded = hasChildren && state.expandedTreeIds.has(rowId);
 
       rows.push({
         id: rowId,
         label: relativePath,
         name: getFileName(relativePath),
-        detail: getDirectoryName(relativePath),
-        kind: depth === 0 ? "entry" : "import",
+        detail: getTreeNodeDetail(relativePath, fileNode, depth),
+        kind: fileNode.kind === "external" ? "external" : depth === 0 ? "entry" : "import",
         nodeId: fileNode.id,
         depth,
         hasChildren,
@@ -335,6 +338,22 @@ export function getExplorerSidebarScript(): string {
       }
 
       return normalized.split("/").slice(-3).join("/");
+    }
+
+    function getTreeNodeLabel(graph, node) {
+      if (node.kind === "external") {
+        return node.qualifiedName || node.name || "external module";
+      }
+
+      return getRelativePath(graph, node.filePath);
+    }
+
+    function getTreeNodeDetail(relativePath, node, depth) {
+      if (node.kind === "external") {
+        return "external module usage";
+      }
+
+      return getDirectoryName(relativePath) || (depth === 0 ? "entrypoint" : "");
     }
 
     function getFileName(relativePath) {

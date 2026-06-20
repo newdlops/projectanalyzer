@@ -26,6 +26,7 @@ export function getProgressiveFileGraphBrowserSource(): string {
   return [
     `const getGraphRelativePath = ${getGraphRelativePath.toString()};`,
     `const compareFileNodes = ${compareFileNodes.toString()};`,
+    `const isFileImportTarget = ${isFileImportTarget.toString()};`,
     `const getFileNodes = ${getFileNodes.toString()};`,
     `const pushProgressiveChild = ${pushProgressiveChild.toString()};`,
     `const sortProgressiveChildMap = ${sortProgressiveChildMap.toString()};`,
@@ -71,13 +72,11 @@ export function createProgressiveGraphIndex(graph: ProjectGraph): ProgressiveGra
       });
     }
 
-    if (
-      (edge.kind === "imports" || edge.kind === "exports") &&
-      fileNodeIds.has(edge.sourceId) &&
-      fileNodeIds.has(edge.targetId)
-    ) {
+    if (isFileImportTarget(edge, targetNode, fileNodeIds)) {
       fileImportEdges.push(edge);
-      importedFileIds.add(edge.targetId);
+      if (targetNode.kind === "file") {
+        importedFileIds.add(edge.targetId);
+      }
       pushProgressiveChild(fileImportChildrenBySourceId, edge.sourceId, {
         edgeKind: edge.kind,
         node: targetNode
@@ -186,7 +185,7 @@ export function getImportedFileChildren(
   return index.fileImportChildrenBySourceId.get(fileNodeId) ?? [];
 }
 
-/** Returns file-to-file import/export edges only. */
+/** Returns file import/export edges to project files or external module leaves. */
 export function getFileImportEdges(graph: ProjectGraph): GraphEdge[] {
   return createProgressiveGraphIndex(graph).fileImportEdges;
 }
@@ -202,7 +201,18 @@ export function compareFileNodes(
   left: SymbolNode,
   right: SymbolNode
 ): number {
-  return getGraphRelativePath(graph, left.filePath).localeCompare(getGraphRelativePath(graph, right.filePath));
+  return getGraphRelativePath(graph, left.filePath).localeCompare(getGraphRelativePath(graph, right.filePath)) ||
+    left.qualifiedName.localeCompare(right.qualifiedName) ||
+    left.name.localeCompare(right.name);
+}
+
+/** Returns whether an edge is a file import tree child. */
+function isFileImportTarget(edge: GraphEdge, targetNode: SymbolNode, fileNodeIds: Set<string>): boolean {
+  return (
+    (edge.kind === "imports" || edge.kind === "exports") &&
+    fileNodeIds.has(edge.sourceId) &&
+    (fileNodeIds.has(edge.targetId) || targetNode.kind === "external")
+  );
 }
 
 /** Scores conventional application entrypoint file paths. */

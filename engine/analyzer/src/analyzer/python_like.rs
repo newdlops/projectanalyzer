@@ -3,7 +3,12 @@
 //! This analyzer uses indentation and line prefixes to produce fast class and
 //! function nodes without importing a Python parser.
 
-use crate::graph::{NewSymbol, ProjectGraphBuilder};
+use std::collections::BTreeMap;
+use std::path::{Component, Path, PathBuf};
+
+use crate::graph::{
+    NewExternalDependencyEdge, NewFileDependencyEdge, NewSymbol, ProjectGraphBuilder,
+};
 use crate::model::{SourceInput, SourceRange};
 
 /// Indentation-based Python scope entry.
@@ -11,6 +16,14 @@ struct ScopeEntry {
     id: String,
     name: String,
     indent: usize,
+}
+
+/// Python import candidate resolved after all workspace files are known.
+struct ImportCandidate {
+    display_module: String,
+    resolution_modules: Vec<String>,
+    range: SourceRange,
+    external_candidate: bool,
 }
 
 /// Extracts Python class and function symbols.
@@ -60,6 +73,45 @@ pub fn extract_symbols(
     Ok(())
 }
 
+/// Adds file-to-file and external module import edges for Python sources.
+pub fn add_import_edges(builder: &mut ProjectGraphBuilder, files: &[SourceInput]) {
+    let module_paths = create_module_path_map(files);
+
+    for file in files {
+        if file.language_id != "python" {
+            continue;
+        }
+
+        let source_module = module_name_for_path(&file.path);
+
+        for candidate in collect_import_candidates(file, source_module.as_deref()) {
+            if let Some(target_path) =
+                resolve_python_module(&candidate.resolution_modules, &module_paths)
+            {
+                if target_path != file.path {
+                    builder.add_file_dependency_edge(NewFileDependencyEdge {
+                        kind: "imports".to_string(),
+                        source_path: file.path.clone(),
+                        target_path,
+                        range: candidate.range,
+                    });
+                }
+                continue;
+            }
+
+            if candidate.external_candidate {
+                builder.add_external_dependency_edge(NewExternalDependencyEdge {
+                    kind: "imports".to_string(),
+                    source_path: file.path.clone(),
+                    module_specifier: candidate.display_module,
+                    range: candidate.range,
+                    language: file.language_id.clone(),
+                });
+            }
+        }
+    }
+}
+
 /// Removes scopes when indentation returns to the same or lower level.
 fn close_finished_scopes(scopes: &mut Vec<ScopeEntry>, indent: usize) {
     while scopes
@@ -69,6 +121,214 @@ fn close_finished_scopes(scopes: &mut Vec<ScopeEntry>, indent: usize) {
     {
         scopes.pop();
     }
+}
+
+/// Creates importable Python module names for all workspace `.py` files.
+fn create_module_path_map(files: &[SourceInput]) -> BTreeMap<String, PathBuf> {
+    let mut module_paths = BTreeMap::new();
+
+    for file in files {
+        if file.language_id != "python" {
+            continue;
+        }
+
+        if let Some(module_name) = module_name_for_path(&file.path) {
+            for alias in module_name_suffixes(&module_name) {
+                module_paths
+                    .entry(alias)
+                    .or_insert_with(|| file.path.clone());
+            }
+        }
+    }
+
+    module_paths
+}
+
+/// Converts a Python file path to a dotted module name.
+fn module_name_for_path(path: &Path) -> Option<String> {
+    let path_without_extension = path.with_extension("");
+    let mut parts: Vec<String> = path_without_extension
+        .components()
+        .filter_map(|component| match component {
+            Component::Normal(value) => value.to_str(),
+            _ => None,
+        })
+        .filter(|part| !part.is_empty())
+        .map(|part| part.to_string())
+        .collect();
+
+    if parts.last().map(|part| part == "__init__").unwrap_or(false) {
+        parts.pop();
+    }
+
+    if parts.is_empty() {
+        None
+    } else {
+        Some(parts.join("."))
+    }
+}
+
+/// Returns every importable suffix for a module path.
+fn module_name_suffixes(module_name: &str) -> Vec<String> {
+    let parts: Vec<&str> = module_name.split('.').collect();
+
+    (0..parts.len())
+        .map(|index| parts[index..].join("."))
+        .collect()
+}
+
+/// Extracts import declarations from a Python source file.
+fn collect_import_candidates(
+    file: &SourceInput,
+    source_module: Option<&str>,
+) -> Vec<ImportCandidate> {
+    let mut candidates = Vec::new();
+
+    for (line_index, line) in file.content.lines().enumerate() {
+        let trimmed = line.trim_start();
+
+        if trimmed.starts_with("import ") {
+            candidates.extend(read_import_line(line_index, line, trimmed));
+            continue;
+        }
+
+        if trimmed.starts_with("from ") {
+            if let Some(candidate) = read_from_import_line(line_index, line, trimmed, source_module)
+            {
+                candidates.push(candidate);
+            }
+        }
+    }
+
+    candidates
+}
+
+/// Reads `import a, b as c` statements.
+fn read_import_line(line_index: usize, line: &str, trimmed: &str) -> Vec<ImportCandidate> {
+    let range = line_range(line_index, line.len().saturating_sub(trimmed.len()), line);
+
+    trimmed
+        .strip_prefix("import ")
+        .unwrap_or_default()
+        .split(',')
+        .filter_map(|part| read_imported_module_name(part))
+        .map(|module_name| ImportCandidate {
+            display_module: module_name.clone(),
+            resolution_modules: vec![module_name],
+            range: range.clone(),
+            external_candidate: true,
+        })
+        .collect()
+}
+
+/// Reads `from a.b import c` and relative `from . import c` statements.
+fn read_from_import_line(
+    line_index: usize,
+    line: &str,
+    trimmed: &str,
+    source_module: Option<&str>,
+) -> Option<ImportCandidate> {
+    let remainder = trimmed.strip_prefix("from ")?;
+    let import_index = remainder.find(" import ")?;
+    let module_part = remainder[..import_index].trim();
+    let imported_part = remainder[import_index + " import ".len()..].trim();
+    let range = line_range(line_index, line.len().saturating_sub(trimmed.len()), line);
+
+    if module_part.starts_with('.') {
+        let modules = resolve_relative_import_modules(source_module?, module_part, imported_part);
+
+        return Some(ImportCandidate {
+            display_module: module_part.to_string(),
+            resolution_modules: modules,
+            range,
+            external_candidate: false,
+        });
+    }
+
+    let mut modules: Vec<String> = read_imported_names(imported_part)
+        .map(|name| format!("{module_part}.{name}"))
+        .collect();
+    modules.push(module_part.to_string());
+
+    Some(ImportCandidate {
+        display_module: module_part.to_string(),
+        resolution_modules: modules,
+        range,
+        external_candidate: true,
+    })
+}
+
+/// Resolves candidate modules to a project file path.
+fn resolve_python_module(
+    resolution_modules: &[String],
+    module_paths: &BTreeMap<String, PathBuf>,
+) -> Option<PathBuf> {
+    resolution_modules
+        .iter()
+        .find_map(|module_name| module_paths.get(module_name).cloned())
+}
+
+/// Creates absolute candidate module names for Python relative imports.
+fn resolve_relative_import_modules(
+    source_module: &str,
+    module_part: &str,
+    imported_part: &str,
+) -> Vec<String> {
+    let dot_count = module_part
+        .chars()
+        .take_while(|character| *character == '.')
+        .count();
+    let suffix = module_part[dot_count..].trim_matches('.');
+    let mut package_parts: Vec<&str> = source_module.split('.').collect();
+    package_parts.pop();
+
+    for _ in 1..dot_count {
+        package_parts.pop();
+    }
+
+    let mut base = package_parts.join(".");
+
+    if !suffix.is_empty() {
+        if !base.is_empty() {
+            base.push('.');
+        }
+        base.push_str(suffix);
+    }
+
+    let mut modules: Vec<String> = read_imported_names(imported_part)
+        .map(|name| {
+            if base.is_empty() {
+                name
+            } else {
+                format!("{base}.{name}")
+            }
+        })
+        .collect();
+
+    if !base.is_empty() {
+        modules.push(base);
+    }
+
+    modules
+}
+
+/// Reads a module name before an optional alias.
+fn read_imported_module_name(part: &str) -> Option<String> {
+    let module_name = part.trim().split_whitespace().next()?;
+
+    if module_name.is_empty() {
+        None
+    } else {
+        Some(module_name.to_string())
+    }
+}
+
+/// Reads imported names that may refer to child modules.
+fn read_imported_names(imported_part: &str) -> impl Iterator<Item = String> + '_ {
+    imported_part
+        .split(',')
+        .filter_map(read_imported_module_name)
+        .filter(|name| name != "*")
 }
 
 /// Detects a Python declaration line.
@@ -145,5 +405,78 @@ mod tests {
         assert!(graph.nodes.iter().any(|node| node.name == "Service"));
         assert!(graph.nodes.iter().any(|node| node.name == "run"));
         assert!(graph.nodes.iter().any(|node| node.name == "helper"));
+    }
+
+    #[test]
+    fn adds_python_import_edges_between_files() {
+        let files = vec![
+            source(
+                "/workspace/app/main.py",
+                "from app.service import run\nfrom . import util\n",
+            ),
+            source("/workspace/app/service.py", "def run():\n    pass\n"),
+            source("/workspace/app/util.py", "VALUE = 1\n"),
+        ];
+        let mut builder = ProjectGraphBuilder::new(PathBuf::from("/workspace"));
+
+        for file in &files {
+            builder.add_file(file);
+        }
+
+        add_import_edges(&mut builder, &files);
+        let graph = builder.finish();
+
+        assert!(graph.edges.iter().any(|edge| {
+            edge.kind == "imports"
+                && edge.source_id.ends_with("/workspace/app/main.py")
+                && edge.target_id.ends_with("/workspace/app/service.py")
+        }));
+        assert!(graph.edges.iter().any(|edge| {
+            edge.kind == "imports"
+                && edge.source_id.ends_with("/workspace/app/main.py")
+                && edge.target_id.ends_with("/workspace/app/util.py")
+        }));
+    }
+
+    #[test]
+    fn adds_external_python_import_leaves() {
+        let files = vec![source(
+            "/workspace/app/main.py",
+            "import os\nfrom django.conf import settings\n",
+        )];
+        let mut builder = ProjectGraphBuilder::new(PathBuf::from("/workspace"));
+
+        for file in &files {
+            builder.add_file(file);
+        }
+
+        add_import_edges(&mut builder, &files);
+        let graph = builder.finish();
+
+        assert!(graph
+            .nodes
+            .iter()
+            .any(|node| node.kind == "external" && node.name == "os"));
+        assert!(graph
+            .nodes
+            .iter()
+            .any(|node| node.kind == "external" && node.name == "django.conf"));
+        assert_eq!(
+            graph
+                .edges
+                .iter()
+                .filter(|edge| edge.kind == "imports" && edge.confidence == "unresolved")
+                .count(),
+            2
+        );
+    }
+
+    fn source(path: &str, content: &str) -> SourceInput {
+        SourceInput {
+            path: PathBuf::from(path),
+            language_id: "python".to_string(),
+            content: content.to_string(),
+            size_bytes: content.len(),
+        }
     }
 }

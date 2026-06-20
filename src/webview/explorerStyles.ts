@@ -382,6 +382,11 @@ export function getExplorerStyles(surface: ExplorerSurface): string {
       opacity: 0.95;
     }
 
+    .tree-row.external-row .tree-file-icon::before {
+      border-style: dashed;
+      opacity: 0.62;
+    }
+
     .tree-label-group {
       display: flex;
       min-width: 0;

@@ -25,6 +25,7 @@ export type FileImportGraphSummary = {
   applicationEntrypointFiles: string[];
   entryRoots: number;
   entryRootDirectories: Array<{ count: number; path: string }>;
+  externalImports: number;
   fileNodes: number;
   importedFiles: number;
   importerFiles: number;
@@ -91,8 +92,14 @@ export function summarizeFileImportGraph(graph: ProjectGraph): FileImportGraphSu
   const index = createProgressiveGraphIndex(graph);
   const fileNodes = index.fileNodes;
   const importEdges = index.fileImportEdges;
-  const importedFileIds = new Set(importEdges.map((edge) => edge.targetId));
+  const fileNodeIds = new Set(fileNodes.map((node) => node.id));
+  const importedFileIds = new Set(
+    importEdges
+      .map((edge) => edge.targetId)
+      .filter((nodeId) => fileNodeIds.has(nodeId))
+  );
   const importerFileIds = new Set(importEdges.map((edge) => edge.sourceId));
+  const externalImports = importEdges.filter((edge) => !fileNodeIds.has(edge.targetId)).length;
   const entryRoots = getImportRootNodes(graph, index);
   const applicationEntries = getApplicationEntryNodes(graph, index);
   const entryRootDirectories = createTopEntryRootDirectories(graph.workspaceRoot, entryRoots);
@@ -104,6 +111,7 @@ export function summarizeFileImportGraph(graph: ProjectGraph): FileImportGraphSu
       .map((node) => getGraphRelativePath(graph, node.filePath)),
     entryRoots: entryRoots.length,
     entryRootDirectories,
+    externalImports,
     fileNodes: fileNodes.length,
     importedFiles: importedFileIds.size,
     importerFiles: importerFileIds.size,
@@ -145,10 +153,25 @@ function getWorkspaceRelativePath(workspaceRoot: string, filePath: string): stri
 /** Determines which node ids are needed for a panel mode. */
 function createIncludedNodeIds(graph: ProjectGraph, mode: GraphViewMode): Set<string> {
   const includedNodeIds = new Set<string>();
+  const nodesById = new Map(graph.nodes.map((node) => [node.id, node]));
 
   for (const node of graph.nodes) {
     if (node.kind === "file" || isProjectedSymbolNode(node.kind, mode)) {
       includedNodeIds.add(node.id);
+    }
+  }
+
+  if (mode === "file") {
+    for (const edge of graph.edges) {
+      const target = nodesById.get(edge.targetId);
+
+      if (
+        (edge.kind === "imports" || edge.kind === "exports") &&
+        includedNodeIds.has(edge.sourceId) &&
+        target?.kind === "external"
+      ) {
+        includedNodeIds.add(edge.targetId);
+      }
     }
   }
 

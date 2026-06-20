@@ -55,6 +55,7 @@ test("sidebar HTML renders file navigation as an import tree", () => {
   assert.match(scriptMatch[1], /tree-file-icon/);
   assert.match(scriptMatch[1], /aria-expanded/);
   assert.match(scriptMatch[1], /getFileName/);
+  assert.match(scriptMatch[1], /external module usage/);
   assert.doesNotMatch(scriptMatch[1], /insertFileNode/);
   assert.doesNotThrow(() => new Function("acquireVsCodeApi", scriptMatch[1]));
 });

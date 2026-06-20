@@ -7,7 +7,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use crate::graph::{NewFileDependencyEdge, ProjectGraphBuilder};
+use crate::graph::{NewExternalDependencyEdge, NewFileDependencyEdge, ProjectGraphBuilder};
 use crate::model::{SourceInput, SourceRange};
 
 const RESOLVABLE_EXTENSIONS: [&str; 4] = ["ts", "tsx", "js", "jsx"];
@@ -33,6 +33,20 @@ pub fn add_import_edges(builder: &mut ProjectGraphBuilder, files: &[SourceInput]
                 &file_by_path,
                 alias_rules,
             ) else {
+                let is_relative_or_absolute = matches!(
+                    candidate.module_specifier.as_bytes().first(),
+                    Some(b'.' | b'/')
+                );
+
+                if !is_relative_or_absolute {
+                    builder.add_external_dependency_edge(NewExternalDependencyEdge {
+                        kind: candidate.kind,
+                        source_path: file.path.clone(),
+                        module_specifier: candidate.module_specifier,
+                        range: candidate.range,
+                        language: file.language_id.clone(),
+                    });
+                }
                 continue;
             };
 
@@ -689,10 +703,8 @@ mod tests {
         for file in &files {
             builder.add_file(file);
         }
-
         add_import_edges(&mut builder, &files);
         let graph = builder.finish();
-
         assert!(graph.edges.iter().any(|edge| {
             edge.kind == "imports"
                 && edge.source_id.ends_with("/workspace/src/main.ts")
@@ -739,10 +751,8 @@ mod tests {
         for file in &files {
             builder.add_file(file);
         }
-
         add_import_edges(&mut builder, &files);
         let graph = builder.finish();
-
         assert!(graph.edges.iter().any(|edge| {
             edge.kind == "imports"
                 && edge.source_id.ends_with("src/main.ts")
@@ -750,6 +760,32 @@ mod tests {
         }));
 
         let _ = std::fs::remove_dir_all(workspace_root);
+    }
+
+    #[test]
+    fn adds_external_import_leaf_for_package_imports() {
+        let files = vec![source(
+            "/workspace/src/main.ts",
+            "import React from 'react';",
+        )];
+        let mut builder = ProjectGraphBuilder::new(PathBuf::from("/workspace"));
+
+        for file in &files {
+            builder.add_file(file);
+        }
+        add_import_edges(&mut builder, &files);
+        let graph = builder.finish();
+        let external = graph
+            .nodes
+            .iter()
+            .find(|node| node.kind == "external" && node.name == "react")
+            .expect("external package node");
+
+        assert!(graph.edges.iter().any(|edge| {
+            edge.kind == "imports"
+                && edge.target_id == external.id
+                && edge.confidence == "unresolved"
+        }));
     }
 
     fn source(path: &str, content: &str) -> SourceInput {

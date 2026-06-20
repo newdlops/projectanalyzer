@@ -18,10 +18,10 @@ test("projectGraphForView keeps only file import graph data in file mode", () =>
   const graph = createProjectionFixture();
   const projected = projectGraphForView(graph, "file");
 
-  assert.deepEqual(projected.nodes.map((node) => node.id).sort(), ["file-a", "file-b"]);
-  assert.deepEqual(projected.edges.map((edge) => edge.kind), ["imports"]);
-  assert.equal(projected.metadata.symbolCount, 2);
-  assert.equal(projected.metadata.edgeCount, 1);
+  assert.deepEqual(projected.nodes.map((node) => node.id).sort(), ["external-react", "file-a", "file-b"]);
+  assert.deepEqual(projected.edges.map((edge) => edge.kind), ["imports", "imports"]);
+  assert.equal(projected.metadata.symbolCount, 3);
+  assert.equal(projected.metadata.edgeCount, 2);
 });
 
 test("projectGraphForView keeps source containers and call edges in call mode", () => {
@@ -45,10 +45,11 @@ test("summarizeFileImportGraph reports entry roots and import coverage", () => {
     applicationEntrypointFiles: ["a.ts"],
     entryRoots: 1,
     entryRootDirectories: [{ count: 1, path: "." }],
+    externalImports: 1,
     fileNodes: 2,
     importedFiles: 1,
     importerFiles: 1,
-    importEdges: 1
+    importEdges: 2
   });
 });
 
@@ -77,10 +78,12 @@ function createProjectionFixture(
     createNode("file-b", "file", "b.ts", "/workspace/b.ts"),
     createNode("function-a", "function", "a", "/workspace/a.ts"),
     createNode("function-b", "function", "b", "/workspace/b.ts"),
-    createNode("class-a", "class", "A", "/workspace/a.ts")
+    createNode("class-a", "class", "A", "/workspace/a.ts"),
+    createNode("external-react", "external", "react", "/workspace/a.ts")
   ],
   edges: GraphEdge[] = [
     createEdge("imports", "file-a", "file-b"),
+    createEdge("imports", "file-a", "external-react"),
     createEdge("contains", "file-a", "function-a"),
     createEdge("contains", "file-b", "function-b"),
     createEdge("contains", "file-a", "class-a"),
