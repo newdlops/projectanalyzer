@@ -5,6 +5,12 @@
 
 import { createGraphScene } from "./explorerGraphLayout";
 import { clampNumber, getSeparationSign, moveToward } from "./explorerGraphGeometry";
+import {
+  createOrderMap,
+  getBestPreviousOrder,
+  orderGraphNodeIdsByPreviousLayer,
+  shouldUseLayeredSelection
+} from "./explorerGraphOrdering";
 import { getExplorerCanvasRendererSource } from "./explorerCanvasRenderer";
 
 /** Data injected into the browser-side explorer script. */
@@ -22,6 +28,12 @@ export type ExplorerClientScriptOptions = {
 export function getExplorerClientScript(options: ExplorerClientScriptOptions): string {
   const createGraphSceneSource = createBrowserGraphSceneSource();
   const canvasRendererSource = getExplorerCanvasRendererSource();
+  const graphOrderingSource = [
+    `const createOrderMap = ${createOrderMap.toString()};`,
+    `const getBestPreviousOrder = ${getBestPreviousOrder.toString()};`,
+    `const orderGraphNodeIdsByPreviousLayer = ${orderGraphNodeIdsByPreviousLayer.toString()};`,
+    `const shouldUseLayeredSelection = ${shouldUseLayeredSelection.toString()};`
+  ].join("\n");
   const graphGeometrySource = [
     `const clampNumber = ${clampNumber.toString()};`,
     `const getSeparationSign = ${getSeparationSign.toString()};`,
@@ -30,6 +42,7 @@ export function getExplorerClientScript(options: ExplorerClientScriptOptions): s
 
   return /* js */ `
     ${graphGeometrySource}
+    ${graphOrderingSource}
     const createGraphScene = ${createGraphSceneSource};
     ${canvasRendererSource}
     const vscode = acquireVsCodeApi();
@@ -695,5 +708,8 @@ function createBrowserGraphSceneSource(): string {
   return createGraphScene.toString()
     .replace(/\(0,\s*[\w$]+\.clampNumber\)/g, "clampNumber")
     .replace(/\(0,\s*[\w$]+\.getSeparationSign\)/g, "getSeparationSign")
-    .replace(/\(0,\s*[\w$]+\.moveToward\)/g, "moveToward");
+    .replace(/\(0,\s*[\w$]+\.moveToward\)/g, "moveToward")
+    .replace(/\(0,\s*[\w$]+\.createOrderMap\)/g, "createOrderMap")
+    .replace(/\(0,\s*[\w$]+\.orderGraphNodeIdsByPreviousLayer\)/g, "orderGraphNodeIdsByPreviousLayer")
+    .replace(/\(0,\s*[\w$]+\.shouldUseLayeredSelection\)/g, "shouldUseLayeredSelection");
 }

@@ -7,6 +7,11 @@
 import type { GraphViewMode } from "../protocol/messages";
 import type { EdgeConfidence, EdgeKind, ProjectGraph, SymbolKind } from "../shared/types";
 import { clampNumber, getSeparationSign, moveToward } from "./explorerGraphGeometry";
+import {
+  createOrderMap,
+  orderGraphNodeIdsByPreviousLayer,
+  shouldUseLayeredSelection
+} from "./explorerGraphOrdering";
 
 /** Options that describe the currently visible graph viewport. */
 export type ExplorerGraphSceneOptions = {
@@ -73,6 +78,11 @@ export function createGraphScene(
   const maxNodes = Math.max(1, Math.floor(options.maxNodes));
   const query = options.query.trim().toLowerCase();
   const selectedNodeId = options.selectedNodeId;
+  const collisionGapX = 104;
+  const collisionGapY = 72;
+  const columnMarginY = 72;
+  const laneGapX = 92;
+  const rowGapY = 76;
 
   if (!graph) {
     return {
@@ -309,12 +319,16 @@ export function createGraphScene(
    */
   function createNodePositions(
     nodes: readonly { id: string }[],
-    edges: readonly { sourceId: string; targetId: string }[],
+    edges: readonly { sourceId: string; targetId: string; kind?: EdgeKind }[],
     selectedId: string | undefined,
     sceneWidth: number,
     sceneHeight: number
   ): Map<string, { x: number; y: number }> {
     if (selectedId && nodes.some((node) => node.id === selectedId)) {
+      if (shouldUseLayeredSelection(edges)) {
+        return createLayeredPositions(nodes, edges, sceneWidth, sceneHeight);
+      }
+
       return createFlowPositions(nodes, edges, selectedId, sceneWidth, sceneHeight);
     }
 
@@ -341,11 +355,11 @@ export function createGraphScene(
     }
 
     const entries = [...relaxed.entries()];
-    const minGapX = 76;
-    const minGapY = 50;
+    const minGapX = collisionGapX;
+    const minGapY = collisionGapY;
     const margin = 30;
 
-    for (let pass = 0; pass < 7; pass += 1) {
+    for (let pass = 0; pass < 10; pass += 1) {
       let changed = false;
 
       for (let leftIndex = 0; leftIndex < entries.length; leftIndex += 1) {
@@ -394,7 +408,7 @@ export function createGraphScene(
    */
   function createFlowPositions(
     nodes: readonly { id: string }[],
-    edges: readonly { sourceId: string; targetId: string }[],
+    edges: readonly { sourceId: string; targetId: string; kind?: EdgeKind }[],
     selectedId: string,
     sceneWidth: number,
     sceneHeight: number
@@ -407,8 +421,8 @@ export function createGraphScene(
     const outgoingDepths = createDepthMap(selectedId, edges, "outgoing");
 
     positions.set(selectedId, center);
-    placeDepthColumns(groupByDepth(incomingDepths), "incoming", assigned, positions, marginX, sceneWidth, sceneHeight);
-    placeDepthColumns(groupByDepth(outgoingDepths), "outgoing", assigned, positions, marginX, sceneWidth, sceneHeight);
+    placeDepthColumns(groupByDepth(incomingDepths), "incoming", selectedId, edges, assigned, positions, marginX, sceneWidth, sceneHeight);
+    placeDepthColumns(groupByDepth(outgoingDepths), "outgoing", selectedId, edges, assigned, positions, marginX, sceneWidth, sceneHeight);
 
     const remaining = nodes.filter((node) => !assigned.has(node.id));
     const remainingPositions = createGridPositions(remaining, sceneWidth, Math.max(100, sceneHeight * 0.24));
@@ -433,7 +447,7 @@ export function createGraphScene(
    */
   function createLayeredPositions(
     nodes: readonly { id: string }[],
-    edges: readonly { sourceId: string; targetId: string }[],
+    edges: readonly { sourceId: string; targetId: string; kind?: EdgeKind }[],
     sceneWidth: number,
     sceneHeight: number
   ): Map<string, { x: number; y: number }> {
@@ -450,16 +464,22 @@ export function createGraphScene(
 
     const orderedRanks = [...grouped.keys()].sort((left, right) => left - right);
 
+    let previousOrder = new Map<string, number>();
+
     orderedRanks.forEach((rank, columnIndex) => {
-      const nodeIds = (grouped.get(rank) ?? []).sort();
+      const rawNodeIds = grouped.get(rank) ?? [];
+      const nodeIds = previousOrder.size > 0
+        ? orderGraphNodeIdsByPreviousLayer(rawNodeIds, previousOrder, edges, "layered")
+        : [...rawNodeIds].sort();
       const x = distribute(columnIndex, orderedRanks.length, sceneWidth, 62);
 
       nodeIds.forEach((nodeId, rowIndex) => {
         positions.set(nodeId, {
           x,
-          y: distributeStaggered(rowIndex, nodeIds.length, columnIndex, sceneHeight, 54)
+          y: distributeStaggered(rowIndex, nodeIds.length, columnIndex, sceneHeight, columnMarginY)
         });
       });
+      previousOrder = createOrderMap(nodeIds);
     });
 
     return positions;
@@ -584,6 +604,8 @@ export function createGraphScene(
   function placeDepthColumns(
     groups: Map<number, string[]>,
     side: "incoming" | "outgoing",
+    rootId: string,
+    edges: readonly { sourceId: string; targetId: string }[],
     assigned: Set<string>,
     positions: Map<string, { x: number; y: number }>,
     marginX: number,
@@ -595,42 +617,39 @@ export function createGraphScene(
     const centerX = sceneWidth / 2;
     const horizontalSpan = side === "incoming" ? centerX - marginX : sceneWidth - marginX - centerX;
     const rowCapacity = getColumnRowCapacity(sceneHeight);
+    let previousOrder = new Map<string, number>([[rootId, 0]]);
 
     for (const depth of depths) {
-      const ids = (groups.get(depth) ?? []).filter((nodeId) => !assigned.has(nodeId));
+      const rawIds = (groups.get(depth) ?? []).filter((nodeId) => !assigned.has(nodeId));
+      const ids = orderGraphNodeIdsByPreviousLayer(rawIds, previousOrder, edges, side);
       const baseX = side === "incoming"
         ? centerX - (horizontalSpan * depth) / (maxDepth + 0.35)
         : centerX + (horizontalSpan * depth) / (maxDepth + 0.35);
       const laneCount = Math.max(1, Math.ceil(ids.length / rowCapacity));
       const laneDirection = side === "incoming" ? -1 : 1;
 
-      ids.sort();
       ids.forEach((nodeId, index) => {
         const laneIndex = Math.floor(index / rowCapacity);
         const rowIndex = index % rowCapacity;
         const rowCount = Math.min(rowCapacity, ids.length - laneIndex * rowCapacity);
-        const laneOffset = (laneIndex - (laneCount - 1) / 2) * 58 * laneDirection;
+        const laneOffset = (laneIndex - (laneCount - 1) / 2) * laneGapX * laneDirection;
 
         assigned.add(nodeId);
         positions.set(nodeId, {
           x: clampNumber(baseX + laneOffset, 34, sceneWidth - 34),
-          y: distributeStaggered(rowIndex, rowCount, depth + laneIndex, sceneHeight, 54)
+          y: distributeStaggered(rowIndex, rowCount, depth + laneIndex, sceneHeight, columnMarginY)
         });
       });
+      previousOrder = createOrderMap(ids);
     }
   }
 
-  /**
-   * Computes how many items can fit vertically before a relationship depth
-   * should fan into a neighboring lane.
-   */
+  // Computes when a depth column should fan into a neighboring lane.
   function getColumnRowCapacity(sceneHeight: number): number {
-    return Math.max(1, Math.floor(Math.max(1, sceneHeight - 108) / 54) + 1);
+    return Math.max(1, Math.floor(Math.max(1, sceneHeight - columnMarginY * 2) / rowGapY) + 1);
   }
 
-  /**
-   * Places unanchored nodes in a deterministic responsive grid.
-   */
+  // Places unanchored nodes in a deterministic responsive grid.
   function createGridPositions(
     nodes: readonly { id: string }[],
     sceneWidth: number,
@@ -651,16 +670,14 @@ export function createGraphScene(
 
       positions.set(node.id, {
         x: distribute(column, columns, sceneWidth, 34),
-        y: distributeStaggered(row, rows, column, sceneHeight, 54)
+        y: distributeStaggered(row, rows, column, sceneHeight, columnMarginY)
       });
     });
 
     return positions;
   }
 
-  /**
-   * Returns all nodes connected to the current selection through visible edges.
-   */
+  // Returns all nodes connected to the current selection through visible edges.
   function createReachableSet(rootId: string, edges: readonly { sourceId: string; targetId: string }[]): Set<string> {
     const reachable = new Set<string>([rootId]);
     const queue = [rootId];
@@ -691,9 +708,7 @@ export function createGraphScene(
     return reachable;
   }
 
-  /**
-   * Evenly spaces nodes while keeping them inside canvas margins.
-   */
+  // Evenly spaces nodes while keeping them inside canvas margins.
   function distribute(index: number, count: number, size: number, margin: number): number {
     if (count <= 1) {
       return size / 2;
@@ -702,9 +717,7 @@ export function createGraphScene(
     return margin + (index * (size - margin * 2)) / (count - 1);
   }
 
-  /**
-   * Distributes a column while staggering singleton rows away from a flat line.
-   */
+  // Distributes a column while staggering singleton rows away from a flat line.
   function distributeStaggered(
     index: number,
     count: number,
@@ -722,9 +735,7 @@ export function createGraphScene(
     return distribute(index, count, size, margin);
   }
 
-  /**
-   * Creates a curved edge path so parallel directional structure is readable.
-   */
+  // Creates a curved edge path so parallel directional structure is readable.
   function createEdgePath(x1: number, y1: number, x2: number, y2: number): string {
     const start = moveToward(x1, y1, x2, y2, 18);
     const end = moveToward(x2, y2, x1, y1, 20);
@@ -738,9 +749,7 @@ export function createGraphScene(
     return `M ${start.x} ${start.y} C ${controlX1} ${start.y + bend}, ${controlX2} ${end.y - bend}, ${end.x} ${end.y}`;
   }
 
-  /**
-   * Keeps labels compact enough for SVG text.
-   */
+  // Keeps labels compact enough for SVG text.
   function truncateLabel(label: string): string {
     const normalized = label.trim();
 
@@ -751,9 +760,7 @@ export function createGraphScene(
     return `${normalized.slice(0, 21)}...`;
   }
 
-  /**
-   * Provides a stable rank for mixed graph mode ordering.
-   */
+  // Provides a stable rank for mixed graph mode ordering.
   function getKindRank(kind: SymbolKind): number {
     const ranks: Record<SymbolKind, number> = {
       workspace: 0,
@@ -775,9 +782,7 @@ export function createGraphScene(
     return ranks[kind];
   }
 
-  /**
-   * Sizes selected and file/class nodes slightly larger than leaf symbols.
-   */
+  // Sizes selected and file/class nodes slightly larger than leaf symbols.
   function getNodeRadius(kind: SymbolKind, selected: boolean): number {
     if (selected) {
       return 15;

@@ -104,7 +104,70 @@ test("createGraphScene separates dense expanded children around a selected node"
     height: 320
   });
 
-  assertNodeCirclesSeparated(scene, 32);
+  assertNodeCirclesSeparated(scene, 60);
+});
+
+test("createGraphScene keeps structural expansion in layered order when selected", () => {
+  const graph = createLayoutGraph([
+    createTestNode("root"),
+    createTestNode("folder-a"),
+    createTestNode("folder-b"),
+    createTestNode("file-a")
+  ], [
+    createContainsEdge("root-a", "root", "folder-a"),
+    createContainsEdge("root-b", "root", "folder-b"),
+    createContainsEdge("a-file", "folder-a", "file-a")
+  ]);
+
+  const scene = createGraphScene(graph, {
+    mode: "file",
+    query: "",
+    selectedNodeId: "folder-a",
+    maxNodes: 10,
+    width: 960,
+    height: 560
+  });
+  const root = requireSceneNode(scene, "root");
+  const folder = requireSceneNode(scene, "folder-a");
+  const file = requireSceneNode(scene, "file-a");
+
+  assert.ok(root.x < folder.x);
+  assert.ok(folder.x < file.x);
+});
+
+test("createGraphScene orders deeper structural children by parent lane", () => {
+  const graph = createLayoutGraph([
+    createTestNode("root"),
+    createTestNode("parent-a"),
+    createTestNode("parent-b"),
+    createTestNode("a-child-1"),
+    createTestNode("a-child-2"),
+    createTestNode("b-child-1"),
+    createTestNode("b-child-2")
+  ], [
+    createContainsEdge("root-a", "root", "parent-a"),
+    createContainsEdge("root-b", "root", "parent-b"),
+    createContainsEdge("a-1", "parent-a", "a-child-1"),
+    createContainsEdge("b-1", "parent-b", "b-child-1"),
+    createContainsEdge("a-2", "parent-a", "a-child-2"),
+    createContainsEdge("b-2", "parent-b", "b-child-2")
+  ]);
+
+  const scene = createGraphScene(graph, {
+    mode: "file",
+    query: "",
+    selectedNodeId: "root",
+    maxNodes: 10,
+    width: 960,
+    height: 560
+  });
+  const parentA = requireSceneNode(scene, "parent-a");
+  const parentB = requireSceneNode(scene, "parent-b");
+  const aChildren = ["a-child-1", "a-child-2"].map((id) => requireSceneNode(scene, id));
+  const bChildren = ["b-child-1", "b-child-2"].map((id) => requireSceneNode(scene, id));
+
+  assert.ok(parentA.y < parentB.y);
+  assert.ok(Math.max(...aChildren.map((node) => node.y)) < Math.min(...bChildren.map((node) => node.y)));
 });
 
 /**
@@ -160,6 +223,20 @@ function createCallEdge(id: string, sourceId: string, targetId: string): GraphEd
   return {
     id,
     kind: "calls",
+    sourceId,
+    targetId,
+    filePath: "/workspace/test.ts",
+    confidence: "exact"
+  };
+}
+
+/**
+ * Creates a structural containment edge suitable for file graph layout tests.
+ */
+function createContainsEdge(id: string, sourceId: string, targetId: string): GraphEdge {
+  return {
+    id,
+    kind: "contains",
     sourceId,
     targetId,
     filePath: "/workspace/test.ts",
