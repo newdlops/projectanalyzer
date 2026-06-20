@@ -4,8 +4,8 @@
 //! cover the graph payload shapes emitted by this crate.
 
 use crate::model::{
-    AnalysisDiagnostic, DetectedFramework, GraphEdge, LanguageSummary, ProjectGraph, SourceRange,
-    SymbolNode,
+    AnalysisDiagnostic, DetectedFramework, FrameworkUnit, FrameworkUnitEdge, GraphEdge,
+    LanguageSummary, ProjectGraph, SourceRange, SymbolNode,
 };
 
 impl ProjectGraph {
@@ -44,6 +44,24 @@ impl ProjectGraph {
         if !self.frameworks.is_empty() {
             output.push(',');
             push_array(&mut output, "frameworks", &self.frameworks, push_framework);
+        }
+        if !self.framework_units.is_empty() {
+            output.push(',');
+            push_array(
+                &mut output,
+                "frameworkUnits",
+                &self.framework_units,
+                push_framework_unit,
+            );
+        }
+        if !self.framework_unit_edges.is_empty() {
+            output.push(',');
+            push_array(
+                &mut output,
+                "frameworkUnitEdges",
+                &self.framework_unit_edges,
+                push_framework_unit_edge,
+            );
         }
         output.push(',');
         push_number_field(&mut output, "fileCount", self.file_count);
@@ -93,6 +111,52 @@ fn push_node(output: &mut String, node: &SymbolNode) {
 
 /// Serializes a graph edge.
 fn push_edge(output: &mut String, edge: &GraphEdge) {
+    output.push('{');
+    push_string_field(output, "id", &edge.id);
+    output.push(',');
+    push_string_field(output, "kind", &edge.kind);
+    output.push(',');
+    push_string_field(output, "sourceId", &edge.source_id);
+    output.push(',');
+    push_string_field(output, "targetId", &edge.target_id);
+    output.push(',');
+    push_string_field(output, "filePath", &edge.file_path);
+    output.push(',');
+    push_range(output, "range", &edge.range);
+    output.push(',');
+    push_string_field(output, "confidence", &edge.confidence);
+    output.push('}');
+}
+
+/// Serializes a framework semantic unit.
+fn push_framework_unit(output: &mut String, unit: &FrameworkUnit) {
+    output.push('{');
+    push_string_field(output, "id", &unit.id);
+    output.push(',');
+    push_string_field(output, "framework", &unit.framework);
+    output.push(',');
+    push_string_field(output, "kind", &unit.kind);
+    output.push(',');
+    push_string_field(output, "name", &unit.name);
+    output.push(',');
+    push_string_field(output, "qualifiedName", &unit.qualified_name);
+    output.push(',');
+    push_string_field(output, "rootPath", &unit.root_path);
+    output.push(',');
+    push_string_field(output, "filePath", &unit.file_path);
+    output.push(',');
+    push_range(output, "range", &unit.range);
+
+    if let Some(parent_id) = &unit.parent_id {
+        output.push(',');
+        push_string_field(output, "parentId", parent_id);
+    }
+
+    output.push('}');
+}
+
+/// Serializes a framework semantic unit edge.
+fn push_framework_unit_edge(output: &mut String, edge: &FrameworkUnitEdge) {
     output.push('{');
     push_string_field(output, "id", &edge.id);
     output.push(',');

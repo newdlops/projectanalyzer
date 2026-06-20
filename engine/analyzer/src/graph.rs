@@ -8,8 +8,8 @@ use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::model::{
-    full_content_range, AnalysisDiagnostic, DetectedFramework, GraphEdge, LanguageSummary,
-    ProjectGraph, SourceInput, SourceRange, SymbolNode,
+    full_content_range, AnalysisDiagnostic, DetectedFramework, FrameworkUnit, FrameworkUnitEdge,
+    GraphEdge, LanguageSummary, ProjectGraph, SourceInput, SourceRange, SymbolNode,
 };
 
 /// Mutable graph builder used during one analysis run.
@@ -17,6 +17,8 @@ pub struct ProjectGraphBuilder {
     workspace_root: PathBuf,
     nodes: Vec<SymbolNode>,
     edges: Vec<GraphEdge>,
+    framework_units: Vec<FrameworkUnit>,
+    framework_unit_edges: Vec<FrameworkUnitEdge>,
     diagnostics: Vec<AnalysisDiagnostic>,
     languages: BTreeSet<String>,
     language_file_counts: BTreeMap<String, usize>,
@@ -32,6 +34,8 @@ impl ProjectGraphBuilder {
             workspace_root,
             nodes: Vec::new(),
             edges: Vec::new(),
+            framework_units: Vec::new(),
+            framework_unit_edges: Vec::new(),
             diagnostics: Vec::new(),
             languages: BTreeSet::new(),
             language_file_counts: BTreeMap::new(),
@@ -189,6 +193,16 @@ impl ProjectGraphBuilder {
         self.frameworks.extend(frameworks);
     }
 
+    /// Adds framework semantic units discovered after framework detection.
+    pub fn add_framework_units(
+        &mut self,
+        units: Vec<FrameworkUnit>,
+        edges: Vec<FrameworkUnitEdge>,
+    ) {
+        self.framework_units.extend(units);
+        self.framework_unit_edges.extend(edges);
+    }
+
     /// Adds a file-scoped diagnostic.
     pub fn add_diagnostic(&mut self, code: &str, message: String, file_path: Option<String>) {
         self.diagnostics.push(AnalysisDiagnostic {
@@ -209,6 +223,8 @@ impl ProjectGraphBuilder {
             generated_at: unix_timestamp_string(),
             nodes: self.nodes,
             edges: self.edges,
+            framework_units: self.framework_units,
+            framework_unit_edges: self.framework_unit_edges,
             diagnostics: self.diagnostics,
             languages: self.languages.into_iter().collect(),
             language_summary,

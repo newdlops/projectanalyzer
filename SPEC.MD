@@ -480,6 +480,24 @@ Next.js는 `App Routes -> Layouts -> Components`, FastAPI는
 실행되는 의미 단위로 먼저 보여준다. file import tree는 raw dependency를
 확인하는 보조 뷰로 유지한다.
 
+초기 framework semantic adapter는 보수적인 convention 분석을 사용한다. Django
+adapter는 감지된 `rootPath` 아래에서 `settings.py`, `urls.py`, `apps.py`,
+`models.py`, `views.py`, `serializers.py`, `management/commands/*.py`를 우선
+스캔하고 다음 단위를 생성한다.
+
+- `configuration`: Django settings 파일
+- `route`: URLConf 파일 또는 URL pattern 선언
+- `app`: `apps.py`, `models.py`, `views.py`, `serializers.py` 중 하나 이상을 가진 앱 디렉터리
+- `model`: `models.py`의 class 선언
+- `view`: `views.py`의 function 또는 class 선언
+- `serializer`: `serializers.py`의 class 선언
+- `command`: management command 파일
+
+앱 디렉터리 아래에서 발견된 semantic unit은 해당 `app` unit을 `parentId`로
+가리키며, `frameworkUnitEdges`에는 `contains` edge를 기록한다. 어댑터가
+확신할 수 없는 동적 라우팅, 런타임 import, 설정 기반 alias는 추론하지 않고
+후속 정밀 분석 단계에서 `inferred` 관계로 확장한다.
+
 ### 7.3 Diagnostics
 
 분석 중 발생한 문제는 진단 정보로 보존한다.

@@ -7,6 +7,7 @@
 mod analyzer;
 mod cli;
 mod framework_detection;
+mod framework_units;
 mod fs_scan;
 mod graph;
 mod json;
@@ -17,6 +18,7 @@ use std::io::{self, Read};
 use analyzer::{analyze_source_file, analyze_workspace_edges, SourceInput};
 use cli::{Command, EngineArgs};
 use framework_detection::detect_frameworks;
+use framework_units::analyze_framework_units;
 use fs_scan::{scan_workspace, ScanOptions};
 use graph::ProjectGraphBuilder;
 
@@ -45,7 +47,10 @@ fn run() -> Result<(), String> {
             }
 
             analyze_workspace_edges(&mut builder, &files);
-            builder.add_frameworks(detect_frameworks(&workspace_root)?);
+            let frameworks = detect_frameworks(&workspace_root)?;
+            let framework_units = analyze_framework_units(&workspace_root, &frameworks)?;
+            builder.add_framework_units(framework_units.units, framework_units.edges);
+            builder.add_frameworks(frameworks);
             println!("{}", builder.finish().to_json());
             Ok(())
         }

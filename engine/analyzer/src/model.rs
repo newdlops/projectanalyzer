@@ -78,6 +78,32 @@ pub struct DetectedFramework {
     pub evidence: Vec<String>,
 }
 
+/// Framework-aware semantic unit derived from framework conventions.
+#[derive(Clone)]
+pub struct FrameworkUnit {
+    pub id: String,
+    pub framework: String,
+    pub kind: String,
+    pub name: String,
+    pub qualified_name: String,
+    pub root_path: String,
+    pub file_path: String,
+    pub range: SourceRange,
+    pub parent_id: Option<String>,
+}
+
+/// Relationship between framework semantic units.
+#[derive(Clone)]
+pub struct FrameworkUnitEdge {
+    pub id: String,
+    pub kind: String,
+    pub source_id: String,
+    pub target_id: String,
+    pub file_path: String,
+    pub range: SourceRange,
+    pub confidence: String,
+}
+
 /// Final project graph emitted to the extension host.
 pub struct ProjectGraph {
     pub workspace_root: String,
@@ -85,6 +111,8 @@ pub struct ProjectGraph {
     pub generated_at: String,
     pub nodes: Vec<SymbolNode>,
     pub edges: Vec<GraphEdge>,
+    pub framework_units: Vec<FrameworkUnit>,
+    pub framework_unit_edges: Vec<FrameworkUnitEdge>,
     pub diagnostics: Vec<AnalysisDiagnostic>,
     pub languages: Vec<String>,
     pub language_summary: Vec<LanguageSummary>,
