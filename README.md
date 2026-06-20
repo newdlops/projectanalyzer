@@ -6,10 +6,20 @@ Project Analyzer is a VS Code extension for exploring static project structure t
 
 ```sh
 npm install
+npm run engine:build
 npm run compile
 ```
 
-Open the repository in VS Code and run `Run Project Analyzer Extension` from the Run and Debug view. The extension contributes a Project Analyzer Activity Bar container with a sidebar Structure Explorer Webview. The current scaffold provides a GUI shell, TypeScript/JavaScript symbol extraction, and module boundaries for analyzer, graph, protocol, storage, VS Code adapters, and shared types.
+Open the repository in VS Code and run `Run Project Analyzer Extension` from the Run and Debug view. The extension contributes a Project Analyzer Activity Bar container with a sidebar Structure Explorer Webview. The current scaffold uses a Rust analyzer engine for workspace/current-file analysis, with a TypeScript fallback for development failures.
+
+## Rust Engine
+
+```sh
+npm run engine:test
+npm run engine:build
+```
+
+The Rust engine lives in `engine/analyzer` and emits ProjectGraph JSON for the extension host.
 
 ## Sidebar Actions
 

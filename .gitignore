@@ -2,6 +2,7 @@ node_modules/
 out/
 dist/
 coverage/
+target/
 *.vsix
 *.log
 .DS_Store

@@ -3,11 +3,14 @@
  * adapters to analyzer, storage, and Webview modules.
  */
 
+import * as path from "node:path";
 import * as vscode from "vscode";
+import type { AnalysisBackend } from "../analyzer/core/analysisBackend";
 import { AnalyzerPipeline } from "../analyzer/core/analyzerPipeline";
 import { JavaScriptAnalyzer } from "../analyzer/languages/javascript";
 import { PythonAnalyzer } from "../analyzer/languages/python";
 import { TypeScriptAnalyzer } from "../analyzer/languages/typescript";
+import { RustAnalyzerBackend } from "../analyzer/rust/rustAnalyzerBackend";
 import { MemoryAnalysisCacheStore } from "../storage/cacheStore";
 import { readProjectAnalyzerConfig } from "../vscode/configuration";
 import { VsCodeWorkspaceFileSystem } from "../vscode/workspaceFileSystem";
@@ -15,7 +18,7 @@ import { ExplorerViewProvider } from "../webview/explorerViewProvider";
 
 /** Runtime services shared by command handlers. */
 export type ExtensionServices = {
-  analyzer: AnalyzerPipeline;
+  analyzer: AnalysisBackend;
   cacheStore: MemoryAnalysisCacheStore;
   explorerViewProvider: ExplorerViewProvider;
 };
@@ -27,11 +30,17 @@ export function createExtensionServices(context: vscode.ExtensionContext): Exten
   const config = readProjectAnalyzerConfig();
   const fileSystem = new VsCodeWorkspaceFileSystem(config);
   const cacheStore = new MemoryAnalysisCacheStore();
-  const analyzer = new AnalyzerPipeline(fileSystem, [
+  const fallbackAnalyzer = new AnalyzerPipeline(fileSystem, [
     new TypeScriptAnalyzer(),
     new JavaScriptAnalyzer(),
     new PythonAnalyzer()
   ]);
+  const analyzer = new RustAnalyzerBackend({
+    engineRoot: path.join(context.extensionUri.fsPath, "engine", "analyzer"),
+    getWorkspaceRoot: () => fileSystem.getWorkspaceRoot(),
+    maxFileSizeKb: config.maxFileSizeKb,
+    fallbackBackend: fallbackAnalyzer
+  });
   const explorerViewProvider = new ExplorerViewProvider({
     context,
     analyzer,

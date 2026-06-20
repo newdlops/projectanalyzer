@@ -59,6 +59,8 @@ Project Analyzer는 코드베이스의 파일, 클래스, 함수, 메서드, 모
 - `.vscode`
 - `dist`
 - `build`
+- `out`
+- `target`
 - `coverage`
 - `.venv`
 - `venv`
@@ -290,7 +292,9 @@ Extension Host는 다음 역할을 담당한다.
 
 ### 6.2 Analyzer Core
 
-Analyzer Core는 언어 독립적인 분석 파이프라인이다.
+Analyzer Core는 Rust 기반 저수준 분석 엔진을 기본 구현으로 사용한다. VS Code Extension Host는 Rust 엔진을 child process로 실행하고, 엔진이 출력하는 ProjectGraph JSON을 Webview에 전달한다.
+
+Extension Host 내부 TypeScript analyzer는 개발 중 fallback과 계약 테스트 용도로 유지한다.
 
 주요 단계:
 

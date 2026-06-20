@@ -11,6 +11,7 @@ import { createFileNode } from "./graphNodes";
 import type { LanguageAnalyzer } from "./languageAnalyzer";
 import { WorkspaceScanner } from "./workspaceScanner";
 import type { WorkspaceFileSystem } from "./workspaceScanner";
+import type { AnalysisBackend } from "./analysisBackend";
 
 /** Result returned by workspace and current-file analysis requests. */
 export type AnalyzeResult = {
@@ -20,7 +21,7 @@ export type AnalyzeResult = {
 /**
  * Coordinates static analysis for workspaces and individual files.
  */
-export class AnalyzerPipeline {
+export class AnalyzerPipeline implements AnalysisBackend {
   /** Language analyzers keyed by supported file extension. */
   private readonly analyzersByExtension = new Map<string, LanguageAnalyzer>();
 

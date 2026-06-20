@@ -1,0 +1,9 @@
+[package]
+name = "project-analyzer-engine"
+version = "0.1.0"
+edition = "2021"
+license = "UNLICENSED"
+
+[[bin]]
+name = "project-analyzer-engine"
+path = "src/main.rs"

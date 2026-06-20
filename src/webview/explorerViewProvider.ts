@@ -5,7 +5,7 @@
 
 import * as crypto from "node:crypto";
 import * as vscode from "vscode";
-import type { AnalyzerPipeline } from "../analyzer/core/analyzerPipeline";
+import type { AnalysisBackend } from "../analyzer/core/analysisBackend";
 import type {
   AnalysisStatusPayload,
   ExportRequest,
@@ -22,7 +22,7 @@ import { getExplorerHtml } from "./webviewHtml";
 /** Dependencies required by the sidebar explorer provider. */
 export type ExplorerViewProviderDependencies = {
   context: vscode.ExtensionContext;
-  analyzer: AnalyzerPipeline;
+  analyzer: AnalysisBackend;
   cacheStore: AnalysisCacheStore;
   config: ProjectAnalyzerConfig;
 };
