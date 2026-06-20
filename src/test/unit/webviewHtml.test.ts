@@ -30,5 +30,252 @@ test("graph panel HTML exposes canvas viewer controls", () => {
   assert.match(script, /handleGraphClick/);
   assert.match(script, /getSceneBounds/);
   assert.match(script, /screenToCanvas/);
+  assert.match(script, /expandedGraphNodeIds: createDefaultExpandedNodeIds\(\)/);
+  assert.match(script, /return new Set\(\[virtualRootId\]\)/);
   assert.doesNotThrow(() => new Function("acquireVsCodeApi", script));
 });
+
+test("graph panel script renders a loaded graph without module-loader globals", () => {
+  const html = getExplorerHtml({
+    webview: { cspSource: "vscode-webview:" } as never,
+    extensionUri: {} as never,
+    nonce: "nonce",
+    defaultDepth: 2,
+    initialMode: "file",
+    surface: "panel"
+  });
+  const scriptMatch = html.match(/<script nonce="nonce">([\s\S]*)<\/script>/);
+
+  assert.ok(scriptMatch, "missing graph panel script");
+  const runtime = installGraphWebviewRuntime();
+
+  try {
+    new Function(scriptMatch[1])();
+
+    assert.deepEqual(runtime.messages.map((message) => message.type), ["ui/ready", "graph/load"]);
+    runtime.dispatchMessage({
+      type: "graph/loaded",
+      payload: {
+        workspaceRoot: "/workspace",
+        version: "test",
+        generatedAt: "2026-06-20T00:00:00.000Z",
+        nodes: [
+          createGraphNode("file-1", "file", "main.ts", "/workspace/src/main.ts")
+        ],
+        edges: [],
+        diagnostics: [],
+        metadata: {
+          languages: ["typescript"],
+          fileCount: 1,
+          symbolCount: 1,
+          edgeCount: 0
+        }
+      }
+    });
+  } finally {
+    runtime.restore();
+  }
+});
+
+/**
+ * Installs enough browser API surface to execute the graph Webview script in
+ * Node while still surfacing rendering-time exceptions.
+ */
+function installGraphWebviewRuntime(): {
+  dispatchMessage: (message: unknown) => void;
+  messages: Array<{ type: string; payload: unknown }>;
+  restore: () => void;
+} {
+  const previousWindow = Reflect.get(globalThis, "window");
+  const previousDocument = Reflect.get(globalThis, "document");
+  const previousRequestAnimationFrame = Reflect.get(globalThis, "requestAnimationFrame");
+  const previousGetComputedStyle = Reflect.get(globalThis, "getComputedStyle");
+  const previousAcquireVsCodeApi = Reflect.get(globalThis, "acquireVsCodeApi");
+  const messages: Array<{ type: string; payload: unknown }> = [];
+  const listeners = new Map<string, (event: { data: unknown }) => void>();
+  const elements = new Map<string, FakeElement>();
+  const modeButtons = ["file", "call", "class"].map((mode) => createFakeElement(mode));
+
+  for (const button of modeButtons) {
+    button.dataset.mode = button.id;
+  }
+
+  Reflect.set(globalThis, "window", {
+    addEventListener(type: string, handler: (event: { data: unknown }) => void) {
+      listeners.set(type, handler);
+    },
+    devicePixelRatio: 1,
+    requestAnimationFrame(callback: FrameRequestCallback) {
+      callback(0);
+      return 1;
+    },
+    setTimeout(callback: () => void) {
+      callback();
+      return 1;
+    }
+  });
+  Reflect.set(globalThis, "document", {
+    getElementById(id: string) {
+      const existing = elements.get(id);
+
+      if (existing) {
+        return existing;
+      }
+
+      const created = createFakeElement(id);
+      elements.set(id, created);
+      return created;
+    },
+    querySelectorAll(selector: string) {
+      return selector === ".mode-button" ? modeButtons : [];
+    }
+  });
+  Reflect.set(globalThis, "requestAnimationFrame", (callback: FrameRequestCallback) => {
+    callback(0);
+    return 1;
+  });
+  Reflect.set(globalThis, "getComputedStyle", () => ({
+    getPropertyValue() {
+      return "";
+    }
+  }));
+  Reflect.set(globalThis, "acquireVsCodeApi", () => ({
+    postMessage(message: { type: string; payload: unknown }) {
+      messages.push(message);
+    }
+  }));
+
+  return {
+    dispatchMessage(message: unknown) {
+      const handler = listeners.get("message");
+
+      assert.ok(handler, "missing message listener");
+      handler({ data: message });
+    },
+    messages,
+    restore() {
+      restoreGlobal("window", previousWindow);
+      restoreGlobal("document", previousDocument);
+      restoreGlobal("requestAnimationFrame", previousRequestAnimationFrame);
+      restoreGlobal("getComputedStyle", previousGetComputedStyle);
+      restoreGlobal("acquireVsCodeApi", previousAcquireVsCodeApi);
+    }
+  };
+}
+
+/**
+ * Creates a fake DOM element or canvas element for Webview runtime tests.
+ */
+function createFakeElement(id: string): FakeElement {
+  return {
+    id,
+    classList: {
+      add() {},
+      remove() {},
+      toggle() {}
+    },
+    dataset: {},
+    textContent: "",
+    addEventListener() {},
+    focus() {},
+    getBoundingClientRect() {
+      return {
+        bottom: 560,
+        height: 560,
+        left: 0,
+        right: 960,
+        top: 0,
+        width: 960,
+        x: 0,
+        y: 0,
+        toJSON() {
+          return {};
+        }
+      };
+    },
+    getContext() {
+      return createFakeCanvasContext();
+    },
+    hasPointerCapture() {
+      return false;
+    },
+    releasePointerCapture() {},
+    setPointerCapture() {}
+  };
+}
+
+/**
+ * Creates a symbol node payload accepted by the graph browser script.
+ */
+function createGraphNode(id: string, kind: string, name: string, filePath: string): Record<string, unknown> {
+  return {
+    id,
+    kind,
+    name,
+    qualifiedName: name,
+    filePath,
+    range: {
+      startLine: 0,
+      startCharacter: 0,
+      endLine: 0,
+      endCharacter: 0
+    },
+    selectionRange: {
+      startLine: 0,
+      startCharacter: 0,
+      endLine: 0,
+      endCharacter: 0
+    },
+    language: "typescript"
+  };
+}
+
+/**
+ * Restores or removes a global test shim.
+ */
+function restoreGlobal(name: string, value: unknown): void {
+  if (value === undefined) {
+    Reflect.deleteProperty(globalThis, name);
+    return;
+  }
+
+  Reflect.set(globalThis, name, value);
+}
+
+/**
+ * Canvas context calls are not under test, but layout-time exceptions must
+ * surface, so every context operation is a harmless callable placeholder.
+ */
+function createFakeCanvasContext(): CanvasRenderingContext2D {
+  return new Proxy<Record<PropertyKey, unknown>>({}, {
+    get(target, property) {
+      if (!(property in target)) {
+        target[property] = () => undefined;
+      }
+
+      return target[property];
+    },
+    set(target, property, value) {
+      target[property] = value;
+      return true;
+    }
+  }) as unknown as CanvasRenderingContext2D;
+}
+
+type FakeElement = {
+  classList: {
+    add: () => void;
+    remove: () => void;
+    toggle: () => void;
+  };
+  dataset: Record<string, string>;
+  id: string;
+  textContent: string;
+  addEventListener: () => void;
+  focus: () => void;
+  getBoundingClientRect: () => DOMRect;
+  getContext: () => CanvasRenderingContext2D;
+  hasPointerCapture: () => boolean;
+  releasePointerCapture: () => void;
+  setPointerCapture: () => void;
+};

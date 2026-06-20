@@ -20,7 +20,7 @@ export type ExplorerClientScriptOptions = {
  * Builds the browser script that owns graph rendering and node expansion.
  */
 export function getExplorerClientScript(options: ExplorerClientScriptOptions): string {
-  const createGraphSceneSource = createGraphScene.toString();
+  const createGraphSceneSource = createBrowserGraphSceneSource();
   const canvasRendererSource = getExplorerCanvasRendererSource();
   const graphGeometrySource = [
     `const clampNumber = ${clampNumber.toString()};`,
@@ -39,7 +39,7 @@ export function getExplorerClientScript(options: ExplorerClientScriptOptions): s
       mode: ${JSON.stringify(options.initialMode)},
       selectedNodeId: virtualRootId,
       analysisState: "idle",
-      expandedGraphNodeIds: new Set(),
+      expandedGraphNodeIds: createDefaultExpandedNodeIds(),
       viewport: { scale: 1, x: 0, y: 0 },
       pan: { active: false, pointerId: undefined, lastClientX: 0, lastClientY: 0, moved: false },
       suppressNextClick: false
@@ -221,7 +221,11 @@ export function getExplorerClientScript(options: ExplorerClientScriptOptions): s
 
     function resetGraphFocus() {
       state.selectedNodeId = virtualRootId;
-      state.expandedGraphNodeIds = new Set();
+      state.expandedGraphNodeIds = createDefaultExpandedNodeIds();
+    }
+
+    function createDefaultExpandedNodeIds() {
+      return new Set([virtualRootId]);
     }
 
     function handleGraphWheel(event) {
@@ -681,4 +685,15 @@ export function getExplorerClientScript(options: ExplorerClientScriptOptions): s
       return normalized.split("/").slice(-3).join("/");
     }
   `;
+}
+
+/**
+ * Rewrites TypeScript's CommonJS import wrappers in stringified layout code so
+ * the Webview can call the injected geometry helpers without a module loader.
+ */
+function createBrowserGraphSceneSource(): string {
+  return createGraphScene.toString()
+    .replace(/\(0,\s*[\w$]+\.clampNumber\)/g, "clampNumber")
+    .replace(/\(0,\s*[\w$]+\.getSeparationSign\)/g, "getSeparationSign")
+    .replace(/\(0,\s*[\w$]+\.moveToward\)/g, "moveToward");
 }
