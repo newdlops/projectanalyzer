@@ -51,6 +51,8 @@ fn extracts_django_units_edges_and_json_fields() {
     let detail_route = find_unit(&extraction.units, "route", "posts/<int:pk>/ (post-detail)");
     let feed_view = find_unit(&extraction.units, "view", "feed");
     let detail_view = find_unit(&extraction.units, "view", "PostDetailView");
+    let post_model = find_unit(&extraction.units, "model", "Post");
+    let post_serializer = find_unit(&extraction.units, "serializer", "PostSerializer");
     assert_eq!(feed_route.parent_id.as_deref(), Some(site_app.id.as_str()));
     assert_eq!(
         detail_route.parent_id.as_deref(),
@@ -63,6 +65,21 @@ fn extracts_django_units_edges_and_json_fields() {
         edge.kind == "routesTo"
             && edge.source_id == detail_route.id
             && edge.target_id == detail_view.id
+    }));
+    assert!(extraction.edges.iter().any(|edge| {
+        edge.kind == "usesModel"
+            && edge.source_id == post_serializer.id
+            && edge.target_id == post_model.id
+    }));
+    assert!(extraction.edges.iter().any(|edge| {
+        edge.kind == "usesModel"
+            && edge.source_id == feed_view.id
+            && edge.target_id == post_model.id
+    }));
+    assert!(extraction.edges.iter().any(|edge| {
+        edge.kind == "renders"
+            && edge.source_id == feed_view.id
+            && edge.target_id == post_serializer.id
     }));
 
     let mut builder = ProjectGraphBuilder::new(workspace.clone());
@@ -122,6 +139,103 @@ fn extracts_fastapi_units_and_route_controller_edges() {
     remove_temp_workspace(&workspace);
 }
 
+#[test]
+fn extracts_nextjs_frontend_units_and_render_edges() {
+    let workspace = create_temp_workspace("nextjs-framework-units");
+    write_nextjs_fixture(&workspace);
+
+    let frameworks = detect_frameworks(&workspace).expect("detects Next.js");
+    let extraction =
+        analyze_framework_units(&workspace, &frameworks).expect("extracts Next.js units");
+
+    let module = find_unit(&extraction.units, "module", "app.dashboard.page");
+    let route = find_unit(&extraction.units, "route", "route /dashboard");
+    let component = find_unit(&extraction.units, "component", "DashboardPage");
+    let provider = find_unit(&extraction.units, "provider", "ThemeProvider");
+    let hook = find_unit(&extraction.units, "service", "useDashboardData");
+
+    for child in [route, component, provider, hook] {
+        assert_eq!(child.parent_id.as_deref(), Some(module.id.as_str()));
+    }
+    assert!(extraction.edges.iter().any(|edge| {
+        edge.kind == "renders" && edge.source_id == route.id && edge.target_id == component.id
+    }));
+
+    remove_temp_workspace(&workspace);
+}
+
+#[test]
+fn extracts_flask_units_and_route_controller_edges() {
+    let workspace = create_temp_workspace("flask-framework-units");
+    write_flask_fixture(&workspace);
+
+    let frameworks = detect_frameworks(&workspace).expect("detects Flask");
+    let extraction =
+        analyze_framework_units(&workspace, &frameworks).expect("extracts Flask units");
+
+    let module = find_unit(&extraction.units, "module", "app");
+    let app = find_unit(&extraction.units, "app", "app");
+    let route = find_unit(&extraction.units, "route", "ROUTE /users/<id>");
+    let controller = find_unit(&extraction.units, "controller", "show_user");
+    let middleware = find_unit(&extraction.units, "middleware", "before_request load_user");
+
+    for child in [app, route, controller, middleware] {
+        assert_eq!(child.parent_id.as_deref(), Some(module.id.as_str()));
+    }
+    assert!(extraction.edges.iter().any(|edge| {
+        edge.kind == "routesTo" && edge.source_id == route.id && edge.target_id == controller.id
+    }));
+
+    remove_temp_workspace(&workspace);
+}
+
+#[test]
+fn extracts_express_units_and_route_controller_edges() {
+    let workspace = create_temp_workspace("express-framework-units");
+    write_express_fixture(&workspace);
+
+    let frameworks = detect_frameworks(&workspace).expect("detects Express");
+    let extraction =
+        analyze_framework_units(&workspace, &frameworks).expect("extracts Express units");
+
+    let module = find_unit(&extraction.units, "module", "server");
+    let route = find_unit(&extraction.units, "route", "GET /users/:id");
+    let controller = find_unit(&extraction.units, "controller", "showUser");
+    let middleware = find_unit(&extraction.units, "middleware", "authMiddleware");
+
+    for child in [route, controller, middleware] {
+        assert_eq!(child.parent_id.as_deref(), Some(module.id.as_str()));
+    }
+    assert!(extraction.edges.iter().any(|edge| {
+        edge.kind == "routesTo" && edge.source_id == route.id && edge.target_id == controller.id
+    }));
+
+    remove_temp_workspace(&workspace);
+}
+
+#[test]
+fn extracts_nestjs_units_and_controller_route_edges() {
+    let workspace = create_temp_workspace("nestjs-framework-units");
+    write_nestjs_fixture(&workspace);
+
+    let frameworks = detect_frameworks(&workspace).expect("detects NestJS");
+    let extraction = analyze_framework_units(&workspace, &frameworks).expect("extracts Nest units");
+
+    let module = find_unit(&extraction.units, "module", "users.controller");
+    let controller = find_unit(&extraction.units, "controller", "UsersController");
+    let route = find_unit(&extraction.units, "route", "GET /users/:id");
+    let service = find_unit(&extraction.units, "service", "UsersService");
+
+    for child in [controller, route, service] {
+        assert_eq!(child.parent_id.as_deref(), Some(module.id.as_str()));
+    }
+    assert!(extraction.edges.iter().any(|edge| {
+        edge.kind == "contains" && edge.source_id == controller.id && edge.target_id == route.id
+    }));
+
+    remove_temp_workspace(&workspace);
+}
+
 fn assert_unit_kind(units: &[FrameworkUnit], kind: &str) {
     assert!(
         units.iter().any(|unit| unit.kind == kind),
@@ -156,11 +270,11 @@ fn write_django_fixture(workspace: &Path) {
     );
     write_file(
         &workspace.join("blog/views.py"),
-        "async def feed(request):\n    pass\n\nclass PostDetailView:\n    pass\n",
+        "from .models import Post\nfrom .serializers import PostSerializer\n\nasync def feed(request):\n    posts = Post.objects.all()\n    return PostSerializer(posts, many=True)\n\nclass PostDetailView:\n    pass\n",
     );
     write_file(
         &workspace.join("blog/serializers.py"),
-        "class PostSerializer:\n    pass\n",
+        "from rest_framework import serializers\nfrom .models import Post\n\nclass PostSerializer(serializers.ModelSerializer):\n    class Meta:\n        model = Post\n        fields = [\"id\"]\n",
     );
     write_file(
         &workspace.join("blog/management/commands/reindex.py"),
@@ -176,6 +290,47 @@ fn write_fastapi_fixture(workspace: &Path) {
     write_file(
         &workspace.join("main.py"),
         "from fastapi import Depends, FastAPI\nfrom pydantic import BaseModel\n\napp = FastAPI()\n\nclass Item(BaseModel):\n    name: str\n\ndef auth_user():\n    return \"user\"\n\n@app.get(\"/items/{item_id}\", response_model=Item)\nasync def read_item(item_id: int, user=Depends(auth_user)):\n    return {\"item_id\": item_id}\n",
+    );
+}
+
+fn write_nextjs_fixture(workspace: &Path) {
+    write_file(
+        &workspace.join("package.json"),
+        r#"{"dependencies":{"next":"14.0.0"}}"#,
+    );
+    write_file(
+        &workspace.join("app/dashboard/page.tsx"),
+        "export default function DashboardPage() {\n  return <main />;\n}\n\nexport const ThemeProvider = ({ children }) => children;\n\nexport function useDashboardData() {\n  return [];\n}\n",
+    );
+}
+
+fn write_flask_fixture(workspace: &Path) {
+    write_file(&workspace.join("requirements.txt"), "Flask==3.0\n");
+    write_file(
+        &workspace.join("app.py"),
+        "from flask import Flask\n\napp = Flask(__name__)\n\n@app.before_request\ndef load_user():\n    pass\n\n@app.route(\"/users/<id>\")\ndef show_user(id):\n    return id\n",
+    );
+}
+
+fn write_express_fixture(workspace: &Path) {
+    write_file(
+        &workspace.join("package.json"),
+        r#"{"dependencies":{"express":"^4.18.0"}}"#,
+    );
+    write_file(
+        &workspace.join("server.ts"),
+        "import express from \"express\";\nconst app = express();\nfunction authMiddleware(req, res, next) { next(); }\nfunction showUser(req, res) { res.json({ id: req.params.id }); }\napp.use(authMiddleware);\napp.get(\"/users/:id\", showUser);\n",
+    );
+}
+
+fn write_nestjs_fixture(workspace: &Path) {
+    write_file(
+        &workspace.join("package.json"),
+        r#"{"dependencies":{"@nestjs/core":"^10.0.0"}}"#,
+    );
+    write_file(
+        &workspace.join("users.controller.ts"),
+        "import { Controller, Get, Injectable } from \"@nestjs/common\";\n\n@Controller(\"users\")\nexport class UsersController {\n  @Get(\":id\")\n  findOne() {\n    return {};\n  }\n}\n\n@Injectable()\nexport class UsersService {}\n",
     );
 }
 

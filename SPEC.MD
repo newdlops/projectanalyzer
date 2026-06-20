@@ -521,6 +521,50 @@ FastAPI route decorator와 바로 아래 endpoint function은 `routesTo` edge로
 연결은 literal/static target을 더 엄밀히 해석하는 다음 단계에서 `configures`,
 `injects`, `usesModel` edge로 확장한다.
 
+Flask adapter는 감지된 `rootPath` 아래의 Python 파일에서 다음 단위를 우선
+생성한다.
+
+- `module`: 의미 단위를 포함하는 Python module
+- `app`: `Flask(...)` constructor 할당
+- `route`: `@app.route(...)`, `@bp.get(...)`, `@bp.route(...)` decorator
+- `controller`: route decorator 바로 아래의 view function
+- `middleware`: `before_request`, `after_request` hook function
+- `service`: service 파일 또는 `Service` 명명 규칙에 해당하는 class/function
+
+Flask route decorator와 바로 아래 view function은 `routesTo` edge로 연결한다.
+Blueprint는 현재 타입 체계 안에서 `module`로 표현하고, blueprint registration과
+prefix 합성은 다음 단계에서 `configures` edge로 확장한다.
+
+React/Next.js adapter는 감지된 `rootPath` 아래의 `ts`, `tsx`, `js`, `jsx` 파일에서
+다음 단위를 우선 생성한다.
+
+- `module`: 의미 단위를 포함하는 source module
+- `component`: PascalCase function/class/const component 또는 default export component
+- `provider`: `Provider` suffix component
+- `service`: `useXxx` hook function
+- `schema`: schema 명명 규칙과 `z.object`, `yup.object`, `new Schema` 계열 선언
+- `route`: Next.js `app/page`, `app/route`, `pages/*`, `pages/api/*`
+- `layout`: Next.js `app/layout`, `pages/_app`, `pages/_document`
+
+Next.js page route와 같은 파일의 component를 찾으면 `renders` edge로 연결한다.
+동적 segment, route group, parallel route 표기는 경로 문자열에 보존하되 런타임
+라우팅 계산은 하지 않는다.
+
+Express/NestJS adapter는 감지된 `rootPath` 아래의 `ts`, `tsx`, `js`, `jsx` 파일에서
+다음 단위를 우선 생성한다.
+
+- `module`: 의미 단위를 포함하는 source module
+- `route`: Express `app.get/post/...`, NestJS `@Get/@Post/...` method
+- `controller`: Express handler function 또는 NestJS `@Controller` class
+- `service`: NestJS `@Injectable` service 또는 service 파일/명명 규칙
+- `provider`: NestJS `@Injectable` provider
+- `middleware`: Express `app.use/router.use` non-route handler
+
+Express route와 handler 이름을 정적으로 해석할 수 있으면 `routesTo` edge로
+연결한다. NestJS controller class와 method route는 `contains` edge로 연결한다.
+동적 router composition, imported handler alias, NestJS module provider graph는
+다음 단계에서 더 엄밀한 symbol/import resolution으로 확장한다.
+
 ### 7.3 Diagnostics
 
 분석 중 발생한 문제는 진단 정보로 보존한다.
