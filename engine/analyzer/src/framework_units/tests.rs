@@ -47,8 +47,23 @@ fn extracts_django_units_edges_and_json_fields() {
     }
 
     let site_app = find_unit(&extraction.units, "app", "mysite");
-    let route = find_unit(&extraction.units, "route", "urls");
-    assert_eq!(route.parent_id.as_deref(), Some(site_app.id.as_str()));
+    let feed_route = find_unit(&extraction.units, "route", "posts/ (post-feed)");
+    let detail_route = find_unit(&extraction.units, "route", "posts/<int:pk>/ (post-detail)");
+    let feed_view = find_unit(&extraction.units, "view", "feed");
+    let detail_view = find_unit(&extraction.units, "view", "PostDetailView");
+    assert_eq!(feed_route.parent_id.as_deref(), Some(site_app.id.as_str()));
+    assert_eq!(
+        detail_route.parent_id.as_deref(),
+        Some(site_app.id.as_str())
+    );
+    assert!(extraction.edges.iter().any(|edge| {
+        edge.kind == "routesTo" && edge.source_id == feed_route.id && edge.target_id == feed_view.id
+    }));
+    assert!(extraction.edges.iter().any(|edge| {
+        edge.kind == "routesTo"
+            && edge.source_id == detail_route.id
+            && edge.target_id == detail_view.id
+    }));
 
     let mut builder = ProjectGraphBuilder::new(workspace.clone());
     builder.add_framework_units(extraction.units.clone(), extraction.edges.clone());
@@ -70,6 +85,39 @@ fn extracts_django_units_edges_and_json_fields() {
     assert!(json.contains("\"parentId\":"));
     assert!(json.contains("\"sourceId\":"));
     assert!(json.contains("\"targetId\":"));
+
+    remove_temp_workspace(&workspace);
+}
+
+#[test]
+fn extracts_fastapi_units_and_route_controller_edges() {
+    let workspace = create_temp_workspace("fastapi-framework-units");
+    write_fastapi_fixture(&workspace);
+
+    let frameworks = detect_frameworks(&workspace).expect("detects FastAPI");
+    let extraction =
+        analyze_framework_units(&workspace, &frameworks).expect("extracts FastAPI units");
+
+    assert!(extraction
+        .units
+        .iter()
+        .any(|unit| unit.kind == "module" && unit.name == "main"));
+    let app = find_unit(&extraction.units, "app", "app");
+    let route = find_unit(&extraction.units, "route", "GET /items/{item_id}");
+    let controller = find_unit(&extraction.units, "controller", "read_item");
+    let schema = find_unit(&extraction.units, "schema", "Item");
+    let dependency = find_unit(&extraction.units, "dependency", "auth_user");
+
+    for child in [app, route, controller, schema, dependency] {
+        assert!(
+            child.parent_id.is_some(),
+            "{} unit should be contained by a module",
+            child.kind
+        );
+    }
+    assert!(extraction.edges.iter().any(|edge| {
+        edge.kind == "routesTo" && edge.source_id == route.id && edge.target_id == controller.id
+    }));
 
     remove_temp_workspace(&workspace);
 }
@@ -96,7 +144,7 @@ fn write_django_fixture(workspace: &Path) {
     );
     write_file(
         &workspace.join("mysite/urls.py"),
-        "from django.urls import path\nurlpatterns = []\n",
+        "from django.urls import path\nfrom blog import views\n\nurlpatterns = [\n    path(\"posts/\", views.feed, name=\"post-feed\"),\n    path(\n        \"posts/<int:pk>/\",\n        views.PostDetailView.as_view(),\n        name=\"post-detail\",\n    ),\n]\n",
     );
     write_file(
         &workspace.join("blog/apps.py"),
@@ -117,6 +165,17 @@ fn write_django_fixture(workspace: &Path) {
     write_file(
         &workspace.join("blog/management/commands/reindex.py"),
         "from django.core.management.base import BaseCommand\n\nclass Command(BaseCommand):\n    def handle(self, *args, **options):\n        pass\n",
+    );
+}
+
+fn write_fastapi_fixture(workspace: &Path) {
+    write_file(
+        &workspace.join("requirements.txt"),
+        "fastapi==0.111\npydantic>=2\n",
+    );
+    write_file(
+        &workspace.join("main.py"),
+        "from fastapi import Depends, FastAPI\nfrom pydantic import BaseModel\n\napp = FastAPI()\n\nclass Item(BaseModel):\n    name: str\n\ndef auth_user():\n    return \"user\"\n\n@app.get(\"/items/{item_id}\", response_model=Item)\nasync def read_item(item_id: int, user=Depends(auth_user)):\n    return {\"item_id\": item_id}\n",
     );
 }
 

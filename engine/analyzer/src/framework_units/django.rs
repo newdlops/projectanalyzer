@@ -12,6 +12,7 @@ use crate::model::{
     full_content_range, DetectedFramework, FrameworkUnit, FrameworkUnitEdge, SourceRange,
 };
 
+use super::django_routes::{route_drafts, RouteTarget};
 use super::FrameworkUnitExtraction;
 
 const MAX_DJANGO_FILE_SIZE_BYTES: u64 = 1024 * 1024;
@@ -47,6 +48,15 @@ struct UnitDraft {
     kind: &'static str,
     name: String,
     range: SourceRange,
+    route_target: Option<RouteTarget>,
+}
+
+/// Route edge that can be resolved after all app units have been collected.
+struct PendingRouteEdge {
+    source_id: String,
+    target: RouteTarget,
+    file_path: String,
+    range: SourceRange,
 }
 
 /// Extracts Django semantic units for one detected Django root.
@@ -64,6 +74,7 @@ pub(super) fn analyze(
     let files = collect_django_files(&django_root)?;
     let apps = group_files_by_app(files);
     let mut extraction = FrameworkUnitExtraction::default();
+    let mut pending_route_edges = Vec::new();
 
     for app in apps.into_values() {
         add_app_units(
@@ -72,9 +83,11 @@ pub(super) fn analyze(
             &root_path,
             &app,
             &mut extraction,
+            &mut pending_route_edges,
         )?;
     }
 
+    add_resolved_route_edges(&mut extraction, pending_route_edges);
     Ok(extraction)
 }
 
@@ -224,6 +237,7 @@ fn add_app_units(
     root_path: &str,
     app: &DjangoApp,
     extraction: &mut FrameworkUnitExtraction,
+    pending_route_edges: &mut Vec<PendingRouteEdge>,
 ) -> Result<(), String> {
     let marker = select_app_marker(&app.files);
     let marker_content = read_django_file(&marker.path)?;
@@ -260,8 +274,16 @@ fn add_app_units(
                 &app_id,
                 draft,
             );
-            let edge = create_contains_edge(&app_id, &unit);
-            extraction.units.push(unit);
+            if let Some(route_target) = unit.route_target.clone() {
+                pending_route_edges.push(PendingRouteEdge {
+                    source_id: unit.unit.id.clone(),
+                    target: route_target,
+                    file_path: unit.unit.file_path.clone(),
+                    range: unit.unit.range.clone(),
+                });
+            }
+            let edge = create_contains_edge(&app_id, &unit.unit);
+            extraction.units.push(unit.unit);
             extraction.edges.push(edge);
         }
     }
@@ -297,7 +319,7 @@ fn read_django_file(path: &Path) -> Result<String, String> {
 fn create_unit_drafts(file: &DjangoFile, content: &str) -> Vec<UnitDraft> {
     match file.kind {
         DjangoFileKind::Settings => vec![file_level_unit("configuration", &file.path, content)],
-        DjangoFileKind::Urls => vec![file_level_unit("route", &file.path, content)],
+        DjangoFileKind::Urls => route_units_or_file_unit(&file.path, content),
         DjangoFileKind::Apps => first_declaration_or_file_unit(
             "configuration",
             &file.path,
@@ -318,6 +340,25 @@ fn create_unit_drafts(file: &DjangoFile, content: &str) -> Vec<UnitDraft> {
         }
         DjangoFileKind::Command => vec![command_unit(&file.path, content)],
     }
+}
+
+/// Returns URL pattern declarations, falling back to the URLConf file unit.
+fn route_units_or_file_unit(file_path: &Path, content: &str) -> Vec<UnitDraft> {
+    let mut units = route_drafts(content)
+        .into_iter()
+        .map(|route| UnitDraft {
+            kind: "route",
+            name: route.name,
+            range: route.range,
+            route_target: route.target,
+        })
+        .collect::<Vec<_>>();
+
+    if units.is_empty() {
+        units.push(file_level_unit("route", file_path, content));
+    }
+
+    units
 }
 
 /// Python declarations used by Django convention files.
@@ -388,6 +429,7 @@ fn declaration_units(
                     kind,
                     name,
                     range: line_range(line_index, indent, line),
+                    route_target: None,
                 });
                 break;
             }
@@ -433,6 +475,7 @@ fn file_level_unit(kind: &'static str, file_path: &Path, content: &str) -> UnitD
         kind,
         name: file_stem(file_path),
         range: full_content_range(content),
+        route_target: None,
     }
 }
 
@@ -448,7 +491,14 @@ fn command_unit(file_path: &Path, content: &str) -> UnitDraft {
         kind: "command",
         name: file_stem(file_path),
         range: command_range,
+        route_target: None,
     }
+}
+
+/// Framework unit plus non-serialized adapter context.
+struct CreatedUnit {
+    unit: FrameworkUnit,
+    route_target: Option<RouteTarget>,
 }
 
 /// Converts a draft into the graph model with a parent app ID.
@@ -459,10 +509,10 @@ fn create_child_unit(
     file_path: &Path,
     parent_id: &str,
     draft: UnitDraft,
-) -> FrameworkUnit {
+) -> CreatedUnit {
     let relative_file_path = normalized_relative_path(workspace_root, file_path);
 
-    FrameworkUnit {
+    let unit = FrameworkUnit {
         id: create_unit_id(
             root_path,
             draft.kind,
@@ -478,7 +528,58 @@ fn create_child_unit(
         file_path: file_path.to_string_lossy().to_string(),
         range: draft.range,
         parent_id: Some(parent_id.to_string()),
+    };
+
+    CreatedUnit {
+        unit,
+        route_target: draft.route_target,
     }
+}
+
+/// Resolves route units to view units and records inferred route relationships.
+fn add_resolved_route_edges(
+    extraction: &mut FrameworkUnitExtraction,
+    pending_route_edges: Vec<PendingRouteEdge>,
+) {
+    for pending in pending_route_edges {
+        let Some(target_id) = resolve_view_unit_id(&extraction.units, &pending.target) else {
+            continue;
+        };
+
+        extraction.edges.push(FrameworkUnitEdge {
+            id: format!(
+                "framework-unit-edge::routesTo::{}::{}",
+                pending.source_id, target_id
+            ),
+            kind: "routesTo".to_string(),
+            source_id: pending.source_id,
+            target_id,
+            file_path: pending.file_path,
+            range: pending.range,
+            confidence: "inferred".to_string(),
+        });
+    }
+}
+
+/// Finds a unique view unit matching one of the route target candidates.
+fn resolve_view_unit_id(units: &[FrameworkUnit], target: &RouteTarget) -> Option<String> {
+    for candidate in &target.candidates {
+        let matches = units
+            .iter()
+            .filter(|unit| {
+                unit.kind == "view"
+                    && (unit.qualified_name == *candidate
+                        || unit.qualified_name.ends_with(&format!(".{candidate}"))
+                        || unit.name == *candidate)
+            })
+            .collect::<Vec<_>>();
+
+        if matches.len() == 1 {
+            return Some(matches[0].id.clone());
+        }
+    }
+
+    None
 }
 
 /// Creates an exact contains edge from an app unit to a child unit.

@@ -125,6 +125,7 @@ export type FrameworkUnit = {
   rootPath: string;
   kind: FrameworkUnitKind;
   name: string;
+  qualifiedName?: string;
   filePath: string;
   range?: SourceRange;
   parentId?: string;
@@ -133,9 +134,13 @@ export type FrameworkUnit = {
 
 /** Directed relationship between framework semantic units. */
 export type FrameworkUnitEdge = {
+  id?: string;
   kind: "contains" | "routesTo" | "usesModel" | "renders" | "injects" | "calls" | "configures";
   sourceId: string;
   targetId: string;
+  filePath?: string;
+  range?: SourceRange;
+  confidence?: "exact" | "resolved" | "inferred" | "unresolved";
   metadata?: Record<string, unknown>;
 };
 

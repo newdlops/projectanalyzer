@@ -455,6 +455,7 @@ type FrameworkUnit = {
     | "middleware"
     | "unknown";
   name: string;
+  qualifiedName?: string;
   filePath: string;
   range?: SourceRange;
   parentId?: string;
@@ -462,9 +463,13 @@ type FrameworkUnit = {
 };
 
 type FrameworkUnitEdge = {
+  id?: string;
   kind: "contains" | "routesTo" | "usesModel" | "renders" | "injects" | "calls" | "configures";
   sourceId: string;
   targetId: string;
+  filePath?: string;
+  range?: SourceRange;
+  confidence?: "exact" | "resolved" | "inferred" | "unresolved";
   metadata?: Record<string, unknown>;
 };
 ```
@@ -495,8 +500,26 @@ adapter는 감지된 `rootPath` 아래에서 `settings.py`, `urls.py`, `apps.py`
 
 앱 디렉터리 아래에서 발견된 semantic unit은 해당 `app` unit을 `parentId`로
 가리키며, `frameworkUnitEdges`에는 `contains` edge를 기록한다. 어댑터가
-확신할 수 없는 동적 라우팅, 런타임 import, 설정 기반 alias는 추론하지 않고
-후속 정밀 분석 단계에서 `inferred` 관계로 확장한다.
+정적으로 `path(...)`, `re_path(...)`의 view 참조를 단일 view unit으로 해석할 수
+있으면 `routesTo` edge를 추가한다. `include(...)`, 동적 라우팅, 런타임 import,
+설정 기반 alias는 추론하지 않고 후속 정밀 분석 단계에서 `inferred` 관계로
+확장한다.
+
+FastAPI adapter는 감지된 `rootPath` 아래의 Python 파일에서 다음 단위를 우선
+생성한다.
+
+- `module`: 의미 단위를 포함하는 Python module
+- `app`: `FastAPI(...)` constructor 할당
+- `route`: `@app.get(...)`, `@router.post(...)`, `@*.api_route(...)` decorator
+- `controller`: route decorator 바로 아래의 endpoint function
+- `schema`: Pydantic `BaseModel` class
+- `dependency`: endpoint signature의 `Depends(...)` target
+- `service`: service 파일 또는 `Service` 명명 규칙에 해당하는 class/function
+
+FastAPI route decorator와 바로 아래 endpoint function은 `routesTo` edge로
+연결한다. `include_router`, dependency injection graph, `response_model`과 schema
+연결은 literal/static target을 더 엄밀히 해석하는 다음 단계에서 `configures`,
+`injects`, `usesModel` edge로 확장한다.
 
 ### 7.3 Diagnostics
 

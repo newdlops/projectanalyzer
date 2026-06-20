@@ -4,6 +4,8 @@
 //! graph-ready units without coupling language analyzers to framework details.
 
 mod django;
+mod django_routes;
+mod fastapi;
 
 #[cfg(test)]
 mod tests;
@@ -38,6 +40,9 @@ pub fn analyze_framework_units(
         if is_django_framework(framework) {
             extraction.extend(django::analyze(workspace_root, framework)?);
         }
+        if is_fastapi_framework(framework) {
+            extraction.extend(fastapi::analyze(workspace_root, framework)?);
+        }
     }
 
     Ok(extraction)
@@ -46,4 +51,9 @@ pub fn analyze_framework_units(
 /// Matches the manifest detector's canonical Django framework row.
 fn is_django_framework(framework: &DetectedFramework) -> bool {
     framework.name == "Django" && framework.ecosystem == "python"
+}
+
+/// Matches the manifest detector's canonical FastAPI framework row.
+fn is_fastapi_framework(framework: &DetectedFramework) -> bool {
+    framework.name == "FastAPI" && framework.ecosystem == "python"
 }

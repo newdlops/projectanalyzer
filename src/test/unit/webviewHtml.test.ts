@@ -65,6 +65,8 @@ test("sidebar HTML renders file navigation as an import tree", () => {
   assert.match(scriptMatch[1], /renderFrameworkTree/);
   assert.match(scriptMatch[1], /getDetectedFrameworks/);
   assert.match(scriptMatch[1], /getFrameworkUnits/);
+  assert.match(scriptMatch[1], /getFrameworkUnitEdges/);
+  assert.match(scriptMatch[1], /createFrameworkRelationEdgeIndex/);
   assert.match(scriptMatch[1], /getFrameworkSemanticBuckets/);
   assert.match(scriptMatch[1], /getFileName/);
   assert.match(scriptMatch[1], /external module usage/);

@@ -345,6 +345,8 @@ export function getExplorerSidebarScript(): string {
 
     function appendFrameworkUnitRows(graph, units, rows, parentTreeId, depth) {
       const childrenByParentId = new Map();
+      const unitsById = new Map(units.map((unit) => [unit.id, unit]));
+      const relationEdgesBySourceId = createFrameworkRelationEdgeIndex(graph, unitsById);
       const rootUnits = [];
 
       for (const unit of units) {
@@ -358,14 +360,15 @@ export function getExplorerSidebarScript(): string {
       }
 
       for (const unit of rootUnits.sort(compareFrameworkUnits)) {
-        appendFrameworkUnitRow(graph, unit, childrenByParentId, rows, parentTreeId, depth);
+        appendFrameworkUnitRow(graph, unit, childrenByParentId, relationEdgesBySourceId, unitsById, rows, parentTreeId, depth);
       }
     }
 
-    function appendFrameworkUnitRow(graph, unit, childrenByParentId, rows, parentTreeId, depth) {
+    function appendFrameworkUnitRow(graph, unit, childrenByParentId, relationEdgesBySourceId, unitsById, rows, parentTreeId, depth) {
       const rowId = parentTreeId + ":unit:" + unit.id;
       const children = (childrenByParentId.get(unit.id) ?? []).sort(compareFrameworkUnits);
-      const hasChildren = children.length > 0;
+      const relationEdges = relationEdgesBySourceId.get(unit.id) ?? [];
+      const hasChildren = children.length > 0 || relationEdges.length > 0;
       const expanded = hasChildren && state.expandedTreeIds.has(rowId);
 
       rows.push({
@@ -385,8 +388,53 @@ export function getExplorerSidebarScript(): string {
       }
 
       for (const child of children) {
-        appendFrameworkUnitRow(graph, child, childrenByParentId, rows, rowId, depth + 1);
+        appendFrameworkUnitRow(graph, child, childrenByParentId, relationEdgesBySourceId, unitsById, rows, rowId, depth + 1);
       }
+
+      const structuralChildIds = new Set(children.map((child) => child.id));
+      for (const edge of relationEdges) {
+        const target = unitsById.get(edge.targetId);
+
+        if (!target || structuralChildIds.has(target.id)) {
+          continue;
+        }
+
+        rows.push({
+          id: rowId + ":edge:" + edge.kind + ":" + target.id,
+          label: target.name,
+          name: target.name,
+          detail: edge.kind + " / " + target.kind,
+          kind: "semantic",
+          nodeId: getFileNodeIdByPath(graph, target.filePath),
+          depth: depth + 1,
+          hasChildren: false,
+          expanded: false
+        });
+      }
+    }
+
+    function createFrameworkRelationEdgeIndex(graph, unitsById) {
+      const relationEdgesBySourceId = new Map();
+
+      for (const edge of getFrameworkUnitEdges(graph)) {
+        if (edge.kind === "contains" || !unitsById.has(edge.sourceId) || !unitsById.has(edge.targetId)) {
+          continue;
+        }
+
+        const edges = relationEdgesBySourceId.get(edge.sourceId) ?? [];
+        edges.push(edge);
+        relationEdgesBySourceId.set(edge.sourceId, edges);
+      }
+
+      for (const edges of relationEdgesBySourceId.values()) {
+        edges.sort((left, right) => {
+          const leftTarget = unitsById.get(left.targetId);
+          const rightTarget = unitsById.get(right.targetId);
+          return compareFrameworkUnits(leftTarget, rightTarget);
+        });
+      }
+
+      return relationEdgesBySourceId;
     }
 
     function createFileTreeRows(graph) {
@@ -543,6 +591,14 @@ export function getExplorerSidebarScript(): string {
       }
 
       return graph.metadata.frameworkUnits;
+    }
+
+    function getFrameworkUnitEdges(graph) {
+      if (!Array.isArray(graph.metadata.frameworkUnitEdges)) {
+        return [];
+      }
+
+      return graph.metadata.frameworkUnitEdges;
     }
 
     function getFrameworkKey(name, rootPath) {
