@@ -19,6 +19,8 @@ export function createEmptyProjectGraph(workspaceRoot: string): ProjectGraph {
     diagnostics: [],
     metadata: {
       languages: [],
+      languageSummary: [],
+      frameworks: [],
       fileCount: 0,
       symbolCount: 0,
       edgeCount: 0

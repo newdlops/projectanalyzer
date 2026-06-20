@@ -80,6 +80,23 @@ export type AnalysisDiagnostic = {
   details?: Record<string, unknown>;
 };
 
+/** File-count summary for one detected implementation language. */
+export type LanguageSummary = {
+  language: string;
+  fileCount: number;
+  percentage: number;
+};
+
+/** Static framework or tool detection captured from project manifests. */
+export type DetectedFramework = {
+  name: string;
+  ecosystem: string;
+  category: "frontend" | "backend" | "fullstack" | "test" | "build" | "desktop" | "mobile" | "unknown";
+  confidence: "high" | "medium" | "low";
+  rootPath?: string;
+  evidence: string[];
+};
+
 /** Normalized graph payload shared by analyzer, storage, and Webview protocol. */
 export type ProjectGraph = {
   workspaceRoot: string;
@@ -90,6 +107,8 @@ export type ProjectGraph = {
   diagnostics: AnalysisDiagnostic[];
   metadata: {
     languages: string[];
+    languageSummary?: LanguageSummary[];
+    frameworks?: DetectedFramework[];
     fileCount: number;
     symbolCount: number;
     edgeCount: number;

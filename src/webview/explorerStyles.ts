@@ -249,6 +249,60 @@ export function getExplorerStyles(surface: ExplorerSurface): string {
       white-space: nowrap;
     }
 
+    .project-summary {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 8px;
+    }
+
+    .summary-block {
+      min-width: 0;
+      border-top: 1px solid var(--vscode-panel-border);
+      padding-top: 6px;
+    }
+
+    .summary-title {
+      margin-bottom: 4px;
+      color: var(--vscode-descriptionForeground);
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+
+    .summary-list {
+      display: flex;
+      min-width: 0;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .summary-item {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: center;
+      min-width: 0;
+      min-height: 20px;
+      gap: 6px;
+    }
+
+    .summary-name,
+    .summary-meta,
+    .summary-empty {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .summary-name {
+      font-weight: 500;
+    }
+
+    .summary-meta,
+    .summary-empty {
+      color: var(--vscode-descriptionForeground);
+      font-size: 11px;
+    }
+
     .list {
       display: flex;
       min-height: 0;

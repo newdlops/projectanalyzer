@@ -63,6 +63,16 @@ function getSidebarHtml(options: WebviewHtmlOptions): string {
       <div class="stat"><span id="symbols" class="stat-value">0</span><span class="stat-label">Nodes</span></div>
       <div class="stat"><span id="edges" class="stat-value">0</span><span class="stat-label">Edges</span></div>
     </div>
+    <div class="project-summary" aria-label="Detected project stack">
+      <div class="summary-block">
+        <div class="summary-title">Languages</div>
+        <div id="language-summary" class="summary-list"></div>
+      </div>
+      <div class="summary-block">
+        <div class="summary-title">Frameworks</div>
+        <div id="framework-summary" class="summary-list"></div>
+      </div>
+    </div>
     <div id="explorer-tree" class="list explorer-tree" role="tree" aria-label="Project import tree"></div>
   </div>
   <script nonce="${options.nonce}">${clientScript}</script>

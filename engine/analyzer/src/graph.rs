@@ -3,13 +3,13 @@
 //! The builder centralizes graph identity and contains-edge construction so
 //! language analyzers can remain focused on syntax recognition.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::model::{
-    full_content_range, AnalysisDiagnostic, GraphEdge, ProjectGraph, SourceInput, SourceRange,
-    SymbolNode,
+    full_content_range, AnalysisDiagnostic, DetectedFramework, GraphEdge, LanguageSummary,
+    ProjectGraph, SourceInput, SourceRange, SymbolNode,
 };
 
 /// Mutable graph builder used during one analysis run.
@@ -19,6 +19,8 @@ pub struct ProjectGraphBuilder {
     edges: Vec<GraphEdge>,
     diagnostics: Vec<AnalysisDiagnostic>,
     languages: BTreeSet<String>,
+    language_file_counts: BTreeMap<String, usize>,
+    frameworks: Vec<DetectedFramework>,
     external_node_ids: BTreeSet<String>,
     file_count: usize,
 }
@@ -32,6 +34,8 @@ impl ProjectGraphBuilder {
             edges: Vec::new(),
             diagnostics: Vec::new(),
             languages: BTreeSet::new(),
+            language_file_counts: BTreeMap::new(),
+            frameworks: Vec::new(),
             external_node_ids: BTreeSet::new(),
             file_count: 0,
         }
@@ -41,6 +45,10 @@ impl ProjectGraphBuilder {
     pub fn add_file(&mut self, file: &SourceInput) -> String {
         self.file_count += 1;
         self.languages.insert(file.language_id.clone());
+        *self
+            .language_file_counts
+            .entry(file.language_id.clone())
+            .or_insert(0) += 1;
         let file_id = create_file_node_id(&file.path);
         let range = full_content_range(&file.content);
         let qualified_name = relative_path(&self.workspace_root, &file.path);
@@ -176,6 +184,11 @@ impl ProjectGraphBuilder {
         });
     }
 
+    /// Adds manifest-based framework detections to graph-level metadata.
+    pub fn add_frameworks(&mut self, frameworks: Vec<DetectedFramework>) {
+        self.frameworks.extend(frameworks);
+    }
+
     /// Adds a file-scoped diagnostic.
     pub fn add_diagnostic(&mut self, code: &str, message: String, file_path: Option<String>) {
         self.diagnostics.push(AnalysisDiagnostic {
@@ -188,6 +201,8 @@ impl ProjectGraphBuilder {
 
     /// Finishes the graph and returns the serialized model.
     pub fn finish(self) -> ProjectGraph {
+        let language_summary = create_language_summary(&self.language_file_counts, self.file_count);
+
         ProjectGraph {
             workspace_root: self.workspace_root.to_string_lossy().to_string(),
             version: "0.1.0-rust".to_string(),
@@ -196,6 +211,8 @@ impl ProjectGraphBuilder {
             edges: self.edges,
             diagnostics: self.diagnostics,
             languages: self.languages.into_iter().collect(),
+            language_summary,
+            frameworks: self.frameworks,
             file_count: self.file_count,
         }
     }
@@ -315,6 +332,38 @@ fn file_name(file_path: &Path) -> String {
         .unwrap_or_else(|| file_path.to_string_lossy().to_string())
 }
 
+/// Builds deterministic language percentages from file counts.
+fn create_language_summary(
+    language_file_counts: &BTreeMap<String, usize>,
+    total_file_count: usize,
+) -> Vec<LanguageSummary> {
+    if total_file_count == 0 {
+        return Vec::new();
+    }
+
+    let mut summaries = language_file_counts
+        .iter()
+        .map(|(language, file_count)| LanguageSummary {
+            language: language.clone(),
+            file_count: *file_count,
+            percentage: round_percentage((*file_count as f64 / total_file_count as f64) * 100.0),
+        })
+        .collect::<Vec<_>>();
+
+    summaries.sort_by(|left, right| {
+        right
+            .file_count
+            .cmp(&left.file_count)
+            .then_with(|| left.language.cmp(&right.language))
+    });
+    summaries
+}
+
+/// Rounds percentages to two decimals while keeping JSON numbers compact.
+fn round_percentage(value: f64) -> f64 {
+    (value * 100.0).round() / 100.0
+}
+
 /// Returns a dependency-free timestamp string.
 fn unix_timestamp_string() -> String {
     let seconds = SystemTime::now()
@@ -323,4 +372,71 @@ fn unix_timestamp_string() -> String {
         .unwrap_or_default();
 
     format!("{seconds}")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn finish_builds_language_summary_from_file_counts() {
+        let mut builder = ProjectGraphBuilder::new(PathBuf::from("/workspace"));
+
+        builder.add_file(&source("/workspace/src/app.ts", "typescript"));
+        builder.add_file(&source("/workspace/src/main.py", "python"));
+        builder.add_file(&source("/workspace/src/service.py", "python"));
+
+        let graph = builder.finish();
+
+        assert_eq!(graph.languages, vec!["python", "typescript"]);
+        assert_eq!(graph.language_summary.len(), 2);
+        assert_summary(&graph.language_summary, "python", 2, 66.67);
+        assert_summary(&graph.language_summary, "typescript", 1, 33.33);
+    }
+
+    #[test]
+    fn json_serializes_optional_language_and_framework_metadata() {
+        let mut builder = ProjectGraphBuilder::new(PathBuf::from("/workspace"));
+
+        builder.add_file(&source("/workspace/src/main.rs", "rust"));
+        builder.add_frameworks(vec![DetectedFramework {
+            name: "Axum".to_string(),
+            ecosystem: "rust".to_string(),
+            category: "backend".to_string(),
+            confidence: "high".to_string(),
+            root_path: Some("engine".to_string()),
+            evidence: vec!["Cargo.toml dependency: axum".to_string()],
+        }]);
+
+        let json = builder.finish().to_json();
+
+        assert!(json.contains("\"languageSummary\":[{\"language\":\"rust\""));
+        assert!(json.contains("\"frameworks\":[{\"name\":\"Axum\""));
+        assert!(json.contains("\"rootPath\":\"engine\""));
+        assert!(json.contains("\"evidence\":[\"Cargo.toml dependency: axum\"]"));
+    }
+
+    fn source(path: &str, language_id: &str) -> SourceInput {
+        SourceInput {
+            path: PathBuf::from(path),
+            language_id: language_id.to_string(),
+            content: String::new(),
+            size_bytes: 0,
+        }
+    }
+
+    fn assert_summary(
+        summaries: &[LanguageSummary],
+        language: &str,
+        file_count: usize,
+        percentage: f64,
+    ) {
+        let summary = summaries
+            .iter()
+            .find(|summary| summary.language == language)
+            .unwrap_or_else(|| panic!("missing language summary for {language}"));
+
+        assert_eq!(summary.file_count, file_count);
+        assert_eq!(summary.percentage, percentage);
+    }
 }

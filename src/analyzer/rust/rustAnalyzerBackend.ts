@@ -8,6 +8,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import type { AnalysisBackend } from "../core/analysisBackend";
 import type { AnalyzeResult } from "../core/analyzerPipeline";
+import { normalizeProjectGraphMetadata } from "../../graph/graphMetadata";
 import type { ProjectAnalyzerLogger } from "../../observability/logger";
 import type { ProjectGraph, SourceFile } from "../../shared/types";
 
@@ -125,7 +126,7 @@ export class RustAnalyzerBackend implements AnalysisBackend {
       throw new Error("Rust analyzer returned an invalid graph payload.");
     }
 
-    return graph;
+    return normalizeProjectGraphMetadata(graph);
   }
 
   /**
@@ -242,6 +243,8 @@ function summarizeGraph(graph: ProjectGraph): Record<string, unknown> {
   return {
     edges: graph.edges.length,
     files: graph.metadata.fileCount,
+    frameworks: graph.metadata.frameworks?.length ?? 0,
+    languages: graph.metadata.languageSummary?.length ?? graph.metadata.languages.length,
     nodes: graph.nodes.length
   };
 }

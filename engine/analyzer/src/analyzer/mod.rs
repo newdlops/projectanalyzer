@@ -17,6 +17,7 @@ pub fn analyze_source_file(
     match file.language_id.as_str() {
         "typescript" | "javascript" => javascript_like::extract_symbols(builder, &file, file_id),
         "python" => python_like::extract_symbols(builder, &file, file_id),
+        language_id if is_file_only_language(language_id) => Ok(()),
         _ => {
             builder.add_diagnostic(
                 "analysis.unsupportedLanguage",
@@ -32,4 +33,12 @@ pub fn analyze_source_file(
 pub fn analyze_workspace_edges(builder: &mut ProjectGraphBuilder, files: &[SourceInput]) {
     javascript_like::add_import_edges(builder, files);
     python_like::add_import_edges(builder, files);
+}
+
+/// Returns whether a language is scanned for metadata without symbol extraction.
+fn is_file_only_language(language_id: &str) -> bool {
+    matches!(
+        language_id,
+        "vue" | "svelte" | "rust" | "go" | "java" | "kotlin" | "php" | "ruby"
+    )
 }

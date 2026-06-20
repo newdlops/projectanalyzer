@@ -404,12 +404,35 @@ type ProjectGraph = {
   diagnostics: AnalysisDiagnostic[];
   metadata: {
     languages: string[];
+    languageSummary?: LanguageSummary[];
+    frameworks?: DetectedFramework[];
     fileCount: number;
     symbolCount: number;
     edgeCount: number;
   };
 };
 ```
+
+```ts
+type LanguageSummary = {
+  language: string;
+  fileCount: number;
+  percentage: number;
+};
+
+type DetectedFramework = {
+  name: string;
+  ecosystem: string;
+  category: "frontend" | "backend" | "fullstack" | "test" | "build" | "desktop" | "mobile" | "unknown";
+  confidence: "high" | "medium" | "low";
+  rootPath?: string;
+  evidence: string[];
+};
+```
+
+프레임워크 감지는 import graph보다 먼저 프로젝트 실행 모델을 이해하기 위한 상위
+metadata로 취급한다. 모노레포에서는 framework `rootPath`를 기준으로 앱 단위
+엔트리포인트 후보를 분리한다.
 
 ### 7.3 Diagnostics
 

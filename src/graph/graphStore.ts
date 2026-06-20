@@ -4,6 +4,7 @@
  */
 
 import type { GraphEdge, ProjectGraph, SymbolNode } from "../shared/types";
+import { createLanguageSummaryFromNodes } from "./graphMetadata";
 
 /** Mutable graph store API used by analysis and incremental update pipelines. */
 export interface GraphStore {
@@ -102,6 +103,8 @@ export class InMemoryGraphStore implements GraphStore {
       metadata: {
         ...this.baseGraph.metadata,
         languages,
+        languageSummary: createLanguageSummaryFromNodes(nodes),
+        frameworks: this.baseGraph.metadata.frameworks ?? [],
         symbolCount: nodes.length,
         edgeCount: edges.length
       }

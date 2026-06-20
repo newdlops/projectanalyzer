@@ -77,8 +77,8 @@ pub fn scan_workspace(options: &ScanOptions) -> Result<Vec<SourceInput>, String>
     Ok(files)
 }
 
-/// Returns whether a directory should be skipped during scanning.
-fn is_excluded_directory(path: &Path) -> bool {
+/// Returns whether a directory should be skipped during project scanning.
+pub(crate) fn is_excluded_directory(path: &Path) -> bool {
     let Some(name) = path.file_name().and_then(|value| value.to_str()) else {
         return false;
     };
@@ -100,14 +100,22 @@ fn is_excluded_directory(path: &Path) -> bool {
     )
 }
 
-/// Maps a supported source file extension to a VS Code language ID.
+/// Maps a recognized source file extension to a VS Code language ID.
 fn language_id_for_path(path: &Path) -> Option<String> {
     let extension = path.extension()?.to_str()?.to_ascii_lowercase();
 
     match extension.as_str() {
-        "ts" | "tsx" => Some("typescript".to_string()),
-        "js" | "jsx" => Some("javascript".to_string()),
+        "ts" | "tsx" | "mts" | "cts" => Some("typescript".to_string()),
+        "js" | "jsx" | "mjs" | "cjs" => Some("javascript".to_string()),
+        "vue" => Some("vue".to_string()),
+        "svelte" => Some("svelte".to_string()),
         "py" => Some("python".to_string()),
+        "rs" => Some("rust".to_string()),
+        "go" => Some("go".to_string()),
+        "java" => Some("java".to_string()),
+        "kt" | "kts" => Some("kotlin".to_string()),
+        "php" => Some("php".to_string()),
+        "rb" => Some("ruby".to_string()),
         _ => None,
     }
 }

@@ -33,6 +33,10 @@ test("AnalyzerPipeline builds file and TypeScript symbol nodes", async () => {
   const helperNode = nodesByName.get("helper");
 
   assert.equal(result.graph.metadata.fileCount, 1);
+  assert.deepEqual(result.graph.metadata.languageSummary, [
+    { language: "typescript", fileCount: 1, percentage: 100 }
+  ]);
+  assert.deepEqual(result.graph.metadata.frameworks, []);
   assert.equal(result.graph.nodes.some((node) => node.kind === "file"), true);
   assert.equal(classNode?.kind, "class");
   assert.equal(methodNode?.kind, "method");

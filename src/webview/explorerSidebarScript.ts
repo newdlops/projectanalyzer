@@ -31,6 +31,8 @@ export function getExplorerSidebarScript(): string {
       files: document.getElementById("files"),
       symbols: document.getElementById("symbols"),
       edges: document.getElementById("edges"),
+      languageSummary: document.getElementById("language-summary"),
+      frameworkSummary: document.getElementById("framework-summary"),
       explorerTree: document.getElementById("explorer-tree")
     };
 
@@ -105,6 +107,7 @@ export function getExplorerSidebarScript(): string {
 
     function render() {
       renderStats();
+      renderProjectSummary();
       renderFileTree();
       renderActions();
     }
@@ -114,6 +117,47 @@ export function getExplorerSidebarScript(): string {
       elements.files.textContent = graph ? String(graph.metadata.fileCount) : "0";
       elements.symbols.textContent = graph ? String(graph.metadata.symbolCount) : "0";
       elements.edges.textContent = graph ? String(graph.metadata.edgeCount) : "0";
+    }
+
+    function renderProjectSummary() {
+      const graph = state.graph;
+
+      elements.languageSummary.replaceChildren();
+      elements.frameworkSummary.replaceChildren();
+
+      if (!graph) {
+        appendSummaryEmpty(elements.languageSummary, "No languages");
+        appendSummaryEmpty(elements.frameworkSummary, "No frameworks");
+        return;
+      }
+
+      const languageSummary = getLanguageSummary(graph);
+      const frameworks = getDetectedFrameworks(graph);
+
+      if (languageSummary.length === 0) {
+        appendSummaryEmpty(elements.languageSummary, "No languages");
+      } else {
+        for (const language of languageSummary.slice(0, 6)) {
+          appendSummaryItem(
+            elements.languageSummary,
+            language.language,
+            String(language.fileCount) + " files"
+          );
+        }
+      }
+
+      if (frameworks.length === 0) {
+        appendSummaryEmpty(elements.frameworkSummary, "No frameworks");
+        return;
+      }
+
+      for (const framework of frameworks.slice(0, 8)) {
+        appendSummaryItem(
+          elements.frameworkSummary,
+          framework.name,
+          framework.ecosystem + " / " + framework.category
+        );
+      }
     }
 
     function renderFileTree() {
@@ -315,6 +359,48 @@ export function getExplorerSidebarScript(): string {
       empty.className = "empty-state";
       empty.textContent = message;
       elements.explorerTree.append(empty);
+    }
+
+    function appendSummaryEmpty(parent, message) {
+      const empty = document.createElement("div");
+      empty.className = "summary-empty";
+      empty.textContent = message;
+      parent.append(empty);
+    }
+
+    function appendSummaryItem(parent, label, detail) {
+      const item = document.createElement("div");
+      const name = document.createElement("span");
+      const meta = document.createElement("span");
+
+      item.className = "summary-item";
+      name.className = "summary-name";
+      meta.className = "summary-meta";
+      name.textContent = label;
+      meta.textContent = detail;
+      item.title = label + " - " + detail;
+      item.append(name, meta);
+      parent.append(item);
+    }
+
+    function getLanguageSummary(graph) {
+      if (Array.isArray(graph.metadata.languageSummary)) {
+        return graph.metadata.languageSummary;
+      }
+
+      return (graph.metadata.languages ?? []).map((language) => ({
+        language,
+        fileCount: 0,
+        percentage: 0
+      }));
+    }
+
+    function getDetectedFrameworks(graph) {
+      if (!Array.isArray(graph.metadata.frameworks)) {
+        return [];
+      }
+
+      return graph.metadata.frameworks;
     }
 
     function renderActions() {

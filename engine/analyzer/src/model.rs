@@ -59,6 +59,25 @@ pub struct AnalysisDiagnostic {
     pub file_path: Option<String>,
 }
 
+/// File-count summary for one detected implementation language.
+#[derive(Clone)]
+pub struct LanguageSummary {
+    pub language: String,
+    pub file_count: usize,
+    pub percentage: f64,
+}
+
+/// Static framework or tool detection captured from workspace manifests.
+#[derive(Clone)]
+pub struct DetectedFramework {
+    pub name: String,
+    pub ecosystem: String,
+    pub category: String,
+    pub confidence: String,
+    pub root_path: Option<String>,
+    pub evidence: Vec<String>,
+}
+
 /// Final project graph emitted to the extension host.
 pub struct ProjectGraph {
     pub workspace_root: String,
@@ -68,6 +87,8 @@ pub struct ProjectGraph {
     pub edges: Vec<GraphEdge>,
     pub diagnostics: Vec<AnalysisDiagnostic>,
     pub languages: Vec<String>,
+    pub language_summary: Vec<LanguageSummary>,
+    pub frameworks: Vec<DetectedFramework>,
     pub file_count: usize,
 }
 

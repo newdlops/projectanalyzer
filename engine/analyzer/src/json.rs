@@ -3,7 +3,10 @@
 //! The engine keeps serialization dependency-free for now. These helpers only
 //! cover the graph payload shapes emitted by this crate.
 
-use crate::model::{AnalysisDiagnostic, GraphEdge, ProjectGraph, SourceRange, SymbolNode};
+use crate::model::{
+    AnalysisDiagnostic, DetectedFramework, GraphEdge, LanguageSummary, ProjectGraph, SourceRange,
+    SymbolNode,
+};
 
 impl ProjectGraph {
     /// Serializes a ProjectGraph-compatible JSON payload.
@@ -29,6 +32,19 @@ impl ProjectGraph {
         output.push(',');
         output.push_str("\"metadata\":{");
         push_string_array(&mut output, "languages", &self.languages);
+        if !self.language_summary.is_empty() {
+            output.push(',');
+            push_array(
+                &mut output,
+                "languageSummary",
+                &self.language_summary,
+                push_language_summary,
+            );
+        }
+        if !self.frameworks.is_empty() {
+            output.push(',');
+            push_array(&mut output, "frameworks", &self.frameworks, push_framework);
+        }
         output.push(',');
         push_number_field(&mut output, "fileCount", self.file_count);
         output.push(',');
@@ -91,6 +107,38 @@ fn push_edge(output: &mut String, edge: &GraphEdge) {
     push_range(output, "range", &edge.range);
     output.push(',');
     push_string_field(output, "confidence", &edge.confidence);
+    output.push('}');
+}
+
+/// Serializes one language summary row.
+fn push_language_summary(output: &mut String, summary: &LanguageSummary) {
+    output.push('{');
+    push_string_field(output, "language", &summary.language);
+    output.push(',');
+    push_number_field(output, "fileCount", summary.file_count);
+    output.push(',');
+    push_float_field(output, "percentage", summary.percentage);
+    output.push('}');
+}
+
+/// Serializes one static framework detection row.
+fn push_framework(output: &mut String, framework: &DetectedFramework) {
+    output.push('{');
+    push_string_field(output, "name", &framework.name);
+    output.push(',');
+    push_string_field(output, "ecosystem", &framework.ecosystem);
+    output.push(',');
+    push_string_field(output, "category", &framework.category);
+    output.push(',');
+    push_string_field(output, "confidence", &framework.confidence);
+
+    if let Some(root_path) = &framework.root_path {
+        output.push(',');
+        push_string_field(output, "rootPath", root_path);
+    }
+
+    output.push(',');
+    push_string_array(output, "evidence", &framework.evidence);
     output.push('}');
 }
 
@@ -170,6 +218,14 @@ fn push_string_field(output: &mut String, name: &str, value: &str) {
 
 /// Serializes a number field.
 fn push_number_field(output: &mut String, name: &str, value: usize) {
+    output.push('"');
+    output.push_str(name);
+    output.push_str("\":");
+    output.push_str(&value.to_string());
+}
+
+/// Serializes a floating point number field used by metadata percentages.
+fn push_float_field(output: &mut String, name: &str, value: f64) {
     output.push('"');
     output.push_str(name);
     output.push_str("\":");

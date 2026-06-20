@@ -6,6 +6,7 @@
 
 mod analyzer;
 mod cli;
+mod framework_detection;
 mod fs_scan;
 mod graph;
 mod json;
@@ -15,6 +16,7 @@ use std::io::{self, Read};
 
 use analyzer::{analyze_source_file, analyze_workspace_edges, SourceInput};
 use cli::{Command, EngineArgs};
+use framework_detection::detect_frameworks;
 use fs_scan::{scan_workspace, ScanOptions};
 use graph::ProjectGraphBuilder;
 
@@ -31,6 +33,7 @@ fn run() -> Result<(), String> {
 
     match args.command {
         Command::AnalyzeWorkspace(options) => {
+            let workspace_root = options.workspace_root.clone();
             let files = scan_workspace(&ScanOptions {
                 workspace_root: options.workspace_root.clone(),
                 max_file_size_kb: options.max_file_size_kb,
@@ -42,6 +45,7 @@ fn run() -> Result<(), String> {
             }
 
             analyze_workspace_edges(&mut builder, &files);
+            builder.add_frameworks(detect_frameworks(&workspace_root)?);
             println!("{}", builder.finish().to_json());
             Ok(())
         }
