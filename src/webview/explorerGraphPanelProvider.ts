@@ -18,7 +18,7 @@ import type { ProjectAnalyzerLogger } from "../observability/logger";
 import type { ProjectGraph } from "../shared/types";
 import type { AnalysisCacheStore } from "../storage/cacheStore";
 import type { ProjectAnalyzerConfig } from "../vscode/configuration";
-import { projectGraphForView, summarizeProjectedGraph } from "./graphProjection";
+import { projectGraphForView, summarizeFileImportGraph, summarizeProjectedGraph } from "./graphProjection";
 import { getExplorerHtml } from "./webviewHtml";
 import {
   createNonce,
@@ -115,6 +115,7 @@ export class ExplorerGraphPanelProvider {
     this.pendingGraph = graph;
     this.dependencies.logger.info("graphPanel.publishGraph", {
       edges: graph.edges.length,
+      fileImportGraph: summarizeFileImportGraph(graph),
       nodes: graph.nodes.length,
       ready: this.webviewReady
     });

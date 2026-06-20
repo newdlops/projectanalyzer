@@ -18,7 +18,7 @@ import type { ProjectGraph } from "../shared/types";
 import type { AnalysisCacheStore } from "../storage/cacheStore";
 import type { ProjectAnalyzerConfig } from "../vscode/configuration";
 import type { ExplorerGraphPanelProvider } from "./explorerGraphPanelProvider";
-import { projectGraphForView, summarizeProjectedGraph } from "./graphProjection";
+import { projectGraphForView, summarizeFileImportGraph, summarizeProjectedGraph } from "./graphProjection";
 import { getExplorerHtml } from "./webviewHtml";
 import { createNonce, exportGraphToJson, openNodeInEditor } from "./webviewHostActions";
 
@@ -77,7 +77,10 @@ export class ExplorerViewProvider implements vscode.WebviewViewProvider {
    */
   public async publishGraph(graph: ProjectGraph): Promise<void> {
     const sidebarGraph = projectGraphForView(graph, "file", { preserveMetadata: true });
-    this.dependencies.logger.info("sidebar.publishGraph.projected", summarizeProjectedGraph(sidebarGraph));
+    this.dependencies.logger.info("sidebar.publishGraph.projected", {
+      fileImportGraph: summarizeFileImportGraph(graph),
+      projected: summarizeProjectedGraph(sidebarGraph)
+    });
     await this.postMessage({ type: "graph/loaded", payload: sidebarGraph });
     await this.dependencies.graphPanelProvider.publishGraph(graph);
   }

@@ -13,6 +13,16 @@ export type GraphProjectionSummary = {
   nodes: number;
 };
 
+/** Import graph health summary used to diagnose entry-point explosions. */
+export type FileImportGraphSummary = {
+  entryRoots: number;
+  entryRootDirectories: Array<{ count: number; path: string }>;
+  fileNodes: number;
+  importedFiles: number;
+  importerFiles: number;
+  importEdges: number;
+};
+
 /** Controls whether projected payload counts replace original analysis counts. */
 export type GraphProjectionOptions = {
   preserveMetadata?: boolean;
@@ -66,6 +76,63 @@ export function summarizeProjectedGraph(graph: ProjectGraph): GraphProjectionSum
     edges: graph.edges.length,
     nodes: graph.nodes.length
   };
+}
+
+/** Builds root and edge counts for the file import graph. */
+export function summarizeFileImportGraph(graph: ProjectGraph): FileImportGraphSummary {
+  const fileNodes = graph.nodes.filter((node) => node.kind === "file");
+  const fileNodeIds = new Set(fileNodes.map((node) => node.id));
+  const importEdges = graph.edges.filter((edge) =>
+    (edge.kind === "imports" || edge.kind === "exports") &&
+    fileNodeIds.has(edge.sourceId) &&
+    fileNodeIds.has(edge.targetId)
+  );
+  const importedFileIds = new Set(importEdges.map((edge) => edge.targetId));
+  const importerFileIds = new Set(importEdges.map((edge) => edge.sourceId));
+  const entryRoots = fileNodes.filter((node) =>
+    !importedFileIds.has(node.id) && (importerFileIds.has(node.id) || importEdges.length === 0)
+  );
+  const entryRootDirectories = createTopEntryRootDirectories(graph.workspaceRoot, entryRoots);
+
+  return {
+    entryRoots: entryRoots.length,
+    entryRootDirectories,
+    fileNodes: fileNodes.length,
+    importedFiles: importedFileIds.size,
+    importerFiles: importerFileIds.size,
+    importEdges: importEdges.length
+  };
+}
+
+/** Returns the largest directories that are producing entry roots. */
+function createTopEntryRootDirectories(
+  workspaceRoot: string,
+  entryRoots: Array<{ filePath: string }>
+): Array<{ count: number; path: string }> {
+  const countsByDirectory = new Map<string, number>();
+
+  for (const root of entryRoots) {
+    const relativePath = getWorkspaceRelativePath(workspaceRoot, root.filePath);
+    const directory = relativePath.split("/").slice(0, -1).join("/") || ".";
+    countsByDirectory.set(directory, (countsByDirectory.get(directory) ?? 0) + 1);
+  }
+
+  return [...countsByDirectory.entries()]
+    .sort((left, right) => right[1] - left[1])
+    .slice(0, 12)
+    .map(([path, count]) => ({ count, path }));
+}
+
+/** Converts absolute file paths to stable workspace-relative paths for logs. */
+function getWorkspaceRelativePath(workspaceRoot: string, filePath: string): string {
+  const normalizedRoot = workspaceRoot.replace(/\\/g, "/");
+  const normalizedFilePath = filePath.replace(/\\/g, "/");
+
+  if (normalizedFilePath.startsWith(normalizedRoot + "/")) {
+    return normalizedFilePath.slice(normalizedRoot.length + 1);
+  }
+
+  return normalizedFilePath.split("/").slice(-3).join("/");
 }
 
 /** Determines which node ids are needed for a panel mode. */

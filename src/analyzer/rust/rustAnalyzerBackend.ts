@@ -156,18 +156,30 @@ function resolveEngineInvocation(engineRoot: string, engineArgs: string[]): Engi
   const debugBinary = path.join(engineRoot, "target", "debug", binaryName);
   const manifestPath = path.join(engineRoot, "Cargo.toml");
 
-  if (fs.existsSync(releaseBinary)) {
-    return { command: releaseBinary, args: engineArgs };
-  }
+  const existingBinary = selectNewestExistingBinary([releaseBinary, debugBinary]);
 
-  if (fs.existsSync(debugBinary)) {
-    return { command: debugBinary, args: engineArgs };
+  if (existingBinary) {
+    return { command: existingBinary, args: engineArgs };
   }
 
   return {
     command: "cargo",
     args: ["run", "--quiet", "--manifest-path", manifestPath, "--", ...engineArgs]
   };
+}
+
+/**
+ * Chooses the newest available binary so dev builds do not accidentally run a
+ * stale release artifact left over from packaging.
+ */
+function selectNewestExistingBinary(binaryPaths: string[]): string | undefined {
+  return binaryPaths
+    .filter((binaryPath) => fs.existsSync(binaryPath))
+    .map((binaryPath) => ({
+      binaryPath,
+      modifiedMs: fs.statSync(binaryPath).mtimeMs
+    }))
+    .sort((left, right) => right.modifiedMs - left.modifiedMs)[0]?.binaryPath;
 }
 
 /**

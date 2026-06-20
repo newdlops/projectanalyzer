@@ -4,7 +4,7 @@
 
 import assert from "node:assert/strict";
 import test from "node:test";
-import { projectGraphForView } from "../../webview/graphProjection";
+import { projectGraphForView, summarizeFileImportGraph } from "../../webview/graphProjection";
 import type { GraphEdge, ProjectGraph, SourceRange, SymbolKind, SymbolNode } from "../../shared/types";
 
 const emptyRange: SourceRange = {
@@ -35,6 +35,19 @@ test("projectGraphForView keeps source containers and call edges in call mode", 
     "function-b"
   ]);
   assert.deepEqual(projected.edges.map((edge) => edge.kind).sort(), ["calls", "contains", "contains"]);
+});
+
+test("summarizeFileImportGraph reports entry roots and import coverage", () => {
+  const graph = createProjectionFixture();
+
+  assert.deepEqual(summarizeFileImportGraph(graph), {
+    entryRoots: 1,
+    entryRootDirectories: [{ count: 1, path: "." }],
+    fileNodes: 2,
+    importedFiles: 1,
+    importerFiles: 1,
+    importEdges: 1
+  });
 });
 
 function createProjectionFixture(): ProjectGraph {
