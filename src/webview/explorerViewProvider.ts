@@ -18,6 +18,7 @@ import type { ProjectGraph } from "../shared/types";
 import type { AnalysisCacheStore } from "../storage/cacheStore";
 import type { ProjectAnalyzerConfig } from "../vscode/configuration";
 import type { ExplorerGraphPanelProvider } from "./explorerGraphPanelProvider";
+import { projectGraphForView, summarizeProjectedGraph } from "./graphProjection";
 import { getExplorerHtml } from "./webviewHtml";
 import { createNonce, exportGraphToJson, openNodeInEditor } from "./webviewHostActions";
 
@@ -75,7 +76,9 @@ export class ExplorerViewProvider implements vscode.WebviewViewProvider {
    * Sends graph availability to the sidebar and any open graph panel.
    */
   public async publishGraph(graph: ProjectGraph): Promise<void> {
-    await this.postMessage({ type: "graph/loaded", payload: graph });
+    const sidebarGraph = projectGraphForView(graph, "file", { preserveMetadata: true });
+    this.dependencies.logger.info("sidebar.publishGraph.projected", summarizeProjectedGraph(sidebarGraph));
+    await this.postMessage({ type: "graph/loaded", payload: sidebarGraph });
     await this.dependencies.graphPanelProvider.publishGraph(graph);
   }
 

@@ -36,6 +36,24 @@ test("graph panel HTML exposes canvas viewer controls", () => {
   assert.doesNotThrow(() => new Function("acquireVsCodeApi", script));
 });
 
+test("sidebar HTML renders file navigation as an import tree", () => {
+  const html = getExplorerHtml({
+    webview: { cspSource: "vscode-webview:" } as never,
+    extensionUri: {} as never,
+    nonce: "nonce",
+    defaultDepth: 2,
+    initialMode: "file",
+    surface: "sidebar"
+  });
+  const scriptMatch = html.match(/<script nonce="nonce">([\s\S]*)<\/script>/);
+
+  assert.ok(scriptMatch, "missing sidebar script");
+  assert.match(scriptMatch[1], /createImportTreeIndex/);
+  assert.match(scriptMatch[1], /childrenByImporterId/);
+  assert.doesNotMatch(scriptMatch[1], /insertFileNode/);
+  assert.doesNotThrow(() => new Function("acquireVsCodeApi", scriptMatch[1]));
+});
+
 test("graph panel script renders a loaded graph without module-loader globals", () => {
   const html = getExplorerHtml({
     webview: { cspSource: "vscode-webview:" } as never,

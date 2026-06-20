@@ -12,6 +12,7 @@ import {
   orderGraphNodeIdsByPreviousLayer,
   shouldUseLayeredSelection
 } from "./explorerGraphOrdering";
+import { createCrossFreeTreePositions } from "./explorerGraphTreeLayout";
 
 /** Options that describe the currently visible graph viewport. */
 export type ExplorerGraphSceneOptions = {
@@ -121,7 +122,8 @@ export function createGraphScene(
   const visibleEdges = relevantEdges.filter(
     (edge) => includedNodeIds.has(edge.sourceId) && includedNodeIds.has(edge.targetId)
   );
-  const positions = separateNodePositions(
+  const treePositions = createCrossFreeTreePositions(limitedNodes, visibleEdges, width);
+  const positions = treePositions ?? separateNodePositions(
     createNodePositions(limitedNodes, visibleEdges, selectedNodeId, width, height),
     selectedNodeId,
     width,

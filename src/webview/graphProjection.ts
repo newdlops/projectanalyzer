@@ -13,6 +13,11 @@ export type GraphProjectionSummary = {
   nodes: number;
 };
 
+/** Controls whether projected payload counts replace original analysis counts. */
+export type GraphProjectionOptions = {
+  preserveMetadata?: boolean;
+};
+
 const callNodeKinds = new Set<SymbolKind>(["function", "method", "constructor"]);
 const classNodeKinds = new Set<SymbolKind>([
   "class",
@@ -28,7 +33,11 @@ const classEdgeKinds = new Set<EdgeKind>(["extends", "implements", "overrides", 
 /**
  * Creates a mode-specific graph payload for the visual graph browser.
  */
-export function projectGraphForView(graph: ProjectGraph, mode: GraphViewMode): ProjectGraph {
+export function projectGraphForView(
+  graph: ProjectGraph,
+  mode: GraphViewMode,
+  options: GraphProjectionOptions = {}
+): ProjectGraph {
   const includedNodeIds = createIncludedNodeIds(graph, mode);
   const edges = graph.edges.filter((edge) =>
     isProjectedEdge(edge, mode) &&
@@ -41,11 +50,13 @@ export function projectGraphForView(graph: ProjectGraph, mode: GraphViewMode): P
     ...graph,
     nodes,
     edges,
-    metadata: {
-      ...graph.metadata,
-      symbolCount: nodes.length,
-      edgeCount: edges.length
-    }
+    metadata: options.preserveMetadata
+      ? graph.metadata
+      : {
+        ...graph.metadata,
+        symbolCount: nodes.length,
+        edgeCount: edges.length
+      }
   };
 }
 

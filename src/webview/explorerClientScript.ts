@@ -22,6 +22,7 @@ import {
   pushProgressiveChild,
   sortProgressiveChildMap
 } from "./explorerProgressiveFileGraph";
+import { createCrossFreeTreePositions } from "./explorerGraphTreeLayout";
 
 /** Data injected into the browser-side explorer script. */
 export type ExplorerClientScriptOptions = {
@@ -49,6 +50,7 @@ export function getExplorerClientScript(options: ExplorerClientScriptOptions): s
     `const getSeparationSign = ${getSeparationSign.toString()};`,
     `const moveToward = ${moveToward.toString()};`
   ].join("\n");
+  const graphTreeLayoutSource = `const createCrossFreeTreePositions = ${createCrossFreeTreePositions.toString()};`;
   const progressiveFileGraphSource = [
     `const getGraphRelativePath = ${getGraphRelativePath.toString()};`,
     `const compareFileNodes = ${compareFileNodes.toString()};`,
@@ -63,6 +65,7 @@ export function getExplorerClientScript(options: ExplorerClientScriptOptions): s
   return /* js */ `
     ${graphGeometrySource}
     ${graphOrderingSource}
+    ${graphTreeLayoutSource}
     ${progressiveFileGraphSource}
     const createGraphScene = ${createGraphSceneSource};
     ${canvasRendererSource}
@@ -546,6 +549,10 @@ export function getExplorerClientScript(options: ExplorerClientScriptOptions): s
       }
 
       for (const child of getProgressiveChildren(graph, nodeId)) {
+        if (visitedNodeIds.has(child.node.id)) {
+          continue;
+        }
+
         if (!nodesById.has(child.node.id) && nodesById.size >= nodeLimit) {
           break;
         }
@@ -783,6 +790,7 @@ function createBrowserGraphSceneSource(): string {
     .replace(/\(0,\s*[\w$]+\.getSeparationSign\)/g, "getSeparationSign")
     .replace(/\(0,\s*[\w$]+\.moveToward\)/g, "moveToward")
     .replace(/\(0,\s*[\w$]+\.createOrderMap\)/g, "createOrderMap")
+    .replace(/\(0,\s*[\w$]+\.createCrossFreeTreePositions\)/g, "createCrossFreeTreePositions")
     .replace(/\(0,\s*[\w$]+\.orderGraphNodeIdsByPreviousLayer\)/g, "orderGraphNodeIdsByPreviousLayer")
     .replace(/\(0,\s*[\w$]+\.shouldUseLayeredSelection\)/g, "shouldUseLayeredSelection");
 }

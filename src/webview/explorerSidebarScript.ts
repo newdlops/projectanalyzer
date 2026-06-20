@@ -167,97 +167,93 @@ export function getExplorerSidebarScript(): string {
     }
 
     function createFileTreeRows(graph) {
-      const root = createTreeEntry("root", "", "workspace", undefined);
-      const fileNodes = graph.nodes
-        .filter((node) => node.kind === "file")
-        .sort((left, right) => getRelativePath(graph, left.filePath).localeCompare(getRelativePath(graph, right.filePath)));
+      const index = createImportTreeIndex(graph);
+      const rows = [];
 
-      for (const fileNode of fileNodes) {
-        insertFileNode(root, graph, fileNode);
+      for (const rootNode of getImportRootNodes(index)) {
+        appendImportRows(graph, index, rootNode, rows, [], 0);
       }
 
-      const rows = [];
-      appendTreeRows(root, rows, -1);
       return rows;
     }
 
-    function insertFileNode(root, graph, fileNode) {
-      const parts = getRelativePath(graph, fileNode.filePath).split("/").filter(Boolean);
-      let current = root;
-      let currentPath = "";
+    function createImportTreeIndex(graph) {
+      const fileNodes = graph.nodes
+        .filter((node) => node.kind === "file")
+        .sort((left, right) => getRelativePath(graph, left.filePath).localeCompare(getRelativePath(graph, right.filePath)));
+      const fileNodesById = new Map(fileNodes.map((node) => [node.id, node]));
+      const importedFileIds = new Set();
+      const importerFileIds = new Set();
+      const childrenByImporterId = new Map();
 
-      for (let index = 0; index < parts.length; index += 1) {
-        const part = parts[index];
-        const isFile = index === parts.length - 1;
-        currentPath = currentPath ? currentPath + "/" + part : part;
-        current = getOrCreateTreeChild(
-          current,
-          "path:" + currentPath,
-          part,
-          isFile ? "file" : "folder",
-          isFile ? fileNode.id : undefined
-        );
+      for (const edge of graph.edges) {
+        if (!["imports", "exports"].includes(edge.kind)) {
+          continue;
+        }
+
+        const source = fileNodesById.get(edge.sourceId);
+        const target = fileNodesById.get(edge.targetId);
+
+        if (!source || !target) {
+          continue;
+        }
+
+        importedFileIds.add(target.id);
+        importerFileIds.add(source.id);
+        const children = childrenByImporterId.get(source.id) ?? [];
+        children.push(target);
+        childrenByImporterId.set(source.id, children);
       }
-    }
 
-    function createTreeEntry(id, label, kind, nodeId) {
+      for (const children of childrenByImporterId.values()) {
+        children.sort((left, right) => getRelativePath(graph, left.filePath).localeCompare(getRelativePath(graph, right.filePath)));
+      }
+
       return {
-        id,
-        label,
-        kind,
-        nodeId,
-        children: new Map()
+        childrenByImporterId,
+        fileNodes,
+        importedFileIds,
+        importerFileIds
       };
     }
 
-    function getOrCreateTreeChild(parent, id, label, kind, nodeId) {
-      const existing = parent.children.get(id);
+    function getImportRootNodes(index) {
+      let roots = index.fileNodes.filter((node) =>
+        !index.importedFileIds.has(node.id) && (index.importerFileIds.has(node.id) || index.importerFileIds.size === 0)
+      );
 
-      if (existing) {
-        if (nodeId) {
-          existing.nodeId = nodeId;
-        }
-
-        return existing;
+      if (roots.length === 0 && index.importerFileIds.size > 0) {
+        roots = index.fileNodes.filter((node) => index.importerFileIds.has(node.id));
       }
 
-      const child = createTreeEntry(id, label, kind, nodeId);
-      parent.children.set(id, child);
-      return child;
+      return roots.length > 0 ? roots : index.fileNodes;
     }
 
-    function appendTreeRows(parent, rows, depth) {
-      const children = [...parent.children.values()].sort(compareTreeEntries);
+    function appendImportRows(graph, index, fileNode, rows, ancestorIds, depth) {
+      const nextAncestorIds = [...ancestorIds, fileNode.id];
+      const rowId = "import:" + nextAncestorIds.join(">");
+      const children = (index.childrenByImporterId.get(fileNode.id) ?? [])
+        .filter((child) => !nextAncestorIds.includes(child.id));
+      const hasChildren = children.length > 0;
+      const expanded = hasChildren && state.expandedTreeIds.has(rowId);
+
+      rows.push({
+        id: rowId,
+        label: getRelativePath(graph, fileNode.filePath),
+        kind: depth === 0 ? "entry" : "import",
+        nodeId: fileNode.id,
+        depth,
+        hasChildren,
+        expanded
+      });
+
+      if (!expanded) {
+        return;
+      }
 
       for (const child of children) {
-        const hasChildren = child.children.size > 0;
-        const expanded = hasChildren && state.expandedTreeIds.has(child.id);
-
-        rows.push({
-          id: child.id,
-          label: child.label,
-          kind: child.kind,
-          nodeId: child.nodeId,
-          depth: depth + 1,
-          hasChildren,
-          expanded
-        });
-
-        if (expanded) {
-          appendTreeRows(child, rows, depth + 1);
-        }
+        appendImportRows(graph, index, child, rows, nextAncestorIds, depth + 1);
       }
-    }
-
-    function compareTreeEntries(left, right) {
-      const leftGroup = left.kind === "folder" ? 0 : 1;
-      const rightGroup = right.kind === "folder" ? 0 : 1;
-
-      if (leftGroup !== rightGroup) {
-        return leftGroup - rightGroup;
-      }
-
-      return left.label.localeCompare(right.label);
     }
 
     function toggleTreeRow(treeId) {

@@ -170,6 +170,37 @@ test("createGraphScene orders deeper structural children by parent lane", () => 
   assert.ok(Math.max(...aChildren.map((node) => node.y)) < Math.min(...bChildren.map((node) => node.y)));
 });
 
+test("createGraphScene lays out tree graphs without node collisions or crossing edges", () => {
+  const graph = createLayoutGraph([
+    createTestNode("root"),
+    createTestNode("parent-a"),
+    createTestNode("parent-b"),
+    createTestNode("a-child-1"),
+    createTestNode("a-child-2"),
+    createTestNode("b-child-1"),
+    createTestNode("b-child-2")
+  ], [
+    createContainsEdge("root-a", "root", "parent-a"),
+    createContainsEdge("root-b", "root", "parent-b"),
+    createContainsEdge("a-1", "parent-a", "a-child-1"),
+    createContainsEdge("a-2", "parent-a", "a-child-2"),
+    createContainsEdge("b-1", "parent-b", "b-child-1"),
+    createContainsEdge("b-2", "parent-b", "b-child-2")
+  ]);
+
+  const scene = createGraphScene(graph, {
+    mode: "file",
+    query: "",
+    selectedNodeId: "root",
+    maxNodes: 20,
+    width: 960,
+    height: 560
+  });
+
+  assertNodeCirclesSeparated(scene, 70);
+  assertNoEdgeSegmentCrossings(scene);
+});
+
 /**
  * Creates a minimal graph payload for layout tests.
  */
@@ -276,4 +307,54 @@ function assertNodeCirclesSeparated(
       );
     }
   }
+}
+
+/** Ensures edge centerlines do not cross except at shared graph endpoints. */
+function assertNoEdgeSegmentCrossings(scene: ReturnType<typeof createGraphScene>): void {
+  for (let leftIndex = 0; leftIndex < scene.edges.length; leftIndex += 1) {
+    for (let rightIndex = leftIndex + 1; rightIndex < scene.edges.length; rightIndex += 1) {
+      const left = scene.edges[leftIndex];
+      const right = scene.edges[rightIndex];
+
+      if (
+        left.sourceId === right.sourceId ||
+        left.sourceId === right.targetId ||
+        left.targetId === right.sourceId ||
+        left.targetId === right.targetId
+      ) {
+        continue;
+      }
+
+      assert.equal(
+        segmentsIntersect(left, right),
+        false,
+        `${left.id} crosses ${right.id}`
+      );
+    }
+  }
+}
+
+/** Standard orientation test for two line segments. */
+function segmentsIntersect(
+  left: { x1: number; y1: number; x2: number; y2: number },
+  right: { x1: number; y1: number; x2: number; y2: number }
+): boolean {
+  const a = orientation(left.x1, left.y1, left.x2, left.y2, right.x1, right.y1);
+  const b = orientation(left.x1, left.y1, left.x2, left.y2, right.x2, right.y2);
+  const c = orientation(right.x1, right.y1, right.x2, right.y2, left.x1, left.y1);
+  const d = orientation(right.x1, right.y1, right.x2, right.y2, left.x2, left.y2);
+
+  return a * b < 0 && c * d < 0;
+}
+
+/** Returns the orientation sign for three points. */
+function orientation(
+  ax: number,
+  ay: number,
+  bx: number,
+  by: number,
+  cx: number,
+  cy: number
+): number {
+  return Math.sign((by - ay) * (cx - bx) - (bx - ax) * (cy - by));
 }
