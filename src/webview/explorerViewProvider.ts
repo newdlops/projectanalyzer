@@ -36,6 +36,12 @@ export type ExplorerViewProviderDependencies = {
   logger: ProjectAnalyzerLogger;
 };
 
+/** Cached workspace graph selected for reuse before running analysis. */
+type WorkspaceCacheMatch = {
+  graph: ProjectGraph;
+  kind: "exact" | "latest";
+};
+
 /**
  * Registers and serves the Project Analyzer sidebar Webview.
  */
@@ -178,21 +184,30 @@ export class ExplorerViewProvider implements vscode.WebviewViewProvider {
     }
 
     const workspaceCacheKey = await this.createWorkspaceCacheKey();
-    const cachedGraph = workspaceCacheKey
-      ? await this.getCachedGraph("workspace", workspaceCacheKey)
-      : undefined;
+    const cachedWorkspace = await this.getReusableWorkspaceGraph(workspaceCacheKey);
 
-    if (cachedGraph && workspaceCacheKey) {
-      this.dependencies.logger.info("sidebar.workspaceAnalysis.cacheHit");
-      await this.dependencies.cacheStore.setActiveGraph("workspace", workspaceCacheKey);
-      await this.publishGraph(cachedGraph);
-      await this.dependencies.graphPanelProvider.openGraph(cachedGraph);
-      await this.postStatus("complete", `Loaded cached workspace graph, ${cachedGraph.nodes.length} nodes`);
+    if (cachedWorkspace) {
+      this.dependencies.logger.info("sidebar.workspaceAnalysis.cacheHit", {
+        cacheKind: cachedWorkspace.kind,
+        hasFingerprint: Boolean(workspaceCacheKey)
+      });
+      if (cachedWorkspace.kind === "exact" && workspaceCacheKey) {
+        await this.dependencies.cacheStore.setActiveGraph("workspace", workspaceCacheKey);
+      }
+      await this.publishGraph(cachedWorkspace.graph);
+      await this.dependencies.graphPanelProvider.openGraph(cachedWorkspace.graph);
+      await this.postStatus(
+        "complete",
+        `Loaded cached workspace graph, ${cachedWorkspace.graph.nodes.length} nodes`
+      );
       return;
     }
 
     this.analysisRunning = true;
-    this.dependencies.logger.info("sidebar.workspaceAnalysis.start");
+    this.dependencies.logger.info("sidebar.workspaceAnalysis.start", {
+      cacheEnabled: this.dependencies.config.cache.enabled,
+      hasFingerprint: Boolean(workspaceCacheKey)
+    });
     await this.postStatus("running", "Analyzing workspace");
 
     try {
@@ -325,18 +340,17 @@ export class ExplorerViewProvider implements vscode.WebviewViewProvider {
    */
   private async showWorkspaceScope(): Promise<void> {
     const workspaceCacheKey = await this.createWorkspaceCacheKey();
-    const cachedGraph = workspaceCacheKey
-      ? await this.getCachedGraph("workspace", workspaceCacheKey)
-      : this.dependencies.config.cache.enabled
-        ? undefined
-        : await this.dependencies.cacheStore.getLatestGraphForScope("workspace");
+    const cachedWorkspace = await this.getReusableWorkspaceGraph(workspaceCacheKey);
 
-    if (cachedGraph) {
-      if (workspaceCacheKey) {
+    if (cachedWorkspace) {
+      if (cachedWorkspace.kind === "exact" && workspaceCacheKey) {
         await this.dependencies.cacheStore.setActiveGraph("workspace", workspaceCacheKey);
       }
-      await this.publishGraph(cachedGraph);
-      await this.postStatus("complete", `Workspace scope restored, ${cachedGraph.nodes.length} nodes`);
+      await this.publishGraph(cachedWorkspace.graph);
+      await this.postStatus(
+        "complete",
+        `Workspace scope restored, ${cachedWorkspace.graph.nodes.length} nodes`
+      );
       return;
     }
 
@@ -448,6 +462,40 @@ export class ExplorerViewProvider implements vscode.WebviewViewProvider {
     }
 
     return this.dependencies.cacheStore.getGraph(scope, cacheKey);
+  }
+
+  /** Returns exact workspace cache first, then the newest saved workspace graph. */
+  private async getReusableWorkspaceGraph(cacheKey: string | undefined): Promise<WorkspaceCacheMatch | undefined> {
+    if (!this.dependencies.config.cache.enabled) {
+      return undefined;
+    }
+
+    if (cacheKey) {
+      const exactGraph = await this.dependencies.cacheStore.getGraph("workspace", cacheKey);
+
+      if (exactGraph) {
+        return { graph: exactGraph, kind: "exact" };
+      }
+
+      this.dependencies.logger.info("sidebar.workspaceAnalysis.cacheExactMiss", {
+        cacheKeyPrefix: cacheKey.slice(0, 12)
+      });
+    }
+
+    const latestGraph = await this.dependencies.cacheStore.getLatestGraphForScope("workspace");
+
+    if (!latestGraph) {
+      this.dependencies.logger.info("sidebar.workspaceAnalysis.cacheMiss", {
+        hasFingerprint: Boolean(cacheKey)
+      });
+      return undefined;
+    }
+
+    this.dependencies.logger.info("sidebar.workspaceAnalysis.cacheLatestFallback", {
+      hasFingerprint: Boolean(cacheKey),
+      nodes: latestGraph.nodes.length
+    });
+    return { graph: latestGraph, kind: "latest" };
   }
 
   /** Saves a graph under a scoped cache key and makes it active for the UI. */
