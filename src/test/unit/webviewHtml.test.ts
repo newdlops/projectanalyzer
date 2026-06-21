@@ -67,6 +67,10 @@ test("sidebar HTML renders file navigation as an import tree", () => {
   assert.match(scriptMatch[1], /getFrameworkUnits/);
   assert.match(scriptMatch[1], /getFrameworkUnitEdges/);
   assert.match(scriptMatch[1], /createFrameworkRelationEdgeIndex/);
+  assert.match(scriptMatch[1], /hasDjangoModels/);
+  assert.match(scriptMatch[1], /hasDjangoModelChildren/);
+  assert.match(scriptMatch[1], /hasNestedModelInheritance/);
+  assert.match(scriptMatch[1], /displayKind: "subclass"/);
   assert.match(scriptMatch[1], /getFrameworkSemanticBuckets/);
   assert.match(scriptMatch[1], /getFileName/);
   assert.match(scriptMatch[1], /external module usage/);

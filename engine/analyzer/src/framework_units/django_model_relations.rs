@@ -1,6 +1,6 @@
 //! Django model inheritance relation extraction.
 //!
-//! Django model units are discovered from `models.py` classes by the base
+//! Django model units are discovered from model convention files by the base
 //! adapter. This helper re-reads those model declarations and connects child
 //! models to project-local base model units without resolving external Django
 //! or dependency classes.

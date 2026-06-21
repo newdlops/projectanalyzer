@@ -179,13 +179,34 @@ fn classify_django_file(path: &Path) -> Option<DjangoFile> {
         "models.py" => DjangoFileKind::Models,
         "views.py" => DjangoFileKind::Views,
         "serializers.py" => DjangoFileKind::Serializers,
-        _ => return classify_management_command_file(path),
+        _ => {
+            return classify_models_package_file(path)
+                .or_else(|| classify_management_command_file(path))
+        }
     };
 
     Some(DjangoFile {
         path: path.to_path_buf(),
         app_dir: parent,
         kind,
+    })
+}
+
+/// Classifies model modules stored in `app/models/*.py` package layouts.
+fn classify_models_package_file(path: &Path) -> Option<DjangoFile> {
+    if path.extension()?.to_str()? != "py" || path.file_stem()?.to_str()? == "__init__" {
+        return None;
+    }
+
+    let models_dir = path.parent()?;
+    if models_dir.file_name()?.to_str()? != "models" {
+        return None;
+    }
+
+    Some(DjangoFile {
+        path: path.to_path_buf(),
+        app_dir: models_dir.parent()?.to_path_buf(),
+        kind: DjangoFileKind::Models,
     })
 }
 

@@ -307,7 +307,10 @@ export function getExplorerSidebarScript(): string {
       const frameworkUnits = unitsByFramework.get(getFrameworkKey(framework.name, rootPath)) ?? [];
       const buckets = getFrameworkSemanticBuckets(framework);
       const hasChildren = frameworkUnits.length > 0 || buckets.length > 0;
-      const expanded = hasChildren && state.expandedTreeIds.has(rowId);
+      const unitIds = new Set(frameworkUnits.map((unit) => unit.id));
+      const hasDjangoModels = String(framework.name || "").toLowerCase() === "django" && frameworkUnits.some((unit) => unit.kind === "model");
+      const hasModelInheritance = getFrameworkUnitEdges(graph).some((edge) => edge.kind === "extends" && unitIds.has(edge.sourceId) && unitIds.has(edge.targetId));
+      const expanded = hasChildren && (state.expandedTreeIds.has(rowId) || hasDjangoModels || hasModelInheritance);
 
       rows.push({
         id: rowId,
@@ -368,8 +371,12 @@ export function getExplorerSidebarScript(): string {
       const rowId = parentTreeId + ":unit:" + unit.id;
       const children = (childrenByParentId.get(unit.id) ?? []).sort(compareFrameworkUnits);
       const relationEdges = relationEdgesBySourceId.get(unit.id) ?? [];
-      const hasChildren = children.length > 0 || relationEdges.length > 0;
-      const expanded = hasChildren && state.expandedTreeIds.has(rowId);
+      const visibleChildren = children;
+      const hasModelInheritance = unit.kind === "model" && relationEdges.some((edge) => edge.kind === "extends");
+      const hasDjangoModelChildren = unit.framework === "Django" && unit.kind === "app" && children.some((child) => child.kind === "model");
+      const hasNestedModelInheritance = unit.kind === "app" && children.some((child) => child.kind === "model" && (relationEdgesBySourceId.get(child.id) ?? []).some((edge) => edge.kind === "extends"));
+      const hasChildren = visibleChildren.length > 0 || relationEdges.length > 0;
+      const expanded = hasChildren && (state.expandedTreeIds.has(rowId) || hasDjangoModelChildren || hasModelInheritance || hasNestedModelInheritance);
 
       rows.push({
         id: rowId,
@@ -387,16 +394,16 @@ export function getExplorerSidebarScript(): string {
         return;
       }
 
-      for (const child of children) {
+      for (const child of visibleChildren) {
         appendFrameworkUnitRow(graph, child, childrenByParentId, relationEdgesBySourceId, unitsById, rows, rowId, depth + 1);
       }
 
-      const structuralChildIds = new Set(children.map((child) => child.id));
+      const structuralChildIds = new Set(visibleChildren.map((child) => child.id));
       const relationAncestorIds = new Set([unit.id]);
       for (const edge of relationEdges) {
         const target = unitsById.get(edge.targetId);
 
-        if (!target || structuralChildIds.has(target.id)) {
+        if (!target || (edge.kind !== "extends" && structuralChildIds.has(target.id))) {
           continue;
         }
 
@@ -426,7 +433,7 @@ export function getExplorerSidebarScript(): string {
         : [];
       const visibleRelationEdges = nextRelationEdges.filter((childEdge) => !ancestorUnitIds.has(childEdge.targetId));
       const hasChildren = visibleRelationEdges.length > 0;
-      const expanded = hasChildren && state.expandedTreeIds.has(rowId);
+      const expanded = hasChildren && (state.expandedTreeIds.has(rowId) || edge.kind === "extends");
 
       rows.push({
         id: rowId,
