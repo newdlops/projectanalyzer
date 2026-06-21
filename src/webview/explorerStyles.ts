@@ -312,13 +312,20 @@ export function getExplorerStyles(surface: ExplorerSurface): string {
       overflow: auto;
     }
 
+    .accordion {
+      display: flex;
+      min-height: 0;
+      flex: 1 1 auto;
+      flex-direction: column;
+      gap: 2px;
+      overflow: hidden;
+    }
+
     .tree-section {
       display: flex;
       min-height: 0;
       flex-direction: column;
-      gap: 2px;
       border-top: 1px solid var(--vscode-panel-border);
-      padding-top: 6px;
     }
 
     .framework-section {
@@ -335,13 +342,78 @@ export function getExplorerStyles(surface: ExplorerSurface): string {
       flex: 1 1 auto;
     }
 
-    .tree-section-title {
+    .tree-section.collapsed {
+      flex: 0 0 auto;
+    }
+
+    .accordion-panel {
+      display: flex;
+      min-height: 0;
+      flex: 1 1 auto;
+      padding-top: 2px;
+    }
+
+    .accordion-panel[hidden] {
+      display: none;
+    }
+
+    .accordion-header {
+      display: grid;
+      grid-template-columns: 16px minmax(0, 1fr);
+      align-items: center;
+      width: 100%;
+      height: 24px;
+      padding: 0 6px 0 0;
       overflow: hidden;
+      border: 0;
+      border-radius: 0;
       color: var(--vscode-descriptionForeground);
+      background: transparent;
+      cursor: pointer;
       font-size: 11px;
       font-weight: 600;
+      text-align: left;
       text-overflow: ellipsis;
       text-transform: uppercase;
+      white-space: nowrap;
+    }
+
+    .accordion-header:hover {
+      background: var(--vscode-list-hoverBackground);
+    }
+
+    .accordion-header:focus-visible {
+      outline: 1px solid var(--vscode-focusBorder);
+      outline-offset: -1px;
+    }
+
+    .accordion-disclosure {
+      position: relative;
+      width: 16px;
+      height: 24px;
+    }
+
+    .accordion-disclosure::before {
+      position: absolute;
+      top: 8px;
+      left: 5px;
+      width: 0;
+      height: 0;
+      border-top: 4px solid transparent;
+      border-bottom: 4px solid transparent;
+      border-left: 5px solid var(--vscode-icon-foreground);
+      content: "";
+      opacity: 0.82;
+    }
+
+    .accordion-header[aria-expanded="true"] .accordion-disclosure::before {
+      transform: rotate(90deg);
+      transform-origin: 2px 4px;
+    }
+
+    .accordion-title {
+      overflow: hidden;
+      text-overflow: ellipsis;
       white-space: nowrap;
     }
 

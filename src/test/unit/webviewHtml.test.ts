@@ -55,6 +55,11 @@ test("sidebar HTML renders file navigation as an import tree", () => {
   assert.match(html, /id="framework-summary"/);
   assert.match(html, /id="show-workspace"/);
   assert.match(html, /Workspace Scope/);
+  assert.match(html, /Graph Disabled/);
+  assert.match(html, /id="accordion-frameworks"/);
+  assert.match(html, /id="accordion-calls"/);
+  assert.match(html, /id="accordion-files"/);
+  assert.match(html, /aria-controls="framework-panel"/);
   assert.match(html, /id="framework-tree"/);
   assert.match(html, /Framework semantic tree/);
   assert.match(html, /id="call-tree"/);
@@ -64,7 +69,10 @@ test("sidebar HTML renders file navigation as an import tree", () => {
   assert.match(scriptMatch[1], /createImportTreeIndex/);
   assert.match(scriptMatch[1], /createFrameworkTreeRows/);
   assert.match(scriptMatch[1], /createFunctionCallTreeRows/);
+  assert.match(scriptMatch[1], /expandedAccordionSections/);
+  assert.match(scriptMatch[1], /renderAccordionSections/);
   assert.ok(scriptMatch[1].includes("graph/showWorkspaceScope"));
+  assert.doesNotMatch(scriptMatch[1], /graph\/openPanel/);
   assert.match(scriptMatch[1], /Called by/);
   assert.match(scriptMatch[1], /String\(counts\.outgoing\)/);
   assert.match(scriptMatch[1], /childrenByImporterId/);

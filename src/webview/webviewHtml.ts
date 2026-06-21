@@ -53,7 +53,7 @@ function getSidebarHtml(options: WebviewHtmlOptions): string {
     <div class="button-grid">
       <button id="analyze-current" class="secondary-button" type="button">Current File</button>
       <button id="show-workspace" class="secondary-button" type="button">Workspace Scope</button>
-      <button id="open-graph" class="secondary-button" type="button">Open Graph</button>
+      <button id="open-graph" class="secondary-button" type="button" title="Graph rendering is temporarily disabled" disabled>Graph Disabled</button>
       <button id="cancel-analysis" class="secondary-button" type="button">Cancel</button>
       <button id="export-json" class="secondary-button" type="button">Export JSON</button>
       <button id="clear-cache" class="secondary-button" type="button">Clear</button>
@@ -74,17 +74,34 @@ function getSidebarHtml(options: WebviewHtmlOptions): string {
         <div id="framework-summary" class="summary-list"></div>
       </div>
     </div>
-    <div class="tree-section framework-section">
-      <div class="tree-section-title">Frameworks</div>
-      <div id="framework-tree" class="list explorer-tree framework-tree" role="tree" aria-label="Framework semantic tree"></div>
-    </div>
-    <div class="tree-section calls-section">
-      <div class="tree-section-title">Function Calls</div>
-      <div id="call-tree" class="list explorer-tree call-tree" role="tree" aria-label="Function call tree"></div>
-    </div>
-    <div class="tree-section files-section">
-      <div class="tree-section-title">Files</div>
-      <div id="explorer-tree" class="list explorer-tree" role="tree" aria-label="Project import tree"></div>
+    <div class="accordion" aria-label="Explorer sections">
+      <section id="framework-section" class="tree-section framework-section">
+        <button id="accordion-frameworks" class="accordion-header" type="button" aria-expanded="true" aria-controls="framework-panel">
+          <span class="accordion-disclosure"></span>
+          <span class="accordion-title">Frameworks</span>
+        </button>
+        <div id="framework-panel" class="accordion-panel">
+          <div id="framework-tree" class="list explorer-tree framework-tree" role="tree" aria-label="Framework semantic tree"></div>
+        </div>
+      </section>
+      <section id="call-section" class="tree-section calls-section">
+        <button id="accordion-calls" class="accordion-header" type="button" aria-expanded="true" aria-controls="call-panel">
+          <span class="accordion-disclosure"></span>
+          <span class="accordion-title">Function Calls</span>
+        </button>
+        <div id="call-panel" class="accordion-panel">
+          <div id="call-tree" class="list explorer-tree call-tree" role="tree" aria-label="Function call tree"></div>
+        </div>
+      </section>
+      <section id="files-section" class="tree-section files-section collapsed">
+        <button id="accordion-files" class="accordion-header" type="button" aria-expanded="false" aria-controls="files-panel">
+          <span class="accordion-disclosure"></span>
+          <span class="accordion-title">Files</span>
+        </button>
+        <div id="files-panel" class="accordion-panel" hidden>
+          <div id="explorer-tree" class="list explorer-tree" role="tree" aria-label="Project import tree"></div>
+        </div>
+      </section>
     </div>
   </div>
   <script nonce="${options.nonce}">${clientScript}</script>

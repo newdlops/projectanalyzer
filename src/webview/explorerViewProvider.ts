@@ -42,6 +42,9 @@ type WorkspaceCacheMatch = {
   kind: "exact" | "latest";
 };
 
+/** Temporary gate while the visual graph renderer is disconnected from the GUI. */
+const GRAPH_RENDERING_ENABLED = false;
+
 /**
  * Registers and serves the Project Analyzer sidebar Webview.
  */
@@ -83,7 +86,7 @@ export class ExplorerViewProvider implements vscode.WebviewViewProvider {
   }
 
   /**
-   * Sends graph availability to the sidebar and any open graph panel.
+   * Sends graph availability to the sidebar and, when enabled, the graph panel.
    */
   public async publishGraph(graph: ProjectGraph): Promise<void> {
     const sidebarGraph = projectGraphForSidebar(graph);
@@ -92,7 +95,9 @@ export class ExplorerViewProvider implements vscode.WebviewViewProvider {
       projected: summarizeProjectedGraph(sidebarGraph)
     });
     await this.postMessage({ type: "graph/loaded", payload: sidebarGraph });
-    await this.dependencies.graphPanelProvider.publishGraph(graph);
+    if (GRAPH_RENDERING_ENABLED) {
+      await this.dependencies.graphPanelProvider.publishGraph(graph);
+    }
   }
 
   /**
@@ -130,7 +135,7 @@ export class ExplorerViewProvider implements vscode.WebviewViewProvider {
         await this.openSourceNode(message.payload.nodeId);
         break;
       case "node/showRelationship":
-        await this.dependencies.graphPanelProvider.openGraph();
+        await this.postGraphRenderingDisabledStatus();
         break;
       case "export/run":
         await this.exportGraph(message.payload);
@@ -195,7 +200,6 @@ export class ExplorerViewProvider implements vscode.WebviewViewProvider {
         await this.dependencies.cacheStore.setActiveGraph("workspace", workspaceCacheKey);
       }
       await this.publishGraph(cachedWorkspace.graph);
-      await this.dependencies.graphPanelProvider.openGraph(cachedWorkspace.graph);
       await this.postStatus(
         "complete",
         `Loaded cached workspace graph, ${cachedWorkspace.graph.nodes.length} nodes`
@@ -219,7 +223,6 @@ export class ExplorerViewProvider implements vscode.WebviewViewProvider {
       });
       await this.saveGraphToCache("workspace", workspaceCacheKey ?? "workspace", result.graph, "Workspace analysis");
       await this.publishGraph(result.graph);
-      await this.dependencies.graphPanelProvider.openGraph(result.graph);
       await this.postStatus(
         "complete",
         `Indexed ${result.graph.metadata.fileCount} files, ${result.graph.nodes.length} nodes`
@@ -291,7 +294,6 @@ export class ExplorerViewProvider implements vscode.WebviewViewProvider {
         });
         await this.dependencies.cacheStore.setActiveGraph("currentFile", currentFileCacheKey);
         await this.publishGraph(cachedGraph);
-        await this.dependencies.graphPanelProvider.openGraph(cachedGraph);
         await this.postStatus("complete", `Loaded cached ${document.fileName}, ${cachedGraph.nodes.length} nodes`);
         return;
       }
@@ -304,7 +306,6 @@ export class ExplorerViewProvider implements vscode.WebviewViewProvider {
       });
       await this.saveGraphToCache("currentFile", currentFileCacheKey, result.graph, document.fileName);
       await this.publishGraph(result.graph);
-      await this.dependencies.graphPanelProvider.openGraph(result.graph);
       await this.postStatus("complete", `Analyzed ${document.fileName}, ${result.graph.nodes.length} nodes`);
     } catch (error) {
       this.dependencies.logger.error("sidebar.currentFileAnalysis.failed", {
@@ -329,7 +330,9 @@ export class ExplorerViewProvider implements vscode.WebviewViewProvider {
   private async clearCache(): Promise<void> {
     await this.dependencies.cacheStore.clear();
     await this.postMessage({ type: "graph/cleared", payload: {} });
-    await this.dependencies.graphPanelProvider.clearGraph();
+    if (GRAPH_RENDERING_ENABLED) {
+      await this.dependencies.graphPanelProvider.clearGraph();
+    }
     await this.postStatus("idle", "Cache cleared");
   }
 
@@ -394,6 +397,11 @@ export class ExplorerViewProvider implements vscode.WebviewViewProvider {
    * Opens the latest graph in a separate editor-tab WebviewPanel.
    */
   private async openGraphPanel(): Promise<void> {
+    if (!GRAPH_RENDERING_ENABLED) {
+      await this.postGraphRenderingDisabledStatus();
+      return;
+    }
+
     const graph = await this.dependencies.cacheStore.getLatestGraph();
     this.dependencies.logger.info("sidebar.openGraphPanel", { hasGraph: Boolean(graph) });
 
@@ -411,6 +419,11 @@ export class ExplorerViewProvider implements vscode.WebviewViewProvider {
    * Opens the graph browser and reveals a node selected from the sidebar tree.
    */
   private async focusGraphNode(nodeId: string): Promise<void> {
+    if (!GRAPH_RENDERING_ENABLED) {
+      await this.postGraphRenderingDisabledStatus();
+      return;
+    }
+
     const graph = await this.dependencies.cacheStore.getLatestGraph();
 
     if (!graph) {
@@ -420,6 +433,12 @@ export class ExplorerViewProvider implements vscode.WebviewViewProvider {
 
     await this.dependencies.graphPanelProvider.focusNode(nodeId, graph);
     await this.postStatus("complete", "Graph browser focused");
+  }
+
+  /** Reports the temporary renderer gate without affecting analyzed tree data. */
+  private async postGraphRenderingDisabledStatus(): Promise<void> {
+    this.dependencies.logger.info("sidebar.graphRendering.disabled");
+    await this.postStatus("idle", "Graph rendering is temporarily disabled");
   }
 
   /**
