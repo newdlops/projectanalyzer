@@ -3,6 +3,8 @@
 //! This analyzer uses indentation and line prefixes to produce fast class and
 //! function nodes without importing a Python parser.
 
+mod calls;
+
 use std::collections::BTreeMap;
 use std::path::{Component, Path, PathBuf};
 
@@ -11,11 +13,26 @@ use crate::graph::{
 };
 use crate::model::{SourceInput, SourceRange};
 
+use self::calls::{
+    add_call_edges, collect_python_calls, current_call_source, declaration_call_scan_start,
+    CallCandidate,
+};
+
 /// Indentation-based Python scope entry.
 struct ScopeEntry {
     id: String,
     name: String,
+    kind: String,
     indent: usize,
+    scope_names: Vec<String>,
+}
+
+/// Python symbol metadata used by call analysis for same-file resolution.
+struct SymbolRecord {
+    id: String,
+    name: String,
+    kind: String,
+    qualified_name: String,
 }
 
 /// Python import candidate resolved after all workspace files are known.
@@ -33,9 +50,12 @@ pub fn extract_symbols(
     file_id: String,
 ) -> Result<(), String> {
     let mut scopes: Vec<ScopeEntry> = Vec::new();
+    let mut symbols: Vec<SymbolRecord> = Vec::new();
+    let mut calls: Vec<CallCandidate> = Vec::new();
 
     for (line_index, line) in file.content.lines().enumerate() {
-        let trimmed = line.trim_start();
+        let code_line = strip_python_comment(line);
+        let trimmed = code_line.trim_start();
 
         if trimmed.is_empty() || trimmed.starts_with('#') {
             continue;
@@ -56,7 +76,7 @@ pub fn extract_symbols(
             let id = builder.add_symbol(NewSymbol {
                 kind: kind.clone(),
                 name: name.clone(),
-                scope_names,
+                scope_names: scope_names.clone(),
                 file_path: file.path.clone(),
                 range: range.clone(),
                 selection_range: name_range(line_index, line, &name),
@@ -64,12 +84,52 @@ pub fn extract_symbols(
                 parent_id,
             });
 
-            if kind == "class" {
-                scopes.push(ScopeEntry { id, name, indent });
+            symbols.push(SymbolRecord {
+                id: id.clone(),
+                name: name.clone(),
+                kind: kind.clone(),
+                qualified_name: scope_names.join("."),
+            });
+
+            if kind == "function" {
+                let call_scan_start = declaration_call_scan_start(code_line);
+                if call_scan_start < code_line.len() {
+                    collect_python_calls(
+                        &mut calls,
+                        line_index,
+                        code_line,
+                        call_scan_start,
+                        &id,
+                        &scope_names,
+                    );
+                }
             }
+
+            if kind == "class" || kind == "function" {
+                scopes.push(ScopeEntry {
+                    id,
+                    name,
+                    kind,
+                    indent,
+                    scope_names,
+                });
+            }
+            continue;
+        }
+
+        if let Some(source) = current_call_source(&scopes) {
+            collect_python_calls(
+                &mut calls,
+                line_index,
+                code_line,
+                0,
+                &source.id,
+                &source.scope_names,
+            );
         }
     }
 
+    add_call_edges(builder, file, &symbols, calls);
     Ok(())
 }
 
@@ -331,6 +391,31 @@ fn read_imported_names(imported_part: &str) -> impl Iterator<Item = String> + '_
         .filter(|name| name != "*")
 }
 
+/// Removes trailing Python comments while preserving `#` inside simple strings.
+fn strip_python_comment(line: &str) -> &str {
+    let bytes = line.as_bytes();
+    let mut index = 0usize;
+    let mut quote: Option<u8> = None;
+
+    while index < bytes.len() {
+        match (bytes[index], quote) {
+            (b'\\', Some(_)) => index += 2,
+            (b'\'' | b'"', None) => {
+                quote = Some(bytes[index]);
+                index += 1;
+            }
+            (character, Some(active_quote)) if character == active_quote => {
+                quote = None;
+                index += 1;
+            }
+            (b'#', None) => return &line[..index],
+            _ => index += 1,
+        }
+    }
+
+    line
+}
+
 /// Detects a Python declaration line.
 fn detect_declaration(trimmed: &str) -> Option<(String, String)> {
     if let Some(name) = read_name_after_keyword(trimmed, "class") {
@@ -408,6 +493,30 @@ mod tests {
     }
 
     #[test]
+    fn extracts_python_function_call_edges() {
+        let file = SourceInput {
+            path: PathBuf::from("/workspace/app.py"),
+            language_id: "python".to_string(),
+            content: "class Service:\n    def run(self):\n        return self.load()\n    def load(self):\n        return helper()\n\ndef helper():\n    return format_value()\n\ndef format_value():\n    return \"value\"\n"
+                .to_string(),
+            size_bytes: 174,
+        };
+        let mut builder = ProjectGraphBuilder::new(PathBuf::from("/workspace"));
+        let file_id = builder.add_file(&file);
+
+        extract_symbols(&mut builder, &file, file_id).expect("extracts symbols and calls");
+        let graph = builder.finish();
+        let run_id = node_id(&graph, "run");
+        let load_id = node_id(&graph, "load");
+        let helper_id = node_id(&graph, "helper");
+        let format_id = node_id(&graph, "format_value");
+
+        assert_call_edge(&graph, &run_id, &load_id);
+        assert_call_edge(&graph, &load_id, &helper_id);
+        assert_call_edge(&graph, &helper_id, &format_id);
+    }
+
+    #[test]
     fn adds_python_import_edges_between_files() {
         let files = vec![
             source(
@@ -478,5 +587,23 @@ mod tests {
             content: content.to_string(),
             size_bytes: content.len(),
         }
+    }
+
+    fn node_id(graph: &crate::model::ProjectGraph, name: &str) -> String {
+        graph
+            .nodes
+            .iter()
+            .find(|node| node.name == name)
+            .map(|node| node.id.clone())
+            .unwrap_or_else(|| panic!("missing node named {name}"))
+    }
+
+    fn assert_call_edge(graph: &crate::model::ProjectGraph, source_id: &str, target_id: &str) {
+        assert!(
+            graph.edges.iter().any(|edge| {
+                edge.kind == "calls" && edge.source_id == source_id && edge.target_id == target_id
+            }),
+            "missing calls edge from {source_id} to {target_id}"
+        );
     }
 }

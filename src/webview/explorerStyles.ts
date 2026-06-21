@@ -323,6 +323,11 @@ export function getExplorerStyles(surface: ExplorerSurface): string {
 
     .framework-section {
       flex: 0 1 auto;
+      max-height: 28vh;
+    }
+
+    .calls-section {
+      flex: 0 1 auto;
       max-height: 34vh;
     }
 

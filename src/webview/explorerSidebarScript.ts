@@ -4,15 +4,18 @@
  */
 
 import { getProgressiveFileGraphBrowserSource } from "./explorerProgressiveFileGraph";
+import { getFunctionCallTreeBrowserSource } from "./explorerFunctionCallTree";
 
 /**
  * Builds the sidebar control and file-tree script.
  */
 export function getExplorerSidebarScript(): string {
   const progressiveFileGraphSource = getProgressiveFileGraphBrowserSource();
+  const functionCallTreeSource = getFunctionCallTreeBrowserSource();
 
   return /* js */ `
     ${progressiveFileGraphSource}
+    ${functionCallTreeSource}
     const vscode = acquireVsCodeApi();
     const state = {
       graph: undefined,
@@ -34,6 +37,7 @@ export function getExplorerSidebarScript(): string {
       languageSummary: document.getElementById("language-summary"),
       frameworkSummary: document.getElementById("framework-summary"),
       frameworkTree: document.getElementById("framework-tree"),
+      callTree: document.getElementById("call-tree"),
       explorerTree: document.getElementById("explorer-tree")
     };
 
@@ -110,6 +114,7 @@ export function getExplorerSidebarScript(): string {
       renderStats();
       renderProjectSummary();
       renderFrameworkTree();
+      renderFunctionCallTree();
       renderFileTree();
       renderActions();
     }
@@ -199,6 +204,26 @@ export function getExplorerSidebarScript(): string {
 
       for (const row of rows) {
         appendTreeRow(elements.explorerTree, row);
+      }
+    }
+
+    function renderFunctionCallTree() {
+      elements.callTree.replaceChildren();
+
+      if (!state.graph) {
+        appendEmptyTree(elements.callTree, "Analyze a workspace to load function calls");
+        return;
+      }
+
+      const rows = createFunctionCallTreeRows(state.graph, state.expandedTreeIds);
+
+      if (rows.length === 0) {
+        appendEmptyTree(elements.callTree, "No callable functions in graph");
+        return;
+      }
+
+      for (const row of rows) {
+        appendTreeRow(elements.callTree, row);
       }
     }
 
