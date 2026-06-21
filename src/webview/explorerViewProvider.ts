@@ -22,7 +22,7 @@ import {
   createWorkspaceAnalysisCacheKey
 } from "../vscode/workspaceFingerprint";
 import type { ExplorerGraphPanelProvider } from "./explorerGraphPanelProvider";
-import { projectGraphForView, summarizeFileImportGraph, summarizeProjectedGraph } from "./graphProjection";
+import { projectGraphForSidebar, summarizeFileImportGraph, summarizeProjectedGraph } from "./graphProjection";
 import { getExplorerHtml } from "./webviewHtml";
 import { createNonce, exportGraphToJson, openNodeInEditor } from "./webviewHostActions";
 
@@ -86,7 +86,7 @@ export class ExplorerViewProvider implements vscode.WebviewViewProvider {
    * Sends graph availability to the sidebar and any open graph panel.
    */
   public async publishGraph(graph: ProjectGraph): Promise<void> {
-    const sidebarGraph = projectGraphForView(graph, "file", { preserveMetadata: true });
+    const sidebarGraph = projectGraphForSidebar(graph);
     this.dependencies.logger.info("sidebar.publishGraph.projected", {
       fileImportGraph: summarizeFileImportGraph(graph),
       projected: summarizeProjectedGraph(sidebarGraph)

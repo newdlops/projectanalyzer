@@ -4,7 +4,11 @@
 
 import assert from "node:assert/strict";
 import test from "node:test";
-import { projectGraphForView, summarizeFileImportGraph } from "../../webview/graphProjection";
+import {
+  projectGraphForSidebar,
+  projectGraphForView,
+  summarizeFileImportGraph
+} from "../../webview/graphProjection";
 import type { GraphEdge, ProjectGraph, SourceRange, SymbolKind, SymbolNode } from "../../shared/types";
 
 const emptyRange: SourceRange = {
@@ -35,6 +39,28 @@ test("projectGraphForView keeps source containers and call edges in call mode", 
     "function-b"
   ]);
   assert.deepEqual(projected.edges.map((edge) => edge.kind).sort(), ["calls", "contains", "contains"]);
+});
+
+test("projectGraphForSidebar keeps file imports and function calls together", () => {
+  const graph = createProjectionFixture();
+  const projected = projectGraphForSidebar(graph);
+
+  assert.deepEqual(projected.nodes.map((node) => node.id).sort(), [
+    "external-react",
+    "file-a",
+    "file-b",
+    "function-a",
+    "function-b"
+  ]);
+  assert.deepEqual(projected.edges.map((edge) => edge.kind).sort(), [
+    "calls",
+    "contains",
+    "contains",
+    "imports",
+    "imports"
+  ]);
+  assert.equal(projected.metadata.symbolCount, graph.metadata.symbolCount);
+  assert.equal(projected.metadata.edgeCount, graph.metadata.edgeCount);
 });
 
 test("summarizeFileImportGraph reports entry roots and import coverage", () => {

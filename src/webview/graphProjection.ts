@@ -79,6 +79,28 @@ export function projectGraphForView(
   };
 }
 
+/**
+ * Creates the sidebar payload. The sidebar owns both the file import explorer and
+ * the function call explorer, so it must keep file import relationships and
+ * callable symbol relationships in one compact graph.
+ */
+export function projectGraphForSidebar(graph: ProjectGraph): ProjectGraph {
+  const includedNodeIds = createSidebarNodeIds(graph);
+  const edges = graph.edges.filter((edge) =>
+    isSidebarEdge(edge) &&
+    includedNodeIds.has(edge.sourceId) &&
+    includedNodeIds.has(edge.targetId)
+  );
+  const nodes = graph.nodes.filter((node) => includedNodeIds.has(node.id));
+
+  return {
+    ...graph,
+    nodes,
+    edges,
+    metadata: graph.metadata
+  };
+}
+
 /** Builds a concise count summary for logging projected payload sizes. */
 export function summarizeProjectedGraph(graph: ProjectGraph): GraphProjectionSummary {
   return {
@@ -178,6 +200,36 @@ function createIncludedNodeIds(graph: ProjectGraph, mode: GraphViewMode): Set<st
   return includedNodeIds;
 }
 
+/** Determines which node ids are needed by sidebar tree views. */
+function createSidebarNodeIds(graph: ProjectGraph): Set<string> {
+  const includedNodeIds = new Set<string>();
+  const nodesById = new Map(graph.nodes.map((node) => [node.id, node]));
+
+  for (const node of graph.nodes) {
+    if (node.kind === "file" || callNodeKinds.has(node.kind)) {
+      includedNodeIds.add(node.id);
+    }
+  }
+
+  for (const edge of graph.edges) {
+    const target = nodesById.get(edge.targetId);
+    const isExternalImport =
+      (edge.kind === "imports" || edge.kind === "exports") &&
+      includedNodeIds.has(edge.sourceId) &&
+      target?.kind === "external";
+    const isExternalCallTarget =
+      edge.kind === "calls" &&
+      includedNodeIds.has(edge.sourceId) &&
+      target?.kind === "external";
+
+    if (isExternalImport || isExternalCallTarget) {
+      includedNodeIds.add(edge.targetId);
+    }
+  }
+
+  return includedNodeIds;
+}
+
 /** Checks whether a symbol node belongs to the active visual mode. */
 function isProjectedSymbolNode(kind: SymbolKind, mode: GraphViewMode): boolean {
   if (mode === "file") {
@@ -202,6 +254,16 @@ function isProjectedEdge(edge: GraphEdge, mode: GraphViewMode): boolean {
   }
 
   return getModeEdgeKinds(mode).has(edge.kind);
+}
+
+/** Checks whether an edge belongs to any sidebar tree. */
+function isSidebarEdge(edge: GraphEdge): boolean {
+  return (
+    edge.kind === "imports" ||
+    edge.kind === "exports" ||
+    edge.kind === "contains" ||
+    edge.kind === "calls"
+  );
 }
 
 /** Returns structural relationship kinds for non-file visual modes. */
