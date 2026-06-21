@@ -56,8 +56,23 @@ fn extracts_django_units_edges_and_json_fields() {
     let published_model = find_unit(&extraction.units, "model", "PublishedModel");
     let post_model = find_unit(&extraction.units, "model", "Post");
     let audit_log_model = find_unit(&extraction.units, "model", "AuditLog");
+    let product_model = find_unit(&extraction.units, "model", "Product");
+    let catalog_package_model = find_unit(&extraction.units, "model", "catalog");
+    let legacy_module_model = find_unit(&extraction.units, "model", "legacy");
     let post_serializer = find_unit(&extraction.units, "serializer", "PostSerializer");
     let site_settings = find_unit(&extraction.units, "configuration", "settings");
+    assert_eq!(
+        product_model.parent_id.as_deref(),
+        Some(blog_app.id.as_str())
+    );
+    assert_eq!(
+        catalog_package_model.parent_id.as_deref(),
+        Some(blog_app.id.as_str())
+    );
+    assert_eq!(
+        legacy_module_model.parent_id.as_deref(),
+        Some(blog_app.id.as_str())
+    );
     assert_eq!(feed_route.parent_id.as_deref(), Some(site_app.id.as_str()));
     assert_eq!(
         include_route.parent_id.as_deref(),
@@ -94,6 +109,11 @@ fn extracts_django_units_edges_and_json_fields() {
         edge.kind == "extends"
             && edge.source_id == audit_log_model.id
             && edge.target_id == timestamped_model.id
+    }));
+    assert!(extraction.edges.iter().any(|edge| {
+        edge.kind == "extends"
+            && edge.source_id == product_model.id
+            && edge.target_id == published_model.id
     }));
     assert!(extraction.edges.iter().any(|edge| {
         edge.kind == "usesModel"
@@ -329,6 +349,18 @@ fn write_django_fixture(workspace: &Path) {
     write_file(
         &workspace.join("blog/models/audit.py"),
         "from blog.models import TimestampedModel\n\nclass AuditLog(TimestampedModel):\n    pass\n",
+    );
+    write_file(
+        &workspace.join("blog/models/catalog/__init__.py"),
+        "from .product import Product\n",
+    );
+    write_file(
+        &workspace.join("blog/models/catalog/product.py"),
+        "from blog.models import PublishedModel\n\nclass Product(PublishedModel):\n    pass\n",
+    );
+    write_file(
+        &workspace.join("blog/models/legacy.py"),
+        "legacy_model = create_model('LegacyModel')\n",
     );
     write_file(
         &workspace.join("blog/views.py"),

@@ -192,22 +192,34 @@ fn classify_django_file(path: &Path) -> Option<DjangoFile> {
     })
 }
 
-/// Classifies model modules stored in `app/models/*.py` package layouts.
+/// Classifies model modules stored anywhere under `app/models/**/*.py`.
 fn classify_models_package_file(path: &Path) -> Option<DjangoFile> {
-    if path.extension()?.to_str()? != "py" || path.file_stem()?.to_str()? == "__init__" {
+    if path.extension()?.to_str()? != "py" {
         return None;
     }
 
-    let models_dir = path.parent()?;
-    if models_dir.file_name()?.to_str()? != "models" {
-        return None;
-    }
+    let app_dir = find_models_package_app_dir(path)?;
 
     Some(DjangoFile {
         path: path.to_path_buf(),
-        app_dir: models_dir.parent()?.to_path_buf(),
+        app_dir,
         kind: DjangoFileKind::Models,
     })
+}
+
+/// Finds the Django app directory that owns a `models` package descendant.
+fn find_models_package_app_dir(path: &Path) -> Option<PathBuf> {
+    let mut directory = path.parent()?;
+
+    while let Some(name) = directory.file_name().and_then(|value| value.to_str()) {
+        if name == "models" {
+            return directory.parent().map(Path::to_path_buf);
+        }
+
+        directory = directory.parent()?;
+    }
+
+    None
 }
 
 /// Classifies `management/commands/*.py` command modules.
@@ -347,9 +359,7 @@ fn create_unit_drafts(file: &DjangoFile, content: &str) -> Vec<UnitDraft> {
             content,
             &[Declaration::Class],
         ),
-        DjangoFileKind::Models => {
-            declaration_units_or_file_unit("model", &file.path, content, &[Declaration::Class])
-        }
+        DjangoFileKind::Models => model_units_or_file_unit(&file.path, content),
         DjangoFileKind::Views => declaration_units_or_file_unit(
             "view",
             &file.path,
@@ -361,6 +371,17 @@ fn create_unit_drafts(file: &DjangoFile, content: &str) -> Vec<UnitDraft> {
         }
         DjangoFileKind::Command => vec![command_unit(&file.path, content)],
     }
+}
+
+/// Returns model declarations, preserving filesystem model modules as fallback.
+fn model_units_or_file_unit(file_path: &Path, content: &str) -> Vec<UnitDraft> {
+    let mut units = declaration_units("model", content, &[Declaration::Class]);
+
+    if units.is_empty() {
+        units.push(model_module_unit(file_path, content));
+    }
+
+    units
 }
 
 /// Returns URL pattern declarations, falling back to the URLConf file unit.
@@ -498,6 +519,30 @@ fn file_level_unit(kind: &'static str, file_path: &Path, content: &str) -> UnitD
         range: full_content_range(content),
         route_target: None,
     }
+}
+
+/// Creates a model unit from the module path when class extraction has no result.
+fn model_module_unit(file_path: &Path, content: &str) -> UnitDraft {
+    UnitDraft {
+        kind: "model",
+        name: model_module_fallback_name(file_path),
+        range: full_content_range(content),
+        route_target: None,
+    }
+}
+
+/// Names model package fallback units after their concrete module or package.
+fn model_module_fallback_name(file_path: &Path) -> String {
+    if file_stem(file_path) != "__init__" {
+        return file_stem(file_path);
+    }
+
+    file_path
+        .parent()
+        .and_then(|parent| parent.file_name())
+        .and_then(|value| value.to_str())
+        .unwrap_or("__init__")
+        .to_string()
 }
 
 /// Creates one command unit, using the Command class range when present.
