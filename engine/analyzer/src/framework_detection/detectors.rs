@@ -6,7 +6,7 @@ use super::parse::{
     gemfile_line_declares_gem, python_manifest_declares_dependency, read_go_required_modules,
     section_contains_json_key,
 };
-use super::{FrameworkAccumulator, FrameworkDefinition};
+use super::{FrameworkAccumulator, FrameworkDefinition, DJANGO_DEFINITION};
 
 /// Dispatches detection by manifest name.
 pub(super) fn detect_manifest(
@@ -260,14 +260,7 @@ fn detect_python_manifest(
     accumulator: &mut FrameworkAccumulator,
 ) {
     const PYTHON_DETECTIONS: &[(&str, FrameworkDefinition)] = &[
-        (
-            "django",
-            FrameworkDefinition {
-                name: "Django",
-                ecosystem: "python",
-                category: "backend",
-            },
-        ),
+        ("django", DJANGO_DEFINITION),
         (
             "flask",
             FrameworkDefinition {

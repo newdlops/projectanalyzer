@@ -4,6 +4,7 @@
 //! framework evidence from dependency and script declarations.
 
 mod detectors;
+mod django_project_scan;
 mod manifest_scan;
 mod parse;
 
@@ -17,13 +18,20 @@ use std::path::Path;
 use crate::model::DetectedFramework;
 
 use self::detectors::detect_manifest;
+use self::django_project_scan::scan_django_project_roots;
 use self::manifest_scan::scan_manifest_files;
 
 const MAX_MANIFEST_SIZE_BYTES: u64 = 1024 * 1024;
+pub(super) const DJANGO_DEFINITION: FrameworkDefinition = FrameworkDefinition {
+    name: "Django",
+    ecosystem: "python",
+    category: "backend",
+};
 
 /// Scans a workspace for known ecosystem manifests and returns framework metadata.
 pub fn detect_frameworks(workspace_root: &Path) -> Result<Vec<DetectedFramework>, String> {
     let manifests = scan_manifest_files(workspace_root)?;
+    let django_project_roots = scan_django_project_roots(workspace_root)?;
     let mut accumulator = FrameworkAccumulator::new();
 
     for manifest in manifests {
@@ -47,10 +55,25 @@ pub fn detect_frameworks(workspace_root: &Path) -> Result<Vec<DetectedFramework>
         detect_manifest(&manifest, &content, &mut accumulator);
     }
 
+    for project_root in &django_project_roots {
+        accumulator.add(
+            &project_root.root_path,
+            &DJANGO_DEFINITION,
+            "high",
+            project_root.evidence.clone(),
+        );
+    }
+    let django_project_root_paths = django_project_roots
+        .iter()
+        .map(|root| root.root_path.clone())
+        .collect::<Vec<_>>();
+    accumulator.suppress_django_ancestor_roots(&django_project_root_paths);
+
     Ok(accumulator.finish())
 }
 
 /// Static framework definition shared by manifest-specific detectors.
+#[derive(Clone, Copy)]
 pub(super) struct FrameworkDefinition {
     pub(super) name: &'static str,
     pub(super) ecosystem: &'static str,
@@ -111,6 +134,50 @@ impl FrameworkAccumulator {
         entry.evidence.insert(evidence);
     }
 
+    /// Removes broad Django rows that only represent a parent package root.
+    ///
+    /// Monorepos often keep a shared Python manifest at the repository root while
+    /// hosting multiple concrete Django projects under child directories. Those
+    /// child roots should drive semantic analysis so that each project is shown
+    /// as a separate framework tree and the parent manifest does not rescan all
+    /// projects as one large Django app.
+    pub(super) fn suppress_django_ancestor_roots(&mut self, concrete_root_paths: &[String]) {
+        if concrete_root_paths.is_empty() {
+            return;
+        }
+
+        let keys_to_remove = self
+            .entries
+            .iter()
+            .filter_map(|(key, draft)| {
+                if !is_django_framework(&draft.framework) {
+                    return None;
+                }
+
+                let root_path = draft.framework.root_path.as_deref().unwrap_or(".");
+                if concrete_root_paths
+                    .iter()
+                    .any(|concrete| same_root_path(root_path, concrete))
+                {
+                    return None;
+                }
+
+                if concrete_root_paths
+                    .iter()
+                    .any(|concrete| is_proper_ancestor_root(root_path, concrete))
+                {
+                    return Some(key.clone());
+                }
+
+                None
+            })
+            .collect::<Vec<_>>();
+
+        for key in keys_to_remove {
+            self.entries.remove(&key);
+        }
+    }
+
     /// Returns stable framework rows sorted by root path, ecosystem, and name.
     fn finish(self) -> Vec<DetectedFramework> {
         self.entries
@@ -130,5 +197,43 @@ fn confidence_rank(confidence: &str) -> usize {
         "medium" => 2,
         "low" => 1,
         _ => 0,
+    }
+}
+
+/// Returns whether a detected row is the canonical Django framework row.
+fn is_django_framework(framework: &DetectedFramework) -> bool {
+    framework.name == DJANGO_DEFINITION.name && framework.ecosystem == DJANGO_DEFINITION.ecosystem
+}
+
+/// Compares framework root labels after normalizing empty labels to workspace root.
+fn same_root_path(left: &str, right: &str) -> bool {
+    normalize_root_path(left) == normalize_root_path(right)
+}
+
+/// Returns whether `candidate` is a strict workspace-relative ancestor of `child`.
+fn is_proper_ancestor_root(candidate: &str, child: &str) -> bool {
+    let candidate = normalize_root_path(candidate);
+    let child = normalize_root_path(child);
+
+    if candidate == child {
+        return false;
+    }
+
+    if candidate == "." {
+        return child != ".";
+    }
+
+    child
+        .strip_prefix(candidate)
+        .map(|suffix| suffix.starts_with('/'))
+        .unwrap_or(false)
+}
+
+/// Normalizes root labels emitted by detector helpers.
+fn normalize_root_path(root_path: &str) -> &str {
+    if root_path.is_empty() {
+        "."
+    } else {
+        root_path
     }
 }

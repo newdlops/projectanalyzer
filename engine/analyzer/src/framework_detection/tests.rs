@@ -96,6 +96,46 @@ fn detects_frameworks_across_manifest_ecosystems() {
 }
 
 #[test]
+fn detects_multiple_django_project_roots_from_manage_py_entrypoints() {
+    let workspace = create_temp_workspace("django-monorepo");
+    write_file(
+        &workspace.join("requirements.txt"),
+        "Django>=4\npytest==8\n",
+    );
+    write_file(
+        &workspace.join("services/admin/manage.py"),
+        &django_manage_py("admin.settings"),
+    );
+    write_file(
+        &workspace.join("services/api/manage.py"),
+        &django_manage_py("api.settings"),
+    );
+
+    let frameworks = detect_frameworks(&workspace).expect("detects frameworks");
+
+    assert_framework(
+        &frameworks,
+        "Django",
+        "python",
+        "backend",
+        "high",
+        "services/admin",
+    );
+    assert_framework(
+        &frameworks,
+        "Django",
+        "python",
+        "backend",
+        "high",
+        "services/api",
+    );
+    assert_no_framework(&frameworks, "Django", "python", ".");
+    assert_framework(&frameworks, "pytest", "python", "test", "high", ".");
+
+    remove_temp_workspace(&workspace);
+}
+
+#[test]
 fn ignores_manifests_inside_excluded_directories() {
     let workspace = create_temp_workspace("excluded-frameworks");
     write_file(
@@ -132,6 +172,28 @@ fn assert_framework(
         !framework.evidence.is_empty(),
         "framework {ecosystem}/{name} should include evidence"
     );
+}
+
+fn assert_no_framework(
+    frameworks: &[DetectedFramework],
+    name: &str,
+    ecosystem: &str,
+    root_path: &str,
+) {
+    assert!(
+        !frameworks.iter().any(|framework| {
+            framework.name == name
+                && framework.ecosystem == ecosystem
+                && framework.root_path.as_deref() == Some(root_path)
+        }),
+        "unexpected framework {ecosystem}/{name} at {root_path}"
+    );
+}
+
+fn django_manage_py(settings_module: &str) -> String {
+    format!(
+        "import os\nfrom django.core.management import execute_from_command_line\nos.environ.setdefault('DJANGO_SETTINGS_MODULE', '{settings_module}')\nexecute_from_command_line()\n"
+    )
 }
 
 fn create_temp_workspace(label: &str) -> PathBuf {

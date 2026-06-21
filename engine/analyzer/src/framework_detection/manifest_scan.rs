@@ -81,9 +81,12 @@ fn is_manifest_name(name: &str) -> bool {
 /// Returns a stable workspace-relative package root for a manifest file.
 fn manifest_root_path(workspace_root: &Path, manifest_path: &Path) -> String {
     let manifest_directory = manifest_path.parent().unwrap_or(workspace_root);
-    let relative = manifest_directory
-        .strip_prefix(workspace_root)
-        .unwrap_or(manifest_directory);
+    workspace_relative_root_path(workspace_root, manifest_directory)
+}
+
+/// Returns a stable workspace-relative root label for a directory.
+pub(super) fn workspace_relative_root_path(workspace_root: &Path, directory: &Path) -> String {
+    let relative = directory.strip_prefix(workspace_root).unwrap_or(directory);
 
     if relative.as_os_str().is_empty() {
         ".".to_string()
