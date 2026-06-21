@@ -52,6 +52,8 @@ fn extracts_django_units_edges_and_json_fields() {
     let detail_route = find_unit(&extraction.units, "route", "posts/<int:pk>/ (post-detail)");
     let feed_view = find_unit(&extraction.units, "view", "feed");
     let detail_view = find_unit(&extraction.units, "view", "PostDetailView");
+    let timestamped_model = find_unit(&extraction.units, "model", "TimestampedModel");
+    let published_model = find_unit(&extraction.units, "model", "PublishedModel");
     let post_model = find_unit(&extraction.units, "model", "Post");
     let post_serializer = find_unit(&extraction.units, "serializer", "PostSerializer");
     let site_settings = find_unit(&extraction.units, "configuration", "settings");
@@ -76,6 +78,16 @@ fn extracts_django_units_edges_and_json_fields() {
         edge.kind == "usesModel"
             && edge.source_id == post_serializer.id
             && edge.target_id == post_model.id
+    }));
+    assert!(extraction.edges.iter().any(|edge| {
+        edge.kind == "extends"
+            && edge.source_id == published_model.id
+            && edge.target_id == timestamped_model.id
+    }));
+    assert!(extraction.edges.iter().any(|edge| {
+        edge.kind == "extends"
+            && edge.source_id == post_model.id
+            && edge.target_id == published_model.id
     }));
     assert!(extraction.edges.iter().any(|edge| {
         edge.kind == "usesModel"
@@ -306,7 +318,7 @@ fn write_django_fixture(workspace: &Path) {
     );
     write_file(
         &workspace.join("blog/models.py"),
-        "from django.db import models\n\nclass Post(models.Model):\n    pass\n",
+        "from django.db import models\n\nclass TimestampedModel(models.Model):\n    created_at = models.DateTimeField()\n\n    class Meta:\n        abstract = True\n\nclass PublishedModel(\n    TimestampedModel,\n):\n    class Meta:\n        abstract = True\n\nclass Post(PublishedModel):\n    pass\n",
     );
     write_file(
         &workspace.join("blog/views.py"),

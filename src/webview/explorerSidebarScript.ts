@@ -392,6 +392,7 @@ export function getExplorerSidebarScript(): string {
       }
 
       const structuralChildIds = new Set(children.map((child) => child.id));
+      const relationAncestorIds = new Set([unit.id]);
       for (const edge of relationEdges) {
         const target = unitsById.get(edge.targetId);
 
@@ -399,18 +400,70 @@ export function getExplorerSidebarScript(): string {
           continue;
         }
 
-        rows.push({
-          id: rowId + ":edge:" + edge.kind + ":" + target.id,
-          label: target.name,
-          name: target.name,
-          detail: edge.kind + " / " + target.kind,
-          kind: "semantic",
-          nodeId: getFileNodeIdByPath(graph, target.filePath),
-          depth: depth + 1,
-          hasChildren: false,
-          expanded: false
-        });
+        appendFrameworkRelationRow(
+          graph,
+          edge,
+          relationEdgesBySourceId,
+          unitsById,
+          rows,
+          rowId,
+          depth + 1,
+          relationAncestorIds
+        );
       }
+    }
+
+    function appendFrameworkRelationRow(graph, edge, relationEdgesBySourceId, unitsById, rows, parentTreeId, depth, ancestorUnitIds) {
+      const target = unitsById.get(edge.targetId);
+
+      if (!target || ancestorUnitIds.has(target.id)) {
+        return;
+      }
+
+      const rowId = parentTreeId + ":edge:" + edge.kind + ":" + target.id;
+      const nextRelationEdges = edge.kind === "extends"
+        ? (relationEdgesBySourceId.get(target.id) ?? []).filter((childEdge) => childEdge.kind === "extends")
+        : [];
+      const visibleRelationEdges = nextRelationEdges.filter((childEdge) => !ancestorUnitIds.has(childEdge.targetId));
+      const hasChildren = visibleRelationEdges.length > 0;
+      const expanded = hasChildren && state.expandedTreeIds.has(rowId);
+
+      rows.push({
+        id: rowId,
+        label: target.name,
+        name: target.name,
+        detail: getFrameworkRelationDetail(edge, target),
+        kind: "semantic",
+        nodeId: getFileNodeIdByPath(graph, target.filePath),
+        depth,
+        hasChildren,
+        expanded
+      });
+
+      if (!expanded) {
+        return;
+      }
+
+      const nextAncestorUnitIds = new Set(ancestorUnitIds);
+      nextAncestorUnitIds.add(target.id);
+
+      for (const childEdge of visibleRelationEdges) {
+        appendFrameworkRelationRow(
+          graph,
+          childEdge,
+          relationEdgesBySourceId,
+          unitsById,
+          rows,
+          rowId,
+          depth + 1,
+          nextAncestorUnitIds
+        );
+      }
+    }
+
+    function getFrameworkRelationDetail(edge, target) {
+      const relationLabel = edge.displayKind || edge.kind;
+      return relationLabel + " / " + target.kind;
     }
 
     function createFrameworkRelationEdgeIndex(graph, unitsById) {
@@ -418,6 +471,18 @@ export function getExplorerSidebarScript(): string {
 
       for (const edge of getFrameworkUnitEdges(graph)) {
         if (edge.kind === "contains" || !unitsById.has(edge.sourceId) || !unitsById.has(edge.targetId)) {
+          continue;
+        }
+
+        if (edge.kind === "extends") {
+          const edges = relationEdgesBySourceId.get(edge.targetId) ?? [];
+          edges.push({
+            ...edge,
+            sourceId: edge.targetId,
+            targetId: edge.sourceId,
+            displayKind: "subclass"
+          });
+          relationEdgesBySourceId.set(edge.targetId, edges);
           continue;
         }
 

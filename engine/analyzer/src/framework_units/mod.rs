@@ -5,6 +5,7 @@
 
 mod django;
 mod django_deep_relations;
+mod django_model_relations;
 mod django_relations;
 mod django_routes;
 mod fastapi;
@@ -52,6 +53,11 @@ pub fn analyze_framework_units(
             django_extraction
                 .edges
                 .extend(django_relations::relation_edges(&django_extraction.units));
+            django_extraction
+                .edges
+                .extend(django_model_relations::relation_edges(
+                    &django_extraction.units,
+                ));
             django_extraction
                 .edges
                 .extend(django_deep_relations::relation_edges(

@@ -135,7 +135,15 @@ export type FrameworkUnit = {
 /** Directed relationship between framework semantic units. */
 export type FrameworkUnitEdge = {
   id?: string;
-  kind: "contains" | "routesTo" | "usesModel" | "renders" | "injects" | "calls" | "configures";
+  kind:
+    | "contains"
+    | "routesTo"
+    | "usesModel"
+    | "renders"
+    | "injects"
+    | "calls"
+    | "configures"
+    | "extends";
   sourceId: string;
   targetId: string;
   filePath?: string;
