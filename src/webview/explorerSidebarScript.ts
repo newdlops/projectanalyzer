@@ -252,10 +252,6 @@ export function getExplorerSidebarScript(): string {
         }
 
         render();
-
-        if (row.nodeId) {
-          postRequest("graph/focusNode", { nodeId: row.nodeId }, "Opening graph browser");
-        }
       });
       button.addEventListener("keydown", (event) => {
         if (event.key === "ArrowRight" && row.hasChildren && !row.expanded) {
@@ -305,12 +301,8 @@ export function getExplorerSidebarScript(): string {
       const rootPath = framework.rootPath || ".";
       const rowId = getFrameworkRowId(framework);
       const frameworkUnits = unitsByFramework.get(getFrameworkKey(framework.name, rootPath)) ?? [];
-      const buckets = getFrameworkSemanticBuckets(framework);
-      const hasChildren = frameworkUnits.length > 0 || buckets.length > 0;
-      const unitIds = new Set(frameworkUnits.map((unit) => unit.id));
-      const hasDjangoModels = String(framework.name || "").toLowerCase() === "django" && frameworkUnits.some((unit) => unit.kind === "model");
-      const hasModelInheritance = getFrameworkUnitEdges(graph).some((edge) => edge.kind === "extends" && unitIds.has(edge.sourceId) && unitIds.has(edge.targetId));
-      const expanded = hasChildren && (state.expandedTreeIds.has(rowId) || hasDjangoModels || hasModelInheritance);
+      const hasChildren = frameworkUnits.length > 0;
+      const expanded = hasChildren && state.expandedTreeIds.has(rowId);
 
       rows.push({
         id: rowId,
@@ -323,27 +315,11 @@ export function getExplorerSidebarScript(): string {
         expanded
       });
 
-      if (!expanded) {
+      if (!expanded || frameworkUnits.length === 0) {
         return;
       }
 
-      if (frameworkUnits.length > 0) {
-        appendFrameworkUnitRows(graph, frameworkUnits, rows, rowId, 1);
-        return;
-      }
-
-      for (const bucket of buckets) {
-        rows.push({
-          id: rowId + ":" + bucket.toLowerCase().replace(/\\s+/g, "-"),
-          label: bucket,
-          name: bucket,
-          detail: framework.name,
-          kind: "semantic",
-          depth: 1,
-          hasChildren: false,
-          expanded: false
-        });
-      }
+      appendFrameworkUnitRows(graph, frameworkUnits, rows, rowId, 1);
     }
 
     function appendFrameworkUnitRows(graph, units, rows, parentTreeId, depth) {
@@ -371,12 +347,8 @@ export function getExplorerSidebarScript(): string {
       const rowId = parentTreeId + ":unit:" + unit.id;
       const children = (childrenByParentId.get(unit.id) ?? []).sort(compareFrameworkUnits);
       const relationEdges = relationEdgesBySourceId.get(unit.id) ?? [];
-      const visibleChildren = children;
-      const hasModelInheritance = unit.kind === "model" && relationEdges.some((edge) => edge.kind === "extends");
-      const hasDjangoModelChildren = unit.framework === "Django" && unit.kind === "app" && children.some((child) => child.kind === "model");
-      const hasNestedModelInheritance = unit.kind === "app" && children.some((child) => child.kind === "model" && (relationEdgesBySourceId.get(child.id) ?? []).some((edge) => edge.kind === "extends"));
-      const hasChildren = visibleChildren.length > 0 || relationEdges.length > 0;
-      const expanded = hasChildren && (state.expandedTreeIds.has(rowId) || hasDjangoModelChildren || hasModelInheritance || hasNestedModelInheritance);
+      const hasChildren = children.length > 0 || relationEdges.length > 0;
+      const expanded = hasChildren && state.expandedTreeIds.has(rowId);
 
       rows.push({
         id: rowId,
@@ -394,11 +366,22 @@ export function getExplorerSidebarScript(): string {
         return;
       }
 
-      for (const child of visibleChildren) {
+      const modelChildren = unit.framework === "Django" && unit.kind === "app"
+        ? children.filter((child) => child.kind === "model")
+        : [];
+      const nonModelChildren = modelChildren.length > 0
+        ? children.filter((child) => child.kind !== "model")
+        : children;
+
+      for (const child of nonModelChildren) {
         appendFrameworkUnitRow(graph, child, childrenByParentId, relationEdgesBySourceId, unitsById, rows, rowId, depth + 1);
       }
 
-      const structuralChildIds = new Set(visibleChildren.map((child) => child.id));
+      if (modelChildren.length > 0) {
+        appendDjangoModelBucketRow(graph, modelChildren, childrenByParentId, relationEdgesBySourceId, unitsById, rows, rowId, depth + 1);
+      }
+
+      const structuralChildIds = new Set(nonModelChildren.map((child) => child.id));
       const relationAncestorIds = new Set([unit.id]);
       for (const edge of relationEdges) {
         const target = unitsById.get(edge.targetId);
@@ -420,6 +403,44 @@ export function getExplorerSidebarScript(): string {
       }
     }
 
+    function appendDjangoModelBucketRow(graph, modelUnits, childrenByParentId, relationEdgesBySourceId, unitsById, rows, parentTreeId, depth) {
+      const rowId = parentTreeId + ":models";
+      const modelIds = new Set(modelUnits.map((unit) => unit.id));
+      const inheritedModelIds = new Set();
+
+      for (const model of modelUnits) {
+        for (const edge of relationEdgesBySourceId.get(model.id) ?? []) {
+          if (edge.kind === "extends" && modelIds.has(edge.targetId)) {
+            inheritedModelIds.add(edge.targetId);
+          }
+        }
+      }
+
+      const rootModels = modelUnits
+        .filter((unit) => !inheritedModelIds.has(unit.id))
+        .sort(compareFrameworkUnits);
+      const expanded = rootModels.length > 0 && state.expandedTreeIds.has(rowId);
+
+      rows.push({
+        id: rowId,
+        label: "Models",
+        name: "Models",
+        detail: String(modelUnits.length) + " models",
+        kind: "semantic",
+        depth,
+        hasChildren: rootModels.length > 0,
+        expanded
+      });
+
+      if (!expanded) {
+        return;
+      }
+
+      for (const model of rootModels) {
+        appendFrameworkUnitRow(graph, model, childrenByParentId, relationEdgesBySourceId, unitsById, rows, rowId, depth + 1);
+      }
+    }
+
     function appendFrameworkRelationRow(graph, edge, relationEdgesBySourceId, unitsById, rows, parentTreeId, depth, ancestorUnitIds) {
       const target = unitsById.get(edge.targetId);
 
@@ -433,7 +454,7 @@ export function getExplorerSidebarScript(): string {
         : [];
       const visibleRelationEdges = nextRelationEdges.filter((childEdge) => !ancestorUnitIds.has(childEdge.targetId));
       const hasChildren = visibleRelationEdges.length > 0;
-      const expanded = hasChildren && (state.expandedTreeIds.has(rowId) || edge.kind === "extends");
+      const expanded = hasChildren && state.expandedTreeIds.has(rowId);
 
       rows.push({
         id: rowId,
@@ -693,56 +714,6 @@ export function getExplorerSidebarScript(): string {
     function compareFrameworkUnits(left, right) {
       return String(left.kind).localeCompare(String(right.kind)) ||
         String(left.name).localeCompare(String(right.name));
-    }
-
-    function getFrameworkSemanticBuckets(framework) {
-      const name = String(framework.name || "").toLowerCase();
-
-      if (name === "django") {
-        return ["Apps", "URLs", "Views", "Models", "Serializers", "Management Commands", "Settings"];
-      }
-
-      if (name === "next.js") {
-        return ["App Routes", "Pages", "API Routes", "Layouts", "Components", "Server Actions"];
-      }
-
-      if (name === "react") {
-        return ["Components", "Hooks", "Routes", "State"];
-      }
-
-      if (name === "fastapi") {
-        return ["Routers", "Endpoints", "Dependencies", "Schemas"];
-      }
-
-      if (name === "flask") {
-        return ["Blueprints", "Routes", "Views", "Templates", "Config"];
-      }
-
-      if (name === "nestjs") {
-        return ["Modules", "Controllers", "Providers", "DTOs"];
-      }
-
-      if (name === "express") {
-        return ["Routers", "Middleware", "Handlers"];
-      }
-
-      if (name === "spring boot") {
-        return ["Controllers", "Services", "Repositories", "Entities", "Configuration"];
-      }
-
-      if (["vue", "nuxt", "svelte", "sveltekit"].includes(name)) {
-        return ["Routes", "Pages", "Components", "Stores"];
-      }
-
-      if (["axum", "actix web", "rocket", "gin", "echo", "fiber"].includes(name)) {
-        return ["Routes", "Handlers", "Middleware", "State"];
-      }
-
-      if (["laravel", "symfony", "rails"].includes(name)) {
-        return ["Routes", "Controllers", "Models", "Views", "Commands"];
-      }
-
-      return ["Entry Points", "Configuration"];
     }
 
     function renderActions() {
