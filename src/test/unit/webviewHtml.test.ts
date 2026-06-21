@@ -60,6 +60,7 @@ test("sidebar HTML renders file navigation as an import tree", () => {
   assert.match(html, /id="accordion-calls"/);
   assert.match(html, /id="accordion-files"/);
   assert.match(html, /aria-controls="framework-panel"/);
+  assert.match(html, /id="call-panel" class="accordion-panel" hidden/);
   assert.match(html, /id="framework-tree"/);
   assert.match(html, /Framework semantic tree/);
   assert.match(html, /id="call-tree"/);
@@ -70,7 +71,11 @@ test("sidebar HTML renders file navigation as an import tree", () => {
   assert.match(scriptMatch[1], /createFrameworkTreeRows/);
   assert.match(scriptMatch[1], /createFunctionCallTreeRows/);
   assert.match(scriptMatch[1], /expandedAccordionSections/);
+  assert.match(scriptMatch[1], /new Set\(\["frameworks"\]\)/);
   assert.match(scriptMatch[1], /renderAccordionSections/);
+  assert.match(scriptMatch[1], /renderVirtualTree/);
+  assert.match(scriptMatch[1], /VIRTUAL_TREE_ROW_HEIGHT/);
+  assert.match(scriptMatch[1], /clearAccordionPanel/);
   assert.ok(scriptMatch[1].includes("graph/showWorkspaceScope"));
   assert.doesNotMatch(scriptMatch[1], /graph\/openPanel/);
   assert.match(scriptMatch[1], /Called by/);

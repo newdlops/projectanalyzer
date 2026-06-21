@@ -6,6 +6,7 @@
 import { getProgressiveFileGraphBrowserSource } from "./explorerProgressiveFileGraph";
 import { getFunctionCallTreeBrowserSource } from "./explorerFunctionCallTree";
 import { getFrameworkTreeBrowserSource } from "./explorerFrameworkTree";
+import { getVirtualTreeBrowserSource } from "./explorerVirtualTree";
 
 /**
  * Builds the sidebar control and file-tree script.
@@ -14,17 +15,22 @@ export function getExplorerSidebarScript(): string {
   const progressiveFileGraphSource = getProgressiveFileGraphBrowserSource();
   const functionCallTreeSource = getFunctionCallTreeBrowserSource();
   const frameworkTreeSource = getFrameworkTreeBrowserSource();
+  const virtualTreeSource = getVirtualTreeBrowserSource();
 
   return /* js */ `
     ${progressiveFileGraphSource}
     ${functionCallTreeSource}
     ${frameworkTreeSource}
+    ${virtualTreeSource}
     const vscode = acquireVsCodeApi();
     const state = {
       graph: undefined,
       analysisState: "idle",
-      expandedAccordionSections: new Set(["frameworks", "calls"]),
+      expandedAccordionSections: new Set(["frameworks"]),
       expandedTreeIds: new Set(["root"]),
+      graphRevision: 0,
+      treeRevision: 0,
+      treeRowsCache: new Map(),
       selectedTreeId: undefined
     };
     const elements = {
@@ -94,6 +100,8 @@ export function getExplorerSidebarScript(): string {
 
       if (message.type === "graph/loaded" || message.type === "graph/updated") {
         state.graph = message.payload;
+        state.graphRevision += 1;
+        state.treeRowsCache.clear();
         elements.status.textContent = "Graph available";
         render();
         return;
@@ -102,6 +110,8 @@ export function getExplorerSidebarScript(): string {
       if (message.type === "graph/cleared") {
         state.graph = undefined;
         state.analysisState = "idle";
+        state.graphRevision += 1;
+        state.treeRowsCache.clear();
         render();
         return;
       }
@@ -164,8 +174,19 @@ export function getExplorerSidebarScript(): string {
       header.setAttribute("aria-expanded", expanded ? "true" : "false");
       panel.hidden = !expanded;
 
-      if (expanded) {
-        renderPanel();
+      if (!expanded) {
+        clearAccordionPanel(panel);
+        return;
+      }
+
+      renderPanel();
+    }
+
+    function clearAccordionPanel(panel) {
+      const tree = panel.querySelector(".explorer-tree");
+
+      if (tree) {
+        clearVirtualTree(tree);
       }
     }
 
@@ -218,66 +239,52 @@ export function getExplorerSidebarScript(): string {
     }
 
     function renderFrameworkTree() {
-      elements.frameworkTree.replaceChildren();
-
       if (!state.graph) {
+        clearVirtualTree(elements.frameworkTree);
         appendEmptyTree(elements.frameworkTree, "Analyze a workspace to load frameworks");
         return;
       }
 
-      const rows = createFrameworkTreeRows(state.graph);
-
-      if (rows.length === 0) {
-        appendEmptyTree(elements.frameworkTree, "No frameworks detected");
-        return;
-      }
-
-      for (const row of rows) {
-        appendTreeRow(elements.frameworkTree, row);
-      }
+      const rows = getTreeRows("frameworks", () => createFrameworkTreeRows(state.graph));
+      renderVirtualTree(elements.frameworkTree, rows, "No frameworks detected");
     }
 
     function renderFileTree() {
-      elements.explorerTree.replaceChildren();
-
       if (!state.graph) {
+        clearVirtualTree(elements.explorerTree);
         appendEmptyTree(elements.explorerTree, "Analyze a workspace to load files");
         return;
       }
 
-      const rows = createFileTreeRows(state.graph);
-
-      if (rows.length === 0) {
-        appendEmptyTree(elements.explorerTree, "No files in graph");
-        return;
-      }
-
-      for (const row of rows) {
-        appendTreeRow(elements.explorerTree, row);
-      }
+      const rows = getTreeRows("files", () => createFileTreeRows(state.graph));
+      renderVirtualTree(elements.explorerTree, rows, "No files in graph");
     }
 
     function renderFunctionCallTree() {
-      elements.callTree.replaceChildren();
-
       if (!state.graph) {
+        clearVirtualTree(elements.callTree);
         appendEmptyTree(elements.callTree, "Analyze a workspace to load function calls");
         return;
       }
 
-      const rows = createFunctionCallTreeRows(state.graph, state.expandedTreeIds);
-
-      if (rows.length === 0) {
-        appendEmptyTree(elements.callTree, "No callable functions in graph");
-        return;
-      }
-
-      for (const row of rows) {
-        appendTreeRow(elements.callTree, row);
-      }
+      const rows = getTreeRows("calls", () => createFunctionCallTreeRows(state.graph, state.expandedTreeIds));
+      renderVirtualTree(elements.callTree, rows, "No callable functions in graph");
     }
 
-    function appendTreeRow(parent, row) {
+    function getTreeRows(sectionId, createRows) {
+      const cacheKey = sectionId + ":" + String(state.graphRevision) + ":" + String(state.treeRevision);
+      const cached = state.treeRowsCache.get(cacheKey);
+
+      if (cached) {
+        return cached;
+      }
+
+      const rows = createRows();
+      state.treeRowsCache.set(cacheKey, rows);
+      return rows;
+    }
+
+    function createTreeRow(row) {
       const button = document.createElement("button");
       const disclosure = document.createElement("span");
       const icon = document.createElement("span");
@@ -349,7 +356,11 @@ export function getExplorerSidebarScript(): string {
         }
       });
 
-      parent.append(button);
+      return button;
+    }
+
+    function appendTreeRow(parent, row) {
+      parent.append(createTreeRow(row));
     }
 
     function createFileTreeRows(graph) {
@@ -449,6 +460,9 @@ export function getExplorerSidebarScript(): string {
       } else {
         state.expandedTreeIds.add(treeId);
       }
+
+      state.treeRevision += 1;
+      state.treeRowsCache.clear();
     }
 
     function appendEmptyTree(parent, message) {

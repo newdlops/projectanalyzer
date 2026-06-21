@@ -84,12 +84,12 @@ function getSidebarHtml(options: WebviewHtmlOptions): string {
           <div id="framework-tree" class="list explorer-tree framework-tree" role="tree" aria-label="Framework semantic tree"></div>
         </div>
       </section>
-      <section id="call-section" class="tree-section calls-section">
-        <button id="accordion-calls" class="accordion-header" type="button" aria-expanded="true" aria-controls="call-panel">
+      <section id="call-section" class="tree-section calls-section collapsed">
+        <button id="accordion-calls" class="accordion-header" type="button" aria-expanded="false" aria-controls="call-panel">
           <span class="accordion-disclosure"></span>
           <span class="accordion-title">Function Calls</span>
         </button>
-        <div id="call-panel" class="accordion-panel">
+        <div id="call-panel" class="accordion-panel" hidden>
           <div id="call-tree" class="list explorer-tree call-tree" role="tree" aria-label="Function call tree"></div>
         </div>
       </section>

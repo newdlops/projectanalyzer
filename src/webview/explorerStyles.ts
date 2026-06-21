@@ -326,24 +326,31 @@ export function getExplorerStyles(surface: ExplorerSurface): string {
       min-height: 0;
       flex-direction: column;
       border-top: 1px solid var(--vscode-panel-border);
+      overflow: hidden;
     }
 
     .framework-section {
-      flex: 0 1 auto;
+      flex: 1 1 160px;
       max-height: 28vh;
     }
 
     .calls-section {
-      flex: 0 1 auto;
+      flex: 1 1 220px;
       max-height: 34vh;
     }
 
     .files-section {
-      flex: 1 1 auto;
+      flex: 1 1 240px;
+    }
+
+    .tree-section:not(.collapsed) {
+      min-height: 96px;
     }
 
     .tree-section.collapsed {
       flex: 0 0 auto;
+      min-height: 0;
+      max-height: none;
     }
 
     .accordion-panel {
@@ -351,6 +358,7 @@ export function getExplorerStyles(surface: ExplorerSurface): string {
       min-height: 0;
       flex: 1 1 auto;
       padding-top: 2px;
+      overflow: hidden;
     }
 
     .accordion-panel[hidden] {
@@ -362,6 +370,7 @@ export function getExplorerStyles(surface: ExplorerSurface): string {
       grid-template-columns: 16px minmax(0, 1fr);
       align-items: center;
       width: 100%;
+      flex: 0 0 24px;
       height: 24px;
       padding: 0 6px 0 0;
       overflow: hidden;
@@ -420,6 +429,28 @@ export function getExplorerStyles(surface: ExplorerSurface): string {
     .explorer-tree {
       gap: 0;
       padding: 2px 0;
+    }
+
+    .explorer-tree.virtual-tree {
+      display: block;
+      position: relative;
+      width: 100%;
+      height: 100%;
+      min-height: 0;
+      overflow: auto;
+    }
+
+    .virtual-tree-spacer {
+      position: relative;
+      width: 100%;
+      min-width: 0;
+    }
+
+    .virtual-tree-row {
+      position: absolute;
+      top: 0;
+      right: 0;
+      left: 0;
     }
 
     .node-row {
