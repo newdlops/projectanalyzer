@@ -4,13 +4,18 @@
 //! graph-ready units without coupling language analyzers to framework details.
 
 mod django;
+mod django_deep_relations;
 mod django_relations;
 mod django_routes;
 mod fastapi;
+mod fastapi_relations;
 mod flask;
+mod flask_relations;
 mod js_backend;
+mod js_backend_relations;
 mod js_backend_support;
 mod js_frontend;
+mod js_frontend_relations;
 
 #[cfg(test)]
 mod tests;
@@ -47,19 +52,44 @@ pub fn analyze_framework_units(
             django_extraction
                 .edges
                 .extend(django_relations::relation_edges(&django_extraction.units));
+            django_extraction
+                .edges
+                .extend(django_deep_relations::relation_edges(
+                    &django_extraction.units,
+                ));
             extraction.extend(django_extraction);
         }
         if is_fastapi_framework(framework) {
-            extraction.extend(fastapi::analyze(workspace_root, framework)?);
+            let mut fastapi_extraction = fastapi::analyze(workspace_root, framework)?;
+            fastapi_extraction
+                .edges
+                .extend(fastapi_relations::relation_edges(&fastapi_extraction.units));
+            extraction.extend(fastapi_extraction);
         }
         if is_flask_framework(framework) {
-            extraction.extend(flask::analyze(workspace_root, framework)?);
+            let mut flask_extraction = flask::analyze(workspace_root, framework)?;
+            flask_extraction
+                .edges
+                .extend(flask_relations::relation_edges(&flask_extraction.units));
+            extraction.extend(flask_extraction);
         }
         if is_javascript_frontend_framework(framework) {
-            extraction.extend(js_frontend::analyze(workspace_root, framework)?);
+            let mut frontend_extraction = js_frontend::analyze(workspace_root, framework)?;
+            frontend_extraction
+                .edges
+                .extend(js_frontend_relations::relation_edges(
+                    &frontend_extraction.units,
+                ));
+            extraction.extend(frontend_extraction);
         }
         if is_javascript_backend_framework(framework) {
-            extraction.extend(js_backend::analyze(workspace_root, framework)?);
+            let mut backend_extraction = js_backend::analyze(workspace_root, framework)?;
+            backend_extraction
+                .edges
+                .extend(js_backend_relations::relation_edges(
+                    &backend_extraction.units,
+                ));
+            extraction.extend(backend_extraction);
         }
     }
 

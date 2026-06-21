@@ -47,13 +47,19 @@ fn extracts_django_units_edges_and_json_fields() {
     }
 
     let site_app = find_unit(&extraction.units, "app", "mysite");
+    let include_route = find_unit(&extraction.units, "route", "blog/ (blog)");
     let feed_route = find_unit(&extraction.units, "route", "posts/ (post-feed)");
     let detail_route = find_unit(&extraction.units, "route", "posts/<int:pk>/ (post-detail)");
     let feed_view = find_unit(&extraction.units, "view", "feed");
     let detail_view = find_unit(&extraction.units, "view", "PostDetailView");
     let post_model = find_unit(&extraction.units, "model", "Post");
     let post_serializer = find_unit(&extraction.units, "serializer", "PostSerializer");
+    let site_settings = find_unit(&extraction.units, "configuration", "settings");
     assert_eq!(feed_route.parent_id.as_deref(), Some(site_app.id.as_str()));
+    assert_eq!(
+        include_route.parent_id.as_deref(),
+        Some(site_app.id.as_str())
+    );
     assert_eq!(
         detail_route.parent_id.as_deref(),
         Some(site_app.id.as_str())
@@ -80,6 +86,16 @@ fn extracts_django_units_edges_and_json_fields() {
         edge.kind == "renders"
             && edge.source_id == feed_view.id
             && edge.target_id == post_serializer.id
+    }));
+    assert!(extraction.edges.iter().any(|edge| {
+        edge.kind == "configures"
+            && edge.source_id == site_settings.id
+            && edge.target_id == blog_app.id
+    }));
+    assert!(extraction.edges.iter().any(|edge| {
+        edge.kind == "configures"
+            && edge.source_id == include_route.id
+            && edge.target_id == blog_app.id
     }));
 
     let mut builder = ProjectGraphBuilder::new(workspace.clone());
@@ -135,6 +151,12 @@ fn extracts_fastapi_units_and_route_controller_edges() {
     assert!(extraction.edges.iter().any(|edge| {
         edge.kind == "routesTo" && edge.source_id == route.id && edge.target_id == controller.id
     }));
+    assert!(extraction.edges.iter().any(|edge| {
+        edge.kind == "usesModel" && edge.source_id == route.id && edge.target_id == schema.id
+    }));
+    assert!(extraction.edges.iter().any(|edge| {
+        edge.kind == "injects" && edge.source_id == controller.id && edge.target_id == dependency.id
+    }));
 
     remove_temp_workspace(&workspace);
 }
@@ -151,14 +173,18 @@ fn extracts_nextjs_frontend_units_and_render_edges() {
     let module = find_unit(&extraction.units, "module", "app.dashboard.page");
     let route = find_unit(&extraction.units, "route", "route /dashboard");
     let component = find_unit(&extraction.units, "component", "DashboardPage");
+    let card = find_unit(&extraction.units, "component", "UserCard");
     let provider = find_unit(&extraction.units, "provider", "ThemeProvider");
     let hook = find_unit(&extraction.units, "service", "useDashboardData");
 
-    for child in [route, component, provider, hook] {
+    for child in [route, component, card, provider, hook] {
         assert_eq!(child.parent_id.as_deref(), Some(module.id.as_str()));
     }
     assert!(extraction.edges.iter().any(|edge| {
         edge.kind == "renders" && edge.source_id == route.id && edge.target_id == component.id
+    }));
+    assert!(extraction.edges.iter().any(|edge| {
+        edge.kind == "renders" && edge.source_id == component.id && edge.target_id == card.id
     }));
 
     remove_temp_workspace(&workspace);
@@ -175,15 +201,19 @@ fn extracts_flask_units_and_route_controller_edges() {
 
     let module = find_unit(&extraction.units, "module", "app");
     let app = find_unit(&extraction.units, "app", "app");
+    let blueprint = find_unit(&extraction.units, "module", "api");
     let route = find_unit(&extraction.units, "route", "ROUTE /users/<id>");
     let controller = find_unit(&extraction.units, "controller", "show_user");
     let middleware = find_unit(&extraction.units, "middleware", "before_request load_user");
 
-    for child in [app, route, controller, middleware] {
+    for child in [app, blueprint, route, controller, middleware] {
         assert_eq!(child.parent_id.as_deref(), Some(module.id.as_str()));
     }
     assert!(extraction.edges.iter().any(|edge| {
         edge.kind == "routesTo" && edge.source_id == route.id && edge.target_id == controller.id
+    }));
+    assert!(extraction.edges.iter().any(|edge| {
+        edge.kind == "configures" && edge.source_id == app.id && edge.target_id == blueprint.id
     }));
 
     remove_temp_workspace(&workspace);
@@ -209,6 +239,9 @@ fn extracts_express_units_and_route_controller_edges() {
     assert!(extraction.edges.iter().any(|edge| {
         edge.kind == "routesTo" && edge.source_id == route.id && edge.target_id == controller.id
     }));
+    assert!(extraction.edges.iter().any(|edge| {
+        edge.kind == "calls" && edge.source_id == route.id && edge.target_id == middleware.id
+    }));
 
     remove_temp_workspace(&workspace);
 }
@@ -231,6 +264,9 @@ fn extracts_nestjs_units_and_controller_route_edges() {
     }
     assert!(extraction.edges.iter().any(|edge| {
         edge.kind == "contains" && edge.source_id == controller.id && edge.target_id == route.id
+    }));
+    assert!(extraction.edges.iter().any(|edge| {
+        edge.kind == "injects" && edge.source_id == controller.id && edge.target_id == service.id
     }));
 
     remove_temp_workspace(&workspace);
@@ -258,7 +294,11 @@ fn write_django_fixture(workspace: &Path) {
     );
     write_file(
         &workspace.join("mysite/urls.py"),
-        "from django.urls import path\nfrom blog import views\n\nurlpatterns = [\n    path(\"posts/\", views.feed, name=\"post-feed\"),\n    path(\n        \"posts/<int:pk>/\",\n        views.PostDetailView.as_view(),\n        name=\"post-detail\",\n    ),\n]\n",
+        "from django.urls import include, path\nfrom blog import views\n\nurlpatterns = [\n    path(\"blog/\", include(\"blog.urls\"), name=\"blog\"),\n    path(\"posts/\", views.feed, name=\"post-feed\"),\n    path(\n        \"posts/<int:pk>/\",\n        views.PostDetailView.as_view(),\n        name=\"post-detail\",\n    ),\n]\n",
+    );
+    write_file(
+        &workspace.join("blog/urls.py"),
+        "from django.urls import path\n\nurlpatterns = []\n",
     );
     write_file(
         &workspace.join("blog/apps.py"),
@@ -300,7 +340,7 @@ fn write_nextjs_fixture(workspace: &Path) {
     );
     write_file(
         &workspace.join("app/dashboard/page.tsx"),
-        "export default function DashboardPage() {\n  return <main />;\n}\n\nexport const ThemeProvider = ({ children }) => children;\n\nexport function useDashboardData() {\n  return [];\n}\n",
+        "export default function DashboardPage() {\n  return <UserCard />;\n}\n\nexport function UserCard() {\n  return <main />;\n}\n\nexport const ThemeProvider = ({ children }) => children;\n\nexport function useDashboardData() {\n  return [];\n}\n",
     );
 }
 
@@ -308,7 +348,7 @@ fn write_flask_fixture(workspace: &Path) {
     write_file(&workspace.join("requirements.txt"), "Flask==3.0\n");
     write_file(
         &workspace.join("app.py"),
-        "from flask import Flask\n\napp = Flask(__name__)\n\n@app.before_request\ndef load_user():\n    pass\n\n@app.route(\"/users/<id>\")\ndef show_user(id):\n    return id\n",
+        "from flask import Blueprint, Flask\n\napp = Flask(__name__)\napi = Blueprint(\"api\", __name__)\n\n@app.before_request\ndef load_user():\n    pass\n\n@api.route(\"/users/<id>\")\ndef show_user(id):\n    return id\n\napp.register_blueprint(api, url_prefix=\"/api\")\n",
     );
 }
 
@@ -319,7 +359,7 @@ fn write_express_fixture(workspace: &Path) {
     );
     write_file(
         &workspace.join("server.ts"),
-        "import express from \"express\";\nconst app = express();\nfunction authMiddleware(req, res, next) { next(); }\nfunction showUser(req, res) { res.json({ id: req.params.id }); }\napp.use(authMiddleware);\napp.get(\"/users/:id\", showUser);\n",
+        "import express from \"express\";\nconst app = express();\nfunction authMiddleware(req, res, next) { next(); }\nfunction showUser(req, res) { res.json({ id: req.params.id }); }\napp.use(authMiddleware);\napp.get(\"/users/:id\", authMiddleware, showUser);\n",
     );
 }
 
@@ -330,7 +370,7 @@ fn write_nestjs_fixture(workspace: &Path) {
     );
     write_file(
         &workspace.join("users.controller.ts"),
-        "import { Controller, Get, Injectable } from \"@nestjs/common\";\n\n@Controller(\"users\")\nexport class UsersController {\n  @Get(\":id\")\n  findOne() {\n    return {};\n  }\n}\n\n@Injectable()\nexport class UsersService {}\n",
+        "import { Controller, Get, Injectable } from \"@nestjs/common\";\n\n@Controller(\"users\")\nexport class UsersController {\n  constructor(private readonly usersService: UsersService) {}\n\n  @Get(\":id\")\n  findOne() {\n    return this.usersService.findOne();\n  }\n}\n\n@Injectable()\nexport class UsersService {\n  findOne() { return {}; }\n}\n",
     );
 }
 
