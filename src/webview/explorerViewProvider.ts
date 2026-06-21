@@ -5,6 +5,8 @@
 
 import * as vscode from "vscode";
 import type { AnalysisBackend } from "../analyzer/core/analysisBackend";
+import { createFunctionIndex } from "../graph/functionIndex";
+import { createFunctionExplorerPayload } from "../graph/functionIndexPayload";
 import type {
   AnalysisStatusPayload,
   ExportRequest,
@@ -12,6 +14,7 @@ import type {
   WebviewLogRequest,
   WebviewRequest
 } from "../protocol/messages";
+import type { FunctionExplorerIndexRequest } from "../protocol/functionExplorer";
 import type { ProjectAnalyzerLogger } from "../observability/logger";
 import { createContentHash } from "../shared/hash";
 import type { ProjectGraph } from "../shared/types";
@@ -95,6 +98,7 @@ export class ExplorerViewProvider implements vscode.WebviewViewProvider {
       projected: summarizeProjectedGraph(sidebarGraph)
     });
     await this.postMessage({ type: "graph/loaded", payload: sidebarGraph });
+    await this.publishFunctionIndex(graph);
     if (GRAPH_RENDERING_ENABLED) {
       await this.dependencies.graphPanelProvider.publishGraph(graph);
     }
@@ -130,6 +134,9 @@ export class ExplorerViewProvider implements vscode.WebviewViewProvider {
         break;
       case "graph/focusNode":
         await this.focusGraphNode(message.payload.nodeId);
+        break;
+      case "function/index":
+        await this.postLatestFunctionIndex(message.payload);
         break;
       case "node/openSource":
         await this.openSourceNode(message.payload.nodeId);
@@ -439,6 +446,40 @@ export class ExplorerViewProvider implements vscode.WebviewViewProvider {
   private async postGraphRenderingDisabledStatus(): Promise<void> {
     this.dependencies.logger.info("sidebar.graphRendering.disabled");
     await this.postStatus("idle", "Graph rendering is temporarily disabled");
+  }
+
+  /** Builds and publishes the host-side Function Explorer index for a graph. */
+  private async publishFunctionIndex(
+    graph: ProjectGraph,
+    request: FunctionExplorerIndexRequest = {}
+  ): Promise<void> {
+    const expandedTreeIds = request.options?.expandedRowIds ?? [];
+    const index = createFunctionIndex(graph, {
+      expandedTreeIds,
+      includeInventoryRows: false,
+      inventoryLimit: 500
+    });
+    const payload = createFunctionExplorerPayload(graph, index, { initialRowLimit: 500 });
+    payload.options.expandedRowIds = expandedTreeIds;
+
+    this.dependencies.logger.info("sidebar.functionIndex.publish", {
+      callEdges: payload.summary.callEdgeCount,
+      callableNodes: payload.summary.callableNodeCount,
+      rows: payload.rows.length
+    });
+    await this.postMessage({ type: "function/indexLoaded", payload });
+  }
+
+  /** Reposts the Function Explorer index for the active cached graph. */
+  private async postLatestFunctionIndex(request: FunctionExplorerIndexRequest = {}): Promise<void> {
+    const graph = await this.dependencies.cacheStore.getLatestGraph();
+
+    if (!graph) {
+      await this.postStatus("idle", "Analyze before loading function flows");
+      return;
+    }
+
+    await this.publishFunctionIndex(graph, request);
   }
 
   /**

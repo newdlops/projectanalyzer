@@ -4,8 +4,9 @@
  */
 
 import { getProgressiveFileGraphBrowserSource } from "./explorerProgressiveFileGraph";
-import { getFunctionCallTreeBrowserSource } from "./explorerFunctionCallTree";
 import { getFrameworkTreeBrowserSource } from "./explorerFrameworkTree";
+import { getFunctionFlowsBrowserSource } from "./explorerFunctionFlows";
+import { getFunctionInventoryBrowserSource } from "./explorerFunctionInventory";
 import { getVirtualTreeBrowserSource } from "./explorerVirtualTree";
 
 /**
@@ -13,14 +14,16 @@ import { getVirtualTreeBrowserSource } from "./explorerVirtualTree";
  */
 export function getExplorerSidebarScript(): string {
   const progressiveFileGraphSource = getProgressiveFileGraphBrowserSource();
-  const functionCallTreeSource = getFunctionCallTreeBrowserSource();
   const frameworkTreeSource = getFrameworkTreeBrowserSource();
+  const functionFlowsSource = getFunctionFlowsBrowserSource();
+  const functionInventorySource = getFunctionInventoryBrowserSource();
   const virtualTreeSource = getVirtualTreeBrowserSource();
 
   return /* js */ `
     ${progressiveFileGraphSource}
-    ${functionCallTreeSource}
     ${frameworkTreeSource}
+    ${functionFlowsSource}
+    ${functionInventorySource}
     ${virtualTreeSource}
     const vscode = acquireVsCodeApi();
     const state = {
@@ -29,6 +32,8 @@ export function getExplorerSidebarScript(): string {
       expandedAccordionSections: new Set(["frameworks"]),
       expandedTreeIds: new Set(["root"]),
       graphRevision: 0,
+      functionIndex: undefined,
+      functionIndexRevision: 0,
       treeRevision: 0,
       treeRowsCache: new Map(),
       selectedTreeId: undefined
@@ -101,16 +106,28 @@ export function getExplorerSidebarScript(): string {
       if (message.type === "graph/loaded" || message.type === "graph/updated") {
         state.graph = message.payload;
         state.graphRevision += 1;
+        state.functionIndex = undefined;
+        state.functionIndexRevision += 1;
         state.treeRowsCache.clear();
         elements.status.textContent = "Graph available";
         render();
         return;
       }
 
+      if (message.type === "function/indexLoaded") {
+        state.functionIndex = message.payload;
+        state.functionIndexRevision += 1;
+        state.treeRowsCache.clear();
+        renderAccordionSections();
+        return;
+      }
+
       if (message.type === "graph/cleared") {
         state.graph = undefined;
         state.analysisState = "idle";
+        state.functionIndex = undefined;
         state.graphRevision += 1;
+        state.functionIndexRevision += 1;
         state.treeRowsCache.clear();
         render();
         return;
@@ -158,6 +175,9 @@ export function getExplorerSidebarScript(): string {
         state.expandedAccordionSections.delete(sectionId);
       } else {
         state.expandedAccordionSections.add(sectionId);
+        if (sectionId === "calls") {
+          postRequest("function/index", {}, "Loading function index");
+        }
       }
     }
 
@@ -267,12 +287,71 @@ export function getExplorerSidebarScript(): string {
         return;
       }
 
-      const rows = getTreeRows("calls", () => createFunctionCallTreeRows(state.graph, state.expandedTreeIds));
+      const rows = getTreeRows("calls", () => createHostFunctionRows() ?? createFunctionFlowRowsWithInventory(state.graph, state.expandedTreeIds));
       renderVirtualTree(elements.callTree, rows, "No callable functions in graph");
     }
 
+    function createHostFunctionRows() {
+      if (!state.functionIndex) {
+        return undefined;
+      }
+
+      return state.functionIndex.rows.map((row) => ({
+        id: row.id,
+        label: row.label,
+        name: row.metadata?.name || row.label,
+        detail: row.detail || "",
+        kind: row.metadata?.legacyKind || row.kind,
+        nodeId: row.symbolId,
+        depth: row.depth,
+        hasChildren: row.hasChildren,
+        expanded: row.expanded
+      }));
+    }
+
+    function createFunctionFlowRowsWithInventory(graph, expandedTreeIds) {
+      const rows = createFunctionFlowTreeRows(graph, expandedTreeIds);
+      const allFunctionsId = "function-flows:all-functions";
+      const allFunctionsIndex = rows.findIndex((row) => row.id === allFunctionsId);
+
+      if (allFunctionsIndex < 0) {
+        return rows;
+      }
+
+      const universe = createFunctionUniverse(graph, {
+        defaultVisibleNodeIds: rows
+          .filter((row) => row.nodeId)
+          .map((row) => row.nodeId)
+      });
+      rows[allFunctionsIndex].detail =
+        String(universe.summary.callableNodeCount) +
+        " callables / " +
+        String(universe.summary.hiddenByDefaultViewCount) +
+        " hidden by default";
+
+      if (!expandedTreeIds.has(allFunctionsId)) {
+        return rows;
+      }
+
+      return rows
+        .filter((row) => row.id !== allFunctionsId + ":summary")
+        .concat(createAllFunctionsInventoryRows(universe, {
+          depth: 1,
+          includeExternal: true,
+          includeUnresolved: true,
+          sortBy: "relevance"
+        }));
+    }
+
     function getTreeRows(sectionId, createRows) {
-      const cacheKey = sectionId + ":" + String(state.graphRevision) + ":" + String(state.treeRevision);
+      const cacheKey =
+        sectionId +
+        ":" +
+        String(state.graphRevision) +
+        ":" +
+        String(state.functionIndexRevision) +
+        ":" +
+        String(state.treeRevision);
       const cached = state.treeRowsCache.get(cacheKey);
 
       if (cached) {
@@ -331,6 +410,7 @@ export function getExplorerSidebarScript(): string {
 
         if (row.hasChildren) {
           toggleTreeRow(row.id);
+          requestFunctionIndexRefresh(row.id);
         }
 
         render();
@@ -340,6 +420,7 @@ export function getExplorerSidebarScript(): string {
           event.preventDefault();
           state.selectedTreeId = row.id;
           toggleTreeRow(row.id);
+          requestFunctionIndexRefresh(row.id);
           render();
         }
 
@@ -347,6 +428,7 @@ export function getExplorerSidebarScript(): string {
           event.preventDefault();
           state.selectedTreeId = row.id;
           toggleTreeRow(row.id);
+          requestFunctionIndexRefresh(row.id);
           render();
         }
       });
@@ -361,6 +443,22 @@ export function getExplorerSidebarScript(): string {
 
     function appendTreeRow(parent, row) {
       parent.append(createTreeRow(row));
+    }
+
+    function requestFunctionIndexRefresh(rowId) {
+      if (!rowId.startsWith("function-flows:")) {
+        return;
+      }
+
+      vscode.postMessage({
+        type: "function/index",
+        payload: {
+          graphVersion: state.graph?.version,
+          options: {
+            expandedRowIds: Array.from(state.expandedTreeIds)
+          }
+        }
+      });
     }
 
     function createFileTreeRows(graph) {

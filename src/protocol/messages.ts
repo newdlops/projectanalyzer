@@ -4,6 +4,7 @@
  */
 
 import type { ProjectGraph } from "../shared/types";
+import type { FunctionExplorerPayload, FunctionExplorerRequest } from "./functionExplorer";
 
 /** Supported graph view modes shown by the explorer. */
 export type GraphViewMode = "call" | "file" | "class";
@@ -70,6 +71,7 @@ export type WebviewRequest =
   | { type: "node/showRelationship"; payload: NodeRelationshipRequest }
   | { type: "search/query"; payload: SearchRequest }
   | { type: "export/run"; payload: ExportRequest }
+  | FunctionExplorerRequest
   | { type: "telemetry/log"; payload: WebviewLogRequest };
 
 /** Search result returned to the Webview. */
@@ -99,6 +101,7 @@ export type ExtensionResponse =
   | { type: "graph/focusNode"; payload: GraphFocusNodeRequest }
   | { type: "graph/cleared"; payload: Record<string, never> }
   | { type: "analysis/status"; payload: AnalysisStatusPayload }
+  | { type: "function/indexLoaded"; payload: FunctionExplorerPayload }
   | { type: "view/modeChanged"; payload: { mode: GraphViewMode } }
   | { type: "search/results"; payload: SearchResult[] }
   | { type: "error"; payload: ErrorPayload };
