@@ -60,6 +60,7 @@ export type WebviewRequest =
   | { type: "ui/ready"; payload: Record<string, never> }
   | { type: "graph/load"; payload: GraphLoadRequest }
   | { type: "graph/openPanel"; payload: Record<string, never> }
+  | { type: "graph/showWorkspaceScope"; payload: Record<string, never> }
   | { type: "graph/focusNode"; payload: GraphFocusNodeRequest }
   | { type: "graph/expand"; payload: ExpandRequest }
   | { type: "analysis/run"; payload: AnalysisRunRequest }

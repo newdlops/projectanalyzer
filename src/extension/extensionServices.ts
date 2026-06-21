@@ -12,7 +12,7 @@ import { PythonAnalyzer } from "../analyzer/languages/python";
 import { TypeScriptAnalyzer } from "../analyzer/languages/typescript";
 import { RustAnalyzerBackend } from "../analyzer/rust/rustAnalyzerBackend";
 import { createProjectAnalyzerLogger } from "../observability/logger";
-import { MemoryAnalysisCacheStore } from "../storage/cacheStore";
+import { FileAnalysisCacheStore, MemoryAnalysisCacheStore, type AnalysisCacheStore } from "../storage/cacheStore";
 import { readProjectAnalyzerConfig } from "../vscode/configuration";
 import { VsCodeWorkspaceFileSystem } from "../vscode/workspaceFileSystem";
 import { ExplorerGraphPanelProvider } from "../webview/explorerGraphPanelProvider";
@@ -21,7 +21,7 @@ import { ExplorerViewProvider } from "../webview/explorerViewProvider";
 /** Runtime services shared by command handlers. */
 export type ExtensionServices = {
   analyzer: AnalysisBackend;
-  cacheStore: MemoryAnalysisCacheStore;
+  cacheStore: AnalysisCacheStore;
   explorerGraphPanelProvider: ExplorerGraphPanelProvider;
   explorerViewProvider: ExplorerViewProvider;
 };
@@ -33,7 +33,10 @@ export function createExtensionServices(context: vscode.ExtensionContext): Exten
   const logger = createProjectAnalyzerLogger(context);
   const config = readProjectAnalyzerConfig();
   const fileSystem = new VsCodeWorkspaceFileSystem(config);
-  const cacheStore = new MemoryAnalysisCacheStore();
+  const storageDirectory = context.storageUri?.fsPath ?? context.globalStorageUri.fsPath;
+  const cacheStore = config.cache.enabled
+    ? new FileAnalysisCacheStore(storageDirectory, config.cache.maxSizeMb)
+    : new MemoryAnalysisCacheStore();
   const fallbackAnalyzer = new AnalyzerPipeline(fileSystem, [
     new TypeScriptAnalyzer(),
     new JavaScriptAnalyzer(),

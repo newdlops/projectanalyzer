@@ -26,6 +26,7 @@ export function getExplorerSidebarScript(): string {
     const elements = {
       analyzeWorkspace: document.getElementById("analyze-workspace"),
       analyzeCurrent: document.getElementById("analyze-current"),
+      showWorkspace: document.getElementById("show-workspace"),
       openGraph: document.getElementById("open-graph"),
       cancelAnalysis: document.getElementById("cancel-analysis"),
       exportJson: document.getElementById("export-json"),
@@ -48,6 +49,7 @@ export function getExplorerSidebarScript(): string {
     elements.analyzeCurrent.addEventListener("click", () => {
       postRequest("analysis/run", { scope: "currentFile" }, "Analyze current file requested");
     });
+    elements.showWorkspace.addEventListener("click", () => postRequest("graph/showWorkspaceScope", {}, "Loading workspace scope"));
 
     elements.openGraph.addEventListener("click", () => {
       postRequest("graph/openPanel", {}, "Opening graph browser");
@@ -747,6 +749,7 @@ export function getExplorerSidebarScript(): string {
 
       elements.analyzeWorkspace.disabled = analysisRunning;
       elements.analyzeCurrent.disabled = analysisRunning;
+      elements.showWorkspace.disabled = analysisRunning;
       elements.cancelAnalysis.disabled = !analysisRunning;
       elements.openGraph.disabled = analysisRunning && !hasGraph;
       elements.exportJson.disabled = !hasGraph || analysisRunning;

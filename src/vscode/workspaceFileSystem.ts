@@ -61,7 +61,7 @@ export class VsCodeWorkspaceFileSystem implements WorkspaceFileSystem {
 /**
  * Creates a VS Code workspace glob from one or more configured patterns.
  */
-function createWorkspaceGlob(patterns: readonly string[]): string {
+export function createWorkspaceGlob(patterns: readonly string[]): string {
   if (patterns.length === 0) {
     return "";
   }

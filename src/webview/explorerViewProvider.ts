@@ -15,8 +15,12 @@ import type {
 import type { ProjectAnalyzerLogger } from "../observability/logger";
 import { createContentHash } from "../shared/hash";
 import type { ProjectGraph } from "../shared/types";
-import type { AnalysisCacheStore } from "../storage/cacheStore";
+import type { AnalysisCacheScope, AnalysisCacheStore } from "../storage/cacheStore";
 import type { ProjectAnalyzerConfig } from "../vscode/configuration";
+import {
+  createCurrentFileAnalysisCacheKey,
+  createWorkspaceAnalysisCacheKey
+} from "../vscode/workspaceFingerprint";
 import type { ExplorerGraphPanelProvider } from "./explorerGraphPanelProvider";
 import { projectGraphForView, summarizeFileImportGraph, summarizeProjectedGraph } from "./graphProjection";
 import { getExplorerHtml } from "./webviewHtml";
@@ -110,6 +114,9 @@ export class ExplorerViewProvider implements vscode.WebviewViewProvider {
       case "graph/openPanel":
         await this.openGraphPanel();
         break;
+      case "graph/showWorkspaceScope":
+        await this.showWorkspaceScope();
+        break;
       case "graph/focusNode":
         await this.focusGraphNode(message.payload.nodeId);
         break;
@@ -170,6 +177,20 @@ export class ExplorerViewProvider implements vscode.WebviewViewProvider {
       return;
     }
 
+    const workspaceCacheKey = await this.createWorkspaceCacheKey();
+    const cachedGraph = workspaceCacheKey
+      ? await this.getCachedGraph("workspace", workspaceCacheKey)
+      : undefined;
+
+    if (cachedGraph && workspaceCacheKey) {
+      this.dependencies.logger.info("sidebar.workspaceAnalysis.cacheHit");
+      await this.dependencies.cacheStore.setActiveGraph("workspace", workspaceCacheKey);
+      await this.publishGraph(cachedGraph);
+      await this.dependencies.graphPanelProvider.openGraph(cachedGraph);
+      await this.postStatus("complete", `Loaded cached workspace graph, ${cachedGraph.nodes.length} nodes`);
+      return;
+    }
+
     this.analysisRunning = true;
     this.dependencies.logger.info("sidebar.workspaceAnalysis.start");
     await this.postStatus("running", "Analyzing workspace");
@@ -181,7 +202,7 @@ export class ExplorerViewProvider implements vscode.WebviewViewProvider {
         files: result.graph.metadata.fileCount,
         nodes: result.graph.nodes.length
       });
-      await this.dependencies.cacheStore.saveLatestGraph(result.graph);
+      await this.saveGraphToCache("workspace", workspaceCacheKey ?? "workspace", result.graph, "Workspace analysis");
       await this.publishGraph(result.graph);
       await this.dependencies.graphPanelProvider.openGraph(result.graph);
       await this.postStatus(
@@ -232,19 +253,41 @@ export class ExplorerViewProvider implements vscode.WebviewViewProvider {
     try {
       const document = editor.document;
       const content = document.getText();
-      const result = await this.dependencies.analyzer.analyzeFile({
+      const contentHash = createContentHash(content);
+      const sourceFile = {
         path: document.uri.fsPath,
         languageId: document.languageId,
         content,
         sizeBytes: Buffer.byteLength(content, "utf8"),
-        contentHash: createContentHash(content)
+        contentHash
+      };
+      const workspaceRoot = this.getWorkspaceRoot() ?? "";
+      const currentFileCacheKey = createCurrentFileAnalysisCacheKey({
+        workspaceRoot,
+        path: sourceFile.path,
+        languageId: sourceFile.languageId,
+        contentHash
       });
+      const cachedGraph = await this.getCachedGraph("currentFile", currentFileCacheKey);
+
+      if (cachedGraph) {
+        this.dependencies.logger.info("sidebar.currentFileAnalysis.cacheHit", {
+          fileName: document.fileName
+        });
+        await this.dependencies.cacheStore.setActiveGraph("currentFile", currentFileCacheKey);
+        await this.publishGraph(cachedGraph);
+        await this.dependencies.graphPanelProvider.openGraph(cachedGraph);
+        await this.postStatus("complete", `Loaded cached ${document.fileName}, ${cachedGraph.nodes.length} nodes`);
+        return;
+      }
+
+      const result = await this.dependencies.analyzer.analyzeFile(sourceFile);
 
       this.dependencies.logger.info("sidebar.currentFileAnalysis.complete", {
         edges: result.graph.edges.length,
         nodes: result.graph.nodes.length
       });
-      await this.dependencies.cacheStore.saveLatestGraph(result.graph);
+      await this.saveGraphToCache("currentFile", currentFileCacheKey, result.graph, document.fileName);
       await this.publishGraph(result.graph);
       await this.dependencies.graphPanelProvider.openGraph(result.graph);
       await this.postStatus("complete", `Analyzed ${document.fileName}, ${result.graph.nodes.length} nodes`);
@@ -273,6 +316,32 @@ export class ExplorerViewProvider implements vscode.WebviewViewProvider {
     await this.postMessage({ type: "graph/cleared", payload: {} });
     await this.dependencies.graphPanelProvider.clearGraph();
     await this.postStatus("idle", "Cache cleared");
+  }
+
+  /**
+   * Restores the latest valid workspace graph after the user has viewed a
+   * current-file scoped graph. If the workspace cache is stale or absent, this
+   * falls back to a normal workspace analysis.
+   */
+  private async showWorkspaceScope(): Promise<void> {
+    const workspaceCacheKey = await this.createWorkspaceCacheKey();
+    const cachedGraph = workspaceCacheKey
+      ? await this.getCachedGraph("workspace", workspaceCacheKey)
+      : this.dependencies.config.cache.enabled
+        ? undefined
+        : await this.dependencies.cacheStore.getLatestGraphForScope("workspace");
+
+    if (cachedGraph) {
+      if (workspaceCacheKey) {
+        await this.dependencies.cacheStore.setActiveGraph("workspace", workspaceCacheKey);
+      }
+      await this.publishGraph(cachedGraph);
+      await this.postStatus("complete", `Workspace scope restored, ${cachedGraph.nodes.length} nodes`);
+      return;
+    }
+
+    await this.postStatus("running", "Workspace cache missing; analyzing workspace");
+    await this.runWorkspaceAnalysis();
   }
 
   /**
@@ -367,6 +436,57 @@ export class ExplorerViewProvider implements vscode.WebviewViewProvider {
     }
 
     await this.postStatus("idle", "No graph loaded");
+  }
+
+  /** Returns a cached graph only when persistent cache reuse is enabled. */
+  private async getCachedGraph(
+    scope: AnalysisCacheScope,
+    cacheKey: string
+  ): Promise<ProjectGraph | undefined> {
+    if (!this.dependencies.config.cache.enabled) {
+      return undefined;
+    }
+
+    return this.dependencies.cacheStore.getGraph(scope, cacheKey);
+  }
+
+  /** Saves a graph under a scoped cache key and makes it active for the UI. */
+  private async saveGraphToCache(
+    scope: AnalysisCacheScope,
+    cacheKey: string,
+    graph: ProjectGraph,
+    label: string
+  ): Promise<void> {
+    await this.dependencies.cacheStore.saveGraph({
+      scope,
+      cacheKey,
+      graph,
+      label,
+      savedAt: new Date().toISOString()
+    });
+  }
+
+  /** Creates the current workspace cache key, returning undefined on failure. */
+  private async createWorkspaceCacheKey(): Promise<string | undefined> {
+    const workspaceRoot = this.getWorkspaceRoot();
+
+    if (!workspaceRoot || !this.dependencies.config.cache.enabled) {
+      return undefined;
+    }
+
+    try {
+      return await createWorkspaceAnalysisCacheKey(workspaceRoot, this.dependencies.config);
+    } catch (error) {
+      this.dependencies.logger.warn("sidebar.workspaceCacheKey.failed", {
+        error: error instanceof Error ? error.message : String(error)
+      });
+      return undefined;
+    }
+  }
+
+  /** Returns the first VS Code workspace root used by analyzer adapters. */
+  private getWorkspaceRoot(): string | undefined {
+    return vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
   }
 
   /**

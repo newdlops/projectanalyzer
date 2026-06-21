@@ -52,6 +52,7 @@ function getSidebarHtml(options: WebviewHtmlOptions): string {
     </div>
     <div class="button-grid">
       <button id="analyze-current" class="secondary-button" type="button">Current File</button>
+      <button id="show-workspace" class="secondary-button" type="button">Workspace Scope</button>
       <button id="open-graph" class="secondary-button" type="button">Open Graph</button>
       <button id="cancel-analysis" class="secondary-button" type="button">Cancel</button>
       <button id="export-json" class="secondary-button" type="button">Export JSON</button>
