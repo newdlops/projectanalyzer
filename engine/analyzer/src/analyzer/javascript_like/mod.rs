@@ -18,6 +18,7 @@ use calls::{
 use syntax::SyntaxScanner;
 
 pub use imports::add_import_edges;
+pub(super) use imports::WorkspaceModuleResolver;
 
 /// Scope entry used to associate declarations and calls with surrounding symbols.
 #[derive(Clone)]

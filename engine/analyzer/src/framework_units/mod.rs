@@ -12,6 +12,7 @@ mod fastapi;
 mod fastapi_relations;
 mod flask;
 mod flask_relations;
+mod graphql;
 mod js_backend;
 mod js_backend_relations;
 mod js_backend_support;
@@ -21,7 +22,8 @@ mod js_frontend_relations;
 #[cfg(test)]
 mod tests;
 
-use std::path::Path;
+use std::collections::BTreeSet;
+use std::path::{Path, PathBuf};
 
 use crate::model::{DetectedFramework, FrameworkUnit, FrameworkUnitEdge};
 
@@ -37,6 +39,18 @@ impl FrameworkUnitExtraction {
     fn extend(&mut self, other: FrameworkUnitExtraction) {
         self.units.extend(other.units);
         self.edges.extend(other.edges);
+    }
+
+    /// Keeps units backed by an eligible source snapshot and removes edges that
+    /// would otherwise reference a filtered unit.
+    pub fn retain_source_files(&mut self, source_files: &BTreeSet<PathBuf>) {
+        self.units
+            .retain(|unit| source_files.contains(&PathBuf::from(&unit.file_path)));
+        let retained_ids: BTreeSet<&str> = self.units.iter().map(|unit| unit.id.as_str()).collect();
+        self.edges.retain(|edge| {
+            retained_ids.contains(edge.source_id.as_str())
+                && retained_ids.contains(edge.target_id.as_str())
+        });
     }
 }
 
@@ -79,6 +93,9 @@ pub fn analyze_framework_units(
                 .extend(flask_relations::relation_edges(&flask_extraction.units));
             extraction.extend(flask_extraction);
         }
+        if is_graphql_framework(framework) {
+            extraction.extend(graphql::analyze(workspace_root, framework)?);
+        }
         if is_javascript_frontend_framework(framework) {
             let mut frontend_extraction = js_frontend::analyze(workspace_root, framework)?;
             frontend_extraction
@@ -115,6 +132,11 @@ fn is_fastapi_framework(framework: &DetectedFramework) -> bool {
 /// Matches the manifest detector's canonical Flask framework row.
 fn is_flask_framework(framework: &DetectedFramework) -> bool {
     framework.name == "Flask" && framework.ecosystem == "python"
+}
+
+/// Matches canonical GraphQL rows for supported code-first ecosystems.
+fn is_graphql_framework(framework: &DetectedFramework) -> bool {
+    framework.name == "GraphQL" && matches!(framework.ecosystem.as_str(), "javascript" | "python")
 }
 
 /// Matches React and Next.js framework rows for TypeScript/TSX semantic units.

@@ -11,11 +11,16 @@ import type {
   FunctionExplorerSectionSummary
 } from "../protocol/functionExplorer";
 import type { ProjectGraph } from "../shared/types";
+import { createFrameworkHandlerRows } from "./functionFrameworkRows";
 import type { FunctionIndex, FunctionIndexTreeRow } from "./functionIndex";
 
 /** Options for projecting a host Function Index into an initial Webview payload. */
 export type FunctionIndexPayloadOptions = {
   initialRowLimit?: number;
+  expandedRowIds?: Iterable<string>;
+  semanticFlowRows?: readonly FunctionExplorerRow[];
+  changeImpactRows?: readonly FunctionExplorerRow[];
+  selectedFunctionId?: string;
 };
 
 /** Converts a host Function Index into the protocol payload consumed by sidebar. */
@@ -25,7 +30,15 @@ export function createFunctionExplorerPayload(
   options: FunctionIndexPayloadOptions = {}
 ): FunctionExplorerPayload {
   const initialRowLimit = Math.max(1, options.initialRowLimit ?? 500);
-  const rows = index.flowsRows.slice(0, initialRowLimit).map((row) => toExplorerRow(row));
+  const expandedRowIds = Array.from(options.expandedRowIds ?? []);
+  const indexRows = index.flowsRows.map((row) => toExplorerRow(row));
+  const semanticFlowRows = options.semanticFlowRows
+    ? [...options.semanticFlowRows]
+    : createFrameworkHandlerRows(graph, { expandedRowIds }).rows;
+  const changeImpactRows = [...(options.changeImpactRows ?? [])];
+  const allRows = changeImpactRows.concat(insertSemanticFlowRows(indexRows, semanticFlowRows));
+  const rows = allRows.slice(0, initialRowLimit);
+  const sectionDescriptors = getSectionDescriptors(changeImpactRows.length > 0);
 
   return {
     graphVersion: graph.version,
@@ -46,29 +59,32 @@ export function createFunctionExplorerPayload(
       inferredCallEdgeCount: index.summary.inferredCallEdgeCount,
       visibleByDefaultViewCount: index.summary.visibleByDefaultViewCount,
       hiddenByDefaultViewCount: index.summary.hiddenByDefaultViewCount,
-      hiddenByCollapsedBranchCount: Math.max(0, index.flowsRows.length - rows.length),
+      hiddenByCollapsedBranchCount: Math.max(0, allRows.length - rows.length),
       hiddenByActiveFilterCount: 0
     },
-    sections: createSectionSummaries(index.flowsRows, rows),
+    sections: createSectionSummaries(allRows, rows, sectionDescriptors),
     rows,
     options: {
-      requestedSections: ["entrypoints", "hotspots", "unresolvedExternal", "allFunctions"],
+      requestedSections: sectionDescriptors.map((section) => section.id),
       initialRowLimit,
+      expandedRowIds,
       filters: {
         includeExternal: true,
         includeUnresolved: true,
         includeInferred: true
       },
-      sortBy: "relevance"
+      sortBy: "relevance",
+      selectedFunctionId: options.selectedFunctionId
     },
-    nextCursor: index.flowsRows.length > rows.length ? "function-rows:" + String(rows.length) : undefined
+    nextCursor: allRows.length > rows.length ? "function-rows:" + String(rows.length) : undefined
   };
 }
 
 /** Builds per-section row counts for the Function Explorer accordion. */
 function createSectionSummaries(
-  allRows: FunctionIndexTreeRow[],
-  visibleRows: FunctionExplorerRow[]
+  allRows: FunctionExplorerRow[],
+  visibleRows: FunctionExplorerRow[],
+  sectionDescriptors: Array<{ id: FunctionExplorerSectionId; title: string }>
 ): FunctionExplorerSectionSummary[] {
   const visibleCounts = new Map<FunctionExplorerSectionId, number>();
 
@@ -76,8 +92,8 @@ function createSectionSummaries(
     visibleCounts.set(row.sectionId, (visibleCounts.get(row.sectionId) ?? 0) + 1);
   }
 
-  return getSectionDescriptors().map((section) => {
-    const totalRowCount = allRows.filter((row) => getSectionIdForRow(row.id) === section.id).length;
+  return sectionDescriptors.map((section) => {
+    const totalRowCount = allRows.filter((row) => row.sectionId === section.id).length;
     const visibleRowCount = visibleCounts.get(section.id) ?? 0;
 
     return {
@@ -113,8 +129,26 @@ function toExplorerRow(row: FunctionIndexTreeRow): FunctionExplorerRow {
   };
 }
 
+/** Places request flows before generic callable roots while preserving later sections. */
+function insertSemanticFlowRows(
+  indexRows: FunctionExplorerRow[],
+  semanticFlowRows: FunctionExplorerRow[]
+): FunctionExplorerRow[] {
+  const insertionIndex = indexRows.findIndex((row) => row.sectionId === "entrypoints");
+
+  if (insertionIndex < 0) {
+    return semanticFlowRows.concat(indexRows);
+  }
+
+  return indexRows.slice(0, insertionIndex).concat(semanticFlowRows, indexRows.slice(insertionIndex));
+}
+
 /** Maps stable legacy row ids to protocol section ids. */
 function getSectionIdForRow(rowId: string): FunctionExplorerSectionId {
+  if (rowId.startsWith("function-flows:framework-handlers")) {
+    return "frameworkHandlers";
+  }
+
   if (rowId.startsWith("function-flows:hotspots")) {
     return "hotspots";
   }
@@ -148,11 +182,18 @@ function getProtocolRowKind(row: FunctionIndexTreeRow, sectionId: FunctionExplor
 }
 
 /** Returns fixed section metadata in sidebar order. */
-function getSectionDescriptors(): Array<{ id: FunctionExplorerSectionId; title: string }> {
-  return [
-    { id: "entrypoints", title: "Entrypoints" },
+function getSectionDescriptors(
+  includeSelected: boolean
+): Array<{ id: FunctionExplorerSectionId; title: string }> {
+  const descriptors: Array<{ id: FunctionExplorerSectionId; title: string }> = [
+    { id: "frameworkHandlers", title: "Request Flows" },
+    { id: "entrypoints", title: "Other Entrypoints" },
     { id: "hotspots", title: "Hotspots" },
     { id: "unresolvedExternal", title: "Unresolved / External" },
     { id: "allFunctions", title: "All Functions" }
   ];
+
+  return includeSelected
+    ? [{ id: "selected", title: "Change Impact" }, ...descriptors]
+    : descriptors;
 }

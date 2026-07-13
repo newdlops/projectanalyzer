@@ -8,14 +8,16 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import type { AnalysisBackend } from "../core/analysisBackend";
 import type { AnalyzeResult } from "../core/analyzerPipeline";
+import type { WorkspaceFileSystem } from "../core/workspaceScanner";
 import { normalizeProjectGraphMetadata } from "../../graph/graphMetadata";
 import type { ProjectAnalyzerLogger } from "../../observability/logger";
 import type { ProjectGraph, SourceFile } from "../../shared/types";
+import { createWorkspaceSourceManifest } from "./workspaceSourceManifest";
 
 /** Options required to run the Rust analyzer engine. */
 export type RustAnalyzerBackendOptions = {
   engineRoot: string;
-  getWorkspaceRoot: () => string | undefined;
+  workspaceFileSystem: WorkspaceFileSystem;
   maxFileSizeKb: number;
   fallbackBackend: AnalysisBackend;
   logger: ProjectAnalyzerLogger;
@@ -38,7 +40,7 @@ export class RustAnalyzerBackend implements AnalysisBackend {
    * cannot be executed in the local development environment.
    */
   public async analyzeWorkspace(): Promise<AnalyzeResult> {
-    const workspaceRoot = this.options.getWorkspaceRoot();
+    const workspaceRoot = this.options.workspaceFileSystem.getWorkspaceRoot();
 
     if (!workspaceRoot) {
       this.options.logger.warn("rust.workspace.noWorkspaceRoot");
@@ -46,17 +48,24 @@ export class RustAnalyzerBackend implements AnalysisBackend {
     }
 
     try {
+      // The VS Code adapter is the source of truth for configured globs and dirty
+      // documents; Rust deliberately does not attempt to reproduce VS Code glob semantics.
+      const sourceFiles = await this.options.workspaceFileSystem.findSourceFiles();
+      const manifest = createWorkspaceSourceManifest(sourceFiles);
       this.options.logger.info("rust.workspace.start", {
+        manifestBytes: manifest.length,
         maxFileSizeKb: this.options.maxFileSizeKb,
+        sourceFiles: sourceFiles.length,
         workspaceRoot
       });
       const graph = await this.runEngine([
         "analyze-workspace",
         "--workspace",
         workspaceRoot,
+        "--source-manifest-stdin",
         "--max-file-size-kb",
         String(this.options.maxFileSizeKb)
-      ]);
+      ], manifest);
 
       this.options.logger.info("rust.workspace.complete", summarizeGraph(graph));
       return { graph };
@@ -73,7 +82,8 @@ export class RustAnalyzerBackend implements AnalysisBackend {
    * are included.
    */
   public async analyzeFile(file: SourceFile): Promise<AnalyzeResult> {
-    const workspaceRoot = this.options.getWorkspaceRoot() ?? path.dirname(file.path);
+    const workspaceRoot =
+      this.options.workspaceFileSystem.getWorkspaceRoot() ?? path.dirname(file.path);
 
     try {
       this.options.logger.info("rust.file.start", {
@@ -107,7 +117,7 @@ export class RustAnalyzerBackend implements AnalysisBackend {
   /**
    * Executes the Rust engine and parses the emitted ProjectGraph JSON.
    */
-  private async runEngine(engineArgs: string[], stdin?: string): Promise<ProjectGraph> {
+  private async runEngine(engineArgs: string[], stdin?: string | Buffer): Promise<ProjectGraph> {
     const invocation = resolveEngineInvocation(this.options.engineRoot, engineArgs);
     const startedAt = Date.now();
     this.options.logger.debug("rust.process.spawn", {
@@ -153,11 +163,12 @@ export class RustAnalyzerBackend implements AnalysisBackend {
  */
 function resolveEngineInvocation(engineRoot: string, engineArgs: string[]): EngineInvocation {
   const binaryName = process.platform === "win32" ? "project-analyzer-engine.exe" : "project-analyzer-engine";
+  const runtimeBinary = path.join(engineRoot, "bin", `${process.platform}-${process.arch}`, binaryName);
   const releaseBinary = path.join(engineRoot, "target", "release", binaryName);
   const debugBinary = path.join(engineRoot, "target", "debug", binaryName);
   const manifestPath = path.join(engineRoot, "Cargo.toml");
 
-  const existingBinary = selectNewestExistingBinary([releaseBinary, debugBinary]);
+  const existingBinary = selectNewestExistingBinary([runtimeBinary, releaseBinary, debugBinary]);
 
   if (existingBinary) {
     return { command: existingBinary, args: engineArgs };
@@ -189,7 +200,7 @@ function selectNewestExistingBinary(binaryPaths: string[]): string | undefined {
 function runProcess(
   invocation: EngineInvocation,
   logger: ProjectAnalyzerLogger,
-  stdin?: string
+  stdin?: string | Buffer
 ): Promise<string> {
   return new Promise((resolve, reject) => {
     const startedAt = Date.now();

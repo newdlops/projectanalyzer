@@ -508,40 +508,52 @@ export function getExplorerClientScript(options: ExplorerClientScriptOptions): s
       };
     }
 
-    function appendProgressiveBranch(graph, nodeId, nodesById, edgesById, visitedNodeIds, nodeLimit) {
-      if (visitedNodeIds.has(nodeId)) {
-        return;
-      }
+    function appendProgressiveBranch(graph, rootNodeId, nodesById, edgesById, visitedNodeIds, nodeLimit) {
+      /** Pending branch entries replace recursion so deep import chains cannot exhaust the browser stack. */
+      const stack = [{ nodeId: rootNodeId }];
 
-      const parentNode = resolveProgressiveNode(graph, nodeId);
+      while (stack.length > 0) {
+        const entry = stack.pop();
 
-      if (!parentNode) {
-        return;
-      }
-
-      if (!nodesById.has(parentNode.id) && nodesById.size >= nodeLimit && parentNode.id !== virtualRootId) {
-        return;
-      }
-
-      visitedNodeIds.add(nodeId);
-      addNode(nodesById, parentNode);
-
-      if (!state.expandedGraphNodeIds.has(nodeId)) {
-        return;
-      }
-
-      for (const child of getProgressiveChildren(graph, nodeId)) {
-        if (visitedNodeIds.has(child.node.id)) {
+        if (!entry || visitedNodeIds.has(entry.nodeId)) {
           continue;
         }
 
-        if (!nodesById.has(child.node.id) && nodesById.size >= nodeLimit) {
-          break;
+        const parentNode = resolveProgressiveNode(graph, entry.nodeId);
+
+        if (!parentNode) {
+          continue;
         }
 
-        addNode(nodesById, child.node);
-        addEdge(edgesById, createProgressiveEdge(parentNode.id, child.node.id, child.edgeKind));
-        appendProgressiveBranch(graph, child.node.id, nodesById, edgesById, visitedNodeIds, nodeLimit);
+        if (!nodesById.has(parentNode.id) && nodesById.size >= nodeLimit && parentNode.id !== virtualRootId) {
+          continue;
+        }
+
+        visitedNodeIds.add(entry.nodeId);
+        addNode(nodesById, parentNode);
+
+        if (entry.sourceId && entry.edgeKind) {
+          addEdge(edgesById, createProgressiveEdge(entry.sourceId, parentNode.id, entry.edgeKind));
+        }
+
+        if (!state.expandedGraphNodeIds.has(entry.nodeId)) {
+          continue;
+        }
+
+        const children = getProgressiveChildren(graph, entry.nodeId);
+
+        // Reverse pushes preserve the previous recursive pre-order traversal.
+        for (let index = children.length - 1; index >= 0; index -= 1) {
+          const child = children[index];
+
+          if (!visitedNodeIds.has(child.node.id)) {
+            stack.push({
+              nodeId: child.node.id,
+              sourceId: parentNode.id,
+              edgeKind: child.edgeKind
+            });
+          }
+        }
       }
     }
 

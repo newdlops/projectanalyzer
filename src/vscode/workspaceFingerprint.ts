@@ -13,7 +13,9 @@ import { createWorkspaceGlob } from "./workspaceFileSystem";
 import { createContentHash } from "../shared/hash";
 
 const DEFAULT_FIND_LIMIT = 10_000;
-const WORKSPACE_CACHE_KEY_VERSION = "workspace-cache-v1";
+// Version 2 invalidates graphs created before Rust consumed the host-selected
+// source manifest; their file set could differ despite identical settings.
+const WORKSPACE_CACHE_KEY_VERSION = "workspace-cache-v2";
 
 /** Creates the cache key for the current saved and dirty workspace state. */
 export async function createWorkspaceAnalysisCacheKey(
@@ -24,12 +26,39 @@ export async function createWorkspaceAnalysisCacheKey(
   const excludePattern = createWorkspaceGlob(config.exclude);
   const maxSizeBytes = config.maxFileSizeKb * 1024;
   const uris = await vscode.workspace.findFiles(includePattern, excludePattern, DEFAULT_FIND_LIMIT);
-  const files = [];
+  const includedPaths = new Set(uris.map((uri) => normalizePath(uri.fsPath)));
+  // Dirty documents are indexed by the same URI set used by findSourceFiles;
+  // excluded or unsupported editor tabs must not invalidate this analysis key.
+  const dirtyByPath = new Map(
+    vscode.workspace.textDocuments
+      .filter((document) => document.isDirty && document.uri.scheme === "file")
+      .filter((document) => includedPaths.has(normalizePath(document.uri.fsPath)))
+      .map((document) => {
+        const content = document.getText();
+        return [
+          normalizePath(document.uri.fsPath),
+          {
+            path: workspaceRelativePath(workspaceRoot, document.uri.fsPath),
+            languageId: document.languageId,
+            contentHash: createContentHash(content),
+            size: Buffer.byteLength(content, "utf8")
+          }
+        ] as const;
+      })
+  );
+  const files: Array<{ path: string; size: number; mtime: number }> = [];
+  const dirtyDocuments: Array<{
+    path: string;
+    languageId: string;
+    contentHash: string;
+  }> = [];
 
   for (const uri of uris.sort((left, right) => left.fsPath.localeCompare(right.fsPath))) {
     const stat = await vscode.workspace.fs.stat(uri);
+    const dirtyDocument = dirtyByPath.get(normalizePath(uri.fsPath));
+    const analysisSize = dirtyDocument?.size ?? stat.size;
 
-    if (stat.size > maxSizeBytes) {
+    if (analysisSize > maxSizeBytes) {
       continue;
     }
 
@@ -38,17 +67,14 @@ export async function createWorkspaceAnalysisCacheKey(
       size: stat.size,
       mtime: stat.mtime
     });
+    if (dirtyDocument) {
+      dirtyDocuments.push({
+        path: dirtyDocument.path,
+        languageId: dirtyDocument.languageId,
+        contentHash: dirtyDocument.contentHash
+      });
+    }
   }
-
-  const dirtyDocuments = vscode.workspace.textDocuments
-    .filter((document) => document.isDirty && document.uri.scheme === "file")
-    .filter((document) => isInsideWorkspace(workspaceRoot, document.uri.fsPath))
-    .map((document) => ({
-      path: workspaceRelativePath(workspaceRoot, document.uri.fsPath),
-      languageId: document.languageId,
-      contentHash: createContentHash(document.getText())
-    }))
-    .sort((left, right) => left.path.localeCompare(right.path));
 
   return createContentHash(
     JSON.stringify({
@@ -85,12 +111,6 @@ export function createCurrentFileAnalysisCacheKey(input: {
 function workspaceRelativePath(workspaceRoot: string, filePath: string): string {
   const relative = path.relative(workspaceRoot, filePath);
   return normalizePath(relative && !relative.startsWith("..") ? relative : filePath);
-}
-
-/** Returns whether a file path is under the active workspace root. */
-function isInsideWorkspace(workspaceRoot: string, filePath: string): boolean {
-  const relative = path.relative(workspaceRoot, filePath);
-  return relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative));
 }
 
 /** Normalizes path separators before hashing. */

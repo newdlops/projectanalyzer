@@ -1,5 +1,6 @@
 //! Tests for framework semantic unit extraction.
 
+use std::collections::BTreeSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -9,6 +10,35 @@ use crate::graph::ProjectGraphBuilder;
 use crate::model::FrameworkUnit;
 
 use super::analyze_framework_units;
+
+#[test]
+fn retains_only_units_and_edges_from_selected_source_files() {
+    let workspace = create_temp_workspace("selected-framework-units");
+    write_django_fixture(&workspace);
+    let frameworks = detect_frameworks(&workspace).expect("detects Django");
+    let mut extraction =
+        analyze_framework_units(&workspace, &frameworks).expect("extracts framework units");
+    let selected_path = workspace.join("blog/models.py");
+
+    extraction.retain_source_files(&BTreeSet::from([selected_path.clone()]));
+
+    assert!(!extraction.units.is_empty());
+    assert!(extraction
+        .units
+        .iter()
+        .all(|unit| Path::new(&unit.file_path) == selected_path));
+    let retained_ids: BTreeSet<&str> = extraction
+        .units
+        .iter()
+        .map(|unit| unit.id.as_str())
+        .collect();
+    assert!(extraction.edges.iter().all(|edge| {
+        retained_ids.contains(edge.source_id.as_str())
+            && retained_ids.contains(edge.target_id.as_str())
+    }));
+
+    remove_temp_workspace(&workspace);
+}
 
 #[test]
 fn extracts_django_units_edges_and_json_fields() {
@@ -310,6 +340,142 @@ fn extracts_nestjs_units_and_controller_route_edges() {
     remove_temp_workspace(&workspace);
 }
 
+#[test]
+fn extracts_nest_graphql_root_operations_and_excludes_field_resolvers() {
+    let workspace = create_temp_workspace("nest-graphql-framework-units");
+    write_nest_graphql_fixture(&workspace);
+
+    let frameworks = detect_frameworks(&workspace).expect("detects GraphQL");
+    let first =
+        analyze_framework_units(&workspace, &frameworks).expect("extracts Nest GraphQL operations");
+    let second =
+        analyze_framework_units(&workspace, &frameworks).expect("repeats Nest GraphQL extraction");
+
+    let graphql_units = first
+        .units
+        .iter()
+        .filter(|unit| unit.framework == "GraphQL")
+        .collect::<Vec<_>>();
+    let operations = graphql_units
+        .iter()
+        .copied()
+        .filter(|unit| unit.kind == "operation")
+        .collect::<Vec<_>>();
+    assert_eq!(operations.len(), 4);
+    assert_eq!(
+        operations
+            .iter()
+            .filter(|unit| unit.qualified_name.starts_with("Query."))
+            .count(),
+        2
+    );
+    assert!(operations
+        .iter()
+        .any(|unit| unit.name == "createUser" && unit.qualified_name == "Mutation.createUser"));
+    assert!(operations.iter().any(
+        |unit| unit.name == "userCreated" && unit.qualified_name == "Subscription.userCreated"
+    ));
+    assert!(!operations.iter().any(|unit| unit.name == "profile"));
+    assert!(!operations.iter().any(|unit| unit.name == "rows"));
+
+    let schema = graphql_units
+        .iter()
+        .copied()
+        .find(|unit| unit.kind == "schema" && unit.name == "UsersResolver")
+        .expect("resolver schema unit");
+    let users = operations
+        .iter()
+        .copied()
+        .find(|unit| unit.name == "users")
+        .expect("users query operation");
+    assert_eq!(users.parent_id.as_deref(), Some(schema.id.as_str()));
+    assert_eq!(users.range.start_line, 5);
+    assert_eq!(users.range.start_character, 2);
+    assert_eq!(users.range.end_line, 5);
+    assert!(first.edges.iter().any(|edge| {
+        edge.kind == "contains"
+            && edge.source_id == schema.id
+            && edge.target_id == users.id
+            && edge.confidence == "exact"
+    }));
+
+    let first_ids = graphql_units
+        .iter()
+        .map(|unit| unit.id.as_str())
+        .collect::<Vec<_>>();
+    let second_ids = second
+        .units
+        .iter()
+        .filter(|unit| unit.framework == "GraphQL")
+        .map(|unit| unit.id.as_str())
+        .collect::<Vec<_>>();
+    assert_eq!(first_ids, second_ids);
+
+    let mut builder = ProjectGraphBuilder::new(workspace.clone());
+    builder.add_framework_units(first.units.clone(), first.edges.clone());
+    let json = builder.finish().to_json();
+    assert!(json.contains("\"framework\":\"GraphQL\""));
+    assert!(json.contains("\"kind\":\"operation\""));
+    assert!(json.contains("\"qualifiedName\":\"Query.users\""));
+    assert!(json.contains("\"startLine\":5"));
+    assert!(json.contains("\"parentId\":"));
+
+    remove_temp_workspace(&workspace);
+}
+
+#[test]
+fn extracts_strawberry_sync_and_async_root_operations() {
+    let workspace = create_temp_workspace("strawberry-graphql-framework-units");
+    write_strawberry_graphql_fixture(&workspace);
+
+    let frameworks = detect_frameworks(&workspace).expect("detects Strawberry GraphQL");
+    let extraction = analyze_framework_units(&workspace, &frameworks)
+        .expect("extracts Strawberry GraphQL operations");
+    let graphql_units = extraction
+        .units
+        .iter()
+        .filter(|unit| unit.framework == "GraphQL")
+        .collect::<Vec<_>>();
+    let operations = graphql_units
+        .iter()
+        .copied()
+        .filter(|unit| unit.kind == "operation")
+        .collect::<Vec<_>>();
+
+    assert_eq!(operations.len(), 4);
+    for (name, qualified_name) in [
+        ("hello", "Query.hello"),
+        ("viewer", "Query.viewer"),
+        ("rename_user", "Mutation.rename_user"),
+        ("notifications", "Subscription.notifications"),
+    ] {
+        assert!(operations
+            .iter()
+            .any(|unit| unit.name == name && unit.qualified_name == qualified_name));
+    }
+    assert!(!operations.iter().any(|unit| unit.name == "display_name"));
+    assert!(!operations.iter().any(|unit| unit.name == "documented_only"));
+    assert_eq!(
+        graphql_units
+            .iter()
+            .filter(|unit| unit.kind == "schema")
+            .count(),
+        3
+    );
+    let async_viewer = operations
+        .iter()
+        .copied()
+        .find(|unit| unit.name == "viewer")
+        .expect("async query operation");
+    assert_eq!(async_viewer.range.start_line, 9);
+    assert_eq!(async_viewer.range.start_character, 4);
+    assert!(async_viewer
+        .id
+        .contains("::operation::schema.py::viewer::9::4"));
+
+    remove_temp_workspace(&workspace);
+}
+
 fn assert_unit_kind(units: &[FrameworkUnit], kind: &str) {
     assert!(
         units.iter().any(|unit| unit.kind == kind),
@@ -425,6 +591,32 @@ fn write_nestjs_fixture(workspace: &Path) {
     write_file(
         &workspace.join("users.controller.ts"),
         "import { Controller, Get, Injectable } from \"@nestjs/common\";\n\n@Controller(\"users\")\nexport class UsersController {\n  constructor(private readonly usersService: UsersService) {}\n\n  @Get(\":id\")\n  findOne() {\n    return this.usersService.findOne();\n  }\n}\n\n@Injectable()\nexport class UsersService {\n  findOne() { return {}; }\n}\n",
+    );
+}
+
+fn write_nest_graphql_fixture(workspace: &Path) {
+    write_file(
+        &workspace.join("package.json"),
+        r#"{"dependencies":{"@nestjs/graphql":"^12.0.0","graphql":"^16.0.0"}}"#,
+    );
+    write_file(
+        &workspace.join("src/users.resolver.ts"),
+        "import { Mutation, Query, ResolveField, Resolver, Subscription } from \"@nestjs/graphql\";\n\n@Resolver(() => User)\nexport class UsersResolver {\n  @Query(() => [User])\n  users() { return [\"}\"]; }\n\n  @Query(() => User)\n  async user() { return {}; }\n\n  @Mutation(() => User)\n  createUser() { return {}; }\n\n  @Subscription(() => User)\n  userCreated() { return {}; }\n\n  @ResolveField(() => Profile)\n  profile() { return {}; }\n}\n",
+    );
+    write_file(
+        &workspace.join("src/unrelated.ts"),
+        "import { Query, Resolver } from \"some-orm\";\n\n@Resolver()\nclass DatabaseResolver {\n  @Query()\n  rows() { return []; }\n}\n",
+    );
+}
+
+fn write_strawberry_graphql_fixture(workspace: &Path) {
+    write_file(
+        &workspace.join("requirements.txt"),
+        "strawberry-graphql==0.235\n",
+    );
+    write_file(
+        &workspace.join("schema.py"),
+        "import strawberry\n\n@strawberry.type\nclass Query:\n    @strawberry.field\n    def hello(self) -> str:\n        return \"hello\"\n\n    @strawberry.field\n    async def viewer(self) -> str:\n        return \"viewer\"\n\n@strawberry.type\nclass Mutation:\n    @strawberry.mutation\n    def rename_user(self) -> str:\n        return \"renamed\"\n\n@strawberry.type\nclass Subscription:\n    @strawberry.subscription\n    async def notifications(self) -> str:\n        return \"notification\"\n\n@strawberry.type\nclass User:\n    @strawberry.field\n    def display_name(self) -> str:\n        return \"user\"\n\nEXAMPLE = \"\"\"\n@strawberry.type\nclass Query:\n    @strawberry.field\n    def documented_only(self) -> str:\n        return \"not executable\"\n\"\"\"\n",
     );
 }
 

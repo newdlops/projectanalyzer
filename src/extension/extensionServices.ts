@@ -44,7 +44,7 @@ export function createExtensionServices(context: vscode.ExtensionContext): Exten
   ]);
   const analyzer = new RustAnalyzerBackend({
     engineRoot: path.join(context.extensionUri.fsPath, "engine", "analyzer"),
-    getWorkspaceRoot: () => fileSystem.getWorkspaceRoot(),
+    workspaceFileSystem: fileSystem,
     maxFileSizeKb: config.maxFileSizeKb,
     fallbackBackend: fallbackAnalyzer,
     logger

@@ -771,7 +771,7 @@ fn route_path(parts: &[String], trim_index: bool) -> String {
 }
 
 fn is_visible_route_segment(segment: &str) -> bool {
-    !(segment.starts_with('(') && segment.ends_with(')')) && !segment.starts_with('@')
+    !(segment.starts_with('@') || segment.starts_with('(') && segment.ends_with(')'))
 }
 
 fn normalized_relative_path(base: &Path, path: &Path) -> String {

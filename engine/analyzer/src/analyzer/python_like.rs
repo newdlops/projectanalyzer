@@ -43,6 +43,60 @@ struct ImportCandidate {
     external_candidate: bool,
 }
 
+/// Reusable Python module resolver shared by import and imported-call passes.
+pub(super) struct WorkspaceModuleResolver {
+    module_paths: BTreeMap<String, PathBuf>,
+    /// All paths per suffix preserve ambiguity that legacy import edges collapse.
+    module_candidates: BTreeMap<String, Vec<PathBuf>>,
+}
+
+impl WorkspaceModuleResolver {
+    /// Indexes all importable suffixes from the analyzed Python source snapshot.
+    pub(super) fn new(files: &[SourceInput]) -> Self {
+        Self {
+            module_paths: create_module_path_map(files),
+            module_candidates: create_module_candidate_map(files),
+        }
+    }
+
+    /// Resolves one previously parsed dependency candidate.
+    fn resolve_candidate(&self, candidate: &ImportCandidate) -> Option<PathBuf> {
+        resolve_python_module(&candidate.resolution_modules, &self.module_paths)
+    }
+
+    /// Resolves the target file for a supported `from module import name` binding.
+    pub(super) fn resolve_named_import(
+        &self,
+        source_path: &Path,
+        module_part: &str,
+        imported_name: &str,
+    ) -> Option<PathBuf> {
+        let resolution_modules = if module_part.starts_with('.') {
+            let source_module = module_name_for_path(source_path)?;
+            resolve_relative_import_modules(&source_module, module_part, imported_name)
+        } else {
+            vec![
+                format!("{module_part}.{imported_name}"),
+                module_part.to_string(),
+            ]
+        };
+
+        for module_name in resolution_modules {
+            let Some(paths) = self.module_candidates.get(&module_name) else {
+                continue;
+            };
+
+            return if paths.len() == 1 {
+                paths.first().cloned()
+            } else {
+                None
+            };
+        }
+
+        None
+    }
+}
+
 /// Extracts Python class and function symbols.
 pub fn extract_symbols(
     builder: &mut ProjectGraphBuilder,
@@ -135,7 +189,7 @@ pub fn extract_symbols(
 
 /// Adds file-to-file and external module import edges for Python sources.
 pub fn add_import_edges(builder: &mut ProjectGraphBuilder, files: &[SourceInput]) {
-    let module_paths = create_module_path_map(files);
+    let resolver = WorkspaceModuleResolver::new(files);
 
     for file in files {
         if file.language_id != "python" {
@@ -145,9 +199,7 @@ pub fn add_import_edges(builder: &mut ProjectGraphBuilder, files: &[SourceInput]
         let source_module = module_name_for_path(&file.path);
 
         for candidate in collect_import_candidates(file, source_module.as_deref()) {
-            if let Some(target_path) =
-                resolve_python_module(&candidate.resolution_modules, &module_paths)
-            {
+            if let Some(target_path) = resolver.resolve_candidate(&candidate) {
                 if target_path != file.path {
                     builder.add_file_dependency_edge(NewFileDependencyEdge {
                         kind: "imports".to_string(),
@@ -202,6 +254,29 @@ fn create_module_path_map(files: &[SourceInput]) -> BTreeMap<String, PathBuf> {
     }
 
     module_paths
+}
+
+/// Creates a lossless suffix index used when semantic resolution requires uniqueness.
+fn create_module_candidate_map(files: &[SourceInput]) -> BTreeMap<String, Vec<PathBuf>> {
+    let mut candidates: BTreeMap<String, Vec<PathBuf>> = BTreeMap::new();
+
+    for file in files {
+        if file.language_id != "python" {
+            continue;
+        }
+
+        if let Some(module_name) = module_name_for_path(&file.path) {
+            for alias in module_name_suffixes(&module_name) {
+                let paths = candidates.entry(alias).or_default();
+
+                if !paths.contains(&file.path) {
+                    paths.push(file.path.clone());
+                }
+            }
+        }
+    }
+
+    candidates
 }
 
 /// Converts a Python file path to a dotted module name.
@@ -271,7 +346,7 @@ fn read_import_line(line_index: usize, line: &str, trimmed: &str) -> Vec<ImportC
         .strip_prefix("import ")
         .unwrap_or_default()
         .split(',')
-        .filter_map(|part| read_imported_module_name(part))
+        .filter_map(read_imported_module_name)
         .map(|module_name| ImportCandidate {
             display_module: module_name.clone(),
             resolution_modules: vec![module_name],
@@ -374,7 +449,7 @@ fn resolve_relative_import_modules(
 
 /// Reads a module name before an optional alias.
 fn read_imported_module_name(part: &str) -> Option<String> {
-    let module_name = part.trim().split_whitespace().next()?;
+    let module_name = part.split_whitespace().next()?;
 
     if module_name.is_empty() {
         None
@@ -416,10 +491,14 @@ fn strip_python_comment(line: &str) -> &str {
     line
 }
 
-/// Detects a Python declaration line.
+/// Detects a Python class, synchronous function, or asynchronous function declaration.
 fn detect_declaration(trimmed: &str) -> Option<(String, String)> {
     if let Some(name) = read_name_after_keyword(trimmed, "class") {
         return Some(("class".to_string(), name));
+    }
+
+    if let Some(name) = read_name_after_keyword(trimmed, "async def") {
+        return Some(("function".to_string(), name));
     }
 
     if let Some(name) = read_name_after_keyword(trimmed, "def") {
@@ -429,7 +508,7 @@ fn detect_declaration(trimmed: &str) -> Option<(String, String)> {
     None
 }
 
-/// Reads a Python identifier after class or def.
+/// Reads a Python identifier after a supported declaration keyword.
 fn read_name_after_keyword(line: &str, keyword: &str) -> Option<String> {
     let remainder = line.strip_prefix(keyword)?.trim_start();
     let end = remainder
@@ -514,6 +593,33 @@ mod tests {
         assert_call_edge(&graph, &run_id, &load_id);
         assert_call_edge(&graph, &load_id, &helper_id);
         assert_call_edge(&graph, &helper_id, &format_id);
+    }
+
+    #[test]
+    fn extracts_async_functions_and_resolves_their_call_edges() {
+        let file = source(
+            "/workspace/app.py",
+            "class AsyncService:\n    async def run(self):\n        return await self.load()\n    async def load(self):\n        return await helper()\n\nasync def helper():\n    return await format_value()\n\nasync def format_value():\n    return \"value\"\n",
+        );
+        let mut builder = ProjectGraphBuilder::new(PathBuf::from("/workspace"));
+        let file_id = builder.add_file(&file);
+
+        extract_symbols(&mut builder, &file, file_id).expect("extracts async symbols and calls");
+        let graph = builder.finish();
+        let run_id = node_id(&graph, "run");
+        let load_id = node_id(&graph, "load");
+        let helper_id = node_id(&graph, "helper");
+        let format_id = node_id(&graph, "format_value");
+
+        assert_call_edge(&graph, &run_id, &load_id);
+        assert_call_edge(&graph, &load_id, &helper_id);
+        assert_call_edge(&graph, &helper_id, &format_id);
+        assert!(graph.nodes.iter().any(|node| {
+            node.id == load_id && node.kind == "function" && node.parent_id.is_some()
+        }));
+        assert!(graph.nodes.iter().any(|node| {
+            node.id == helper_id && node.kind == "function" && node.qualified_name == "helper"
+        }));
     }
 
     #[test]

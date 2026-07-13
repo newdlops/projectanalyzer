@@ -20,6 +20,8 @@ pub struct EngineArgs {
 pub struct AnalyzeWorkspaceOptions {
     pub workspace_root: PathBuf,
     pub max_file_size_kb: usize,
+    /// Whether stdin contains the host-selected workspace source manifest.
+    pub source_manifest_stdin: bool,
 }
 
 /// Options for current-file analysis through stdin.
@@ -59,6 +61,7 @@ where
 {
     let mut workspace_root: Option<PathBuf> = None;
     let mut max_file_size_kb = 1024usize;
+    let mut source_manifest_stdin = false;
     let mut iterator = tokens.into_iter();
 
     while let Some(token) = iterator.next() {
@@ -75,6 +78,9 @@ where
                     .parse::<usize>()
                     .map_err(|error| format!("invalid --max-file-size-kb value: {error}"))?;
             }
+            "--source-manifest-stdin" => {
+                source_manifest_stdin = true;
+            }
             _ => return Err(format!("unknown analyze-workspace flag: {token}")),
         }
     }
@@ -82,6 +88,7 @@ where
     Ok(AnalyzeWorkspaceOptions {
         workspace_root: workspace_root.ok_or_else(|| "missing --workspace".to_string())?,
         max_file_size_kb,
+        source_manifest_stdin,
     })
 }
 
@@ -123,4 +130,27 @@ where
 /// Returns a required flag value or a descriptive error.
 fn required_value(flag: &str, value: Option<String>) -> Result<String, String> {
     value.ok_or_else(|| format!("missing value for {flag}"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{Command, EngineArgs};
+
+    /// Verifies that manifest mode remains an explicit workspace-only opt-in.
+    #[test]
+    fn parses_workspace_source_manifest_flag() {
+        let args = EngineArgs::parse([
+            "analyze-workspace".to_string(),
+            "--workspace".to_string(),
+            "/workspace".to_string(),
+            "--source-manifest-stdin".to_string(),
+        ])
+        .expect("workspace arguments should parse");
+
+        let Command::AnalyzeWorkspace(options) = args.command else {
+            panic!("expected workspace command");
+        };
+
+        assert!(options.source_manifest_stdin);
+    }
 }

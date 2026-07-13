@@ -14,6 +14,7 @@ export type WebviewHtmlOptions = {
   extensionUri: vscode.Uri;
   nonce: string;
   defaultDepth: number;
+  maxRenderedNodes: number;
   initialMode: "call" | "file" | "class";
   surface: ExplorerSurface;
 };
@@ -75,22 +76,22 @@ function getSidebarHtml(options: WebviewHtmlOptions): string {
       </div>
     </div>
     <div class="accordion" aria-label="Explorer sections">
-      <section id="framework-section" class="tree-section framework-section">
-        <button id="accordion-frameworks" class="accordion-header" type="button" aria-expanded="true" aria-controls="framework-panel">
+      <section id="framework-section" class="tree-section framework-section collapsed">
+        <button id="accordion-frameworks" class="accordion-header" type="button" aria-expanded="false" aria-controls="framework-panel">
           <span class="accordion-disclosure"></span>
           <span class="accordion-title">Frameworks</span>
         </button>
-        <div id="framework-panel" class="accordion-panel">
+        <div id="framework-panel" class="accordion-panel" hidden>
           <div id="framework-tree" class="list explorer-tree framework-tree" role="tree" aria-label="Framework semantic tree"></div>
         </div>
       </section>
-      <section id="call-section" class="tree-section calls-section collapsed">
-        <button id="accordion-calls" class="accordion-header" type="button" aria-expanded="false" aria-controls="call-panel">
+      <section id="call-section" class="tree-section calls-section">
+        <button id="accordion-calls" class="accordion-header" type="button" aria-expanded="true" aria-controls="call-panel">
           <span class="accordion-disclosure"></span>
-          <span class="accordion-title">Function Flows</span>
+          <span class="accordion-title">Request Flows</span>
         </button>
-        <div id="call-panel" class="accordion-panel" hidden>
-          <div id="call-tree" class="list explorer-tree call-tree" role="tree" aria-label="Function flow tree"></div>
+        <div id="call-panel" class="accordion-panel">
+          <div id="call-tree" class="list explorer-tree call-tree" role="tree" aria-label="Request flow tree"></div>
         </div>
       </section>
       <section id="files-section" class="tree-section files-section collapsed">
@@ -121,7 +122,7 @@ function getGraphPanelHtml(options: WebviewHtmlOptions): string {
     canvasWidth,
     defaultDepth: options.defaultDepth,
     initialMode: options.initialMode,
-    maxNodes: 1000
+    maxNodes: Math.max(1, Math.floor(options.maxRenderedNodes))
   });
 
   return /* html */ `<!DOCTYPE html>

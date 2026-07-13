@@ -5,8 +5,15 @@
 
 import * as vscode from "vscode";
 import type { AnalysisBackend } from "../analyzer/core/analysisBackend";
+import { createChangeImpactRows } from "../application/functionExplorer/changeImpactRows";
+import {
+  createDefaultSemanticFlowExpandedRowIds,
+  createSemanticFlowRows
+} from "../application/functionExplorer/semanticFlowRows";
 import { createFunctionIndex } from "../graph/functionIndex";
 import { createFunctionExplorerPayload } from "../graph/functionIndexPayload";
+import { analyzeChangeImpact } from "../insights/changeImpact";
+import { createSemanticFlowIndex } from "../insights/semanticFlow";
 import type {
   AnalysisStatusPayload,
   ExportRequest,
@@ -14,6 +21,7 @@ import type {
   WebviewLogRequest,
   WebviewRequest
 } from "../protocol/messages";
+import { validateWebviewRequest } from "../protocol/webviewRequestValidation";
 import type { FunctionExplorerIndexRequest } from "../protocol/functionExplorer";
 import type { ProjectAnalyzerLogger } from "../observability/logger";
 import { createContentHash } from "../shared/hash";
@@ -79,12 +87,22 @@ export class ExplorerViewProvider implements vscode.WebviewViewProvider {
       extensionUri: this.dependencies.context.extensionUri,
       nonce: createNonce(),
       defaultDepth: this.dependencies.config.defaultDepth,
+      maxRenderedNodes: this.dependencies.config.maxRenderedNodes,
       initialMode: "file",
       surface: "sidebar"
     });
 
-    this.view.webview.onDidReceiveMessage((message: WebviewRequest) => {
-      void this.handleMessage(message);
+    this.view.webview.onDidReceiveMessage((message: unknown) => {
+      const validation = validateWebviewRequest(message);
+      if (!validation.ok) {
+        this.dependencies.logger.warn("sidebar.message.rejected", {
+          reason: validation.reason,
+          receivedType: validation.receivedType
+        });
+        return;
+      }
+
+      void this.handleMessage(validation.value);
     });
   }
 
@@ -453,18 +471,41 @@ export class ExplorerViewProvider implements vscode.WebviewViewProvider {
     graph: ProjectGraph,
     request: FunctionExplorerIndexRequest = {}
   ): Promise<void> {
-    const expandedTreeIds = request.options?.expandedRowIds ?? [];
+    const semanticFlows = createSemanticFlowIndex(graph);
+    const selectedFunctionId = request.options?.selectedFunctionId;
+    const expandedTreeIds = request.options?.expandedRowIds
+      ?? createDefaultSemanticFlowExpandedRowIds(semanticFlows);
+    const semanticFlowRows = createSemanticFlowRows(semanticFlows, { expandedRowIds: expandedTreeIds });
+    const changeImpact = selectedFunctionId
+      ? analyzeChangeImpact(graph, semanticFlows, selectedFunctionId)
+      : undefined;
+    const changeImpactRows = changeImpact
+      ? createChangeImpactRows(graph, changeImpact)
+      : undefined;
     const index = createFunctionIndex(graph, {
       expandedTreeIds,
       includeInventoryRows: false,
       inventoryLimit: 500
     });
-    const payload = createFunctionExplorerPayload(graph, index, { initialRowLimit: 500 });
+    const payload = createFunctionExplorerPayload(graph, index, {
+      initialRowLimit: 500,
+      expandedRowIds: expandedTreeIds,
+      semanticFlowRows,
+      changeImpactRows,
+      selectedFunctionId
+    });
     payload.options.expandedRowIds = expandedTreeIds;
 
     this.dependencies.logger.info("sidebar.functionIndex.publish", {
       callEdges: payload.summary.callEdgeCount,
       callableNodes: payload.summary.callableNodeCount,
+      changeImpactAffectedEntrypoints: changeImpact?.summary.affectedFlowCount ?? 0,
+      changeImpactCallers: changeImpact?.summary.callerCount ?? 0,
+      entrypointCoverageGaps: semanticFlows.coverageGaps.length,
+      entrypoints: semanticFlows.summary.entrypointCount,
+      mappedEntrypointHandlers: semanticFlows.summary.mappedHandlerCount,
+      operations: semanticFlows.summary.operationCount,
+      routes: semanticFlows.summary.routeCount,
       rows: payload.rows.length
     });
     await this.postMessage({ type: "function/indexLoaded", payload });

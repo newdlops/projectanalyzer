@@ -110,6 +110,38 @@ fn detect_package_json(
             },
         ),
         (
+            "@nestjs/graphql",
+            FrameworkDefinition {
+                name: "GraphQL",
+                ecosystem: "javascript",
+                category: "backend",
+            },
+        ),
+        (
+            "graphql",
+            FrameworkDefinition {
+                name: "GraphQL",
+                ecosystem: "javascript",
+                category: "backend",
+            },
+        ),
+        (
+            "@apollo/server",
+            FrameworkDefinition {
+                name: "GraphQL",
+                ecosystem: "javascript",
+                category: "backend",
+            },
+        ),
+        (
+            "apollo-server",
+            FrameworkDefinition {
+                name: "GraphQL",
+                ecosystem: "javascript",
+                category: "backend",
+            },
+        ),
+        (
             "vite",
             FrameworkDefinition {
                 name: "Vite",
@@ -273,6 +305,22 @@ fn detect_python_manifest(
             "fastapi",
             FrameworkDefinition {
                 name: "FastAPI",
+                ecosystem: "python",
+                category: "backend",
+            },
+        ),
+        (
+            "strawberry-graphql",
+            FrameworkDefinition {
+                name: "GraphQL",
+                ecosystem: "python",
+                category: "backend",
+            },
+        ),
+        (
+            "graphene",
+            FrameworkDefinition {
+                name: "GraphQL",
                 ecosystem: "python",
                 category: "backend",
             },

@@ -14,6 +14,7 @@ import type {
   WebviewLogRequest,
   WebviewRequest
 } from "../protocol/messages";
+import { validateWebviewRequest } from "../protocol/webviewRequestValidation";
 import type { ProjectAnalyzerLogger } from "../observability/logger";
 import type { ProjectGraph } from "../shared/types";
 import type { AnalysisCacheStore } from "../storage/cacheStore";
@@ -88,11 +89,21 @@ export class ExplorerGraphPanelProvider {
         extensionUri: this.dependencies.context.extensionUri,
         nonce: createNonce(),
         defaultDepth: this.dependencies.config.defaultDepth,
+        maxRenderedNodes: this.dependencies.config.maxRenderedNodes,
         initialMode: this.mode,
         surface: "panel"
       });
-      this.panel.webview.onDidReceiveMessage((message: WebviewRequest) => {
-        void this.handleMessage(message);
+      this.panel.webview.onDidReceiveMessage((message: unknown) => {
+        const validation = validateWebviewRequest(message);
+        if (!validation.ok) {
+          this.dependencies.logger.warn("graphPanel.message.rejected", {
+            reason: validation.reason,
+            receivedType: validation.receivedType
+          });
+          return;
+        }
+
+        void this.handleMessage(validation.value);
       });
       this.panel.onDidDispose(() => {
         this.panel = undefined;

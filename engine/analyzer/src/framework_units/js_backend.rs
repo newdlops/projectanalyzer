@@ -234,7 +234,7 @@ fn express_drafts(content: &str) -> Vec<UnitDraft> {
 
         let statement = lines[line_index];
         let range = line_range(line_index, leading_width(statement), statement);
-        if let Some((method, arguments)) = read_express_call(&statement) {
+        if let Some((method, arguments)) = read_express_call(statement) {
             add_express_call_units(method, arguments, &range, &mut drafts);
         }
         line_index += 1;

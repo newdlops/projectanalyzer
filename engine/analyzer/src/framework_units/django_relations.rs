@@ -614,7 +614,7 @@ fn is_identifier_continue(byte: u8) -> bool {
 /// Checks a cross-platform file name suffix without normalizing the whole path.
 fn has_file_name(file_path: &str, expected: &str) -> bool {
     file_path
-        .rsplit(|character| character == '/' || character == '\\')
+        .rsplit(['/', '\\'])
         .next()
         .map(|name| name == expected)
         .unwrap_or(false)

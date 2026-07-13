@@ -2,7 +2,7 @@
   "name": "project-analyzer",
   "displayName": "Project Analyzer",
   "description": "Structure based visual explorer for static project call, file, and class relationships.",
-  "version": "0.0.1",
+  "version": "0.0.1002",
   "publisher": "local",
   "private": true,
   "license": "UNLICENSED",
@@ -125,13 +125,17 @@
   "scripts": {
     "engine:build": "cargo build --manifest-path engine/analyzer/Cargo.toml",
     "engine:build:release": "cargo build --release --manifest-path engine/analyzer/Cargo.toml",
+    "engine:stage": "node scripts/stage-runtime-engine.mjs",
     "engine:test": "cargo test --manifest-path engine/analyzer/Cargo.toml",
     "dev:prepare": "npm run engine:build && npm run compile",
-    "compile": "tsc -p ./tsconfig.json",
+    "compile": "node scripts/clean-output.mjs && tsc -p ./tsconfig.json",
     "watch": "tsc -watch -p ./tsconfig.json",
     "check": "tsc -p ./tsconfig.json --noEmit",
-    "test": "npm run engine:test && npm run compile && node --test out/test/unit/*.test.js",
-    "vscode:prepublish": "npm run engine:build:release && npm run compile"
+    "test:package": "node --test scripts/check-vsix-package.test.mjs",
+    "test": "npm run engine:test && npm run compile && node --test out/test/unit/*.test.js && npm run test:package",
+    "package:check": "node scripts/check-vsix-package.mjs",
+    "package:vsix": "node scripts/package-extension.mjs",
+    "vscode:prepublish": "npm run engine:build:release && npm run engine:stage && npm run compile"
   },
   "devDependencies": {
     "@types/node": "^22.15.30",

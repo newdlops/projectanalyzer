@@ -13,6 +13,7 @@ test("graph panel HTML exposes canvas viewer controls", () => {
     extensionUri: {} as never,
     nonce: "nonce",
     defaultDepth: 2,
+    maxRenderedNodes: 37,
     initialMode: "file",
     surface: "panel"
   });
@@ -33,6 +34,9 @@ test("graph panel HTML exposes canvas viewer controls", () => {
   assert.match(script, /expandedGraphNodeIds: createDefaultExpandedNodeIds/);
   assert.match(script, /getApplicationEntryChildren/);
   assert.match(script, /getImportedFileChildren/);
+  assert.match(script, /const maxNodes = 37/);
+  assert.match(script, /const stack = \[\{ nodeId: rootNodeId \}\]/);
+  assert.equal(script.match(/appendProgressiveBranch\(/g)?.length, 2);
   assert.doesNotThrow(() => new Function("acquireVsCodeApi", script));
 });
 
@@ -42,6 +46,7 @@ test("sidebar HTML renders file navigation as an import tree", () => {
     extensionUri: {} as never,
     nonce: "nonce",
     defaultDepth: 2,
+    maxRenderedNodes: 500,
     initialMode: "file",
     surface: "sidebar"
   });
@@ -60,12 +65,13 @@ test("sidebar HTML renders file navigation as an import tree", () => {
   assert.match(html, /id="accordion-calls"/);
   assert.match(html, /id="accordion-files"/);
   assert.match(html, /aria-controls="framework-panel"/);
-  assert.match(html, /id="call-panel" class="accordion-panel" hidden/);
+  assert.match(html, /id="framework-panel" class="accordion-panel" hidden/);
+  assert.match(html, /id="call-panel" class="accordion-panel">/);
   assert.match(html, /id="framework-tree"/);
   assert.match(html, /Framework semantic tree/);
   assert.match(html, /id="call-tree"/);
-  assert.match(html, /Function flow tree/);
-  assert.match(html, /Function Flows/);
+  assert.match(html, /Request flow tree/);
+  assert.match(html, /Request Flows/);
   assert.match(html, /Files/);
   assert.match(scriptMatch[1], /createImportTreeIndex/);
   assert.match(scriptMatch[1], /createFrameworkTreeRows/);
@@ -76,7 +82,15 @@ test("sidebar HTML renders file navigation as an import tree", () => {
   assert.match(scriptMatch[1], /function\/indexLoaded/);
   assert.match(scriptMatch[1], /function\/index/);
   assert.match(scriptMatch[1], /expandedAccordionSections/);
-  assert.match(scriptMatch[1], /new Set\(\["frameworks"\]\)/);
+  assert.match(scriptMatch[1], /new Set\(\["calls"\]\)/);
+  assert.match(scriptMatch[1], /function-flows:framework-handlers/);
+  assert.match(scriptMatch[1], /functionIndexLoading/);
+  assert.match(scriptMatch[1], /selectedFunctionId: undefined/);
+  assert.match(scriptMatch[1], /functionId: row\.functionId/);
+  assert.match(scriptMatch[1], /getConcreteFunctionId/);
+  assert.match(scriptMatch[1], /selectedFunctionId: state\.selectedFunctionId/);
+  assert.match(scriptMatch[1], /emits at most one Function Index refresh request/);
+  assert.match(scriptMatch[1], /Loading request flows/);
   assert.match(scriptMatch[1], /renderAccordionSections/);
   assert.match(scriptMatch[1], /renderVirtualTree/);
   assert.match(scriptMatch[1], /VIRTUAL_TREE_ROW_HEIGHT/);
@@ -110,6 +124,7 @@ test("graph panel script renders a loaded graph without module-loader globals", 
     extensionUri: {} as never,
     nonce: "nonce",
     defaultDepth: 2,
+    maxRenderedNodes: 500,
     initialMode: "file",
     surface: "panel"
   });

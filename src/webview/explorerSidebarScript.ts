@@ -29,14 +29,16 @@ export function getExplorerSidebarScript(): string {
     const state = {
       graph: undefined,
       analysisState: "idle",
-      expandedAccordionSections: new Set(["frameworks"]),
-      expandedTreeIds: new Set(["root"]),
+      expandedAccordionSections: new Set(["calls"]),
+      expandedTreeIds: new Set(["root", "function-flows:framework-handlers"]),
       graphRevision: 0,
       functionIndex: undefined,
+      functionIndexLoading: false,
       functionIndexRevision: 0,
       treeRevision: 0,
       treeRowsCache: new Map(),
-      selectedTreeId: undefined
+      selectedTreeId: undefined,
+      selectedFunctionId: undefined
     };
     const elements = {
       analyzeWorkspace: document.getElementById("analyze-workspace"),
@@ -107,6 +109,9 @@ export function getExplorerSidebarScript(): string {
         state.graph = message.payload;
         state.graphRevision += 1;
         state.functionIndex = undefined;
+        state.functionIndexLoading = true;
+        state.selectedTreeId = undefined;
+        state.selectedFunctionId = undefined;
         state.functionIndexRevision += 1;
         state.treeRowsCache.clear();
         elements.status.textContent = "Graph available";
@@ -116,6 +121,12 @@ export function getExplorerSidebarScript(): string {
 
       if (message.type === "function/indexLoaded") {
         state.functionIndex = message.payload;
+        state.functionIndexLoading = false;
+        state.expandedTreeIds = new Set(
+          message.payload.options?.expandedRowIds ?? Array.from(state.expandedTreeIds)
+        );
+        state.selectedFunctionId =
+          message.payload.options?.selectedFunctionId ?? state.selectedFunctionId;
         state.functionIndexRevision += 1;
         state.treeRowsCache.clear();
         renderAccordionSections();
@@ -126,6 +137,9 @@ export function getExplorerSidebarScript(): string {
         state.graph = undefined;
         state.analysisState = "idle";
         state.functionIndex = undefined;
+        state.functionIndexLoading = false;
+        state.selectedTreeId = undefined;
+        state.selectedFunctionId = undefined;
         state.graphRevision += 1;
         state.functionIndexRevision += 1;
         state.treeRowsCache.clear();
@@ -142,6 +156,7 @@ export function getExplorerSidebarScript(): string {
 
       if (message.type === "error") {
         state.analysisState = "failed";
+        state.functionIndexLoading = false;
         elements.status.textContent = message.payload.message;
         renderActions();
       }
@@ -176,7 +191,13 @@ export function getExplorerSidebarScript(): string {
       } else {
         state.expandedAccordionSections.add(sectionId);
         if (sectionId === "calls") {
-          postRequest("function/index", {}, "Loading function index");
+          postRequest("function/index", {
+            graphVersion: state.graph?.version,
+            options: {
+              expandedRowIds: Array.from(state.expandedTreeIds),
+              selectedFunctionId: state.selectedFunctionId
+            }
+          }, "Loading function index");
         }
       }
     }
@@ -287,6 +308,12 @@ export function getExplorerSidebarScript(): string {
         return;
       }
 
+      if (state.functionIndexLoading) {
+        clearVirtualTree(elements.callTree);
+        appendEmptyTree(elements.callTree, "Loading request flows...");
+        return;
+      }
+
       const rows = getTreeRows("calls", () => createHostFunctionRows() ?? createFunctionFlowRowsWithInventory(state.graph, state.expandedTreeIds));
       renderVirtualTree(elements.callTree, rows, "No callable functions in graph");
     }
@@ -303,6 +330,8 @@ export function getExplorerSidebarScript(): string {
         detail: row.detail || "",
         kind: row.metadata?.legacyKind || row.kind,
         nodeId: row.symbolId,
+        functionId: row.functionId,
+        functionKind: row.functionKind,
         depth: row.depth,
         hasChildren: row.hasChildren,
         expanded: row.expanded
@@ -406,30 +435,17 @@ export function getExplorerSidebarScript(): string {
       }
       button.append(disclosure, icon, text);
       button.addEventListener("click", () => {
-        state.selectedTreeId = row.id;
-
-        if (row.hasChildren) {
-          toggleTreeRow(row.id);
-          requestFunctionIndexRefresh(row.id);
-        }
-
-        render();
+        selectTreeRow(row, row.hasChildren);
       });
       button.addEventListener("keydown", (event) => {
         if (event.key === "ArrowRight" && row.hasChildren && !row.expanded) {
           event.preventDefault();
-          state.selectedTreeId = row.id;
-          toggleTreeRow(row.id);
-          requestFunctionIndexRefresh(row.id);
-          render();
+          selectTreeRow(row, true);
         }
 
         if (event.key === "ArrowLeft" && row.hasChildren && row.expanded) {
           event.preventDefault();
-          state.selectedTreeId = row.id;
-          toggleTreeRow(row.id);
-          requestFunctionIndexRefresh(row.id);
-          render();
+          selectTreeRow(row, true);
         }
       });
       button.addEventListener("dblclick", () => {
@@ -439,6 +455,43 @@ export function getExplorerSidebarScript(): string {
       });
 
       return button;
+    }
+
+    /** Selects one row and emits at most one Function Index refresh request. */
+    function selectTreeRow(row, toggleExpansion) {
+      state.selectedTreeId = row.id;
+      const selectedFunctionId = getConcreteFunctionId(row);
+
+      if (selectedFunctionId) {
+        state.selectedFunctionId = selectedFunctionId;
+      }
+
+      if (toggleExpansion) {
+        toggleTreeRow(row.id);
+      }
+
+      if (row.id.startsWith("function-flows:") && (toggleExpansion || selectedFunctionId)) {
+        requestFunctionIndexRefresh(row.id);
+      }
+
+      render();
+    }
+
+    /** Returns only source-backed callable identities eligible for impact analysis. */
+    function getConcreteFunctionId(row) {
+      if (!row.functionId || !row.nodeId) {
+        return undefined;
+      }
+
+      if (["external", "unresolved"].includes(row.kind)) {
+        return undefined;
+      }
+
+      if (["external", "unresolved"].includes(row.functionKind)) {
+        return undefined;
+      }
+
+      return row.functionId;
     }
 
     function appendTreeRow(parent, row) {
@@ -455,7 +508,8 @@ export function getExplorerSidebarScript(): string {
         payload: {
           graphVersion: state.graph?.version,
           options: {
-            expandedRowIds: Array.from(state.expandedTreeIds)
+            expandedRowIds: Array.from(state.expandedTreeIds),
+            selectedFunctionId: state.selectedFunctionId
           }
         }
       });

@@ -101,6 +101,7 @@ export type DetectedFramework = {
 export type FrameworkUnitKind =
   | "app"
   | "route"
+  | "operation"
   | "controller"
   | "view"
   | "model"

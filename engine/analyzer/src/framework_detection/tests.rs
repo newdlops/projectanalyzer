@@ -96,6 +96,50 @@ fn detects_frameworks_across_manifest_ecosystems() {
 }
 
 #[test]
+fn merges_graphql_package_evidence_into_canonical_framework_rows() {
+    let workspace = create_temp_workspace("graphql-frameworks");
+    write_file(
+        &workspace.join("web/package.json"),
+        r#"{
+          "dependencies": {
+            "@nestjs/graphql": "^12.0.0",
+            "graphql": "^16.0.0",
+            "@apollo/server": "^4.0.0",
+            "apollo-server": "^3.0.0"
+          }
+        }"#,
+    );
+    write_file(
+        &workspace.join("api/requirements.txt"),
+        "strawberry-graphql==0.235\ngraphene>=3\n",
+    );
+
+    let frameworks = detect_frameworks(&workspace).expect("detects GraphQL frameworks");
+
+    assert_framework(
+        &frameworks,
+        "GraphQL",
+        "javascript",
+        "backend",
+        "high",
+        "web",
+    );
+    assert_framework(&frameworks, "GraphQL", "python", "backend", "high", "api");
+    let javascript = frameworks
+        .iter()
+        .find(|framework| framework.name == "GraphQL" && framework.ecosystem == "javascript")
+        .expect("canonical JavaScript GraphQL row");
+    let python = frameworks
+        .iter()
+        .find(|framework| framework.name == "GraphQL" && framework.ecosystem == "python")
+        .expect("canonical Python GraphQL row");
+    assert_eq!(javascript.evidence.len(), 4);
+    assert_eq!(python.evidence.len(), 2);
+
+    remove_temp_workspace(&workspace);
+}
+
+#[test]
 fn detects_multiple_django_project_roots_from_manage_py_entrypoints() {
     let workspace = create_temp_workspace("django-monorepo");
     write_file(

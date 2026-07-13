@@ -12,27 +12,60 @@ use crate::model::{SourceInput, SourceRange};
 
 const RESOLVABLE_EXTENSIONS: [&str; 4] = ["ts", "tsx", "js", "jsx"];
 
+/// Reusable workspace-local module resolver shared by dependency and call passes.
+///
+/// The resolver owns normalized file and path-alias indexes so later semantic
+/// passes use exactly the same relative/alias rules without rebuilding them for
+/// every import binding.
+pub(in crate::analyzer) struct WorkspaceModuleResolver {
+    file_by_path: BTreeMap<PathBuf, PathBuf>,
+    alias_rules_by_config: BTreeMap<PathBuf, Vec<PathAliasRule>>,
+    config_path_by_dir: BTreeMap<PathBuf, Option<PathBuf>>,
+}
+
+impl WorkspaceModuleResolver {
+    /// Builds resolver indexes for one immutable workspace source snapshot.
+    pub(in crate::analyzer) fn new(files: &[SourceInput]) -> Self {
+        Self {
+            file_by_path: create_file_map(files),
+            alias_rules_by_config: create_alias_rule_map(files),
+            config_path_by_dir: BTreeMap::new(),
+        }
+    }
+
+    /// Resolves one module specifier using relative paths or nearest config aliases.
+    pub(in crate::analyzer) fn resolve(
+        &mut self,
+        source_path: &Path,
+        module_specifier: &str,
+    ) -> Option<PathBuf> {
+        let alias_rules = find_alias_rules_for_file(
+            source_path,
+            &self.alias_rules_by_config,
+            &mut self.config_path_by_dir,
+        );
+
+        resolve_module(
+            source_path,
+            module_specifier,
+            &self.file_by_path,
+            alias_rules,
+        )
+    }
+}
+
 /// Adds resolved import/export edges for all JavaScript-like project files.
 pub fn add_import_edges(builder: &mut ProjectGraphBuilder, files: &[SourceInput]) {
-    let file_by_path = create_file_map(files);
-    let alias_rules_by_config = create_alias_rule_map(files);
-    let mut config_path_by_dir = BTreeMap::new();
+    let mut resolver = WorkspaceModuleResolver::new(files);
 
     for file in files {
         if !is_javascript_like(file) {
             continue;
         }
 
-        let alias_rules =
-            find_alias_rules_for_file(&file.path, &alias_rules_by_config, &mut config_path_by_dir);
-
         for candidate in collect_import_candidates(file) {
-            let Some(target_path) = resolve_module(
-                &file.path,
-                &candidate.module_specifier,
-                &file_by_path,
-                alias_rules,
-            ) else {
+            let Some(target_path) = resolver.resolve(&file.path, &candidate.module_specifier)
+            else {
                 let is_relative_or_absolute = matches!(
                     candidate.module_specifier.as_bytes().first(),
                     Some(b'.' | b'/')
@@ -164,7 +197,7 @@ fn read_quoted_specifier(
     text: &str,
     kind: &str,
 ) -> Option<ImportCandidate> {
-    let quote_index = text.find(|character| character == '\'' || character == '"')?;
+    let quote_index = text.find(['\'', '"'])?;
     let quote = text.as_bytes()[quote_index] as char;
     let specifier_start = quote_index + 1;
     let specifier_end = text[specifier_start..].find(quote)? + specifier_start;
@@ -685,115 +718,5 @@ fn normalize_path(path: &Path) -> PathBuf {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::graph::ProjectGraphBuilder;
-
-    #[test]
-    fn adds_relative_import_edges_between_files() {
-        let files = vec![
-            source(
-                "/workspace/src/main.ts",
-                "import { service } from './service';",
-            ),
-            source("/workspace/src/service.ts", "export function service() {}"),
-        ];
-        let mut builder = ProjectGraphBuilder::new(PathBuf::from("/workspace"));
-
-        for file in &files {
-            builder.add_file(file);
-        }
-        add_import_edges(&mut builder, &files);
-        let graph = builder.finish();
-        assert!(graph.edges.iter().any(|edge| {
-            edge.kind == "imports"
-                && edge.source_id.ends_with("/workspace/src/main.ts")
-                && edge.target_id.ends_with("/workspace/src/service.ts")
-        }));
-    }
-
-    #[test]
-    fn adds_tsconfig_path_alias_import_edges_between_files() {
-        let workspace_root = std::env::temp_dir().join(format!(
-            "project-analyzer-alias-test-{}",
-            std::process::id()
-        ));
-        let src_root = workspace_root.join("src");
-        let service_path = src_root.join("services").join("service.ts");
-        let main_path = src_root.join("main.ts");
-
-        std::fs::create_dir_all(service_path.parent().expect("service parent"))
-            .expect("create source tree");
-        std::fs::write(
-            workspace_root.join("tsconfig.json"),
-            r#"{
-              "compilerOptions": {
-                "paths": {
-                  "*": ["./src/*"]
-                }
-              }
-            }"#,
-        )
-        .expect("write tsconfig");
-
-        let files = vec![
-            source(
-                main_path.to_string_lossy().as_ref(),
-                "import { service } from 'services/service';",
-            ),
-            source(
-                service_path.to_string_lossy().as_ref(),
-                "export function service() {}",
-            ),
-        ];
-        let mut builder = ProjectGraphBuilder::new(workspace_root.clone());
-
-        for file in &files {
-            builder.add_file(file);
-        }
-        add_import_edges(&mut builder, &files);
-        let graph = builder.finish();
-        assert!(graph.edges.iter().any(|edge| {
-            edge.kind == "imports"
-                && edge.source_id.ends_with("src/main.ts")
-                && edge.target_id.ends_with("src/services/service.ts")
-        }));
-
-        let _ = std::fs::remove_dir_all(workspace_root);
-    }
-
-    #[test]
-    fn adds_external_import_leaf_for_package_imports() {
-        let files = vec![source(
-            "/workspace/src/main.ts",
-            "import React from 'react';",
-        )];
-        let mut builder = ProjectGraphBuilder::new(PathBuf::from("/workspace"));
-
-        for file in &files {
-            builder.add_file(file);
-        }
-        add_import_edges(&mut builder, &files);
-        let graph = builder.finish();
-        let external = graph
-            .nodes
-            .iter()
-            .find(|node| node.kind == "external" && node.name == "react")
-            .expect("external package node");
-
-        assert!(graph.edges.iter().any(|edge| {
-            edge.kind == "imports"
-                && edge.target_id == external.id
-                && edge.confidence == "unresolved"
-        }));
-    }
-
-    fn source(path: &str, content: &str) -> SourceInput {
-        SourceInput {
-            path: PathBuf::from(path),
-            language_id: "typescript".to_string(),
-            content: content.to_string(),
-            size_bytes: content.len(),
-        }
-    }
-}
+#[path = "imports_tests.rs"]
+mod tests;

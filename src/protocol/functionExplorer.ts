@@ -38,6 +38,7 @@ export type FunctionExplorerFunctionKind =
 export type FunctionExplorerRole =
   | "entrypoint"
   | "routeHandler"
+  | "resolver"
   | "controller"
   | "service"
   | "repository"

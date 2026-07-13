@@ -197,7 +197,7 @@ fn split_top_level_arguments(arguments: &str) -> Vec<String> {
 /// Reads a simple Python string literal, including raw string prefixes.
 fn python_string_literal(value: &str) -> Option<String> {
     let trimmed = value.trim();
-    let first_quote = trimmed.find(|character| character == '\'' || character == '"')?;
+    let first_quote = trimmed.find(['\'', '"'])?;
     let quote = trimmed[first_quote..].chars().next()?;
     let remainder = &trimmed[first_quote + quote.len_utf8()..];
     let end = remainder.rfind(quote)?;

@@ -541,7 +541,7 @@ fn call_arguments(statement: &str) -> Option<&str> {
 }
 
 fn first_string_literal(arguments: &str) -> Option<String> {
-    let first_quote = arguments.find(|character| character == '\'' || character == '"')?;
+    let first_quote = arguments.find(['\'', '"'])?;
     let quote = arguments[first_quote..].chars().next()?;
     let remainder = &arguments[first_quote + quote.len_utf8()..];
     let end = remainder.find(quote)?;

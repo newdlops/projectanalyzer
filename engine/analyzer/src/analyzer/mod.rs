@@ -1,5 +1,6 @@
 //! Language analyzer dispatch for the Rust engine.
 
+mod call_resolution;
 mod javascript_like;
 mod python_like;
 
@@ -33,6 +34,7 @@ pub fn analyze_source_file(
 pub fn analyze_workspace_edges(builder: &mut ProjectGraphBuilder, files: &[SourceInput]) {
     javascript_like::add_import_edges(builder, files);
     python_like::add_import_edges(builder, files);
+    call_resolution::resolve_imported_calls(builder, files);
 }
 
 /// Returns whether a language is scanned for metadata without symbol extraction.

@@ -3,9 +3,11 @@ out/
 dist/
 coverage/
 target/
+engine/analyzer/bin/
 *.vsix
 *.log
 .DS_Store
 .vscode-test/
 .codeidx/
+.portmanager/
 /.vscode/

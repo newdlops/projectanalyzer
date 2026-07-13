@@ -438,6 +438,7 @@ type FrameworkUnit = {
   kind:
     | "app"
     | "route"
+    | "operation"
     | "controller"
     | "view"
     | "model"
@@ -565,6 +566,24 @@ Express route와 handler 이름을 정적으로 해석할 수 있으면 `routesT
 동적 router composition, imported handler alias, NestJS module provider graph는
 다음 단계에서 더 엄밀한 symbol/import resolution으로 확장한다.
 
+GraphQL adapter는 모든 요청이 공유하는 `/graphql` transport route를 실행
+엔트리포인트로 취급하지 않는다. 감지된 `rootPath` 아래의 code-first schema에서
+다음 단위를 생성한다.
+
+- `schema`: resolver class 또는 conventional root type
+- `operation`: `Query`, `Mutation`, `Subscription` root field
+
+NestJS/TypeGraphQL 계열에서는 `@Resolver` class의 `@Query`, `@Mutation`,
+`@Subscription` method를 operation으로 생성한다. nested object field를 해석하는
+`@ResolveField`는 root operation에 포함하지 않는다. Strawberry에서는
+`@strawberry.type`이 붙은 `Query`, `Mutation`, `Subscription` class의 sync/async
+field를 추출한다. operation은 실제 callable 선언 위치를 보존하여 resolver와
+downstream `calls` edge에 직접 연결한다. SDL-first schema와 inline Apollo/Yoga
+resolver object, Graphene field, federation metadata, 동적 registration은 schema
+field와 callable을 정적으로 연결하는 후속 adapter에서 지원한다. 중첩 GraphQL
+selection이 object field resolver로 dispatch되는 흐름도 현재 root operation
+flow에는 포함하지 않는다.
+
 ### 7.3 Diagnostics
 
 분석 중 발생한 문제는 진단 정보로 보존한다.
@@ -682,6 +701,12 @@ Graph Browser WebviewPanel은 다음 GUI 액션을 제공한다.
 - 사용자가 언제든 분석을 취소할 수 있어야 한다.
 - Webview가 열려 있을 때 분석 결과가 갱신되면 graph patch를 적용한다.
 - 대형 그래프에서는 먼저 요약된 구조를 보여주고 사용자가 필요한 부분을 펼치게 한다.
+- Request Flows는 기본적으로 section summary와 접힌 framework row까지만 만든다.
+  GraphQL은 `framework -> rootPath scope(복수 root일 때) -> operation type count ->
+  operation -> resolver/calls` 순서로 한 단계씩 펼친다.
+- 현재 summary-first projection은 초기 row와 DOM 정보량을 제한한다. analyzer scan과
+  semantic-flow index는 graph load 시 생성되며, server-side paging과 chunked
+  expansion은 후속 protocol 과제로 둔다.
 - 노드와 edge 스타일은 VS Code light/dark/high contrast theme을 따라야 한다.
 - 오류가 발생해도 가능한 부분 결과를 표시한다.
 - 빈 프로젝트 또는 지원하지 않는 언어만 있는 프로젝트에는 명확한 empty state를 제공한다.

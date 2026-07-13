@@ -148,6 +148,62 @@ impl ProjectGraphBuilder {
         });
     }
 
+    /// Exposes immutable nodes to workspace semantic post-passes.
+    pub(crate) fn nodes(&self) -> &[SymbolNode] {
+        &self.nodes
+    }
+
+    /// Exposes immutable edges to workspace semantic post-passes.
+    pub(crate) fn edges(&self) -> &[GraphEdge] {
+        &self.edges
+    }
+
+    /// Replaces proven unresolved call targets and removes only orphaned placeholders.
+    ///
+    /// Import-aware resolution is intentionally computed outside the graph adapter.
+    /// This method owns graph identity updates and keeps external nodes that remain
+    /// referenced by any unresolved call or dependency edge.
+    pub(crate) fn resolve_call_edges(&mut self, resolutions: Vec<CallEdgeResolution>) {
+        let target_by_edge_id: BTreeMap<String, String> = resolutions
+            .into_iter()
+            .map(|resolution| (resolution.edge_id, resolution.target_id))
+            .collect();
+        let mut replaced_external_ids = BTreeSet::new();
+
+        for edge in &mut self.edges {
+            let Some(target_id) = target_by_edge_id.get(&edge.id) else {
+                continue;
+            };
+
+            if edge.kind != "calls"
+                || edge.confidence != "unresolved"
+                || !self.external_node_ids.contains(&edge.target_id)
+            {
+                continue;
+            }
+
+            replaced_external_ids.insert(edge.target_id.clone());
+            edge.target_id = target_id.clone();
+            edge.confidence = "resolved".to_string();
+            edge.id = create_ranged_edge_id("calls", &edge.source_id, &edge.target_id, &edge.range);
+        }
+
+        let referenced_target_ids: BTreeSet<&str> = self
+            .edges
+            .iter()
+            .map(|edge| edge.target_id.as_str())
+            .collect();
+        let orphaned_external_ids: BTreeSet<String> = replaced_external_ids
+            .into_iter()
+            .filter(|node_id| !referenced_target_ids.contains(node_id.as_str()))
+            .collect();
+
+        self.nodes
+            .retain(|node| !orphaned_external_ids.contains(&node.id));
+        self.external_node_ids
+            .retain(|node_id| !orphaned_external_ids.contains(node_id));
+    }
+
     /// Adds a resolved file-to-file import or export edge.
     pub fn add_file_dependency_edge(&mut self, edge: NewFileDependencyEdge) {
         let source_id = create_file_node_id(&edge.source_path);
@@ -263,6 +319,12 @@ pub struct NewCallEdge {
     pub file_path: PathBuf,
     pub range: SourceRange,
     pub confidence: String,
+}
+
+/// Proven call-edge target replacement supplied by a semantic post-pass.
+pub(crate) struct CallEdgeResolution {
+    pub edge_id: String,
+    pub target_id: String,
 }
 
 /// New file dependency edge supplied by workspace-level import analysis.

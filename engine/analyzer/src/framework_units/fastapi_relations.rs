@@ -209,7 +209,7 @@ fn response_model_names(source_text: &str) -> BTreeSet<String> {
         while let Some(relative_index) = code[search_start..].find("response_model") {
             let start = search_start + relative_index;
             let end = start + "response_model".len();
-            if is_identifier_boundary(&code, start, end) {
+            if is_identifier_boundary(code, start, end) {
                 if let Some(value) = keyword_argument_value(&code[end..]) {
                     for name in reference_leaf_names(value) {
                         names.insert(name);
