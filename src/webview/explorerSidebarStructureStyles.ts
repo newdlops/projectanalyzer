@@ -110,6 +110,29 @@ const PROJECT_GUIDE_STYLES = /* css */ `    .project-guide,
       padding: 2px 0;
     }
 
+    .guide-area-files {
+      display: flex;
+      min-width: 0;
+      grid-column: 1 / -1;
+      flex-direction: column;
+      gap: 1px;
+      padding-left: 8px;
+    }
+
+    .guide-area-file,
+    .guide-step-location {
+      overflow: hidden;
+      color: var(--vscode-descriptionForeground);
+      font-size: 10px;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .guide-area-file::before {
+      content: "└ ";
+      color: var(--vscode-tree-indentGuidesStroke);
+    }
+
     .guide-flow {
       border-left: 2px solid var(--vscode-panel-border);
       padding-left: 6px;
@@ -166,6 +189,11 @@ const PROJECT_GUIDE_STYLES = /* css */ `    .project-guide,
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
+    }
+
+    .guide-step-location {
+      min-width: 0;
+      grid-column: 2;
     }
 
     .overview-block {

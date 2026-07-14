@@ -6,6 +6,7 @@
  */
 
 import type { EdgeConfidence, SourceRange } from "../shared/types";
+import type { SourceNodeToken } from "./sourceNavigation";
 
 /** Primitive values accepted in Function Explorer protocol metadata. */
 export type FunctionExplorerJsonPrimitive = string | number | boolean | null;
@@ -119,6 +120,12 @@ export type FunctionExplorerFilters = {
   includeMigrations?: boolean;
 };
 
+/** Completeness filters implemented by the bounded server-side search route. */
+export type FunctionExplorerSearchFilters = Pick<
+  FunctionExplorerFilters,
+  "includeExternal" | "includeUnresolved"
+>;
+
 /** Traversal options for lazy expansion and selected-function relationship views. */
 export type FunctionExplorerTraversalOptions = {
   direction: "callers" | "callees" | "both";
@@ -199,6 +206,8 @@ export type FunctionExplorerRow = {
   parentId?: string;
   functionId?: string;
   symbolId?: string;
+  /** Snapshot-local opaque source token used without exposing analyzer identities. */
+  sourceToken?: SourceNodeToken;
   edgeIds?: string[];
   relation?: FunctionExplorerRowRelation;
   detail?: string;
@@ -211,6 +220,16 @@ export type FunctionExplorerRow = {
   confidence?: EdgeConfidence;
   childCursor?: string;
   metadata?: { [key: string]: FunctionExplorerJsonValue };
+};
+
+/** Search-specific row that cannot serialize analyzer path-bearing identities. */
+export type FunctionExplorerSearchRow = Omit<
+  FunctionExplorerRow,
+  "filePath" | "functionId" | "symbolId"
+> & {
+  filePath?: never;
+  functionId?: never;
+  symbolId?: never;
 };
 
 /** Options echoed with an index-loaded payload so the Webview can diff state. */
@@ -263,10 +282,30 @@ export type FunctionExplorerExpandRequest = {
 /** Request for searching functions without loading the full inventory. */
 export type FunctionExplorerSearchRequest = {
   graphVersion: string;
+  /** Monotonic browser identity used to reject late same-query responses. */
+  requestId: number;
   query: string;
   limit: number;
   cursor?: string;
-  filters?: FunctionExplorerFilters;
+  filters?: FunctionExplorerSearchFilters;
+};
+
+/** One bounded server-side search page from the complete callable index. */
+export type FunctionExplorerSearchPayload = {
+  graphVersion: string;
+  requestId: number;
+  query: string;
+  rows: FunctionExplorerSearchRow[];
+  totalMatchCount: number;
+  nextCursor?: string;
+};
+
+/** Correlated, display-safe failure for one accepted host search request. */
+export type FunctionExplorerSearchFailurePayload = {
+  graphVersion: string;
+  requestId: number;
+  query: string;
+  message: string;
 };
 
 /** Request for selected-function relationship and path details. */

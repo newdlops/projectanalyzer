@@ -3,5 +3,6 @@
 export {
   createProjectReadingGuidePayload,
   createProjectReadingScopePayloadId,
-  createProjectScopeReadingGuidePayload
+  createProjectScopeReadingGuidePayload,
+  type ProjectReadingSourceTokenFactory
 } from "./projectReadingGuidePayload";

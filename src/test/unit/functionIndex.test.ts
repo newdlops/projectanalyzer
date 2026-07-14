@@ -96,6 +96,8 @@ test("FunctionIndexProjector reuses graph-wide identities and returns independen
   });
 
   assert.equal(projector.graphVersion, graph.version);
+  assert.strictEqual(projector.getNodes(), collapsed.nodes);
+  assert.strictEqual(projector.getNodes(), expanded.nodes);
   assert.strictEqual(expanded.nodes, collapsed.nodes);
   assert.strictEqual(expanded.nodesById, collapsed.nodesById);
   assert.strictEqual(expanded.callersByNodeId, collapsed.callersByNodeId);

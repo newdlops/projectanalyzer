@@ -205,6 +205,50 @@ test("rejects malformed Function Explorer nested values", () => {
   }
 });
 
+test("bounds Function Explorer search query and cursor text", () => {
+  const boundary = "x".repeat(512);
+  const oversized = "x".repeat(513);
+
+  assert.equal(validateWebviewRequest({
+    type: "function/search",
+    payload: { graphVersion: "v1", requestId: 1, query: boundary, limit: 20, cursor: boundary }
+  }).ok, true);
+  assert.equal(validateWebviewRequest({
+    type: "function/search",
+    payload: { graphVersion: "v1", requestId: 2, query: oversized, limit: 20 }
+  }).ok, false);
+  assert.equal(validateWebviewRequest({
+    type: "function/search",
+    payload: { graphVersion: "v1", requestId: 3, query: "handler", limit: 20, cursor: oversized }
+  }).ok, false);
+});
+
+test("accepts only filters implemented by Function Explorer search", () => {
+  const base = {
+    graphVersion: "v1",
+    requestId: 1,
+    query: "handler",
+    limit: 20
+  };
+
+  assert.equal(validateWebviewRequest({
+    type: "function/search",
+    payload: { ...base, filters: { includeExternal: false, includeUnresolved: true } }
+  }).ok, true);
+  assert.equal(validateWebviewRequest({
+    type: "function/search",
+    payload: { ...base, filters: { roles: ["service"] } }
+  }).ok, false);
+  assert.equal(validateWebviewRequest({
+    type: "function/search",
+    payload: { ...base, filters: { includeTests: false } }
+  }).ok, false);
+  assert.equal(validateWebviewRequest({
+    type: "function/search",
+    payload: { graphVersion: "v1", query: "handler", limit: 20 }
+  }).ok, false);
+});
+
 test("rejects telemetry with arbitrary levels, sources, or fields", () => {
   const malformed: unknown[] = [
     {
@@ -294,7 +338,7 @@ function createValidRequests(): WebviewRequest[] {
       type: "function/expand",
       payload: { graphVersion: "v1", sectionId: "selected", rowId: "row:1" }
     },
-    { type: "function/search", payload: { graphVersion: "v1", query: "handler", limit: 10 } },
+    { type: "function/search", payload: { graphVersion: "v1", requestId: 1, query: "handler", limit: 10 } },
     { type: "function/select", payload: { graphVersion: "v1", functionId: "fn:1" } },
     { type: "function/inventory", payload: { graphVersion: "v1", limit: 50 } },
     {

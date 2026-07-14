@@ -5,6 +5,7 @@
  */
 
 import type { EdgeConfidence } from "../shared/types";
+import type { SourceNodeToken } from "./sourceNavigation";
 
 /** Opaque host-issued identity used to request one lazy scope projection. */
 export type ProjectReadingScopePayloadId = `reading-scope:${string}`;
@@ -55,6 +56,8 @@ export type ProjectReadingAreaPayload = {
   analyzedFileCount: number;
   callableCount: number;
   entrypointCount: number;
+  /** Bounded workspace-relative examples; these are display text, not navigation targets. */
+  representativeFilePaths: string[];
 };
 
 /** One source-backed step in a representative execution path. */
@@ -62,7 +65,12 @@ export type ProjectReadingStepPayload = {
   stages: Array<"entrypoint" | "handler" | "intermediate" | "boundary">;
   role: string;
   label: string;
-  functionId?: string;
+  /** Workspace-relative `file:line` text, or a filename-only safe abbreviation. */
+  sourceLocation?: string;
+  /** Distinguishes definitions, edge-local call sites, and framework mapping evidence. */
+  sourceLocationKind?: "definition" | "callsite" | "evidence";
+  /** Snapshot-local opaque token; analyzer function identities never cross this boundary. */
+  sourceToken?: SourceNodeToken;
   boundaryKind?:
     | "repository"
     | "model"

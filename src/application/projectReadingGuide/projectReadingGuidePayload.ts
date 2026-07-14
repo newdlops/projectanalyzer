@@ -6,12 +6,14 @@
  * scope, and never forwards opaque unresolved targets as source buttons.
  */
 
-import type {
-  ProjectReadingGuideIndex,
-  ProjectReadingPath,
-  ProjectReadingScopeSummary,
-  ProjectReadingStep,
-  ProjectScopeReadingGuide
+import {
+  createPortableProjectPathNormalizer,
+  type PortableProjectPathNormalizer,
+  type ProjectReadingGuideIndex,
+  type ProjectReadingPath,
+  type ProjectReadingScopeSummary,
+  type ProjectReadingStep,
+  type ProjectScopeReadingGuide
 } from "../../insights/projectReadingGuide";
 import type { SemanticFlowIndex } from "../../insights/semanticFlow";
 import type {
@@ -23,6 +25,7 @@ import type {
   ProjectReadingStepPayload,
   ProjectScopeReadingGuidePayload
 } from "../../protocol/projectReadingGuide";
+import type { SourceNodeToken } from "../../protocol/sourceNavigation";
 import type { ProjectGraph } from "../../shared/types";
 import { createContentHash } from "../../shared/hash";
 
@@ -34,6 +37,17 @@ const VISIBLE_SCOPE_LIMIT = 3;
 const VISIBLE_AREA_LIMIT = 5;
 const VISIBLE_FLOW_LIMIT = 3;
 const VISIBLE_STEP_LIMIT = 5;
+
+/** Maximum representative source labels retained for one visible area. */
+const VISIBLE_AREA_FILE_LIMIT = 3;
+
+/** Character cap preventing one unusual path from dominating the lazy payload. */
+const SOURCE_DISPLAY_CHARACTER_LIMIT = 160;
+
+/** Host callback that converts a concrete graph ID into a snapshot-local token. */
+export type ProjectReadingSourceTokenFactory = (
+  nodeId: string
+) => SourceNodeToken | undefined;
 
 /** Converts a bounded domain index into the initial no-symbol Webview payload. */
 export function createProjectReadingGuidePayload(
@@ -71,18 +85,27 @@ export function createProjectReadingGuidePayload(
 
 /** Converts one selected scope without leaking the projector's maps or full flow set. */
 export function createProjectScopeReadingGuidePayload(
-  guide: ProjectScopeReadingGuide
+  guide: ProjectScopeReadingGuide,
+  createSourceToken?: ProjectReadingSourceTokenFactory
 ): ProjectScopeReadingGuidePayload {
+  // The absolute root stays host-side. Only normalizer-produced relative labels
+  // or filename-only fallbacks cross into the Webview.
+  const sourcePaths = createPortableProjectPathNormalizer(guide.workspaceRoot);
+
   return {
     graphVersion: guide.graphVersion,
     scope: createScopePayload(guide.scope),
-    areas: guide.areas.slice(0, VISIBLE_AREA_LIMIT).map(createAreaPayload),
+    areas: guide.areas.slice(0, VISIBLE_AREA_LIMIT).map((area) =>
+      createAreaPayload(area, sourcePaths)
+    ),
     candidateAreaCount: guide.totalAreaCount,
     omittedAreaCount: Math.max(0, guide.totalAreaCount - Math.min(
       guide.areas.length,
       VISIBLE_AREA_LIMIT
     )),
-    representativeFlows: guide.readingPaths.slice(0, VISIBLE_FLOW_LIMIT).map(createFlowPayload),
+    representativeFlows: guide.readingPaths.slice(0, VISIBLE_FLOW_LIMIT).map((path) =>
+      createFlowPayload(path, sourcePaths, createSourceToken)
+    ),
     eligibleFlowCount: guide.mappedFlowCount,
     omittedFlowCount: Math.max(0, guide.mappedFlowCount - Math.min(
       guide.readingPaths.length,
@@ -109,7 +132,8 @@ function createScopePayload(scope: ProjectReadingScopeSummary): ProjectReadingSc
 
 /** Copies one already-bounded source area into its JSON-only protocol shape. */
 function createAreaPayload(
-  area: ProjectScopeReadingGuide["areas"][number]
+  area: ProjectScopeReadingGuide["areas"][number],
+  sourcePaths: PortableProjectPathNormalizer
 ): ProjectReadingAreaPayload {
   return {
     id: `reading-area:${createContentHash(area.id).slice(0, 24)}`,
@@ -117,12 +141,20 @@ function createAreaPayload(
     basis: area.basis,
     analyzedFileCount: area.analyzedFileCount,
     callableCount: area.callableCount,
-    entrypointCount: area.entrypointCount
+    entrypointCount: area.entrypointCount,
+    representativeFilePaths: createRepresentativeFilePaths(
+      area.representativeFilePaths,
+      sourcePaths
+    )
   };
 }
 
 /** Projects one representative path and derives display-only boundary stages. */
-function createFlowPayload(path: ProjectReadingPath): ProjectReadingFlowPayload {
+function createFlowPayload(
+  path: ProjectReadingPath,
+  sourcePaths: PortableProjectPathNormalizer,
+  createSourceToken: ProjectReadingSourceTokenFactory | undefined
+): ProjectReadingFlowPayload {
   const visibleSteps = path.steps.slice(0, VISIBLE_STEP_LIMIT);
 
   return {
@@ -133,7 +165,7 @@ function createFlowPayload(path: ProjectReadingPath): ProjectReadingFlowPayload 
     confidence: path.confidence,
     traceStatus: path.traceStatus,
     steps: visibleSteps.map((step, index) =>
-      createStepPayload(step, index === visibleSteps.length - 1)
+      createStepPayload(step, index === visibleSteps.length - 1, sourcePaths, createSourceToken)
     ),
     omittedStepCount: Math.max(0, path.totalStepCount - visibleSteps.length),
     depthLimitReached: path.depthLimitReached,
@@ -145,7 +177,9 @@ function createFlowPayload(path: ProjectReadingPath): ProjectReadingFlowPayload 
 /** Adds presentation stages without strengthening the analyzer's resolution. */
 function createStepPayload(
   step: ProjectReadingStep,
-  isLastStep: boolean
+  isLastStep: boolean,
+  sourcePaths: PortableProjectPathNormalizer,
+  createSourceToken: ProjectReadingSourceTokenFactory | undefined
 ): ProjectReadingStepPayload {
   const boundaryKind = step.boundaryKind ?? getBoundaryKind(step, isLastStep);
   const stages: ProjectReadingStepPayload["stages"] = [];
@@ -161,13 +195,144 @@ function createStepPayload(
     stages.push("boundary");
   }
 
+  const sourceLocation = createSourceLocation(step, sourcePaths);
+
   return {
     stages,
     role: step.role,
-    label: step.qualifiedName ?? step.name,
-    functionId: step.resolution === "concrete" ? step.functionId : undefined,
+    label: createSafeStepLabel(step),
+    sourceLocation,
+    sourceLocationKind: getSourceLocationKind(step, sourceLocation),
+    sourceToken: step.resolution === "concrete" && step.functionId
+      ? createSourceToken?.(step.functionId)
+      : undefined,
     boundaryKind
   };
+}
+
+/** Preserves whether source text identifies a target, edge, or mapping fact. */
+function getSourceLocationKind(
+  step: ProjectReadingStep,
+  sourceLocation: string | undefined
+): ProjectReadingStepPayload["sourceLocationKind"] {
+  if (!sourceLocation) {
+    return undefined;
+  }
+  if (step.resolution === "concrete") {
+    return "definition";
+  }
+  return step.kind === "call" ? "callsite" : "evidence";
+}
+
+/** Avoids presenting path-bearing analyzer identities as reading-step labels. */
+function createSafeStepLabel(step: ProjectReadingStep): string {
+  for (const candidate of [step.qualifiedName, step.name]) {
+    const value = candidate?.trim();
+    if (value && !containsStepHostIdentity(value, step)) {
+      return value.length <= SOURCE_DISPLAY_CHARACTER_LIMIT
+        ? value
+        : `${value.slice(0, SOURCE_DISPLAY_CHARACTER_LIMIT - 1)}…`;
+    }
+  }
+
+  if (step.resolution === "external") {
+    return "External call";
+  }
+  if (step.resolution === "unresolved") {
+    return "Unresolved call";
+  }
+  return "Anonymous callable";
+}
+
+/** Detects exact step IDs and embedded POSIX, drive, or UNC absolute paths. */
+function containsStepHostIdentity(value: string, step: ProjectReadingStep): boolean {
+  const normalized = value.replace(/\\/gu, "/").toLowerCase();
+  const identities = [step.functionId, step.filePath]
+    .filter((identity): identity is string => Boolean(identity))
+    .map((identity) => identity.replace(/\\/gu, "/").toLowerCase());
+
+  return identities.some((identity) => normalized.includes(identity))
+    || /(?:^|[:=(\s])\/(?:[^/\s:]+\/)+[^/\s:]*/u.test(normalized)
+    || /(?:^|[:=(\s])[a-z]:\/(?:[^/\s:]+\/)*[^/\s:]*/u.test(normalized)
+    || /(?:^|[:=(\s])\/\/[a-z0-9._-]+\/[a-z0-9._-]+/iu.test(normalized);
+}
+
+/** Keeps at most three unique, safe display paths for one measured source area. */
+function createRepresentativeFilePaths(
+  filePaths: readonly string[],
+  sourcePaths: PortableProjectPathNormalizer
+): string[] {
+  const visiblePaths: string[] = [];
+  const seenPaths = new Set<string>();
+
+  for (const filePath of filePaths) {
+    const displayPath = createSafeSourceDisplayPath(filePath, sourcePaths);
+    if (!displayPath || seenPaths.has(displayPath)) {
+      continue;
+    }
+
+    seenPaths.add(displayPath);
+    visiblePaths.push(displayPath);
+    if (visiblePaths.length >= VISIBLE_AREA_FILE_LIMIT) {
+      break;
+    }
+  }
+
+  return visiblePaths;
+}
+
+/** Formats one source-backed step as bounded `relative/path:line` display text. */
+function createSourceLocation(
+  step: ProjectReadingStep,
+  sourcePaths: PortableProjectPathNormalizer
+): string | undefined {
+  const displayPath = createSafeSourceDisplayPath(step.filePath, sourcePaths);
+  if (!displayPath) {
+    return undefined;
+  }
+
+  const startLine = step.range?.startLine;
+  const hasSourceLine = startLine !== undefined
+    && Number.isSafeInteger(startLine)
+    && startLine >= 0;
+  const lineSuffix = hasSourceLine
+    ? `:${startLine + 1}`
+    : "";
+  return boundSourceDisplayText(`${displayPath}${lineSuffix}`);
+}
+
+/** Returns a workspace-relative path or only the basename for out-of-root input. */
+function createSafeSourceDisplayPath(
+  filePath: string,
+  sourcePaths: PortableProjectPathNormalizer
+): string | undefined {
+  const value = filePath.trim();
+  if (!value) {
+    return undefined;
+  }
+
+  const workspace = sourcePaths.normalize();
+  const normalized = sourcePaths.normalize(value);
+  const displayPath = sourcePaths.contains(workspace.key, normalized.key)
+    ? normalized.displayPath
+    : getPortableBaseName(value);
+  return displayPath ? boundSourceDisplayText(displayPath) : undefined;
+}
+
+/** Extracts one filename without consulting host-specific path semantics. */
+function getPortableBaseName(filePath: string): string | undefined {
+  const normalized = filePath.replace(/\\/gu, "/").replace(/\/+$/u, "");
+  const baseName = normalized.slice(normalized.lastIndexOf("/") + 1).trim();
+  return baseName && baseName !== "." && baseName !== ".." ? baseName : undefined;
+}
+
+/** Retains the filename-side tail when source display text exceeds its budget. */
+function boundSourceDisplayText(value: string): string {
+  if (value.length <= SOURCE_DISPLAY_CHARACTER_LIMIT) {
+    return value;
+  }
+
+  return `…${value.slice(-(SOURCE_DISPLAY_CHARACTER_LIMIT - 1))}`;
 }
 
 /** Converts a canonical host scope identity into a short opaque Webview token. */

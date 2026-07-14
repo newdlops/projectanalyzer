@@ -20,9 +20,13 @@ import { analyzeChangeImpact } from "../../insights/changeImpact";
 import type { SemanticFlowIndex } from "../../insights/semanticFlow";
 import type {
   FunctionExplorerIndexRequest,
-  FunctionExplorerPayload
+  FunctionExplorerPayload,
+  FunctionExplorerSearchPayload,
+  FunctionExplorerSearchRequest
 } from "../../protocol/functionExplorer";
 import type { ProjectGraph } from "../../shared/types";
+import type { SourceNodeToken } from "../../protocol/sourceNavigation";
+import { searchFunctionIndex } from "./functionSearchQuery";
 
 /** Reusable Function Index core associated with one immutable graph object. */
 type FunctionIndexProjectionCache = {
@@ -62,6 +66,20 @@ export class FunctionExplorerProjectionService {
     });
     payload.options.expandedRowIds = expandedTreeIds;
     return payload;
+  }
+
+  /** Searches the cached graph-wide node core without rebuilding row sections. */
+  public search(
+    graph: ProjectGraph,
+    request: FunctionExplorerSearchRequest,
+    createSourceToken?: (nodeId: string) => SourceNodeToken | undefined
+  ): FunctionExplorerSearchPayload {
+    return searchFunctionIndex({
+      workspaceRoot: graph.workspaceRoot,
+      nodes: this.getProjector(graph).getNodes(),
+      request,
+      createSourceToken
+    });
   }
 
   /** Drops graph references when another analysis snapshot becomes active. */

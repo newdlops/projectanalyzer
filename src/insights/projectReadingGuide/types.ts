@@ -161,6 +161,8 @@ export type ProjectReadingPath = {
 /** Lazy second-stage result for one explicitly selected scope. */
 export type ProjectScopeReadingGuide = {
   graphVersion: string;
+  /** Host-only root used to derive safe relative source labels at the protocol boundary. */
+  workspaceRoot: string;
   scope: ProjectReadingScopeSummary;
   areas: ProjectReadingSourceArea[];
   totalAreaCount: number;

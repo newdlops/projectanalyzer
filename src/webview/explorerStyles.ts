@@ -6,6 +6,7 @@ import {
   getProjectGuideStyles,
   getSidebarDisclosureStyles
 } from "./explorerSidebarStructureStyles";
+import { getFunctionSearchStyles } from "./functionSearch";
 
 /** Visual surface that receives the shared explorer styles. */
 export type ExplorerSurface = "sidebar" | "panel";
@@ -251,6 +252,7 @@ ${getProjectGuideStyles()}
     }
 
 ${getSidebarDisclosureStyles()}
+${getFunctionSearchStyles()}
     .explorer-tree {
       gap: 0;
       padding: 2px 0;

@@ -12,6 +12,7 @@ export function getLazyDetailsBrowserSource(): string {
       state.functionIndex = undefined;
       state.functionIndexLoading = false;
       state.functionIndexRequestVersion = undefined;
+      resetFunctionSearchState();
       state.projectOverview = undefined;
       state.projectOverviewLoading = false;
       state.projectOverviewRequestVersion = undefined;

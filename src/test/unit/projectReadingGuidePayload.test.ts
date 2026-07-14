@@ -20,6 +20,7 @@ import type {
 } from "../../insights/projectReadingGuide";
 import type { SemanticFlowIndex } from "../../insights/semanticFlow";
 import type { ProjectGraph } from "../../shared/types";
+import { createContentHash } from "../../shared/hash";
 
 test("initial reading guide sends three opaque scope summaries without host identities", () => {
   const graph = createGraph();
@@ -53,8 +54,14 @@ test("initial reading guide sends three opaque scope summaries without host iden
 
 test("selected scope caps areas, flows, and steps while preserving omission counts", () => {
   const paths = Array.from({ length: 8 }, (_, value) => createReadingPath(value));
+  paths[0].steps[3].filePath = "/private/internal/unresolved.ts";
+  paths[0].steps[3].name = "symbol::/Users/private-user/secret.ts::unresolved";
+  paths[0].steps[3].qualifiedName = paths[0].steps[3].name;
+  paths[1].steps[0].resolution = "unresolved";
+  paths[1].steps[0].functionId = undefined;
   const guide: ProjectScopeReadingGuide = {
     graphVersion: "reading-payload",
+    workspaceRoot: "/workspace",
     scope: createScope(0),
     areas: Array.from({ length: 12 }, (_, value) => createArea(value)),
     totalAreaCount: 12,
@@ -64,7 +71,16 @@ test("selected scope caps areas, flows, and steps while preserving omission coun
     omittedMappedFlowCount: 0,
     unmappedEntrypointCount: 2
   };
-  const payload = createProjectScopeReadingGuidePayload(guide);
+  guide.areas[0].representativeFilePaths = [
+    "/workspace/apps/api/src/area-0/index.ts",
+    "/outside/private/secret.ts",
+    "C:\\Users\\private-user\\token.ts",
+    "\\\\server\\private-share\\last.ts"
+  ];
+  const payload = createProjectScopeReadingGuidePayload(
+    guide,
+    (nodeId) => `source-node:${createContentHash(`fixture\0${nodeId}`)}`
+  );
 
   assert.equal(payload.areas.length, 5);
   assert.equal(payload.omittedAreaCount, 7);
@@ -72,9 +88,29 @@ test("selected scope caps areas, flows, and steps while preserving omission coun
   assert.equal(payload.omittedFlowCount, 5);
   assert.ok(payload.representativeFlows.every((flow) => flow.steps.length === 5));
   assert.ok(payload.representativeFlows.every((flow) => flow.omittedStepCount === 2));
-  assert.equal(payload.representativeFlows[0]?.steps[3]?.functionId, undefined);
+  assert.equal(payload.representativeFlows[0]?.steps[3]?.sourceToken, undefined);
+  assert.match(
+    payload.representativeFlows[0]?.steps[0]?.sourceToken ?? "",
+    /^source-node:[0-9a-f]{64}$/u
+  );
   assert.equal(payload.representativeFlows[0]?.steps[3]?.boundaryKind, "unresolvedCall");
-  assert.ok(Buffer.byteLength(JSON.stringify(payload), "utf8") < 16 * 1024);
+  assert.equal(payload.representativeFlows[0]?.steps[3]?.sourceLocationKind, "callsite");
+  assert.equal(payload.representativeFlows[0]?.steps[0]?.sourceLocationKind, "definition");
+  assert.equal(payload.representativeFlows[1]?.steps[0]?.sourceLocationKind, "evidence");
+  assert.equal(payload.representativeFlows[0]?.steps[0]?.sourceLocation, "apps/api/src/step-0.ts:1");
+  assert.equal(payload.representativeFlows[0]?.steps[3]?.sourceLocation, "unresolved.ts:4");
+  assert.equal(payload.representativeFlows[0]?.steps[3]?.label, "Unresolved call");
+  assert.deepEqual(payload.areas[0]?.representativeFilePaths, [
+    "apps/api/src/area-0/index.ts",
+    "secret.ts",
+    "token.ts"
+  ]);
+  assert.ok(payload.areas.every((area) => area.representativeFilePaths.length <= 3));
+
+  const serialized = JSON.stringify(payload);
+  assert.equal("workspaceRoot" in payload, false);
+  assert.doesNotMatch(serialized, /\/workspace|private-user|private-share|\/private\/internal/u);
+  assert.ok(Buffer.byteLength(serialized, "utf8") < 16 * 1024);
 });
 
 /** Creates one scope with GraphQL and HTTP counts that must remain separated. */
@@ -108,7 +144,7 @@ function createScope(value: number): ProjectReadingScopeSummary {
   };
 }
 
-/** Creates one source area; representative file identities stay host-side. */
+/** Creates one source area whose bounded relative examples may cross to the Webview. */
 function createArea(value: number): ProjectReadingSourceArea {
   return {
     id: `area:${value}`,
@@ -145,7 +181,9 @@ function createReadingPath(value: number): ProjectReadingPath {
       resolution: stepIndex === 3 ? "unresolved" : "concrete",
       name: `step${stepIndex}`,
       qualifiedName: `Flow.step${stepIndex}`,
-      functionId: `fn:${value}:${stepIndex}`,
+      functionId: stepIndex === 0
+        ? `symbol::/workspace/apps/api/src/step-${stepIndex}.ts::function::step${stepIndex}::0::0`
+        : `fn:${value}:${stepIndex}`,
       ownerFunctionId: stepIndex > 1 ? `fn:${value}:${stepIndex - 1}` : undefined,
       callEdgeId: stepIndex > 1 ? `edge:${value}:${stepIndex}` : undefined,
       filePath: `/workspace/apps/api/src/step-${stepIndex}.ts`,

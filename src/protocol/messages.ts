@@ -4,7 +4,12 @@
  */
 
 import type { ProjectGraph } from "../shared/types";
-import type { FunctionExplorerPayload, FunctionExplorerRequest } from "./functionExplorer";
+import type {
+  FunctionExplorerPayload,
+  FunctionExplorerRequest,
+  FunctionExplorerSearchFailurePayload,
+  FunctionExplorerSearchPayload
+} from "./functionExplorer";
 import type { ProjectOverviewPayload } from "./projectOverview";
 import type {
   ProjectReadingGuidePayload,
@@ -118,6 +123,8 @@ export type ExtensionResponse =
   | { type: "project/readingGuideLoaded"; payload: ProjectReadingGuidePayload }
   | { type: "project/readingGuideScopeLoaded"; payload: ProjectScopeReadingGuidePayload }
   | { type: "function/indexLoaded"; payload: FunctionExplorerPayload }
+  | { type: "function/searchLoaded"; payload: FunctionExplorerSearchPayload }
+  | { type: "function/searchFailed"; payload: FunctionExplorerSearchFailurePayload }
   | { type: "view/modeChanged"; payload: { mode: GraphViewMode } }
   | { type: "search/results"; payload: SearchResult[] }
   | { type: "error"; payload: ErrorPayload };

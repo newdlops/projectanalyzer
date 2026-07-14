@@ -128,6 +128,9 @@ export function createFunctionIndexProjector(graph: ProjectGraph): FunctionIndex
 
   return {
     graphVersion: graph.version,
+    getNodes(): readonly FunctionIndexNode[] {
+      return nodes;
+    },
     project(projectOptions: CreateFunctionIndexOptions = {}): FunctionIndex {
       return {
         ...core,

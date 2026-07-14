@@ -10,6 +10,8 @@ import type {
   FunctionExplorerInventoryRequest,
   FunctionExplorerPayload,
   FunctionExplorerRow,
+  FunctionExplorerSearchPayload,
+  FunctionExplorerSearchRequest,
   FunctionExplorerSectionRowsRequest
 } from "../../protocol/functionExplorer";
 import type { ExtensionResponse, WebviewRequest } from "../../protocol/messages";
@@ -22,6 +24,48 @@ test("function/indexLoaded accepts a JSON-serializable Function Explorer payload
   assert.equal(response.payload.sections[0]?.id, "entrypoints");
   assert.equal(response.payload.rows[1]?.functionId, "fn:service");
   assert.deepEqual(response.payload.options.requestedSections, ["entrypoints", "allFunctions"]);
+  assertJsonProtocolValue(response);
+});
+
+test("function/searchLoaded accepts a bounded JSON search page", () => {
+  const payload = {
+    graphVersion: "sidebar-snapshot:4",
+    requestId: 7,
+    query: "service",
+    rows: [{
+      id: "function-search:service",
+      sectionId: "allFunctions",
+      kind: "function",
+      label: "Service.handle",
+      depth: 0,
+      hasChildren: false,
+      expanded: false,
+      sourceToken: "source-node:opaque",
+      functionKind: "method",
+      role: "service"
+    }],
+    totalMatchCount: 3,
+    nextCursor: "function-search:opaque"
+  } satisfies FunctionExplorerSearchPayload;
+  const response = { type: "function/searchLoaded", payload } satisfies ExtensionResponse;
+
+  assert.equal(response.payload.rows[0]?.sourceToken, "source-node:opaque");
+  assert.equal(response.payload.totalMatchCount, 3);
+  assertJsonProtocolValue(response);
+});
+
+test("function/searchFailed keeps request correlation JSON-shaped", () => {
+  const response = {
+    type: "function/searchFailed",
+    payload: {
+      graphVersion: "sidebar-snapshot:4",
+      requestId: 8,
+      query: "service",
+      message: "Function search failed; try again"
+    }
+  } satisfies ExtensionResponse;
+
+  assert.equal(response.payload.requestId, 8);
   assertJsonProtocolValue(response);
 });
 
@@ -50,15 +94,27 @@ test("Function Explorer request fixtures compile as WebviewRequest variants", ()
       includeUnresolved: true
     }
   } satisfies FunctionExplorerInventoryRequest;
+  const searchPayload = {
+    graphVersion: "graph:v1",
+    requestId: 7,
+    query: "handle",
+    limit: 25,
+    cursor: "function-search:opaque",
+    filters: {
+      includeExternal: false,
+      includeUnresolved: true
+    }
+  } satisfies FunctionExplorerSearchRequest;
   const requests = [
     { type: "function/index", payload: { graphVersion: "graph:v1" } },
     { type: "function/sectionRows", payload: sectionPayload },
+    { type: "function/search", payload: searchPayload },
     { type: "function/inventory", payload: inventoryPayload }
   ] satisfies WebviewRequest[];
 
   assert.deepEqual(
     requests.map((request) => request.type),
-    ["function/index", "function/sectionRows", "function/inventory"]
+    ["function/index", "function/sectionRows", "function/search", "function/inventory"]
   );
   assertJsonProtocolValue(requests);
 });

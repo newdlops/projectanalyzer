@@ -74,7 +74,25 @@ function getSidebarHtml(options: WebviewHtmlOptions): string {
           <span class="accordion-disclosure"></span>
           <span class="accordion-title">Explore Code Flows</span>
         </button>
-        <div id="call-panel" class="accordion-panel" hidden>
+        <div id="call-panel" class="accordion-panel calls-panel" hidden>
+          <div id="function-search" class="function-search" role="search" aria-label="Search all analyzed functions">
+            <div class="function-search-row">
+              <input
+                id="function-search-input"
+                class="function-search-input"
+                type="search"
+                placeholder="Function name or source path"
+                aria-label="Function name or source path"
+                maxlength="512"
+              >
+              <button id="function-search-submit" class="function-search-button" type="button">Find</button>
+              <button id="function-search-clear" class="function-search-button" type="button" hidden>Clear</button>
+            </div>
+            <div class="function-search-meta">
+              <span id="function-search-status" class="function-search-status" aria-live="polite"></span>
+              <button id="function-search-more" class="function-search-more" type="button" hidden>Load more</button>
+            </div>
+          </div>
           <div id="call-tree" class="list explorer-tree call-tree" role="tree" aria-label="Code flow tree"></div>
         </div>
       </section>

@@ -208,6 +208,7 @@ test("creates a source-only scope and two-segment source areas without framework
   assert.equal(index.scopes[0]?.callableCount, 2);
 
   const guide = requireScope(projector.projectScope(index.scopes[0]?.id ?? ""));
+  assert.equal(guide.workspaceRoot, graph.workspaceRoot);
   assert.equal(guide.areas.length, PROJECT_READING_AREA_LIMIT);
   assert.equal(guide.totalAreaCount, 8);
   assert.equal(guide.omittedAreaCount, 3);
@@ -216,6 +217,10 @@ test("creates a source-only scope and two-segment source areas without framework
     ["apps/api", "apps/web", "config", "lib/core", "packages/shared"]
   );
   assert.equal(guide.areas.every((area) => area.basis === "sourceDirectory"), true);
+  assert.deepEqual(guide.areas[0]?.representativeFilePaths, ["apps/api/src/main.ts"]);
+  assert.ok(guide.areas.flatMap((area) => area.representativeFilePaths).every((filePath) =>
+    !filePath.startsWith(graph.workspaceRoot)
+  ));
   assert.equal(guide.readingPaths.length, 0);
   assert.equal(guide.mappedFlowCount, 0);
 });

@@ -43,6 +43,7 @@ export function createProjectReadingGuideProjector(
 
       return {
         graphVersion: scopeIndex.graphVersion,
+        workspaceRoot: graph.workspaceRoot,
         scope: scope.summary,
         areas: areaProjection.areas,
         totalAreaCount: areaProjection.totalAreaCount,

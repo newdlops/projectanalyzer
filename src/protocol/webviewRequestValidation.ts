@@ -7,6 +7,7 @@
 import type {
   FunctionExplorerFilters,
   FunctionExplorerPayloadOptions,
+  FunctionExplorerSearchFilters,
   FunctionExplorerTraversalOptions
 } from "./functionExplorer";
 import type { WebviewRequest } from "./messages";
@@ -74,6 +75,7 @@ const FUNCTION_TAGS = [
 ] as const;
 const EDGE_CONFIDENCES = ["exact", "resolved", "inferred", "unresolved"] as const;
 const FUNCTION_SORT_KEYS = ["relevance", "path", "name", "fan-in", "fan-out", "unresolved"] as const;
+const FUNCTION_SEARCH_TEXT_LIMIT = 512;
 
 /**
  * Validates an untrusted Webview value and returns a typed request only after
@@ -245,10 +247,23 @@ function isFunctionSearchPayload(value: unknown): boolean {
   return (
     isRecord(value) &&
     typeof value.graphVersion === "string" &&
-    typeof value.query === "string" &&
+    isNonNegativeInteger(value.requestId) &&
+    isBoundedString(value.query, FUNCTION_SEARCH_TEXT_LIMIT) &&
     isNonNegativeInteger(value.limit) &&
-    isOptionalString(value.cursor) &&
-    isOptionalFunctionFilters(value.filters)
+    isOptionalBoundedString(value.cursor, FUNCTION_SEARCH_TEXT_LIMIT) &&
+    (value.filters === undefined || isFunctionSearchFilters(value.filters))
+  );
+}
+
+/** Rejects silently unsupported search filters at the untrusted boundary. */
+function isFunctionSearchFilters(value: unknown): value is FunctionExplorerSearchFilters {
+  return (
+    isRecord(value) &&
+    Object.keys(value).every((key) =>
+      key === "includeExternal" || key === "includeUnresolved"
+    ) &&
+    isOptionalBoolean(value.includeExternal) &&
+    isOptionalBoolean(value.includeUnresolved)
   );
 }
 
@@ -351,6 +366,19 @@ function isNonNegativeInteger(value: unknown): value is number {
 /** Validates an optional string field. */
 function isOptionalString(value: unknown): value is string | undefined {
   return value === undefined || typeof value === "string";
+}
+
+/** Accepts one string only while it stays inside its protocol code-unit cap. */
+function isBoundedString(value: unknown, maxLength: number): value is string {
+  return typeof value === "string" && value.length <= maxLength;
+}
+
+/** Validates an optional bounded string without coercing untrusted values. */
+function isOptionalBoundedString(
+  value: unknown,
+  maxLength: number
+): value is string | undefined {
+  return value === undefined || isBoundedString(value, maxLength);
 }
 
 /** Accepts only fixed-size opaque scope tokens issued by the host adapter. */

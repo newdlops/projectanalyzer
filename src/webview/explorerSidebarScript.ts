@@ -9,6 +9,7 @@ import { getLazyDetailsBrowserSource } from "./explorerLazyDetails";
 import { getOverviewBrowserSource } from "./explorerOverview";
 import { getReadingGuideBrowserSource } from "./explorerReadingGuide";
 import { getVirtualTreeBrowserSource } from "./explorerVirtualTree";
+import { getFunctionSearchBrowserSource } from "./functionSearch";
 
 /**
  * Builds the sidebar control and file-tree script.
@@ -16,6 +17,7 @@ import { getVirtualTreeBrowserSource } from "./explorerVirtualTree";
 export function getExplorerSidebarScript(): string {
   const progressiveFileGraphSource = getProgressiveFileGraphBrowserSource();
   const frameworkTreeSource = getFrameworkTreeBrowserSource();
+  const functionSearchSource = getFunctionSearchBrowserSource();
   const lazyDetailsSource = getLazyDetailsBrowserSource();
   const overviewSource = getOverviewBrowserSource();
   const readingGuideSource = getReadingGuideBrowserSource();
@@ -24,6 +26,7 @@ export function getExplorerSidebarScript(): string {
   return /* js */ `
     ${progressiveFileGraphSource}
     ${frameworkTreeSource}
+    ${functionSearchSource}
     ${lazyDetailsSource}
     ${overviewSource}
     ${readingGuideSource}
@@ -40,6 +43,15 @@ export function getExplorerSidebarScript(): string {
       functionIndexLoading: false,
       functionIndexRequestVersion: undefined,
       functionIndexRevision: 0,
+      functionSearch: undefined,
+      functionSearchActive: false,
+      functionSearchLoading: false,
+      functionSearchPendingCursor: undefined,
+      functionSearchPendingRequestId: undefined,
+      functionSearchQuery: "",
+      functionSearchError: undefined,
+      functionSearchRequestSequence: 0,
+      functionSearchRevision: 0,
       projectOverview: undefined,
       projectOverviewLoading: false,
       projectOverviewRequestVersion: undefined,
@@ -80,6 +92,12 @@ export function getExplorerSidebarScript(): string {
       structureFiles: document.getElementById("structure-files"),
       frameworkTree: document.getElementById("framework-tree"),
       callTree: document.getElementById("call-tree"),
+      functionSearch: document.getElementById("function-search"),
+      functionSearchInput: document.getElementById("function-search-input"),
+      functionSearchSubmit: document.getElementById("function-search-submit"),
+      functionSearchClear: document.getElementById("function-search-clear"),
+      functionSearchStatus: document.getElementById("function-search-status"),
+      functionSearchMore: document.getElementById("function-search-more"),
       explorerTree: document.getElementById("explorer-tree")
     };
 
@@ -99,6 +117,7 @@ export function getExplorerSidebarScript(): string {
     bindAccordion(elements.callAccordion, "calls");
     bindAccordion(elements.structureAccordion, "structure");
     bindAccordion(elements.analysisAccordion, "analysis");
+    bindFunctionSearchControls();
 
     elements.structureFrameworks.addEventListener("click", () => setStructureMode("frameworks"));
     elements.structureFiles.addEventListener("click", () => setStructureMode("files"));
@@ -172,6 +191,16 @@ export function getExplorerSidebarScript(): string {
         return;
       }
 
+      if (message.type === "function/searchLoaded" || message.type === "function/searchFailed") {
+        if (
+          acceptFunctionSearchMessage(message)
+          && state.expandedAccordionSections.has("calls")
+        ) {
+          renderFunctionCallTree();
+        }
+        return;
+      }
+
       if (message.type === "project/overviewLoaded") {
         if (
           !isCurrentGraphVersion(message.payload.graphVersion)
@@ -230,6 +259,9 @@ export function getExplorerSidebarScript(): string {
           state.analysisState = "failed";
         }
         state.functionIndexLoading = false;
+        state.functionSearchLoading = false;
+        state.functionSearchPendingCursor = undefined;
+        state.functionSearchPendingRequestId = undefined;
         state.projectOverviewLoading = false;
         state.scopeGuideLoading = false;
         state.structureLoading = false;
@@ -383,9 +415,23 @@ export function getExplorerSidebarScript(): string {
     }
 
     function renderFunctionCallTree() {
+      renderFunctionSearchControls();
+
       if (!state.graph) {
         clearVirtualTree(elements.callTree);
         appendEmptyTree(elements.callTree, "Analyze a workspace to load function calls");
+        return;
+      }
+
+      if (state.functionSearchActive) {
+        if (state.functionSearchLoading && !state.functionSearch) {
+          clearVirtualTree(elements.callTree);
+          appendEmptyTree(elements.callTree, "Searching all analyzed functions...");
+          return;
+        }
+
+        const searchRows = getTreeRows("function-search", createFunctionSearchRows);
+        renderVirtualTree(elements.callTree, searchRows, "No functions match this search");
         return;
       }
 
@@ -427,6 +473,8 @@ export function getExplorerSidebarScript(): string {
         ":" +
         String(state.functionIndexRevision) +
         ":" +
+        String(state.functionSearchRevision) +
+        ":" +
         String(state.treeRevision);
       const cached = state.treeRowsCache.get(cacheKey);
 
@@ -461,7 +509,11 @@ export function getExplorerSidebarScript(): string {
 
       button.className = rowClasses.join(" ");
       button.style.paddingLeft = String(4 + row.depth * 16) + "px";
-      button.title = row.label;
+      button.title = row.openSourceOnClick
+        ? "Open source: " + row.label + (row.detail ? " · " + row.detail : "")
+        : row.nodeId
+          ? row.label + " (Enter to open source)"
+          : row.label;
       button.setAttribute("role", "treeitem");
       button.setAttribute("aria-level", String(row.depth + 1));
       if (row.hasChildren) {
@@ -482,9 +534,18 @@ export function getExplorerSidebarScript(): string {
       }
       button.append(disclosure, icon, text);
       button.addEventListener("click", () => {
+        if (row.openSourceOnClick && row.nodeId) {
+          vscode.postMessage({ type: "node/openSource", payload: { nodeId: row.nodeId } });
+          return;
+        }
         selectTreeRow(row, row.hasChildren);
       });
       button.addEventListener("keydown", (event) => {
+        if (event.key === "Enter" && row.nodeId) {
+          event.preventDefault();
+          vscode.postMessage({ type: "node/openSource", payload: { nodeId: row.nodeId } });
+          return;
+        }
         if (event.key === "ArrowRight" && row.hasChildren && !row.expanded) {
           event.preventDefault();
           selectTreeRow(row, true);

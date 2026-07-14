@@ -2,7 +2,7 @@
   "name": "project-analyzer",
   "displayName": "Project Analyzer",
   "description": "Structure based visual explorer for static project call, file, and class relationships.",
-  "version": "0.0.1003",
+  "version": "0.0.1004",
   "publisher": "local",
   "private": true,
   "license": "UNLICENSED",

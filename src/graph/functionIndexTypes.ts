@@ -104,6 +104,8 @@ export type FunctionIndex = {
 /** Reusable graph-wide core with request-local row projection. */
 export type FunctionIndexProjector = {
   graphVersion: string;
+  /** Returns the graph-wide node identities reused by bounded host queries. */
+  getNodes(): readonly FunctionIndexNode[];
   project(options?: CreateFunctionIndexOptions): FunctionIndex;
 };
 

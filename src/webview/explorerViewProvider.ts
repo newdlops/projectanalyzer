@@ -28,6 +28,7 @@ import {
   createWorkspaceAnalysisCacheKey
 } from "../vscode/workspaceFingerprint";
 import type { ExplorerGraphPanelProvider } from "./explorerGraphPanelProvider";
+import { deliverFunctionSearch } from "./functionSearch";
 import {
   projectGraphForSidebar,
   projectGraphForSidebarShell,
@@ -42,6 +43,7 @@ import {
   withSidebarGraphVersion
 } from "./sidebarGraphDelivery";
 import { getExplorerHtml } from "./webviewHtml";
+import { SourceNodeTokenRegistry } from "./sourceNavigation";
 import { createNonce, exportGraphToJson, openNodeInEditor } from "./webviewHostActions";
 
 /** Dependencies required by the sidebar explorer provider. */
@@ -81,6 +83,9 @@ export class ExplorerViewProvider implements vscode.WebviewViewProvider {
 
   /** Keeps graph-wide caller/callee metrics out of row expansion refreshes. */
   private readonly functionExplorerProjection = new FunctionExplorerProjectionService();
+
+  /** Snapshot-local tokens hide analyzer IDs in tokenized sidebar payloads. */
+  private readonly sourceNodeTokens = new SourceNodeTokenRegistry();
 
   public constructor(private readonly dependencies: ExplorerViewProviderDependencies) {}
 
@@ -127,6 +132,7 @@ export class ExplorerViewProvider implements vscode.WebviewViewProvider {
       // metadata happens to match an older analysis result.
       this.projectInsightCache.clear();
       this.functionExplorerProjection.clear();
+      this.sourceNodeTokens.activate(activation.snapshot.version, graph);
     }
     const sidebarGraph = withSidebarGraphVersion(
       projectGraphForSidebarShell(graph),
@@ -179,6 +185,15 @@ export class ExplorerViewProvider implements vscode.WebviewViewProvider {
         break;
       case "function/index":
         await this.postLatestFunctionIndex(message.payload);
+        break;
+      case "function/search":
+        await deliverFunctionSearch(message.payload, {
+          graphDelivery: this.graphDelivery,
+          projectionService: this.functionExplorerProjection,
+          logger: this.dependencies.logger,
+          createSourceToken: (nodeId) => this.sourceNodeTokens.createToken(nodeId),
+          postMessage: (response) => this.postMessage(response)
+        });
         break;
       case "project/readingGuideScope":
         await this.publishReadingGuideScope(
@@ -390,6 +405,7 @@ export class ExplorerViewProvider implements vscode.WebviewViewProvider {
     this.graphDelivery.clear();
     this.projectInsightCache.clear();
     this.functionExplorerProjection.clear();
+    this.sourceNodeTokens.clear();
     await this.postMessage({ type: "graph/cleared", payload: {} });
     if (GRAPH_RENDERING_ENABLED) {
       await this.dependencies.graphPanelProvider.clearGraph();
@@ -612,7 +628,10 @@ export class ExplorerViewProvider implements vscode.WebviewViewProvider {
     }
 
     const payload = withReadingScopeVersion(
-      createProjectScopeReadingGuidePayload(scopeGuide),
+      createProjectScopeReadingGuidePayload(
+        scopeGuide,
+        (nodeId) => this.sourceNodeTokens.createToken(nodeId)
+      ),
       snapshot.version
     );
     this.dependencies.logger.info("sidebar.projectGuideScope.publish", {
@@ -626,39 +645,28 @@ export class ExplorerViewProvider implements vscode.WebviewViewProvider {
   /** Reposts the Function Explorer index for the active cached graph. */
   private async postLatestFunctionIndex(request: FunctionExplorerIndexRequest = {}): Promise<void> {
     const snapshot = this.graphDelivery.current();
-
     if (!snapshot) {
       await this.postStatus("idle", "Analyze before loading function flows");
       return;
     }
-
     if (!this.graphDelivery.matches(request.graphVersion)) {
       this.logStaleDelivery("functionIndex", request.graphVersion);
       return;
     }
-
     await this.publishFunctionIndex(snapshot.graph, snapshot.version, request);
   }
 
-  /**
-   * Opens the source location represented by a graph node.
-   */
+  /** Resolves a snapshot token or legacy active ID and opens its source. */
   private async openSourceNode(nodeId: string): Promise<void> {
-    const graph = this.graphDelivery.current()?.graph
-      ?? await this.dependencies.cacheStore.getLatestGraph();
-    const node = graph?.nodes.find((candidate) => candidate.id === nodeId);
-
-    if (!node) {
-      await this.postStatus("idle", "Node is not available");
+    const node = this.sourceNodeTokens.resolve(nodeId);
+    if (node) {
+      await openNodeInEditor(node);
       return;
     }
-
-    await openNodeInEditor(node);
+    await this.postStatus("idle", "Node is not available");
   }
 
-  /**
-   * Publishes the latest cached graph if one exists.
-   */
+  /** Publishes the latest cached graph if one exists. */
   private async postLatestGraph(): Promise<void> {
     const graph = await this.dependencies.cacheStore.getLatestGraph();
     this.dependencies.logger.debug("sidebar.postLatestGraph", { hasGraph: Boolean(graph) });
@@ -770,9 +778,7 @@ export class ExplorerViewProvider implements vscode.WebviewViewProvider {
     });
   }
 
-  /**
-   * Posts a typed response to the Webview when it has been resolved.
-   */
+  /** Posts a typed response to the Webview when it has been resolved. */
   private async postMessage(message: ExtensionResponse): Promise<void> {
     if (!this.view || (!this.webviewReady && message.type !== "ui/ready")) {
       this.dependencies.logger.debug("sidebar.postMessage.skipped", {

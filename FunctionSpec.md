@@ -149,9 +149,10 @@ path당 step 최대 5개를 별도 요청한다. Function Index는 Explore Code 
 전달한다. file import graph는 Browse Structure, overview fact/signal은 Analysis Details를
 처음 열 때 각각 별도 요청한다. Extension Host는 graph snapshot별 semantic flow, Reading
 Guide projector, overview와 function index core를 재사용한다. 그러나 analyzer scan과 전체
-host-side graph는 graph load 시 생성한다. 현재의 lazy Structure payload와 Function row cap은
-사용 가능한 cursor paging이 아니다. source streaming, relation path query, inventory의 실제
-server-side chunk protocol은 Phase 5 범위로 남긴다.
+host-side graph는 graph load 시 생성한다. Function search에는 cursor page가 동작하지만,
+현재의 lazy Structure payload와 일반 Function section row cap은 사용 가능한 cursor paging이
+아니다. source streaming, relation path query, inventory의 실제 server-side chunk protocol은
+Phase 5 범위로 남긴다.
 
 ### 4.5 Virtual List
 
@@ -347,6 +348,7 @@ Project Reading Guide는 다음 두 단계로 정보 예산을 강제한다.
 2. `ProjectScopeReadingGuide`
    - 사용자가 선택한 한 scope만 lazy projection
    - source area 최대 5개
+   - area당 workspace-relative 대표 file label 최대 3개
    - 서로 다른 HTTP/Query/Mutation/Subscription surface의 representative path 최대 3개
    - path당 source step 최대 5개
    - omitted area/path/step 수 보존
@@ -394,6 +396,15 @@ Inventory 요구사항:
 
 Inventory는 “마지막 안전망”이다. 기본 semantic view가 어떤 함수를 요약하거나 숨기더라도 inventory에서 찾을 수 있어야 한다.
 
+현재 검색 vertical slice는 Explore Code Flows 안에서 이름, qualified name, source path를
+대소문자 구분 없이 검색한다. Webview는 external/unresolved를 제외하도록 고정하며 빈 query는
+concrete function/method/constructor 전체를 탐색한다. Webview는 한 번에
+50개를 요청하고 host는 어떤 요청도 100개보다 크게 응답하지 않는다. 응답은 exact total과
+opaque next cursor를 보존하고 concrete 결과만 단일 클릭/Enter source navigation target이
+된다. 검색 request/response는 browser requestId를 함께 보존하여 같은 query로 다시 보낸 이전
+request가 늦게 도착해도 현재 검색에 적용하지 않는다. external/unresolved toggle,
+role/framework/confidence/test/generated/migration UI 필터와 다중 정렬은 후속 범위이다.
+
 ## 7. UI 구조
 
 ### 7.1 Project Map과 Reading Guide
@@ -417,6 +428,13 @@ Project Map
 - 초기 scope card는 최대 3개이고 개별 함수/file/signal row는 0개이다.
 - 같은 normalized rootPath의 framework와 operation type을 한 카드에 합친다.
 - scope 선택 전에는 source area와 reading path를 계산하거나 Webview로 보내지 않는다.
+- source area에는 workspace-relative 대표 file label을 최대 3개 표시하되 navigation target으로
+  만들지 않는다.
+- reading path의 각 source step에는 workspace-relative `file:line`을 표시한다. workspace 밖
+  source는 절대경로 대신 filename-only 안전 축약을 사용한다.
+- concrete step의 위치는 definition이며, unresolved/external call step의 edge-local 위치만
+  `call site:`로 명시해 target 정의처럼 보이지 않게 한다. non-call framework mapping 위치는
+  `evidence:`로 구분한다.
 - concrete function step만 source 이동 버튼이 된다. unresolved/external target identity는
   source node로 위장하지 않는다.
 - representative path는 transport diversity와 명시적 semantic boundary를 기준으로 고른
@@ -571,7 +589,10 @@ Unresolved / External
 
 각 그룹을 펼치면 호출한 함수와 위치를 표시한다.
 
-### 7.8 All Functions
+### 7.8 All Functions 목표 UI
+
+이 절은 dedicated inventory의 최종 목표이다. 현재 구현은 Explore Code Flows 상단의 server-side
+검색 vertical slice이며, 별도 inventory filter/sort controls와 section cursor paging은 아직 없다.
 
 All Functions는 기본적으로 닫혀 있다.
 
@@ -839,8 +860,12 @@ type FunctionSectionRowsRequest = {
 
 - `project/readingGuideLoaded`는 scope summary 최대 3개만 전달한다.
 - `project/readingGuideScope`는 graphVersion과 scopeId를 검증하고, 선택된 한 scope의
-  area 최대 5개와 representative path 최대 3개만
+  area 최대 5개, area당 안전한 대표 file label 최대 3개, representative path 최대 3개만
   `project/readingGuideScopeLoaded`로 응답한다.
+- selected scope payload의 source label은 workspace-relative 경로 또는 filename-only 축약이며,
+  절대 workspace root는 Webview protocol 경계를 넘지 않는다.
+- concrete source action은 snapshot-local opaque `sourceToken`만 전달하며 path-bearing analyzer
+  function/symbol ID는 Reading Guide와 search payload에 직렬화하지 않는다.
 - `project/loadOverview`를 Analysis Details가 처음 열릴 때 보내며,
   `project/overviewLoaded`는 정확히 3개 fact와 최대 3개 signal을 전달한다.
 - 초기 `graph/loaded`는 node, edge, diagnostic, 절대 workspace path가 없는 고정 크기
@@ -852,15 +877,24 @@ type FunctionSectionRowsRequest = {
 - 초기 graph publication은 `function/indexLoaded`를 보내지 않는다. 사용자가 Explore Code
   Flows를 열어 `function/index`를 요청한 뒤에만 host-side cache에서 expansion state에
   맞는 row를 projection하고 `function/indexLoaded`는 최대 500 row를 전달한다.
+- `function/search`는 같은 graph snapshot의 cached Function Index core에서 name,
+  qualified name, file path를 검색하고 `function/searchLoaded`로 최대 100 row, exact total,
+  opaque next cursor를 전달한다. cursor는 graphVersion, normalized query, completeness filter에
+  결합되며 Webview 기본 page 크기는 50이다. requestId도 응답에 echo하여 graphVersion과 query가
+  같더라도 취소되거나 교체된 요청의 늦은 응답을 거부한다.
+- graph 부재나 host projection 실패는 같은 requestId/query를 가진 `function/searchFailed`로
+  응답하며, Webview는 일치하는 in-flight 검색만 종료하고 입력을 retry 가능한 상태로 둔다.
+- cursor는 Webview 전송/렌더링 row를 제한하지만 현재 각 page query는 host의 cached node 전체를
+  scan하고 전체 match를 정렬한다. host 계산량과 full graph memory를 chunking한 것은 아니다.
 - 한 expanded section이 row 상한을 독점하지 않도록 모든 non-empty top-level section의
   header를 먼저 보존하고 남은 예산을 section prefix에 round-robin으로 배분한다.
-- payload의 `nextCursor`와 `function/sectionRows`, `function/expand`, `function/search`,
-  `function/inventory` contract는 정의되어 있지만 현재 provider는 실제 후속 page를
+- `function/sectionRows`, `function/expand`, `function/inventory` contract와 일반 payload의
+  `nextCursor`는 정의되어 있지만 현재 provider는 검색 이외 section/inventory 후속 page를
   제공하지 않는다.
 
-따라서 “Webview가 필요한 row chunk만 요청하고 Extension Host가 cursor page를
-응답한다”는 것은 Phase 5의 목표이다. 현 row cap을 server-side pagination 완료로
-간주하지 않는다.
+검색 이외의 section과 inventory에도 “Webview가 필요한 row chunk만 요청하고 Extension
+Host가 cursor page를 응답한다”는 구조를 적용하는 것은 Phase 5의 목표이다. 현 row cap을
+일반 server-side pagination 완료로 간주하지 않는다.
 
 ## 14. Export
 
@@ -926,10 +960,16 @@ Export는 UI 필터와 무관하게 full graph 기준 export 옵션을 제공해
 - Explore Code Flows는 기본 닫힘이고 open 시에만 lazy Function Index load가 발생해야 한다.
 - Browse Structure와 Analysis Details는 open 시에만 각각 structure/overview payload를 요청해야 한다.
 - scope 선택 시에만 area 최대 5개, path 최대 3개, step 최대 5개를 load해야 한다.
+- selected scope의 area file label은 최대 3개이고 비대화형이어야 하며, path step의 source
+  location은 절대 workspace path를 포함하지 않아야 한다.
 - 같은 analyzer version의 연속 분석이어도 오래된 snapshot token의 scope/function/structure/overview
   응답은 렌더링하지 않아야 한다.
 - virtual list는 전체 row 수보다 훨씬 적은 DOM node만 유지해야 한다.
 - All Functions inventory에서 기본 view에 숨겨진 함수를 검색할 수 있어야 한다.
+- function search는 stale graph 응답을 거부하고 cursor page 사이에 중복/누락이 없어야 하며,
+  10,000개 match에서도 한 payload가 100 row를 넘지 않아야 한다.
+- 실제 절대경로를 포함하는 analyzer symbol ID도 search/Reading Guide JSON에는 나타나지 않아야
+  하며, 이전 snapshot의 sourceToken은 새 graph에서 resolve되지 않아야 한다.
 - unresolved/external group은 count와 상세 row를 모두 제공해야 한다.
 - selected function 변경 시 inspector가 direct caller/callee/path를 갱신해야 한다.
 - 접힌 GraphQL framework는 Query/Mutation/Subscription count까지만 표시해야 한다.
@@ -970,6 +1010,10 @@ Function Explorer는 다음 조건을 만족해야 한다.
 10. export는 UI 필터와 무관하게 full function graph를 제공한다.
 11. GraphQL root operation은 HTTP route와 별도로 집계되고 concrete resolver로 이동할 수 있다.
 12. scope 선택 전에는 개별 reading path와 Function Index가 Webview에 전달되지 않는다.
+13. selected scope의 source context는 상대경로 또는 안전 축약만 사용하며, 대표 area file은
+    source navigation target이 아니다.
+14. 사용자는 concrete callable 전체를 이름 또는 source path로 bounded 검색하고 결과의
+    source를 바로 열 수 있다.
 
 ## 17. 구현 단계
 
@@ -977,8 +1021,9 @@ Function Explorer는 다음 조건을 만족해야 한다.
 index, two-stage Project Reading Guide, Project Brief, evidence-backed signals, bounded row
 projection과 graph snapshot cache는 구현되었다. 초기 graph는 고정 크기 shell과 scope 3개만
 전송하며 Structure, Overview, Function Index는 disclosure별 lazy request로 분리했다.
-반면 아래 Phase 5의 cursor-backed paging, source streaming/chunked analysis, persistent
-index cache와 대형 workspace 성능 기준 검증은 완료되지 않았다.
+검색에는 snapshot-bound cursor paging이 동작한다. 반면 아래 Phase 5의 일반 section/inventory
+paging, source streaming/chunked analysis, persistent index cache와 대형 workspace 성능 기준
+검증은 완료되지 않았다.
 
 ### Phase 1: Current Tree Stabilization
 

@@ -6,6 +6,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { getExplorerHtml } from "../../webview/webviewHtml";
+import { installSidebarWebviewRuntime } from "./helpers/sidebarWebviewRuntime";
 
 test("graph panel HTML exposes canvas viewer controls", () => {
   const html = getExplorerHtml({
@@ -74,7 +75,7 @@ test("sidebar HTML starts with a bounded reading guide and lazy detail disclosur
   assert.match(html, /id="accordion-structure"/);
   assert.match(html, /id="accordion-analysis"/);
   assert.equal((html.match(/class="accordion-header"/g) ?? []).length, 3);
-  assert.match(html, /id="call-panel" class="accordion-panel" hidden/);
+  assert.match(html, /id="call-panel" class="accordion-panel calls-panel" hidden/);
   assert.match(html, /id="structure-panel" class="accordion-panel" hidden/);
   assert.match(html, /id="analysis-panel" class="accordion-panel analysis-panel" hidden/);
   assert.match(html, /Explore Code Flows/);
@@ -86,6 +87,10 @@ test("sidebar HTML starts with a bounded reading guide and lazy detail disclosur
   assert.match(html, /Framework semantic tree/);
   assert.match(html, /id="call-tree"/);
   assert.match(html, /Code flow tree/);
+  assert.match(html, /id="function-search-input"/);
+  assert.match(html, /id="function-search-input"[\s\S]*maxlength="512"/u);
+  assert.match(html, /Search all analyzed functions/);
+  assert.match(html, /id="function-search-more"/);
   assert.match(scriptMatch[1], /createImportTreeIndex/);
   assert.match(scriptMatch[1], /createFrameworkTreeRows/);
   assert.doesNotMatch(scriptMatch[1], /createFunctionFlowTreeRows/);
@@ -94,6 +99,11 @@ test("sidebar HTML starts with a bounded reading guide and lazy detail disclosur
   assert.doesNotMatch(scriptMatch[1], /createFunctionFlowRowsWithInventory/);
   assert.match(scriptMatch[1], /function\/indexLoaded/);
   assert.match(scriptMatch[1], /function\/index/);
+  assert.match(scriptMatch[1], /function\/searchLoaded/);
+  assert.match(scriptMatch[1], /function\/searchFailed/);
+  assert.match(scriptMatch[1], /postRequest\("function\/search"/);
+  assert.match(scriptMatch[1], /FUNCTION_SEARCH_PAGE_SIZE = 50/);
+  assert.match(scriptMatch[1], /openSourceOnClick/);
   assert.match(scriptMatch[1], /expandedAccordionSections/);
   assert.match(scriptMatch[1], /expandedAccordionSections: new Set\(\)/);
   assert.match(scriptMatch[1], /requestFunctionIndex/);
@@ -135,6 +145,14 @@ test("sidebar HTML starts with a bounded reading guide and lazy detail disclosur
   assert.match(scriptMatch[1], /slice\(0, 3\)/);
   assert.match(scriptMatch[1], /slice\(0, 5\)/);
   assert.match(scriptMatch[1], /Representative reading paths/);
+  assert.match(scriptMatch[1], /area\.representativeFilePaths/);
+  assert.match(scriptMatch[1], /guide-area-file/);
+  assert.doesNotMatch(scriptMatch[1], /file\.addEventListener/);
+  assert.match(scriptMatch[1], /step\.sourceLocation/);
+  assert.match(scriptMatch[1], /step\.sourceLocationKind === "callsite"/);
+  assert.match(scriptMatch[1], /step\.sourceLocationKind === "evidence"/);
+  assert.match(scriptMatch[1], /step\.sourceToken/);
+  assert.match(scriptMatch[1], /guide-step-location/);
   assert.match(scriptMatch[1], /renderProjectOverview/);
   assert.match(scriptMatch[1], /appendOverviewFact/);
   assert.match(scriptMatch[1], /appendOverviewSignal/);
@@ -239,6 +257,167 @@ test("sidebar loads structure and analysis details once per graph version", () =
     assert.equal(countSidebarRequests(runtime.messages, "function/index"), 2);
     assert.equal(countSidebarRequests(runtime.messages, "graph/loadStructure"), 2);
     assert.equal(countSidebarRequests(runtime.messages, "project/loadOverview"), 2);
+  } finally {
+    runtime.restore();
+  }
+});
+
+test("sidebar searches the complete host function index in bounded pages", () => {
+  const html = getExplorerHtml({
+    webview: { cspSource: "vscode-webview:" } as never,
+    extensionUri: {} as never,
+    nonce: "nonce",
+    defaultDepth: 2,
+    maxRenderedNodes: 500,
+    initialMode: "file",
+    surface: "sidebar"
+  });
+  const scriptMatch = html.match(/<script nonce="nonce">([\s\S]*)<\/script>/);
+
+  assert.ok(scriptMatch, "missing sidebar script");
+  const runtime = installSidebarWebviewRuntime();
+
+  try {
+    new Function(scriptMatch[1])();
+    runtime.dispatchMessage(createSidebarGraph("graph-search", "NestJS", "main.ts"));
+    runtime.click("accordion-calls");
+    runtime.setValue("function-search-input", "UserService");
+    runtime.click("function-search-submit");
+
+    const firstRequest = runtime.messages
+      .filter((message) => message.type === "function/search")
+      .at(-1);
+    assert.deepEqual(firstRequest?.payload, {
+      graphVersion: "graph-search",
+      requestId: 1,
+      query: "UserService",
+      limit: 50,
+      filters: {
+        includeExternal: false,
+        includeUnresolved: false
+      }
+    });
+
+    runtime.dispatchMessage(createFunctionSearchPayload(
+      "stale-graph",
+      "UserService",
+      "StaleService.load",
+      undefined
+    ));
+    assert.ok(!runtime.textValues.includes("StaleService.load"));
+
+    runtime.click("accordion-calls");
+    runtime.dispatchMessage(createFunctionSearchPayload(
+      "graph-search",
+      "UserService",
+      "UserService.load",
+      "function-search:next"
+    ));
+    assert.ok(!runtime.textValues.includes("UserService.load"));
+
+    runtime.click("accordion-calls");
+    assert.ok(runtime.textValues.includes("UserService.load"));
+    assert.ok(runtime.textValues.includes("1 of 2 matching functions"));
+    const resultTitle = "Open source: UserService.load · src/user.service.ts:12 · service";
+    runtime.clickByTitle(resultTitle);
+    assert.deepEqual(
+      runtime.messages.filter((message) => message.type === "node/openSource").at(-1)?.payload,
+      { nodeId: "source-node:UserService.load" }
+    );
+    runtime.keydownByTitle(resultTitle, "Enter");
+    assert.deepEqual(
+      runtime.messages.filter((message) => message.type === "node/openSource").at(-1)?.payload,
+      { nodeId: "source-node:UserService.load" }
+    );
+
+    runtime.setValue("function-search-input", "edited but not submitted");
+    runtime.click("function-search-more");
+    const nextRequest = runtime.messages
+      .filter((message) => message.type === "function/search")
+      .at(-1);
+    assert.equal(
+      (nextRequest?.payload as { cursor?: string } | undefined)?.cursor,
+      "function-search:next"
+    );
+    assert.equal(
+      (nextRequest?.payload as { query?: string } | undefined)?.query,
+      "UserService"
+    );
+    assert.equal(
+      (nextRequest?.payload as { requestId?: number } | undefined)?.requestId,
+      2
+    );
+
+    runtime.dispatchMessage(createFunctionSearchPayload(
+      "graph-search",
+      "UserService",
+      ["UserService.load", "UserService.save"],
+      undefined,
+      2
+    ));
+    assert.ok(runtime.textValues.includes("UserService.load"));
+    assert.ok(runtime.textValues.includes("UserService.save"));
+    assert.ok(runtime.textValues.includes("2 of 2 matching functions"));
+
+    runtime.click("function-search-clear");
+    runtime.setValue("function-search-input", "UserService");
+    runtime.click("function-search-submit");
+    const repeatedRequest = runtime.messages
+      .filter((message) => message.type === "function/search")
+      .at(-1);
+    const repeatedRequestId = (
+      repeatedRequest?.payload as { requestId?: number } | undefined
+    )?.requestId;
+    assert.equal(repeatedRequestId, 3);
+
+    runtime.dispatchMessage(createFunctionSearchPayload(
+      "graph-search",
+      "UserService",
+      "LateService.result",
+      undefined,
+      2
+    ));
+    assert.ok(!runtime.textValues.includes("LateService.result"));
+    runtime.dispatchMessage(createFunctionSearchPayload(
+      "graph-search",
+      "UserService",
+      "FreshService.result",
+      undefined,
+      repeatedRequestId
+    ));
+    assert.ok(runtime.textValues.includes("FreshService.result"));
+
+    runtime.click("function-search-clear");
+    runtime.setValue("function-search-input", "ErrorQuery");
+    runtime.click("function-search-submit");
+    runtime.dispatchMessage({
+      type: "function/searchFailed",
+      payload: {
+        graphVersion: "graph-search",
+        requestId: 4,
+        query: "ErrorQuery",
+        message: "Function search failed; try again"
+      }
+    });
+    assert.ok(runtime.textValues.includes("Function search failed; try again"));
+    runtime.click("function-search-submit");
+    const retryRequest = runtime.messages
+      .filter((message) => message.type === "function/search")
+      .at(-1);
+    assert.equal(
+      (retryRequest?.payload as { requestId?: number } | undefined)?.requestId,
+      5
+    );
+
+    runtime.click("function-search-clear");
+    const requestCountBeforeOversized = countSidebarRequests(runtime.messages, "function/search");
+    runtime.setValue("function-search-input", "x".repeat(513));
+    runtime.click("function-search-submit");
+    assert.equal(
+      countSidebarRequests(runtime.messages, "function/search"),
+      requestCountBeforeOversized
+    );
+    assert.ok(runtime.textValues.includes("Search text must be 512 characters or fewer"));
   } finally {
     runtime.restore();
   }
@@ -366,166 +545,37 @@ function createOverviewPayload(graphVersion: string, value: string): Record<stri
   };
 }
 
-/**
- * Installs a small event-aware DOM for executing the sidebar script. It tracks
- * outbound messages and text assignments while keeping layout behavior inert.
- */
-function installSidebarWebviewRuntime(): {
-  click: (elementId: string) => void;
-  dispatchMessage: (message: unknown) => void;
-  messages: Array<{ type: string; payload: unknown }>;
-  restore: () => void;
-  textValues: string[];
-} {
-  const previousWindow = Reflect.get(globalThis, "window");
-  const previousDocument = Reflect.get(globalThis, "document");
-  const previousRequestAnimationFrame = Reflect.get(globalThis, "requestAnimationFrame");
-  const previousAcquireVsCodeApi = Reflect.get(globalThis, "acquireVsCodeApi");
-  const messages: Array<{ type: string; payload: unknown }> = [];
-  const textValues: string[] = [];
-  const windowListeners = new Map<string, (event: { data: unknown }) => void>();
-  const elementListeners = new Map<string, Map<string, SidebarEventHandler[]>>();
-  const elements = new Map<string, SidebarFakeElement>();
-  let generatedElementId = 0;
-
-  const getOrCreateElement = (id: string): SidebarFakeElement => {
-    const existing = elements.get(id);
-    if (existing) {
-      return existing;
-    }
-
-    const listeners = new Map<string, SidebarEventHandler[]>();
-    const classes = new Set<string>();
-    const children: SidebarFakeElement[] = [];
-    let textContent = "";
-    const element: SidebarFakeElement = {
-      id,
-      children,
-      className: "",
-      classList: {
-        add(...names) {
-          for (const name of names) classes.add(name);
-        },
-        remove(...names) {
-          for (const name of names) classes.delete(name);
-        },
-        toggle(name, force) {
-          const enabled = force ?? !classes.has(name);
-          if (enabled) classes.add(name);
-          else classes.delete(name);
-          return enabled;
-        }
-      },
-      dataset: {},
-      disabled: false,
-      hidden: false,
-      style: {},
-      textContent: "",
-      title: "",
-      type: "",
-      clientHeight: 220,
-      scrollTop: 0,
-      addEventListener(type, handler) {
-        const handlers = listeners.get(type) ?? [];
-        handlers.push(handler);
-        listeners.set(type, handlers);
-      },
-      removeEventListener(type, handler) {
-        const handlers = listeners.get(type) ?? [];
-        listeners.set(type, handlers.filter((candidate) => candidate !== handler));
-      },
-      append(...appendedChildren) {
-        children.push(...appendedChildren);
-      },
-      focus() {},
-      querySelectorAll(selector) {
-        if (selector !== ".explorer-tree") {
-          return [];
-        }
-        if (id === "call-panel") {
-          return [getOrCreateElement("call-tree")];
-        }
-        if (id === "structure-panel") {
-          return [
-            getOrCreateElement("framework-tree"),
-            getOrCreateElement("explorer-tree")
-          ];
-        }
-        return [];
-      },
-      replaceChildren(...replacementChildren) {
-        children.splice(0, children.length, ...replacementChildren);
-      },
-      setAttribute() {}
-    };
-
-    Object.defineProperty(element, "textContent", {
-      configurable: true,
-      get() {
-        return textContent;
-      },
-      set(value: string) {
-        textContent = String(value);
-        if (textContent) {
-          textValues.push(textContent);
-        }
-      }
-    });
-
-    elementListeners.set(id, listeners);
-    elements.set(id, element);
-    return element;
-  };
-
-  Reflect.set(globalThis, "window", {
-    addEventListener(type: string, handler: (event: { data: unknown }) => void) {
-      windowListeners.set(type, handler);
-    },
-    requestAnimationFrame(callback: FrameRequestCallback) {
-      callback(0);
-      return 0;
-    }
-  });
-  Reflect.set(globalThis, "document", {
-    createElement(tagName: string) {
-      generatedElementId += 1;
-      return getOrCreateElement(`${tagName}:${generatedElementId}`);
-    },
-    getElementById(id: string) {
-      return getOrCreateElement(id);
-    }
-  });
-  Reflect.set(globalThis, "requestAnimationFrame", (callback: FrameRequestCallback) => {
-    callback(0);
-    return 0;
-  });
-  Reflect.set(globalThis, "acquireVsCodeApi", () => ({
-    postMessage(message: { type: string; payload: unknown }) {
-      messages.push(message);
-    }
-  }));
-
+/** Creates one bounded function-search response consumed by the sidebar. */
+function createFunctionSearchPayload(
+  graphVersion: string,
+  query: string,
+  label: string | string[],
+  nextCursor: string | undefined,
+  requestId = 1
+): Record<string, unknown> {
+  const labels = Array.isArray(label) ? label : [label];
   return {
-    click(elementId) {
-      const handlers = elementListeners.get(elementId)?.get("click") ?? [];
-      assert.ok(handlers.length > 0, `missing click handler for ${elementId}`);
-      for (const handler of handlers) {
-        handler({ preventDefault() {} });
-      }
-    },
-    dispatchMessage(message) {
-      const handler = windowListeners.get("message");
-      assert.ok(handler, "missing sidebar message listener");
-      handler({ data: message });
-    },
-    messages,
-    restore() {
-      restoreGlobal("window", previousWindow);
-      restoreGlobal("document", previousDocument);
-      restoreGlobal("requestAnimationFrame", previousRequestAnimationFrame);
-      restoreGlobal("acquireVsCodeApi", previousAcquireVsCodeApi);
-    },
-    textValues
+    type: "function/searchLoaded",
+    payload: {
+      graphVersion,
+      requestId,
+      query,
+      rows: labels.map((rowLabel) => ({
+        id: `function-search:${rowLabel}`,
+        sectionId: "allFunctions",
+        kind: "function",
+        label: rowLabel,
+        depth: 0,
+        hasChildren: false,
+        expanded: false,
+        sourceToken: `source-node:${rowLabel}`,
+        detail: "src/user.service.ts:12 · service",
+        functionKind: "method",
+        role: "service"
+      })),
+      totalMatchCount: 2,
+      ...(nextCursor ? { nextCursor } : {})
+    }
   };
 }
 
@@ -722,35 +772,6 @@ function createFakeCanvasContext(labels: string[]): CanvasRenderingContext2D {
     }
   }) as unknown as CanvasRenderingContext2D;
 }
-
-type SidebarEventHandler = (event: { preventDefault: () => void; key?: string }) => void;
-
-type SidebarFakeElement = {
-  id: string;
-  children: SidebarFakeElement[];
-  className: string;
-  classList: {
-    add: (...names: string[]) => void;
-    remove: (...names: string[]) => void;
-    toggle: (name: string, force?: boolean) => boolean;
-  };
-  dataset: Record<string, string>;
-  disabled: boolean;
-  hidden: boolean;
-  style: Record<string, string>;
-  textContent: string;
-  title: string;
-  type: string;
-  clientHeight: number;
-  scrollTop: number;
-  addEventListener: (type: string, handler: SidebarEventHandler) => void;
-  removeEventListener: (type: string, handler: SidebarEventHandler) => void;
-  append: (...children: SidebarFakeElement[]) => void;
-  focus: () => void;
-  querySelectorAll: (selector: string) => SidebarFakeElement[];
-  replaceChildren: (...children: SidebarFakeElement[]) => void;
-  setAttribute: (name: string, value: string) => void;
-};
 
 type FakeElement = {
   classList: {

@@ -131,20 +131,33 @@ export function getReadingGuideBrowserSource(): string {
       }
     }
 
-    /** Appends one measured directory footprint without claiming a business domain. */
+    /** Appends one measured directory footprint and bounded, non-interactive file examples. */
     function appendGuideArea(area) {
       const row = document.createElement("div");
       const path = document.createElement("span");
       const counts = document.createElement("span");
+      const files = document.createElement("div");
       row.className = "guide-area";
       path.className = "guide-area-path";
       counts.className = "guide-area-counts";
+      files.className = "guide-area-files";
       path.textContent = area.displayPath;
       counts.textContent =
         String(area.analyzedFileCount) + " files · " +
         String(area.callableCount) + " callables" +
         (area.entrypointCount > 0 ? " · " + String(area.entrypointCount) + " entries" : "");
       row.append(path, counts);
+
+      for (const filePath of (area.representativeFilePaths ?? []).slice(0, 3)) {
+        const file = document.createElement("span");
+        file.className = "guide-area-file";
+        file.title = filePath;
+        file.textContent = filePath;
+        files.append(file);
+      }
+      if (files.children.length > 0) {
+        row.append(files);
+      }
       elements.guideScopeDetail.append(row);
     }
 
@@ -171,22 +184,34 @@ export function getReadingGuideBrowserSource(): string {
 
     /** Appends a source button only for concrete graph-backed function identities. */
     function appendGuideStep(parent, step) {
-      const item = document.createElement(step.functionId ? "button" : "div");
+      const item = document.createElement(step.sourceToken ? "button" : "div");
       const role = document.createElement("span");
       const label = document.createElement("span");
+      const location = document.createElement("span");
       item.className = "guide-step";
       role.className = "guide-step-role";
       label.className = "guide-step-label";
+      location.className = "guide-step-location";
       role.textContent = step.stages.includes("entrypoint") ? "entry" : step.role;
       label.textContent = step.label;
-      if (step.functionId) {
+      const locationPrefix = step.sourceLocationKind === "callsite"
+        ? "call site: "
+        : step.sourceLocationKind === "evidence" ? "evidence: " : "";
+      const displayLocation = step.sourceLocation
+        ? locationPrefix + step.sourceLocation
+        : "";
+      location.textContent = displayLocation;
+      if (step.sourceToken) {
         item.type = "button";
-        item.title = "Open " + step.label;
+        item.title = "Open " + step.label + (displayLocation ? " · " + displayLocation : "");
         item.addEventListener("click", () => {
-          postRequest("node/openSource", { nodeId: step.functionId }, "Opening reading path source");
+          postRequest("node/openSource", { nodeId: step.sourceToken }, "Opening reading path source");
         });
       }
       item.append(role, label);
+      if (step.sourceLocation) {
+        item.append(location);
+      }
       parent.append(item);
     }
 
