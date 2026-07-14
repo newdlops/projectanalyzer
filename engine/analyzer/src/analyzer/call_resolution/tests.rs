@@ -2,7 +2,7 @@
 
 use std::path::PathBuf;
 
-use crate::analyzer::{analyze_source_file, analyze_workspace_edges};
+use crate::analyzer::analyze_source_files;
 use crate::graph::ProjectGraphBuilder;
 use crate::model::{ProjectGraph, SourceInput};
 
@@ -114,6 +114,28 @@ fn preserves_unresolved_call_when_python_module_suffix_is_ambiguous() {
 }
 
 #[test]
+fn python_docstrings_neither_create_bindings_nor_shadow_real_imports() {
+    let files = vec![
+        source(
+            "/workspace/app/main.py",
+            "python",
+            "from app.helpers import foo as bar\n\n\"\"\"Documentation only.\nbar = replacement\nfrom app.helpers import foo as ghost_alias\n\"\"\"\n\ndef run():\n    bar()\n    ghost_alias()\n",
+        ),
+        source(
+            "/workspace/app/helpers.py",
+            "python",
+            "def foo():\n    return 1\n",
+        ),
+    ];
+    let graph = analyze(files);
+    let run_id = node_id(&graph, "/workspace/app/main.py", "run");
+    let foo_id = node_id(&graph, "/workspace/app/helpers.py", "foo");
+
+    assert_resolved_call(&graph, &run_id, &foo_id);
+    assert_unresolved_external_call(&graph, "/workspace/app/main.py", "run", "ghost_alias");
+}
+
+#[test]
 fn preserves_namespace_and_default_import_calls_as_unsupported_forms() {
     let files = vec![
         source(
@@ -137,11 +159,7 @@ fn preserves_namespace_and_default_import_calls_as_unsupported_forms() {
 fn analyze(files: Vec<SourceInput>) -> ProjectGraph {
     let mut builder = ProjectGraphBuilder::new(PathBuf::from("/workspace"));
 
-    for file in files.iter().cloned() {
-        analyze_source_file(&mut builder, file).expect("fixture source analyzes");
-    }
-
-    analyze_workspace_edges(&mut builder, &files);
+    analyze_source_files(&mut builder, &files).expect("fixture sources analyze");
     builder.finish()
 }
 

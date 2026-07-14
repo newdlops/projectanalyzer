@@ -19,7 +19,7 @@ use std::fs;
 use std::io::{self, Read};
 use std::path::PathBuf;
 
-use analyzer::{analyze_source_file, analyze_workspace_edges, SourceInput};
+use analyzer::{analyze_source_file, analyze_source_files, SourceInput};
 use cli::{Command, EngineArgs};
 use framework_detection::detect_frameworks;
 use framework_units::analyze_framework_units;
@@ -54,11 +54,7 @@ fn run() -> Result<(), String> {
             };
             let mut builder = ProjectGraphBuilder::new(options.workspace_root);
 
-            for file in files.iter().cloned() {
-                analyze_source_file(&mut builder, file)?;
-            }
-
-            analyze_workspace_edges(&mut builder, &files);
+            analyze_source_files(&mut builder, &files)?;
             let frameworks = detect_frameworks(&workspace_root)?;
             let mut framework_units = analyze_framework_units(&workspace_root, &frameworks)?;
             if source_manifest_stdin {

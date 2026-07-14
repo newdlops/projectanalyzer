@@ -6,6 +6,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   projectGraphForSidebar,
+  projectGraphForSidebarShell,
   projectGraphForView,
   summarizeFileImportGraph
 } from "../../webview/graphProjection";
@@ -41,26 +42,70 @@ test("projectGraphForView keeps source containers and call edges in call mode", 
   assert.deepEqual(projected.edges.map((edge) => edge.kind).sort(), ["calls", "contains", "contains"]);
 });
 
-test("projectGraphForSidebar keeps file imports and function calls together", () => {
+test("projectGraphForSidebar keeps callables and call edges in the Extension Host", () => {
   const graph = createProjectionFixture();
   const projected = projectGraphForSidebar(graph);
 
   assert.deepEqual(projected.nodes.map((node) => node.id).sort(), [
     "external-react",
     "file-a",
-    "file-b",
-    "function-a",
-    "function-b"
+    "file-b"
   ]);
-  assert.deepEqual(projected.edges.map((edge) => edge.kind).sort(), [
-    "calls",
-    "contains",
-    "contains",
-    "imports",
-    "imports"
-  ]);
+  assert.deepEqual(projected.edges.map((edge) => edge.kind).sort(), ["imports", "imports"]);
   assert.equal(projected.metadata.symbolCount, graph.metadata.symbolCount);
   assert.equal(projected.metadata.edgeCount, graph.metadata.edgeCount);
+});
+
+test("projectGraphForSidebar remains small when the host graph has thousands of calls", () => {
+  const functionCount = 5_000;
+  const fileNodes = [
+    createNode("file-a", "file", "a.ts", "/workspace/a.ts"),
+    createNode("file-b", "file", "b.ts", "/workspace/b.ts")
+  ];
+  const callableNodes = Array.from({ length: functionCount }, (_, index) =>
+    createNode(`function-${index}`, "function", `function${index}`, "/workspace/a.ts")
+  );
+  const callEdges = Array.from({ length: functionCount - 1 }, (_, index) =>
+    createEdge("calls", `function-${index}`, `function-${index + 1}`)
+  );
+  const graph = createProjectionFixture(
+    fileNodes.concat(callableNodes),
+    [createEdge("imports", "file-a", "file-b"), ...callEdges]
+  );
+  graph.diagnostics = Array.from({ length: 1_000 }, (_, index) => ({
+    severity: "warning" as const,
+    code: "analysis.warning",
+    message: `warning-${index}`
+  }));
+
+  const projected = projectGraphForSidebar(graph);
+
+  assert.deepEqual(projected.nodes.map((node) => node.id), ["file-a", "file-b"]);
+  assert.deepEqual(projected.edges.map((edge) => edge.kind), ["imports"]);
+  assert.deepEqual(projected.diagnostics, []);
+  assert.equal(projected.metadata.symbolCount, graph.metadata.symbolCount);
+  assert.ok(Buffer.byteLength(JSON.stringify(projected), "utf8") < 10 * 1024);
+});
+
+test("projectGraphForSidebarShell stays constant-size with ten thousand file imports", () => {
+  const fileCount = 10_000;
+  const nodes = Array.from({ length: fileCount }, (_, index) =>
+    createNode(`file-${index}`, "file", `file-${index}.ts`, `/workspace/src/file-${index}.ts`)
+  );
+  const edges = Array.from({ length: fileCount - 1 }, (_, index) =>
+    createEdge("imports", `file-${index}`, `file-${index + 1}`)
+  );
+  const graph = createProjectionFixture(nodes, edges);
+  graph.metadata.fileCount = fileCount;
+  const shell = projectGraphForSidebarShell(graph);
+
+  assert.deepEqual(shell.nodes, []);
+  assert.deepEqual(shell.edges, []);
+  assert.deepEqual(shell.diagnostics, []);
+  assert.equal(shell.workspaceRoot, ".");
+  assert.doesNotMatch(JSON.stringify(shell), /\/workspace/u);
+  assert.equal(shell.metadata.fileCount, fileCount);
+  assert.ok(Buffer.byteLength(JSON.stringify(shell), "utf8") < 1024);
 });
 
 test("summarizeFileImportGraph reports entry roots and import coverage", () => {

@@ -5,8 +5,9 @@
 
 import { getProgressiveFileGraphBrowserSource } from "./explorerProgressiveFileGraph";
 import { getFrameworkTreeBrowserSource } from "./explorerFrameworkTree";
-import { getFunctionFlowsBrowserSource } from "./explorerFunctionFlows";
-import { getFunctionInventoryBrowserSource } from "./explorerFunctionInventory";
+import { getLazyDetailsBrowserSource } from "./explorerLazyDetails";
+import { getOverviewBrowserSource } from "./explorerOverview";
+import { getReadingGuideBrowserSource } from "./explorerReadingGuide";
 import { getVirtualTreeBrowserSource } from "./explorerVirtualTree";
 
 /**
@@ -15,26 +16,40 @@ import { getVirtualTreeBrowserSource } from "./explorerVirtualTree";
 export function getExplorerSidebarScript(): string {
   const progressiveFileGraphSource = getProgressiveFileGraphBrowserSource();
   const frameworkTreeSource = getFrameworkTreeBrowserSource();
-  const functionFlowsSource = getFunctionFlowsBrowserSource();
-  const functionInventorySource = getFunctionInventoryBrowserSource();
+  const lazyDetailsSource = getLazyDetailsBrowserSource();
+  const overviewSource = getOverviewBrowserSource();
+  const readingGuideSource = getReadingGuideBrowserSource();
   const virtualTreeSource = getVirtualTreeBrowserSource();
 
   return /* js */ `
     ${progressiveFileGraphSource}
     ${frameworkTreeSource}
-    ${functionFlowsSource}
-    ${functionInventorySource}
+    ${lazyDetailsSource}
+    ${overviewSource}
+    ${readingGuideSource}
     ${virtualTreeSource}
     const vscode = acquireVsCodeApi();
     const state = {
       graph: undefined,
+      structureGraph: undefined,
       analysisState: "idle",
-      expandedAccordionSections: new Set(["calls"]),
+      expandedAccordionSections: new Set(),
       expandedTreeIds: new Set(["root", "function-flows:framework-handlers"]),
       graphRevision: 0,
       functionIndex: undefined,
       functionIndexLoading: false,
+      functionIndexRequestVersion: undefined,
       functionIndexRevision: 0,
+      projectOverview: undefined,
+      projectOverviewLoading: false,
+      projectOverviewRequestVersion: undefined,
+      readingGuide: undefined,
+      scopeGuide: undefined,
+      scopeGuideLoading: false,
+      selectedScopeId: undefined,
+      structureLoading: false,
+      structureMode: "frameworks",
+      structureRequestVersion: undefined,
       treeRevision: 0,
       treeRowsCache: new Map(),
       selectedTreeId: undefined,
@@ -44,32 +59,36 @@ export function getExplorerSidebarScript(): string {
       analyzeWorkspace: document.getElementById("analyze-workspace"),
       analyzeCurrent: document.getElementById("analyze-current"),
       showWorkspace: document.getElementById("show-workspace"),
-      openGraph: document.getElementById("open-graph"),
-      cancelAnalysis: document.getElementById("cancel-analysis"),
       exportJson: document.getElementById("export-json"),
       clearCache: document.getElementById("clear-cache"),
       status: document.getElementById("status"),
-      files: document.getElementById("files"),
-      symbols: document.getElementById("symbols"),
-      edges: document.getElementById("edges"),
-      languageSummary: document.getElementById("language-summary"),
-      frameworkSummary: document.getElementById("framework-summary"),
-      frameworkAccordion: document.getElementById("accordion-frameworks"),
+      guideSummary: document.getElementById("guide-summary"),
+      guideScopes: document.getElementById("guide-scopes"),
+      guideScopeDetail: document.getElementById("guide-scope-detail"),
+      projectBrief: document.getElementById("project-brief"),
+      analysisSignals: document.getElementById("analysis-signals"),
       callAccordion: document.getElementById("accordion-calls"),
-      filesAccordion: document.getElementById("accordion-files"),
-      frameworkPanel: document.getElementById("framework-panel"),
+      structureAccordion: document.getElementById("accordion-structure"),
+      analysisAccordion: document.getElementById("accordion-analysis"),
       callPanel: document.getElementById("call-panel"),
-      filesPanel: document.getElementById("files-panel"),
-      frameworkSection: document.getElementById("framework-section"),
+      structurePanel: document.getElementById("structure-panel"),
+      analysisPanel: document.getElementById("analysis-panel"),
       callSection: document.getElementById("call-section"),
-      filesSection: document.getElementById("files-section"),
+      structureSection: document.getElementById("structure-section"),
+      analysisSection: document.getElementById("analysis-section"),
+      structureFrameworks: document.getElementById("structure-frameworks"),
+      structureFiles: document.getElementById("structure-files"),
       frameworkTree: document.getElementById("framework-tree"),
       callTree: document.getElementById("call-tree"),
       explorerTree: document.getElementById("explorer-tree")
     };
 
     elements.analyzeWorkspace.addEventListener("click", () => {
-      postRequest("analysis/run", { scope: "workspace" }, "Analyze workspace requested");
+      if (state.analysisState === "running") {
+        postRequest("analysis/cancel", {}, "Cancel requested");
+      } else {
+        postRequest("analysis/run", { scope: "workspace" }, "Analyze workspace requested");
+      }
     });
 
     elements.analyzeCurrent.addEventListener("click", () => {
@@ -77,17 +96,12 @@ export function getExplorerSidebarScript(): string {
     });
     elements.showWorkspace.addEventListener("click", () => postRequest("graph/showWorkspaceScope", {}, "Loading workspace scope"));
 
-    elements.openGraph.addEventListener("click", () => {
-      elements.status.textContent = "Graph rendering is temporarily disabled";
-    });
-
-    bindAccordion(elements.frameworkAccordion, "frameworks");
     bindAccordion(elements.callAccordion, "calls");
-    bindAccordion(elements.filesAccordion, "files");
+    bindAccordion(elements.structureAccordion, "structure");
+    bindAccordion(elements.analysisAccordion, "analysis");
 
-    elements.cancelAnalysis.addEventListener("click", () => {
-      postRequest("analysis/cancel", {}, "Cancel requested");
-    });
+    elements.structureFrameworks.addEventListener("click", () => setStructureMode("frameworks"));
+    elements.structureFiles.addEventListener("click", () => setStructureMode("files"));
 
     elements.exportJson.addEventListener("click", () => {
       postRequest("export/run", { format: "json" }, "Export requested");
@@ -106,20 +120,45 @@ export function getExplorerSidebarScript(): string {
       }
 
       if (message.type === "graph/loaded" || message.type === "graph/updated") {
+        const graphVersionChanged = state.graph?.version !== message.payload.version;
         state.graph = message.payload;
         state.graphRevision += 1;
-        state.functionIndex = undefined;
-        state.functionIndexLoading = true;
-        state.selectedTreeId = undefined;
-        state.selectedFunctionId = undefined;
-        state.functionIndexRevision += 1;
-        state.treeRowsCache.clear();
+
+        if (graphVersionChanged) {
+          resetGraphScopedDetails();
+        }
+
         elements.status.textContent = "Graph available";
+        requestExpandedAccordionData();
         render();
         return;
       }
 
+      if (message.type === "graph/structureLoaded") {
+        if (
+          !isCurrentGraphVersion(message.payload.version)
+          || state.structureRequestVersion !== message.payload.version
+        ) {
+          return;
+        }
+
+        state.structureGraph = message.payload;
+        state.structureLoading = false;
+        state.treeRevision += 1;
+        state.treeRowsCache.clear();
+        if (state.expandedAccordionSections.has("structure")) {
+          renderStructureTree();
+        }
+        return;
+      }
+
       if (message.type === "function/indexLoaded") {
+        if (
+          !isCurrentGraphVersion(message.payload.graphVersion)
+          || state.functionIndexRequestVersion !== message.payload.graphVersion
+        ) {
+          return;
+        }
         state.functionIndex = message.payload;
         state.functionIndexLoading = false;
         state.expandedTreeIds = new Set(
@@ -133,16 +172,48 @@ export function getExplorerSidebarScript(): string {
         return;
       }
 
+      if (message.type === "project/overviewLoaded") {
+        if (
+          !isCurrentGraphVersion(message.payload.graphVersion)
+          || state.projectOverviewRequestVersion !== message.payload.graphVersion
+        ) {
+          return;
+        }
+        state.projectOverview = message.payload;
+        state.projectOverviewLoading = false;
+        if (state.expandedAccordionSections.has("analysis")) {
+          renderProjectOverview();
+        }
+        return;
+      }
+
+      if (message.type === "project/readingGuideLoaded") {
+        if (!isCurrentGraphVersion(message.payload.graphVersion)) {
+          return;
+        }
+        state.readingGuide = message.payload;
+        renderProjectReadingGuide();
+        return;
+      }
+
+      if (message.type === "project/readingGuideScopeLoaded") {
+        if (
+          !isCurrentGraphVersion(message.payload.graphVersion)
+          || message.payload.scope.id !== state.selectedScopeId
+        ) {
+          return;
+        }
+        state.scopeGuide = message.payload;
+        state.scopeGuideLoading = false;
+        renderProjectReadingGuide();
+        return;
+      }
+
       if (message.type === "graph/cleared") {
         state.graph = undefined;
         state.analysisState = "idle";
-        state.functionIndex = undefined;
-        state.functionIndexLoading = false;
-        state.selectedTreeId = undefined;
-        state.selectedFunctionId = undefined;
         state.graphRevision += 1;
-        state.functionIndexRevision += 1;
-        state.treeRowsCache.clear();
+        resetGraphScopedDetails();
         render();
         return;
       }
@@ -155,16 +226,22 @@ export function getExplorerSidebarScript(): string {
       }
 
       if (message.type === "error") {
-        state.analysisState = "failed";
+        if (message.payload.code !== "PROJECT_READING_SCOPE_NOT_FOUND") {
+          state.analysisState = "failed";
+        }
         state.functionIndexLoading = false;
+        state.projectOverviewLoading = false;
+        state.scopeGuideLoading = false;
+        state.structureLoading = false;
         elements.status.textContent = message.payload.message;
+        renderProjectReadingGuide();
+        renderAccordionSections();
         renderActions();
       }
     });
 
     render();
     postRequest("ui/ready", {}, "Connecting");
-    postRequest("graph/load", { mode: "file", depth: 1 }, "Loading graph state");
 
     function postRequest(type, payload, statusText) {
       elements.status.textContent = statusText;
@@ -172,8 +249,7 @@ export function getExplorerSidebarScript(): string {
     }
 
     function render() {
-      renderStats();
-      renderProjectSummary();
+      renderProjectReadingGuide();
       renderAccordionSections();
       renderActions();
     }
@@ -190,22 +266,26 @@ export function getExplorerSidebarScript(): string {
         state.expandedAccordionSections.delete(sectionId);
       } else {
         state.expandedAccordionSections.add(sectionId);
-        if (sectionId === "calls") {
-          postRequest("function/index", {
-            graphVersion: state.graph?.version,
-            options: {
-              expandedRowIds: Array.from(state.expandedTreeIds),
-              selectedFunctionId: state.selectedFunctionId
-            }
-          }, "Loading function index");
-        }
+        requestAccordionData(sectionId);
       }
     }
 
     function renderAccordionSections() {
-      renderAccordionSection("frameworks", elements.frameworkSection, elements.frameworkAccordion, elements.frameworkPanel, renderFrameworkTree);
       renderAccordionSection("calls", elements.callSection, elements.callAccordion, elements.callPanel, renderFunctionCallTree);
-      renderAccordionSection("files", elements.filesSection, elements.filesAccordion, elements.filesPanel, renderFileTree);
+      renderAccordionSection(
+        "structure",
+        elements.structureSection,
+        elements.structureAccordion,
+        elements.structurePanel,
+        renderStructureTree
+      );
+      renderAccordionSection(
+        "analysis",
+        elements.analysisSection,
+        elements.analysisAccordion,
+        elements.analysisPanel,
+        renderProjectOverview
+      );
     }
 
     function renderAccordionSection(sectionId, section, header, panel, renderPanel) {
@@ -224,80 +304,81 @@ export function getExplorerSidebarScript(): string {
     }
 
     function clearAccordionPanel(panel) {
-      const tree = panel.querySelector(".explorer-tree");
-
-      if (tree) {
+      for (const tree of panel.querySelectorAll(".explorer-tree")) {
         clearVirtualTree(tree);
       }
     }
 
-    function renderStats() {
-      const graph = state.graph;
-      elements.files.textContent = graph ? String(graph.metadata.fileCount) : "0";
-      elements.symbols.textContent = graph ? String(graph.metadata.symbolCount) : "0";
-      elements.edges.textContent = graph ? String(graph.metadata.edgeCount) : "0";
+    /** Switches the single Structure disclosure between semantic and file views. */
+    function setStructureMode(mode) {
+      state.structureMode = mode;
+      state.treeRevision += 1;
+      state.treeRowsCache.clear();
+      renderStructureTree();
     }
 
-    function renderProjectSummary() {
-      const graph = state.graph;
+    /** Renders only the structure subview explicitly selected by the user. */
+    function renderStructureTree() {
+      const showsFrameworks = state.structureMode === "frameworks";
+      elements.structureFrameworks.classList.toggle("active", showsFrameworks);
+      elements.structureFiles.classList.toggle("active", !showsFrameworks);
+      elements.structureFrameworks.setAttribute("aria-selected", showsFrameworks ? "true" : "false");
+      elements.structureFiles.setAttribute("aria-selected", showsFrameworks ? "false" : "true");
+      elements.frameworkTree.hidden = !showsFrameworks;
+      elements.explorerTree.hidden = showsFrameworks;
 
-      elements.languageSummary.replaceChildren();
-      elements.frameworkSummary.replaceChildren();
+      const activeTree = showsFrameworks ? elements.frameworkTree : elements.explorerTree;
+      const inactiveTree = showsFrameworks ? elements.explorerTree : elements.frameworkTree;
+      clearVirtualTree(inactiveTree);
 
-      if (!graph) {
-        appendSummaryEmpty(elements.languageSummary, "No languages");
-        appendSummaryEmpty(elements.frameworkSummary, "No frameworks");
+      if (!state.graph) {
+        clearVirtualTree(activeTree);
+        appendEmptyTree(activeTree, "Analyze a workspace to load project structure");
         return;
       }
 
-      const languageSummary = getLanguageSummary(graph);
-      const frameworks = getDetectedFrameworks(graph);
+      if (state.structureLoading) {
+        clearVirtualTree(activeTree);
+        appendEmptyTree(activeTree, "Loading project structure...");
+        return;
+      }
 
-      if (languageSummary.length === 0) {
-        appendSummaryEmpty(elements.languageSummary, "No languages");
+      if (!state.structureGraph || !isCurrentGraphVersion(state.structureGraph.version)) {
+        clearVirtualTree(activeTree);
+        appendEmptyTree(activeTree, "Project structure is not loaded");
+        return;
+      }
+
+      if (showsFrameworks) {
+        renderFrameworkTree();
       } else {
-        for (const language of languageSummary.slice(0, 6)) {
-          appendSummaryItem(
-            elements.languageSummary,
-            language.language,
-            String(language.fileCount) + " files"
-          );
-        }
-      }
-
-      if (frameworks.length === 0) {
-        appendSummaryEmpty(elements.frameworkSummary, "No frameworks");
-        return;
-      }
-
-      for (const framework of frameworks.slice(0, 8)) {
-        appendSummaryItem(
-          elements.frameworkSummary,
-          framework.name,
-          framework.ecosystem + " / " + framework.category
-        );
+        renderFileTree();
       }
     }
 
     function renderFrameworkTree() {
-      if (!state.graph) {
+      const graph = state.structureGraph;
+
+      if (!graph || !isCurrentGraphVersion(graph.version)) {
         clearVirtualTree(elements.frameworkTree);
-        appendEmptyTree(elements.frameworkTree, "Analyze a workspace to load frameworks");
+        appendEmptyTree(elements.frameworkTree, "Project structure is not loaded");
         return;
       }
 
-      const rows = getTreeRows("frameworks", () => createFrameworkTreeRows(state.graph));
+      const rows = getTreeRows("frameworks", () => createFrameworkTreeRows(graph));
       renderVirtualTree(elements.frameworkTree, rows, "No frameworks detected");
     }
 
     function renderFileTree() {
-      if (!state.graph) {
+      const graph = state.structureGraph;
+
+      if (!graph || !isCurrentGraphVersion(graph.version)) {
         clearVirtualTree(elements.explorerTree);
-        appendEmptyTree(elements.explorerTree, "Analyze a workspace to load files");
+        appendEmptyTree(elements.explorerTree, "Project structure is not loaded");
         return;
       }
 
-      const rows = getTreeRows("files", () => createFileTreeRows(state.graph));
+      const rows = getTreeRows("files", () => createFileTreeRows(graph));
       renderVirtualTree(elements.explorerTree, rows, "No files in graph");
     }
 
@@ -314,7 +395,7 @@ export function getExplorerSidebarScript(): string {
         return;
       }
 
-      const rows = getTreeRows("calls", () => createHostFunctionRows() ?? createFunctionFlowRowsWithInventory(state.graph, state.expandedTreeIds));
+      const rows = getTreeRows("calls", () => createHostFunctionRows() ?? []);
       renderVirtualTree(elements.callTree, rows, "No callable functions in graph");
     }
 
@@ -336,40 +417,6 @@ export function getExplorerSidebarScript(): string {
         hasChildren: row.hasChildren,
         expanded: row.expanded
       }));
-    }
-
-    function createFunctionFlowRowsWithInventory(graph, expandedTreeIds) {
-      const rows = createFunctionFlowTreeRows(graph, expandedTreeIds);
-      const allFunctionsId = "function-flows:all-functions";
-      const allFunctionsIndex = rows.findIndex((row) => row.id === allFunctionsId);
-
-      if (allFunctionsIndex < 0) {
-        return rows;
-      }
-
-      const universe = createFunctionUniverse(graph, {
-        defaultVisibleNodeIds: rows
-          .filter((row) => row.nodeId)
-          .map((row) => row.nodeId)
-      });
-      rows[allFunctionsIndex].detail =
-        String(universe.summary.callableNodeCount) +
-        " callables / " +
-        String(universe.summary.hiddenByDefaultViewCount) +
-        " hidden by default";
-
-      if (!expandedTreeIds.has(allFunctionsId)) {
-        return rows;
-      }
-
-      return rows
-        .filter((row) => row.id !== allFunctionsId + ":summary")
-        .concat(createAllFunctionsInventoryRows(universe, {
-          depth: 1,
-          includeExternal: true,
-          includeUnresolved: true,
-          sortBy: "relevance"
-        }));
     }
 
     function getTreeRows(sectionId, createRows) {
@@ -577,32 +624,43 @@ export function getExplorerSidebarScript(): string {
     }
 
     function appendImportRows(graph, index, fileNode, rows, ancestorIds, depth) {
-      const nextAncestorIds = [...ancestorIds, fileNode.id];
-      const rowId = "import:" + nextAncestorIds.join(">");
-      const relativePath = getTreeNodeLabel(graph, fileNode);
-      const children = (index.childrenByImporterId.get(fileNode.id) ?? [])
-        .filter((child) => !nextAncestorIds.includes(child.id));
-      const hasChildren = fileNode.kind === "file" && children.length > 0;
-      const expanded = hasChildren && state.expandedTreeIds.has(rowId);
+      // Explicit frames keep deeply expanded monorepo import chains off the JS call stack.
+      const pending = [{ fileNode, ancestorIds, depth }];
 
-      rows.push({
-        id: rowId,
-        label: relativePath,
-        name: getFileName(relativePath),
-        detail: getTreeNodeDetail(relativePath, fileNode, depth),
-        kind: fileNode.kind === "external" ? "external" : depth === 0 ? "entry" : "import",
-        nodeId: fileNode.id,
-        depth,
-        hasChildren,
-        expanded
-      });
+      while (pending.length > 0) {
+        const frame = pending.pop();
+        const nextAncestorIds = [...frame.ancestorIds, frame.fileNode.id];
+        const rowId = "import:" + nextAncestorIds.join(">");
+        const relativePath = getTreeNodeLabel(graph, frame.fileNode);
+        const children = (index.childrenByImporterId.get(frame.fileNode.id) ?? [])
+          .filter((child) => !nextAncestorIds.includes(child.id));
+        const hasChildren = frame.fileNode.kind === "file" && children.length > 0;
+        const expanded = hasChildren && state.expandedTreeIds.has(rowId);
 
-      if (!expanded) {
-        return;
-      }
+        rows.push({
+          id: rowId,
+          label: relativePath,
+          name: getFileName(relativePath),
+          detail: getTreeNodeDetail(relativePath, frame.fileNode, frame.depth),
+          kind: frame.fileNode.kind === "external" ? "external" : frame.depth === 0 ? "entry" : "import",
+          nodeId: frame.fileNode.id,
+          depth: frame.depth,
+          hasChildren,
+          expanded
+        });
 
-      for (const child of children) {
-        appendImportRows(graph, index, child, rows, nextAncestorIds, depth + 1);
+        if (!expanded) {
+          continue;
+        }
+
+        // Reverse insertion preserves the stable DFS display order of the former traversal.
+        for (let childIndex = children.length - 1; childIndex >= 0; childIndex -= 1) {
+          pending.push({
+            fileNode: children[childIndex],
+            ancestorIds: nextAncestorIds,
+            depth: frame.depth + 1
+          });
+        }
       }
     }
 
@@ -624,50 +682,14 @@ export function getExplorerSidebarScript(): string {
       parent.append(empty);
     }
 
-    function appendSummaryEmpty(parent, message) {
-      const empty = document.createElement("div");
-      empty.className = "summary-empty";
-      empty.textContent = message;
-      parent.append(empty);
-    }
-
-    function appendSummaryItem(parent, label, detail) {
-      const item = document.createElement("div");
-      const name = document.createElement("span");
-      const meta = document.createElement("span");
-
-      item.className = "summary-item";
-      name.className = "summary-name";
-      meta.className = "summary-meta";
-      name.textContent = label;
-      meta.textContent = detail;
-      item.title = label + " - " + detail;
-      item.append(name, meta);
-      parent.append(item);
-    }
-
-    function getLanguageSummary(graph) {
-      if (Array.isArray(graph.metadata.languageSummary)) {
-        return graph.metadata.languageSummary;
-      }
-
-      return (graph.metadata.languages ?? []).map((language) => ({
-        language,
-        fileCount: 0,
-        percentage: 0
-      }));
-    }
-
     function renderActions() {
       const analysisRunning = state.analysisState === "running";
       const hasGraph = Boolean(state.graph);
 
-      elements.analyzeWorkspace.disabled = analysisRunning;
+      elements.analyzeWorkspace.disabled = false;
+      elements.analyzeWorkspace.textContent = analysisRunning ? "Cancel Analysis" : "Analyze Workspace";
       elements.analyzeCurrent.disabled = analysisRunning;
       elements.showWorkspace.disabled = analysisRunning;
-      elements.cancelAnalysis.disabled = !analysisRunning;
-      elements.openGraph.disabled = true;
-      elements.openGraph.title = "Graph rendering is temporarily disabled";
       elements.exportJson.disabled = !hasGraph || analysisRunning;
       elements.clearCache.disabled = analysisRunning;
     }

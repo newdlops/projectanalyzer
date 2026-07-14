@@ -4,13 +4,17 @@
 //! the line-based implementation can later be replaced by an AST parser without
 //! changing the graph builder contract.
 
+mod bindings;
 mod calls;
 mod frontend;
 mod imports;
+#[cfg(test)]
+mod range_tests;
 mod syntax;
 
 use crate::graph::{NewSymbol, ProjectGraphBuilder};
-use crate::model::{SourceInput, SourceRange};
+use crate::model::{utf16_code_unit_len, utf16_column_from_byte_offset, SourceInput, SourceRange};
+use bindings::LexicalBindings;
 use calls::{
     add_call_edges, collect_call_expressions, current_call_source, declaration_body_depth,
     declaration_call_scan_start, is_callable_kind, CallCandidate, CallSource,
@@ -47,6 +51,7 @@ pub fn extract_symbols(
     let mut scopes: Vec<ScopeEntry> = Vec::new();
     let mut symbols: Vec<SymbolRecord> = Vec::new();
     let mut calls: Vec<CallCandidate> = Vec::new();
+    let mut lexical_bindings = LexicalBindings::default();
     let mut syntax_scanner = SyntaxScanner::default();
 
     for (line_index, line) in file.content.lines().enumerate() {
@@ -57,6 +62,7 @@ pub fn extract_symbols(
         let start_character = syntax_line.trimmed_start_character();
         let mut call_scan_start = 0usize;
         let mut line_call_source: Option<CallSource> = None;
+        let mut declared_callable_name: Option<String> = None;
 
         if let Some((kind, name)) = detect_declaration(trimmed, is_in_class_scope(&scopes)) {
             let parent_id = scopes
@@ -88,6 +94,11 @@ pub fn extract_symbols(
 
             call_scan_start = declaration_call_scan_start(code_line, &kind);
 
+            if is_callable_kind(&kind) {
+                lexical_bindings.register_parameters(&id, code_line, &name);
+                declared_callable_name = Some(name.clone());
+            }
+
             if let Some(body_depth) =
                 declaration_body_depth(code_line, syntax_line.start_brace_depth(), &kind)
             {
@@ -111,7 +122,10 @@ pub fn extract_symbols(
         }
 
         if let Some(source) = line_call_source.or_else(|| current_call_source(&scopes)) {
-            for expression in collect_call_expressions(line_index, code_line, call_scan_start) {
+            lexical_bindings.collect_line(&source.id, code_line, declared_callable_name.as_deref());
+
+            for expression in collect_call_expressions(line_index, line, code_line, call_scan_start)
+            {
                 calls.push(CallCandidate {
                     source_id: source.id.clone(),
                     source_scope_names: source.scope_names.clone(),
@@ -121,7 +135,7 @@ pub fn extract_symbols(
         }
     }
 
-    add_call_edges(builder, file, &symbols, calls);
+    add_call_edges(builder, file, &symbols, &lexical_bindings, calls);
     Ok(())
 }
 
@@ -286,24 +300,25 @@ fn read_identifier(value: &str) -> Option<String> {
 }
 
 /// Returns the full declaration line range.
-fn line_range(line_index: usize, start_character: usize, line: &str) -> SourceRange {
+fn line_range(line_index: usize, start_byte_offset: usize, line: &str) -> SourceRange {
     SourceRange {
         start_line: line_index,
-        start_character,
+        start_character: utf16_column_from_byte_offset(line, start_byte_offset),
         end_line: line_index,
-        end_character: line.chars().count(),
+        end_character: utf16_code_unit_len(line),
     }
 }
 
 /// Returns the best-effort name selection range.
 fn name_range(line_index: usize, line: &str, name: &str) -> SourceRange {
-    let start_character = line.find(name).unwrap_or_default();
+    let start_byte_offset = line.find(name).unwrap_or_default();
+    let start_character = utf16_column_from_byte_offset(line, start_byte_offset);
 
     SourceRange {
         start_line: line_index,
         start_character,
         end_line: line_index,
-        end_character: start_character + name.chars().count(),
+        end_character: start_character + utf16_code_unit_len(name),
     }
 }
 
@@ -331,7 +346,7 @@ mod tests {
         let helper_id = node_id(&graph, "helper");
         let edge = call_edge(&graph, &caller_id, &helper_id);
 
-        assert_eq!(edge.confidence, "exact");
+        assert_eq!(edge.confidence, "resolved");
         assert_eq!(edge.range.start_line, 1);
     }
 
@@ -344,7 +359,7 @@ mod tests {
         let helper_id = node_id(&graph, "helper");
         let edge = call_edge(&graph, &run_id, &helper_id);
 
-        assert_eq!(edge.confidence, "exact");
+        assert_eq!(edge.confidence, "resolved");
         assert_eq!(edge.range.start_line, 2);
     }
 
@@ -362,6 +377,45 @@ mod tests {
 
         assert_eq!(external.kind, "external");
         assert_eq!(edge.confidence, "unresolved");
+    }
+
+    #[test]
+    fn parameter_shadow_prevents_same_file_bare_call_resolution() {
+        let graph =
+            analyze_typescript("function helper() {}\nfunction run(helper) { helper(); }\n");
+        let run_id = node_id(&graph, "run");
+        let helper_id = qualified_node_id(&graph, "helper");
+
+        assert!(graph.edges.iter().all(|edge| {
+            edge.kind != "calls" || edge.source_id != run_id || edge.target_id != helper_id
+        }));
+        assert_unresolved_named_call(&graph, &run_id, "helper");
+    }
+
+    #[test]
+    fn later_var_binding_prevents_hoisted_same_file_call_resolution() {
+        let graph = analyze_typescript(
+            "function helper() {}\nfunction run() {\n  helper();\n  var helper = replacement;\n}\n",
+        );
+        let run_id = node_id(&graph, "run");
+        let helper_id = qualified_node_id(&graph, "helper");
+
+        assert!(graph.edges.iter().all(|edge| {
+            edge.kind != "calls" || edge.source_id != run_id || edge.target_id != helper_id
+        }));
+        assert_unresolved_named_call(&graph, &run_id, "helper");
+    }
+
+    #[test]
+    fn parameter_shadow_does_not_block_this_member_resolution() {
+        let graph = analyze_typescript(
+            "class Service {\n  run(helper) { this.helper(); }\n  helper() {}\n}\nfunction helper() {}\n",
+        );
+        let run_id = qualified_node_id(&graph, "Service.run");
+        let method_id = qualified_node_id(&graph, "Service.helper");
+        let edge = call_edge(&graph, &run_id, &method_id);
+
+        assert_eq!(edge.confidence, "resolved");
     }
 
     fn analyze_typescript(content: &str) -> ProjectGraph {
@@ -385,6 +439,28 @@ mod tests {
             .find(|node| node.name == name)
             .map(|node| node.id.clone())
             .unwrap_or_else(|| panic!("missing node named {name}"))
+    }
+
+    /// Returns one symbol ID by exact same-file qualified name.
+    fn qualified_node_id(graph: &ProjectGraph, qualified_name: &str) -> String {
+        graph
+            .nodes
+            .iter()
+            .find(|node| node.qualified_name == qualified_name && node.kind != "external")
+            .map(|node| node.id.clone())
+            .unwrap_or_else(|| panic!("missing node qualified as {qualified_name}"))
+    }
+
+    /// Asserts that a shadowed call remains attached to an unresolved placeholder.
+    fn assert_unresolved_named_call(graph: &ProjectGraph, source_id: &str, name: &str) {
+        let target = graph
+            .nodes
+            .iter()
+            .find(|node| node.kind == "external" && node.name == name)
+            .expect("external shadow target exists");
+        let edge = call_edge(graph, source_id, &target.id);
+
+        assert_eq!(edge.confidence, "unresolved");
     }
 
     fn call_edge<'a>(graph: &'a ProjectGraph, source_id: &str, target_id: &str) -> &'a GraphEdge {

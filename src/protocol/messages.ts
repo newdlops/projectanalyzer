@@ -5,6 +5,12 @@
 
 import type { ProjectGraph } from "../shared/types";
 import type { FunctionExplorerPayload, FunctionExplorerRequest } from "./functionExplorer";
+import type { ProjectOverviewPayload } from "./projectOverview";
+import type {
+  ProjectReadingGuidePayload,
+  ProjectReadingScopePayloadId,
+  ProjectScopeReadingGuidePayload
+} from "./projectReadingGuide";
 
 /** Supported graph view modes shown by the explorer. */
 export type GraphViewMode = "call" | "file" | "class";
@@ -60,6 +66,7 @@ export type WebviewLogRequest = {
 export type WebviewRequest =
   | { type: "ui/ready"; payload: Record<string, never> }
   | { type: "graph/load"; payload: GraphLoadRequest }
+  | { type: "graph/loadStructure"; payload: { graphVersion: string } }
   | { type: "graph/openPanel"; payload: Record<string, never> }
   | { type: "graph/showWorkspaceScope"; payload: Record<string, never> }
   | { type: "graph/focusNode"; payload: GraphFocusNodeRequest }
@@ -69,6 +76,11 @@ export type WebviewRequest =
   | { type: "cache/clear"; payload: Record<string, never> }
   | { type: "node/openSource"; payload: { nodeId: string } }
   | { type: "node/showRelationship"; payload: NodeRelationshipRequest }
+  | {
+      type: "project/readingGuideScope";
+      payload: { graphVersion: string; scopeId: ProjectReadingScopePayloadId };
+    }
+  | { type: "project/loadOverview"; payload: { graphVersion: string } }
   | { type: "search/query"; payload: SearchRequest }
   | { type: "export/run"; payload: ExportRequest }
   | FunctionExplorerRequest
@@ -98,9 +110,13 @@ export type ExtensionResponse =
   | { type: "ui/ready"; payload: Record<string, never> }
   | { type: "graph/loaded"; payload: ProjectGraph }
   | { type: "graph/updated"; payload: ProjectGraph }
+  | { type: "graph/structureLoaded"; payload: ProjectGraph }
   | { type: "graph/focusNode"; payload: GraphFocusNodeRequest }
   | { type: "graph/cleared"; payload: Record<string, never> }
   | { type: "analysis/status"; payload: AnalysisStatusPayload }
+  | { type: "project/overviewLoaded"; payload: ProjectOverviewPayload }
+  | { type: "project/readingGuideLoaded"; payload: ProjectReadingGuidePayload }
+  | { type: "project/readingGuideScopeLoaded"; payload: ProjectScopeReadingGuidePayload }
   | { type: "function/indexLoaded"; payload: FunctionExplorerPayload }
   | { type: "view/modeChanged"; payload: { mode: GraphViewMode } }
   | { type: "search/results"; payload: SearchResult[] }

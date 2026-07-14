@@ -8,7 +8,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use crate::graph::{NewExternalDependencyEdge, NewFileDependencyEdge, ProjectGraphBuilder};
-use crate::model::{SourceInput, SourceRange};
+use crate::model::{utf16_column_from_byte_offset, SourceInput, SourceRange};
 
 const RESOLVABLE_EXTENSIONS: [&str; 4] = ["ts", "tsx", "js", "jsx"];
 
@@ -136,7 +136,7 @@ fn collect_import_candidates(file: &SourceInput) -> Vec<ImportCandidate> {
 
         if trimmed.starts_with("import ") {
             if let Some(candidate) =
-                read_import_candidate(line_index, line_offset, trimmed, "imports")
+                read_import_candidate(line_index, line, line_offset, trimmed, "imports")
             {
                 candidates.push(candidate);
             }
@@ -145,7 +145,7 @@ fn collect_import_candidates(file: &SourceInput) -> Vec<ImportCandidate> {
 
         if trimmed.starts_with("export ") {
             if let Some(candidate) =
-                read_from_candidate(line_index, line_offset, trimmed, "exports")
+                read_from_candidate(line_index, line, line_offset, trimmed, "exports")
             {
                 candidates.push(candidate);
             }
@@ -158,14 +158,16 @@ fn collect_import_candidates(file: &SourceInput) -> Vec<ImportCandidate> {
 /// Reads either `import ... from "x"` or side-effect `import "x"` syntax.
 fn read_import_candidate(
     line_index: usize,
+    source_line: &str,
     line_offset: usize,
     trimmed: &str,
     kind: &str,
 ) -> Option<ImportCandidate> {
-    read_from_candidate(line_index, line_offset, trimmed, kind).or_else(|| {
+    read_from_candidate(line_index, source_line, line_offset, trimmed, kind).or_else(|| {
         let remainder = trimmed.strip_prefix("import")?.trim_start();
         read_quoted_specifier(
             line_index,
+            source_line,
             line_offset + trimmed.find(remainder)?,
             remainder,
             kind,
@@ -176,6 +178,7 @@ fn read_import_candidate(
 /// Reads `... from "x"` syntax.
 fn read_from_candidate(
     line_index: usize,
+    source_line: &str,
     line_offset: usize,
     trimmed: &str,
     kind: &str,
@@ -184,6 +187,7 @@ fn read_from_candidate(
     let remainder_start = from_index + " from ".len();
     read_quoted_specifier(
         line_index,
+        source_line,
         line_offset + remainder_start,
         &trimmed[remainder_start..],
         kind,
@@ -193,6 +197,7 @@ fn read_from_candidate(
 /// Reads a string literal module specifier and returns its source span.
 fn read_quoted_specifier(
     line_index: usize,
+    source_line: &str,
     offset: usize,
     text: &str,
     kind: &str,
@@ -208,9 +213,9 @@ fn read_quoted_specifier(
         module_specifier,
         range: SourceRange {
             start_line: line_index,
-            start_character: offset + specifier_start,
+            start_character: utf16_column_from_byte_offset(source_line, offset + specifier_start),
             end_line: line_index,
-            end_character: offset + specifier_end,
+            end_character: utf16_column_from_byte_offset(source_line, offset + specifier_end),
         },
     })
 }

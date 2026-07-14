@@ -23,6 +23,31 @@ pub struct SourceRange {
     pub end_character: usize,
 }
 
+/// Returns the number of UTF-16 code units used by a source fragment.
+///
+/// VS Code positions count UTF-16 code units rather than UTF-8 bytes or
+/// Unicode scalar values, so astral characters such as emoji count as two.
+pub fn utf16_code_unit_len(text: &str) -> usize {
+    text.encode_utf16().count()
+}
+
+/// Converts an offset-preserving scanner's UTF-8 byte index to a VS Code column.
+///
+/// Scanner internals intentionally keep byte offsets for cheap slicing. The
+/// public graph boundary calls this helper with the original source line so
+/// masked multibyte characters cannot distort the resulting UTF-16 position.
+pub fn utf16_column_from_byte_offset(line: &str, byte_offset: usize) -> usize {
+    let mut boundary = byte_offset.min(line.len());
+
+    // Best-effort analyzers should not panic if a future scanner reports an
+    // interior byte. Clamp to the preceding character boundary instead.
+    while !line.is_char_boundary(boundary) {
+        boundary = boundary.saturating_sub(1);
+    }
+
+    utf16_code_unit_len(&line[..boundary])
+}
+
 /// Graph node stored in the serialized project graph.
 #[derive(Clone)]
 pub struct SymbolNode {
@@ -127,7 +152,7 @@ pub fn full_content_range(content: &str) -> SourceRange {
 
     for line in content.split('\n') {
         line_count += 1;
-        last_line_len = line.trim_end_matches('\r').chars().count();
+        last_line_len = utf16_code_unit_len(line.trim_end_matches('\r'));
     }
 
     SourceRange {
@@ -135,5 +160,33 @@ pub fn full_content_range(content: &str) -> SourceRange {
         start_character: 0,
         end_line: line_count.saturating_sub(1),
         end_character: last_line_len,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn converts_utf8_offsets_to_vscode_utf16_columns() {
+        let line = "한글😀target";
+        let target_byte_offset = line.find("target").expect("target exists");
+
+        assert_eq!(utf16_column_from_byte_offset(line, target_byte_offset), 4);
+        assert_eq!(utf16_code_unit_len(line), 10);
+    }
+
+    #[test]
+    fn preserves_ascii_offset_contract() {
+        assert_eq!(utf16_column_from_byte_offset("  target", 2), 2);
+        assert_eq!(utf16_code_unit_len("  target"), 8);
+    }
+
+    #[test]
+    fn full_content_range_uses_utf16_length_on_the_last_line() {
+        let range = full_content_range("first\n한글😀");
+
+        assert_eq!(range.end_line, 1);
+        assert_eq!(range.end_character, 4);
     }
 }

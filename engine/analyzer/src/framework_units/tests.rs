@@ -392,6 +392,7 @@ fn extracts_nest_graphql_root_operations_and_excludes_field_resolvers() {
     assert_eq!(users.range.start_line, 5);
     assert_eq!(users.range.start_character, 2);
     assert_eq!(users.range.end_line, 5);
+    assert_eq!(users.range.end_character, 36);
     assert!(first.edges.iter().any(|edge| {
         edge.kind == "contains"
             && edge.source_id == schema.id
@@ -601,7 +602,7 @@ fn write_nest_graphql_fixture(workspace: &Path) {
     );
     write_file(
         &workspace.join("src/users.resolver.ts"),
-        "import { Mutation, Query, ResolveField, Resolver, Subscription } from \"@nestjs/graphql\";\n\n@Resolver(() => User)\nexport class UsersResolver {\n  @Query(() => [User])\n  users() { return [\"}\"]; }\n\n  @Query(() => User)\n  async user() { return {}; }\n\n  @Mutation(() => User)\n  createUser() { return {}; }\n\n  @Subscription(() => User)\n  userCreated() { return {}; }\n\n  @ResolveField(() => Profile)\n  profile() { return {}; }\n}\n",
+        "import { Mutation, Query, ResolveField, Resolver, Subscription } from \"@nestjs/graphql\";\n\n@Resolver(() => User)\nexport class UsersResolver {\n  @Query(() => [User])\n  /*한글😀*/ users() { return [\"}\"]; }\n\n  @Query(() => User)\n  async user() { return {}; }\n\n  @Mutation(() => User)\n  createUser() { return {}; }\n\n  @Subscription(() => User)\n  userCreated() { return {}; }\n\n  @ResolveField(() => Profile)\n  profile() { return {}; }\n}\n",
     );
     write_file(
         &workspace.join("src/unrelated.ts"),

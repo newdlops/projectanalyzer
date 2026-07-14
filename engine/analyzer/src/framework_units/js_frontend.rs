@@ -6,7 +6,8 @@ use std::path::{Path, PathBuf};
 
 use crate::fs_scan::is_excluded_directory;
 use crate::model::{
-    full_content_range, DetectedFramework, FrameworkUnit, FrameworkUnitEdge, SourceRange,
+    full_content_range, utf16_code_unit_len, utf16_column_from_byte_offset, DetectedFramework,
+    FrameworkUnit, FrameworkUnitEdge, SourceRange,
 };
 
 use super::FrameworkUnitExtraction;
@@ -63,7 +64,6 @@ pub(super) fn analyze(
 
     let files = collect_frontend_files(&frontend_root)?;
     let mut extraction = FrameworkUnitExtraction::default();
-
     for file in files {
         add_file_units(
             workspace_root,
@@ -74,7 +74,6 @@ pub(super) fn analyze(
             &mut extraction,
         )?;
     }
-
     Ok(extraction)
 }
 
@@ -98,7 +97,6 @@ fn resolve_framework_root(workspace_root: &Path, root_path: &str) -> PathBuf {
 fn collect_frontend_files(frontend_root: &Path) -> Result<Vec<PathBuf>, String> {
     let mut files = Vec::new();
     let mut stack = vec![frontend_root.to_path_buf()];
-
     while let Some(directory) = stack.pop() {
         let entries = fs::read_dir(&directory).map_err(|error| {
             format!(
@@ -106,7 +104,6 @@ fn collect_frontend_files(frontend_root: &Path) -> Result<Vec<PathBuf>, String> 
                 directory.display()
             )
         })?;
-
         for entry_result in entries {
             let entry =
                 entry_result.map_err(|error| format!("failed to read directory entry: {error}"))?;
@@ -133,7 +130,6 @@ fn collect_frontend_files(frontend_root: &Path) -> Result<Vec<PathBuf>, String> 
             }
         }
     }
-
     files.sort();
     Ok(files)
 }
@@ -229,7 +225,6 @@ fn create_unit_drafts(
 ) -> Vec<UnitDraft> {
     let mut units = Vec::new();
     let full_range = full_content_range(content);
-
     if framework.name == "Next.js" {
         add_next_convention_units(frontend_root, file_path, &full_range, &mut units);
     }
@@ -469,9 +464,12 @@ fn read_declaration_header(lines: &[&str], start_line: usize) -> SourceRange {
 
     multi_line_range(
         start_line,
-        lines[start_line]
-            .len()
-            .saturating_sub(lines[start_line].trim_start().len()),
+        utf16_column_from_byte_offset(
+            lines[start_line],
+            lines[start_line]
+                .len()
+                .saturating_sub(lines[start_line].trim_start().len()),
+        ),
         end_line,
         lines[end_line],
     )
@@ -794,6 +792,6 @@ fn multi_line_range(
         start_line,
         start_character,
         end_line,
-        end_character: end_line_text.chars().count(),
+        end_character: utf16_code_unit_len(end_line_text),
     }
 }

@@ -5,15 +5,9 @@
 
 import * as vscode from "vscode";
 import type { AnalysisBackend } from "../analyzer/core/analysisBackend";
-import { createChangeImpactRows } from "../application/functionExplorer/changeImpactRows";
-import {
-  createDefaultSemanticFlowExpandedRowIds,
-  createSemanticFlowRows
-} from "../application/functionExplorer/semanticFlowRows";
-import { createFunctionIndex } from "../graph/functionIndex";
-import { createFunctionExplorerPayload } from "../graph/functionIndexPayload";
-import { analyzeChangeImpact } from "../insights/changeImpact";
-import { createSemanticFlowIndex } from "../insights/semanticFlow";
+import { FunctionExplorerProjectionService } from "../application/functionExplorer";
+import { ProjectInsightCache } from "../application/projectOverview";
+import { createProjectScopeReadingGuidePayload } from "../application/projectReadingGuide";
 import type {
   AnalysisStatusPayload,
   ExportRequest,
@@ -23,6 +17,7 @@ import type {
 } from "../protocol/messages";
 import { validateWebviewRequest } from "../protocol/webviewRequestValidation";
 import type { FunctionExplorerIndexRequest } from "../protocol/functionExplorer";
+import type { ProjectReadingScopePayloadId } from "../protocol/projectReadingGuide";
 import type { ProjectAnalyzerLogger } from "../observability/logger";
 import { createContentHash } from "../shared/hash";
 import type { ProjectGraph } from "../shared/types";
@@ -33,7 +28,19 @@ import {
   createWorkspaceAnalysisCacheKey
 } from "../vscode/workspaceFingerprint";
 import type { ExplorerGraphPanelProvider } from "./explorerGraphPanelProvider";
-import { projectGraphForSidebar, summarizeFileImportGraph, summarizeProjectedGraph } from "./graphProjection";
+import {
+  projectGraphForSidebar,
+  projectGraphForSidebarShell,
+  summarizeProjectedGraph
+} from "./graphProjection";
+import {
+  SidebarGraphDelivery,
+  withFunctionExplorerVersion,
+  withProjectOverviewVersion,
+  withReadingGuideVersion,
+  withReadingScopeVersion,
+  withSidebarGraphVersion
+} from "./sidebarGraphDelivery";
 import { getExplorerHtml } from "./webviewHtml";
 import { createNonce, exportGraphToJson, openNodeInEditor } from "./webviewHostActions";
 
@@ -48,17 +55,12 @@ export type ExplorerViewProviderDependencies = {
 };
 
 /** Cached workspace graph selected for reuse before running analysis. */
-type WorkspaceCacheMatch = {
-  graph: ProjectGraph;
-  kind: "exact" | "latest";
-};
+type WorkspaceCacheMatch = { graph: ProjectGraph; kind: "exact" | "latest" };
 
 /** Temporary gate while the visual graph renderer is disconnected from the GUI. */
 const GRAPH_RENDERING_ENABLED = false;
 
-/**
- * Registers and serves the Project Analyzer sidebar Webview.
- */
+/** Registers and serves the Project Analyzer sidebar Webview. */
 export class ExplorerViewProvider implements vscode.WebviewViewProvider {
   public static readonly viewType = "projectAnalyzer.explorerView";
 
@@ -70,6 +72,15 @@ export class ExplorerViewProvider implements vscode.WebviewViewProvider {
 
   /** Tracks whether the Webview script has loaded and can receive responses. */
   private webviewReady = false;
+
+  /** Active immutable graph and Webview-only stale-response identity. */
+  private readonly graphDelivery = new SidebarGraphDelivery();
+
+  /** Reuses graph-wide traces across presentation-only refreshes. */
+  private readonly projectInsightCache = new ProjectInsightCache();
+
+  /** Keeps graph-wide caller/callee metrics out of row expansion refreshes. */
+  private readonly functionExplorerProjection = new FunctionExplorerProjectionService();
 
   public constructor(private readonly dependencies: ExplorerViewProviderDependencies) {}
 
@@ -110,13 +121,23 @@ export class ExplorerViewProvider implements vscode.WebviewViewProvider {
    * Sends graph availability to the sidebar and, when enabled, the graph panel.
    */
   public async publishGraph(graph: ProjectGraph): Promise<void> {
-    const sidebarGraph = projectGraphForSidebar(graph);
-    this.dependencies.logger.info("sidebar.publishGraph.projected", {
-      fileImportGraph: summarizeFileImportGraph(graph),
-      projected: summarizeProjectedGraph(sidebarGraph)
+    const activation = this.graphDelivery.activate(graph);
+    if (activation.changed) {
+      // A newly published object is a new immutable snapshot even when coarse
+      // metadata happens to match an older analysis result.
+      this.projectInsightCache.clear();
+      this.functionExplorerProjection.clear();
+    }
+    const sidebarGraph = withSidebarGraphVersion(
+      projectGraphForSidebarShell(graph),
+      activation.snapshot.version
+    );
+    this.dependencies.logger.info("sidebar.publishGraph.shell", {
+      analyzedFiles: graph.metadata.fileCount,
+      deliveryVersion: activation.snapshot.version
     });
     await this.postMessage({ type: "graph/loaded", payload: sidebarGraph });
-    await this.publishFunctionIndex(graph);
+    await this.publishProjectGuide(graph, activation.snapshot.version);
     if (GRAPH_RENDERING_ENABLED) {
       await this.dependencies.graphPanelProvider.publishGraph(graph);
     }
@@ -144,6 +165,9 @@ export class ExplorerViewProvider implements vscode.WebviewViewProvider {
       case "graph/load":
         await this.postLatestGraph();
         break;
+      case "graph/loadStructure":
+        await this.publishStructure(message.payload.graphVersion);
+        break;
       case "graph/openPanel":
         await this.openGraphPanel();
         break;
@@ -155,6 +179,15 @@ export class ExplorerViewProvider implements vscode.WebviewViewProvider {
         break;
       case "function/index":
         await this.postLatestFunctionIndex(message.payload);
+        break;
+      case "project/readingGuideScope":
+        await this.publishReadingGuideScope(
+          message.payload.graphVersion,
+          message.payload.scopeId
+        );
+        break;
+      case "project/loadOverview":
+        await this.publishProjectOverview(message.payload.graphVersion);
         break;
       case "node/openSource":
         await this.openSourceNode(message.payload.nodeId);
@@ -354,6 +387,9 @@ export class ExplorerViewProvider implements vscode.WebviewViewProvider {
    */
   private async clearCache(): Promise<void> {
     await this.dependencies.cacheStore.clear();
+    this.graphDelivery.clear();
+    this.projectInsightCache.clear();
+    this.functionExplorerProjection.clear();
     await this.postMessage({ type: "graph/cleared", payload: {} });
     if (GRAPH_RENDERING_ENABLED) {
       await this.dependencies.graphPanelProvider.clearGraph();
@@ -469,65 +505,147 @@ export class ExplorerViewProvider implements vscode.WebviewViewProvider {
   /** Builds and publishes the host-side Function Explorer index for a graph. */
   private async publishFunctionIndex(
     graph: ProjectGraph,
+    deliveryVersion: string,
     request: FunctionExplorerIndexRequest = {}
   ): Promise<void> {
-    const semanticFlows = createSemanticFlowIndex(graph);
-    const selectedFunctionId = request.options?.selectedFunctionId;
-    const expandedTreeIds = request.options?.expandedRowIds
-      ?? createDefaultSemanticFlowExpandedRowIds(semanticFlows);
-    const semanticFlowRows = createSemanticFlowRows(semanticFlows, { expandedRowIds: expandedTreeIds });
-    const changeImpact = selectedFunctionId
-      ? analyzeChangeImpact(graph, semanticFlows, selectedFunctionId)
-      : undefined;
-    const changeImpactRows = changeImpact
-      ? createChangeImpactRows(graph, changeImpact)
-      : undefined;
-    const index = createFunctionIndex(graph, {
-      expandedTreeIds,
-      includeInventoryRows: false,
-      inventoryLimit: 500
-    });
-    const payload = createFunctionExplorerPayload(graph, index, {
-      initialRowLimit: 500,
-      expandedRowIds: expandedTreeIds,
-      semanticFlowRows,
-      changeImpactRows,
-      selectedFunctionId
-    });
-    payload.options.expandedRowIds = expandedTreeIds;
+    const payload = withFunctionExplorerVersion(
+      this.functionExplorerProjection.project(
+        graph,
+        this.projectInsightCache.get(graph).semanticFlows,
+        request
+      ),
+      deliveryVersion
+    );
 
     this.dependencies.logger.info("sidebar.functionIndex.publish", {
       callEdges: payload.summary.callEdgeCount,
       callableNodes: payload.summary.callableNodeCount,
-      changeImpactAffectedEntrypoints: changeImpact?.summary.affectedFlowCount ?? 0,
-      changeImpactCallers: changeImpact?.summary.callerCount ?? 0,
-      entrypointCoverageGaps: semanticFlows.coverageGaps.length,
-      entrypoints: semanticFlows.summary.entrypointCount,
-      mappedEntrypointHandlers: semanticFlows.summary.mappedHandlerCount,
-      operations: semanticFlows.summary.operationCount,
-      routes: semanticFlows.summary.routeCount,
       rows: payload.rows.length
     });
     await this.postMessage({ type: "function/indexLoaded", payload });
   }
 
+  /** Publishes only the bounded first-read guide; all disclosures stay lazy. */
+  private async publishProjectGuide(graph: ProjectGraph, deliveryVersion: string): Promise<void> {
+    const insightSnapshot = this.projectInsightCache.get(graph);
+    const payload = withReadingGuideVersion(
+      insightSnapshot.projectReadingGuidePayload,
+      deliveryVersion
+    );
+
+    this.dependencies.logger.info("sidebar.projectGuide.publish", {
+      candidateScopes: payload.candidateScopeCount,
+      visibleScopes: payload.scopes.length
+    });
+    await this.postMessage({
+      type: "project/readingGuideLoaded",
+      payload
+    });
+  }
+
+  /** Sends file/framework structure only after Browse Structure is opened. */
+  private async publishStructure(graphVersion: string): Promise<void> {
+    const snapshot = this.graphDelivery.current();
+    if (!snapshot || !this.graphDelivery.matches(graphVersion)) {
+      this.logStaleDelivery("structure", graphVersion);
+      return;
+    }
+
+    const payload = withSidebarGraphVersion(
+      projectGraphForSidebar(snapshot.graph),
+      snapshot.version
+    );
+    this.dependencies.logger.info(
+      "sidebar.structure.publish",
+      summarizeProjectedGraph(payload)
+    );
+    await this.postMessage({ type: "graph/structureLoaded", payload });
+  }
+
+  /** Builds and sends Project Overview only after Analysis Details is opened. */
+  private async publishProjectOverview(graphVersion: string): Promise<void> {
+    const snapshot = this.graphDelivery.current();
+    if (!snapshot || !this.graphDelivery.matches(graphVersion)) {
+      this.logStaleDelivery("overview", graphVersion);
+      return;
+    }
+
+    const payload = withProjectOverviewVersion(
+      this.projectInsightCache.getOverview(snapshot.graph),
+      snapshot.version
+    );
+    await this.postMessage({ type: "project/overviewLoaded", payload });
+  }
+
+  /** Projects source areas and reading paths only for the selected current scope. */
+  private async publishReadingGuideScope(
+    graphVersion: string,
+    scopeId: ProjectReadingScopePayloadId
+  ): Promise<void> {
+    const snapshot = this.graphDelivery.current();
+    if (!snapshot) {
+      await this.postStatus("idle", "Analyze before opening a project scope");
+      return;
+    }
+    if (!this.graphDelivery.matches(graphVersion)) {
+      this.logStaleDelivery("readingGuideScope", graphVersion);
+      return;
+    }
+
+    const insightSnapshot = this.projectInsightCache.get(snapshot.graph);
+    const domainScopeId = this.projectInsightCache.resolveReadingGuideScopeDomainId(
+      snapshot.graph,
+      scopeId
+    );
+    const scopeGuide = domainScopeId
+      ? insightSnapshot.readingGuideProjector.projectScope(domainScopeId)
+      : undefined;
+    if (!scopeGuide) {
+      await this.postMessage({
+        type: "error",
+        payload: {
+          code: "PROJECT_READING_SCOPE_NOT_FOUND",
+          message: "Project scope is no longer available"
+        }
+      });
+      return;
+    }
+
+    const payload = withReadingScopeVersion(
+      createProjectScopeReadingGuidePayload(scopeGuide),
+      snapshot.version
+    );
+    this.dependencies.logger.info("sidebar.projectGuideScope.publish", {
+      areas: payload.areas.length,
+      paths: payload.representativeFlows.length,
+      scopeId
+    });
+    await this.postMessage({ type: "project/readingGuideScopeLoaded", payload });
+  }
+
   /** Reposts the Function Explorer index for the active cached graph. */
   private async postLatestFunctionIndex(request: FunctionExplorerIndexRequest = {}): Promise<void> {
-    const graph = await this.dependencies.cacheStore.getLatestGraph();
+    const snapshot = this.graphDelivery.current();
 
-    if (!graph) {
+    if (!snapshot) {
       await this.postStatus("idle", "Analyze before loading function flows");
       return;
     }
 
-    await this.publishFunctionIndex(graph, request);
+    if (!this.graphDelivery.matches(request.graphVersion)) {
+      this.logStaleDelivery("functionIndex", request.graphVersion);
+      return;
+    }
+
+    await this.publishFunctionIndex(snapshot.graph, snapshot.version, request);
   }
 
   /**
    * Opens the source location represented by a graph node.
    */
   private async openSourceNode(nodeId: string): Promise<void> {
-    const graph = await this.dependencies.cacheStore.getLatestGraph();
+    const graph = this.graphDelivery.current()?.graph
+      ?? await this.dependencies.cacheStore.getLatestGraph();
     const node = graph?.nodes.find((candidate) => candidate.id === nodeId);
 
     if (!node) {
@@ -638,14 +756,18 @@ export class ExplorerViewProvider implements vscode.WebviewViewProvider {
     return vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
   }
 
-  /**
-   * Posts an analysis status update to the visible sidebar.
-   */
-  private async postStatus(
-    state: AnalysisStatusPayload["state"],
-    message: string
-  ): Promise<void> {
+  /** Posts an analysis status update to the visible sidebar. */
+  private async postStatus(state: AnalysisStatusPayload["state"], message: string): Promise<void> {
     await this.postMessage({ type: "analysis/status", payload: { state, message } });
+  }
+
+  /** Records a lazy request rejected because another graph is now active. */
+  private logStaleDelivery(feature: string, requestedVersion: string | undefined): void {
+    this.dependencies.logger.debug("sidebar.lazyRequest.stale", {
+      activeGraphVersion: this.graphDelivery.current()?.version,
+      feature,
+      requestedGraphVersion: requestedVersion
+    });
   }
 
   /**

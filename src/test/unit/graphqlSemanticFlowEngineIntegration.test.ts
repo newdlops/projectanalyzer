@@ -60,10 +60,10 @@ test("Strawberry operations map sync and async resolvers plus an imported servic
     const graph = analyzeFixtureWorkspace(fixtureRoot);
     const index = createSemanticFlowIndex(graph);
 
-    assertGraphQLOperationSummary(index, 4);
+    assertGraphQLOperationSummary(index, 6);
     assert.deepEqual(
       index.flows.map((flow) => flow.name).sort(),
-      ["hello", "notifications", "rename_user", "viewer"]
+      ["hello", "notifications", "rename_user", "status", "status", "viewer"]
     );
 
     for (const flow of index.flows) {
@@ -92,6 +92,15 @@ test("Strawberry operations map sync and async resolvers plus an imported servic
       ),
       false
     );
+
+    const statusFlows = index.flows.filter((flow) => flow.name === "status");
+    assert.equal(statusFlows.length, 2);
+    assert.equal(new Set(statusFlows.map((flow) => flow.entrypointUnitId)).size, 2);
+    assert.deepEqual(
+      statusFlows.map((flow) => flow.steps[0]?.qualifiedName).sort(),
+      ["Mutation.status", "Query.status"]
+    );
+    assertSummaryFirstRows(index, { Query: 3, Mutation: 2, Subscription: 1 });
   } finally {
     await rm(fixtureRoot, { force: true, recursive: true });
   }
@@ -99,6 +108,10 @@ test("Strawberry operations map sync and async resolvers plus an imported servic
 
 /** Runs the current Rust source so the contract test cannot use a stale binary. */
 function analyzeFixtureWorkspace(workspaceRoot: string): ProjectGraph {
+  const childEnvironment = { ...process.env };
+  // Local debugger/port-manager injection must not change the native analyzer
+  // contract exercised by this integration fixture.
+  delete childEnvironment.DYLD_INSERT_LIBRARIES;
   const output = execFileSync(
     "cargo",
     [
@@ -116,6 +129,7 @@ function analyzeFixtureWorkspace(workspaceRoot: string): ProjectGraph {
     {
       cwd: projectRoot,
       encoding: "utf8",
+      env: childEnvironment,
       maxBuffer: 20 * 1024 * 1024
     }
   );
@@ -174,7 +188,8 @@ function assertSummaryFirstRows(
   });
   const frameworkRow = requireRow(defaultRows, graphqlFrameworkRowId);
 
-  assert.equal(frameworkRow.detail, "4 operations / 4 resolvers");
+  const operationCount = Object.values(expectedCounts).reduce((total, count) => total + count, 0);
+  assert.equal(frameworkRow.detail, `${operationCount} operations / ${operationCount} resolvers`);
   assert.equal(frameworkRow.expanded, false);
   assert.equal(defaultRows.some(isOperationRow), false);
   assert.equal(defaultRows.some(isGraphQLOperationTypeBucket), false);
@@ -228,7 +243,7 @@ async function createStrawberryFixture(root: string): Promise<void> {
   await writeFixtureFile(
     root,
     "schema.py",
-    "import strawberry\nfrom services import load_viewer\n\n@strawberry.type\nclass Query:\n    @strawberry.field\n    def hello(self) -> str:\n        return \"hello\"\n\n    @strawberry.field\n    async def viewer(self) -> str:\n        return load_viewer()\n\n@strawberry.type\nclass Mutation:\n    @strawberry.mutation\n    def rename_user(self) -> str:\n        return \"renamed\"\n\n@strawberry.type\nclass Subscription:\n    @strawberry.subscription\n    async def notifications(self) -> str:\n        return \"notification\"\n"
+    "import strawberry\nfrom services import load_viewer\n\n@strawberry.type\nclass Query:\n    @strawberry.field\n    def hello(self) -> str:\n        return \"hello\"\n\n    @strawberry.field\n    async def viewer(self) -> str:\n        return load_viewer()\n\n    @strawberry.field\n    def status(self) -> str:\n        return \"query-status\"\n\n@strawberry.type\nclass Mutation:\n    @strawberry.mutation\n    def rename_user(self) -> str:\n        return \"renamed\"\n\n    @strawberry.mutation\n    def status(self) -> str:\n        return \"mutation-status\"\n\n@strawberry.type\nclass Subscription:\n    @strawberry.subscription\n    async def notifications(self) -> str:\n        return \"notification\"\n"
   );
 }
 

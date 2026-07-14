@@ -8,9 +8,13 @@ use crate::model::SourceInput;
 
 use super::super::{javascript_like, python_like};
 use super::types::NamedImportBinding;
+use python_like::syntax::{PythonSyntaxSnapshot, PythonSyntaxSnapshots};
 
 /// Collects supported named bindings whose module resolves inside the workspace.
-pub(super) fn collect_named_import_bindings(files: &[SourceInput]) -> Vec<NamedImportBinding> {
+pub(super) fn collect_named_import_bindings(
+    files: &[SourceInput],
+    python_syntax: &PythonSyntaxSnapshots,
+) -> Vec<NamedImportBinding> {
     let mut bindings = Vec::new();
     let mut javascript_resolver = javascript_like::WorkspaceModuleResolver::new(files);
     let python_resolver = python_like::WorkspaceModuleResolver::new(files);
@@ -20,7 +24,12 @@ pub(super) fn collect_named_import_bindings(files: &[SourceInput]) -> Vec<NamedI
             "typescript" | "javascript" => {
                 collect_javascript_bindings(file, &mut javascript_resolver, &mut bindings)
             }
-            "python" => collect_python_bindings(file, &python_resolver, &mut bindings),
+            "python" => {
+                let Some(syntax) = python_syntax.get(&file.path) else {
+                    continue;
+                };
+                collect_python_bindings(file, syntax, &python_resolver, &mut bindings);
+            }
             _ => {}
         }
     }
@@ -103,11 +112,12 @@ fn parse_javascript_named_import(line: &str) -> Option<(String, Vec<(String, Str
 /// Resolves top-level Python `from module import foo as bar` declarations.
 fn collect_python_bindings(
     file: &SourceInput,
+    syntax: &PythonSyntaxSnapshot,
     resolver: &python_like::WorkspaceModuleResolver,
     output: &mut Vec<NamedImportBinding>,
 ) {
-    for (line_index, line) in file.content.lines().enumerate() {
-        let Some((module_part, names)) = parse_python_named_import(line) else {
+    for (line_index, code_line) in syntax.lines().enumerate() {
+        let Some((module_part, names)) = parse_python_named_import(code_line) else {
             continue;
         };
 
@@ -140,7 +150,7 @@ fn parse_python_named_import(line: &str) -> Option<(String, Vec<(String, String)
         return None;
     }
 
-    let code = strip_python_comment(line).trim();
+    let code = line.trim();
     let remainder = code.strip_prefix("from ")?;
     let import_index = remainder.find(" import ")?;
     let module_part = remainder[..import_index].trim();
@@ -191,31 +201,6 @@ fn read_quoted_value(text: &str) -> Option<String> {
         + 1;
 
     Some(text[1..closing].to_string())
-}
-
-/// Removes a trailing Python comment while respecting simple quoted strings.
-fn strip_python_comment(line: &str) -> &str {
-    let bytes = line.as_bytes();
-    let mut quote = None;
-    let mut index = 0usize;
-
-    while index < bytes.len() {
-        match (bytes[index], quote) {
-            (b'\\', Some(_)) => index += 2,
-            (b'\'' | b'"', None) => {
-                quote = Some(bytes[index]);
-                index += 1;
-            }
-            (character, Some(active)) if character == active => {
-                quote = None;
-                index += 1;
-            }
-            (b'#', None) => return &line[..index],
-            _ => index += 1,
-        }
-    }
-
-    line
 }
 
 /// Returns whether a name fits the lightweight JavaScript call scanner.

@@ -3,7 +3,7 @@
 //! The parser stays conservative: it recognizes literal `path(...)` and
 //! `re_path(...)` calls and extracts simple static view references only.
 
-use crate::model::SourceRange;
+use crate::model::{utf16_code_unit_len, utf16_column_from_byte_offset, SourceRange};
 
 /// Route draft returned to the Django adapter before graph IDs are assigned.
 pub(super) struct RouteDraft {
@@ -51,7 +51,7 @@ fn collect_route_statements(content: &str) -> Vec<RouteStatement> {
         }
 
         let start_line = index;
-        let start_character = line.len().saturating_sub(trimmed.len());
+        let start_byte_offset = line.len().saturating_sub(trimmed.len());
         let mut text = String::new();
         let mut balance = 0isize;
 
@@ -73,11 +73,11 @@ fn collect_route_statements(content: &str) -> Vec<RouteStatement> {
         statements.push(RouteStatement {
             text,
             start_line,
-            start_character,
+            start_character: utf16_column_from_byte_offset(line, start_byte_offset),
             end_line: index,
             end_character: lines
                 .get(index)
-                .map(|line| line.chars().count())
+                .map(|line| utf16_code_unit_len(line))
                 .unwrap_or_default(),
         });
         index += 1;

@@ -2,6 +2,11 @@
  * Theme-aware CSS shared by the Project Analyzer sidebar and graph panel.
  */
 
+import {
+  getProjectGuideStyles,
+  getSidebarDisclosureStyles
+} from "./explorerSidebarStructureStyles";
+
 /** Visual surface that receives the shared explorer styles. */
 export type ExplorerSurface = "sidebar" | "panel";
 
@@ -50,8 +55,7 @@ export function getExplorerStyles(surface: ExplorerSurface): string {
     .action-grid,
     .panel-header,
     .graph-toolbar,
-    .mode-switch,
-    .stats {
+    .mode-switch {
       display: flex;
       gap: 6px;
     }
@@ -188,9 +192,19 @@ export function getExplorerStyles(surface: ExplorerSurface): string {
       font-size: 12px;
     }
 
-    .stats {
-      display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
+    .more-actions {
+      color: var(--vscode-descriptionForeground);
+      font-size: 11px;
+    }
+
+    .more-actions > summary {
+      width: fit-content;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .more-actions-grid {
+      margin-top: 6px;
     }
 
     .graph-panel {
@@ -226,83 +240,7 @@ export function getExplorerStyles(surface: ExplorerSurface): string {
       cursor: grabbing;
     }
 
-    .stat {
-      min-width: 0;
-      padding: 6px;
-      border: 1px solid var(--vscode-panel-border);
-      border-radius: 4px;
-    }
-
-    .stat-value {
-      display: block;
-      font-size: 16px;
-      font-weight: 600;
-      line-height: 1.1;
-    }
-
-    .stat-label {
-      display: block;
-      overflow: hidden;
-      color: var(--vscode-descriptionForeground);
-      font-size: 11px;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
-
-    .project-summary {
-      display: grid;
-      grid-template-columns: 1fr;
-      gap: 8px;
-    }
-
-    .summary-block {
-      min-width: 0;
-      border-top: 1px solid var(--vscode-panel-border);
-      padding-top: 6px;
-    }
-
-    .summary-title {
-      margin-bottom: 4px;
-      color: var(--vscode-descriptionForeground);
-      font-size: 11px;
-      font-weight: 600;
-      text-transform: uppercase;
-    }
-
-    .summary-list {
-      display: flex;
-      min-width: 0;
-      flex-direction: column;
-      gap: 2px;
-    }
-
-    .summary-item {
-      display: grid;
-      grid-template-columns: minmax(0, 1fr) auto;
-      align-items: center;
-      min-width: 0;
-      min-height: 20px;
-      gap: 6px;
-    }
-
-    .summary-name,
-    .summary-meta,
-    .summary-empty {
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
-
-    .summary-name {
-      font-weight: 500;
-    }
-
-    .summary-meta,
-    .summary-empty {
-      color: var(--vscode-descriptionForeground);
-      font-size: 11px;
-    }
-
+${getProjectGuideStyles()}
     .list {
       display: flex;
       min-height: 0;
@@ -312,120 +250,7 @@ export function getExplorerStyles(surface: ExplorerSurface): string {
       overflow: auto;
     }
 
-    .accordion {
-      display: flex;
-      min-height: 0;
-      flex: 1 1 auto;
-      flex-direction: column;
-      gap: 2px;
-      overflow: hidden;
-    }
-
-    .tree-section {
-      display: flex;
-      min-height: 0;
-      flex-direction: column;
-      border-top: 1px solid var(--vscode-panel-border);
-      overflow: hidden;
-    }
-
-    .framework-section {
-      flex: 1 1 160px;
-      max-height: 28vh;
-    }
-
-    .calls-section {
-      flex: 1 1 220px;
-      max-height: 34vh;
-    }
-
-    .files-section {
-      flex: 1 1 240px;
-    }
-
-    .tree-section:not(.collapsed) {
-      min-height: 96px;
-    }
-
-    .tree-section.collapsed {
-      flex: 0 0 auto;
-      min-height: 0;
-      max-height: none;
-    }
-
-    .accordion-panel {
-      display: flex;
-      min-height: 0;
-      flex: 1 1 auto;
-      padding-top: 2px;
-      overflow: hidden;
-    }
-
-    .accordion-panel[hidden] {
-      display: none;
-    }
-
-    .accordion-header {
-      display: grid;
-      grid-template-columns: 16px minmax(0, 1fr);
-      align-items: center;
-      width: 100%;
-      flex: 0 0 24px;
-      height: 24px;
-      padding: 0 6px 0 0;
-      overflow: hidden;
-      border: 0;
-      border-radius: 0;
-      color: var(--vscode-descriptionForeground);
-      background: transparent;
-      cursor: pointer;
-      font-size: 11px;
-      font-weight: 600;
-      text-align: left;
-      text-overflow: ellipsis;
-      text-transform: uppercase;
-      white-space: nowrap;
-    }
-
-    .accordion-header:hover {
-      background: var(--vscode-list-hoverBackground);
-    }
-
-    .accordion-header:focus-visible {
-      outline: 1px solid var(--vscode-focusBorder);
-      outline-offset: -1px;
-    }
-
-    .accordion-disclosure {
-      position: relative;
-      width: 16px;
-      height: 24px;
-    }
-
-    .accordion-disclosure::before {
-      position: absolute;
-      top: 8px;
-      left: 5px;
-      width: 0;
-      height: 0;
-      border-top: 4px solid transparent;
-      border-bottom: 4px solid transparent;
-      border-left: 5px solid var(--vscode-icon-foreground);
-      content: "";
-      opacity: 0.82;
-    }
-
-    .accordion-header[aria-expanded="true"] .accordion-disclosure::before {
-      transform: rotate(90deg);
-      transform-origin: 2px 4px;
-    }
-
-    .accordion-title {
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
-
+${getSidebarDisclosureStyles()}
     .explorer-tree {
       gap: 0;
       padding: 2px 0;

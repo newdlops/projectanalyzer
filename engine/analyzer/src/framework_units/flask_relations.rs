@@ -6,7 +6,10 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 
-use crate::model::{FrameworkUnit, FrameworkUnitEdge, SourceRange};
+use crate::model::{
+    utf16_code_unit_len, utf16_column_from_byte_offset, FrameworkUnit, FrameworkUnitEdge,
+    SourceRange,
+};
 
 const MAX_RELATION_FILE_SIZE_BYTES: u64 = 1024 * 1024;
 const MAX_CALL_STATEMENT_LINES: usize = 24;
@@ -223,9 +226,12 @@ fn call_statement_from(lines: &[&str], start_line: usize) -> Option<(String, Sou
                 text,
                 SourceRange {
                     start_line,
-                    start_character: indentation_width(lines[start_line]),
+                    start_character: utf16_column_from_byte_offset(
+                        lines[start_line],
+                        indentation_width(lines[start_line]),
+                    ),
                     end_line: line_index,
-                    end_character: line.chars().count(),
+                    end_character: utf16_code_unit_len(line),
                 },
             ));
         }

@@ -9,7 +9,8 @@ use std::path::{Path, PathBuf};
 
 use crate::fs_scan::is_excluded_directory;
 use crate::model::{
-    full_content_range, DetectedFramework, FrameworkUnit, FrameworkUnitEdge, SourceRange,
+    full_content_range, utf16_code_unit_len, utf16_column_from_byte_offset, DetectedFramework,
+    FrameworkUnit, FrameworkUnitEdge, SourceRange,
 };
 
 use super::django_routes::{route_drafts, RouteTarget};
@@ -756,11 +757,11 @@ fn file_stem(file_path: &Path) -> String {
 }
 
 /// Returns the range for a declaration line.
-fn line_range(line_index: usize, start_character: usize, line: &str) -> SourceRange {
+fn line_range(line_index: usize, start_byte_offset: usize, line: &str) -> SourceRange {
     SourceRange {
         start_line: line_index,
-        start_character,
+        start_character: utf16_column_from_byte_offset(line, start_byte_offset),
         end_line: line_index,
-        end_character: line.chars().count(),
+        end_character: utf16_code_unit_len(line),
     }
 }

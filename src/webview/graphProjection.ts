@@ -80,24 +80,72 @@ export function projectGraphForView(
 }
 
 /**
- * Creates the sidebar payload. The sidebar owns both the file import explorer and
- * the function call explorer, so it must keep file import relationships and
- * callable symbol relationships in one compact graph.
+ * Creates the sidebar payload. Function insights arrive through bounded host
+ * payloads, so the browser receives only the file import graph and framework
+ * metadata instead of every callable and call edge in a large repository.
  */
 export function projectGraphForSidebar(graph: ProjectGraph): ProjectGraph {
-  const includedNodeIds = createSidebarNodeIds(graph);
-  const edges = graph.edges.filter((edge) =>
-    isSidebarEdge(edge) &&
-    includedNodeIds.has(edge.sourceId) &&
-    includedNodeIds.has(edge.targetId)
-  );
-  const nodes = graph.nodes.filter((node) => includedNodeIds.has(node.id));
+  const fileGraph = projectGraphForView(graph, "file", { preserveMetadata: true });
 
   return {
-    ...graph,
-    nodes,
-    edges,
-    metadata: graph.metadata
+    ...fileGraph,
+    diagnostics: [],
+    metadata: createSidebarMetadata(graph)
+  };
+}
+
+/**
+ * Creates the initial guide handshake without file, framework, or symbol rows.
+ * The richer sidebar structure projection is sent only after Browse Structure
+ * is opened, keeping first delivery constant-size even for very large repos.
+ */
+export function projectGraphForSidebarShell(graph: ProjectGraph): ProjectGraph {
+  return {
+    // The initial guide does not need a filesystem path; keep it host-side
+    // until Browse Structure is explicitly opened.
+    workspaceRoot: ".",
+    version: graph.version,
+    generatedAt: graph.generatedAt,
+    nodes: [],
+    edges: [],
+    diagnostics: [],
+    metadata: {
+      languages: [],
+      fileCount: graph.metadata.fileCount,
+      symbolCount: graph.metadata.symbolCount,
+      edgeCount: graph.metadata.edgeCount
+    }
+  };
+}
+
+/** Retains only metadata fields consumed by the sidebar's framework tree. */
+function createSidebarMetadata(graph: ProjectGraph): ProjectGraph["metadata"] {
+  return {
+    languages: [],
+    frameworks: graph.metadata.frameworks?.map((framework) => ({
+      ...framework,
+      // Detector evidence is represented in the host-side Overview and is not
+      // read by the framework tree.
+      evidence: []
+    })),
+    frameworkUnits: graph.metadata.frameworkUnits?.map((unit) => ({
+      id: unit.id,
+      framework: unit.framework,
+      rootPath: unit.rootPath,
+      kind: unit.kind,
+      name: unit.name,
+      filePath: unit.filePath,
+      parentId: unit.parentId
+    })),
+    frameworkUnitEdges: graph.metadata.frameworkUnitEdges?.map((edge) => ({
+      id: edge.id,
+      kind: edge.kind,
+      sourceId: edge.sourceId,
+      targetId: edge.targetId
+    })),
+    fileCount: graph.metadata.fileCount,
+    symbolCount: graph.metadata.symbolCount,
+    edgeCount: graph.metadata.edgeCount
   };
 }
 
@@ -200,36 +248,6 @@ function createIncludedNodeIds(graph: ProjectGraph, mode: GraphViewMode): Set<st
   return includedNodeIds;
 }
 
-/** Determines which node ids are needed by sidebar tree views. */
-function createSidebarNodeIds(graph: ProjectGraph): Set<string> {
-  const includedNodeIds = new Set<string>();
-  const nodesById = new Map(graph.nodes.map((node) => [node.id, node]));
-
-  for (const node of graph.nodes) {
-    if (node.kind === "file" || callNodeKinds.has(node.kind)) {
-      includedNodeIds.add(node.id);
-    }
-  }
-
-  for (const edge of graph.edges) {
-    const target = nodesById.get(edge.targetId);
-    const isExternalImport =
-      (edge.kind === "imports" || edge.kind === "exports") &&
-      includedNodeIds.has(edge.sourceId) &&
-      target?.kind === "external";
-    const isExternalCallTarget =
-      edge.kind === "calls" &&
-      includedNodeIds.has(edge.sourceId) &&
-      target?.kind === "external";
-
-    if (isExternalImport || isExternalCallTarget) {
-      includedNodeIds.add(edge.targetId);
-    }
-  }
-
-  return includedNodeIds;
-}
-
 /** Checks whether a symbol node belongs to the active visual mode. */
 function isProjectedSymbolNode(kind: SymbolKind, mode: GraphViewMode): boolean {
   if (mode === "file") {
@@ -254,16 +272,6 @@ function isProjectedEdge(edge: GraphEdge, mode: GraphViewMode): boolean {
   }
 
   return getModeEdgeKinds(mode).has(edge.kind);
-}
-
-/** Checks whether an edge belongs to any sidebar tree. */
-function isSidebarEdge(edge: GraphEdge): boolean {
-  return (
-    edge.kind === "imports" ||
-    edge.kind === "exports" ||
-    edge.kind === "contains" ||
-    edge.kind === "calls"
-  );
 }
 
 /** Returns structural relationship kinds for non-file visual modes. */

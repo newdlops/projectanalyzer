@@ -3,7 +3,14 @@
 //! This analyzer uses indentation and line prefixes to produce fast class and
 //! function nodes without importing a Python parser.
 
+mod bindings;
+#[cfg(test)]
+mod bindings_integration_tests;
 mod calls;
+mod declarations;
+#[cfg(test)]
+mod range_tests;
+pub(in crate::analyzer) mod syntax;
 
 use std::collections::BTreeMap;
 use std::path::{Component, Path, PathBuf};
@@ -11,12 +18,15 @@ use std::path::{Component, Path, PathBuf};
 use crate::graph::{
     NewExternalDependencyEdge, NewFileDependencyEdge, NewSymbol, ProjectGraphBuilder,
 };
-use crate::model::{SourceInput, SourceRange};
+use crate::model::{utf16_code_unit_len, utf16_column_from_byte_offset, SourceInput, SourceRange};
 
+use self::bindings::LexicalBindings;
 use self::calls::{
     add_call_edges, collect_python_calls, current_call_source, declaration_call_scan_start,
     CallCandidate,
 };
+use self::declarations::detect_declaration;
+use self::syntax::{PythonSyntaxSnapshot, PythonSyntaxSnapshots};
 
 /// Indentation-based Python scope entry.
 struct ScopeEntry {
@@ -102,23 +112,26 @@ pub fn extract_symbols(
     builder: &mut ProjectGraphBuilder,
     file: &SourceInput,
     file_id: String,
+    syntax: &PythonSyntaxSnapshot,
 ) -> Result<(), String> {
     let mut scopes: Vec<ScopeEntry> = Vec::new();
     let mut symbols: Vec<SymbolRecord> = Vec::new();
     let mut calls: Vec<CallCandidate> = Vec::new();
+    let mut lexical_bindings = LexicalBindings::default();
 
-    for (line_index, line) in file.content.lines().enumerate() {
-        let code_line = strip_python_comment(line);
+    for (line_index, (line, code_line)) in file.content.lines().zip(syntax.lines()).enumerate() {
         let trimmed = code_line.trim_start();
 
-        if trimmed.is_empty() || trimmed.starts_with('#') {
+        if trimmed.is_empty() {
             continue;
         }
 
         let indent = line.len().saturating_sub(trimmed.len());
         close_finished_scopes(&mut scopes, indent);
 
-        if let Some((kind, name)) = detect_declaration(trimmed) {
+        if let Some(declaration) = detect_declaration(trimmed) {
+            let kind = declaration.kind.to_string();
+            let name = declaration.name;
             let parent_id = scopes
                 .last()
                 .map(|scope| scope.id.clone())
@@ -147,10 +160,14 @@ pub fn extract_symbols(
 
             if kind == "function" {
                 let call_scan_start = declaration_call_scan_start(code_line);
+                lexical_bindings.register_parameters(&id, code_line);
+                lexical_bindings.collect_line(&id, &code_line[call_scan_start..]);
+
                 if call_scan_start < code_line.len() {
                     collect_python_calls(
                         &mut calls,
                         line_index,
+                        line,
                         code_line,
                         call_scan_start,
                         &id,
@@ -172,9 +189,11 @@ pub fn extract_symbols(
         }
 
         if let Some(source) = current_call_source(&scopes) {
+            lexical_bindings.collect_line(&source.id, code_line);
             collect_python_calls(
                 &mut calls,
                 line_index,
+                line,
                 code_line,
                 0,
                 &source.id,
@@ -183,12 +202,16 @@ pub fn extract_symbols(
         }
     }
 
-    add_call_edges(builder, file, &symbols, calls);
+    add_call_edges(builder, file, &symbols, &lexical_bindings, calls);
     Ok(())
 }
 
-/// Adds file-to-file and external module import edges for Python sources.
-pub fn add_import_edges(builder: &mut ProjectGraphBuilder, files: &[SourceInput]) {
+/// Adds Python imports using the code-only snapshots shared by workspace passes.
+pub(in crate::analyzer) fn add_import_edges(
+    builder: &mut ProjectGraphBuilder,
+    files: &[SourceInput],
+    syntax_snapshots: &PythonSyntaxSnapshots,
+) {
     let resolver = WorkspaceModuleResolver::new(files);
 
     for file in files {
@@ -197,8 +220,11 @@ pub fn add_import_edges(builder: &mut ProjectGraphBuilder, files: &[SourceInput]
         }
 
         let source_module = module_name_for_path(&file.path);
+        let Some(syntax) = syntax_snapshots.get(&file.path) else {
+            continue;
+        };
 
-        for candidate in collect_import_candidates(file, source_module.as_deref()) {
+        for candidate in collect_import_candidates(file, syntax, source_module.as_deref()) {
             if let Some(target_path) = resolver.resolve_candidate(&candidate) {
                 if target_path != file.path {
                     builder.add_file_dependency_edge(NewFileDependencyEdge {
@@ -315,12 +341,13 @@ fn module_name_suffixes(module_name: &str) -> Vec<String> {
 /// Extracts import declarations from a Python source file.
 fn collect_import_candidates(
     file: &SourceInput,
+    syntax: &PythonSyntaxSnapshot,
     source_module: Option<&str>,
 ) -> Vec<ImportCandidate> {
     let mut candidates = Vec::new();
 
-    for (line_index, line) in file.content.lines().enumerate() {
-        let trimmed = line.trim_start();
+    for (line_index, (line, code_line)) in file.content.lines().zip(syntax.lines()).enumerate() {
+        let trimmed = code_line.trim_start();
 
         if trimmed.starts_with("import ") {
             candidates.extend(read_import_line(line_index, line, trimmed));
@@ -466,81 +493,26 @@ fn read_imported_names(imported_part: &str) -> impl Iterator<Item = String> + '_
         .filter(|name| name != "*")
 }
 
-/// Removes trailing Python comments while preserving `#` inside simple strings.
-fn strip_python_comment(line: &str) -> &str {
-    let bytes = line.as_bytes();
-    let mut index = 0usize;
-    let mut quote: Option<u8> = None;
-
-    while index < bytes.len() {
-        match (bytes[index], quote) {
-            (b'\\', Some(_)) => index += 2,
-            (b'\'' | b'"', None) => {
-                quote = Some(bytes[index]);
-                index += 1;
-            }
-            (character, Some(active_quote)) if character == active_quote => {
-                quote = None;
-                index += 1;
-            }
-            (b'#', None) => return &line[..index],
-            _ => index += 1,
-        }
-    }
-
-    line
-}
-
-/// Detects a Python class, synchronous function, or asynchronous function declaration.
-fn detect_declaration(trimmed: &str) -> Option<(String, String)> {
-    if let Some(name) = read_name_after_keyword(trimmed, "class") {
-        return Some(("class".to_string(), name));
-    }
-
-    if let Some(name) = read_name_after_keyword(trimmed, "async def") {
-        return Some(("function".to_string(), name));
-    }
-
-    if let Some(name) = read_name_after_keyword(trimmed, "def") {
-        return Some(("function".to_string(), name));
-    }
-
-    None
-}
-
-/// Reads a Python identifier after a supported declaration keyword.
-fn read_name_after_keyword(line: &str, keyword: &str) -> Option<String> {
-    let remainder = line.strip_prefix(keyword)?.trim_start();
-    let end = remainder
-        .find(|character: char| !(character == '_' || character.is_ascii_alphanumeric()))
-        .unwrap_or(remainder.len());
-
-    if end == 0 {
-        None
-    } else {
-        Some(remainder[..end].to_string())
-    }
-}
-
 /// Returns the full declaration line range.
-fn line_range(line_index: usize, start_character: usize, line: &str) -> SourceRange {
+fn line_range(line_index: usize, start_byte_offset: usize, line: &str) -> SourceRange {
     SourceRange {
         start_line: line_index,
-        start_character,
+        start_character: utf16_column_from_byte_offset(line, start_byte_offset),
         end_line: line_index,
-        end_character: line.chars().count(),
+        end_character: utf16_code_unit_len(line),
     }
 }
 
 /// Returns the best-effort name selection range.
 fn name_range(line_index: usize, line: &str, name: &str) -> SourceRange {
-    let start_character = line.find(name).unwrap_or_default();
+    let start_byte_offset = line.find(name).unwrap_or_default();
+    let start_character = utf16_column_from_byte_offset(line, start_byte_offset);
 
     SourceRange {
         start_line: line_index,
         start_character,
         end_line: line_index,
-        end_character: start_character + name.chars().count(),
+        end_character: start_character + utf16_code_unit_len(name),
     }
 }
 
@@ -563,7 +535,7 @@ mod tests {
         let mut builder = ProjectGraphBuilder::new(PathBuf::from("/workspace"));
         let file_id = builder.add_file(&file);
 
-        extract_symbols(&mut builder, &file, file_id).expect("extracts symbols");
+        extract_fixture_symbols(&mut builder, &file, file_id);
         let graph = builder.finish();
 
         assert!(graph.nodes.iter().any(|node| node.name == "Service"));
@@ -583,7 +555,7 @@ mod tests {
         let mut builder = ProjectGraphBuilder::new(PathBuf::from("/workspace"));
         let file_id = builder.add_file(&file);
 
-        extract_symbols(&mut builder, &file, file_id).expect("extracts symbols and calls");
+        extract_fixture_symbols(&mut builder, &file, file_id);
         let graph = builder.finish();
         let run_id = node_id(&graph, "run");
         let load_id = node_id(&graph, "load");
@@ -604,7 +576,7 @@ mod tests {
         let mut builder = ProjectGraphBuilder::new(PathBuf::from("/workspace"));
         let file_id = builder.add_file(&file);
 
-        extract_symbols(&mut builder, &file, file_id).expect("extracts async symbols and calls");
+        extract_fixture_symbols(&mut builder, &file, file_id);
         let graph = builder.finish();
         let run_id = node_id(&graph, "run");
         let load_id = node_id(&graph, "load");
@@ -623,6 +595,56 @@ mod tests {
     }
 
     #[test]
+    fn rejects_declaration_keyword_prefixes_and_keeps_real_code() {
+        let file = source(
+            "/workspace/app.py",
+            "def real_call():\n    return 1\n\ndef run():\n    default_value = 1\n    classify()\n    first = 'ghost_one()'\n    second = \"ghost_two()\"; return real_call()\n",
+        );
+        let mut builder = ProjectGraphBuilder::new(PathBuf::from("/workspace"));
+        let file_id = builder.add_file(&file);
+
+        extract_fixture_symbols(&mut builder, &file, file_id);
+        let graph = builder.finish();
+        let run_id = node_id(&graph, "run");
+        let real_call_id = node_id(&graph, "real_call");
+
+        assert!(!graph.nodes.iter().any(|node| node.name == "ault_value"));
+        assert!(!graph.nodes.iter().any(|node| node.name == "ify"));
+        assert!(graph
+            .nodes
+            .iter()
+            .any(|node| node.kind == "external" && node.name == "classify"));
+        assert!(!graph
+            .nodes
+            .iter()
+            .any(|node| node.name == "ghost_one" || node.name == "ghost_two"));
+        assert_call_edge(&graph, &run_id, &real_call_id);
+    }
+
+    #[test]
+    fn ignores_declarations_imports_and_calls_inside_docstrings() {
+        let file = source(
+            "/workspace/app.py",
+            "\"\"\"Usage example.\n\ndef documented():\n    import hidden_module\n    ghost_call()\n\"\"\"\n\ndef visible():\n    return 1\n\ndef run():\n    return visible()\n",
+        );
+        let files = vec![file.clone()];
+        let mut builder = ProjectGraphBuilder::new(PathBuf::from("/workspace"));
+        let file_id = builder.add_file(&file);
+
+        extract_fixture_symbols(&mut builder, &file, file_id);
+        let syntax_snapshots = syntax::scan_workspace_sources(&files);
+        add_import_edges(&mut builder, &files, &syntax_snapshots);
+        let graph = builder.finish();
+        let run_id = node_id(&graph, "run");
+        let visible_id = node_id(&graph, "visible");
+
+        assert!(!graph.nodes.iter().any(|node| node.name == "documented"));
+        assert!(!graph.nodes.iter().any(|node| node.name == "hidden_module"));
+        assert!(!graph.nodes.iter().any(|node| node.name == "ghost_call"));
+        assert_call_edge(&graph, &run_id, &visible_id);
+    }
+
+    #[test]
     fn adds_python_import_edges_between_files() {
         let files = vec![
             source(
@@ -638,7 +660,8 @@ mod tests {
             builder.add_file(file);
         }
 
-        add_import_edges(&mut builder, &files);
+        let syntax_snapshots = syntax::scan_workspace_sources(&files);
+        add_import_edges(&mut builder, &files, &syntax_snapshots);
         let graph = builder.finish();
 
         assert!(graph.edges.iter().any(|edge| {
@@ -665,7 +688,8 @@ mod tests {
             builder.add_file(file);
         }
 
-        add_import_edges(&mut builder, &files);
+        let syntax_snapshots = syntax::scan_workspace_sources(&files);
+        add_import_edges(&mut builder, &files, &syntax_snapshots);
         let graph = builder.finish();
 
         assert!(graph
@@ -693,6 +717,16 @@ mod tests {
             content: content.to_string(),
             size_bytes: content.len(),
         }
+    }
+
+    /// Runs symbol and call extraction against the shared code-only fixture view.
+    fn extract_fixture_symbols(
+        builder: &mut ProjectGraphBuilder,
+        file: &SourceInput,
+        file_id: String,
+    ) {
+        let syntax = PythonSyntaxSnapshot::new(&file.content);
+        extract_symbols(builder, file, file_id, &syntax).expect("extracts Python fixture");
     }
 
     fn node_id(graph: &crate::model::ProjectGraph, name: &str) -> String {

@@ -26,6 +26,7 @@ test("accepts every current WebviewRequest variant", () => {
     [
       "ui/ready",
       "graph/load",
+      "graph/loadStructure",
       "graph/openPanel",
       "graph/showWorkspaceScope",
       "graph/focusNode",
@@ -35,6 +36,8 @@ test("accepts every current WebviewRequest variant", () => {
       "cache/clear",
       "node/openSource",
       "node/showRelationship",
+      "project/readingGuideScope",
+      "project/loadOverview",
       "search/query",
       "export/run",
       "function/index",
@@ -128,11 +131,16 @@ test("rejects malformed graph, analysis, node, search, and export payloads", () 
     { type: "graph/load", payload: { mode: "file", depth: -1 } },
     { type: "graph/load", payload: { mode: "file", depth: 1.5 } },
     { type: "graph/load", payload: { mode: "file", depth: 1, rootNodeId: 42 } },
+    { type: "graph/loadStructure", payload: {} },
     { type: "graph/focusNode", payload: { nodeId: 42 } },
     { type: "graph/expand", payload: { nodeId: "node:1", depth: Number.NaN } },
     { type: "analysis/run", payload: { scope: "folder" } },
     { type: "node/openSource", payload: {} },
     { type: "node/showRelationship", payload: { nodeId: "node:1", direction: "both" } },
+    { type: "project/readingGuideScope", payload: { graphVersion: "v1" } },
+    { type: "project/readingGuideScope", payload: { graphVersion: 1, scopeId: "scope:api" } },
+    { type: "project/readingGuideScope", payload: { graphVersion: "v1", scopeId: "scope:api" } },
+    { type: "project/loadOverview", payload: { graphVersion: 1 } },
     { type: "search/query", payload: { query: false } },
     { type: "export/run", payload: { format: "xml" } }
   ];
@@ -260,6 +268,7 @@ function createValidRequests(): WebviewRequest[] {
   return [
     { type: "ui/ready", payload: {} },
     { type: "graph/load", payload: { mode: "call", rootNodeId: "node:root", depth: 2 } },
+    { type: "graph/loadStructure", payload: { graphVersion: "delivery:v1" } },
     { type: "graph/openPanel", payload: {} },
     { type: "graph/showWorkspaceScope", payload: {} },
     { type: "graph/focusNode", payload: { nodeId: "node:focus" } },
@@ -269,6 +278,11 @@ function createValidRequests(): WebviewRequest[] {
     { type: "cache/clear", payload: {} },
     { type: "node/openSource", payload: { nodeId: "node:source" } },
     { type: "node/showRelationship", payload: { nodeId: "node:1", direction: "callers" } },
+    {
+      type: "project/readingGuideScope",
+      payload: { graphVersion: "v1", scopeId: "reading-scope:0123456789abcdef01234567" }
+    },
+    { type: "project/loadOverview", payload: { graphVersion: "v1" } },
     { type: "search/query", payload: { query: "handler" } },
     { type: "export/run", payload: { format: "markdown" } },
     { type: "function/index", payload: {} },

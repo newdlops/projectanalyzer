@@ -7,7 +7,10 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use crate::fs_scan::is_excluded_directory;
-use crate::model::{FrameworkUnit, FrameworkUnitEdge, SourceRange};
+use crate::model::{
+    utf16_code_unit_len, utf16_column_from_byte_offset, FrameworkUnit, FrameworkUnitEdge,
+    SourceRange,
+};
 
 const MAX_GRAPHQL_FILE_SIZE_BYTES: u64 = 1024 * 1024;
 
@@ -119,15 +122,14 @@ pub(super) fn declaration_range(
         start_line: line_index,
         start_character,
         end_line: line_index,
-        end_character: line.chars().count(),
+        end_character: utf16_code_unit_len(line),
     }
 }
 
 /// Counts leading whitespace using VS Code-compatible character offsets.
 pub(super) fn leading_width(line: &str) -> usize {
-    line.chars()
-        .take_while(|character| character.is_whitespace())
-        .count()
+    let leading_byte_offset = line.len().saturating_sub(line.trim_start().len());
+    utf16_column_from_byte_offset(line, leading_byte_offset)
 }
 
 /// Returns a stable workspace-relative path using forward slashes.

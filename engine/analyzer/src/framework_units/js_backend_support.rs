@@ -2,7 +2,7 @@
 
 use std::path::Path;
 
-use crate::model::SourceRange;
+use crate::model::{utf16_code_unit_len, utf16_column_from_byte_offset, SourceRange};
 
 /// Decorator call captured before a class or method declaration.
 pub(super) struct Decorator {
@@ -185,12 +185,11 @@ pub(super) fn multi_line_range(
         start_line,
         start_character,
         end_line,
-        end_character: end_line_text.chars().count(),
+        end_character: utf16_code_unit_len(end_line_text),
     }
 }
 
 pub(super) fn leading_width(line: &str) -> usize {
-    line.chars()
-        .take_while(|character| character.is_whitespace())
-        .count()
+    let leading_byte_offset = line.len().saturating_sub(line.trim_start().len());
+    utf16_column_from_byte_offset(line, leading_byte_offset)
 }

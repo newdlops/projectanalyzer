@@ -10,6 +10,7 @@ import type {
   FunctionExplorerTraversalOptions
 } from "./functionExplorer";
 import type { WebviewRequest } from "./messages";
+import type { ProjectReadingScopePayloadId } from "./projectReadingGuide";
 
 /** Successful or rejected result returned by the Webview request validator. */
 export type WebviewRequestValidationResult =
@@ -118,6 +119,9 @@ function validateReadableWebviewRequest(value: unknown): WebviewRequestValidatio
     case "graph/load":
       payloadIsValid = isGraphLoadPayload(payload);
       break;
+    case "graph/loadStructure":
+      payloadIsValid = isRecord(payload) && typeof payload.graphVersion === "string";
+      break;
     case "graph/focusNode":
     case "node/openSource":
       payloadIsValid = isNodeIdentityPayload(payload);
@@ -133,6 +137,15 @@ function validateReadableWebviewRequest(value: unknown): WebviewRequestValidatio
         isRecord(payload) &&
         typeof payload.nodeId === "string" &&
         isOneOf(payload.direction, ["callers", "callees"]);
+      break;
+    case "project/readingGuideScope":
+      payloadIsValid =
+        isRecord(payload) &&
+        typeof payload.graphVersion === "string" &&
+        isProjectReadingScopePayloadId(payload.scopeId);
+      break;
+    case "project/loadOverview":
+      payloadIsValid = isRecord(payload) && typeof payload.graphVersion === "string";
       break;
     case "search/query":
       payloadIsValid = isRecord(payload) && typeof payload.query === "string";
@@ -338,6 +351,11 @@ function isNonNegativeInteger(value: unknown): value is number {
 /** Validates an optional string field. */
 function isOptionalString(value: unknown): value is string | undefined {
   return value === undefined || typeof value === "string";
+}
+
+/** Accepts only fixed-size opaque scope tokens issued by the host adapter. */
+function isProjectReadingScopePayloadId(value: unknown): value is ProjectReadingScopePayloadId {
+  return typeof value === "string" && /^reading-scope:[0-9a-f]{24}$/u.test(value);
 }
 
 /** Validates an optional boolean field. */

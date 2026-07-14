@@ -6,27 +6,33 @@
 
 use crate::model::SourceInput;
 
+use super::super::python_like::syntax::PythonSyntaxSnapshot;
 use super::types::NamedImportBinding;
 
 /// Returns whether a local import binding may be shadowed or rebound.
-pub(super) fn has_possible_shadow(file: &SourceInput, binding: &NamedImportBinding) -> bool {
-    for (line_index, line) in file.content.lines().enumerate() {
-        if line_index == binding.import_line {
-            continue;
+pub(super) fn has_possible_shadow(
+    file: &SourceInput,
+    binding: &NamedImportBinding,
+    python_syntax: Option<&PythonSyntaxSnapshot>,
+) -> bool {
+    match binding.language_id.as_str() {
+        "typescript" | "javascript" => {
+            file.content.lines().enumerate().any(|(line_index, line)| {
+                line_index != binding.import_line
+                    && javascript_line_may_bind(line, &binding.local_name)
+            })
         }
-
-        let shadowed = match binding.language_id.as_str() {
-            "typescript" | "javascript" => javascript_line_may_bind(line, &binding.local_name),
-            "python" => python_line_may_bind(line, &binding.local_name),
-            _ => true,
-        };
-
-        if shadowed {
-            return true;
-        }
+        "python" => python_syntax
+            .map(|syntax| {
+                syntax.lines().enumerate().any(|(line_index, code_line)| {
+                    line_index != binding.import_line
+                        && python_line_may_bind(code_line, &binding.local_name)
+                })
+            })
+            // Missing syntax is an internal inconsistency, so keep resolution conservative.
+            .unwrap_or(true),
+        _ => true,
     }
-
-    false
 }
 
 /// Detects common JavaScript declarations, assignments, imports, and parameters.
@@ -89,8 +95,8 @@ fn javascript_line_may_bind(line: &str, name: &str) -> bool {
 }
 
 /// Detects common Python parameters, assignments, loop targets, aliases, and declarations.
-fn python_line_may_bind(line: &str, name: &str) -> bool {
-    let code = strip_python_comment(line).trim();
+fn python_line_may_bind(code_line: &str, name: &str) -> bool {
+    let code = code_line.trim();
 
     if code.is_empty() {
         return false;
@@ -265,11 +271,6 @@ fn find_assignment_operator(code: &str) -> Option<usize> {
 /// Removes a JavaScript `//` comment outside simple strings.
 fn strip_javascript_line_comment(line: &str) -> &str {
     strip_comment(line, b'/', Some(b'/'))
-}
-
-/// Removes a Python `#` comment outside simple strings.
-fn strip_python_comment(line: &str) -> &str {
-    strip_comment(line, b'#', None)
 }
 
 /// Shared iterative single-line comment scanner with quote/escape awareness.

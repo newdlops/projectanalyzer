@@ -20,15 +20,20 @@ use crate::model::{SourceInput, SymbolNode};
 use self::bindings::collect_named_import_bindings;
 use self::shadowing::has_possible_shadow;
 use self::types::NamedImportBinding;
+use super::python_like::syntax::PythonSyntaxSnapshots;
 
 /// Replaces only uniquely proven named-import unresolved call edges.
-pub(super) fn resolve_imported_calls(builder: &mut ProjectGraphBuilder, files: &[SourceInput]) {
+pub(super) fn resolve_imported_calls(
+    builder: &mut ProjectGraphBuilder,
+    files: &[SourceInput],
+    python_syntax: &PythonSyntaxSnapshots,
+) {
     let files_by_path: BTreeMap<&str, &SourceInput> = files
         .iter()
         .filter_map(|file| file.path.to_str().map(|path| (path, file)))
         .collect();
-    let bindings = collect_named_import_bindings(files);
-    let unique_bindings = unique_unshadowed_bindings(bindings, &files_by_path);
+    let bindings = collect_named_import_bindings(files, python_syntax);
+    let unique_bindings = unique_unshadowed_bindings(bindings, &files_by_path, python_syntax);
     let callable_targets = index_top_level_callables(builder.nodes());
     let nodes_by_id: BTreeMap<&str, &SymbolNode> = builder
         .nodes()
@@ -92,6 +97,7 @@ pub(super) fn resolve_imported_calls(builder: &mut ProjectGraphBuilder, files: &
 fn unique_unshadowed_bindings(
     bindings: Vec<NamedImportBinding>,
     files_by_path: &BTreeMap<&str, &SourceInput>,
+    python_syntax: &PythonSyntaxSnapshots,
 ) -> BTreeMap<(String, String), NamedImportBinding> {
     let mut grouped: BTreeMap<(String, String), Vec<NamedImportBinding>> = BTreeMap::new();
 
@@ -115,7 +121,11 @@ fn unique_unshadowed_bindings(
             continue;
         };
 
-        if !has_possible_shadow(source_file, &binding) {
+        if !has_possible_shadow(
+            source_file,
+            &binding,
+            python_syntax.get(&binding.source_path),
+        ) {
             unique.insert(key, binding);
         }
     }

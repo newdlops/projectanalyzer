@@ -1,9 +1,9 @@
 //! Call expression collection and same-file resolution for JavaScript-like files.
 
 use crate::graph::{NewCallEdge, NewExternalSymbol, ProjectGraphBuilder};
-use crate::model::{SourceInput, SourceRange};
+use crate::model::{utf16_column_from_byte_offset, SourceInput, SourceRange};
 
-use super::{ScopeEntry, SymbolRecord};
+use super::{bindings::LexicalBindings, ScopeEntry, SymbolRecord};
 
 /// Line-local caller metadata copied before call candidates are stored.
 #[derive(Clone)]
@@ -55,10 +55,11 @@ pub(super) fn add_call_edges(
     builder: &mut ProjectGraphBuilder,
     file: &SourceInput,
     symbols: &[SymbolRecord],
+    lexical_bindings: &LexicalBindings,
     calls: Vec<CallCandidate>,
 ) {
     for call in calls {
-        let resolved = resolve_call_target(symbols, &call).unwrap_or_else(|| {
+        let resolved = resolve_call_target(symbols, lexical_bindings, &call).unwrap_or_else(|| {
             let target_id = builder.add_external_symbol(NewExternalSymbol {
                 name: call.expression.display_name.clone(),
                 qualified_name: call.expression.display_name.clone(),
@@ -139,6 +140,7 @@ pub(super) fn declaration_body_depth(line: &str, brace_depth: isize, kind: &str)
 /// Collects call expressions from a masked source line.
 pub(super) fn collect_call_expressions(
     line_index: usize,
+    source_line: &str,
     code_line: &str,
     scan_start: usize,
 ) -> Vec<CallExpression> {
@@ -169,9 +171,9 @@ pub(super) fn collect_call_expressions(
                 qualifier,
                 range: SourceRange {
                     start_line: line_index,
-                    start_character: chain_start,
+                    start_character: utf16_column_from_byte_offset(source_line, chain_start),
                     end_line: line_index,
-                    end_character: after_identifier + 1,
+                    end_character: utf16_column_from_byte_offset(source_line, after_identifier + 1),
                 },
             });
         }
@@ -185,13 +187,14 @@ pub(super) fn collect_call_expressions(
 /// Resolves a call to a same-file callable when the line-based evidence is safe.
 fn resolve_call_target(
     symbols: &[SymbolRecord],
+    lexical_bindings: &LexicalBindings,
     call: &CallCandidate,
 ) -> Option<ResolvedCallTarget> {
     if let Some(qualifier) = &call.expression.qualifier {
         return resolve_qualified_call(symbols, call, qualifier);
     }
 
-    resolve_bare_call(symbols, call)
+    resolve_bare_call(symbols, lexical_bindings, call)
 }
 
 /// Resolves member-style calls without falling back to unrelated same-name symbols.
@@ -207,7 +210,7 @@ fn resolve_qualified_call(
     if let Some(target) = find_callable_by_qualified_name(symbols, &call.expression.display_name) {
         return Some(ResolvedCallTarget {
             target_id: target.id.clone(),
-            confidence: "exact".to_string(),
+            confidence: "resolved".to_string(),
         });
     }
 
@@ -253,7 +256,15 @@ fn resolve_relative_member_call(
 }
 
 /// Resolves unqualified calls using lexical names first, then a unique-name fallback.
-fn resolve_bare_call(symbols: &[SymbolRecord], call: &CallCandidate) -> Option<ResolvedCallTarget> {
+fn resolve_bare_call(
+    symbols: &[SymbolRecord],
+    lexical_bindings: &LexicalBindings,
+    call: &CallCandidate,
+) -> Option<ResolvedCallTarget> {
+    if lexical_bindings.shadows(&call.source_id, &call.expression.lookup_name) {
+        return None;
+    }
+
     for prefix_len in (0..=call.source_scope_names.len()).rev() {
         let qualified_name = if prefix_len == 0 {
             call.expression.lookup_name.clone()
@@ -268,7 +279,7 @@ fn resolve_bare_call(symbols: &[SymbolRecord], call: &CallCandidate) -> Option<R
         if let Some(target) = find_callable_by_qualified_name(symbols, &qualified_name) {
             return Some(ResolvedCallTarget {
                 target_id: target.id.clone(),
-                confidence: "exact".to_string(),
+                confidence: "resolved".to_string(),
             });
         }
     }
@@ -283,7 +294,7 @@ fn resolve_bare_call(symbols: &[SymbolRecord], call: &CallCandidate) -> Option<R
     if matches.len() == 1 {
         return Some(ResolvedCallTarget {
             target_id: matches[0].id.clone(),
-            confidence: "resolved".to_string(),
+            confidence: "inferred".to_string(),
         });
     }
 
@@ -416,4 +427,85 @@ fn is_skipped_call_name(name: &str) -> bool {
         name,
         "if" | "for" | "while" | "switch" | "catch" | "function" | "class"
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Name-only lexical matching cannot claim AST- or type-backed exactness.
+    #[test]
+    fn marks_bare_lexical_name_match_as_resolved() {
+        let symbols = vec![symbol("helper-id", "helper", "helper", "function")];
+        let call = call_candidate("helper", "helper", None, &["caller"]);
+
+        let resolved = resolve_call_target(&symbols, &LexicalBindings::default(), &call)
+            .expect("bare call resolves");
+
+        assert_eq!(resolved.target_id, "helper-id");
+        assert_eq!(resolved.confidence, "resolved");
+    }
+
+    /// A qualified text match still lacks receiver type information.
+    #[test]
+    fn marks_qualified_name_match_as_resolved() {
+        let symbols = vec![symbol("run-id", "run", "Service.run", "method")];
+        let call = call_candidate("run", "Service.run", Some("Service"), &["caller"]);
+
+        let resolved = resolve_call_target(&symbols, &LexicalBindings::default(), &call)
+            .expect("qualified call resolves");
+
+        assert_eq!(resolved.target_id, "run-id");
+        assert_eq!(resolved.confidence, "resolved");
+    }
+
+    /// A file-wide unique-name fallback is a heuristic, not scope resolution.
+    #[test]
+    fn marks_unique_name_fallback_as_inferred() {
+        let symbols = vec![symbol("run-id", "run", "Service.run", "method")];
+        let call = call_candidate("run", "run", None, &["caller"]);
+
+        let resolved = resolve_call_target(&symbols, &LexicalBindings::default(), &call)
+            .expect("unique name is inferred");
+
+        assert_eq!(resolved.target_id, "run-id");
+        assert_eq!(resolved.confidence, "inferred");
+    }
+
+    /// Creates the minimum same-file symbol record needed by resolution tests.
+    fn symbol(id: &str, name: &str, qualified_name: &str, kind: &str) -> SymbolRecord {
+        SymbolRecord {
+            id: id.to_string(),
+            name: name.to_string(),
+            kind: kind.to_string(),
+            qualified_name: qualified_name.to_string(),
+        }
+    }
+
+    /// Creates a deferred call with a stable placeholder source and range.
+    fn call_candidate(
+        lookup_name: &str,
+        display_name: &str,
+        qualifier: Option<&str>,
+        source_scope_names: &[&str],
+    ) -> CallCandidate {
+        CallCandidate {
+            source_id: "source-id".to_string(),
+            source_scope_names: source_scope_names
+                .iter()
+                .map(|name| (*name).to_string())
+                .collect(),
+            expression: CallExpression {
+                display_name: display_name.to_string(),
+                lookup_name: lookup_name.to_string(),
+                qualifier: qualifier.map(str::to_string),
+                range: SourceRange {
+                    start_line: 0,
+                    start_character: 0,
+                    end_line: 0,
+                    end_character: display_name.len(),
+                },
+            },
+        }
+    }
 }

@@ -9,7 +9,8 @@ use std::path::{Path, PathBuf};
 
 use crate::fs_scan::is_excluded_directory;
 use crate::model::{
-    full_content_range, DetectedFramework, FrameworkUnit, FrameworkUnitEdge, SourceRange,
+    full_content_range, utf16_code_unit_len, utf16_column_from_byte_offset, DetectedFramework,
+    FrameworkUnit, FrameworkUnitEdge, SourceRange,
 };
 
 use super::FrameworkUnitExtraction;
@@ -47,14 +48,12 @@ pub(super) fn analyze(
 ) -> Result<FrameworkUnitExtraction, String> {
     let root_path = framework_root_label(framework);
     let fastapi_root = resolve_framework_root(workspace_root, &root_path);
-
     if !fastapi_root.is_dir() {
         return Ok(FrameworkUnitExtraction::default());
     }
 
     let files = collect_python_files(&fastapi_root)?;
     let mut extraction = FrameworkUnitExtraction::default();
-
     for file in files {
         add_file_units(
             workspace_root,
@@ -64,7 +63,6 @@ pub(super) fn analyze(
             &mut extraction,
         )?;
     }
-
     Ok(extraction)
 }
 
@@ -87,7 +85,6 @@ fn resolve_framework_root(workspace_root: &Path, root_path: &str) -> PathBuf {
 fn collect_python_files(fastapi_root: &Path) -> Result<Vec<FastApiFile>, String> {
     let mut files = Vec::new();
     let mut stack = vec![fastapi_root.to_path_buf()];
-
     while let Some(directory) = stack.pop() {
         let entries = fs::read_dir(&directory).map_err(|error| {
             format!(
@@ -95,7 +92,6 @@ fn collect_python_files(fastapi_root: &Path) -> Result<Vec<FastApiFile>, String>
                 directory.display()
             )
         })?;
-
         for entry_result in entries {
             let entry =
                 entry_result.map_err(|error| format!("failed to read directory entry: {error}"))?;
@@ -122,7 +118,6 @@ fn collect_python_files(fastapi_root: &Path) -> Result<Vec<FastApiFile>, String>
             }
         }
     }
-
     files.sort_by(|left, right| left.path.cmp(&right.path));
     Ok(files)
 }
@@ -133,7 +128,6 @@ fn is_skipped_directory(path: &Path) -> bool {
         .and_then(|value| value.to_str())
         .map(|name| name == "site-packages")
         .unwrap_or(false);
-
     is_excluded_directory(path) || is_site_packages
 }
 
@@ -154,7 +148,6 @@ fn add_file_units(
 ) -> Result<(), String> {
     let content = read_fastapi_file(&file.path)?;
     let drafts = create_unit_drafts(&file.path, &content);
-
     if drafts.is_empty() {
         return Ok(());
     }
@@ -214,10 +207,8 @@ fn read_fastapi_file(path: &Path) -> Result<String, String> {
 fn create_unit_drafts(file_path: &Path, content: &str) -> Vec<UnitDraft> {
     let lines: Vec<&str> = content.lines().collect();
     let mut units = Vec::new();
-
     for (line_index, line) in lines.iter().enumerate() {
         let trimmed = line.trim_start();
-
         if trimmed.is_empty() || trimmed.starts_with('#') {
             continue;
         }
@@ -303,13 +294,12 @@ fn add_function_units(
         let decorator_indent = decorator_line
             .len()
             .saturating_sub(decorator_line.trim_start().len());
-
         units.push(UnitDraft {
             kind: "route",
             name: route_name_from_decorator(decorator_line, &function_declaration.name),
             range: multi_line_range(
                 decorator_index,
-                decorator_indent,
+                utf16_column_from_byte_offset(decorator_line, decorator_indent),
                 function_declaration.range.end_line,
                 lines[function_declaration.range.end_line],
             ),
@@ -353,7 +343,6 @@ fn read_fastapi_app_name(line: &str) -> Option<String> {
     let assignment_index = line.find('=')?;
     let left_side = line[..assignment_index].trim();
     let target = left_side.split(':').next().unwrap_or(left_side).trim();
-
     if is_python_identifier(target) {
         Some(target.to_string())
     } else {
@@ -364,15 +353,19 @@ fn read_fastapi_app_name(line: &str) -> Option<String> {
 fn read_class_declaration(
     lines: &[&str],
     start_line: usize,
-    start_character: usize,
+    start_byte_offset: usize,
 ) -> Option<ClassDeclaration> {
     let trimmed = lines[start_line].trim_start();
     let name = read_declaration_name(trimmed, "class")?;
     let (header_text, end_line) = read_header_block(lines, start_line);
-
     Some(ClassDeclaration {
         name,
-        range: multi_line_range(start_line, start_character, end_line, lines[end_line]),
+        range: multi_line_range(
+            start_line,
+            utf16_column_from_byte_offset(lines[start_line], start_byte_offset),
+            end_line,
+            lines[end_line],
+        ),
         header_text,
     })
 }
@@ -380,7 +373,7 @@ fn read_class_declaration(
 fn read_function_declaration(
     lines: &[&str],
     start_line: usize,
-    start_character: usize,
+    start_byte_offset: usize,
 ) -> Option<FunctionDeclaration> {
     let trimmed = lines[start_line].trim_start();
     let name = read_declaration_name(trimmed, "def")
@@ -389,7 +382,12 @@ fn read_function_declaration(
 
     Some(FunctionDeclaration {
         name,
-        range: multi_line_range(start_line, start_character, end_line, lines[end_line]),
+        range: multi_line_range(
+            start_line,
+            utf16_column_from_byte_offset(lines[start_line], start_byte_offset),
+            end_line,
+            lines[end_line],
+        ),
         signature_text,
     })
 }
@@ -776,8 +774,13 @@ fn normalized_relative_path(base: &Path, path: &Path) -> String {
     }
 }
 
-fn line_range(line_index: usize, start_character: usize, line: &str) -> SourceRange {
-    multi_line_range(line_index, start_character, line_index, line)
+fn line_range(line_index: usize, start_byte_offset: usize, line: &str) -> SourceRange {
+    multi_line_range(
+        line_index,
+        utf16_column_from_byte_offset(line, start_byte_offset),
+        line_index,
+        line,
+    )
 }
 
 fn multi_line_range(
@@ -790,6 +793,6 @@ fn multi_line_range(
         start_line,
         start_character,
         end_line,
-        end_character: end_line_text.chars().count(),
+        end_character: utf16_code_unit_len(end_line_text),
     }
 }

@@ -51,56 +51,63 @@ function getSidebarHtml(options: WebviewHtmlOptions): string {
     <div class="toolbar">
       <button id="analyze-workspace" class="primary-button" type="button">Analyze Workspace</button>
     </div>
-    <div class="button-grid">
-      <button id="analyze-current" class="secondary-button" type="button">Current File</button>
-      <button id="show-workspace" class="secondary-button" type="button">Workspace Scope</button>
-      <button id="open-graph" class="secondary-button" type="button" title="Graph rendering is temporarily disabled" disabled>Graph Disabled</button>
-      <button id="cancel-analysis" class="secondary-button" type="button">Cancel</button>
-      <button id="export-json" class="secondary-button" type="button">Export JSON</button>
-      <button id="clear-cache" class="secondary-button" type="button">Clear</button>
-    </div>
+    <details class="more-actions">
+      <summary>More actions</summary>
+      <div class="button-grid more-actions-grid">
+        <button id="analyze-current" class="secondary-button" type="button">Current File</button>
+        <button id="show-workspace" class="secondary-button" type="button">Workspace Scope</button>
+        <button id="export-json" class="secondary-button" type="button">Export JSON</button>
+        <button id="clear-cache" class="secondary-button" type="button">Clear Cache</button>
+      </div>
+    </details>
     <div id="status" class="status">Ready</div>
-    <div class="stats" aria-label="Graph summary">
-      <div class="stat"><span id="files" class="stat-value">0</span><span class="stat-label">Files</span></div>
-      <div class="stat"><span id="symbols" class="stat-value">0</span><span class="stat-label">Nodes</span></div>
-      <div class="stat"><span id="edges" class="stat-value">0</span><span class="stat-label">Edges</span></div>
+    <div id="project-guide" class="project-guide" aria-label="Project reading guide">
+      <div class="summary-title">Project Map</div>
+      <div id="guide-summary" class="guide-summary" aria-live="polite"></div>
+      <div class="guide-section-label">Detected scopes</div>
+      <div id="guide-scopes" class="guide-scopes" aria-live="polite"></div>
+      <div id="guide-scope-detail" class="guide-scope-detail" aria-live="polite"></div>
     </div>
-    <div class="project-summary" aria-label="Detected project stack">
-      <div class="summary-block">
-        <div class="summary-title">Languages</div>
-        <div id="language-summary" class="summary-list"></div>
-      </div>
-      <div class="summary-block">
-        <div class="summary-title">Frameworks</div>
-        <div id="framework-summary" class="summary-list"></div>
-      </div>
-    </div>
-    <div class="accordion" aria-label="Explorer sections">
-      <section id="framework-section" class="tree-section framework-section collapsed">
-        <button id="accordion-frameworks" class="accordion-header" type="button" aria-expanded="false" aria-controls="framework-panel">
+    <div class="accordion" aria-label="Detailed explorer sections">
+      <section id="call-section" class="tree-section calls-section collapsed">
+        <button id="accordion-calls" class="accordion-header" type="button" aria-expanded="false" aria-controls="call-panel">
           <span class="accordion-disclosure"></span>
-          <span class="accordion-title">Frameworks</span>
+          <span class="accordion-title">Explore Code Flows</span>
         </button>
-        <div id="framework-panel" class="accordion-panel" hidden>
+        <div id="call-panel" class="accordion-panel" hidden>
+          <div id="call-tree" class="list explorer-tree call-tree" role="tree" aria-label="Code flow tree"></div>
+        </div>
+      </section>
+      <section id="structure-section" class="tree-section structure-section collapsed">
+        <button id="accordion-structure" class="accordion-header" type="button" aria-expanded="false" aria-controls="structure-panel">
+          <span class="accordion-disclosure"></span>
+          <span class="accordion-title">Browse Structure</span>
+        </button>
+        <div id="structure-panel" class="accordion-panel" hidden>
+          <div class="structure-switch" role="tablist" aria-label="Structure view">
+            <button id="structure-frameworks" class="view-button active" type="button" role="tab" aria-selected="true">Components</button>
+            <button id="structure-files" class="view-button" type="button" role="tab" aria-selected="false">Files</button>
+          </div>
           <div id="framework-tree" class="list explorer-tree framework-tree" role="tree" aria-label="Framework semantic tree"></div>
+          <div id="explorer-tree" class="list explorer-tree" role="tree" aria-label="Project import tree" hidden></div>
         </div>
       </section>
-      <section id="call-section" class="tree-section calls-section">
-        <button id="accordion-calls" class="accordion-header" type="button" aria-expanded="true" aria-controls="call-panel">
+      <section id="analysis-section" class="tree-section analysis-section collapsed">
+        <button id="accordion-analysis" class="accordion-header" type="button" aria-expanded="false" aria-controls="analysis-panel">
           <span class="accordion-disclosure"></span>
-          <span class="accordion-title">Request Flows</span>
+          <span class="accordion-title">Analysis Details</span>
         </button>
-        <div id="call-panel" class="accordion-panel">
-          <div id="call-tree" class="list explorer-tree call-tree" role="tree" aria-label="Request flow tree"></div>
-        </div>
-      </section>
-      <section id="files-section" class="tree-section files-section collapsed">
-        <button id="accordion-files" class="accordion-header" type="button" aria-expanded="false" aria-controls="files-panel">
-          <span class="accordion-disclosure"></span>
-          <span class="accordion-title">Files</span>
-        </button>
-        <div id="files-panel" class="accordion-panel" hidden>
-          <div id="explorer-tree" class="list explorer-tree" role="tree" aria-label="Project import tree"></div>
+        <div id="analysis-panel" class="accordion-panel analysis-panel" hidden>
+          <div id="project-overview" class="project-overview" aria-label="Project Brief and analysis signals">
+            <div class="overview-block">
+              <div class="summary-title">Analysis Scope</div>
+              <div id="project-brief" class="overview-list" aria-live="polite"></div>
+            </div>
+            <div class="overview-block">
+              <div class="summary-title">Analysis Signals</div>
+              <div id="analysis-signals" class="signal-list" aria-live="polite"></div>
+            </div>
+          </div>
         </div>
       </section>
     </div>

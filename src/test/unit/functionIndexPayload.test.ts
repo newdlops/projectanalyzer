@@ -112,6 +112,38 @@ test("createFunctionExplorerPayload places selected change impact before request
   assert.doesNotThrow(() => JSON.stringify(payload));
 });
 
+test("createFunctionExplorerPayload keeps every section header beside a huge expanded flow", () => {
+  const graph = createPayloadGraph();
+  const index = createFunctionIndex(graph, { includeInventoryRows: false });
+  const semanticFlowRows = Array.from({ length: 1_001 }, (_, rowIndex) => ({
+    id: rowIndex === 0 ? REQUEST_FLOW_ROWS_ROOT_ID : `request-flow:operation:${rowIndex}`,
+    sectionId: "frameworkHandlers" as const,
+    kind: rowIndex === 0 ? "section" as const : "function" as const,
+    label: rowIndex === 0 ? "Request Flows" : `Query.operation${rowIndex}`,
+    depth: rowIndex === 0 ? 0 : 1,
+    hasChildren: rowIndex === 0,
+    expanded: rowIndex === 0
+  }));
+  const payload = createFunctionExplorerPayload(graph, index, {
+    initialRowLimit: 10,
+    semanticFlowRows
+  });
+
+  assert.equal(payload.rows.length, 10);
+  assert.equal(payload.nextCursor, undefined);
+  assert.ok(payload.sections.every((section) => section.visibleRowCount > 0));
+  assert.deepEqual(
+    payload.rows.filter((row) => row.depth === 0).map((row) => row.sectionId),
+    ["frameworkHandlers", "entrypoints", "hotspots", "unresolvedExternal", "allFunctions"]
+  );
+  assert.ok(payload.sections.find((section) => section.id === "frameworkHandlers")?.hasMore);
+  assert.ok(payload.rows.some((row) =>
+    row.sectionId === "frameworkHandlers"
+    && row.kind === "more"
+    && row.label.endsWith("more rows not loaded")
+  ));
+});
+
 /** Creates a compact graph that exercises entrypoint and external call rows. */
 function createPayloadGraph(): ProjectGraph {
   const nodes = [

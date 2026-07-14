@@ -37,8 +37,9 @@ export function createFunctionExplorerPayload(
     : createFrameworkHandlerRows(graph, { expandedRowIds }).rows;
   const changeImpactRows = [...(options.changeImpactRows ?? [])];
   const allRows = changeImpactRows.concat(insertSemanticFlowRows(indexRows, semanticFlowRows));
-  const rows = allRows.slice(0, initialRowLimit);
   const sectionDescriptors = getSectionDescriptors(changeImpactRows.length > 0);
+  const rows = selectBoundedSectionRows(allRows, sectionDescriptors, initialRowLimit);
+  const visibleSourceRowCount = rows.filter((row) => row.kind !== "more").length;
 
   return {
     graphVersion: graph.version,
@@ -59,7 +60,7 @@ export function createFunctionExplorerPayload(
       inferredCallEdgeCount: index.summary.inferredCallEdgeCount,
       visibleByDefaultViewCount: index.summary.visibleByDefaultViewCount,
       hiddenByDefaultViewCount: index.summary.hiddenByDefaultViewCount,
-      hiddenByCollapsedBranchCount: Math.max(0, allRows.length - rows.length),
+      hiddenByCollapsedBranchCount: Math.max(0, allRows.length - visibleSourceRowCount),
       hiddenByActiveFilterCount: 0
     },
     sections: createSectionSummaries(allRows, rows, sectionDescriptors),
@@ -75,8 +76,116 @@ export function createFunctionExplorerPayload(
       },
       sortBy: "relevance",
       selectedFunctionId: options.selectedFunctionId
-    },
-    nextCursor: allRows.length > rows.length ? "function-rows:" + String(rows.length) : undefined
+    }
+  };
+}
+
+/**
+ * Keeps a prefix of every non-empty section before distributing remaining row
+ * budget. This preserves parent-before-child order without allowing one large
+ * expanded GraphQL bucket to hide all later top-level sections.
+ */
+function selectBoundedSectionRows(
+  allRows: FunctionExplorerRow[],
+  sectionDescriptors: Array<{ id: FunctionExplorerSectionId; title: string }>,
+  limit: number
+): FunctionExplorerRow[] {
+  if (allRows.length <= limit) {
+    return allRows;
+  }
+
+  const rowsBySection = new Map<FunctionExplorerSectionId, FunctionExplorerRow[]>();
+  for (const descriptor of sectionDescriptors) {
+    rowsBySection.set(descriptor.id, []);
+  }
+  for (const row of allRows) {
+    rowsBySection.get(row.sectionId)?.push(row);
+  }
+
+  const nonEmptySections = sectionDescriptors.filter((descriptor) =>
+    (rowsBySection.get(descriptor.id)?.length ?? 0) > 0
+  );
+  const retainedCounts = new Map<FunctionExplorerSectionId, number>();
+  let remaining = limit;
+
+  // Reserve each section's first row, which is its stable top-level header.
+  for (const descriptor of nonEmptySections) {
+    if (remaining === 0) {
+      break;
+    }
+    retainedCounts.set(descriptor.id, 1);
+    remaining -= 1;
+  }
+
+  // Keep one explicit omission row for each large section when budget allows.
+  // This is intentionally not a fake cursor: the provider does not implement
+  // server-side paging yet.
+  const markerSectionIds = new Set<FunctionExplorerSectionId>();
+  for (const descriptor of nonEmptySections) {
+    if (remaining === 0) {
+      break;
+    }
+    if ((rowsBySection.get(descriptor.id)?.length ?? 0) > 1) {
+      markerSectionIds.add(descriptor.id);
+      remaining -= 1;
+    }
+  }
+
+  // Round-robin prefix growth gives every section bounded detail while keeping
+  // hierarchical parents ahead of their children within the section.
+  while (remaining > 0) {
+    let added = false;
+
+    for (const descriptor of nonEmptySections) {
+      if (remaining === 0) {
+        break;
+      }
+      const sectionRows = rowsBySection.get(descriptor.id) ?? [];
+      const retainedCount = retainedCounts.get(descriptor.id) ?? 0;
+
+      if (retainedCount >= sectionRows.length) {
+        continue;
+      }
+
+      retainedCounts.set(descriptor.id, retainedCount + 1);
+      remaining -= 1;
+      added = true;
+    }
+
+    if (!added) {
+      break;
+    }
+  }
+
+  return nonEmptySections.flatMap((descriptor) => {
+    const sectionRows = rowsBySection.get(descriptor.id) ?? [];
+    const retainedCount = retainedCounts.get(descriptor.id) ?? 0;
+    const retainedRows = sectionRows.slice(0, retainedCount);
+    const hiddenRowCount = sectionRows.length - retainedRows.length;
+
+    if (hiddenRowCount === 0 || !markerSectionIds.has(descriptor.id)) {
+      return retainedRows;
+    }
+
+    return retainedRows.concat(createOmittedSectionRow(descriptor.id, hiddenRowCount));
+  });
+}
+
+/** Makes truncation visible without claiming that the placeholder is pageable. */
+function createOmittedSectionRow(
+  sectionId: FunctionExplorerSectionId,
+  hiddenRowCount: number
+): FunctionExplorerRow {
+  return {
+    id: `function-rows:omitted:${sectionId}`,
+    sectionId,
+    kind: "more",
+    label: `${hiddenRowCount} more rows not loaded`,
+    detail: "Server-side paging is not available yet",
+    depth: 1,
+    hasChildren: false,
+    expanded: false,
+    metadata: { hiddenRowCount }
   };
 }
 
@@ -89,6 +198,9 @@ function createSectionSummaries(
   const visibleCounts = new Map<FunctionExplorerSectionId, number>();
 
   for (const row of visibleRows) {
+    if (row.kind === "more") {
+      continue;
+    }
     visibleCounts.set(row.sectionId, (visibleCounts.get(row.sectionId) ?? 0) + 1);
   }
 

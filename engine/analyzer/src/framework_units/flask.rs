@@ -10,7 +10,8 @@ use std::path::{Path, PathBuf};
 
 use crate::fs_scan::is_excluded_directory;
 use crate::model::{
-    full_content_range, DetectedFramework, FrameworkUnit, FrameworkUnitEdge, SourceRange,
+    full_content_range, utf16_code_unit_len, utf16_column_from_byte_offset, DetectedFramework,
+    FrameworkUnit, FrameworkUnitEdge, SourceRange,
 };
 
 use super::FrameworkUnitExtraction;
@@ -62,7 +63,6 @@ pub(super) fn analyze(
 
     let files = collect_python_files(&flask_root)?;
     let mut extraction = FrameworkUnitExtraction::default();
-
     for file_path in files {
         add_file_units(
             workspace_root,
@@ -72,7 +72,6 @@ pub(super) fn analyze(
             &mut extraction,
         )?;
     }
-
     Ok(extraction)
 }
 
@@ -80,7 +79,6 @@ pub(super) fn analyze(
 fn collect_python_files(flask_root: &Path) -> Result<Vec<PathBuf>, String> {
     let mut files = Vec::new();
     let mut stack = vec![flask_root.to_path_buf()];
-
     while let Some(directory) = stack.pop() {
         let entries = fs::read_dir(&directory).map_err(|error| {
             format!(
@@ -88,7 +86,6 @@ fn collect_python_files(flask_root: &Path) -> Result<Vec<PathBuf>, String> {
                 directory.display()
             )
         })?;
-
         for entry_result in entries {
             let entry =
                 entry_result.map_err(|error| format!("failed to read directory entry: {error}"))?;
@@ -115,7 +112,6 @@ fn collect_python_files(flask_root: &Path) -> Result<Vec<PathBuf>, String> {
             }
         }
     }
-
     files.sort();
     Ok(files)
 }
@@ -206,10 +202,8 @@ fn create_unit_drafts(file_path: &Path, content: &str) -> Vec<UnitDraft> {
     let lines: Vec<&str> = content.lines().collect();
     let symbols = read_flask_symbols(&lines);
     let mut units = Vec::new();
-
     for (line_index, line) in lines.iter().enumerate() {
         let trimmed = line.trim_start();
-
         if trimmed.is_empty() || trimmed.starts_with('#') {
             continue;
         }
@@ -266,7 +260,6 @@ fn create_unit_drafts(file_path: &Path, content: &str) -> Vec<UnitDraft> {
 /// Reads top-level Flask app and Blueprint variable names used by decorators.
 fn read_flask_symbols(lines: &[&str]) -> FlaskSymbols {
     let mut symbols = FlaskSymbols::default();
-
     for line in lines {
         let trimmed = line.trim_start();
 
@@ -348,7 +341,7 @@ fn add_function_units(
             name: route_name_from_decorator(decorator_line, &function_declaration.name),
             range: multi_line_range(
                 decorator_index,
-                decorator_indent,
+                utf16_column_from_byte_offset(decorator_line, decorator_indent),
                 function_declaration.range.end_line,
                 lines[function_declaration.range.end_line],
             ),
@@ -367,7 +360,7 @@ fn add_function_units(
             name: middleware_name_from_decorator(decorator_line, &function_declaration.name),
             range: multi_line_range(
                 decorator_index,
-                decorator_indent,
+                utf16_column_from_byte_offset(decorator_line, decorator_indent),
                 function_declaration.range.end_line,
                 lines[function_declaration.range.end_line],
             ),
@@ -427,7 +420,7 @@ fn contains_constructor_call(line: &str, constructor: &str) -> bool {
 fn read_python_declaration(
     lines: &[&str],
     start_line: usize,
-    start_character: usize,
+    start_byte_offset: usize,
     keywords: &[&str],
 ) -> Option<PythonDeclaration> {
     let trimmed = lines[start_line].trim_start();
@@ -438,7 +431,12 @@ fn read_python_declaration(
 
     Some(PythonDeclaration {
         name,
-        range: multi_line_range(start_line, start_character, end_line, lines[end_line]),
+        range: multi_line_range(
+            start_line,
+            utf16_column_from_byte_offset(lines[start_line], start_byte_offset),
+            end_line,
+            lines[end_line],
+        ),
     })
 }
 
@@ -776,8 +774,13 @@ fn normalized_relative_path(base: &Path, path: &Path) -> String {
     }
 }
 
-fn line_range(line_index: usize, start_character: usize, line: &str) -> SourceRange {
-    multi_line_range(line_index, start_character, line_index, line)
+fn line_range(line_index: usize, start_byte_offset: usize, line: &str) -> SourceRange {
+    multi_line_range(
+        line_index,
+        utf16_column_from_byte_offset(line, start_byte_offset),
+        line_index,
+        line,
+    )
 }
 
 fn multi_line_range(
@@ -790,6 +793,6 @@ fn multi_line_range(
         start_line,
         start_character,
         end_line,
-        end_character: end_line_text.chars().count(),
+        end_character: utf16_code_unit_len(end_line_text),
     }
 }
