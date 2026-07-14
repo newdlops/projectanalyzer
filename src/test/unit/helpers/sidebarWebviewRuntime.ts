@@ -11,6 +11,7 @@ export type SidebarWebviewRuntime = {
   click(elementId: string): void;
   clickByTitle(title: string): void;
   dispatchMessage(message: unknown): void;
+  getPersistedState(): unknown;
   keydownByTitle(title: string, key: string): void;
   messages: Array<{ type: string; payload: unknown }>;
   restore(): void;
@@ -19,7 +20,7 @@ export type SidebarWebviewRuntime = {
 };
 
 /** Installs the small DOM and VS Code API surface used by the sidebar script. */
-export function installSidebarWebviewRuntime(): SidebarWebviewRuntime {
+export function installSidebarWebviewRuntime(initialWebviewState?: unknown): SidebarWebviewRuntime {
   const previousWindow = Reflect.get(globalThis, "window");
   const previousDocument = Reflect.get(globalThis, "document");
   const previousRequestAnimationFrame = Reflect.get(globalThis, "requestAnimationFrame");
@@ -30,6 +31,7 @@ export function installSidebarWebviewRuntime(): SidebarWebviewRuntime {
   const elementListeners = new Map<string, Map<string, SidebarEventHandler[]>>();
   const elements = new Map<string, SidebarFakeElement>();
   let generatedElementId = 0;
+  let webviewState = initialWebviewState;
 
   /** Returns one persistent fake element because listeners attach by identity. */
   const getOrCreateElement = (id: string): SidebarFakeElement => {
@@ -145,8 +147,14 @@ export function installSidebarWebviewRuntime(): SidebarWebviewRuntime {
     return 0;
   });
   Reflect.set(globalThis, "acquireVsCodeApi", () => ({
+    getState() {
+      return webviewState;
+    },
     postMessage(message: { type: string; payload: unknown }) {
       messages.push(message);
+    },
+    setState(nextState: unknown) {
+      webviewState = nextState;
     }
   }));
 
@@ -171,6 +179,9 @@ export function installSidebarWebviewRuntime(): SidebarWebviewRuntime {
       const handler = windowListeners.get("message");
       assert.ok(handler, "missing sidebar message listener");
       handler({ data: message });
+    },
+    getPersistedState() {
+      return webviewState;
     },
     keydownByTitle(title, key) {
       const element = [...elements.values()].find((candidate) => candidate.title === title);

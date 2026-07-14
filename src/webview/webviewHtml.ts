@@ -61,8 +61,18 @@ function getSidebarHtml(options: WebviewHtmlOptions): string {
       </div>
     </details>
     <div id="status" class="status">Ready</div>
-    <div id="project-guide" class="project-guide" aria-label="Project reading guide">
-      <div class="summary-title">Project Map</div>
+    <div id="project-guide" class="project-guide" aria-label="Project reading guide and learning journey">
+      <div class="summary-title">Project Learning Journey</div>
+      <div class="learning-intro">
+        Learn in evidence-backed stages. Discovered and inferred facts stay separate from team-confirmed and demonstrated knowledge.
+      </div>
+      <div id="learning-progress" class="learning-progress" aria-live="polite"></div>
+      <div id="learning-current" class="learning-current"></div>
+      <details class="learning-roadmap-disclosure">
+        <summary>Full onboarding roadmap</summary>
+        <div id="learning-roadmap" class="learning-roadmap"></div>
+      </details>
+      <div class="summary-title learning-evidence-heading">Project Map evidence</div>
       <div id="guide-summary" class="guide-summary" aria-live="polite"></div>
       <div class="guide-section-label">Detected scopes</div>
       <div id="guide-scopes" class="guide-scopes" aria-live="polite"></div>

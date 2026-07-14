@@ -6,6 +6,7 @@
  * snapshot token so late lazy responses cannot overwrite a newer analysis.
  */
 
+import { randomBytes } from "node:crypto";
 import type { FunctionExplorerPayload } from "../protocol/functionExplorer";
 import type { ProjectOverviewPayload } from "../protocol/projectOverview";
 import type {
@@ -22,6 +23,9 @@ export type SidebarGraphSnapshot = {
 
 /** Owns snapshot identity independently from the analyzer's schema version. */
 export class SidebarGraphDelivery {
+  /** Provider identity prevents snapshot collisions after an Extension Host restart. */
+  private readonly sessionId = randomBytes(12).toString("hex");
+
   /** Monotonic identity scoped to this extension-host provider instance. */
   private revision = 0;
 
@@ -36,7 +40,7 @@ export class SidebarGraphDelivery {
     this.revision += 1;
     this.snapshot = {
       graph,
-      version: `sidebar-snapshot:${this.revision}`
+      version: `sidebar-snapshot:${this.sessionId}:${this.revision}`
     };
     return { changed: true, snapshot: this.snapshot };
   }

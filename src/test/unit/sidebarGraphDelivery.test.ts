@@ -37,6 +37,15 @@ test("SidebarGraphDelivery clear rejects late responses and keeps tokens monoton
   assert.notEqual(afterClear, beforeClear);
 });
 
+test("SidebarGraphDelivery namespaces snapshot tokens per provider instance", () => {
+  const firstProviderVersion = new SidebarGraphDelivery().activate(createGraph()).snapshot.version;
+  const restartedProviderVersion = new SidebarGraphDelivery().activate(createGraph()).snapshot.version;
+
+  assert.match(firstProviderVersion, /^sidebar-snapshot:[0-9a-f]{24}:1$/u);
+  assert.match(restartedProviderVersion, /^sidebar-snapshot:[0-9a-f]{24}:1$/u);
+  assert.notEqual(restartedProviderVersion, firstProviderVersion);
+});
+
 test("delivery projection replaces both Function Explorer stale-guard versions", () => {
   const graph = createGraph();
   const projectedGraph = withSidebarGraphVersion(graph, "sidebar-snapshot:9");

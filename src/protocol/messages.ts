@@ -13,6 +13,7 @@ import type {
 import type { ProjectOverviewPayload } from "./projectOverview";
 import type {
   ProjectReadingGuidePayload,
+  ProjectReadingGuideScopeFailurePayload,
   ProjectReadingScopePayloadId,
   ProjectScopeReadingGuidePayload
 } from "./projectReadingGuide";
@@ -122,6 +123,7 @@ export type ExtensionResponse =
   | { type: "project/overviewLoaded"; payload: ProjectOverviewPayload }
   | { type: "project/readingGuideLoaded"; payload: ProjectReadingGuidePayload }
   | { type: "project/readingGuideScopeLoaded"; payload: ProjectScopeReadingGuidePayload }
+  | { type: "project/readingGuideScopeFailed"; payload: ProjectReadingGuideScopeFailurePayload }
   | { type: "function/indexLoaded"; payload: FunctionExplorerPayload }
   | { type: "function/searchLoaded"; payload: FunctionExplorerSearchPayload }
   | { type: "function/searchFailed"; payload: FunctionExplorerSearchFailurePayload }

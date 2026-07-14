@@ -4,11 +4,18 @@
  * paths are rendered only after the Extension Host returns a selected scope.
  */
 
+import { getProjectLearningJourneyBrowserSource } from "./projectLearningJourney";
+
 /** Returns self-contained helper declarations injected into the sidebar script. */
 export function getReadingGuideBrowserSource(): string {
+  const learningJourneySource = getProjectLearningJourneyBrowserSource();
+
   return /* js */ `
+    ${learningJourneySource}
+
     /** Renders the bounded first-read scope index and selected lazy detail. */
     function renderProjectReadingGuide() {
+      renderProjectLearningJourney();
       elements.guideSummary.replaceChildren();
       elements.guideScopes.replaceChildren();
       elements.guideScopeDetail.replaceChildren();
@@ -36,6 +43,7 @@ export function getReadingGuideBrowserSource(): string {
       if (state.scopeGuideLoading) {
         appendGuideEmpty(elements.guideScopeDetail, "Loading selected scope...");
       } else if (state.scopeGuide && state.scopeGuide.scope.id === state.selectedScopeId) {
+        recordProjectLearningAction("inspectScope");
         appendScopeGuide(state.scopeGuide);
       }
     }
@@ -75,7 +83,10 @@ export function getReadingGuideBrowserSource(): string {
 
     /** Requests detail only when a different scope or graph snapshot is selected. */
     function requestScopeReadingGuide(scopeId) {
-      if (!state.graph || (state.selectedScopeId === scopeId && state.scopeGuide)) {
+      if (
+        !state.graph
+        || (state.selectedScopeId === scopeId && (state.scopeGuide || state.scopeGuideLoading))
+      ) {
         state.selectedScopeId = scopeId;
         renderProjectReadingGuide();
         return;
@@ -89,6 +100,16 @@ export function getReadingGuideBrowserSource(): string {
         type: "project/readingGuideScope",
         payload: { graphVersion: state.graph.version, scopeId }
       });
+    }
+
+    /** Applies a scope failure only to the still-selected snapshot request. */
+    function handleProjectReadingGuideScopeFailure(payload) {
+      if (!isCurrentGraphVersion(payload.graphVersion) || payload.scopeId !== state.selectedScopeId) {
+        return;
+      }
+      state.scopeGuideLoading = false;
+      elements.status.textContent = payload.message;
+      renderProjectReadingGuide();
     }
 
     /** Renders source areas and collapsed representative paths for one scope. */
@@ -170,6 +191,10 @@ export function getReadingGuideBrowserSource(): string {
       summary.className = "guide-flow-summary";
       steps.className = "guide-flow-steps";
       summary.textContent = flow.name + " · " + formatTransport(flow.transport);
+      summary.title = "Study reading path: " + flow.name;
+      summary.addEventListener("click", () => {
+        recordProjectLearningAction("traceRepresentativePath");
+      });
       disclosure.append(summary);
 
       for (const step of flow.steps.slice(0, 5)) {
@@ -206,6 +231,7 @@ export function getReadingGuideBrowserSource(): string {
         item.title = "Open " + step.label + (displayLocation ? " · " + displayLocation : "");
         item.addEventListener("click", () => {
           postRequest("node/openSource", { nodeId: step.sourceToken }, "Opening reading path source");
+          recordProjectLearningAction("verifyConcreteSource");
         });
       }
       item.append(role, label);

@@ -238,6 +238,11 @@ export function getExplorerSidebarScript(): string {
         return;
       }
 
+      if (message.type === "project/readingGuideScopeFailed") {
+        handleProjectReadingGuideScopeFailure(message.payload);
+        return;
+      }
+
       if (message.type === "graph/cleared") {
         state.graph = undefined;
         state.analysisState = "idle";
@@ -255,9 +260,7 @@ export function getExplorerSidebarScript(): string {
       }
 
       if (message.type === "error") {
-        if (message.payload.code !== "PROJECT_READING_SCOPE_NOT_FOUND") {
-          state.analysisState = "failed";
-        }
+        state.analysisState = "failed";
         state.functionIndexLoading = false;
         state.functionSearchLoading = false;
         state.functionSearchPendingCursor = undefined;

@@ -7,7 +7,7 @@ import { ExplorerViewProvider } from "../webview/explorerViewProvider";
 import type { ExtensionServices } from "./extensionServices";
 
 /**
- * Registers the sidebar Structure Explorer Webview view.
+ * Registers the Project Learning Journey sidebar Webview view.
  */
 export function registerProjectAnalyzerViews(
   context: vscode.ExtensionContext,

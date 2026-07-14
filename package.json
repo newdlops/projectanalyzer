@@ -1,8 +1,8 @@
 {
   "name": "project-analyzer",
   "displayName": "Project Analyzer",
-  "description": "Structure based visual explorer for static project call, file, and class relationships.",
-  "version": "0.0.1004",
+  "description": "Evidence-based project learning journey with static source and execution-flow guidance.",
+  "version": "0.0.1005",
   "publisher": "local",
   "private": true,
   "license": "UNLICENSED",
@@ -31,7 +31,7 @@
       "projectAnalyzer": [
         {
           "id": "projectAnalyzer.explorerView",
-          "name": "Structure Explorer",
+          "name": "Project Learning Journey",
           "type": "webview"
         }
       ]

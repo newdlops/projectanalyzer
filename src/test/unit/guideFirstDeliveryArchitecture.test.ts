@@ -19,6 +19,11 @@ test("initial graph publication sends a bounded shell and guide without lazy det
     "public async publishGraph(graph: ProjectGraph): Promise<void>",
     "private async handleMessage(message: WebviewRequest): Promise<void>"
   );
+  const scopeMethod = extractBetween(
+    source,
+    "private async publishReadingGuideScope(",
+    "private async postLatestFunctionIndex("
+  );
 
   assert.match(method, /projectGraphForSidebarShell\(graph\)/u);
   assert.match(method, /publishProjectGuide\(graph, activation\.snapshot\.version\)/u);
@@ -30,6 +35,9 @@ test("initial graph publication sends a bounded shell and guide without lazy det
   assert.match(source, /case "project\/loadOverview"/u);
   assert.match(source, /case "function\/index"/u);
   assert.match(source, /graphDelivery\.matches\(request\.graphVersion\)/u);
+  assert.match(scopeMethod, /type: "project\/readingGuideScopeFailed"/u);
+  assert.match(scopeMethod, /graphVersion: snapshot\.version, scopeId/u);
+  assert.doesNotMatch(scopeMethod, /type: "error"/u);
 });
 
 /** Extracts a stable source region and fails clearly when method boundaries drift. */

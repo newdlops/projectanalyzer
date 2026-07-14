@@ -112,3 +112,10 @@ export type ProjectScopeReadingGuidePayload = {
   omittedFlowCount: number;
   unmappedEntrypointCount: number;
 };
+
+/** Correlated lazy-scope failure that cannot clear a newer scope request. */
+export type ProjectReadingGuideScopeFailurePayload = {
+  graphVersion: string;
+  scopeId: ProjectReadingScopePayloadId;
+  message: string;
+};

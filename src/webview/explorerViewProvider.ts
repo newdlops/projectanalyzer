@@ -618,9 +618,9 @@ export class ExplorerViewProvider implements vscode.WebviewViewProvider {
       : undefined;
     if (!scopeGuide) {
       await this.postMessage({
-        type: "error",
+        type: "project/readingGuideScopeFailed",
         payload: {
-          code: "PROJECT_READING_SCOPE_NOT_FOUND",
+          graphVersion: snapshot.version, scopeId,
           message: "Project scope is no longer available"
         }
       });
