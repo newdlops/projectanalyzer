@@ -7,6 +7,15 @@
 
 import { createProjectOverview } from "../../insights/projectOverview";
 import {
+  createGuidedTourProjection,
+  type GuidedTourProjection
+} from "../../insights/guidedTour";
+import { createFunctionFrameworkSemantics } from "../../graph/functionFrameworkSemantics";
+import {
+  createFunctionArchitectureIndex,
+  type FunctionArchitectureIndex
+} from "../../insights/architecturalLayers";
+import {
   createProjectReadingGuideProjector,
   type ProjectReadingGuideProjector
 } from "../../insights/projectReadingGuide";
@@ -28,6 +37,8 @@ import { createProjectOverviewPayload } from "./projectOverviewPayload";
 
 /** Cached domain and protocol products for one immutable graph snapshot. */
 export type ProjectInsightSnapshot = {
+  functionArchitecture: FunctionArchitectureIndex;
+  guidedTour: GuidedTourProjection;
   semanticFlows: SemanticFlowIndex;
   projectReadingGuidePayload: ProjectReadingGuidePayload;
   readingGuideProjector: ProjectReadingGuideProjector;
@@ -52,10 +63,18 @@ export class ProjectInsightCache {
       return this.cached;
     }
 
-    const semanticFlows = createSemanticFlowIndex(graph);
-    const readingGuideProjector = createProjectReadingGuideProjector(graph, semanticFlows);
+    const frameworkSemantics = createFunctionFrameworkSemantics(graph);
+    const semanticFlows = createSemanticFlowIndex(graph, {}, frameworkSemantics);
+    const functionArchitecture = createFunctionArchitectureIndex(graph, frameworkSemantics);
+    const readingGuideProjector = createProjectReadingGuideProjector(
+      graph,
+      semanticFlows,
+      functionArchitecture
+    );
     const readingGuideIndex = readingGuideProjector.projectIndex();
     const snapshot: ProjectInsightSnapshot = {
+      functionArchitecture,
+      guidedTour: createGuidedTourProjection(readingGuideProjector.projectPrimaryPath()),
       semanticFlows,
       projectReadingGuidePayload: createProjectReadingGuidePayload(
         graph,

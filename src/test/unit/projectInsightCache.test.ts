@@ -14,6 +14,8 @@ test("ProjectInsightCache reuses one semantic snapshot for the same graph object
   const secondOverview = cache.getOverview(graph);
 
   assert.strictEqual(second, first);
+  assert.strictEqual(second.functionArchitecture, first.functionArchitecture);
+  assert.strictEqual(second.guidedTour, first.guidedTour);
   assert.strictEqual(second.semanticFlows, first.semanticFlows);
   assert.strictEqual(secondOverview, firstOverview);
   assert.strictEqual(second.projectReadingGuidePayload, first.projectReadingGuidePayload);
