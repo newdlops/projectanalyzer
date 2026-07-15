@@ -1,5 +1,5 @@
 /**
- * Presentation adapter for the two-stage Project Reading Guide.
+ * Presentation adapter for the two-stage Project Reading Plan.
  *
  * The domain projector keeps host-side lookup state. This adapter emits only
  * JSON data needed by the first three scope cards or one explicitly requested
@@ -7,8 +7,6 @@
  */
 
 import {
-  createPortableProjectPathNormalizer,
-  type PortableProjectPathNormalizer,
   type ProjectReadingGuideIndex,
   type ProjectReadingPath,
   type ProjectReadingScopeSummary,
@@ -28,6 +26,10 @@ import type {
 import type { SourceNodeToken } from "../../protocol/sourceNavigation";
 import type { ProjectGraph } from "../../shared/types";
 import { createContentHash } from "../../shared/hash";
+import {
+  createSourceDisplayFormatter,
+  type SourceDisplayFormatter
+} from "../sourcePresentation";
 
 /** Maximum stack identities retained in the one-line first-read headline. */
 const HEADLINE_NAME_LIMIT = 3;
@@ -90,21 +92,21 @@ export function createProjectScopeReadingGuidePayload(
 ): ProjectScopeReadingGuidePayload {
   // The absolute root stays host-side. Only normalizer-produced relative labels
   // or filename-only fallbacks cross into the Webview.
-  const sourcePaths = createPortableProjectPathNormalizer(guide.workspaceRoot);
+  const sourceDisplay = createSourceDisplayFormatter(guide.workspaceRoot);
 
   return {
     graphVersion: guide.graphVersion,
     scope: createScopePayload(guide.scope),
     areas: guide.areas.slice(0, VISIBLE_AREA_LIMIT).map((area) =>
-      createAreaPayload(area, sourcePaths)
+      createAreaPayload(area, sourceDisplay)
     ),
     candidateAreaCount: guide.totalAreaCount,
     omittedAreaCount: Math.max(0, guide.totalAreaCount - Math.min(
       guide.areas.length,
       VISIBLE_AREA_LIMIT
     )),
-    representativeFlows: guide.readingPaths.slice(0, VISIBLE_FLOW_LIMIT).map((path) =>
-      createFlowPayload(path, sourcePaths, createSourceToken)
+    recommendedFlows: guide.readingPaths.slice(0, VISIBLE_FLOW_LIMIT).map((path) =>
+      createFlowPayload(path, sourceDisplay, createSourceToken)
     ),
     eligibleFlowCount: guide.mappedFlowCount,
     omittedFlowCount: Math.max(0, guide.mappedFlowCount - Math.min(
@@ -133,7 +135,7 @@ function createScopePayload(scope: ProjectReadingScopeSummary): ProjectReadingSc
 /** Copies one already-bounded source area into its JSON-only protocol shape. */
 function createAreaPayload(
   area: ProjectScopeReadingGuide["areas"][number],
-  sourcePaths: PortableProjectPathNormalizer
+  sourceDisplay: SourceDisplayFormatter
 ): ProjectReadingAreaPayload {
   return {
     id: `reading-area:${createContentHash(area.id).slice(0, 24)}`,
@@ -144,18 +146,19 @@ function createAreaPayload(
     entrypointCount: area.entrypointCount,
     representativeFilePaths: createRepresentativeFilePaths(
       area.representativeFilePaths,
-      sourcePaths
+      sourceDisplay
     )
   };
 }
 
-/** Projects one representative path and derives display-only boundary stages. */
+/** Projects one recommended path and derives display-only boundary stages. */
 function createFlowPayload(
   path: ProjectReadingPath,
-  sourcePaths: PortableProjectPathNormalizer,
+  sourceDisplay: SourceDisplayFormatter,
   createSourceToken: ProjectReadingSourceTokenFactory | undefined
 ): ProjectReadingFlowPayload {
   const visibleSteps = path.steps.slice(0, VISIBLE_STEP_LIMIT);
+  const recommendation = createVisibleRecommendation(path, visibleSteps);
 
   return {
     id: `reading-flow:${createContentHash(path.id).slice(0, 24)}`,
@@ -164,8 +167,9 @@ function createFlowPayload(
     name: path.name,
     confidence: path.confidence,
     traceStatus: path.traceStatus,
+    recommendation,
     steps: visibleSteps.map((step, index) =>
-      createStepPayload(step, index === visibleSteps.length - 1, sourcePaths, createSourceToken)
+      createStepPayload(step, index === visibleSteps.length - 1, sourceDisplay, createSourceToken)
     ),
     omittedStepCount: Math.max(0, path.totalStepCount - visibleSteps.length),
     depthLimitReached: path.depthLimitReached,
@@ -174,11 +178,65 @@ function createFlowPayload(
   };
 }
 
+/** Keeps START HERE visible even if a malformed/future domain payload exceeds the wire cap. */
+function createVisibleRecommendation(
+  path: ProjectReadingPath,
+  visibleSteps: readonly ProjectReadingStep[]
+): ProjectReadingFlowPayload["recommendation"] {
+  const recommendation = path.recommendation;
+  const targetVisible = recommendation.targetStepIndex !== undefined
+    && recommendation.targetStepIndex >= 0
+    && recommendation.targetStepIndex < visibleSteps.length;
+
+  if (recommendation.targetStepIndex === undefined || targetVisible) {
+    return {
+      ...recommendation,
+      whyRecommended: [...recommendation.whyRecommended],
+      unknowns: [...recommendation.unknowns]
+    };
+  }
+
+  const targetStepIndex = selectVisibleTargetIndex(visibleSteps);
+  return {
+    ...recommendation,
+    targetStepIndex,
+    explanation: targetStepIndex === undefined
+      ? "The recommended target is outside this bounded payload."
+      : "Start with the highlighted visible step; a stronger target is outside this bounded payload.",
+    whyRecommended: [...recommendation.whyRecommended],
+    unknowns: [
+      "The stronger recommended target is outside the visible step budget.",
+      ...recommendation.unknowns
+    ].slice(0, 3)
+  };
+}
+
+/** Selects the strongest visible evidence, then the handler, without guessing a layer. */
+function selectVisibleTargetIndex(
+  steps: readonly ProjectReadingStep[]
+): number | undefined {
+  const predicates: Array<(step: ProjectReadingStep) => boolean> = [
+    (step) => step.readingCues.includes("startHere"),
+    (step) => step.architecture.businessLogic === "domainRuleCandidate",
+    (step) => step.architecture.businessLogic === "applicationWorkflowCandidate",
+    (step) => step.contextInference?.role === "workflowBridgeCandidate",
+    (step) => step.kind === "handler"
+  ];
+
+  for (const predicate of predicates) {
+    const index = steps.findIndex(predicate);
+    if (index >= 0) {
+      return index;
+    }
+  }
+  return steps.length > 0 ? 0 : undefined;
+}
+
 /** Adds presentation stages without strengthening the analyzer's resolution. */
 function createStepPayload(
   step: ProjectReadingStep,
   isLastStep: boolean,
-  sourcePaths: PortableProjectPathNormalizer,
+  sourceDisplay: SourceDisplayFormatter,
   createSourceToken: ProjectReadingSourceTokenFactory | undefined
 ): ProjectReadingStepPayload {
   const boundaryKind = step.boundaryKind ?? getBoundaryKind(step, isLastStep);
@@ -195,7 +253,7 @@ function createStepPayload(
     stages.push("boundary");
   }
 
-  const sourceLocation = createSourceLocation(step, sourcePaths);
+  const sourceLocation = sourceDisplay.location(step.filePath, step.range);
 
   return {
     stages,
@@ -206,6 +264,15 @@ function createStepPayload(
     sourceToken: step.resolution === "concrete" && step.functionId
       ? createSourceToken?.(step.functionId)
       : undefined,
+    architecture: {
+      ...step.architecture,
+      evidence: [...step.architecture.evidence],
+      alternatives: [...step.architecture.alternatives]
+    },
+    contextInference: step.contextInference
+      ? { ...step.contextInference, evidence: [...step.contextInference.evidence] }
+      : undefined,
+    readingCues: [...step.readingCues],
     boundaryKind
   };
 }
@@ -260,13 +327,13 @@ function containsStepHostIdentity(value: string, step: ProjectReadingStep): bool
 /** Keeps at most three unique, safe display paths for one measured source area. */
 function createRepresentativeFilePaths(
   filePaths: readonly string[],
-  sourcePaths: PortableProjectPathNormalizer
+  sourceDisplay: SourceDisplayFormatter
 ): string[] {
   const visiblePaths: string[] = [];
   const seenPaths = new Set<string>();
 
   for (const filePath of filePaths) {
-    const displayPath = createSafeSourceDisplayPath(filePath, sourcePaths);
+    const displayPath = sourceDisplay.path(filePath);
     if (!displayPath || seenPaths.has(displayPath)) {
       continue;
     }
@@ -279,60 +346,6 @@ function createRepresentativeFilePaths(
   }
 
   return visiblePaths;
-}
-
-/** Formats one source-backed step as bounded `relative/path:line` display text. */
-function createSourceLocation(
-  step: ProjectReadingStep,
-  sourcePaths: PortableProjectPathNormalizer
-): string | undefined {
-  const displayPath = createSafeSourceDisplayPath(step.filePath, sourcePaths);
-  if (!displayPath) {
-    return undefined;
-  }
-
-  const startLine = step.range?.startLine;
-  const hasSourceLine = startLine !== undefined
-    && Number.isSafeInteger(startLine)
-    && startLine >= 0;
-  const lineSuffix = hasSourceLine
-    ? `:${startLine + 1}`
-    : "";
-  return boundSourceDisplayText(`${displayPath}${lineSuffix}`);
-}
-
-/** Returns a workspace-relative path or only the basename for out-of-root input. */
-function createSafeSourceDisplayPath(
-  filePath: string,
-  sourcePaths: PortableProjectPathNormalizer
-): string | undefined {
-  const value = filePath.trim();
-  if (!value) {
-    return undefined;
-  }
-
-  const workspace = sourcePaths.normalize();
-  const normalized = sourcePaths.normalize(value);
-  const displayPath = sourcePaths.contains(workspace.key, normalized.key)
-    ? normalized.displayPath
-    : getPortableBaseName(value);
-  return displayPath ? boundSourceDisplayText(displayPath) : undefined;
-}
-
-/** Extracts one filename without consulting host-specific path semantics. */
-function getPortableBaseName(filePath: string): string | undefined {
-  const normalized = filePath.replace(/\\/gu, "/").replace(/\/+$/u, "");
-  const baseName = normalized.slice(normalized.lastIndexOf("/") + 1).trim();
-  return baseName && baseName !== "." && baseName !== ".." ? baseName : undefined;
-}
-
-/** Retains the filename-side tail when source display text exceeds its budget. */
-function boundSourceDisplayText(value: string): string {
-  if (value.length <= SOURCE_DISPLAY_CHARACTER_LIMIT) {
-    return value;
-  }
-
-  return `…${value.slice(-(SOURCE_DISPLAY_CHARACTER_LIMIT - 1))}`;
 }
 
 /** Converts a canonical host scope identity into a short opaque Webview token. */

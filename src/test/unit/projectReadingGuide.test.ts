@@ -15,22 +15,30 @@ import {
   PROJECT_READING_AREA_LIMIT,
   PROJECT_READING_PATH_LIMIT,
   PROJECT_READING_SCOPE_LIMIT,
-  PROJECT_READING_STEP_LIMIT,
-  type ProjectScopeReadingGuide
+  PROJECT_READING_STEP_LIMIT
 } from "../../insights/projectReadingGuide";
 import type {
   SemanticFlow,
   SemanticFlowCoverageGap,
-  SemanticFlowIndex,
   SemanticFlowStep
 } from "../../insights/semanticFlow";
 import type {
   DetectedFramework,
-  FrameworkUnit,
-  ProjectGraph,
-  SourceRange,
-  SymbolNode
+  ProjectGraph
 } from "../../shared/types";
+import {
+  createCallable,
+  createCallStep,
+  createFlowIndex,
+  createFramework,
+  createFrameworkUnit,
+  createGraph,
+  createMappedFlow,
+  createMappingGap,
+  createUnmappedFlow,
+  projectOnlyScope,
+  requireScope
+} from "./helpers/projectReadingGuideFixtures";
 
 test("Project Reading Guide stays independent from application, protocol, and host UI", async () => {
   const projectRoot = path.resolve(__dirname, "../../..");
@@ -225,7 +233,7 @@ test("creates a source-only scope and two-segment source areas without framework
   assert.equal(guide.mappedFlowCount, 0);
 });
 
-test("keeps transport-diverse mapped flows before filling repeated HTTP examples", () => {
+test("uses stable entrypoint identity when paths have equal learning evidence", () => {
   const root = "/workspace/apps/api";
   const flows = [
     createMappedFlow("http:c", "Express", root, "httpRoute", undefined),
@@ -250,12 +258,181 @@ test("keeps transport-diverse mapped flows before filling repeated HTTP examples
   assert.equal(guide.readingPaths.length, PROJECT_READING_PATH_LIMIT);
   assert.deepEqual(
     guide.readingPaths.map((path) => path.transport),
-    ["http", "graphqlQuery", "graphqlMutation"]
+    ["http", "http", "http"]
   );
-  assert.equal(guide.readingPaths[0]?.entrypointUnitId, "http:a");
+  assert.deepEqual(
+    guide.readingPaths.map((path) => path.entrypointUnitId),
+    ["http:a", "http:b", "http:c"]
+  );
   assert.equal(guide.mappedFlowCount, 6);
   assert.equal(guide.omittedMappedFlowCount, 3);
   assert.equal(guide.unmappedEntrypointCount, 1);
+});
+
+test("ranks a business-layer candidate above alphabetic and transport order", () => {
+  const root = "/workspace/apps/api";
+  const plain = createMappedFlow("http:a-plain", "Express", root, "httpRoute", undefined);
+  const recommended = createMappedFlow(
+    "mutation:z-business",
+    "GraphQL",
+    root,
+    "graphqlOperation",
+    "Mutation"
+  );
+  const handlerId = `${recommended.entrypointUnitId}:handler`;
+  recommended.steps.push(
+    createCallStep(
+      "place-order",
+      handlerId,
+      "service",
+      2,
+      "/workspace/apps/api/application/place-order.ts"
+    ),
+    createCallStep(
+      "orders-model",
+      "place-order",
+      "model",
+      3,
+      "/workspace/apps/api/persistence/orders.ts"
+    )
+  );
+  const graph = createGraph({
+    frameworks: [createFramework("Express", root), createFramework("GraphQL", root)],
+    files: [
+      "/workspace/apps/api/routes.ts",
+      "/workspace/apps/api/application/place-order.ts",
+      "/workspace/apps/api/persistence/orders.ts"
+    ],
+    callables: [
+      createCallable("place-order", "/workspace/apps/api/application/place-order.ts"),
+      createCallable("orders-model", "/workspace/apps/api/persistence/orders.ts")
+    ]
+  });
+  const guide = projectOnlyScope(graph, [plain, recommended]);
+
+  assert.equal(guide.readingPaths[0]?.entrypointUnitId, "mutation:z-business");
+  assert.equal(
+    guide.readingPaths[0]?.recommendation.businessReach,
+    "applicationCandidateReached"
+  );
+  assert.equal(guide.readingPaths[0]?.steps[2]?.architecture.layer, "application");
+  assert.deepEqual(guide.readingPaths[0]?.steps[2]?.readingCues, [
+    "startHere",
+    "businessLogicCandidate"
+  ]);
+  assert.equal(guide.readingPaths[0]?.steps.at(-1)?.architecture.layer, "dataAccess");
+  assert.match(guide.readingPaths[0]?.recommendation.explanation ?? "", /purity is unknown/u);
+});
+
+test("prefers exact handler mapping before candidate kind within a complete path tier", () => {
+  const root = "/workspace/apps/api";
+  const inferredDomain = createMappedFlow(
+    "http:inferred-domain",
+    "Express",
+    root,
+    "httpRoute",
+    undefined
+  );
+  const exactApplication = createMappedFlow(
+    "http:exact-application",
+    "Express",
+    root,
+    "httpRoute",
+    undefined
+  );
+  inferredDomain.confidence = "inferred";
+  exactApplication.confidence = "exact";
+  inferredDomain.steps.push(
+    createCallStep(
+      "domain-policy",
+      `${inferredDomain.entrypointUnitId}:handler`,
+      "unknown",
+      2,
+      `${root}/domain/order-policy.ts`
+    ),
+    createCallStep(
+      "domain-store",
+      "domain-policy",
+      "repository",
+      3,
+      `${root}/persistence/domain-store.ts`
+    )
+  );
+  exactApplication.steps.push(
+    createCallStep(
+      "application-workflow",
+      `${exactApplication.entrypointUnitId}:handler`,
+      "service",
+      2,
+      `${root}/application/place-order.ts`
+    ),
+    createCallStep(
+      "application-store",
+      "application-workflow",
+      "repository",
+      3,
+      `${root}/persistence/application-store.ts`
+    )
+  );
+  const graph = createGraph({
+    frameworks: [createFramework("Express", root)],
+    files: [...inferredDomain.steps, ...exactApplication.steps].map((step) => step.filePath),
+    callables: [
+      createCallable("domain-policy", `${root}/domain/order-policy.ts`),
+      createCallable("domain-store", `${root}/persistence/domain-store.ts`),
+      createCallable("application-workflow", `${root}/application/place-order.ts`),
+      createCallable("application-store", `${root}/persistence/application-store.ts`)
+    ]
+  });
+  const guide = projectOnlyScope(graph, [inferredDomain, exactApplication]);
+
+  assert.equal(guide.readingPaths[0]?.entrypointUnitId, "http:exact-application");
+  assert.equal(guide.readingPaths[0]?.confidence, "exact");
+  assert.equal(guide.readingPaths[1]?.recommendation.businessReach, "domainCandidateReached");
+});
+
+test("prefers a reachable domain candidate over an earlier application branch", () => {
+  const root = "/workspace/apps/api";
+  const flow = createMappedFlow("http:domain", "Express", root, "httpRoute", undefined);
+  const handlerId = `${flow.entrypointUnitId}:handler`;
+  flow.steps.push(
+    createCallStep(
+      "application-workflow",
+      handlerId,
+      "unknown",
+      2,
+      "/workspace/apps/api/application/workflow.ts"
+    ),
+    createCallStep(
+      "domain-policy",
+      handlerId,
+      "unknown",
+      3,
+      "/workspace/apps/api/domain/order-policy.ts"
+    ),
+    createCallStep(
+      "orders-store",
+      "domain-policy",
+      "unknown",
+      4,
+      "/workspace/apps/api/persistence/orders.ts"
+    )
+  );
+  const graph = createGraph({
+    frameworks: [createFramework("Express", root)],
+    files: flow.steps.map((step) => step.filePath),
+    callables: [
+      createCallable("application-workflow", "/workspace/apps/api/application/workflow.ts"),
+      createCallable("domain-policy", "/workspace/apps/api/domain/order-policy.ts"),
+      createCallable("orders-store", "/workspace/apps/api/persistence/orders.ts")
+    ]
+  });
+  const path = projectOnlyScope(graph, [flow]).readingPaths[0];
+
+  assert.equal(path?.recommendation.businessReach, "domainCandidateReached");
+  assert.equal(path?.steps[path.recommendation.targetStepIndex ?? -1]?.functionId, "domain-policy");
+  assert.equal(path?.steps.some((step) => step.functionId === "application-workflow"), false);
+  assert.equal(path?.steps.at(-1)?.architecture.layer, "dataAccess");
 });
 
 test("walks an evidence-backed boundary chain instead of stopping at a helper leaf", () => {
@@ -329,6 +506,139 @@ test("walks an evidence-backed boundary chain instead of stopping at a helper le
   assert.equal(readingPath.omittedStepCount, flow.steps.length - PROJECT_READING_STEP_LIMIT);
   assert.equal(readingPath.traceStatus, "limited");
   assert.equal(readingPath.depthLimitReached, true);
+  assert.equal(readingPath.recommendation.businessReach, "workflowBridgeCandidateReached");
+  assert.equal(
+    readingPath.steps[readingPath.recommendation.targetStepIndex ?? -1]?.functionId,
+    "orchestrator"
+  );
+  assert.equal(readingPath.steps[2]?.architecture.layer, "unclassified");
+  assert.equal(readingPath.steps[2]?.contextInference?.confidence, "low");
+  assert.deepEqual(readingPath.steps[2]?.readingCues, [
+    "startHere",
+    "workflowBridgeCandidate"
+  ]);
+});
+
+test("finds a low-confidence workflow bridge in a generic layout without changing its layer", () => {
+  const root = "/workspace/apps/api";
+  const flow = createMappedFlow("http:generic-workflow", "Express", root, "httpRoute", undefined);
+  const handlerId = `${flow.entrypointUnitId}:handler`;
+  flow.steps.push(
+    createCallStep("direct-store", handlerId, "repository", 2, `${root}/persistence/direct.ts`),
+    createCallStep("order-workflow", handlerId, "unknown", 2, `${root}/src/orders.ts`),
+    createCallStep("orders-store", "order-workflow", "repository", 3, `${root}/persistence/orders.ts`)
+  );
+  const graph = createGraph({
+    frameworks: [createFramework("Express", root)],
+    files: flow.steps.map((step) => step.filePath),
+    callables: [
+      createCallable("direct-store", `${root}/persistence/direct.ts`),
+      createCallable("order-workflow", `${root}/src/orders.ts`),
+      createCallable("orders-store", `${root}/persistence/orders.ts`)
+    ]
+  });
+  const forward = projectOnlyScope(graph, [flow]).readingPaths[0];
+  const reversed = projectOnlyScope(
+    { ...graph, nodes: [...graph.nodes].reverse() },
+    [{ ...flow, steps: [...flow.steps].reverse() }]
+  ).readingPaths[0];
+
+  assert.deepEqual(reversed, forward);
+  assert.equal(forward?.recommendation.businessReach, "workflowBridgeCandidateReached");
+  const target = forward?.steps[forward.recommendation.targetStepIndex ?? -1];
+  assert.equal(target?.functionId, "order-workflow");
+  assert.equal(target?.architecture.layer, "unclassified");
+  assert.equal(target?.architecture.businessLogic, "unknown");
+  assert.equal(target?.architecture.purity, "unknown");
+  assert.equal(target?.contextInference?.role, "workflowBridgeCandidate");
+  assert.equal(forward?.steps.at(-1)?.functionId, "orders-store");
+  assert.equal(forward?.steps.at(-1)?.boundaryKind, "repository");
+  assert.equal(forward?.steps.some((step) => step.functionId === "direct-store"), false);
+});
+
+test("does not infer a workflow bridge from direct, unresolved, terminal, or non-local boundaries", () => {
+  const root = "/workspace/apps/api";
+  const fixtures: Array<{ id: string; calls: SemanticFlowStep[] }> = [];
+
+  for (const boundary of ["repository", "unresolved", "terminal", "external"] as const) {
+    const id = `http:no-bridge-${boundary}`;
+    const handlerId = `${id}:handler`;
+    const first = boundary === "repository"
+      ? createCallStep(`${boundary}-target`, handlerId, "repository", 2, `${root}/persistence/direct.ts`)
+      : createCallStep(`${boundary}-helper`, handlerId, "unknown", 2, `${root}/src/${boundary}.ts`);
+    const calls = [first];
+    if (boundary === "unresolved" || boundary === "external") {
+      calls.push({
+        ...createCallStep(`${boundary}-target`, first.functionId ?? "", "unknown", 3, `${root}/src/${boundary}.ts`),
+        resolution: boundary,
+        confidence: boundary === "unresolved" ? "unresolved" : "resolved"
+      });
+    }
+    fixtures.push({ id, calls });
+  }
+
+  for (const fixture of fixtures) {
+    const flow = createMappedFlow(fixture.id, "Express", root, "httpRoute", undefined);
+    flow.steps.push(...fixture.calls);
+    const graph = createGraph({
+      frameworks: [createFramework("Express", root)],
+      files: flow.steps.map((step) => step.filePath),
+      callables: fixture.calls
+        .filter((step) => step.resolution === "concrete" && step.functionId)
+        .map((step) => createCallable(step.functionId ?? "missing", step.filePath))
+    });
+    const path = projectOnlyScope(graph, [flow]).readingPaths[0];
+
+    assert.equal(path?.recommendation.businessReach, "noCandidateObserved", fixture.id);
+    assert.equal(path?.steps.some((step) => step.contextInference !== undefined), false, fixture.id);
+  }
+});
+
+test("ranks mapped, unresolved, then limited paths with equal candidate evidence", () => {
+  const root = "/workspace/apps/api";
+  const limited = createMappedFlow("http:a-limited", "Express", root, "httpRoute", undefined);
+  const unresolved = createMappedFlow("http:m-unresolved", "Express", root, "httpRoute", undefined);
+  const complete = createMappedFlow("http:z-complete", "Express", root, "httpRoute", undefined);
+  for (const flow of [limited, unresolved, complete]) {
+    const handlerId = `${flow.entrypointUnitId}:handler`;
+    flow.steps.push(
+      createCallStep(`${flow.id}:workflow`, handlerId, "unknown", 2, `${root}/application/workflow.ts`),
+      createCallStep(`${flow.id}:store`, `${flow.id}:workflow`, "repository", 3, `${root}/persistence/store.ts`)
+    );
+  }
+  limited.coverageGaps.push({
+    entrypointUnitId: limited.entrypointUnitId,
+    routeUnitId: limited.routeUnitId,
+    reason: "depthLimit",
+    message: "limited fixture",
+    candidateFunctionIds: [],
+    targetFrameworkUnitIds: [],
+    omittedFunctionIds: ["deeper-call"],
+    limit: 2
+  });
+  unresolved.steps.push({
+    ...createCallStep(
+      "dynamic-target",
+      `${unresolved.entrypointUnitId}:handler`,
+      "unknown",
+      2,
+      `${root}/src/dynamic.ts`
+    ),
+    resolution: "unresolved",
+    confidence: "unresolved"
+  });
+  const graph = createGraph({
+    frameworks: [createFramework("Express", root)],
+    files: [...limited.steps, ...unresolved.steps, ...complete.steps].map((step) => step.filePath),
+    callables: [...limited.steps, ...unresolved.steps, ...complete.steps]
+      .filter((step) => step.kind === "call" && step.resolution === "concrete" && step.functionId)
+      .map((step) => createCallable(step.functionId ?? "missing", step.filePath))
+  });
+  const guide = projectOnlyScope(graph, [limited, unresolved, complete]);
+
+  assert.equal(guide.readingPaths[0]?.entrypointUnitId, "http:z-complete");
+  assert.equal(guide.readingPaths[1]?.entrypointUnitId, "http:m-unresolved");
+  assert.equal(guide.readingPaths[2]?.entrypointUnitId, "http:a-limited");
 });
 
 test("keeps fixed top-K projections bounded with exact large-repository counts", () => {
@@ -369,297 +679,3 @@ test("keeps fixed top-K projections bounded with exact large-repository counts",
   );
   assert.equal(projector.projectScope("missing-scope"), undefined);
 });
-
-/** Projects the only visible scope for deterministic flow comparisons. */
-function projectOnlyScope(graph: ProjectGraph, flows: SemanticFlow[]): ProjectScopeReadingGuide {
-  const projector = createProjectReadingGuideProjector(
-    graph,
-    createFlowIndex(graph.version, flows)
-  );
-  return requireScope(projector.projectScope(projector.projectIndex().scopes[0]?.id ?? ""));
-}
-
-/** Narrows an optional scope result inside tests. */
-function requireScope(
-  guide: ProjectScopeReadingGuide | undefined
-): ProjectScopeReadingGuide {
-  assert.ok(guide);
-  return guide;
-}
-
-/** Creates a graph with explicit source file and callable fixtures. */
-function createGraph(options: {
-  frameworks?: DetectedFramework[];
-  units?: FrameworkUnit[];
-  files?: string[];
-  callables?: SymbolNode[];
-} = {}): ProjectGraph {
-  const fileNodes = (options.files ?? []).map((filePath, index) =>
-    createFileNode(`file:${index}:${filePath}`, filePath)
-  );
-  const nodes = fileNodes.concat(options.callables ?? []);
-
-  return {
-    workspaceRoot: "/workspace",
-    version: "project-reading-guide-test",
-    generatedAt: "2026-07-13T00:00:00.000Z",
-    nodes,
-    edges: [],
-    diagnostics: [],
-    metadata: {
-      languages: ["typescript"],
-      frameworks: options.frameworks ?? [],
-      frameworkUnits: options.units ?? [],
-      frameworkUnitEdges: [],
-      fileCount: fileNodes.length,
-      symbolCount: nodes.length,
-      edgeCount: 0
-    }
-  };
-}
-
-/** Creates one deterministic framework detector record. */
-function createFramework(name: string, rootPath: string): DetectedFramework {
-  return {
-    name,
-    ecosystem: "test",
-    category: "backend",
-    confidence: "high",
-    rootPath,
-    evidence: [`${name} fixture`]
-  };
-}
-
-/** Creates one explicit framework unit, which is application-scope evidence. */
-function createFrameworkUnit(id: string, framework: string, rootPath: string): FrameworkUnit {
-  return {
-    id,
-    framework,
-    rootPath,
-    kind: "app",
-    name: id,
-    filePath: `${rootPath}/app.ts`,
-    range: createRange(0)
-  };
-}
-
-/** Creates one file graph node. */
-function createFileNode(id: string, filePath: string): SymbolNode {
-  return {
-    id,
-    kind: "file",
-    name: filePath.split("/").at(-1) ?? filePath,
-    qualifiedName: filePath,
-    filePath,
-    range: createRange(0),
-    selectionRange: createRange(0),
-    language: filePath.endsWith(".py") ? "python" : "typescript"
-  };
-}
-
-/** Creates one callable node assigned by source path. */
-function createCallable(id: string, filePath: string): SymbolNode {
-  return {
-    id,
-    kind: "function",
-    name: id,
-    qualifiedName: id,
-    filePath,
-    range: createRange(1),
-    selectionRange: createRange(1),
-    language: filePath.endsWith(".py") ? "python" : "typescript"
-  };
-}
-
-/** Creates one mapped HTTP or GraphQL semantic flow. */
-function createMappedFlow(
-  id: string,
-  framework: string,
-  rootPath: string,
-  entrypointKind: SemanticFlow["entrypointKind"],
-  operationType: "Query" | "Mutation" | "Subscription" | "Other" | undefined,
-  options: { gaps?: SemanticFlowCoverageGap[] } = {}
-): SemanticFlow {
-  const operation = entrypointKind === "graphqlOperation";
-  const entrypointStep: SemanticFlowStep = {
-    kind: operation ? "operation" : "route",
-    depth: 0,
-    role: operation ? "resolver" : "routeHandler",
-    resolution: "concrete",
-    frameworkUnitId: id,
-    functionId: id,
-    framework,
-    unitKind: operation ? "operation" : "route",
-    name: id,
-    qualifiedName: operation ? `${operationType ?? "Other"}.${id}` : id,
-    filePath: `${rootPath}/routes.ts`,
-    range: createRange(0)
-  };
-  const handlerId = `${id}:handler`;
-  const handlerStep: SemanticFlowStep = {
-    kind: "handler",
-    depth: 1,
-    role: operation ? "resolver" : "routeHandler",
-    resolution: "concrete",
-    frameworkUnitId: `${id}:handler-unit`,
-    functionId: handlerId,
-    framework,
-    unitKind: operation ? "operation" : "controller",
-    name: handlerId,
-    functionName: handlerId,
-    functionQualifiedName: handlerId,
-    filePath: `${rootPath}/handler.ts`,
-    range: createRange(1)
-  };
-
-  return {
-    id,
-    entrypointKind,
-    entrypointUnitId: id,
-    routeUnitId: operation ? undefined : id,
-    framework,
-    rootPath,
-    name: id,
-    steps: [entrypointStep, handlerStep],
-    evidence: [{
-      kind: "directCallable",
-      confidence: "resolved",
-      description: "test mapping",
-      entrypointUnitId: id,
-      routeUnitId: operation ? undefined : id,
-      frameworkUnitId: handlerStep.frameworkUnitId ?? `${id}:handler-unit`,
-      functionId: handlerId
-    }],
-    confidence: "resolved",
-    coverageGaps: options.gaps ?? []
-  };
-}
-
-/** Creates a GraphQL flow with no concrete handler. */
-function createUnmappedFlow(
-  id: string,
-  framework: string,
-  rootPath: string,
-  operationType: "Query" | "Mutation" | "Subscription" | "Other"
-): SemanticFlow {
-  const gap = createMappingGap(id);
-  return {
-    id,
-    entrypointKind: "graphqlOperation",
-    entrypointUnitId: id,
-    framework,
-    rootPath,
-    name: id,
-    steps: [{
-      kind: "operation",
-      depth: 0,
-      role: "resolver",
-      resolution: "unresolved",
-      frameworkUnitId: id,
-      framework,
-      unitKind: "operation",
-      name: id,
-      qualifiedName: `${operationType}.${id}`,
-      filePath: `${rootPath}/schema.ts`,
-      range: createRange(0)
-    }],
-    evidence: [],
-    coverageGaps: [gap]
-  };
-}
-
-/** Creates one mapping gap associated with its entrypoint. */
-function createMappingGap(entrypointUnitId: string): SemanticFlowCoverageGap {
-  return {
-    entrypointUnitId,
-    reason: "handlerNotMapped",
-    message: "test mapping gap",
-    candidateFunctionIds: [],
-    targetFrameworkUnitIds: [],
-    omittedFunctionIds: []
-  };
-}
-
-/** Creates one concrete call step linked to an explicit parent function. */
-function createCallStep(
-  functionId: string,
-  parentFunctionId: string,
-  role: SemanticFlowStep["role"],
-  depth: number,
-  filePath: string
-): SemanticFlowStep {
-  return {
-    kind: "call",
-    depth,
-    role,
-    resolution: "concrete",
-    relation: "calls",
-    parentFunctionId,
-    callEdgeId: `edge:${parentFunctionId}:${functionId}`,
-    confidence: "resolved",
-    functionId,
-    name: functionId,
-    functionName: functionId,
-    functionQualifiedName: functionId,
-    filePath,
-    range: createRange(depth)
-  };
-}
-
-/** Creates all SemanticFlowIndex lookup maps without rebuilding analysis. */
-function createFlowIndex(graphVersion: string, flows: SemanticFlow[]): SemanticFlowIndex {
-  const flowsByEntrypointUnitId = new Map<string, SemanticFlow[]>();
-  const flowsByRouteUnitId = new Map<string, SemanticFlow[]>();
-  const coverageGapsByEntrypointUnitId = new Map<string, SemanticFlowCoverageGap[]>();
-  const coverageGapsByRouteUnitId = new Map<string, SemanticFlowCoverageGap[]>();
-  const coverageGaps: SemanticFlowCoverageGap[] = [];
-
-  for (const flow of flows) {
-    flowsByEntrypointUnitId.set(flow.entrypointUnitId, [flow]);
-    coverageGapsByEntrypointUnitId.set(flow.entrypointUnitId, flow.coverageGaps);
-    coverageGaps.push(...flow.coverageGaps);
-    if (flow.routeUnitId) {
-      flowsByRouteUnitId.set(flow.routeUnitId, [flow]);
-      coverageGapsByRouteUnitId.set(flow.routeUnitId, flow.coverageGaps);
-    }
-  }
-
-  const ambiguousFlows = flows.filter((flow) =>
-    flow.coverageGaps.some((gap) => gap.reason === "ambiguous")
-  );
-
-  return {
-    graphVersion,
-    flows,
-    flowsByEntrypointUnitId,
-    flowsByRouteUnitId,
-    coverageGaps,
-    coverageGapsByEntrypointUnitId,
-    coverageGapsByRouteUnitId,
-    summary: {
-      graphVersion,
-      entrypointCount: flows.length,
-      routeCount: flows.filter((flow) => flow.entrypointKind === "httpRoute").length,
-      operationCount: flows.filter((flow) => flow.entrypointKind === "graphqlOperation").length,
-      mappedHandlerCount: flows.filter((flow) =>
-        flow.steps.some((step) => step.kind === "handler" && step.functionId !== undefined)
-      ).length,
-      ambiguousEntrypointCount: ambiguousFlows.length,
-      ambiguousRouteCount: ambiguousFlows.filter((flow) => flow.entrypointKind === "httpRoute").length,
-      ambiguousOperationCount: ambiguousFlows.filter((flow) => flow.entrypointKind === "graphqlOperation").length,
-      handlerNotMappedCount: flows.filter((flow) =>
-        flow.coverageGaps.some((gap) => gap.reason === "handlerNotMapped")
-      ).length
-    }
-  };
-}
-
-/** Creates a zero-based single-line source range. */
-function createRange(line: number): SourceRange {
-  return {
-    startLine: line,
-    startCharacter: 0,
-    endLine: line,
-    endCharacter: 1
-  };
-}

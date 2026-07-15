@@ -1,5 +1,5 @@
 /**
- * Deterministic representative execution paths for one selected project scope.
+ * Deterministic best-evidenced learning paths for one selected project scope.
  *
  * Only mapped semantic flows are eligible. A path keeps the source entrypoint,
  * one concrete handler, and one fixed child chain. Child traversal is iterative,
@@ -7,6 +7,7 @@
  * visible through exact counters.
  */
 
+import type { FunctionArchitectureIndex } from "../architecturalLayers";
 import type { SemanticFlow, SemanticFlowStep } from "../semanticFlow";
 import {
   compareSemanticFlows,
@@ -18,21 +19,18 @@ import {
   PROJECT_READING_PATH_LIMIT,
   PROJECT_READING_STEP_LIMIT,
   type ProjectReadingBoundaryKind,
+  type ProjectReadingContextInference,
   type ProjectReadingGraphQLOperationType,
   type ProjectReadingPath,
   type ProjectReadingStep,
   type ProjectReadingTraceStatus,
   type ProjectReadingTransport
 } from "./types";
-
-/** Fixed transport order provides diversity without a repository-specific score. */
-const READING_TRANSPORT_ORDER: ProjectReadingTransport[] = [
-  "http",
-  "graphqlQuery",
-  "graphqlMutation",
-  "graphqlSubscription",
-  "graphqlOther"
-];
+import {
+  createReadingRecommendation,
+  getReadingRecommendationRank,
+  getReadingStepArchitecture
+} from "./pathArchitecture";
 
 /** Fixed evidence order prefers explicit semantic boundaries over plain leaves. */
 const BOUNDARY_KIND_ORDER: Record<ProjectReadingBoundaryKind, number> = {
@@ -47,6 +45,16 @@ const BOUNDARY_KIND_ORDER: Record<ProjectReadingBoundaryKind, number> = {
 type SelectedReadingStep = {
   step: SemanticFlowStep;
   boundaryKind?: ProjectReadingBoundaryKind;
+  contextInference?: ProjectReadingContextInference;
+};
+
+/** Fixed reading-only explanation for a topology-derived workflow candidate. */
+const WORKFLOW_BRIDGE_INFERENCE: ProjectReadingContextInference = {
+  role: "workflowBridgeCandidate",
+  confidence: "low",
+  evidence: [
+    "Local function lies between a mapped handler and an explicit effect boundary; topology suggests possible workflow ownership, not layer, business logic, or purity."
+  ]
 };
 
 type CallStepIndex = {
@@ -60,6 +68,17 @@ type BoundaryChain = {
   chain: SemanticFlowStep[];
 };
 
+type ContextualBoundarySelection = {
+  boundaryChain: BoundaryChain;
+  target: SemanticFlowStep;
+};
+
+/** Internal candidate shared by scope top-K and graph-wide top-1 selection. */
+export type ProjectReadingPathCandidate = {
+  flow: SemanticFlow;
+  path: ProjectReadingPath;
+};
+
 /** Bounded mapped-flow projection with exact eligibility and omission counts. */
 export type ProjectReadingPathProjection = {
   readingPaths: ProjectReadingPath[];
@@ -68,70 +87,42 @@ export type ProjectReadingPathProjection = {
   unmappedEntrypointCount: number;
 };
 
-/** Projects up to three identity-ordered mapped flows for a selected scope. */
+/** Projects up to three evidence-ranked mapped flows for a selected scope. */
 export function createProjectReadingPaths(
-  scope: IndexedProjectReadingScope
+  scope: IndexedProjectReadingScope,
+  architectureIndex: FunctionArchitectureIndex
 ): ProjectReadingPathProjection {
-  const selection = selectRepresentativeFlows(scope.flows);
-
-  return {
-    readingPaths: selection.flows.map((flow) => createReadingPath(scope.summary.id, flow)),
-    mappedFlowCount: selection.mappedFlowCount,
-    omittedMappedFlowCount: selection.mappedFlowCount - selection.flows.length,
-    unmappedEntrypointCount: scope.flows.length - selection.mappedFlowCount
-  };
-}
-
-/** Selects one flow per transport bucket before filling any remaining budget. */
-function selectRepresentativeFlows(
-  flows: readonly SemanticFlow[]
-): { flows: SemanticFlow[]; mappedFlowCount: number } {
-  const representativeByTransport = new Map<ProjectReadingTransport, SemanticFlow>();
-  const fallbackFlows: SemanticFlow[] = [];
+  const selected: ProjectReadingPathCandidate[] = [];
   let mappedFlowCount = 0;
 
-  for (const flow of flows) {
+  for (const flow of scope.flows) {
     if (!isMappedSemanticFlow(flow)) {
       continue;
     }
-
     mappedFlowCount += 1;
-    const transport = getReadingTransport(
+    insertRankedReadingPath(selected, {
       flow,
-      flow.entrypointKind === "graphqlOperation"
-        ? getGraphQLOperationType(flow)
-        : undefined
-    );
-    const current = representativeByTransport.get(transport);
-
-    if (!current) {
-      representativeByTransport.set(transport, flow);
-    } else if (compareSemanticFlows(flow, current) < 0) {
-      insertBoundedFlow(fallbackFlows, current);
-      representativeByTransport.set(transport, flow);
-    } else {
-      insertBoundedFlow(fallbackFlows, flow);
-    }
+      path: createProjectReadingPath(scope.summary.id, flow, architectureIndex)
+    });
   }
 
-  const representatives = READING_TRANSPORT_ORDER
-    .map((transport) => representativeByTransport.get(transport))
-    .filter((flow): flow is SemanticFlow => flow !== undefined);
-  const selected = representatives.slice(0, PROJECT_READING_PATH_LIMIT);
-
-  if (selected.length < PROJECT_READING_PATH_LIMIT) {
-    selected.push(...fallbackFlows.slice(0, PROJECT_READING_PATH_LIMIT - selected.length));
-  }
-
-  return { flows: selected, mappedFlowCount };
+  return {
+    readingPaths: selected.map((candidate) => candidate.path),
+    mappedFlowCount,
+    omittedMappedFlowCount: mappedFlowCount - selected.length,
+    unmappedEntrypointCount: scope.flows.length - mappedFlowCount
+  };
 }
 
-/** Inserts one fallback into an already bounded, identity-ordered flow prefix. */
-function insertBoundedFlow(selected: SemanticFlow[], flow: SemanticFlow): void {
+/** Maintains a constant-size prefix ranked by explainable learning evidence. */
+function insertRankedReadingPath(
+  selected: ProjectReadingPathCandidate[],
+  candidate: ProjectReadingPathCandidate
+): void {
   let insertionIndex = 0;
   while (
     insertionIndex < selected.length
-    && compareSemanticFlows(selected[insertionIndex], flow) <= 0
+    && compareProjectReadingPathCandidates(selected[insertionIndex], candidate) <= 0
   ) {
     insertionIndex += 1;
   }
@@ -139,15 +130,47 @@ function insertBoundedFlow(selected: SemanticFlow[], flow: SemanticFlow): void {
   if (insertionIndex >= PROJECT_READING_PATH_LIMIT) {
     return;
   }
-  selected.splice(insertionIndex, 0, flow);
+  selected.splice(insertionIndex, 0, candidate);
   if (selected.length > PROJECT_READING_PATH_LIMIT) {
     selected.pop();
   }
 }
 
-/** Converts one mapped semantic flow into a bounded, linear source-reading path. */
-function createReadingPath(scopeId: string, flow: SemanticFlow): ProjectReadingPath {
-  const selectedSteps = selectReadingSteps(flow.steps);
+/** Orders business reach and evidence before stable flow identity. */
+export function compareProjectReadingPathCandidates(
+  left: ProjectReadingPathCandidate,
+  right: ProjectReadingPathCandidate
+): number {
+  const leftRank = getReadingRecommendationRank(
+    left.path.recommendation,
+    left.path.steps,
+    left.path.unresolvedCallCount,
+    left.path.traceStatus,
+    left.path.confidence
+  );
+  const rightRank = getReadingRecommendationRank(
+    right.path.recommendation,
+    right.path.steps,
+    right.path.unresolvedCallCount,
+    right.path.traceStatus,
+    right.path.confidence
+  );
+  for (let index = 0; index < Math.max(leftRank.length, rightRank.length); index += 1) {
+    const difference = (rightRank[index] ?? 0) - (leftRank[index] ?? 0);
+    if (difference !== 0) {
+      return difference;
+    }
+  }
+  return compareSemanticFlows(left.flow, right.flow);
+}
+
+/** Converts one mapped semantic flow into a bounded, layered source-reading path. */
+export function createProjectReadingPath(
+  scopeId: string,
+  flow: SemanticFlow,
+  architectureIndex: FunctionArchitectureIndex
+): ProjectReadingPath {
+  const selectedSteps = selectReadingSteps(flow.steps, architectureIndex);
   const operationType = flow.entrypointKind === "graphqlOperation"
     ? getGraphQLOperationType(flow)
     : undefined;
@@ -156,6 +179,15 @@ function createReadingPath(scopeId: string, flow: SemanticFlow): ProjectReadingP
   const unresolvedCallCount = flow.steps.filter((step) =>
     step.kind === "call" && step.resolution === "unresolved"
   ).length;
+  const readingSteps = selectedSteps.map((step) => toReadingStep(step, architectureIndex));
+  const omittedStepCount = Math.max(0, flow.steps.length - selectedSteps.length);
+  const recommendation = createReadingRecommendation(
+    readingSteps,
+    depthLimitReached,
+    stepLimitReached,
+    unresolvedCallCount,
+    omittedStepCount
+  );
 
   return {
     id: createReadingPathId(scopeId, flow),
@@ -168,9 +200,10 @@ function createReadingPath(scopeId: string, flow: SemanticFlow): ProjectReadingP
     name: flow.name,
     confidence: flow.confidence,
     traceStatus: getTraceStatus(depthLimitReached, stepLimitReached, unresolvedCallCount),
-    steps: selectedSteps.map(toReadingStep),
+    recommendation,
+    steps: readingSteps,
     totalStepCount: flow.steps.length,
-    omittedStepCount: Math.max(0, flow.steps.length - selectedSteps.length),
+    omittedStepCount,
     depthLimitReached,
     stepLimitReached,
     unresolvedCallCount
@@ -183,7 +216,10 @@ function createReadingPath(scopeId: string, flow: SemanticFlow): ProjectReadingP
  * external, unresolved, side-effect, or observed terminal boundary is chosen
  * from the already bounded semantic flow and walked back to its handler.
  */
-function selectReadingSteps(steps: readonly SemanticFlowStep[]): SelectedReadingStep[] {
+function selectReadingSteps(
+  steps: readonly SemanticFlowStep[],
+  architectureIndex: FunctionArchitectureIndex
+): SelectedReadingStep[] {
   const selected: SelectedReadingStep[] = [];
   const entrypoint = selectMinimumStep(steps, (step) =>
     step.kind === "route" || step.kind === "operation"
@@ -202,24 +238,145 @@ function selectReadingSteps(steps: readonly SemanticFlowStep[]): SelectedReading
   }
 
   const callIndex = createCallStepIndex(steps);
-  const boundaryChain = selectBoundaryChain(handler.functionId, steps, callIndex);
-  if (!boundaryChain) {
+  const businessTarget = selectBusinessTarget(
+    handler.functionId,
+    steps,
+    callIndex,
+    architectureIndex
+  );
+  const contextualSelection = businessTarget
+    ? undefined
+    : selectContextualBoundaryChain(
+      handler.functionId,
+      steps,
+      callIndex,
+      architectureIndex
+    );
+  const boundaryChain = businessTarget
+    ? selectBoundaryChain(handler.functionId, steps, callIndex, businessTarget.functionId)
+    : contextualSelection?.boundaryChain
+      ?? selectBoundaryChain(handler.functionId, steps, callIndex);
+  const targetChain = businessTarget
+    ? walkBoundaryToHandler(handler.functionId, businessTarget, callIndex.callByFunctionId)
+    : undefined;
+  const selectedChain = boundaryChain?.chain ?? targetChain;
+  if (!selectedChain) {
     return selected;
   }
 
+  const contextualTarget = contextualSelection?.target;
   const availableCallSteps = PROJECT_READING_STEP_LIMIT - selected.length;
-  const boundedChain = boundBoundaryChain(boundaryChain.chain, availableCallSteps);
+  const boundedChain = boundLearningChain(
+    selectedChain,
+    availableCallSteps,
+    businessTarget ?? contextualTarget,
+    boundaryChain?.boundary
+  );
 
   for (const step of boundedChain) {
     selected.push({
       step,
-      boundaryKind: step === boundaryChain.boundary
+      boundaryKind: step === boundaryChain?.boundary
         ? boundaryChain.boundaryKind
+        : undefined,
+      contextInference: step === contextualTarget
+        ? { ...WORKFLOW_BRIDGE_INFERENCE, evidence: [...WORKFLOW_BRIDGE_INFERENCE.evidence] }
         : undefined
     });
   }
 
   return selected;
+}
+
+/** Prefers an explicit effect chain containing a safe contextual candidate. */
+function selectContextualBoundaryChain(
+  handlerFunctionId: string,
+  steps: readonly SemanticFlowStep[],
+  callIndex: CallStepIndex,
+  architectureIndex: FunctionArchitectureIndex
+): ContextualBoundarySelection | undefined {
+  let selected: ContextualBoundarySelection | undefined;
+
+  for (const step of steps) {
+    const boundaryKind = getBoundaryKind(step, callIndex.childrenByParentId);
+    if (!boundaryKind || !isExplicitEffectBoundary(boundaryKind)) {
+      continue;
+    }
+    const chain = walkBoundaryToHandler(
+      handlerFunctionId,
+      step,
+      callIndex.callByFunctionId
+    );
+    if (!chain) {
+      continue;
+    }
+    const boundaryChain = { boundaryKind, boundary: step, chain };
+    const target = selectContextualWorkflowTarget(boundaryChain, architectureIndex);
+    if (!target) {
+      continue;
+    }
+    const candidate = { boundaryChain, target };
+    if (!selected || compareContextualSelections(candidate, selected) < 0) {
+      selected = candidate;
+    }
+  }
+
+  return selected;
+}
+
+/** Orders explicit effect semantics, then handler proximity and stable identity. */
+function compareContextualSelections(
+  left: ContextualBoundarySelection,
+  right: ContextualBoundarySelection
+): number {
+  return BOUNDARY_KIND_ORDER[left.boundaryChain.boundaryKind]
+      - BOUNDARY_KIND_ORDER[right.boundaryChain.boundaryKind]
+    || left.target.depth - right.target.depth
+    || compareSemanticFlowSteps(left.target, right.target)
+    || compareBoundaryChains(left.boundaryChain, right.boundaryChain);
+}
+
+/**
+ * Selects the handler-nearest strict interior function on an explicit effect
+ * chain. The intrinsic assessment remains unclassified and unmodified.
+ */
+function selectContextualWorkflowTarget(
+  boundaryChain: BoundaryChain,
+  architectureIndex: FunctionArchitectureIndex
+): SemanticFlowStep | undefined {
+  if (!isExplicitEffectBoundary(boundaryChain.boundaryKind)) {
+    return undefined;
+  }
+
+  for (let index = 0; index < boundaryChain.chain.length - 1; index += 1) {
+    const step = boundaryChain.chain[index];
+    if (
+      step.resolution !== "concrete"
+      || !step.functionId
+      || step.role === "repository"
+      || step.role === "model"
+      || step.role === "external"
+      || step.role === "sideEffect"
+    ) {
+      continue;
+    }
+    const architecture = getReadingStepArchitecture(step, architectureIndex);
+    if (
+      architecture.layer === "unclassified"
+      && architecture.businessLogic === "unknown"
+      && !architecture.conflicted
+    ) {
+      return step;
+    }
+  }
+
+  return undefined;
+}
+
+function isExplicitEffectBoundary(boundaryKind: ProjectReadingBoundaryKind): boolean {
+  return boundaryKind === "repository"
+    || boundaryKind === "model"
+    || boundaryKind === "sideEffect";
 }
 
 /** Builds parent and target indexes once without sorting a wide call branch. */
@@ -255,7 +412,8 @@ function createCallStepIndex(
 function selectBoundaryChain(
   handlerFunctionId: string,
   steps: readonly SemanticFlowStep[],
-  callIndex: CallStepIndex
+  callIndex: CallStepIndex,
+  requiredFunctionId?: string
 ): BoundaryChain | undefined {
   let selected: BoundaryChain | undefined;
 
@@ -273,6 +431,9 @@ function selectBoundaryChain(
     if (!chain) {
       continue;
     }
+    if (requiredFunctionId && !chain.some((item) => item.functionId === requiredFunctionId)) {
+      continue;
+    }
 
     const candidate: BoundaryChain = { boundaryKind, boundary: step, chain };
     if (!selected || compareBoundaryChains(candidate, selected) < 0) {
@@ -281,6 +442,74 @@ function selectBoundaryChain(
   }
 
   return selected;
+}
+
+/** Selects the strongest reachable business candidate without calling it critical. */
+function selectBusinessTarget(
+  handlerFunctionId: string,
+  steps: readonly SemanticFlowStep[],
+  callIndex: CallStepIndex,
+  architectureIndex: FunctionArchitectureIndex
+): SemanticFlowStep | undefined {
+  let selected: SemanticFlowStep | undefined;
+
+  for (const step of steps) {
+    if (step.kind !== "call" || step.resolution !== "concrete" || !step.functionId) {
+      continue;
+    }
+    const architecture = getReadingStepArchitecture(step, architectureIndex);
+    if (
+      architecture.businessLogic !== "domainRuleCandidate"
+      && architecture.businessLogic !== "applicationWorkflowCandidate"
+    ) {
+      continue;
+    }
+    if (!walkBoundaryToHandler(handlerFunctionId, step, callIndex.callByFunctionId)) {
+      continue;
+    }
+    if (!selected || compareBusinessTargets(step, selected, architectureIndex) < 0) {
+      selected = step;
+    }
+  }
+
+  return selected;
+}
+
+/** Orders domain before application, then confidence, distance, and source identity. */
+function compareBusinessTargets(
+  left: SemanticFlowStep,
+  right: SemanticFlowStep,
+  architectureIndex: FunctionArchitectureIndex
+): number {
+  const leftArchitecture = getReadingStepArchitecture(left, architectureIndex);
+  const rightArchitecture = getReadingStepArchitecture(right, architectureIndex);
+  return getBusinessRank(rightArchitecture.businessLogic) - getBusinessRank(leftArchitecture.businessLogic)
+    || getArchitectureConfidenceRank(rightArchitecture.confidence)
+      - getArchitectureConfidenceRank(leftArchitecture.confidence)
+    || left.depth - right.depth
+    || getEdgeConfidenceRank(left.confidence) - getEdgeConfidenceRank(right.confidence)
+    || compareSemanticFlowSteps(left, right);
+}
+
+function getBusinessRank(
+  businessLogic: ProjectReadingStep["architecture"]["businessLogic"]
+): number {
+  return businessLogic === "domainRuleCandidate"
+    ? 2
+    : businessLogic === "applicationWorkflowCandidate" ? 1 : 0;
+}
+
+function getArchitectureConfidenceRank(
+  confidence: ProjectReadingStep["architecture"]["confidence"]
+): number {
+  return confidence === "high" ? 3 : confidence === "medium" ? 2 : confidence === "low" ? 1 : 0;
+}
+
+function getEdgeConfidenceRank(confidence: SemanticFlowStep["confidence"]): number {
+  if (confidence === "exact") return 0;
+  if (confidence === "resolved") return 1;
+  if (confidence === "inferred") return 2;
+  return 3;
 }
 
 /** Walks parentFunctionId links iteratively and rejects cycles or broken chains. */
@@ -344,9 +573,11 @@ function getBoundaryKind(
 }
 
 /** Preserves the handler-side prefix and the selected boundary under the cap. */
-function boundBoundaryChain(
+function boundLearningChain(
   chain: readonly SemanticFlowStep[],
-  limit: number
+  limit: number,
+  learningTarget: SemanticFlowStep | undefined,
+  boundary: SemanticFlowStep | undefined
 ): SemanticFlowStep[] {
   if (chain.length <= limit) {
     return [...chain];
@@ -355,10 +586,25 @@ function boundBoundaryChain(
     return [];
   }
   if (limit === 1) {
-    return [chain[chain.length - 1]];
+    return [learningTarget ?? boundary ?? chain[0]];
   }
 
-  return chain.slice(0, limit - 1).concat(chain[chain.length - 1]);
+  const selectedIndexes = new Set<number>([0]);
+  const targetIndex = learningTarget ? chain.indexOf(learningTarget) : -1;
+  const boundaryIndex = boundary ? chain.indexOf(boundary) : -1;
+  if (targetIndex >= 0) {
+    selectedIndexes.add(targetIndex);
+  }
+  if (boundaryIndex >= 0) {
+    selectedIndexes.add(boundaryIndex);
+  }
+  for (let index = 0; index < chain.length && selectedIndexes.size < limit; index += 1) {
+    selectedIndexes.add(index);
+  }
+  return [...selectedIndexes]
+    .sort((left, right) => left - right)
+    .slice(0, limit)
+    .map((index) => chain[index]);
 }
 
 /** Orders explicit boundary kinds first, then uses stable source identity. */
@@ -397,7 +643,10 @@ function appendWithinLimit(
 }
 
 /** Copies only source-reading fields and preserves analyzer confidence. */
-function toReadingStep(selected: SelectedReadingStep): ProjectReadingStep {
+function toReadingStep(
+  selected: SelectedReadingStep,
+  architectureIndex: FunctionArchitectureIndex
+): ProjectReadingStep {
   const step = selected.step;
   return {
     kind: step.kind,
@@ -413,6 +662,12 @@ function toReadingStep(selected: SelectedReadingStep): ProjectReadingStep {
     filePath: step.filePath,
     range: step.range,
     confidence: step.confidence,
+    unitKind: step.unitKind,
+    architecture: getReadingStepArchitecture(step, architectureIndex),
+    contextInference: selected.contextInference
+      ? { ...selected.contextInference, evidence: [...selected.contextInference.evidence] }
+      : undefined,
+    readingCues: [],
     boundaryKind: selected.boundaryKind
   };
 }

@@ -465,6 +465,7 @@ function compareIndexedScopes(
 /** Orders flows by declared transport and stable source identity, never by score. */
 export function compareSemanticFlows(left: SemanticFlow, right: SemanticFlow): number {
   return getFlowTransportOrder(left) - getFlowTransportOrder(right)
+    || compareText(left.rootPath, right.rootPath)
     || compareText(left.framework, right.framework)
     || compareText(left.name, right.name)
     || compareText(left.entrypointUnitId, right.entrypointUnitId)

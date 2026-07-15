@@ -1,10 +1,11 @@
 /**
- * Bounded Project Reading Guide messages shared by the Extension Host and
+ * Bounded Project Reading Plan messages shared by the Extension Host and
  * Webview. The first payload carries only three scope summaries; source areas
- * and representative execution paths cross the boundary after scope selection.
+ * and evidence-ranked execution paths cross the boundary after scope selection.
  */
 
 import type { EdgeConfidence } from "../shared/types";
+import type { FunctionArchitecturePayload } from "./functionArchitecture";
 import type { SourceNodeToken } from "./sourceNavigation";
 
 /** Opaque host-issued identity used to request one lazy scope projection. */
@@ -60,7 +61,7 @@ export type ProjectReadingAreaPayload = {
   representativeFilePaths: string[];
 };
 
-/** One source-backed step in a representative execution path. */
+/** One source-backed step in a recommended learning path. */
 export type ProjectReadingStepPayload = {
   stages: Array<"entrypoint" | "handler" | "intermediate" | "boundary">;
   role: string;
@@ -71,6 +72,19 @@ export type ProjectReadingStepPayload = {
   sourceLocationKind?: "definition" | "callsite" | "evidence";
   /** Snapshot-local opaque token; analyzer function identities never cross this boundary. */
   sourceToken?: SourceNodeToken;
+  architecture: FunctionArchitecturePayload;
+  contextInference?: {
+    role: "workflowBridgeCandidate";
+    confidence: "low";
+    evidence: string[];
+  };
+  readingCues: Array<
+    | "startHere"
+    | "businessLogicCandidate"
+    | "workflowBridgeCandidate"
+    | "boundary"
+    | "evidenceGap"
+  >;
   boundaryKind?:
     | "repository"
     | "model"
@@ -80,7 +94,21 @@ export type ProjectReadingStepPayload = {
     | "unresolvedCall";
 };
 
-/** One representative, not importance-ranked, mapped flow for a selected scope. */
+/** Why one mapped entrypoint is useful for learning and what remains unknown. */
+export type ProjectReadingRecommendationPayload = {
+  businessReach:
+    | "domainCandidateReached"
+    | "applicationCandidateReached"
+    | "workflowBridgeCandidateReached"
+    | "noCandidateObserved"
+    | "analysisLimited";
+  targetStepIndex?: number;
+  explanation: string;
+  whyRecommended: string[];
+  unknowns: string[];
+};
+
+/** One evidence-ranked learning flow; ranking is not runtime importance. */
 export type ProjectReadingFlowPayload = {
   id: string;
   transport:
@@ -93,6 +121,7 @@ export type ProjectReadingFlowPayload = {
   name: string;
   confidence?: EdgeConfidence;
   traceStatus: "mapped" | "limited" | "unresolved";
+  recommendation: ProjectReadingRecommendationPayload;
   steps: ProjectReadingStepPayload[];
   omittedStepCount: number;
   depthLimitReached: boolean;
@@ -107,7 +136,7 @@ export type ProjectScopeReadingGuidePayload = {
   areas: ProjectReadingAreaPayload[];
   candidateAreaCount: number;
   omittedAreaCount: number;
-  representativeFlows: ProjectReadingFlowPayload[];
+  recommendedFlows: ProjectReadingFlowPayload[];
   eligibleFlowCount: number;
   omittedFlowCount: number;
   unmappedEntrypointCount: number;

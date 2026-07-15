@@ -57,8 +57,18 @@ test("selected scope caps areas, flows, and steps while preserving omission coun
   paths[0].steps[3].filePath = "/private/internal/unresolved.ts";
   paths[0].steps[3].name = "symbol::/Users/private-user/secret.ts::unresolved";
   paths[0].steps[3].qualifiedName = paths[0].steps[3].name;
+  paths[0].steps[2].name = "symbol::/Users/private-user/business.ts::target";
+  paths[0].steps[2].qualifiedName = paths[0].steps[2].name;
   paths[1].steps[0].resolution = "unresolved";
   paths[1].steps[0].functionId = undefined;
+  paths[0].recommendation.targetStepIndex = 6;
+  paths[0].steps.forEach((step) => { step.readingCues = []; });
+  paths[2].steps[2].contextInference = {
+    role: "workflowBridgeCandidate",
+    confidence: "low",
+    evidence: ["Fixture topology inference."]
+  };
+  paths[2].steps[2].readingCues = ["workflowBridgeCandidate"];
   const guide: ProjectScopeReadingGuide = {
     graphVersion: "reading-payload",
     workspaceRoot: "/workspace",
@@ -84,22 +94,32 @@ test("selected scope caps areas, flows, and steps while preserving omission coun
 
   assert.equal(payload.areas.length, 5);
   assert.equal(payload.omittedAreaCount, 7);
-  assert.equal(payload.representativeFlows.length, 3);
+  assert.equal(payload.recommendedFlows.length, 3);
   assert.equal(payload.omittedFlowCount, 5);
-  assert.ok(payload.representativeFlows.every((flow) => flow.steps.length === 5));
-  assert.ok(payload.representativeFlows.every((flow) => flow.omittedStepCount === 2));
-  assert.equal(payload.representativeFlows[0]?.steps[3]?.sourceToken, undefined);
+  assert.ok(payload.recommendedFlows.every((flow) => flow.steps.length === 5));
+  assert.ok(payload.recommendedFlows.every((flow) => flow.omittedStepCount === 2));
+  assert.equal(payload.recommendedFlows[0]?.steps[3]?.sourceToken, undefined);
   assert.match(
-    payload.representativeFlows[0]?.steps[0]?.sourceToken ?? "",
+    payload.recommendedFlows[0]?.steps[0]?.sourceToken ?? "",
     /^source-node:[0-9a-f]{64}$/u
   );
-  assert.equal(payload.representativeFlows[0]?.steps[3]?.boundaryKind, "unresolvedCall");
-  assert.equal(payload.representativeFlows[0]?.steps[3]?.sourceLocationKind, "callsite");
-  assert.equal(payload.representativeFlows[0]?.steps[0]?.sourceLocationKind, "definition");
-  assert.equal(payload.representativeFlows[1]?.steps[0]?.sourceLocationKind, "evidence");
-  assert.equal(payload.representativeFlows[0]?.steps[0]?.sourceLocation, "apps/api/src/step-0.ts:1");
-  assert.equal(payload.representativeFlows[0]?.steps[3]?.sourceLocation, "unresolved.ts:4");
-  assert.equal(payload.representativeFlows[0]?.steps[3]?.label, "Unresolved call");
+  assert.equal(payload.recommendedFlows[0]?.steps[3]?.boundaryKind, "unresolvedCall");
+  assert.equal(payload.recommendedFlows[0]?.steps[3]?.sourceLocationKind, "callsite");
+  assert.equal(payload.recommendedFlows[0]?.steps[0]?.sourceLocationKind, "definition");
+  assert.equal(payload.recommendedFlows[1]?.steps[0]?.sourceLocationKind, "evidence");
+  assert.equal(payload.recommendedFlows[0]?.steps[0]?.sourceLocation, "apps/api/src/step-0.ts:1");
+  assert.equal(payload.recommendedFlows[0]?.steps[3]?.sourceLocation, "unresolved.ts:4");
+  assert.equal(payload.recommendedFlows[0]?.steps[3]?.label, "Unresolved call");
+  assert.equal(payload.recommendedFlows[0]?.steps[2]?.label, "Anonymous callable");
+  assert.equal(payload.recommendedFlows[0]?.steps[2]?.architecture.layer, "application");
+  assert.equal(payload.recommendedFlows[0]?.recommendation.businessReach, "applicationCandidateReached");
+  assert.equal(payload.recommendedFlows[0]?.recommendation.targetStepIndex, 2);
+  assert.match(payload.recommendedFlows[0]?.recommendation.explanation ?? "", /outside this bounded payload/u);
+  assert.match(payload.recommendedFlows[0]?.recommendation.unknowns[0] ?? "", /outside the visible step budget/u);
+  assert.equal(
+    payload.recommendedFlows[2]?.steps[2]?.contextInference?.role,
+    "workflowBridgeCandidate"
+  );
   assert.deepEqual(payload.areas[0]?.representativeFilePaths, [
     "apps/api/src/area-0/index.ts",
     "secret.ts",
@@ -174,6 +194,13 @@ function createReadingPath(value: number): ProjectReadingPath {
     name: `viewer${value}`,
     confidence: "resolved",
     traceStatus: "unresolved",
+    recommendation: {
+      businessReach: "applicationCandidateReached",
+      targetStepIndex: 2,
+      explanation: "Start with the application candidate; purity is unknown.",
+      whyRecommended: ["Path reaches an application-workflow candidate."],
+      unknowns: ["Purity and runtime importance are not verified by static analysis."]
+    },
     steps: kinds.map((kind, stepIndex) => ({
       kind,
       depth: stepIndex,
@@ -193,7 +220,25 @@ function createReadingPath(value: number): ProjectReadingPath {
         endLine: stepIndex,
         endCharacter: 10
       },
-      confidence: stepIndex === 3 ? "unresolved" : "resolved"
+      confidence: stepIndex === 3 ? "unresolved" : "resolved",
+      architecture: {
+        layer: stepIndex === 0
+          ? "entrypoint" as const
+          : stepIndex === 1
+            ? "interface" as const
+            : stepIndex === 3
+              ? "unclassified" as const
+              : stepIndex === 4 ? "dataAccess" as const : "application" as const,
+        confidence: stepIndex === 3 ? "unknown" as const : "medium" as const,
+        businessLogic: stepIndex > 1 && stepIndex !== 3 && stepIndex !== 4
+          ? "applicationWorkflowCandidate" as const
+          : stepIndex === 3 ? "unknown" as const : "notBusinessLogic" as const,
+        purity: "unknown" as const,
+        evidence: ["Fixture layer evidence."],
+        alternatives: [],
+        conflicted: false
+      },
+      readingCues: stepIndex === 2 ? ["startHere" as const, "businessLogicCandidate" as const] : []
     })),
     totalStepCount: 7,
     omittedStepCount: 0,
