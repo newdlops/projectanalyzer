@@ -1,7 +1,7 @@
 /**
- * Browser-injected rendering helpers for the two-stage Project Reading Guide.
- * The initial view is capped at three scope cards; areas and representative
- * paths are rendered only after the Extension Host returns a selected scope.
+ * Browser-injected rendering helpers for the two-stage Project Reading Plan.
+ * The initial view is capped at three scope cards; evidence-ranked entrypoints
+ * and source areas render only after the Host returns a selected scope.
  */
 
 import { getProjectLearningJourneyBrowserSource } from "./projectLearningJourney";
@@ -112,12 +112,36 @@ export function getReadingGuideBrowserSource(): string {
       renderProjectReadingGuide();
     }
 
-    /** Renders source areas and collapsed representative paths for one scope. */
+    /** Renders evidence-ranked entrypoints before the supporting source map. */
     function appendScopeGuide(guide) {
       const heading = document.createElement("div");
       heading.className = "guide-detail-heading";
       heading.textContent = "Inside " + guide.scope.displayPath;
       elements.guideScopeDetail.append(heading);
+
+      appendGuideSectionLabel(elements.guideScopeDetail, "Recommended entrypoints");
+      appendGuideNote(
+        elements.guideScopeDetail,
+        "Ranked by explainable layer coverage and mapping evidence, not runtime importance."
+      );
+      if (guide.recommendedFlows.length === 0) {
+        appendGuideEmpty(
+          elements.guideScopeDetail,
+          guide.unmappedEntrypointCount > 0
+            ? "No uniquely mapped source path in this scope"
+            : "No HTTP or GraphQL path in this scope"
+        );
+      } else {
+        for (const flow of guide.recommendedFlows.slice(0, 3)) {
+          appendGuideFlow(flow);
+        }
+      }
+      if (guide.omittedFlowCount > 0) {
+        appendGuideEmpty(
+          elements.guideScopeDetail,
+          "+" + String(guide.omittedFlowCount) + " other mapped paths in Explore Code Flows"
+        );
+      }
 
       appendGuideSectionLabel(elements.guideScopeDetail, "Source areas");
       if (guide.areas.length === 0) {
@@ -129,26 +153,6 @@ export function getReadingGuideBrowserSource(): string {
       }
       if (guide.omittedAreaCount > 0) {
         appendGuideEmpty(elements.guideScopeDetail, "+" + String(guide.omittedAreaCount) + " more areas");
-      }
-
-      appendGuideSectionLabel(elements.guideScopeDetail, "Representative reading paths");
-      if (guide.representativeFlows.length === 0) {
-        appendGuideEmpty(
-          elements.guideScopeDetail,
-          guide.unmappedEntrypointCount > 0
-            ? "No uniquely mapped source path in this scope"
-            : "No HTTP or GraphQL path in this scope"
-        );
-      } else {
-        for (const flow of guide.representativeFlows.slice(0, 3)) {
-          appendGuideFlow(flow);
-        }
-      }
-      if (guide.omittedFlowCount > 0) {
-        appendGuideEmpty(
-          elements.guideScopeDetail,
-          "+" + String(guide.omittedFlowCount) + " other mapped paths in Explore Code Flows"
-        );
       }
     }
 
@@ -182,42 +186,78 @@ export function getReadingGuideBrowserSource(): string {
       elements.guideScopeDetail.append(row);
     }
 
-    /** Keeps each representative path collapsed until the user asks for symbols. */
+    /** Keeps each recommended path collapsed until the user asks for its evidence. */
     function appendGuideFlow(flow) {
       const disclosure = document.createElement("details");
       const summary = document.createElement("summary");
+      const summaryTitle = document.createElement("span");
+      const summaryReason = document.createElement("span");
       const steps = document.createElement("div");
       disclosure.className = "guide-flow";
       summary.className = "guide-flow-summary";
+      summaryTitle.className = "guide-flow-title";
+      summaryReason.className = "guide-flow-reason";
       steps.className = "guide-flow-steps";
-      summary.textContent = flow.name + " · " + formatTransport(flow.transport);
-      summary.title = "Study reading path: " + flow.name;
+      summaryTitle.textContent = flow.name + " · " + formatTransport(flow.transport);
+      summaryReason.textContent = formatBusinessReach(flow.recommendation.businessReach)
+        + " · mapping " + formatMappingConfidence(flow.confidence);
+      summary.append(summaryTitle, summaryReason);
+      summary.title = "Study recommended path: " + flow.name;
       summary.addEventListener("click", () => {
         recordProjectLearningAction("traceRepresentativePath");
       });
       disclosure.append(summary);
 
-      for (const step of flow.steps.slice(0, 5)) {
-        appendGuideStep(steps, step);
+      const explanation = document.createElement("div");
+      explanation.className = "guide-flow-explanation";
+      explanation.textContent = flow.recommendation.explanation;
+      steps.append(explanation);
+
+      const layers = document.createElement("div");
+      layers.className = "guide-flow-layers";
+      layers.textContent = flow.steps
+        .map((step) => formatArchitectureLayer(step.architecture?.layer))
+        .join(" → ");
+      steps.append(layers);
+
+      for (const reason of flow.recommendation.whyRecommended.slice(0, 3)) {
+        appendGuideEvidenceLine(steps, "Why", reason);
+      }
+
+      for (const [index, step] of flow.steps.slice(0, 5).entries()) {
+        appendGuideStep(steps, step, index, flow.recommendation.targetStepIndex);
       }
       if (flow.omittedStepCount > 0) {
-        appendGuideEmpty(steps, String(flow.omittedStepCount) + " intermediate steps omitted");
+        appendGuideEmpty(steps, String(flow.omittedStepCount) + " analyzed flow steps not shown");
+      }
+      for (const unknown of flow.recommendation.unknowns.slice(0, 3)) {
+        appendGuideEvidenceLine(steps, "Unknown", unknown);
       }
       disclosure.append(steps);
       elements.guideScopeDetail.append(disclosure);
     }
 
-    /** Appends a source button only for concrete graph-backed function identities. */
-    function appendGuideStep(parent, step) {
+    /** Appends layer evidence and a source button only for concrete identities. */
+    function appendGuideStep(parent, step, index, targetStepIndex) {
       const item = document.createElement(step.sourceToken ? "button" : "div");
       const role = document.createElement("span");
       const label = document.createElement("span");
       const location = document.createElement("span");
+      const evidence = document.createElement("span");
+      const architecture = step.architecture || {
+        layer: "unclassified",
+        confidence: "unknown",
+        businessLogic: "unknown",
+        purity: "unknown",
+        evidence: []
+      };
       item.className = "guide-step";
+      item.classList.toggle("recommended", index === targetStepIndex);
       role.className = "guide-step-role";
       label.className = "guide-step-label";
       location.className = "guide-step-location";
-      role.textContent = step.stages.includes("entrypoint") ? "entry" : step.role;
+      evidence.className = "guide-step-evidence";
+      role.textContent = formatArchitectureLayer(architecture.layer);
       label.textContent = step.label;
       const locationPrefix = step.sourceLocationKind === "callsite"
         ? "call site: "
@@ -226,9 +266,22 @@ export function getReadingGuideBrowserSource(): string {
         ? locationPrefix + step.sourceLocation
         : "";
       location.textContent = displayLocation;
+      const cue = formatReadingCue(step.readingCues || [], architecture.businessLogic);
+      const contextualEvidence = step.contextInference?.evidence?.[0];
+      const layerEvidence = architecture.conflicted && architecture.alternatives?.length > 0
+        ? "Conflicting evidence: " + architecture.alternatives.map(formatArchitectureLayer).join(" vs ")
+        : contextualEvidence
+          ? contextualEvidence + " Layer remains Unclassified."
+        : architecture.evidence?.[0] || "No stable layer evidence identified.";
+      const evidenceConfidence = step.contextInference
+        ? "low-confidence topology"
+        : formatArchitectureConfidence(architecture.confidence);
+      evidence.textContent = (cue ? cue + " · " : "")
+        + evidenceConfidence + " · " + layerEvidence;
       if (step.sourceToken) {
         item.type = "button";
-        item.title = "Open " + step.label + (displayLocation ? " · " + displayLocation : "");
+        item.title = (index === targetStepIndex ? "Open recommended start: " : "Open ")
+          + step.label + (displayLocation ? " · " + displayLocation : "");
         item.addEventListener("click", () => {
           postRequest("node/openSource", { nodeId: step.sourceToken }, "Opening reading path source");
           recordProjectLearningAction("verifyConcreteSource");
@@ -238,7 +291,21 @@ export function getReadingGuideBrowserSource(): string {
       if (step.sourceLocation) {
         item.append(location);
       }
+      item.append(evidence);
       parent.append(item);
+    }
+
+    function appendGuideEvidenceLine(parent, label, value) {
+      const line = document.createElement("div");
+      const prefix = document.createElement("span");
+      const copy = document.createElement("span");
+      line.className = "guide-evidence-line";
+      prefix.className = "guide-evidence-label";
+      copy.className = "guide-evidence-copy";
+      prefix.textContent = label;
+      copy.textContent = value;
+      line.append(prefix, copy);
+      parent.append(line);
     }
 
     function appendGuideSectionLabel(parent, label) {
@@ -253,6 +320,13 @@ export function getReadingGuideBrowserSource(): string {
       empty.className = "guide-empty";
       empty.textContent = message;
       parent.append(empty);
+    }
+
+    function appendGuideNote(parent, message) {
+      const note = document.createElement("div");
+      note.className = "guide-note";
+      note.textContent = message;
+      parent.append(note);
     }
 
     function formatScopeStack(scope) {
@@ -287,6 +361,50 @@ export function getReadingGuideBrowserSource(): string {
       if (transport === "graphqlMutation") return "GraphQL Mutation";
       if (transport === "graphqlSubscription") return "GraphQL Subscription";
       return "GraphQL";
+    }
+
+    function formatBusinessReach(reach) {
+      if (reach === "domainCandidateReached") return "Domain-rule candidate found";
+      if (reach === "applicationCandidateReached") return "Application-workflow candidate found";
+      if (reach === "workflowBridgeCandidateReached") return "Workflow bridge candidate found · low confidence";
+      if (reach === "analysisLimited") return "Start at handler · deeper layers limited";
+      return "Start at handler · no business layer identified";
+    }
+
+    function formatArchitectureLayer(layer) {
+      if (layer === "entrypoint") return "Entry";
+      if (layer === "interface") return "Interface";
+      if (layer === "application") return "Application";
+      if (layer === "domain") return "Domain";
+      if (layer === "dataAccess") return "Data access";
+      if (layer === "infrastructure") return "Infrastructure";
+      if (layer === "crossCutting") return "Cross-cutting";
+      if (layer === "test") return "Test";
+      return "Unclassified";
+    }
+
+    function formatArchitectureConfidence(confidence) {
+      if (confidence === "high") return "strong evidence";
+      if (confidence === "medium") return "moderate evidence";
+      if (confidence === "low") return "weak evidence";
+      return "unknown";
+    }
+
+    function formatMappingConfidence(confidence) {
+      if (confidence === "exact") return "exact";
+      if (confidence === "resolved") return "resolved";
+      if (confidence === "inferred") return "inferred";
+      return "unknown";
+    }
+
+    function formatReadingCue(cues, businessLogic) {
+      if (cues.includes("startHere")) return "START HERE";
+      if (businessLogic === "domainRuleCandidate") return "DOMAIN CANDIDATE";
+      if (businessLogic === "applicationWorkflowCandidate") return "WORKFLOW CANDIDATE";
+      if (cues.includes("workflowBridgeCandidate")) return "WORKFLOW BRIDGE · LOW CONFIDENCE";
+      if (cues.includes("boundary")) return "BOUNDARY";
+      if (cues.includes("evidenceGap")) return "EVIDENCE GAP";
+      return "";
     }
   `;
 }

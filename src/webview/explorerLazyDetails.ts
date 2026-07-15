@@ -9,6 +9,7 @@ export function getLazyDetailsBrowserSource(): string {
   return /* js */ `
     /** Clears detail payloads that are valid only for one immutable graph version. */
     function resetGraphScopedDetails() {
+      resetGuidedTourBrowserState();
       state.functionIndex = undefined;
       state.functionIndexLoading = false;
       state.functionIndexRequestVersion = undefined;

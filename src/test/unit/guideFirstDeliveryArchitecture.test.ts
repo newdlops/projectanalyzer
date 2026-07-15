@@ -14,19 +14,31 @@ const projectRoot = path.resolve(__dirname, "../../..");
 test("initial graph publication sends a bounded shell and guide without lazy details", () => {
   const providerPath = path.join(projectRoot, "src", "webview", "explorerViewProvider.ts");
   const source = fs.readFileSync(providerPath, "utf8");
+  const readingGuideDeliverySource = fs.readFileSync(
+    path.join(
+      projectRoot,
+      "src",
+      "webview",
+      "projectReadingGuide",
+      "projectReadingGuideHostDelivery.ts"
+    ),
+    "utf8"
+  );
   const method = extractBetween(
     source,
     "public async publishGraph(graph: ProjectGraph): Promise<void>",
     "private async handleMessage(message: WebviewRequest): Promise<void>"
   );
   const scopeMethod = extractBetween(
-    source,
-    "private async publishReadingGuideScope(",
-    "private async postLatestFunctionIndex("
+    readingGuideDeliverySource,
+    "public async publishScope(",
+    "/** Records a lazy request rejected because another graph is now active. */"
   );
 
   assert.match(method, /projectGraphForSidebarShell\(graph\)/u);
-  assert.match(method, /publishProjectGuide\(graph, activation\.snapshot\.version\)/u);
+  assert.match(method, /projectReadingGuideDelivery\.publishInitial\(graph, activation\.snapshot\.version\)/u);
+  assert.match(method, /createGuidedTourPayload\(/u);
+  assert.match(method, /guidedTourDelivery\.publish\(guidedTour\)/u);
   assert.doesNotMatch(method, /projectGraphForSidebar\(graph\)/u);
   assert.doesNotMatch(method, /publishFunctionIndex\(graph/u);
   assert.doesNotMatch(method, /publishProjectOverview/u);
@@ -36,7 +48,7 @@ test("initial graph publication sends a bounded shell and guide without lazy det
   assert.match(source, /case "function\/index"/u);
   assert.match(source, /graphDelivery\.matches\(request\.graphVersion\)/u);
   assert.match(scopeMethod, /type: "project\/readingGuideScopeFailed"/u);
-  assert.match(scopeMethod, /graphVersion: snapshot\.version, scopeId/u);
+  assert.match(scopeMethod, /graphVersion: snapshot\.version,\s+scopeId/u);
   assert.doesNotMatch(scopeMethod, /type: "error"/u);
 });
 

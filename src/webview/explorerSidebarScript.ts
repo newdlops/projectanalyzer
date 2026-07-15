@@ -10,6 +10,8 @@ import { getOverviewBrowserSource } from "./explorerOverview";
 import { getReadingGuideBrowserSource } from "./explorerReadingGuide";
 import { getVirtualTreeBrowserSource } from "./explorerVirtualTree";
 import { getFunctionSearchBrowserSource } from "./functionSearch";
+import { getGuidedTourBrowserSource } from "./guidedTour";
+import { getSidebarBrowserStateSource } from "./sidebarShell";
 
 /**
  * Builds the sidebar control and file-tree script.
@@ -18,88 +20,24 @@ export function getExplorerSidebarScript(): string {
   const progressiveFileGraphSource = getProgressiveFileGraphBrowserSource();
   const frameworkTreeSource = getFrameworkTreeBrowserSource();
   const functionSearchSource = getFunctionSearchBrowserSource();
+  const guidedTourSource = getGuidedTourBrowserSource();
   const lazyDetailsSource = getLazyDetailsBrowserSource();
   const overviewSource = getOverviewBrowserSource();
   const readingGuideSource = getReadingGuideBrowserSource();
+  const sidebarStateSource = getSidebarBrowserStateSource();
   const virtualTreeSource = getVirtualTreeBrowserSource();
 
   return /* js */ `
     ${progressiveFileGraphSource}
     ${frameworkTreeSource}
     ${functionSearchSource}
+    ${guidedTourSource}
     ${lazyDetailsSource}
     ${overviewSource}
     ${readingGuideSource}
     ${virtualTreeSource}
     const vscode = acquireVsCodeApi();
-    const state = {
-      graph: undefined,
-      structureGraph: undefined,
-      analysisState: "idle",
-      expandedAccordionSections: new Set(),
-      expandedTreeIds: new Set(["root", "function-flows:framework-handlers"]),
-      graphRevision: 0,
-      functionIndex: undefined,
-      functionIndexLoading: false,
-      functionIndexRequestVersion: undefined,
-      functionIndexRevision: 0,
-      functionSearch: undefined,
-      functionSearchActive: false,
-      functionSearchLoading: false,
-      functionSearchPendingCursor: undefined,
-      functionSearchPendingRequestId: undefined,
-      functionSearchQuery: "",
-      functionSearchError: undefined,
-      functionSearchRequestSequence: 0,
-      functionSearchRevision: 0,
-      projectOverview: undefined,
-      projectOverviewLoading: false,
-      projectOverviewRequestVersion: undefined,
-      readingGuide: undefined,
-      scopeGuide: undefined,
-      scopeGuideLoading: false,
-      selectedScopeId: undefined,
-      structureLoading: false,
-      structureMode: "frameworks",
-      structureRequestVersion: undefined,
-      treeRevision: 0,
-      treeRowsCache: new Map(),
-      selectedTreeId: undefined,
-      selectedFunctionId: undefined
-    };
-    const elements = {
-      analyzeWorkspace: document.getElementById("analyze-workspace"),
-      analyzeCurrent: document.getElementById("analyze-current"),
-      showWorkspace: document.getElementById("show-workspace"),
-      exportJson: document.getElementById("export-json"),
-      clearCache: document.getElementById("clear-cache"),
-      status: document.getElementById("status"),
-      guideSummary: document.getElementById("guide-summary"),
-      guideScopes: document.getElementById("guide-scopes"),
-      guideScopeDetail: document.getElementById("guide-scope-detail"),
-      projectBrief: document.getElementById("project-brief"),
-      analysisSignals: document.getElementById("analysis-signals"),
-      callAccordion: document.getElementById("accordion-calls"),
-      structureAccordion: document.getElementById("accordion-structure"),
-      analysisAccordion: document.getElementById("accordion-analysis"),
-      callPanel: document.getElementById("call-panel"),
-      structurePanel: document.getElementById("structure-panel"),
-      analysisPanel: document.getElementById("analysis-panel"),
-      callSection: document.getElementById("call-section"),
-      structureSection: document.getElementById("structure-section"),
-      analysisSection: document.getElementById("analysis-section"),
-      structureFrameworks: document.getElementById("structure-frameworks"),
-      structureFiles: document.getElementById("structure-files"),
-      frameworkTree: document.getElementById("framework-tree"),
-      callTree: document.getElementById("call-tree"),
-      functionSearch: document.getElementById("function-search"),
-      functionSearchInput: document.getElementById("function-search-input"),
-      functionSearchSubmit: document.getElementById("function-search-submit"),
-      functionSearchClear: document.getElementById("function-search-clear"),
-      functionSearchStatus: document.getElementById("function-search-status"),
-      functionSearchMore: document.getElementById("function-search-more"),
-      explorerTree: document.getElementById("explorer-tree")
-    };
+    ${sidebarStateSource}
 
     elements.analyzeWorkspace.addEventListener("click", () => {
       if (state.analysisState === "running") {
@@ -118,6 +56,7 @@ export function getExplorerSidebarScript(): string {
     bindAccordion(elements.structureAccordion, "structure");
     bindAccordion(elements.analysisAccordion, "analysis");
     bindFunctionSearchControls();
+    bindGuidedTourControls();
 
     elements.structureFrameworks.addEventListener("click", () => setStructureMode("frameworks"));
     elements.structureFiles.addEventListener("click", () => setStructureMode("files"));
@@ -201,6 +140,10 @@ export function getExplorerSidebarScript(): string {
         return;
       }
 
+      if (handleGuidedTourHostMessage(message)) {
+        return;
+      }
+
       if (message.type === "project/overviewLoaded") {
         if (
           !isCurrentGraphVersion(message.payload.graphVersion)
@@ -255,6 +198,7 @@ export function getExplorerSidebarScript(): string {
       if (message.type === "analysis/status") {
         state.analysisState = message.payload.state;
         elements.status.textContent = message.payload.message;
+        renderGuidedTour();
         renderActions();
         return;
       }
@@ -269,6 +213,7 @@ export function getExplorerSidebarScript(): string {
         state.scopeGuideLoading = false;
         state.structureLoading = false;
         elements.status.textContent = message.payload.message;
+        renderGuidedTour();
         renderProjectReadingGuide();
         renderAccordionSections();
         renderActions();
@@ -284,6 +229,7 @@ export function getExplorerSidebarScript(): string {
     }
 
     function render() {
+      renderGuidedTour();
       renderProjectReadingGuide();
       renderAccordionSections();
       renderActions();

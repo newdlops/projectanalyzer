@@ -55,7 +55,12 @@ const PROJECT_GUIDE_STYLES = /* css */ `    .project-guide,
     .guide-scope-stack,
     .guide-scope-execution,
     .guide-area-counts,
-    .guide-empty {
+    .guide-empty,
+    .guide-note,
+    .guide-flow-reason,
+    .guide-flow-explanation,
+    .guide-evidence-copy,
+    .guide-step-evidence {
       overflow: hidden;
       color: var(--vscode-descriptionForeground);
       font-size: 11px;
@@ -139,22 +144,69 @@ const PROJECT_GUIDE_STYLES = /* css */ `    .project-guide,
     }
 
     .guide-flow-summary {
-      overflow: hidden;
+      display: flex;
+      min-width: 0;
+      flex-direction: column;
+      gap: 1px;
       cursor: pointer;
       font-size: 11px;
       font-weight: 500;
+    }
+
+    .guide-flow-title,
+    .guide-flow-reason {
+      overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
     }
 
+    .guide-flow-reason {
+      padding-left: 14px;
+      font-size: 10px;
+      font-weight: 400;
+    }
+
     .guide-flow-steps {
-      gap: 1px;
+      gap: 3px;
       padding-top: 3px;
+    }
+
+    .guide-flow-explanation,
+    .guide-note {
+      white-space: normal;
+    }
+
+    .guide-flow-layers {
+      overflow: hidden;
+      padding: 3px 5px;
+      border-radius: 3px;
+      color: var(--vscode-badge-foreground);
+      background: var(--vscode-badge-background);
+      font-size: 10px;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .guide-evidence-line {
+      display: grid;
+      grid-template-columns: 48px minmax(0, 1fr);
+      gap: 5px;
+      padding: 1px 4px;
+    }
+
+    .guide-evidence-label {
+      font-size: 9px;
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+
+    .guide-evidence-copy {
+      white-space: normal;
     }
 
     .guide-step {
       display: grid;
-      grid-template-columns: 62px minmax(0, 1fr);
+      grid-template-columns: 76px minmax(0, 1fr);
       min-width: 0;
       gap: 5px;
       padding: 2px 4px;
@@ -176,6 +228,11 @@ const PROJECT_GUIDE_STYLES = /* css */ `    .project-guide,
       outline-offset: -1px;
     }
 
+    .guide-step.recommended {
+      border-left: 2px solid var(--vscode-focusBorder);
+      background: var(--vscode-list-hoverBackground);
+    }
+
     .guide-step-role {
       overflow: hidden;
       color: var(--vscode-descriptionForeground);
@@ -194,6 +251,13 @@ const PROJECT_GUIDE_STYLES = /* css */ `    .project-guide,
     .guide-step-location {
       min-width: 0;
       grid-column: 2;
+    }
+
+    .guide-step-evidence {
+      min-width: 0;
+      grid-column: 2;
+      font-size: 10px;
+      white-space: normal;
     }
 
     .overview-block {

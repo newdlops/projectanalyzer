@@ -7,6 +7,7 @@ import {
   getSidebarDisclosureStyles
 } from "./explorerSidebarStructureStyles";
 import { getFunctionSearchStyles } from "./functionSearch";
+import { getGuidedTourStyles } from "./guidedTour";
 import { getProjectLearningJourneyStyles } from "./projectLearningJourney";
 
 /** Visual surface that receives the shared explorer styles. */
@@ -243,6 +244,7 @@ export function getExplorerStyles(surface: ExplorerSurface): string {
     }
 
 ${getProjectGuideStyles()}
+${getGuidedTourStyles()}
 ${getProjectLearningJourneyStyles()}
     .list {
       display: flex;

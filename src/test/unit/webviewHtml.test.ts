@@ -56,8 +56,8 @@ test("sidebar HTML starts with a bounded reading guide and lazy detail disclosur
   assert.ok(scriptMatch, "missing sidebar script");
   assert.match(html, /role="tree"/);
   assert.match(html, /Project import tree/);
-  assert.match(html, /Project reading guide/);
-  assert.match(html, /Project Map/);
+  assert.match(html, /Project reading plan/);
+  assert.match(html, /Project Reading Plan/);
   assert.match(html, /id="guide-summary"/);
   assert.match(html, /id="guide-scopes"/);
   assert.match(html, /id="guide-scope-detail"/);
@@ -144,7 +144,11 @@ test("sidebar HTML starts with a bounded reading guide and lazy detail disclosur
   assert.match(scriptMatch[1], /isCurrentGraphVersion/);
   assert.match(scriptMatch[1], /slice\(0, 3\)/);
   assert.match(scriptMatch[1], /slice\(0, 5\)/);
-  assert.match(scriptMatch[1], /Representative reading paths/);
+  assert.match(scriptMatch[1], /Recommended entrypoints/);
+  assert.match(scriptMatch[1], /formatArchitectureLayer/);
+  assert.match(scriptMatch[1], /Workflow bridge candidate found · low confidence/);
+  assert.match(scriptMatch[1], /low-confidence topology/);
+  assert.match(html, /Candidate does not mean pure or business-critical/);
   assert.match(scriptMatch[1], /area\.representativeFilePaths/);
   assert.match(scriptMatch[1], /guide-area-file/);
   assert.doesNotMatch(scriptMatch[1], /file\.addEventListener/);

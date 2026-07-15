@@ -6,8 +6,8 @@
 import * as vscode from "vscode";
 import type { AnalysisBackend } from "../analyzer/core/analysisBackend";
 import { FunctionExplorerProjectionService } from "../application/functionExplorer";
+import { createGuidedTourPayload } from "../application/guidedTour";
 import { ProjectInsightCache } from "../application/projectOverview";
-import { createProjectScopeReadingGuidePayload } from "../application/projectReadingGuide";
 import type {
   AnalysisStatusPayload,
   ExportRequest,
@@ -17,7 +17,6 @@ import type {
 } from "../protocol/messages";
 import { validateWebviewRequest } from "../protocol/webviewRequestValidation";
 import type { FunctionExplorerIndexRequest } from "../protocol/functionExplorer";
-import type { ProjectReadingScopePayloadId } from "../protocol/projectReadingGuide";
 import type { ProjectAnalyzerLogger } from "../observability/logger";
 import { createContentHash } from "../shared/hash";
 import type { ProjectGraph } from "../shared/types";
@@ -38,13 +37,13 @@ import {
   SidebarGraphDelivery,
   withFunctionExplorerVersion,
   withProjectOverviewVersion,
-  withReadingGuideVersion,
-  withReadingScopeVersion,
   withSidebarGraphVersion
 } from "./sidebarGraphDelivery";
 import { getExplorerHtml } from "./webviewHtml";
 import { SourceNodeTokenRegistry } from "./sourceNavigation";
 import { createNonce, exportGraphToJson, openNodeInEditor } from "./webviewHostActions";
+import { GuidedTourHostDelivery } from "./guidedTour/guidedTourHostDelivery";
+import { ProjectReadingGuideHostDelivery } from "./projectReadingGuide";
 
 /** Dependencies required by the sidebar explorer provider. */
 export type ExplorerViewProviderDependencies = {
@@ -80,14 +79,32 @@ export class ExplorerViewProvider implements vscode.WebviewViewProvider {
 
   /** Reuses graph-wide traces across presentation-only refreshes. */
   private readonly projectInsightCache = new ProjectInsightCache();
-
   /** Keeps graph-wide caller/callee metrics out of row expansion refreshes. */
   private readonly functionExplorerProjection = new FunctionExplorerProjectionService();
-
   /** Snapshot-local tokens hide analyzer IDs in tokenized sidebar payloads. */
   private readonly sourceNodeTokens = new SourceNodeTokenRegistry();
 
-  public constructor(private readonly dependencies: ExplorerViewProviderDependencies) {}
+  /** Owns the bounded Reading Guide protocol and lazy scope projection. */
+  private readonly projectReadingGuideDelivery: ProjectReadingGuideHostDelivery;
+
+  /** Owns Guided Tour stop bindings and correlated source-open acknowledgements. */
+  private readonly guidedTourDelivery: GuidedTourHostDelivery;
+
+  public constructor(private readonly dependencies: ExplorerViewProviderDependencies) {
+    this.projectReadingGuideDelivery = new ProjectReadingGuideHostDelivery({
+      graphDelivery: this.graphDelivery,
+      insightCache: this.projectInsightCache,
+      sourceNodeTokens: this.sourceNodeTokens,
+      logger: dependencies.logger,
+      postMessage: (message) => this.postMessage(message)
+    });
+    this.guidedTourDelivery = new GuidedTourHostDelivery({
+      graphMatches: (version) => this.graphDelivery.matches(version),
+      resolveSource: (token) => this.sourceNodeTokens.resolve(token),
+      openSource: (node) => openNodeInEditor(node),
+      postMessage: (message) => this.postMessage(message)
+    });
+  }
 
   /**
    * Resolves the sidebar Webview when the user opens the Project Analyzer view.
@@ -143,7 +160,14 @@ export class ExplorerViewProvider implements vscode.WebviewViewProvider {
       deliveryVersion: activation.snapshot.version
     });
     await this.postMessage({ type: "graph/loaded", payload: sidebarGraph });
-    await this.publishProjectGuide(graph, activation.snapshot.version);
+    await this.projectReadingGuideDelivery.publishInitial(graph, activation.snapshot.version);
+    const guidedTour = createGuidedTourPayload(
+      this.projectInsightCache.get(graph).guidedTour,
+      activation.snapshot.version,
+      graph.workspaceRoot,
+      (nodeId) => this.sourceNodeTokens.createToken(nodeId)
+    );
+    await this.guidedTourDelivery.publish(guidedTour);
     if (GRAPH_RENDERING_ENABLED) {
       await this.dependencies.graphPanelProvider.publishGraph(graph);
     }
@@ -192,14 +216,18 @@ export class ExplorerViewProvider implements vscode.WebviewViewProvider {
           projectionService: this.functionExplorerProjection,
           logger: this.dependencies.logger,
           createSourceToken: (nodeId) => this.sourceNodeTokens.createToken(nodeId),
+          getFunctionArchitecture: (graph) => this.projectInsightCache.get(graph).functionArchitecture,
           postMessage: (response) => this.postMessage(response)
         });
         break;
       case "project/readingGuideScope":
-        await this.publishReadingGuideScope(
+        await this.projectReadingGuideDelivery.publishScope(
           message.payload.graphVersion,
           message.payload.scopeId
         );
+        break;
+      case "project/guidedTourOpenSource":
+        await this.guidedTourDelivery.openSource(message.payload);
         break;
       case "project/loadOverview":
         await this.publishProjectOverview(message.payload.graphVersion);
@@ -401,14 +429,25 @@ export class ExplorerViewProvider implements vscode.WebviewViewProvider {
    * Clears cached graph data and tells the GUI to reset its state.
    */
   private async clearCache(): Promise<void> {
-    await this.dependencies.cacheStore.clear();
+    // Invalidate all in-memory navigation authority before the asynchronous
+    // persisted-cache operation can interleave with another Webview request.
     this.graphDelivery.clear();
     this.projectInsightCache.clear();
     this.functionExplorerProjection.clear();
     this.sourceNodeTokens.clear();
+    this.guidedTourDelivery.clear();
     await this.postMessage({ type: "graph/cleared", payload: {} });
     if (GRAPH_RENDERING_ENABLED) {
       await this.dependencies.graphPanelProvider.clearGraph();
+    }
+    try {
+      await this.dependencies.cacheStore.clear();
+    } catch (error) {
+      this.dependencies.logger.error("sidebar.cacheClear.failed", {
+        error: error instanceof Error ? error.stack ?? error.message : String(error)
+      });
+      await this.postStatus("failed", "In-memory graph cleared; persisted cache could not be cleared");
+      return;
     }
     await this.postStatus("idle", "Cache cleared");
   }
@@ -528,7 +567,8 @@ export class ExplorerViewProvider implements vscode.WebviewViewProvider {
       this.functionExplorerProjection.project(
         graph,
         this.projectInsightCache.get(graph).semanticFlows,
-        request
+        request,
+        this.projectInsightCache.get(graph).functionArchitecture
       ),
       deliveryVersion
     );
@@ -539,24 +579,6 @@ export class ExplorerViewProvider implements vscode.WebviewViewProvider {
       rows: payload.rows.length
     });
     await this.postMessage({ type: "function/indexLoaded", payload });
-  }
-
-  /** Publishes only the bounded first-read guide; all disclosures stay lazy. */
-  private async publishProjectGuide(graph: ProjectGraph, deliveryVersion: string): Promise<void> {
-    const insightSnapshot = this.projectInsightCache.get(graph);
-    const payload = withReadingGuideVersion(
-      insightSnapshot.projectReadingGuidePayload,
-      deliveryVersion
-    );
-
-    this.dependencies.logger.info("sidebar.projectGuide.publish", {
-      candidateScopes: payload.candidateScopeCount,
-      visibleScopes: payload.scopes.length
-    });
-    await this.postMessage({
-      type: "project/readingGuideLoaded",
-      payload
-    });
   }
 
   /** Sends file/framework structure only after Browse Structure is opened. */
@@ -591,55 +613,6 @@ export class ExplorerViewProvider implements vscode.WebviewViewProvider {
       snapshot.version
     );
     await this.postMessage({ type: "project/overviewLoaded", payload });
-  }
-
-  /** Projects source areas and reading paths only for the selected current scope. */
-  private async publishReadingGuideScope(
-    graphVersion: string,
-    scopeId: ProjectReadingScopePayloadId
-  ): Promise<void> {
-    const snapshot = this.graphDelivery.current();
-    if (!snapshot) {
-      await this.postStatus("idle", "Analyze before opening a project scope");
-      return;
-    }
-    if (!this.graphDelivery.matches(graphVersion)) {
-      this.logStaleDelivery("readingGuideScope", graphVersion);
-      return;
-    }
-
-    const insightSnapshot = this.projectInsightCache.get(snapshot.graph);
-    const domainScopeId = this.projectInsightCache.resolveReadingGuideScopeDomainId(
-      snapshot.graph,
-      scopeId
-    );
-    const scopeGuide = domainScopeId
-      ? insightSnapshot.readingGuideProjector.projectScope(domainScopeId)
-      : undefined;
-    if (!scopeGuide) {
-      await this.postMessage({
-        type: "project/readingGuideScopeFailed",
-        payload: {
-          graphVersion: snapshot.version, scopeId,
-          message: "Project scope is no longer available"
-        }
-      });
-      return;
-    }
-
-    const payload = withReadingScopeVersion(
-      createProjectScopeReadingGuidePayload(
-        scopeGuide,
-        (nodeId) => this.sourceNodeTokens.createToken(nodeId)
-      ),
-      snapshot.version
-    );
-    this.dependencies.logger.info("sidebar.projectGuideScope.publish", {
-      areas: payload.areas.length,
-      paths: payload.representativeFlows.length,
-      scopeId
-    });
-    await this.postMessage({ type: "project/readingGuideScopeLoaded", payload });
   }
 
   /** Reposts the Function Explorer index for the active cached graph. */

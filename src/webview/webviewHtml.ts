@@ -60,25 +60,62 @@ function getSidebarHtml(options: WebviewHtmlOptions): string {
         <button id="clear-cache" class="secondary-button" type="button">Clear Cache</button>
       </div>
     </details>
-    <div id="status" class="status">Ready</div>
-    <div id="project-guide" class="project-guide" aria-label="Project reading guide and learning journey">
-      <div class="summary-title">Project Learning Journey</div>
-      <div class="learning-intro">
-        Learn in evidence-backed stages. Discovered and inferred facts stay separate from team-confirmed and demonstrated knowledge.
-      </div>
-      <div id="learning-progress" class="learning-progress" aria-live="polite"></div>
-      <div id="learning-current" class="learning-current"></div>
-      <details class="learning-roadmap-disclosure">
-        <summary>Full onboarding roadmap</summary>
-        <div id="learning-roadmap" class="learning-roadmap"></div>
-      </details>
-      <div class="summary-title learning-evidence-heading">Project Map evidence</div>
-      <div id="guide-summary" class="guide-summary" aria-live="polite"></div>
-      <div class="guide-section-label">Detected scopes</div>
-      <div id="guide-scopes" class="guide-scopes" aria-live="polite"></div>
-      <div id="guide-scope-detail" class="guide-scope-detail" aria-live="polite"></div>
+    <div id="status" class="status" role="status" aria-live="polite">Ready</div>
+    <div class="sidebar-surface-tabs" role="tablist" aria-label="Project learning surface">
+      <button
+        id="surface-guide-tab"
+        class="surface-tab active"
+        type="button"
+        role="tab"
+        aria-selected="true"
+        aria-controls="guided-tour-surface"
+      >Guide</button>
+      <button
+        id="surface-explore-tab"
+        class="surface-tab"
+        type="button"
+        role="tab"
+        aria-selected="false"
+        aria-controls="explore-surface"
+        tabindex="-1"
+      >Explore</button>
     </div>
-    <div class="accordion" aria-label="Detailed explorer sections">
+    <section
+      id="guided-tour-surface"
+      class="sidebar-surface guided-tour-surface"
+      role="tabpanel"
+      aria-labelledby="surface-guide-tab"
+    >
+      <div class="summary-title">Project Guided Tour</div>
+      <div class="learning-intro">
+        Follow one evidence-ranked source path. Opening source records a visit, not understanding.
+      </div>
+      <div id="guided-tour-content" class="guided-tour-content"></div>
+    </section>
+    <section
+      id="explore-surface"
+      class="sidebar-surface explore-surface"
+      role="tabpanel"
+      aria-labelledby="surface-explore-tab"
+      hidden
+    >
+      <div id="project-guide" class="project-guide" aria-label="Project reading plan">
+        <div class="summary-title">Project Reading Plan</div>
+        <div class="learning-intro">
+          Choose a scope, then follow entrypoints ranked by explainable layer evidence. Candidate does not mean pure or business-critical.
+        </div>
+        <div id="guide-summary" class="guide-summary" aria-live="polite"></div>
+        <div class="guide-section-label">Detected scopes</div>
+        <div id="guide-scopes" class="guide-scopes" aria-live="polite"></div>
+        <div id="guide-scope-detail" class="guide-scope-detail" aria-live="polite"></div>
+        <details class="learning-roadmap-disclosure">
+          <summary>Learning method and roadmap</summary>
+          <div id="learning-progress" class="learning-progress" aria-live="polite"></div>
+          <div id="learning-current" class="learning-current"></div>
+          <div id="learning-roadmap" class="learning-roadmap"></div>
+        </details>
+      </div>
+      <div class="accordion" aria-label="Detailed explorer sections">
       <section id="call-section" class="tree-section calls-section collapsed">
         <button id="accordion-calls" class="accordion-header" type="button" aria-expanded="false" aria-controls="call-panel">
           <span class="accordion-disclosure"></span>
@@ -138,7 +175,8 @@ function getSidebarHtml(options: WebviewHtmlOptions): string {
           </div>
         </div>
       </section>
-    </div>
+      </div>
+    </section>
   </div>
   <script nonce="${options.nonce}">${clientScript}</script>
 </body>

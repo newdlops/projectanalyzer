@@ -11,7 +11,13 @@ export type SidebarWebviewRuntime = {
   click(elementId: string): void;
   clickByTitle(title: string): void;
   dispatchMessage(message: unknown): void;
+  getAttribute(elementId: string, name: string): string | undefined;
+  getFocusedElementId(): string | undefined;
   getPersistedState(): unknown;
+  getRenderedText(elementId: string): string[];
+  isDisabled(elementId: string): boolean;
+  isHidden(elementId: string): boolean;
+  keydown(elementId: string, key: string): void;
   keydownByTitle(title: string, key: string): void;
   messages: Array<{ type: string; payload: unknown }>;
   restore(): void;
@@ -32,6 +38,7 @@ export function installSidebarWebviewRuntime(initialWebviewState?: unknown): Sid
   const elements = new Map<string, SidebarFakeElement>();
   let generatedElementId = 0;
   let webviewState = initialWebviewState;
+  let focusedElementId: string | undefined;
 
   /** Returns one persistent fake element because listeners attach by identity. */
   const getOrCreateElement = (id: string): SidebarFakeElement => {
@@ -41,11 +48,13 @@ export function installSidebarWebviewRuntime(initialWebviewState?: unknown): Sid
     }
 
     const listeners = new Map<string, SidebarEventHandler[]>();
+    const attributes = new Map<string, string>();
     const classes = new Set<string>();
     const children: SidebarFakeElement[] = [];
     let textContent = "";
     const element: SidebarFakeElement = {
       id,
+      attributes,
       children,
       className: "",
       classList: {
@@ -84,7 +93,9 @@ export function installSidebarWebviewRuntime(initialWebviewState?: unknown): Sid
       append(...appendedChildren) {
         children.push(...appendedChildren);
       },
-      focus() {},
+      focus() {
+        focusedElementId = id;
+      },
       querySelectorAll(selector) {
         if (selector !== ".explorer-tree") {
           return [];
@@ -103,7 +114,9 @@ export function installSidebarWebviewRuntime(initialWebviewState?: unknown): Sid
       replaceChildren(...replacementChildren) {
         children.splice(0, children.length, ...replacementChildren);
       },
-      setAttribute() {}
+      setAttribute(name, value) {
+        attributes.set(name, value);
+      }
     };
 
     Object.defineProperty(element, "textContent", {
@@ -180,8 +193,31 @@ export function installSidebarWebviewRuntime(initialWebviewState?: unknown): Sid
       assert.ok(handler, "missing sidebar message listener");
       handler({ data: message });
     },
+    getAttribute(elementId, name) {
+      getOrCreateElement(elementId);
+      return elements.get(elementId)?.attributes.get(name);
+    },
+    getFocusedElementId() {
+      return focusedElementId;
+    },
     getPersistedState() {
       return webviewState;
+    },
+    getRenderedText(elementId) {
+      return collectRenderedText(getOrCreateElement(elementId));
+    },
+    isDisabled(elementId) {
+      return getOrCreateElement(elementId).disabled;
+    },
+    isHidden(elementId) {
+      return getOrCreateElement(elementId).hidden;
+    },
+    keydown(elementId, key) {
+      const handlers = elementListeners.get(elementId)?.get("keydown") ?? [];
+      assert.ok(handlers.length > 0, `missing keydown handler for ${elementId}`);
+      for (const handler of handlers) {
+        handler({ key, preventDefault() {} });
+      }
     },
     keydownByTitle(title, key) {
       const element = [...elements.values()].find((candidate) => candidate.title === title);
@@ -206,6 +242,26 @@ export function installSidebarWebviewRuntime(initialWebviewState?: unknown): Sid
   };
 }
 
+/** Collects only text still attached below one fake DOM root after rerenders. */
+function collectRenderedText(root: SidebarFakeElement): string[] {
+  const values: string[] = [];
+  const pending = [root];
+
+  while (pending.length > 0) {
+    const current = pending.pop();
+    if (!current) {
+      continue;
+    }
+    if (current.textContent) {
+      values.push(current.textContent);
+    }
+    for (let index = current.children.length - 1; index >= 0; index -= 1) {
+      pending.push(current.children[index]);
+    }
+  }
+  return values;
+}
+
 /** Restores or removes one global browser shim. */
 function restoreGlobal(name: string, value: unknown): void {
   if (value === undefined) {
@@ -218,6 +274,7 @@ function restoreGlobal(name: string, value: unknown): void {
 type SidebarEventHandler = (event: { preventDefault: () => void; key?: string }) => void;
 
 type SidebarFakeElement = {
+  attributes: Map<string, string>;
   id: string;
   children: SidebarFakeElement[];
   className: string;
