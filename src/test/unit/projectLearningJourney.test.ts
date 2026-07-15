@@ -88,13 +88,13 @@ test("sidebar advances only current-snapshot scope, path, and concrete-source vi
       "1 of 3 orientation actions visited · not a readiness score");
     assert.ok(runtime.textValues.includes("Next 2/3 · Trace one request"));
 
-    runtime.clickByTitle("Study reading path: GET /users/:id");
+    runtime.clickByTitle("Study recommended path: GET /users/:id");
     assert.equal(latestOrientationProgress(runtime.textValues),
       "2 of 3 orientation actions visited · not a readiness score");
     assert.ok(runtime.textValues.includes("Next 3/3 · Verify in source"));
     assert.equal(countMessages(runtime.messages, "node/openSource"), 0);
 
-    runtime.clickByTitle("Open UsersController.findOne · src/users.controller.ts:12");
+    runtime.clickByTitle("Open recommended start: UsersController.findOne · src/users.controller.ts:12");
     assert.equal(latestOrientationProgress(runtime.textValues),
       "3 of 3 orientation actions visited · not a readiness score");
     assert.ok(runtime.textValues.includes("Orientation actions visited"));
@@ -195,10 +195,10 @@ test("reading steps without a source token cannot advance source verification", 
     runtime.dispatchMessage(createReadingGuideLoaded("graph-learning-no-token"));
     runtime.clickByTitle("Inspect apps/api");
     runtime.dispatchMessage(createScopeGuideLoaded("graph-learning-no-token", false));
-    runtime.clickByTitle("Study reading path: GET /users/:id");
+    runtime.clickByTitle("Study recommended path: GET /users/:id");
 
     assert.throws(
-      () => runtime.clickByTitle("Open UsersController.findOne · src/users.controller.ts:12"),
+      () => runtime.clickByTitle("Open recommended start: UsersController.findOne · src/users.controller.ts:12"),
       /missing element titled/u
     );
     assert.equal(latestOrientationProgress(runtime.textValues),
@@ -255,13 +255,13 @@ test("sidebar HTML contains every required learning-journey landmark", () => {
   const html = getSidebarHtml();
   const script = getSidebarScript();
 
-  assert.match(html, /Project Learning Journey/u);
+  assert.match(html, /Project Reading Plan/u);
   assert.match(html, /script-src 'nonce-learning-nonce'/u);
   assert.match(html, /id="learning-progress"[^>]*aria-live="polite"/u);
   assert.match(html, /id="learning-current"/u);
   assert.match(html, /id="learning-roadmap"/u);
-  assert.match(html, /Full onboarding roadmap/u);
-  assert.match(html, /Project Map evidence/u);
+  assert.match(html, /Learning method and roadmap/u);
+  assert.match(html, /Recommended entrypoints/u);
   assert.doesNotMatch(script, /<\/script|\beval\s*\(/u);
 });
 
@@ -359,17 +359,34 @@ function createScopeGuideLoaded(
       }],
       candidateAreaCount: 1,
       omittedAreaCount: 0,
-      representativeFlows: [{
+      recommendedFlows: [{
         id: "reading-flow:users",
         transport: "http",
         framework: "NestJS",
         name: "GET /users/:id",
         confidence: "resolved",
         traceStatus: "limited",
+        recommendation: {
+          businessReach: "analysisLimited",
+          targetStepIndex: 0,
+          explanation: "Start with UsersController.findOne; deeper ownership is limited.",
+          whyRecommended: ["Entrypoint has a uniquely mapped concrete handler."],
+          unknowns: ["Purity and runtime importance are not verified by static analysis."]
+        },
         steps: [{
           stages: ["entrypoint", "handler"],
           role: "controller",
           label: "UsersController.findOne",
+          architecture: {
+            layer: "interface",
+            confidence: "medium",
+            businessLogic: "notBusinessLogic",
+            purity: "unknown",
+            evidence: ["Framework semantic identifies a controller boundary."],
+            alternatives: [],
+            conflicted: false
+          },
+          readingCues: ["startHere"],
           sourceLocation: "src/users.controller.ts:12",
           sourceLocationKind: "definition",
           ...(includeSourceToken ? { sourceToken: `source-node:${"a".repeat(64)}` } : {})
@@ -377,6 +394,16 @@ function createScopeGuideLoaded(
           stages: ["intermediate", "boundary"],
           role: "unresolved",
           label: "Unresolved call",
+          architecture: {
+            layer: "unclassified",
+            confidence: "unknown",
+            businessLogic: "unknown",
+            purity: "unknown",
+            evidence: ["Call target is unresolved."],
+            alternatives: [],
+            conflicted: false
+          },
+          readingCues: ["evidenceGap", "boundary"],
           sourceLocation: "src/users.controller.ts:18",
           sourceLocationKind: "callsite",
           boundaryKind: "unresolvedCall"

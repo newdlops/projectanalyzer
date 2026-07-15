@@ -1,4 +1,4 @@
-/** Theme-aware styles for the bounded Project Learning Journey sidebar card. */
+/** Theme-aware styles for the collapsed project learning-method disclosure. */
 
 /** Returns styles kept with the learning feature instead of the explorer shell. */
 export function getProjectLearningJourneyStyles(): string {

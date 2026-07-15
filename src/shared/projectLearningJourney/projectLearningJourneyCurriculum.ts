@@ -91,11 +91,12 @@ export function createProjectLearningCurriculum(): ProjectLearningCurriculum {
         supportsStages: ["criticalFlows", "dataDependencies"],
         whyItMatters: "Execution order gives isolated files and symbols a concrete purpose.",
         learn:
-          "A representative path is a static reading example, not runtime frequency or business criticality.",
-        inspectEvidence: "Entrypoint, handler, intermediate calls, boundary, confidence, and omissions.",
-        activity: "Expand one HTTP or GraphQL reading path from entrypoint to its shown boundary.",
+          "A recommended path is ranked by explainable static layer evidence, not runtime frequency or business criticality.",
+        inspectEvidence:
+          "Entrypoint, layer evidence, business candidate, boundary, confidence, and unknowns.",
+        activity: "Expand one recommended HTTP or GraphQL path and inspect its START HERE function.",
         explainBack: "What triggers the flow, where does it cross a boundary, and which gaps remain?",
-        exitCriteria: "One representative path disclosure is opened."
+        exitCriteria: "One recommended path disclosure is opened."
       },
       {
         id: "verifyConcreteSource",
