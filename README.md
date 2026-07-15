@@ -1,10 +1,16 @@
 # Project Analyzer
 
-Project Analyzer is a VS Code extension evolving from a code explorer into an evidence-based **Project Learning Journey**. The current slice guides three source-orientation actions; its target roadmap extends from context and architecture to dependencies, safe change, operations, and hands-on proof. Static analysis supplies navigable evidence, but opening a graph is never treated as understanding the system.
+Project Analyzer is a VS Code extension centered on an evidence-backed **Project Guided Tour**. Instead of showing a generic onboarding simulation or asking the reader to choose a scope first, its POC automatically selects one analyzed HTTP/GraphQL path and teaches it one concrete function at a time. The existing Project Reading Plan and complete investigation tools remain available in Explore. Static analysis supplies navigable evidence, but opening source is never treated as understanding the system.
 
-## Project Learning Journey
+## Project Guided Tour POC
 
-The target product roadmap orders eight learning stages. Cumulative progression and stage gates are not enforced by the current slice:
+After analysis, the default Guide surface shows one mission and one current source stop. Each stop explains why it appears now, what to look for in the function, a question to answer, its architectural-layer evidence, and what the reader should be able to explain before moving on. Only an Extension Host acknowledgment after VS Code opens the exact snapshot-bound source token reveals `Next stop`; a click, stale response, or failed open does not count as a visit.
+
+The first POC intentionally promotes only concrete function definitions. Incoming callsite/decorator range navigation, multiple required anchors, related-test verification, persisted progress, non-HTTP execution surfaces, and true multi-root support remain follow-up work. If analysis cannot produce a concrete mission, Guide explains the evidence gap and offers an explicit transition to Explore rather than choosing an arbitrary file.
+
+## Project Reading Plan and Learning Method
+
+The optional learning roadmap orders eight stages. Cumulative progression and stage gates are not enforced by the current slice:
 
 1. **Context** — understand why the project exists, its scope, and its vocabulary.
 2. **Architecture** — identify system boundaries, entrypoints, and major components.
@@ -23,29 +29,35 @@ Why -> Learn -> Inspect evidence -> Do -> Explain back -> Exit criteria
 
 Evidence and progress are kept separate. `Discovered` is a fact found directly in source or configuration; `Inferred` is an analyzer interpretation that still needs checking. `Confirmed` requires a person to validate context or meaning, while `Demonstrated` requires an observable execution, test, debugging session, or change result. The curriculum reserves `Unknown` for missing evidence; the current slice lists the evidence each stage still needs rather than automatically classifying every project gap. The extension does not promote an automatic finding or a visited screen into human confirmation or demonstrated ability.
 
-The current vertical slice shows the full roadmap but tracks only whether the user has visited three concrete investigation actions:
+Explore keeps this earlier method in a collapsed disclosure and tracks only whether the user has visited three concrete investigation actions:
 
 - **Map project** by opening a scope detail.
-- **Trace one representative request** by disclosing a source-backed path.
+- **Trace one recommended request** by disclosing a source-backed path.
 - **Verify in source** by requesting an editor open for a concrete path step.
 
 Visited progress is navigation history, not a claim that the codebase is mastered or that onboarding is complete. The current action card presents the next orientation action's explanation, evidence to inspect, explain-back prompt, and exit criterion as read-only guidance. Capturing and reviewing the learner's answers, human confirmation, and executable proof remain subsequent slices.
 
-## Current Evidence Slice: Project Map and Reading Guide
+## Explore Evidence: Project Map, Layers, and Recommended Entrypoints
 
-Below the Learning Journey card, the current evidence slice starts with a bounded **Project Map**, not a function list or analyzer dashboard. It merges framework evidence and HTTP/GraphQL execution counters by normalized `rootPath`, so NestJS HTTP routes plus GraphQL Query, Mutation, and Subscription operations in the same application appear on one scope card. The initial analyzer payload and Project Map contain at most three scope summaries and no individual function, call edge, diagnostic, or reading-path rows.
+The Explore surface preserves the bounded **Project Reading Plan** behind the default Guided Tour. It merges framework evidence and HTTP/GraphQL execution counters by normalized `rootPath`, so NestJS HTTP routes plus GraphQL Query, Mutation, and Subscription operations in the same application appear on one scope card. Its initial payload contains at most three scope summaries and no individual function, call edge, diagnostic, or alternative reading-path rows.
 
-Selecting a scope lazily requests its second-stage reading guide from the Extension Host. That detail is capped at five measured source areas and three representative mapped HTTP/GraphQL paths, with at most three representative file labels per area and five source steps per path. File labels and step locations use workspace-relative paths; sources outside the workspace are reduced to filename-only safe abbreviations. Concrete steps show definition locations and open source through snapshot-local opaque tokens. Unresolved/external call steps label edge-local positions as call sites, while non-call framework mapping positions remain source evidence; neither becomes a source-navigation button. Representative area files remain non-interactive. Representative means a deterministic, source-backed example across transport types; it is not a claim that a function or business domain is the most important part of the project.
+Selecting a scope lazily requests its second-stage plan from the Extension Host. Recommended entrypoints appear before source areas. The detail is capped at five measured source areas and three mapped HTTP/GraphQL learning paths, with at most three file labels per area and five source steps per path. File labels and step locations use workspace-relative paths; sources outside the workspace are reduced to filename-only safe abbreviations. Concrete steps show definition locations and open source through snapshot-local opaque tokens. Unresolved/external call steps label edge-local positions as call sites, while non-call framework mapping positions remain source evidence; neither becomes a source-navigation button. Area files remain non-interactive.
+
+Path selection is educational evidence ranking, not business criticality. It prefers a reachable domain-rule candidate, then an application-workflow candidate. When neither intrinsic candidate exists, a concrete local function strictly between the mapped handler and an explicit repository, model, or side-effect boundary can become a low-confidence **Workflow bridge candidate**. This topology hint keeps the function's layer `Unclassified` and does not prove business ownership or purity; unresolved calls, observed terminals, and generic non-local/external calls are not effect evidence and cannot create the hint. Remaining paths rank mapped traces before unresolved and traversal-limited traces, followed by stronger layer evidence, fewer unresolved calls, shorter distance, and stable identity.
+
+Each expanded path shows a concrete ribbon such as `Entry → Interface → Application/Domain candidate → Data access/Infrastructure` or `Entry → Interface → Unclassified workflow bridge → Data access/effect boundary`, explains why it was recommended, highlights a `START HERE` function, and lists what remains unknown. Traversal limits prevent a false conclusion that no deeper business layer exists.
+
+Callable architecture is a separate graph-wide insight shared by the Reading Plan, request-flow rows, and complete function search. Its structural vocabulary is `Interface`, `Application`, `Domain`, `Data access`, `Infrastructure`, `Cross-cutting`, `Test`, and `Unclassified`. Anchored source structures such as `domain/`, `application/`, `persistence/`, `adapters/in`, and `adapters/out` can provide evidence. Existing framework semantics provide additional evidence: for example, a detected service is only an **Application workflow candidate**, never automatic Domain logic. Conflicting strong evidence stays `Unclassified` with alternatives, test source wins over production-looking labels, and generic names or folders such as `services`, `auth`, `core`, and `utils` do not decide a layer. Purity is always shown as unverified because the analyzer cannot prove absence of I/O, global state, dynamic dispatch, or hidden side effects.
 
 **Analysis Details** is closed by default. Opening it reveals the existing three factual analysis lines and at most three evidence-backed gap signals. These signals retain exact candidate and affected counts and describe analysis limitations or unresolved mappings, not runtime, security, or performance defects.
 
-The Extension Host caches the semantic-flow index and Reading Guide projector for one immutable graph snapshot. Initial graph publication sends a constant-size graph shell plus the bounded Project Map; it does not send file/import rows, raw framework-unit/evidence rows, overview signals, or Function Index rows. **Browse Structure**, **Analysis Details**, and **Explore Code Flows** each request their data only when first opened. A Webview-only snapshot token, separate from the analyzer schema version, rejects late responses from an older analysis.
+The Extension Host caches the semantic-flow index, callable architecture index, and Reading Plan projector for one immutable graph snapshot. Initial graph publication sends a constant-size graph shell plus the bounded Project Map; it does not send file/import rows, raw framework-unit/evidence rows, overview signals, or Function Index rows. **Browse Structure**, **Analysis Details**, and **Explore Code Flows** each request their data only when first opened. A Webview-only snapshot token, separate from the analyzer schema version, rejects late responses from an older analysis.
 
-The Project Map and Reading Guide provide analyzer evidence for the first learning actions; they do not by themselves confirm project purpose, ownership, production behavior, or user comprehension. The roadmap keeps unsupported context outside automatic claims and states which source, documentation, execution, or team evidence is still needed.
+The Project Map and Reading Plan provide analyzer evidence for the first learning actions; they do not by themselves confirm project purpose, ownership, production behavior, runtime importance, purity, or user comprehension. The roadmap keeps unsupported context outside automatic claims and states which source, documentation, execution, or team evidence is still needed.
 
 ## Request Flows
 
-**Explore Code Flows** is closed by default. Opening it lazily requests the Function Index and shows bounded flow summaries. Its search box queries the complete concrete callable set by function name, qualified name, or source path; an empty query browses all concrete functions. Results arrive in 50-row cursor pages and open source directly through snapshot-local opaque tokens, so finding a function does not require transferring the full inventory or path-bearing analyzer IDs to the Webview. Search responses also echo a browser request identity, preventing a late response from an earlier same-text request from replacing current results. Workspace analysis normalizes HTTP route-to-handler entrypoints for Django, FastAPI, Express, and NestJS, and code-first GraphQL root operations for NestJS GraphQL and Strawberry. Large workspaces start with collapsed framework summaries instead of rendering every entrypoint at once.
+**Explore Code Flows** is closed by default. Opening it lazily requests the Function Index and shows bounded flow summaries with the same architecture assessment used by the Reading Plan. Its search box queries the complete concrete callable set by function name, qualified name, or source path; an empty query browses all concrete functions and places supported Domain/Application candidates ahead of unclassified callables. Results arrive in 50-row cursor pages and open source directly through snapshot-local opaque tokens, so finding a function does not require transferring the full inventory or path-bearing analyzer IDs to the Webview. Search responses also echo a browser request identity, preventing a late response from an earlier same-text request from replacing current results. Workspace analysis normalizes HTTP route-to-handler entrypoints for Django, FastAPI, Express, and NestJS, and code-first GraphQL root operations for NestJS GraphQL and Strawberry. Large workspaces start with collapsed framework summaries instead of rendering every entrypoint at once.
 
 ```text
 GET /users/:id
@@ -100,7 +112,7 @@ npm run engine:build
 npm run compile
 ```
 
-Open the repository in VS Code and run `Run Project Analyzer Extension` from the Run and Debug view. The extension contributes a Project Analyzer Activity Bar container with a Project Learning Journey sidebar. The current scaffold uses a Rust analyzer engine for workspace/current-file analysis, with a TypeScript fallback for development failures.
+Open the repository in VS Code and run `Run Project Analyzer Extension` from the Run and Debug view. The extension contributes a Project Analyzer Activity Bar container with Guide and Explore surfaces. The current scaffold uses a Rust analyzer engine for workspace/current-file analysis, with a TypeScript fallback for development failures.
 
 ## Rust Engine
 
@@ -123,10 +135,16 @@ Packaging builds one target-specific native engine, excludes Cargo build artifac
 
 - Analyze Workspace
 - Analyze Current File
-- Review the full Project Learning Journey roadmap without treating it as a completion score
-- Track visited progress for Map project, Trace one representative request, and a Verify in source request
-- Review at most three normalized project scopes without loading function rows
-- Select a scope to load bounded source areas and representative reading paths
+- Follow one automatically selected mission and one current definition stop at a time
+- Open the current function and wait for source-open acknowledgment before moving to the next stop
+- Use `Why now`, `Look for`, the question, layer evidence, unknowns, and `Move on when` as a source-reading checklist
+- Switch to Explore without losing the existing Project Reading Plan and detailed investigation tools
+- Review the optional learning-method roadmap without treating it as a completion score
+- Review at most three normalized project scopes in Explore without loading function rows
+- Select a scope to load evidence-ranked entrypoints before bounded source areas
+- Review Entry, Interface, Application, Domain, Data access, Infrastructure, Cross-cutting, Test, or Unclassified evidence per function
+- Open the recommended `START HERE` function while keeping purity and runtime importance unverified
+- Treat a low-confidence Workflow bridge as a reading hint, never as an inferred layer or proven business owner
 - Open Analysis Details for the three-line Project Brief and evidence-backed signals
 - Open Explore Code Flows to lazily load HTTP/GraphQL summaries and bounded downstream calls
 - Search every concrete callable by function name or source path and open a result directly
