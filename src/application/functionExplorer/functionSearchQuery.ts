@@ -6,6 +6,12 @@
  */
 
 import type { FunctionIndexNode } from "../../graph/functionIndex";
+import {
+  createFunctionArchitecturePayload,
+  formatFunctionArchitectureSummary
+} from "../functionArchitecture";
+import type { FunctionArchitectureIndex } from "../../insights/architecturalLayers";
+import type { FunctionArchitecturePayload } from "../../protocol/functionArchitecture";
 import type {
   FunctionExplorerSearchRow,
   FunctionExplorerSearchPayload,
@@ -22,6 +28,7 @@ export const FUNCTION_SEARCH_MAX_PAGE_SIZE = 100;
 export type FunctionSearchQueryInput = {
   workspaceRoot: string;
   nodes: readonly FunctionIndexNode[];
+  architectureIndex?: FunctionArchitectureIndex;
   request: FunctionExplorerSearchRequest;
   /** Host-owned token factory; raw graph identities are never serialized. */
   createSourceToken?(nodeId: string): SourceNodeToken | undefined;
@@ -33,6 +40,7 @@ type FunctionSearchMatch = {
   locationPath: string;
   matchScore: number;
   relevanceScore: number;
+  architecture?: FunctionArchitecturePayload;
 };
 
 /** Cursor fields are intentionally private so clients treat the token as opaque. */
@@ -74,11 +82,14 @@ export function searchFunctionIndex(
       continue;
     }
 
+    const assessment = input.architectureIndex?.assessmentsByFunctionId.get(node.id);
+    const architecture = assessment ? createFunctionArchitecturePayload(assessment) : undefined;
     matches.push({
       node,
       locationPath,
       matchScore,
-      relevanceScore: getRelevanceScore(node)
+      relevanceScore: getRelevanceScore(node, architecture),
+      architecture
     });
   }
 
@@ -187,11 +198,18 @@ function scorePathMatch(
 }
 
 /** Uses existing direct metrics only as a tie-breaker after textual relevance. */
-function getRelevanceScore(node: FunctionIndexNode): number {
+function getRelevanceScore(
+  node: FunctionIndexNode,
+  architecture: FunctionArchitecturePayload | undefined
+): number {
   const roleScore = node.role === "entrypoint" ? 100 : node.role === "utility" ? 25 : 0;
   const placeholderScore = node.kind === "unresolved" ? 40 : node.kind === "external" ? 20 : 0;
+  const architectureScore = architecture?.businessLogic === "domainRuleCandidate"
+    ? 300
+    : architecture?.businessLogic === "applicationWorkflowCandidate" ? 240 : 0;
 
   return roleScore
+    + architectureScore
     + placeholderScore
     + node.metrics.directCallerCount * 4
     + node.metrics.directCalleeCount * 3
@@ -235,6 +253,7 @@ function createSearchRow(
     role: node.role,
     tags: [...node.tags],
     metrics: { ...node.metrics },
+    architecture: match.architecture,
     confidence: node.confidence
   };
 
@@ -285,7 +304,7 @@ function containsHostIdentity(value: string, node: FunctionIndexNode): boolean {
 function createConcreteDetail(match: FunctionSearchMatch): string {
   const lineSuffix = match.node.range ? `:${match.node.range.startLine + 1}` : "";
   const metrics = match.node.metrics;
-  return `${match.locationPath}${lineSuffix} · ${match.node.role} · `
+  return `${match.locationPath}${lineSuffix} · ${formatFunctionArchitectureSummary(match.architecture)} · `
     + `${metrics.directCallerCount} callers · ${metrics.directCalleeCount} callees`;
 }
 
@@ -344,7 +363,7 @@ function createCursorSignature(
     normalizedQuery,
     includeExternal,
     includeUnresolved,
-    "relevance-path"
+    "architecture-relevance-path"
   ]));
 }
 

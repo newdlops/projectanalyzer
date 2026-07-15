@@ -6,6 +6,7 @@
  */
 
 import type { EdgeConfidence, SourceRange } from "../shared/types";
+import type { FunctionArchitecturePayload } from "./functionArchitecture";
 import type { SourceNodeToken } from "./sourceNavigation";
 
 /** Primitive values accepted in Function Explorer protocol metadata. */
@@ -217,6 +218,8 @@ export type FunctionExplorerRow = {
   role?: FunctionExplorerRole;
   tags?: FunctionExplorerTag[];
   metrics?: FunctionExplorerMetrics;
+  /** Evidence-backed structural layer; independent from raw function role. */
+  architecture?: FunctionArchitecturePayload;
   confidence?: EdgeConfidence;
   childCursor?: string;
   metadata?: { [key: string]: FunctionExplorerJsonValue };

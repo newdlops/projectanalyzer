@@ -82,11 +82,17 @@ test("Django and Express routes fall back to routesTo target callables", () => {
     "controllers/orders.ts",
     18
   );
+  expressController.range = {
+    startLine: 18,
+    startCharacter: 0,
+    endLine: 22,
+    endCharacter: 1
+  };
   const graph = createGraph(
     [djangoRoute, djangoView, expressRoute, expressController],
     [
       createNode("django-handler", "book_list", "books/views.py", 12, "python"),
-      createNode("express-handler", "listOrders", "controllers/orders.ts", 18, "typescript")
+      createNode("express-handler", "listOrders", "controllers/orders.ts", 22, "typescript")
     ],
     [
       createRouteEdge(djangoRoute, djangoView, "inferred", { functionId: "edge-metadata-decoy" }),
@@ -102,6 +108,7 @@ test("Django and Express routes fall back to routesTo target callables", () => {
   assert.equal(djangoFlow.confidence, "inferred");
   assert.deepEqual(djangoFlow.evidence.map((evidence) => evidence.kind), ["routesTo", "targetCallable"]);
   assert.equal(requireHandler(expressFlow).functionId, "express-handler");
+  assert.equal(requireHandler(expressFlow).range?.startLine, 22);
   assert.equal(expressFlow.confidence, "exact");
   assert.equal(index.summary.mappedHandlerCount, 2);
 });

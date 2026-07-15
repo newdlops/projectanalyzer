@@ -8,7 +8,8 @@
 
 import {
   createFunctionFrameworkSemantics,
-  type FunctionFrameworkSemantic
+  type FunctionFrameworkSemantic,
+  type FunctionFrameworkSemantics
 } from "../../graph/functionFrameworkSemantics";
 import type {
   EdgeConfidence,
@@ -57,14 +58,16 @@ const CONFIDENCE_RANK: Record<EdgeConfidence, number> = {
  * The function reuses the framework semantic linker as its only callable
  * binding source. Framework metadata payloads and identifier shapes are never
  * interpreted, keeping this domain index independent from analyzer internals.
+ * A caller may inject one graph-wide semantic snapshot to share the scan with
+ * other insights; standalone callers receive the same deterministic default.
  */
 export function createSemanticFlowIndex(
   graph: ProjectGraph,
-  options: CreateSemanticFlowIndexOptions = {}
+  options: CreateSemanticFlowIndexOptions = {},
+  semantics: FunctionFrameworkSemantics = createFunctionFrameworkSemantics(graph)
 ): SemanticFlowIndex {
   const frameworkUnits = graph.metadata.frameworkUnits ?? [];
   const frameworkUnitEdges = graph.metadata.frameworkUnitEdges ?? [];
-  const semantics = createFunctionFrameworkSemantics(graph);
   const unitsById = createFrameworkUnitIndex(frameworkUnits);
   const nodesById = createNodeIndex(graph.nodes);
   const routeTargetsByRouteId = createRouteTargetIndex(frameworkUnitEdges, unitsById);
@@ -296,8 +299,11 @@ function createFrameworkStep(
     qualifiedName: unit.qualifiedName,
     functionName: functionNode?.name,
     functionQualifiedName: functionNode?.qualifiedName,
-    filePath: unit.filePath,
-    range: unit.range
+    // A mapped callable is a definition stop. Framework unit coordinates stay
+    // available through frameworkUnitId as mapping evidence, but must not be
+    // presented as though a decorator/controller range were the function body.
+    filePath: functionNode?.filePath ?? unit.filePath,
+    range: functionNode?.range ?? unit.range
   };
 }
 

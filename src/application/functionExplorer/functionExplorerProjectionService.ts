@@ -17,6 +17,10 @@ import {
 } from "../../graph/functionIndex";
 import { createFunctionExplorerPayload } from "../../graph/functionIndexPayload";
 import { analyzeChangeImpact } from "../../insights/changeImpact";
+import {
+  createFunctionArchitectureIndex,
+  type FunctionArchitectureIndex
+} from "../../insights/architecturalLayers";
 import type { SemanticFlowIndex } from "../../insights/semanticFlow";
 import type {
   FunctionExplorerIndexRequest,
@@ -32,9 +36,10 @@ import { searchFunctionIndex } from "./functionSearchQuery";
 type FunctionIndexProjectionCache = {
   graph: ProjectGraph;
   projector: FunctionIndexProjector;
+  architecture: FunctionArchitectureIndex;
 };
 
-/** Builds bounded Function Explorer payloads and owns graph-wide index reuse. */
+/** Builds bounded payloads while reusing an injected or locally-owned graph index. */
 export class FunctionExplorerProjectionService {
   private cached: FunctionIndexProjectionCache | undefined;
 
@@ -42,7 +47,8 @@ export class FunctionExplorerProjectionService {
   public project(
     graph: ProjectGraph,
     semanticFlows: SemanticFlowIndex,
-    request: FunctionExplorerIndexRequest = {}
+    request: FunctionExplorerIndexRequest = {},
+    architectureIndex?: FunctionArchitectureIndex
   ): FunctionExplorerPayload {
     const selectedFunctionId = request.options?.selectedFunctionId;
     const expandedTreeIds = request.options?.expandedRowIds
@@ -50,7 +56,8 @@ export class FunctionExplorerProjectionService {
     const changeImpact = selectedFunctionId
       ? analyzeChangeImpact(graph, semanticFlows, selectedFunctionId)
       : undefined;
-    const index = this.getProjector(graph).project({
+    const cache = this.getCache(graph, architectureIndex);
+    const index = cache.projector.project({
       expandedTreeIds,
       includeInventoryRows: false,
       inventoryLimit: 500
@@ -58,7 +65,10 @@ export class FunctionExplorerProjectionService {
     const payload = createFunctionExplorerPayload(graph, index, {
       initialRowLimit: 500,
       expandedRowIds: expandedTreeIds,
-      semanticFlowRows: createSemanticFlowRows(semanticFlows, { expandedRowIds: expandedTreeIds }),
+      semanticFlowRows: createSemanticFlowRows(semanticFlows, {
+        expandedRowIds: expandedTreeIds,
+        architectureIndex: cache.architecture
+      }),
       changeImpactRows: changeImpact
         ? createChangeImpactRows(graph, changeImpact)
         : undefined,
@@ -72,11 +82,14 @@ export class FunctionExplorerProjectionService {
   public search(
     graph: ProjectGraph,
     request: FunctionExplorerSearchRequest,
-    createSourceToken?: (nodeId: string) => SourceNodeToken | undefined
+    createSourceToken?: (nodeId: string) => SourceNodeToken | undefined,
+    architectureIndex?: FunctionArchitectureIndex
   ): FunctionExplorerSearchPayload {
+    const cache = this.getCache(graph, architectureIndex);
     return searchFunctionIndex({
       workspaceRoot: graph.workspaceRoot,
-      nodes: this.getProjector(graph).getNodes(),
+      nodes: cache.projector.getNodes(),
+      architectureIndex: cache.architecture,
       request,
       createSourceToken
     });
@@ -88,13 +101,20 @@ export class FunctionExplorerProjectionService {
   }
 
   /** Returns one graph-wide projector reused by presentation-only refreshes. */
-  private getProjector(graph: ProjectGraph): FunctionIndexProjector {
+  private getCache(
+    graph: ProjectGraph,
+    architectureIndex?: FunctionArchitectureIndex
+  ): FunctionIndexProjectionCache {
     if (this.cached?.graph === graph) {
-      return this.cached.projector;
+      if (architectureIndex && this.cached.architecture !== architectureIndex) {
+        this.cached = { ...this.cached, architecture: architectureIndex };
+      }
+      return this.cached;
     }
 
     const projector = createFunctionIndexProjector(graph);
-    this.cached = { graph, projector };
-    return projector;
+    const architecture = architectureIndex ?? createFunctionArchitectureIndex(graph);
+    this.cached = { graph, projector, architecture };
+    return this.cached;
   }
 }

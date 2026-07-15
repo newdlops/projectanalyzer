@@ -13,6 +13,7 @@ import {
   searchFunctionIndex
 } from "../../application/functionExplorer";
 import type { FunctionIndexNode } from "../../graph/functionIndex";
+import { createFunctionArchitectureIndex } from "../../insights/architecturalLayers";
 import type { FunctionExplorerSearchRequest } from "../../protocol/functionExplorer";
 import type { SourceNodeToken } from "../../protocol/sourceNavigation";
 import { createContentHash } from "../../shared/hash";
@@ -159,6 +160,30 @@ test("orders by textual relevance, graph relevance, then stable source path", ()
   assert.deepEqual(shuffled, expected.map(createSourceToken));
 });
 
+test("empty search surfaces business candidates with shared layer evidence", () => {
+  const domainSymbol = createSymbolNode("pricing-policy");
+  domainSymbol.filePath = "/workspace/src/domain/pricing-policy.ts";
+  const plainSymbol = createSymbolNode("format-output");
+  const graph = createGraph([plainSymbol, domainSymbol]);
+  const nodes = [
+    createIndexNode(plainSymbol.id, { filePath: plainSymbol.filePath }),
+    createIndexNode(domainSymbol.id, { filePath: domainSymbol.filePath })
+  ];
+  const payload = searchFunctionIndex({
+    workspaceRoot: graph.workspaceRoot,
+    nodes,
+    architectureIndex: createFunctionArchitectureIndex(graph),
+    request: createRequest(),
+    createSourceToken
+  });
+
+  assert.equal(payload.rows[0]?.sourceToken, createSourceToken(domainSymbol.id));
+  assert.equal(payload.rows[0]?.architecture?.layer, "domain");
+  assert.equal(payload.rows[0]?.architecture?.businessLogic, "domainRuleCandidate");
+  assert.equal(payload.rows[0]?.architecture?.purity, "unknown");
+  assert.match(payload.rows[0]?.detail ?? "", /Domain · domain-rule candidate · purity unverified/u);
+});
+
 test("opaque cursors return every deterministic page without duplicates", () => {
   const nodes = Array.from({ length: 7 }, (_, index) => createIndexNode(`item-${index}`, {
     name: `item${index}`,
@@ -230,6 +255,27 @@ test("FunctionExplorerProjectionService reuses and clears its cached core", () =
 
   service.clear();
   assert.equal(service.search(graph, request).totalMatchCount, 2);
+});
+
+test("FunctionExplorerProjectionService reuses the shared architecture snapshot", () => {
+  const symbol = createSymbolNode("pricing-policy");
+  symbol.filePath = "/workspace/src/domain/pricing-policy.ts";
+  const graph = createGraph([symbol]);
+  const sharedArchitecture = createFunctionArchitectureIndex(graph);
+  const service = new FunctionExplorerProjectionService();
+  const request = createRequest({ query: "", limit: 100 });
+
+  // Mutating an immutable-production fixture makes an accidental local rebuild
+  // observably disagree with the injected graph snapshot.
+  symbol.filePath = "/workspace/src/plain.ts";
+  assert.equal(
+    service.search(graph, request, undefined, sharedArchitecture).rows[0]?.architecture?.layer,
+    "domain"
+  );
+  assert.equal(service.search(graph, request).rows[0]?.architecture?.layer, "domain");
+
+  service.clear();
+  assert.equal(service.search(graph, request).rows[0]?.architecture?.layer, "unclassified");
 });
 
 /** Runs the pure query with stable workspace and snapshot defaults. */

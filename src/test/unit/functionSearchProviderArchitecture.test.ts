@@ -37,6 +37,8 @@ test("provider delegates function search to the snapshot-guarded host adapter", 
     providerSource,
     /case "function\/search":\s+await deliverFunctionSearch\(message\.payload,/u
   );
+  assert.match(providerSource, /getFunctionArchitecture:[\s\S]*functionArchitecture/u);
+  assert.match(providerSource, /functionExplorerProjection\.project\([\s\S]*functionArchitecture/u);
   assert.ok(guardIndex >= 0, "missing search snapshot guard");
   assert.ok(queryIndex > guardIndex, "search must run after the snapshot guard");
   assert.ok(tokenIndex > queryIndex, "search rows must receive opaque source tokens");

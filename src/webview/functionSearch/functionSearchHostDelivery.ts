@@ -6,10 +6,12 @@
  */
 
 import type { FunctionExplorerProjectionService } from "../../application/functionExplorer";
+import type { FunctionArchitectureIndex } from "../../insights/architecturalLayers";
 import type { ProjectAnalyzerLogger } from "../../observability/logger";
 import type { FunctionExplorerSearchRequest } from "../../protocol/functionExplorer";
 import type { ExtensionResponse } from "../../protocol/messages";
 import type { SourceNodeToken } from "../../protocol/sourceNavigation";
+import type { ProjectGraph } from "../../shared/types";
 import type { SidebarGraphDelivery } from "../sidebarGraphDelivery";
 
 /** Collaborators retained by the sidebar while search remains host-only. */
@@ -18,6 +20,7 @@ export type FunctionSearchHostDeliveryDependencies = {
   projectionService: FunctionExplorerProjectionService;
   logger: ProjectAnalyzerLogger;
   createSourceToken(nodeId: string): SourceNodeToken | undefined;
+  getFunctionArchitecture?(graph: ProjectGraph): FunctionArchitectureIndex;
   postMessage(message: ExtensionResponse): Promise<void>;
 };
 
@@ -57,7 +60,8 @@ export async function deliverFunctionSearch(
     const payload = dependencies.projectionService.search(
       snapshot.graph,
       request,
-      dependencies.createSourceToken
+      dependencies.createSourceToken,
+      dependencies.getFunctionArchitecture?.(snapshot.graph)
     );
     dependencies.logger.info("sidebar.functionSearch.publish", {
       rows: payload.rows.length,

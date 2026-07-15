@@ -10,6 +10,10 @@ import {
   createSemanticFlowRows,
   REQUEST_FLOW_ROWS_ROOT_ID
 } from "../../application/functionExplorer/semanticFlowRows";
+import type {
+  FunctionArchitectureAssessment,
+  FunctionArchitectureIndex
+} from "../../insights/architecturalLayers";
 import type { SemanticFlow, SemanticFlowIndex } from "../../insights/semanticFlow";
 
 test("default request-flow expansion keeps framework buckets collapsed", () => {
@@ -114,8 +118,16 @@ test("expanded routes expose source handlers and honest coverage gaps", () => {
 
 test("expanded routes expose bounded downstream calls with stable nesting and navigation", () => {
   const index = createDownstreamFlowIndex();
+  const architectureIndex = createArchitectureIndex([
+    createArchitectureAssessment("user-service", "application", "applicationWorkflowCandidate"),
+    createArchitectureAssessment("user-repository", "dataAccess", "notBusinessLogic"),
+    // Even if an unresolved edge carries a colliding graph ID, it must not
+    // borrow the concrete callable's layer assessment.
+    createArchitectureAssessment("external:dynamicLookup", "domain", "domainRuleCandidate")
+  ]);
   const routeId = createRouteRowId("Express", "express:route");
   const rows = createSemanticFlowRows(index, {
+    architectureIndex,
     expandedRowIds: [
       ...createDefaultSemanticFlowExpandedRowIds(index),
       createFrameworkRowId("Express"),
@@ -138,14 +150,17 @@ test("expanded routes expose bounded downstream calls with stable nesting and na
   assert.equal(service.role, "service");
   assert.equal(service.symbolId, "user-service");
   assert.equal(service.filePath, "/workspace/userService.ts");
+  assert.equal(service.architecture?.layer, "application");
+  assert.match(service.detail ?? "", /Application · workflow candidate · purity unverified/u);
   assert.equal(repository.parentId, serviceId);
   assert.equal(repository.depth, 5);
   assert.equal(repository.role, "repository");
   assert.equal(repository.symbolId, "user-repository");
+  assert.equal(repository.architecture?.layer, "dataAccess");
   assert.equal(unresolved.parentId, serviceId);
   assert.equal(unresolved.functionId, "external:dynamicLookup");
   assert.equal(unresolved.symbolId, undefined);
-  assert.match(unresolved.detail ?? "", /^Unresolved call target/);
+  assert.match(unresolved.detail ?? "", /^Unclassified.*Unresolved call target/);
   assert.deepEqual(unresolved.tags, ["unresolvedCall"]);
   assert.equal(gap.parentId, serviceId);
   assert.equal(gap.depth, 5);
@@ -157,6 +172,7 @@ test("expanded routes expose bounded downstream calls with stable nesting and na
   );
   assert.deepEqual(
     createSemanticFlowRows(index, {
+      architectureIndex,
       expandedRowIds: [
         ...createDefaultSemanticFlowExpandedRowIds(index),
         createFrameworkRowId("Express"),
@@ -166,6 +182,51 @@ test("expanded routes expose bounded downstream calls with stable nesting and na
     rows.map((row) => row.id)
   );
 });
+
+/** Creates a graph-stable architecture index without coupling row tests to detectors. */
+function createArchitectureIndex(
+  assessments: FunctionArchitectureAssessment[]
+): FunctionArchitectureIndex {
+  return {
+    graphVersion: "semantic-flow-rows",
+    assessments,
+    assessmentsByFunctionId: new Map(assessments.map((item) => [item.functionId, item])),
+    summary: {
+      graphVersion: "semantic-flow-rows",
+      concreteCallableCount: assessments.length,
+      classifiedCallableCount: assessments.length,
+      businessCandidateCount: assessments.filter((item) =>
+        item.businessLogic === "applicationWorkflowCandidate"
+          || item.businessLogic === "domainRuleCandidate"
+      ).length,
+      conflictedCallableCount: 0
+    }
+  };
+}
+
+function createArchitectureAssessment(
+  functionId: string,
+  layer: FunctionArchitectureAssessment["layer"],
+  businessLogic: FunctionArchitectureAssessment["businessLogic"]
+): FunctionArchitectureAssessment {
+  return {
+    functionId,
+    layer,
+    confidence: "medium",
+    businessLogic,
+    purity: "unknown",
+    evidence: [{
+      kind: "sourceStructure",
+      ruleId: `fixture-${layer}`,
+      supports: layer,
+      confidence: "medium",
+      description: "Fixture architecture evidence."
+    }],
+    omittedEvidenceCount: 0,
+    alternatives: [],
+    conflicted: false
+  };
+}
 
 /** Creates mapped Express and unit-only Django route flows. */
 function createFlowIndex(): SemanticFlowIndex {

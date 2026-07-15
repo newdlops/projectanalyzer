@@ -5,11 +5,17 @@
  */
 
 import type { SemanticFlow, SemanticFlowIndex, SemanticFlowStep } from "../../insights/semanticFlow";
+import type { FunctionArchitectureIndex } from "../../insights/architecturalLayers";
 import type {
   FunctionExplorerJsonValue,
   FunctionExplorerRole,
   FunctionExplorerRow
 } from "../../protocol/functionExplorer";
+import {
+  createEntrypointArchitecturePayload,
+  formatFunctionArchitectureSummary
+} from "../functionArchitecture";
+import { createFlowStepArchitecturePayload } from "./semanticFlowArchitecture";
 
 /** Stable wire-compatible section root used by existing Function Explorer refresh requests. */
 export const REQUEST_FLOW_ROWS_ROOT_ID = "function-flows:framework-handlers";
@@ -17,6 +23,7 @@ export const REQUEST_FLOW_ROWS_ROOT_ID = "function-flows:framework-handlers";
 /** Options controlling expanded request-flow branches. */
 export type SemanticFlowRowsOptions = {
   expandedRowIds?: Iterable<string>;
+  architectureIndex?: FunctionArchitectureIndex;
 };
 
 /**
@@ -42,7 +49,7 @@ export function createSemanticFlowRows(
   }
 
   for (const [framework, flows] of flowsByFramework) {
-    appendFrameworkRows(rows, framework, flows, expandedRowIds);
+    appendFrameworkRows(rows, framework, flows, expandedRowIds, options.architectureIndex);
   }
 
   return rows;
@@ -76,7 +83,8 @@ function appendFrameworkRows(
   rows: FunctionExplorerRow[],
   framework: string,
   flows: SemanticFlow[],
-  expandedRowIds: Set<string>
+  expandedRowIds: Set<string>,
+  architectureIndex: FunctionArchitectureIndex | undefined
 ): void {
   const rowId = createFrameworkRowId(framework);
   const expanded = expandedRowIds.has(rowId);
@@ -107,10 +115,16 @@ function appendFrameworkRows(
   const operationFlows = flows.filter((flow) => flow.entrypointKind === "graphqlOperation");
 
   for (const flow of routeFlows) {
-    appendEntrypointRows(rows, rowId, 2, flow, expandedRowIds);
+    appendEntrypointRows(rows, rowId, 2, flow, expandedRowIds, architectureIndex);
   }
 
-  appendGraphQLOperationBuckets(rows, rowId, operationFlows, expandedRowIds);
+  appendGraphQLOperationBuckets(
+    rows,
+    rowId,
+    operationFlows,
+    expandedRowIds,
+    architectureIndex
+  );
 }
 
 /** Appends collapsed GraphQL scope and operation-type summaries. */
@@ -118,7 +132,8 @@ function appendGraphQLOperationBuckets(
   rows: FunctionExplorerRow[],
   frameworkRowId: string,
   flows: SemanticFlow[],
-  expandedRowIds: Set<string>
+  expandedRowIds: Set<string>,
+  architectureIndex: FunctionArchitectureIndex | undefined
 ): void {
   if (flows.length === 0) {
     return;
@@ -129,7 +144,14 @@ function appendGraphQLOperationBuckets(
 
   for (const [rootPath, rootFlows] of flowsByRootPath) {
     if (!scoped) {
-      appendGraphQLOperationTypeBuckets(rows, frameworkRowId, 2, rootFlows, expandedRowIds);
+      appendGraphQLOperationTypeBuckets(
+        rows,
+        frameworkRowId,
+        2,
+        rootFlows,
+        expandedRowIds,
+        architectureIndex
+      );
       continue;
     }
 
@@ -149,7 +171,14 @@ function appendGraphQLOperationBuckets(
     });
 
     if (expanded) {
-      appendGraphQLOperationTypeBuckets(rows, scopeRowId, 3, rootFlows, expandedRowIds);
+      appendGraphQLOperationTypeBuckets(
+        rows,
+        scopeRowId,
+        3,
+        rootFlows,
+        expandedRowIds,
+        architectureIndex
+      );
     }
   }
 }
@@ -160,7 +189,8 @@ function appendGraphQLOperationTypeBuckets(
   parentId: string,
   depth: number,
   flows: SemanticFlow[],
-  expandedRowIds: Set<string>
+  expandedRowIds: Set<string>,
+  architectureIndex: FunctionArchitectureIndex | undefined
 ): void {
   for (const [operationType, operationFlows] of groupGraphQLOperationsByType(flows)) {
     const rowId = `${parentId}:graphql:${operationType.toLowerCase()}`;
@@ -185,7 +215,14 @@ function appendGraphQLOperationTypeBuckets(
     }
 
     for (const flow of operationFlows) {
-      appendEntrypointRows(rows, rowId, depth + 1, flow, expandedRowIds);
+      appendEntrypointRows(
+        rows,
+        rowId,
+        depth + 1,
+        flow,
+        expandedRowIds,
+        architectureIndex
+      );
     }
   }
 }
@@ -196,7 +233,8 @@ function appendEntrypointRows(
   parentId: string,
   depth: number,
   flow: SemanticFlow,
-  expandedRowIds: Set<string>
+  expandedRowIds: Set<string>,
+  architectureIndex: FunctionArchitectureIndex | undefined
 ): void {
   const entrypointRowId = createEntrypointRowId(parentId, flow);
   const handlerSteps = flow.steps.filter((step) => step.kind === "handler");
@@ -222,6 +260,7 @@ function appendEntrypointRows(
     functionKind: resolvedHandler ? "handler" : undefined,
     role: flow.entrypointKind === "graphqlOperation" ? "resolver" : "routeHandler",
     tags: ["frameworkDispatch"],
+    architecture: createEntrypointArchitecturePayload(),
     confidence: flow.confidence ?? "unresolved",
     metadata: {
       complete: flow.coverageGaps.length === 0,
@@ -243,14 +282,21 @@ function appendEntrypointRows(
   const limitGapsBySourceId = groupLimitGapsBySourceId(flow);
 
   for (const handlerStep of handlerSteps) {
-    const handlerRow = createHandlerRow(entrypointRowId, depth + 1, flow, handlerStep);
+    const handlerRow = createHandlerRow(
+      entrypointRowId,
+      depth + 1,
+      flow,
+      handlerStep,
+      architectureIndex
+    );
     rows.push(handlerRow);
     appendDownstreamRows(
       rows,
       handlerRow,
       handlerStep,
       callStepsByParentId,
-      limitGapsBySourceId
+      limitGapsBySourceId,
+      architectureIndex
     );
   }
 
@@ -287,11 +333,13 @@ function createHandlerRow(
   parentId: string,
   depth: number,
   flow: SemanticFlow,
-  step: SemanticFlowStep
+  step: SemanticFlowStep,
+  architectureIndex: FunctionArchitectureIndex | undefined
 ): FunctionExplorerRow {
   const label = step.functionQualifiedName ?? step.functionName ?? step.qualifiedName ?? step.name;
   const frameworkUnitId = step.frameworkUnitId ?? step.functionId ?? step.name;
   const concrete = step.resolution === "concrete" && step.functionId !== undefined;
+  const architecture = createFlowStepArchitecturePayload(step, architectureIndex);
 
   return {
     id: `${parentId}:handler:${encodeURIComponent(step.functionId ?? frameworkUnitId)}`,
@@ -304,12 +352,14 @@ function createHandlerRow(
     expanded: false,
     functionId: step.functionId,
     symbolId: concrete ? step.functionId : undefined,
-    detail: `${getUnitKindLabel(step.unitKind)} · ${formatSourceLocation(step)}`,
+    detail: `${formatFunctionArchitectureSummary(architecture)} · `
+      + `${getUnitKindLabel(step.unitKind)} · ${formatSourceLocation(step)}`,
     filePath: step.filePath,
     range: step.range,
     functionKind: concrete ? "handler" : step.functionId ? "unresolved" : undefined,
     role: toFunctionExplorerRole(step.role),
     tags: ["frameworkDispatch"],
+    architecture,
     confidence: concrete ? flow.confidence ?? "unresolved" : "unresolved",
     metadata: {
       evidence: flow.evidence.map(toJsonEvidence),
@@ -331,7 +381,8 @@ function appendDownstreamRows(
   handlerRow: FunctionExplorerRow,
   handlerStep: SemanticFlowStep,
   callStepsByParentId: Map<string, SemanticFlowStep[]>,
-  limitGapsBySourceId: Map<string, SemanticFlow["coverageGaps"]>
+  limitGapsBySourceId: Map<string, SemanticFlow["coverageGaps"]>,
+  architectureIndex: FunctionArchitectureIndex | undefined
 ): void {
   if (!handlerStep.functionId) {
     return;
@@ -357,7 +408,12 @@ function appendDownstreamRows(
       continue;
     }
 
-    const row = createDownstreamRow(current.parentRowId, current.parentDepth, current.step);
+    const row = createDownstreamRow(
+      current.parentRowId,
+      current.parentDepth,
+      current.step,
+      architectureIndex
+    );
     rows.push(row);
 
     if (!current.step.functionId || current.step.resolution !== "concrete") {
@@ -418,11 +474,13 @@ function createDownstreamWork(
 function createDownstreamRow(
   parentRowId: string,
   parentDepth: number,
-  step: SemanticFlowStep
+  step: SemanticFlowStep,
+  architectureIndex: FunctionArchitectureIndex | undefined
 ): FunctionExplorerRow {
   const label = step.functionQualifiedName ?? step.functionName ?? step.qualifiedName ?? step.name;
   const concrete = step.resolution === "concrete";
   const identity = step.callEdgeId ?? step.functionId ?? createStepLocationIdentity(step);
+  const architecture = createFlowStepArchitecturePayload(step, architectureIndex);
 
   return {
     id: `${parentRowId}:call:${encodeURIComponent(identity)}`,
@@ -437,7 +495,8 @@ function createDownstreamRow(
     symbolId: concrete ? step.functionId : undefined,
     edgeIds: step.callEdgeId ? [step.callEdgeId] : undefined,
     relation: "downstream",
-    detail: `${getDownstreamKindLabel(step)} · ${formatSourceLocation(step)}`,
+    detail: `${formatFunctionArchitectureSummary(architecture)} · `
+      + `${getDownstreamKindLabel(step)} · ${formatSourceLocation(step)}`,
     filePath: step.filePath || undefined,
     range: step.range,
     functionKind: concrete
@@ -447,6 +506,7 @@ function createDownstreamRow(
         : "unresolved",
     role: toFunctionExplorerRole(step.role),
     tags: getDownstreamTags(step),
+    architecture,
     confidence: step.confidence ?? "unresolved",
     metadata: {
       callEdgeId: step.callEdgeId ?? null,
