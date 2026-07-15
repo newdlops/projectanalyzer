@@ -12,6 +12,12 @@ import type {
 } from "./functionExplorer";
 import type { ProjectOverviewPayload } from "./projectOverview";
 import type {
+  GuidedTourOpenSourceRequest,
+  GuidedTourPayload,
+  GuidedTourSourceOpenedPayload,
+  GuidedTourSourceOpenFailurePayload
+} from "./guidedTour";
+import type {
   ProjectReadingGuidePayload,
   ProjectReadingGuideScopeFailurePayload,
   ProjectReadingScopePayloadId,
@@ -81,6 +87,7 @@ export type WebviewRequest =
   | { type: "analysis/cancel"; payload: Record<string, never> }
   | { type: "cache/clear"; payload: Record<string, never> }
   | { type: "node/openSource"; payload: { nodeId: string } }
+  | { type: "project/guidedTourOpenSource"; payload: GuidedTourOpenSourceRequest }
   | { type: "node/showRelationship"; payload: NodeRelationshipRequest }
   | {
       type: "project/readingGuideScope";
@@ -121,6 +128,9 @@ export type ExtensionResponse =
   | { type: "graph/cleared"; payload: Record<string, never> }
   | { type: "analysis/status"; payload: AnalysisStatusPayload }
   | { type: "project/overviewLoaded"; payload: ProjectOverviewPayload }
+  | { type: "project/guidedTourLoaded"; payload: GuidedTourPayload }
+  | { type: "project/guidedTourSourceOpened"; payload: GuidedTourSourceOpenedPayload }
+  | { type: "project/guidedTourSourceOpenFailed"; payload: GuidedTourSourceOpenFailurePayload }
   | { type: "project/readingGuideLoaded"; payload: ProjectReadingGuidePayload }
   | { type: "project/readingGuideScopeLoaded"; payload: ProjectScopeReadingGuidePayload }
   | { type: "project/readingGuideScopeFailed"; payload: ProjectReadingGuideScopeFailurePayload }

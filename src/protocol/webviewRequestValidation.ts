@@ -12,6 +12,10 @@ import type {
 } from "./functionExplorer";
 import type { WebviewRequest } from "./messages";
 import type { ProjectReadingScopePayloadId } from "./projectReadingGuide";
+import type {
+  GuidedTourMissionPayloadId,
+  GuidedTourStopPayloadId
+} from "./guidedTour";
 
 /** Successful or rejected result returned by the Webview request validator. */
 export type WebviewRequestValidationResult =
@@ -146,6 +150,9 @@ function validateReadableWebviewRequest(value: unknown): WebviewRequestValidatio
         typeof payload.graphVersion === "string" &&
         isProjectReadingScopePayloadId(payload.scopeId);
       break;
+    case "project/guidedTourOpenSource":
+      payloadIsValid = isGuidedTourOpenSourcePayload(payload);
+      break;
     case "project/loadOverview":
       payloadIsValid = isRecord(payload) && typeof payload.graphVersion === "string";
       break;
@@ -185,6 +192,41 @@ function validateReadableWebviewRequest(value: unknown): WebviewRequestValidatio
   }
 
   return { ok: true, value: value as WebviewRequest };
+}
+
+/** Validates the complete correlation tuple for one Guided Tour source action. */
+function isGuidedTourOpenSourcePayload(value: unknown): boolean {
+  return (
+    isRecord(value) &&
+    hasOnlyKeys(value, [
+      "graphVersion",
+      "missionId",
+      "stopId",
+      "sourceToken",
+      "requestId"
+    ]) &&
+    isBoundedString(value.graphVersion, 128) &&
+    value.graphVersion.length > 0 &&
+    isGuidedTourMissionPayloadId(value.missionId) &&
+    isGuidedTourStopPayloadId(value.stopId) &&
+    isSourceNodeToken(value.sourceToken) &&
+    isNonNegativeInteger(value.requestId)
+  );
+}
+
+/** Keeps arbitrary strings from being treated as Host-issued mission identities. */
+function isGuidedTourMissionPayloadId(value: unknown): value is GuidedTourMissionPayloadId {
+  return typeof value === "string" && /^guided-mission:[0-9a-f]{24}$/u.test(value);
+}
+
+/** Keeps arbitrary strings from being treated as Host-issued stop identities. */
+function isGuidedTourStopPayloadId(value: unknown): value is GuidedTourStopPayloadId {
+  return typeof value === "string" && /^guided-stop:[0-9a-f]{24}$/u.test(value);
+}
+
+/** Accepts only opaque source references issued by the active Host registry. */
+function isSourceNodeToken(value: unknown): boolean {
+  return typeof value === "string" && /^source-node:[0-9a-f]{64}$/u.test(value);
 }
 
 /** Validates the common graph-load payload. */
@@ -371,6 +413,13 @@ function isOptionalString(value: unknown): value is string | undefined {
 /** Accepts one string only while it stays inside its protocol code-unit cap. */
 function isBoundedString(value: unknown, maxLength: number): value is string {
   return typeof value === "string" && value.length <= maxLength;
+}
+
+/** Rejects reflected or accidentally broadened request payload fields. */
+function hasOnlyKeys(value: Record<string, unknown>, expectedKeys: readonly string[]): boolean {
+  const expected = new Set(expectedKeys);
+  const actualKeys = Object.keys(value);
+  return actualKeys.length === expected.size && actualKeys.every((key) => expected.has(key));
 }
 
 /** Validates an optional bounded string without coercing untrusted values. */
