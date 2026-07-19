@@ -29,6 +29,8 @@ test("accepts the intended runtime package surface", () => {
     entry("extension/readme.md", 2_000),
     entry("extension/media/project-analyzer.svg", 500),
     entry("extension/out/graph/graphStore.js", 8_000),
+    entry("extension/node_modules/@lezer/common/dist/index.cjs", 40_000),
+    entry("extension/node_modules/@lezer/java/package.json", 1_000),
     entry("extension/node_modules/typescript/lib/typescript.js", 9_000_000)
   ];
 
@@ -43,6 +45,8 @@ test("rejects development files and undeclared runtime dependencies", () => {
   assert.equal(isAllowedPackagePath("extension/engine/analyzer/target/debug/project-analyzer-engine"), false);
   assert.equal(isAllowedPackagePath("extension/node_modules/left-pad/index.js"), false);
   assert.equal(isAllowedPackagePath("extension/node_modules/typescript/lib/lib.dom.d.ts"), false);
+  assert.equal(isAllowedPackagePath("extension/node_modules/@lezer/java/src/parser.js"), false);
+  assert.equal(isAllowedPackagePath("extension/node_modules/@lezer/python/dist/index.d.ts"), false);
   assert.equal(isAllowedPackagePath("extension/out/test/unit/example.test.js"), false);
 
   const result = validateVsixPackage(

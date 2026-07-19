@@ -2,7 +2,7 @@
   "name": "project-analyzer",
   "displayName": "Project Analyzer: Code Flow",
   "description": "Understand unfamiliar codebases through bounded, source-backed code flows.",
-  "version": "0.0.1011",
+  "version": "0.0.1016",
   "publisher": "local",
   "private": true,
   "license": "UNLICENSED",
@@ -48,7 +48,7 @@
       "editor/context": [
         {
           "command": "projectAnalyzer.visualizeCurrentFunction",
-          "when": "editorLangId =~ /^(typescript|typescriptreact|javascript|javascriptreact)$/",
+          "when": "editorLangId =~ /^(typescript|typescriptreact|javascript|javascriptreact|python|java)$/",
           "group": "navigation@100"
         }
       ]
@@ -72,7 +72,7 @@
             "type": "string"
           },
           "default": [
-            "**/*.{ts,tsx,js,jsx,py}"
+            "**/*.{ts,tsx,js,jsx,py,java}"
           ],
           "description": "Glob patterns included in project analysis."
         },
@@ -158,6 +158,8 @@
     }
   },
   "dependencies": {
+    "@lezer/java": "^1.1.3",
+    "@lezer/python": "^1.1.19",
     "typescript": "^5.8.3"
   },
   "scripts": {

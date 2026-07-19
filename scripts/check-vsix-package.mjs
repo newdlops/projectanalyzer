@@ -36,6 +36,9 @@ const TYPESCRIPT_RUNTIME_PATHS = new Set([
   "extension/node_modules/typescript/lib/typescript.js"
 ]);
 
+const LEZER_RUNTIME_PATH_PATTERN =
+  /^extension\/node_modules\/@lezer\/(?:common|highlight|java|lr|python)\/(?:package\.json|LICENSE|dist\/index\.cjs)$/;
+
 /**
  * Reads central-directory entries from a VSIX without inflating file contents.
  * The resulting sizes are the values VS Code sees while downloading/installing.
@@ -153,9 +156,12 @@ export function isAllowedPackagePath(archivePath) {
   if (/^extension\/out\/(?!test\/).+\.(?:js|json)$/i.test(archivePath)) {
     return true;
   }
+  if (LEZER_RUNTIME_PATH_PATTERN.test(archivePath)) {
+    return true;
+  }
 
-  // The fallback parser uses TypeScript's self-contained runtime module. Compiler
-  // binaries, declarations, translations, and server files are packaging waste.
+  // TypeScript remains a self-contained runtime module. Compiler binaries,
+  // declarations, translations, and server files are packaging waste.
   return TYPESCRIPT_RUNTIME_PATHS.has(archivePath);
 }
 

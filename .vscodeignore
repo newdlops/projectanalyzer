@@ -44,3 +44,13 @@ node_modules/typescript/lib/tsserver.js
 node_modules/typescript/lib/tsserverlibrary.js
 node_modules/typescript/lib/typingsInstaller.js
 node_modules/typescript/lib/watchGuard.js
+
+# Python/Java Lezer adapters need only CommonJS runtime modules and manifests.
+node_modules/@lezer/**/README.md
+node_modules/@lezer/**/CHANGELOG.md
+node_modules/@lezer/**/rollup.config.js
+node_modules/@lezer/**/src/**
+node_modules/@lezer/**/test/**
+node_modules/@lezer/**/dist/*.js
+node_modules/@lezer/**/dist/*.d.ts
+node_modules/@lezer/**/dist/*.d.cts
