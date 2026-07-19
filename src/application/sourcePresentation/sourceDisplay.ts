@@ -7,7 +7,7 @@
 import {
   createPortableProjectPathNormalizer,
   type PortableProjectPathNormalizer
-} from "../../insights/projectReadingGuide";
+} from "../../shared/portableProjectPath";
 import type { SourceRange } from "../../shared/types";
 
 /** Character cap preventing one unusual path from dominating a payload. */
