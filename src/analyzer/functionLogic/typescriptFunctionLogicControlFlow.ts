@@ -14,7 +14,10 @@ import type {
 } from "./core/structuredControlFlow";
 import type { FunctionLogicEdgeKind } from "./types";
 import type { PendingStatement } from "./typescriptFunctionLogicInternal";
-import { isLoopStatement, safeText } from "./typescriptFunctionLogicSyntax";
+import {
+  completeSourceText,
+  isLoopStatement
+} from "./typescriptFunctionLogicSyntax";
 
 /** Adds control-owned statement containers without recursively walking syntax. */
 export function scheduleControlChildren(
@@ -67,7 +70,9 @@ export function scheduleControlChildren(
       branches.push({
         role: "case",
         edgeKind: "case",
-        label: isDefault ? "default" : safeText(clause.expression.getText(sourceFile), "case"),
+        label: isDefault
+          ? "default"
+          : completeSourceText(clause.expression.getText(sourceFile), "case"),
         statements: clause.statements
       });
     }

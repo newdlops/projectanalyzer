@@ -12,11 +12,11 @@ import {
 import type { FunctionLogicValueChange } from "./types";
 import {
   classifyFunctionLogicValueTarget,
-  compactValueChangeText,
   createFunctionLogicValueChange,
   finalizeFunctionLogicValueChanges,
   isPotentialReceiverMutationMethod,
-  looksLikeStaticTypeReceiver
+  looksLikeStaticTypeReceiver,
+  normalizeValueChangeText
 } from "./valueChangeSupport";
 
 /** Extracts writes and receiver changes owned by one Java statement/header. */
@@ -93,8 +93,8 @@ function createJavaAssignmentChange(
   if (!operator) {
     return undefined;
   }
-  const target = compactValueChangeText(source.text.slice(expression.from, operator.from));
-  const operatorText = compactValueChangeText(source.text.slice(operator.from, operator.to));
+  const target = normalizeValueChangeText(source.text.slice(expression.from, operator.from));
+  const operatorText = normalizeValueChangeText(source.text.slice(operator.from, operator.to));
   return createFunctionLogicValueChange({
     target,
     targetKind: classifyFunctionLogicValueTarget(target),
@@ -115,7 +115,7 @@ function createJavaUpdateChange(
     return undefined;
   }
   const prefix = operator.from === expression.from;
-  const target = compactValueChangeText(source.text.slice(
+  const target = normalizeValueChangeText(source.text.slice(
     prefix ? operator.to : expression.from,
     prefix ? expression.to : operator.from
   ));
@@ -168,11 +168,11 @@ function createJavaReceiverCallChange(
   if (!method || !dot) {
     return undefined;
   }
-  const methodName = compactValueChangeText(source.text.slice(method.from, method.to));
+  const methodName = normalizeValueChangeText(source.text.slice(method.from, method.to));
   if (!isPotentialReceiverMutationMethod(methodName)) {
     return undefined;
   }
-  const receiver = compactValueChangeText(source.text.slice(invocation.from, dot.from));
+  const receiver = normalizeValueChangeText(source.text.slice(invocation.from, dot.from));
   if (!receiver || looksLikeStaticTypeReceiver(receiver)) {
     return undefined;
   }
@@ -212,7 +212,7 @@ function readDelimitedValue(source: LezerSource, node: SyntaxNode): string | und
   const value = raw.startsWith("(") && raw.endsWith(")")
     ? raw.slice(1, -1)
     : raw;
-  return compactValueChangeText(value) || undefined;
+  return normalizeValueChangeText(value) || undefined;
 }
 
 /** Statements whose direct child statements are separately visible CFG blocks. */

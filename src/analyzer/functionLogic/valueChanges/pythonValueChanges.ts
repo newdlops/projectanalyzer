@@ -12,14 +12,14 @@ import {
 import type { FunctionLogicValueChange } from "./types";
 import {
   classifyFunctionLogicValueTarget,
-  compactValueChangeText,
   createFunctionLogicValueChange,
   finalizeFunctionLogicValueChanges,
   isPotentialReceiverMutationMethod,
-  looksLikeStaticTypeReceiver
+  looksLikeStaticTypeReceiver,
+  normalizeValueChangeText
 } from "./valueChangeSupport";
 
-/** Extracts bounded changes owned by one visible Python statement/header. */
+/** Extracts complete changes owned by one visible Python statement/header. */
 export function collectPythonValueChanges(
   source: LezerSource,
   statement: SyntaxNode
@@ -51,17 +51,17 @@ function collectPythonAssignmentChanges(
   if (!lastOperator) {
     return;
   }
-  const assignedValue = compactValueChangeText(
+  const assignedValue = normalizeValueChangeText(
     source.text.slice(lastOperator.to, statement.to)
   );
   let targetStart = statement.from;
   for (const operator of operators) {
-    const target = compactValueChangeText(source.text.slice(targetStart, operator.from));
+    const target = normalizeValueChangeText(source.text.slice(targetStart, operator.from));
     values.push(createFunctionLogicValueChange({
       target,
       targetKind: classifyPythonTarget(target),
       operation: operator.name === "AssignOp" ? "assign" : "update",
-      operator: compactValueChangeText(source.text.slice(operator.from, operator.to)),
+      operator: normalizeValueChangeText(source.text.slice(operator.from, operator.to)),
       value: assignedValue,
       confidence: "exact"
     }));
@@ -79,7 +79,7 @@ function collectPythonDeleteChanges(
     if (child.name === "del" || child.name === ",") {
       continue;
     }
-    const target = compactValueChangeText(source.text.slice(child.from, child.to));
+    const target = normalizeValueChangeText(source.text.slice(child.from, child.to));
     values.push(createFunctionLogicValueChange({
       target,
       targetKind: classifyFunctionLogicValueTarget(target),
@@ -162,7 +162,7 @@ function createPythonReceiverCallChange(
   if (!isPotentialReceiverMutationMethod(methodName)) {
     return undefined;
   }
-  const receiver = compactValueChangeText(
+  const receiver = normalizeValueChangeText(
     source.text.slice(receiverNode.from, receiverNode.to)
   );
   if (looksLikeStaticTypeReceiver(receiver)) {
@@ -200,5 +200,5 @@ function readDelimitedValue(source: LezerSource, node: SyntaxNode): string | und
   const value = raw.startsWith("(") && raw.endsWith(")")
     ? raw.slice(1, -1)
     : raw;
-  return compactValueChangeText(value) || undefined;
+  return normalizeValueChangeText(value) || undefined;
 }

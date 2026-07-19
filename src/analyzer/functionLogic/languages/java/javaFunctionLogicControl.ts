@@ -9,9 +9,9 @@ import type {
   LezerControlDescription
 } from "../../core/lezerFunctionLogicAnalyzer";
 import {
-  compactLezerText,
   getLezerChildNamed,
   getLezerChildren,
+  normalizeLezerText,
   type LezerSource
 } from "../../../core/lezerSource";
 import {
@@ -98,7 +98,7 @@ function describeJavaSwitch(
 
   for (const child of block ? getLezerChildren(block) : []) {
     if (child.name === "SwitchLabel") {
-      const label = compactLezerText(
+      const label = normalizeLezerText(
         source.text.slice(child.from, child.to).replace(/:\s*$/u, ""),
         "case"
       );
@@ -143,7 +143,7 @@ function describeJavaTry(
         role: "catch",
         edgeKind: "exception",
         label: parameter
-          ? compactLezerText(source.text.slice(parameter.from, parameter.to), "catch")
+          ? normalizeLezerText(source.text.slice(parameter.from, parameter.to), "catch")
           : "catch",
         statements: block ? getJavaBodyStatements(block) : []
       });

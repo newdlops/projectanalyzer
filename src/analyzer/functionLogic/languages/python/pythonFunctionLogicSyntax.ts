@@ -17,10 +17,10 @@ import type {
   LezerStatementTask
 } from "../../core/lezerFunctionLogicAnalyzer";
 import {
-  compactLezerText,
   getLezerChildren,
   lezerNodeRange,
   lezerOffsetsRange,
+  normalizeLezerText,
   type LezerSource
 } from "../../../core/lezerSource";
 import {
@@ -96,13 +96,13 @@ export function classifyPythonStatement(
   const node = task.node;
   let kind: FunctionLogicBlockKind = "operation";
   let confidence: FunctionLogicConfidence = "exact";
-  let label = compactLezerText(source.text.slice(node.from, node.to), "Statement");
+  let label = normalizeLezerText(source.text.slice(node.from, node.to), "Statement");
   let detail = "Executes one Python source statement.";
   const valueChanges = collectPythonValueChanges(source, node);
 
   if (task.implicitReturn) {
     kind = "return";
-    label = `return ${compactLezerText(source.text.slice(node.from, node.to), "expression")}`;
+    label = `return ${normalizeLezerText(source.text.slice(node.from, node.to), "expression")}`;
     detail = "Lambda expression implicitly returns this value.";
   } else if (node.name === "IfStatement") {
     kind = "condition";
@@ -229,7 +229,7 @@ function createPythonControlLabel(
     child.name === "Body" || child.name === "MatchBody"
   );
   const end = firstBody?.from ?? node.to;
-  const header = compactLezerText(
+  const header = normalizeLezerText(
     source.text.slice(node.from, end).replace(/:\s*$/u, ""),
     fallback
   );

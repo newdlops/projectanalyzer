@@ -17,11 +17,11 @@ import type {
   LezerStatementTask
 } from "../../core/lezerFunctionLogicAnalyzer";
 import {
-  compactLezerText,
   findLezerDescendants,
   getLezerChildren,
   lezerNodeRange,
   lezerOffsetsRange,
+  normalizeLezerText,
   type LezerSource
 } from "../../../core/lezerSource";
 import {
@@ -129,14 +129,14 @@ export function classifyJavaStatement(
   const node = task.node;
   let kind: FunctionLogicBlockKind = "operation";
   let confidence: FunctionLogicConfidence = "exact";
-  let label = compactLezerText(source.text.slice(node.from, node.to), "Statement");
+  let label = normalizeLezerText(source.text.slice(node.from, node.to), "Statement");
   let detail = "Executes one Java source statement.";
   const control = JAVA_CONTROL_NODES.get(node.name);
   const valueChanges = collectJavaValueChanges(source, node);
 
   if (task.implicitReturn) {
     kind = "return";
-    label = `return ${compactLezerText(source.text.slice(node.from, node.to), "expression")}`;
+    label = `return ${normalizeLezerText(source.text.slice(node.from, node.to), "expression")}`;
     detail = "Expression-bodied lambda implicitly returns this value.";
   } else if (control) {
     kind = control.kind;
@@ -254,7 +254,7 @@ function createJavaControlLabel(
       || child.name === "SwitchBlock"
       || child.name.endsWith("Statement")
     );
-  return compactLezerText(
+  return normalizeLezerText(
     source.text.slice(node.from, body?.from ?? node.to),
     fallback
   );

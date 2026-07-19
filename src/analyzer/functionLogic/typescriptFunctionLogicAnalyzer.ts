@@ -33,13 +33,13 @@ import type {
 import {
   classifyStatement,
   collectFunctionCallsites,
+  completeSourceText,
   createBlockId,
   createFunctionSignature,
   findSelectedFunction,
   getScriptKind,
   getSupportedLanguage,
   normalizeMaxBlocks,
-  safeText,
   toSourceRange
 } from "./typescriptFunctionLogicSyntax";
 import { collectTypeScriptExpressionValueChanges } from "./valueChanges";
@@ -251,7 +251,7 @@ function createExpressionBodyBlock(
   return {
     id: createBlockId(node.filePath, "return", range, expressionText),
     kind: "return",
-    label: `return ${safeText(expressionText.replace(/\s+/gu, " "), "expression")}`,
+    label: `return ${completeSourceText(expressionText, "expression")}`,
     detail: "Concise arrow body implicitly returns this expression.",
     depth: 1,
     confidence: "exact",

@@ -33,14 +33,14 @@ export function classifyStatement(
   const node = task.node;
   let kind: FunctionLogicBlockKind = "operation";
   let confidence: FunctionLogicConfidence = "exact";
-  let label = safeText(normalizeSourceText(node.getText(sourceFile)), "Statement");
+  let label = completeSourceText(node.getText(sourceFile), "Statement");
   let detail = "Executes one source statement.";
   let evidenceNode: ts.Node = node;
   const valueChanges = collectTypeScriptValueChanges(sourceFile, node);
 
   if (ts.isIfStatement(node)) {
     kind = "condition";
-    label = `if ${safeText(normalizeSourceText(node.expression.getText(sourceFile)), "condition")}`;
+    label = `if ${completeSourceText(node.expression.getText(sourceFile), "condition")}`;
     detail = "Chooses the true or false branch from this condition.";
     evidenceNode = node.expression;
   } else if (isLoopStatement(node)) {
@@ -50,7 +50,7 @@ export function classifyStatement(
     evidenceNode = getLoopEvidenceNode(node);
   } else if (ts.isSwitchStatement(node)) {
     kind = "switch";
-    label = `switch ${safeText(normalizeSourceText(node.expression.getText(sourceFile)), "value")}`;
+    label = `switch ${completeSourceText(node.expression.getText(sourceFile), "value")}`;
     detail = "Dispatches control to a matching case or the default branch.";
     evidenceNode = node.expression;
   } else if (ts.isTryStatement(node)) {
@@ -60,12 +60,12 @@ export function classifyStatement(
   } else if (ts.isReturnStatement(node)) {
     kind = "return";
     label = node.expression
-      ? `return ${safeText(normalizeSourceText(node.expression.getText(sourceFile)), "value")}`
+      ? `return ${completeSourceText(node.expression.getText(sourceFile), "value")}`
       : "return";
     detail = "Ends this function and returns control to its caller.";
   } else if (ts.isThrowStatement(node)) {
     kind = "throw";
-    label = `throw ${safeText(normalizeSourceText(node.expression.getText(sourceFile)), "error")}`;
+    label = `throw ${completeSourceText(node.expression.getText(sourceFile), "error")}`;
     detail = "Ends the normal path by raising an exception.";
   } else if (ts.isBreakStatement(node)) {
     kind = "break";
@@ -284,16 +284,16 @@ function isPotentialEffectCall(name: string): boolean {
   return /(?:^|\.)(?:save|create|insert|update|delete|remove|write|send|publish|emit|dispatch|commit|query|execute|request|fetch|post|put|patch)$/iu.test(name);
 }
 
-/** Creates a compact loop header from the syntax kind. */
+/** Creates a complete, whitespace-normalized loop header from the syntax kind. */
 function createLoopLabel(sourceFile: ts.SourceFile, node: LoopStatement): string {
   if (ts.isWhileStatement(node) || ts.isDoStatement(node)) {
-    return `${ts.isDoStatement(node) ? "do while" : "while"} ${safeText(normalizeSourceText(node.expression.getText(sourceFile)), "condition")}`;
+    return `${ts.isDoStatement(node) ? "do while" : "while"} ${completeSourceText(node.expression.getText(sourceFile), "condition")}`;
   }
   if (ts.isForInStatement(node) || ts.isForOfStatement(node)) {
-    return `${ts.isForOfStatement(node) ? "for of" : "for in"} ${safeText(normalizeSourceText(node.expression.getText(sourceFile)), "iterable")}`;
+    return `${ts.isForOfStatement(node) ? "for of" : "for in"} ${completeSourceText(node.expression.getText(sourceFile), "iterable")}`;
   }
   const condition = node.condition?.getText(sourceFile) ?? "condition";
-  return `for ${safeText(normalizeSourceText(condition), "condition")}`;
+  return `for ${completeSourceText(condition, "condition")}`;
 }
 
 /** Loop statements with one structurally repeatable body. */
@@ -470,7 +470,12 @@ function normalizeSourceText(value: string): string {
   return value.replace(/\s+/gu, " ").trim();
 }
 
-/** Bounds analyzer-owned labels before they reach downstream projections. */
+/** Preserves complete graph-box source text while normalizing visual whitespace. */
+export function completeSourceText(value: string, fallback: string): string {
+  return normalizeSourceText(value) || fallback;
+}
+
+/** Bounds analyzer-owned text that is not rendered as graph-box source. */
 export function safeText(value: string, fallback: string): string {
   const normalized = value.trim() || fallback;
   return normalized.length <= DISPLAY_TEXT_LIMIT

@@ -1,6 +1,6 @@
 /**
- * Shared construction rules for value-change evidence. They bound display
- * text, classify source targets, recognize conservative receiver mutators, and
+ * Shared construction rules for value-change evidence. They preserve complete
+ * source text, classify targets, recognize conservative receiver mutators, and
  * de-duplicate annotations before they cross the analyzer boundary.
  */
 
@@ -9,12 +9,7 @@ import type {
   FunctionLogicValueTargetKind
 } from "./types";
 
-const MAX_VALUE_CHANGES_PER_BLOCK = 6;
-const TARGET_TEXT_LIMIT = 80;
-const OPERATOR_TEXT_LIMIT = 24;
-const VALUE_TEXT_LIMIT = 120;
-
-/** Input accepted by the bounded value-change factory. */
+/** Input accepted by the normalized value-change factory. */
 export type FunctionLogicValueChangeInput = Omit<FunctionLogicValueChange, "targetKind"> & {
   targetKind?: FunctionLogicValueTargetKind;
 };
@@ -23,13 +18,13 @@ export type FunctionLogicValueChangeInput = Omit<FunctionLogicValueChange, "targ
 export function createFunctionLogicValueChange(
   input: FunctionLogicValueChangeInput
 ): FunctionLogicValueChange | undefined {
-  const target = compactValueChangeText(input.target, TARGET_TEXT_LIMIT);
-  const operator = compactValueChangeText(input.operator, OPERATOR_TEXT_LIMIT);
+  const target = normalizeValueChangeText(input.target);
+  const operator = normalizeValueChangeText(input.operator);
   if (!target || !operator) {
     return undefined;
   }
   const value = input.value
-    ? compactValueChangeText(input.value, VALUE_TEXT_LIMIT) || undefined
+    ? normalizeValueChangeText(input.value) || undefined
     : undefined;
   return {
     target,
@@ -41,7 +36,7 @@ export function createFunctionLogicValueChange(
   };
 }
 
-/** Returns a stable, bounded, de-duplicated block annotation list. */
+/** Returns every stable, de-duplicated block annotation in source order. */
 export function finalizeFunctionLogicValueChanges(
   values: Array<FunctionLogicValueChange | undefined>
 ): FunctionLogicValueChange[] {
@@ -64,9 +59,6 @@ export function finalizeFunctionLogicValueChanges(
     }
     seen.add(key);
     result.push(value);
-    if (result.length >= MAX_VALUE_CHANGES_PER_BLOCK) {
-      break;
-    }
   }
   return result;
 }
@@ -94,11 +86,8 @@ export function looksLikeStaticTypeReceiver(receiver: string): boolean {
 }
 
 /** Normalizes source snippets without pretending to evaluate their values. */
-export function compactValueChangeText(value: string, limit = VALUE_TEXT_LIMIT): string {
-  const normalized = value.replace(/\s+/gu, " ").trim();
-  return normalized.length <= limit
-    ? normalized
-    : `${normalized.slice(0, Math.max(0, limit - 1))}…`;
+export function normalizeValueChangeText(value: string): string {
+  return value.replace(/\s+/gu, " ").trim();
 }
 
 /** Known container mutators across JavaScript, Python, and Java standard APIs. */

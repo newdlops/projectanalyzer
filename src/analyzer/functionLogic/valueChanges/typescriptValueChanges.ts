@@ -8,11 +8,11 @@ import * as ts from "typescript";
 import type { FunctionLogicValueChange } from "./types";
 import {
   classifyFunctionLogicValueTarget,
-  compactValueChangeText,
   createFunctionLogicValueChange,
   finalizeFunctionLogicValueChanges,
   isPotentialReceiverMutationMethod,
-  looksLikeStaticTypeReceiver
+  looksLikeStaticTypeReceiver,
+  normalizeValueChangeText
 } from "./valueChangeSupport";
 
 /** Extracts writes and receiver mutations owned by one visible statement. */
@@ -250,7 +250,7 @@ function getImmediateChildren(node: ts.Node): ts.Node[] {
   return children;
 }
 
-/** Reads a bounded source expression without changing its static meaning. */
+/** Reads complete source expression text without changing its static meaning. */
 function sourceText(sourceFile: ts.SourceFile, node: ts.Node): string {
-  return compactValueChangeText(node.getText(sourceFile));
+  return normalizeValueChangeText(node.getText(sourceFile));
 }

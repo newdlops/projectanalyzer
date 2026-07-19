@@ -9,9 +9,9 @@ import type {
   LezerControlDescription
 } from "../../core/lezerFunctionLogicAnalyzer";
 import {
-  compactLezerText,
   getLezerChildNamed,
   getLezerChildren,
+  normalizeLezerText,
   type LezerSource
 } from "../../../core/lezerSource";
 import { getPythonBodyStatements } from "../../../languages/python/pythonLezerSyntax";
@@ -59,7 +59,7 @@ function describePythonIf(
     }
     const isFirst = branches.length === 0;
     const isElse = keyword === "else";
-    const condition = compactLezerText(
+    const condition = normalizeLezerText(
       source.text.slice(keywordEnd, child.from).replace(/:\s*$/u, ""),
       keyword
     );
@@ -114,7 +114,7 @@ function describePythonMatch(
     if (!body) {
       return [];
     }
-    const rawLabel = compactLezerText(
+    const rawLabel = normalizeLezerText(
       source.text.slice(clause.from, body.from)
         .replace(/^\s*case\s+/u, "")
         .replace(/:\s*$/u, ""),
@@ -158,7 +158,7 @@ function describePythonTry(
       continue;
     }
     const label = keyword === "except"
-      ? compactLezerText(
+      ? normalizeLezerText(
           source.text.slice(keywordStart, child.from).replace(/:\s*$/u, ""),
           "except"
         )
