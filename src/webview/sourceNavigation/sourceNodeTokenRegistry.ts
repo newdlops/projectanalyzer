@@ -1,6 +1,6 @@
 /**
- * Snapshot-local source-token registry for sidebar Webview navigation.
- * It bridges tokenized sidebar payloads to analyzer node identities and drops
+ * Snapshot-local source-token registry for Webview navigation.
+ * It bridges tokenized browser payloads to analyzer node identities and drops
  * every token mapping when the active graph changes. Raw IDs remain supported
  * for older sidebar payloads until those routes migrate independently.
  */
@@ -13,7 +13,7 @@ import type { ProjectGraph, SymbolNode } from "../../shared/types";
 /** Prefix lets the Host distinguish opaque tokens from legacy graph node IDs. */
 const SOURCE_NODE_TOKEN_PREFIX = "source-node:";
 
-/** Owns opaque source references for exactly one immutable sidebar graph snapshot. */
+/** Owns opaque source references for exactly one immutable Webview graph snapshot. */
 export class SourceNodeTokenRegistry {
   /** Analyzer identities remain indexed only in Extension Host memory. */
   private nodesById = new Map<string, SymbolNode>();

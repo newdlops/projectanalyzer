@@ -1,5 +1,5 @@
 /**
- * Sidebar graph delivery lifecycle and protocol version projection.
+ * Webview graph delivery lifecycle and protocol version projection.
  *
  * Analyzer graph versions describe the engine schema and may remain constant
  * across analyses. This module gives each immutable graph object a Webview-only
@@ -55,6 +55,9 @@ export class SidebarGraphDelivery {
     this.snapshot = undefined;
   }
 }
+
+/** Generic name used by editor-tab surfaces sharing the snapshot lifecycle. */
+export { SidebarGraphDelivery as WebviewGraphDelivery };
 
 /** Replaces the engine version on a graph payload crossing to the sidebar. */
 export function withSidebarGraphVersion(graph: ProjectGraph, version: string): ProjectGraph {

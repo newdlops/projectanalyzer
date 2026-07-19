@@ -1,5 +1,5 @@
 /**
- * Extension Host delivery boundary for the flow-first sidebar. It correlates
+ * Extension Host delivery boundary shared by flow-first Webview surfaces. It correlates
  * requests with one immutable graph snapshot and keeps graph/source identities
  * behind application projections and the source-token registry.
  */
@@ -24,7 +24,7 @@ import type { CodeFlowOpenEvidenceRequest } from "../../protocol/functionLogic";
 import type { ExtensionResponse } from "../../protocol/messages";
 import type { ProjectAnalyzerLogger } from "../../observability/logger";
 import type { ProjectGraph, SymbolNode } from "../../shared/types";
-import type { SidebarGraphDelivery } from "../sidebarGraphDelivery";
+import type { WebviewGraphDelivery } from "../sidebarGraphDelivery";
 import type { SourceNodeTokenRegistry } from "../sourceNavigation";
 import type {
   CodeFlowEvidenceLocation,
@@ -33,7 +33,7 @@ import type {
 
 /** Collaborators retained by the Host-only CodeFlow delivery service. */
 export type CodeFlowHostDeliveryDependencies = {
-  graphDelivery: SidebarGraphDelivery;
+  graphDelivery: WebviewGraphDelivery;
   insightCache: CodeFlowInsightCache;
   sourceNodeTokens: SourceNodeTokenRegistry;
   evidenceTokens: CodeFlowEvidenceTokenRegistry;
@@ -42,6 +42,12 @@ export type CodeFlowHostDeliveryDependencies = {
   readSourceText(filePath: string): Promise<string | undefined>;
   openEvidenceLocation(location: CodeFlowEvidenceLocation): Promise<void>;
   postMessage(message: ExtensionResponse): Promise<void>;
+};
+
+/** Active graph plus its snapshot-local browser delivery identity. */
+type ActiveCodeFlowGraph = {
+  graph: ProjectGraph;
+  version: string;
 };
 
 /** Publishes entrypoint catalogs and bounded flow details for the active graph. */
@@ -134,8 +140,42 @@ export class CodeFlowHostDelivery {
       return;
     }
 
+    await this.publishFunctionLogic(active, node);
+  }
+
+  /** Publishes a Host-selected graph callable without exposing analyzer IDs. */
+  public async publishFunctionNode(
+    graphVersion: string,
+    nodeId: string,
+    sourceText?: string
+  ): Promise<boolean> {
+    const active = this.resolveActiveGraph(graphVersion);
+    if (!active) {
+      await this.publishFailure(graphVersion, "staleGraph", "The analyzed graph changed. Visualize the function again.");
+      return false;
+    }
+    const node = active.graph.nodes.find((candidate) => candidate.id === nodeId);
+    if (!node) {
+      await this.publishFailure(active.version, "sourceNotFound", "The current function is not available in this analysis.");
+      return false;
+    }
+    if (!isConcreteCallable(node)) {
+      await this.publishFailure(active.version, "sourceNotCallable", "The cursor is not inside a concrete callable.");
+      return false;
+    }
+
+    await this.publishFunctionLogic(active, node, sourceText);
+    return true;
+  }
+
+  /** Builds and projects one syntax-backed function-logic graph. */
+  private async publishFunctionLogic(
+    active: ActiveCodeFlowGraph,
+    node: SymbolNode,
+    sourceSnapshot?: string
+  ): Promise<void> {
     const insights = this.dependencies.insightCache.get(active.graph);
-    const sourceText = await this.dependencies.readSourceText(node.filePath);
+    const sourceText = sourceSnapshot ?? await this.dependencies.readSourceText(node.filePath);
     const analysis = analyzeFunctionLogic({
       functionNode: node,
       sourceText,
@@ -148,6 +188,7 @@ export class CodeFlowHostDelivery {
       analysis,
       active.version,
       (filePath, range) => this.dependencies.evidenceTokens.createToken(filePath, range),
+      (nodeId) => this.dependencies.sourceNodeTokens.createToken(nodeId),
       this.dependencies.projectionOptions?.originLimit
     );
     this.dependencies.logger.debug("codeFlow.detail.functionLogic", {
@@ -178,7 +219,7 @@ export class CodeFlowHostDelivery {
   private resolveActiveGraph(
     requestedVersion: string,
     knownGraph?: ProjectGraph
-  ): { graph: ProjectGraph; version: string } | undefined {
+  ): ActiveCodeFlowGraph | undefined {
     const snapshot = this.dependencies.graphDelivery.current();
     if (!snapshot || !this.dependencies.graphDelivery.matches(requestedVersion)) {
       return undefined;
