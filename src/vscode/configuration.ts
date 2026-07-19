@@ -14,6 +14,11 @@ export type ProjectAnalyzerConfig = {
   maxFileSizeKb: number;
   maxRenderedNodes: number;
   defaultDepth: number;
+  codeFlow?: {
+    maxDepth: number;
+    maxSteps: number;
+    maxLogicBlocks: number;
+  };
   includeExternalDependencies: boolean;
   showUnresolvedEdges: boolean;
   cache: {
@@ -44,6 +49,11 @@ export function readProjectAnalyzerConfig(): ProjectAnalyzerConfig {
     maxFileSizeKb: config.get("maxFileSizeKb", 1024),
     maxRenderedNodes: config.get("maxRenderedNodes", 500),
     defaultDepth: config.get("defaultDepth", 2),
+    codeFlow: {
+      maxDepth: config.get("codeFlow.maxDepth", 3),
+      maxSteps: config.get("codeFlow.maxSteps", 30),
+      maxLogicBlocks: config.get("codeFlow.maxLogicBlocks", 120)
+    },
     includeExternalDependencies: config.get("includeExternalDependencies", false),
     showUnresolvedEdges: config.get("showUnresolvedEdges", true),
     cache: {
