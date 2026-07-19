@@ -69,6 +69,8 @@ dedicated Function Visualizer tab with a bounded control-flow graph:
 - exact assignment/update/delete evidence and visibly dashed inferred receiver mutations
 - loop-binding changes such as `item ← each items` on the loop decision itself
 - sibling lanes for `true`/`false`, loop-body/exit, and switch branches
+- compound body frames that enclose each `if`, loop, switch, try, and context-manager
+  owner with only its nested statements, excluding the following continuation
 - labeled edges for `true`, `false`, `iterate`, `repeat`, `return`, and `throw`
 - outer channels for loop-back and long exit edges so they do not cross nodes
 - post-loop statements placed below the complete loop-back ring, never beside its body
@@ -112,6 +114,11 @@ omitted counts. It provides:
 - click-to-attach boundary functions to the same canvas while preserving the
   clicked module's scroll anchor
 - reduced-motion-aware entry animation for only the newly attached nodes and edges
+- focal zoom with `−`/percentage/`+`, whole-graph **Fit**, `+`/`-`/`0`/`F`
+  graph shortcuts, and Ctrl/Cmd-wheel zoom around the cursor
+- background drag panning, centered small graphs, and resize-stable reading position
+- frame-coalesced viewport updates plus keyed card/edge reuse, so zoom, selection,
+  loading, and panning do not rerun SCC layout or remount the graph
 - bounded module/edge detail, representative evidence, and source actions
 - one-action handoff from a concrete function to its statement-level Function Visualizer
 
@@ -183,6 +190,16 @@ exits. Java models branches, all common loop forms, `switch`,
 mutations, calls, constructors, and exits. Editor-context selection can add an
 exact snapshot-local callable node when the project analyzer did not model a
 supported lambda or other cursor-selected callable.
+
+JSX and TSX functions retain normal statement flow and also expose uppercase or
+member-style component tags such as `<Badge />` and `<UI.Panel />` as exact
+component callsites. Lowercase intrinsic elements stay presentation syntax,
+inline event callbacks remain independently selectable functions, and
+`memo`/`forwardRef` wrapped components retain their binding names for analysis.
+
+Python `with` and `async with` keep only the context-manager header in their
+structural node. Each indented body statement remains a separate flow node and
+continues to the first statement after context exit.
 
 Expression-level short-circuiting remains inside its containing block. Python
 monkey patching, decorators, descriptors, and dynamic dispatch are not observed;
