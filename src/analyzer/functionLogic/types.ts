@@ -104,3 +104,29 @@ export type FunctionLogicAnalysisInput = {
   sourceText?: string;
   maxBlocks?: number;
 };
+
+/** Zero-based editor position used by the host-independent cursor resolver. */
+export type FunctionCursorPosition = {
+  line: number;
+  character: number;
+};
+
+/** Exact callable declaration selected from the current source syntax. */
+export type FunctionCursorTarget = {
+  kind: "function" | "method" | "constructor";
+  name: string;
+  qualifiedName: string;
+  filePath: string;
+  language: string;
+  range: SourceRange;
+  selectionRange: SourceRange;
+  anonymous: boolean;
+};
+
+/** Source snapshot and cursor coordinates supplied by the editor adapter. */
+export type FunctionCursorTargetInput = {
+  filePath: string;
+  languageId: string;
+  sourceText: string;
+  position: FunctionCursorPosition;
+};

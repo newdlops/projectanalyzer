@@ -107,11 +107,16 @@ export function findSelectedFunction(
   graphNode: SymbolNode
 ): FunctionLikeWithBody | undefined {
   const pending: ts.Node[] = [sourceFile];
-  const candidates: Array<{ node: FunctionLikeWithBody; distance: number }> = [];
+  const candidates: Array<{
+    node: FunctionLikeWithBody;
+    distance: number;
+    exactPosition: boolean;
+  }> = [];
   const wantedNames = new Set([
     graphNode.name,
     graphNode.qualifiedName.split(".").at(-1) ?? graphNode.name
   ].filter(Boolean));
+  const allowPositionFallback = graphNode.metadata?.cursorResolved === true;
 
   while (pending.length > 0) {
     const node = pending.pop();
@@ -120,10 +125,21 @@ export function findSelectedFunction(
     }
     if (isFunctionLikeWithBody(node)) {
       const candidateName = getFunctionName(node, sourceFile);
-      if (candidateName && wantedNames.has(candidateName)) {
-        const positionNode = node.name ?? node;
-        const line = sourceFile.getLineAndCharacterOfPosition(positionNode.getStart(sourceFile)).line;
-        candidates.push({ node, distance: Math.abs(line - graphNode.selectionRange.startLine) });
+      const positionNode = getFunctionSelectionNode(node);
+      const position = sourceFile.getLineAndCharacterOfPosition(positionNode.getStart(sourceFile));
+      const exactPosition = position.line === graphNode.selectionRange.startLine
+        && position.character === graphNode.selectionRange.startCharacter;
+      const nameMatches = Boolean(candidateName && wantedNames.has(candidateName));
+      if (nameMatches || (allowPositionFallback && exactPosition)) {
+        const lineDistance = Math.abs(position.line - graphNode.selectionRange.startLine);
+        const characterDistance = Math.abs(
+          position.character - graphNode.selectionRange.startCharacter
+        );
+        candidates.push({
+          node,
+          distance: (lineDistance * 10_000) + characterDistance,
+          exactPosition
+        });
       }
     }
     const children = getImmediateChildren(node);
@@ -132,12 +148,15 @@ export function findSelectedFunction(
     }
   }
 
-  candidates.sort((left, right) => left.distance - right.distance);
+  candidates.sort((left, right) =>
+    Number(right.exactPosition) - Number(left.exactPosition)
+    || left.distance - right.distance
+  );
   return candidates[0]?.node;
 }
 
 /** Returns immediate AST children while keeping our traversal stack explicit. */
-function getImmediateChildren(node: ts.Node): ts.Node[] {
+export function getImmediateChildren(node: ts.Node): ts.Node[] {
   const children: ts.Node[] = [];
   ts.forEachChild(node, (child) => {
     children.push(child);
@@ -231,7 +250,7 @@ function getLoopEvidenceNode(node: LoopStatement): ts.Node {
 }
 
 /** Narrows supported callable declarations with executable bodies. */
-function isFunctionLikeWithBody(node: ts.Node): node is FunctionLikeWithBody {
+export function isFunctionLikeWithBody(node: ts.Node): node is FunctionLikeWithBody {
   return (
     ts.isFunctionDeclaration(node)
     || ts.isFunctionExpression(node)
@@ -244,7 +263,10 @@ function isFunctionLikeWithBody(node: ts.Node): node is FunctionLikeWithBody {
 }
 
 /** Reads a declaration name, including variable-bound arrow functions. */
-function getFunctionName(node: FunctionLikeWithBody, sourceFile: ts.SourceFile): string | undefined {
+export function getFunctionName(
+  node: FunctionLikeWithBody,
+  sourceFile: ts.SourceFile
+): string | undefined {
   if (ts.isConstructorDeclaration(node)) {
     return "constructor";
   }
@@ -259,6 +281,43 @@ function getFunctionName(node: FunctionLikeWithBody, sourceFile: ts.SourceFile):
     return safeText(normalizeSourceText(parent.left.getText(sourceFile)), "").split(".").at(-1);
   }
   return undefined;
+}
+
+/** Selects the identifier or syntax start that represents this callable. */
+export function getFunctionSelectionNode(node: FunctionLikeWithBody): ts.Node {
+  if (node.name) {
+    return node.name;
+  }
+  const parent = node.parent;
+  if (
+    ts.isVariableDeclaration(parent)
+    || ts.isPropertyDeclaration(parent)
+    || ts.isPropertyAssignment(parent)
+  ) {
+    return parent.name;
+  }
+  if (ts.isBinaryExpression(parent) && parent.right === node) {
+    return parent.left;
+  }
+  return node;
+}
+
+/** Includes a function-valued binding so its name area counts as inside. */
+export function getFunctionDeclarationNode(node: FunctionLikeWithBody): ts.Node {
+  const parent = node.parent;
+  if (
+    (ts.isVariableDeclaration(parent) || ts.isPropertyDeclaration(parent))
+    && parent.initializer === node
+  ) {
+    return parent;
+  }
+  if (ts.isPropertyAssignment(parent) && parent.initializer === node) {
+    return parent;
+  }
+  if (ts.isBinaryExpression(parent) && parent.right === node) {
+    return parent;
+  }
+  return node;
 }
 
 /** Creates the header shown above the internal control-flow blocks. */
