@@ -1,856 +1,691 @@
-# Project Analyzer VS Code Extension Specification
+# Project Analyzer Product Specification
 
-## 1. 개요
+## 1. 제품 정의
 
-Project Analyzer는 코드베이스의 파일, 클래스, 함수, 메서드, 모듈 간 정적 호출 구조를 분석하고, 이를 VS Code 안에서 구조화된 시각 탐색기로 제공하는 확장 프로그램이다.
+Project Analyzer는 낯선 코드베이스를 빠르게 이해하도록 돕는 VS Code용
+**Code Flow Reader**다.
 
-목표는 사용자가 낯선 프로젝트를 빠르게 이해하고, 특정 기능이 어떤 파일과 심볼을 거쳐 동작하는지 추적하며, 변경 영향 범위를 판단할 수 있도록 돕는 것이다.
+이 제품은 프로젝트 전체를 분석 결과의 목록이나 거대한 그래프로 보여주는 도구가
+아니다. 사용자가 선택한 진입점, 함수, 변경 지점에서 시작해 지금 이해하려는 코드와
+관련된 흐름만 작고 검증 가능한 형태로 구성한다.
 
-## 2. 핵심 목표
+정적 분석과 그래프는 제품의 화면이 아니라 흐름을 만들기 위한 내부 증거 엔진이다.
 
-- 프로젝트의 구조를 파일, 폴더, 모듈, 클래스, 함수 단위로 추출한다.
-- 함수 호출, 메서드 호출, import/export, 상속, 구현, 참조 관계를 정적 분석으로 수집한다.
-- 분석 결과를 방향성 그래프로 표현하고, VS Code Webview 기반 visual explorer에서 탐색할 수 있게 한다.
-- 사용자가 그래프 노드에서 원본 코드 위치로 즉시 이동할 수 있게 한다.
-- 대형 프로젝트에서도 점진적 분석, 캐싱, 필터링을 통해 실용적인 성능을 유지한다.
-- 분석 결과를 사람이 읽기 쉬운 구조화 데이터로 보존하여 이후 검색, 요약, 리포팅, AI 보조 기능에 활용할 수 있게 한다.
+### 1.1 유일한 제1목표
 
-## 3. 대상 사용자
+> 사용자가 코드베이스를 빠르고 정확하게 이해하고, 새로운 코드에서도 반복해서
+> 사용할 수 있는 코드 읽기 마인드셋을 짧은 시간 안에 습득하게 한다.
 
-- 새 코드베이스를 온보딩하는 개발자
-- 레거시 시스템의 호출 흐름을 파악해야 하는 개발자
-- 변경 영향 범위를 검토하는 리뷰어
-- 프로젝트 구조 문서화를 자동화하려는 팀
-- VS Code 안에서 코드 탐색과 구조 분석을 함께 수행하려는 사용자
+모든 기능과 화면은 이 목표에 직접 기여해야 한다. 기여를 설명할 수 없는 기능은
+기본 제품 범위에 포함하지 않는다.
 
-## 4. 지원 범위
+### 1.2 제품 약속
 
-### 4.1 초기 지원 언어
+사용자는 Project Analyzer를 통해 다음 질문에 답할 수 있어야 한다.
 
-1. TypeScript
-2. JavaScript
-3. Python
+- 이 동작은 어디에서 시작되는가?
+- 어떤 함수들이 책임을 이어받는가?
+- 중요한 분기와 경계는 어디인가?
+- 상태 변경이나 외부 효과는 어디에서 발생할 가능성이 있는가?
+- 각 연결을 어떤 소스 코드에서 검증할 수 있는가?
+- 분석이 모르는 부분과 사용자가 직접 확인해야 할 부분은 무엇인가?
 
-### 4.2 확장 지원 언어
+### 1.3 제품이 아닌 것
 
-향후 다음 언어를 추가 작업해야한다.
+Project Analyzer는 다음 제품이 되는 것을 목표로 하지 않는다.
 
-- Java
-- Kotlin
-- Go
-- Rust
-- C#
-- C/C++
+- 전체 저장소를 한 화면에 펼치는 범용 그래프 뷰어
+- 모든 언어 의미를 완전하게 증명하는 컴파일러 프런트엔드
+- 정적 호출 관계를 실제 런타임 순서라고 주장하는 실행 시뮬레이터
+- 코드 품질 점수와 지표를 나열하는 분석 대시보드
+- 정해진 커리큘럼을 따라가게 하는 온보딩 학습 관리 도구
+- 사람이 이해했는지를 방문 횟수나 완료율로 판정하는 진도 관리 도구
+- AI 설명을 소스 증거보다 우선하는 코드 요약 도구
 
-### 4.3 분석 대상
+## 2. 핵심 코드 읽기 마인드셋
 
-- 워크스페이스 폴더
-- 단일 파일
-- 선택된 폴더 또는 glob 패턴
-- Git 변경 파일 집합
-- 사용자가 명시적으로 제외하지 않은 source 파일
+제품은 별도의 강의나 장문의 가이드 대신 모든 상호작용에 아래 읽기 순서를
+반복적으로 적용한다.
 
-### 4.4 제외 대상
+```text
+Boundary -> Responsibility -> Decision -> Effect -> Verify
+```
 
-기본적으로 다음 경로는 분석에서 제외한다.
+### 2.1 Boundary
 
-- `node_modules`
-- `.git`
-- `.vscode`
-- `dist`
-- `build`
-- `out`
-- `target`
-- `coverage`
-- `.venv`
-- `venv`
-- `__pycache__`
-- 생성 파일, 번들 파일, lock 파일
+흐름을 파일 트리 한가운데서 시작하지 않는다. HTTP route, GraphQL operation,
+event handler, CLI command, test, public function 또는 사용자가 선택한 심볼처럼
+구체적인 시작점을 먼저 찾는다.
 
-사용자는 설정에서 include/exclude glob을 재정의할 수 있어야 한다.
+사용자에게 심을 질문은 다음과 같다.
 
-## 5. 주요 기능
+> 무엇이 이 코드를 호출하거나 시작시키는가?
 
-### 5.1 프로젝트 인덱싱
+### 2.2 Responsibility
 
-확장은 워크스페이스를 스캔하여 분석 가능한 파일 목록을 만든다.
+호출 하나하나를 동일한 중요도로 읽지 않는다. 책임이 다른 파일, 계층, 모듈로
+넘어가는 지점을 우선 찾는다.
 
-인덱싱 결과에는 다음 정보가 포함된다.
+> 이 함수가 직접 소유하는 책임은 무엇이고, 다음 함수에 무엇을 넘기는가?
 
-- 파일 경로
-- 언어
-- 파일 크기
-- 마지막 수정 시각
-- content hash
-- 분석 상태
-- 발견된 top-level symbol 목록
+### 2.3 Decision
 
-파일 변경 이벤트가 발생하면 변경된 파일만 다시 분석한다.
+동작을 바꾸는 조건, 정책, 변환, orchestration 후보를 찾는다. 분석기가 이를
+확실히 증명하지 못하면 `Decision candidate` 또는 `Unknown`으로 표현한다.
 
-### 5.2 심볼 추출
+> 어느 지점에서 결과나 다음 경로가 달라지는가?
 
-각 파일에서 다음 심볼을 추출한다.
+### 2.4 Effect
 
-- module
-- namespace
-- class
-- interface
-- enum
-- function
-- method
-- constructor
-- property
-- variable
-- imported symbol
-- exported symbol
+데이터베이스, 파일 시스템, 네트워크, 프로세스, 메시지 발행, 상태 변경 같은 경계를
+찾는다. 이름이나 폴더만으로 효과를 단정하지 않는다.
 
-각 심볼은 다음 공통 필드를 가진다.
+> 이 흐름은 결국 무엇을 읽거나 바꾸는가?
+
+### 2.5 Verify
+
+시각화는 결론이 아니라 읽기 순서를 줄여 주는 인덱스다. 모든 concrete step은 원본
+정의 또는 callsite로 이동할 수 있어야 하고, confidence와 coverage gap을 숨기지
+않아야 한다.
+
+> 이 연결을 어떤 코드 증거로 확인할 수 있는가?
+
+## 3. 대상 사용자와 핵심 작업
+
+### 3.1 대상 사용자
+
+- 처음 보는 코드베이스에서 첫 변경을 준비하는 개발자
+- 오래 보지 않은 기능의 맥락을 다시 복구하는 개발자
+- 버그나 장애의 관련 호출 경로를 좁히는 개발자
+- Pull Request가 어떤 진입점과 동작에 닿는지 확인하는 리뷰어
+- 레거시 시스템의 대표 흐름을 팀에 설명해야 하는 개발자
+
+### 3.2 핵심 작업
+
+#### 작업 A: 대표 기능 이해
+
+사용자는 route 또는 operation을 선택하고 entry에서 effect boundary까지 가능한
+호출 흐름을 읽는다.
+
+#### 작업 B: 임의 함수 이해
+
+사용자는 함수명이나 source path를 검색하거나 현재 편집기의 심볼에서 시작한다.
+제품은 함수 선언 주변의 단순 caller/callee 관계도를 기본 답으로 제시하지 않는다.
+현재 source의 함수 body를 읽어 statement, condition, branch, loop, mutation, effect
+candidate, return/throw를 source-backed control flow로 구성한다. 동시에 이 함수에
+도달하는 알려진 upstream entrypoint를 맥락으로 제공한다.
+
+#### 작업 C: 변경 영향 파악
+
+사용자는 변경한 함수에서 역방향으로 탐색해 어떤 request flow가 영향을 받을 수
+있는지 확인한다.
+
+#### 작업 D: 흐름 설명과 공유
+
+사용자는 관련 없는 branch를 접고 중요한 step을 고정해, 소스 링크와 unknown을
+포함한 작은 flow artifact로 저장하거나 내보낸다.
+
+## 4. 핵심 개념
+
+### 4.1 Project Graph
+
+분석기가 발견한 symbol, call, import, framework mapping, confidence를 보존하는 내부
+증거 저장소다. Project Graph 전체는 기본 Webview payload나 첫 화면이 아니다.
+
+### 4.2 Flow Query
+
+사용자의 현재 질문을 표현하는 계약이다.
 
 ```ts
-type SymbolNode = {
+type FlowQuery = {
+  root: EntrypointReference | SourceReference;
+  direction: "downstream" | "upstream" | "context";
+  maxDepth: number;
+  maxSteps: number;
+  target?: SourceReference;
+  filters?: FlowFilters;
+};
+```
+
+### 4.3 Code Flow
+
+Project Graph에서 Flow Query에 맞게 투영한 작은 읽기 단위다. Code Flow는 전체
+그래프의 복사본이 아니며 다음을 포함한다.
+
+- 하나의 명확한 root
+- bounded step 목록
+- parent-child call 관계
+- 접힌 branch와 생략 수
+- source navigation token
+- edge confidence와 resolution
+- coverage gap
+- 알려진 upstream entrypoint
+
+### 4.4 Flow Step
+
+사용자가 읽을 수 있는 하나의 코드 책임 지점이다.
+
+```ts
+type FlowStep = {
   id: string;
-  kind: SymbolKind;
-  name: string;
-  qualifiedName: string;
-  filePath: string;
-  range: SourceRange;
-  selectionRange: SourceRange;
-  language: string;
   parentId?: string;
-  metadata?: Record<string, unknown>;
-};
-```
-
-### 5.3 관계 추출
-
-정적 분석은 다음 관계를 추출한다.
-
-- `contains`: 파일, 클래스, 함수의 포함 관계
-- `imports`: 파일 또는 모듈 import 관계
-- `exports`: 파일 또는 모듈 export 관계
-- `calls`: 함수 또는 메서드 호출 관계
-- `references`: 심볼 참조 관계
-- `extends`: 클래스 상속 관계
-- `implements`: 인터페이스 구현 관계
-- `overrides`: 메서드 override 관계
-- `instantiates`: 클래스 생성 관계
-- `uses`: 타입, 값, 상수 사용 관계
-
-각 관계는 방향성을 가진다.
-
-```ts
-type GraphEdge = {
-  id: string;
-  kind: EdgeKind;
-  sourceId: string;
-  targetId: string;
-  filePath: string;
-  range?: SourceRange;
-  confidence: "exact" | "resolved" | "inferred" | "unresolved";
-  metadata?: Record<string, unknown>;
-};
-```
-
-### 5.4 호출 그래프
-
-호출 그래프는 함수, 메서드, 생성자 간의 `calls` 관계를 중심으로 구성한다.
-
-필수 기능:
-
-- 특정 함수 기준 upstream caller 보기
-- 특정 함수 기준 downstream callee 보기
-- 호출 depth 제한
-- 재귀 호출 표시
-- 외부 라이브러리 호출 접기
-- unresolved call 별도 표시
-- 동적 호출 또는 reflection성 호출은 inferred edge로 표시
-
-### 5.5 파일 구조 그래프
-
-파일 구조 그래프는 폴더, 파일, import/export 관계를 중심으로 구성한다.
-
-필수 기능:
-
-- 폴더 트리와 dependency graph 전환
-- 순환 import 표시
-- entry file에서 도달 가능한 파일 표시
-- 변경 파일이 영향을 줄 수 있는 파일 표시
-- test file과 source file 관계 표시
-
-### 5.6 클래스 구조 그래프
-
-클래스 구조 그래프는 class, interface, inheritance, implementation 관계를 중심으로 구성한다.
-
-필수 기능:
-
-- 상속 체인 보기
-- 구현체 목록 보기
-- 클래스 내부 메서드 펼침
-- 메서드 override 관계 표시
-- 생성자 호출 관계 표시
-
-### 5.7 Visual Explorer
-
-Visual Explorer는 VS Code Webview에서 제공한다.
-
-필수 UI 영역:
-
-- graph canvas
-- breadcrumb
-- search box
-- filter panel
-- selected node detail panel
-- minimap
-- depth control
-- layout selector
-- legend
-
-지원 layout:
-
-- hierarchical
-- force-directed
-- radial
-- file tree
-- dependency matrix
-
-노드 상호작용:
-
-- 클릭: detail panel 열기
-- 더블 클릭: 원본 코드 위치로 이동
-- 우클릭: context menu 표시
-- hover: 간단한 symbol 정보 표시
-- expand/collapse: 연결된 edge를 점진적으로 로드
-
-필터:
-
-- node kind
-- edge kind
-- language
-- folder
-- file glob
-- public/private/exported 여부
-- test/source 여부
-- unresolved edge 포함 여부
-- external dependency 포함 여부
-
-### 5.8 코드 탐색 연동
-
-그래프의 모든 코드 기반 노드는 VS Code editor와 연결되어야 한다.
-
-필수 명령:
-
-- Open Source
-- Reveal in Explorer
-- Find Callers
-- Find Callees
-- Show Containing File Graph
-- Copy Qualified Name
-- Copy Graph Node ID
-- Export Subgraph
-
-### 5.9 검색
-
-사용자는 다음 단위로 검색할 수 있어야 한다.
-
-- 파일명
-- 심볼명
-- qualified name
-- edge kind
-- path glob
-- language
-- unresolved symbol
-
-검색 결과 선택 시 해당 노드로 그래프 viewport가 이동한다.
-
-### 5.10 Export
-
-분석 결과와 현재 그래프 뷰를 내보낼 수 있어야 한다.
-
-지원 형식:
-
-- JSON
-- GraphML
-- Mermaid
-- DOT
-- SVG
-- PNG
-- Markdown report
-
-## 6. 아키텍처
-
-### 6.1 VS Code Extension Host
-
-Extension Host는 다음 역할을 담당한다.
-
-- 명령 등록
-- 설정 로드
-- 파일 시스템 watcher 관리
-- 분석 작업 스케줄링
-- 분석 캐시 관리
-- Webview 생성 및 메시지 브릿지
-- editor navigation 처리
-
-### 6.2 Analyzer Core
-
-Analyzer Core는 Rust 기반 저수준 분석 엔진을 기본 구현으로 사용한다. VS Code Extension Host는 Rust 엔진을 child process로 실행하고, 엔진이 출력하는 ProjectGraph JSON을 Webview에 전달한다.
-
-Extension Host 내부 TypeScript analyzer는 개발 중 fallback과 계약 테스트 용도로 유지한다.
-
-주요 단계:
-
-1. workspace scan
-2. file classification
-3. parser selection
-4. AST parsing
-5. symbol extraction
-6. import/export resolution
-7. reference resolution
-8. relationship extraction
-9. graph normalization
-10. cache persistence
-
-Analyzer Core는 언어별 analyzer plugin에 의존한다.
-
-### 6.3 Language Analyzer Plugin
-
-언어별 analyzer는 공통 인터페이스를 구현한다.
-
-```ts
-interface LanguageAnalyzer {
-  languageId: string;
-  extensions: string[];
-  parse(file: SourceFile): Promise<ParsedFile>;
-  extractSymbols(parsed: ParsedFile): Promise<SymbolNode[]>;
-  extractEdges(parsed: ParsedFile, context: AnalysisContext): Promise<GraphEdge[]>;
-  resolveReferences?(graph: ProjectGraph, context: AnalysisContext): Promise<GraphEdge[]>;
-}
-```
-
-### 6.4 Graph Store
-
-Graph Store는 분석 결과를 정규화하여 저장한다.
-
-필수 기능:
-
-- node CRUD
-- edge CRUD
-- node by file lookup
-- edge by source lookup
-- edge by target lookup
-- subgraph query
-- path query
-- cycle detection
-- graph diff
-
-### 6.5 Webview Frontend
-
-Webview는 그래프 렌더링과 사용자 상호작용을 담당한다.
-
-권장 기술:
-
-- React
-- TypeScript
-- Cytoscape.js 또는 React Flow
-- Zustand 또는 Redux Toolkit
-- CSS variables 기반 theme integration
-
-Webview는 직접 파일 시스템에 접근하지 않고 extension host와 message passing으로 통신한다.
-
-### 6.6 Message Protocol
-
-Extension Host와 Webview는 typed message protocol을 사용한다.
-
-예시:
-
-```ts
-type WebviewRequest =
-  | { type: "graph/load"; payload: GraphLoadRequest }
-  | { type: "graph/expand"; payload: ExpandRequest }
-  | { type: "node/openSource"; payload: { nodeId: string } }
-  | { type: "search/query"; payload: SearchRequest }
-  | { type: "export/run"; payload: ExportRequest };
-
-type ExtensionResponse =
-  | { type: "graph/loaded"; payload: GraphPayload }
-  | { type: "graph/updated"; payload: GraphPatch }
-  | { type: "search/results"; payload: SearchResult[] }
-  | { type: "error"; payload: ErrorPayload };
-```
-
-## 7. 데이터 모델
-
-### 7.1 Source Range
-
-```ts
-type SourceRange = {
-  startLine: number;
-  startCharacter: number;
-  endLine: number;
-  endCharacter: number;
-};
-```
-
-라인과 문자는 VS Code API와 동일하게 0-based index를 사용한다.
-
-### 7.2 Project Graph
-
-```ts
-type ProjectGraph = {
-  workspaceRoot: string;
-  version: string;
-  generatedAt: string;
-  nodes: SymbolNode[];
-  edges: GraphEdge[];
-  diagnostics: AnalysisDiagnostic[];
-  metadata: {
-    languages: string[];
-    languageSummary?: LanguageSummary[];
-    frameworks?: DetectedFramework[];
-    frameworkUnits?: FrameworkUnit[];
-    frameworkUnitEdges?: FrameworkUnitEdge[];
-    fileCount: number;
-    symbolCount: number;
-    edgeCount: number;
-  };
-};
-```
-
-```ts
-type LanguageSummary = {
-  language: string;
-  fileCount: number;
-  percentage: number;
-};
-
-type DetectedFramework = {
-  name: string;
-  ecosystem: string;
-  category: "frontend" | "backend" | "fullstack" | "test" | "build" | "desktop" | "mobile" | "unknown";
-  confidence: "high" | "medium" | "low";
-  rootPath?: string;
-  evidence: string[];
-};
-
-type FrameworkUnit = {
-  id: string;
-  framework: string;
-  rootPath: string;
-  kind:
-    | "app"
-    | "route"
-    | "operation"
-    | "controller"
-    | "view"
-    | "model"
-    | "serializer"
-    | "component"
-    | "service"
-    | "repository"
-    | "entity"
-    | "schema"
-    | "dependency"
-    | "configuration"
-    | "command"
-    | "module"
-    | "provider"
-    | "middleware"
-    | "unknown";
-  name: string;
-  qualifiedName?: string;
-  filePath: string;
-  range?: SourceRange;
-  parentId?: string;
-  metadata?: Record<string, unknown>;
-};
-
-type FrameworkUnitEdge = {
-  id?: string;
-  kind: "contains" | "routesTo" | "usesModel" | "renders" | "injects" | "calls" | "configures";
-  sourceId: string;
-  targetId: string;
-  filePath?: string;
-  range?: SourceRange;
+  stage: "boundary" | "path" | "decision" | "effect" | "unknown";
+  label: string;
+  detail: string;
+  depth: number;
   confidence?: "exact" | "resolved" | "inferred" | "unresolved";
-  metadata?: Record<string, unknown>;
+  resolution: "concrete" | "external" | "unresolved";
+  sourceToken?: string;
 };
 ```
 
-프레임워크 감지는 import graph보다 먼저 프로젝트 실행 모델을 이해하기 위한 상위
-metadata로 취급한다. 모노레포에서는 framework `rootPath`를 기준으로 앱 단위
-엔트리포인트 후보를 분리한다.
+### 4.5 Function Logic
 
-프레임워크가 감지되면 UI의 기본 탐색 단위는 file import가 아니라
-`FrameworkUnit`이다. 예를 들어 Django는 `URLs -> Views -> Models`,
-Next.js는 `App Routes -> Layouts -> Components`, FastAPI는
-`Routers -> Endpoints -> Dependencies -> Schemas`처럼 프레임워크가 실제로
-실행되는 의미 단위로 먼저 보여준다. file import tree는 raw dependency를
-확인하는 보조 뷰로 유지한다.
-
-초기 framework semantic adapter는 보수적인 convention 분석을 사용한다. Django
-adapter는 감지된 `rootPath` 아래에서 `settings.py`, `urls.py`, `apps.py`,
-`models.py`, `views.py`, `serializers.py`, `management/commands/*.py`를 우선
-스캔하고 다음 단위를 생성한다.
-
-- `configuration`: Django settings 파일
-- `route`: URLConf 파일 또는 URL pattern 선언
-- `app`: `apps.py`, `models.py`, `views.py`, `serializers.py` 중 하나 이상을 가진 앱 디렉터리
-- `model`: `models.py`의 class 선언
-- `view`: `views.py`의 function 또는 class 선언
-- `serializer`: `serializers.py`의 class 선언
-- `command`: management command 파일
-
-앱 디렉터리 아래에서 발견된 semantic unit은 해당 `app` unit을 `parentId`로
-가리키며, `frameworkUnitEdges`에는 `contains` edge를 기록한다. 어댑터가
-정적으로 `path(...)`, `re_path(...)`의 view 참조를 단일 view unit으로 해석할 수
-있으면 `routesTo` edge를 추가한다. `include(...)`, 동적 라우팅, 런타임 import,
-설정 기반 alias는 추론하지 않고 후속 정밀 분석 단계에서 `inferred` 관계로
-확장한다.
-
-FastAPI adapter는 감지된 `rootPath` 아래의 Python 파일에서 다음 단위를 우선
-생성한다.
-
-- `module`: 의미 단위를 포함하는 Python module
-- `app`: `FastAPI(...)` constructor 할당
-- `route`: `@app.get(...)`, `@router.post(...)`, `@*.api_route(...)` decorator
-- `controller`: route decorator 바로 아래의 endpoint function
-- `schema`: Pydantic `BaseModel` class
-- `dependency`: endpoint signature의 `Depends(...)` target
-- `service`: service 파일 또는 `Service` 명명 규칙에 해당하는 class/function
-
-FastAPI route decorator와 바로 아래 endpoint function은 `routesTo` edge로
-연결한다. `include_router`, dependency injection graph, `response_model`과 schema
-연결은 literal/static target을 더 엄밀히 해석하는 다음 단계에서 `configures`,
-`injects`, `usesModel` edge로 확장한다.
-
-Flask adapter는 감지된 `rootPath` 아래의 Python 파일에서 다음 단위를 우선
-생성한다.
-
-- `module`: 의미 단위를 포함하는 Python module
-- `app`: `Flask(...)` constructor 할당
-- `route`: `@app.route(...)`, `@bp.get(...)`, `@bp.route(...)` decorator
-- `controller`: route decorator 바로 아래의 view function
-- `middleware`: `before_request`, `after_request` hook function
-- `service`: service 파일 또는 `Service` 명명 규칙에 해당하는 class/function
-
-Flask route decorator와 바로 아래 view function은 `routesTo` edge로 연결한다.
-Blueprint는 현재 타입 체계 안에서 `module`로 표현하고, blueprint registration과
-prefix 합성은 다음 단계에서 `configures` edge로 확장한다.
-
-React/Next.js adapter는 감지된 `rootPath` 아래의 `ts`, `tsx`, `js`, `jsx` 파일에서
-다음 단위를 우선 생성한다.
-
-- `module`: 의미 단위를 포함하는 source module
-- `component`: PascalCase function/class/const component 또는 default export component
-- `provider`: `Provider` suffix component
-- `service`: `useXxx` hook function
-- `schema`: schema 명명 규칙과 `z.object`, `yup.object`, `new Schema` 계열 선언
-- `route`: Next.js `app/page`, `app/route`, `pages/*`, `pages/api/*`
-- `layout`: Next.js `app/layout`, `pages/_app`, `pages/_document`
-
-Next.js page route와 같은 파일의 component를 찾으면 `renders` edge로 연결한다.
-동적 segment, route group, parallel route 표기는 경로 문자열에 보존하되 런타임
-라우팅 계산은 하지 않는다.
-
-Express/NestJS adapter는 감지된 `rootPath` 아래의 `ts`, `tsx`, `js`, `jsx` 파일에서
-다음 단위를 우선 생성한다.
-
-- `module`: 의미 단위를 포함하는 source module
-- `route`: Express `app.get/post/...`, NestJS `@Get/@Post/...` method
-- `controller`: Express handler function 또는 NestJS `@Controller` class
-- `service`: NestJS `@Injectable` service 또는 service 파일/명명 규칙
-- `provider`: NestJS `@Injectable` provider
-- `middleware`: Express `app.use/router.use` non-route handler
-
-Express route와 handler 이름을 정적으로 해석할 수 있으면 `routesTo` edge로
-연결한다. NestJS controller class와 method route는 `contains` edge로 연결한다.
-동적 router composition, imported handler alias, NestJS module provider graph는
-다음 단계에서 더 엄밀한 symbol/import resolution으로 확장한다.
-
-GraphQL adapter는 모든 요청이 공유하는 `/graphql` transport route를 실행
-엔트리포인트로 취급하지 않는다. 감지된 `rootPath` 아래의 code-first schema에서
-다음 단위를 생성한다.
-
-- `schema`: resolver class 또는 conventional root type
-- `operation`: `Query`, `Mutation`, `Subscription` root field
-
-NestJS/TypeGraphQL 계열에서는 `@Resolver` class의 `@Query`, `@Mutation`,
-`@Subscription` method를 operation으로 생성한다. nested object field를 해석하는
-`@ResolveField`는 root operation에 포함하지 않는다. Strawberry에서는
-`@strawberry.type`이 붙은 `Query`, `Mutation`, `Subscription` class의 sync/async
-field를 추출한다. operation은 실제 callable 선언 위치를 보존하여 resolver와
-downstream `calls` edge에 직접 연결한다. SDL-first schema와 inline Apollo/Yoga
-resolver object, Graphene field, federation metadata, 동적 registration은 schema
-field와 callable을 정적으로 연결하는 후속 adapter에서 지원한다. 중첩 GraphQL
-selection이 object field resolver로 dispatch되는 흐름도 현재 root operation
-flow에는 포함하지 않는다.
-
-### 7.3 Diagnostics
-
-분석 중 발생한 문제는 진단 정보로 보존한다.
+Function Logic은 선택된 한 함수 내부의 가능한 제어 흐름이다. Project Graph의 call
+edge를 재배열한 결과가 아니라 현재 source syntax에서 직접 만든 별도 분석 결과다.
 
 ```ts
-type AnalysisDiagnostic = {
-  severity: "info" | "warning" | "error";
-  code: string;
-  message: string;
-  filePath?: string;
-  range?: SourceRange;
-  details?: Record<string, unknown>;
+type FunctionLogicBlock = {
+  id: string;
+  kind:
+    | "entry" | "condition" | "loop" | "switch" | "try"
+    | "call" | "effect" | "mutation" | "operation"
+    | "return" | "throw" | "break" | "continue" | "exit";
+  label: string;
+  depth: number;
+  branchLabel?: string;
+  confidence: "exact" | "inferred";
+  sourceLocation?: string;
+  evidenceToken?: string;
+};
+
+type FunctionLogicEdge = {
+  sourceId: string;
+  targetId: string;
+  kind:
+    | "next" | "true" | "false" | "iterate" | "repeat" | "exit"
+    | "case" | "exception" | "finally" | "return" | "throw"
+    | "break" | "continue";
+  confidence: "exact" | "inferred";
 };
 ```
 
-## 8. 분석 정확도 정책
+block의 source 순서는 presentation order이며 실제 runtime 순서를 의미하지 않는다.
+실행 가능성은 block 사이의 edge로 표현한다. effect는 이름 기반 추론일 수 있으므로
+`inferred`를 유지하고 사용자가 callee source에서 검증하게 한다.
 
-정적 분석은 완전한 실행 시맨틱을 보장하지 않는다. 따라서 모든 edge에는 confidence를 부여한다.
+### 4.6 Evidence
 
-- `exact`: 언어 서버, 타입 시스템, AST resolution으로 정확히 연결됨
-- `resolved`: import/export 또는 scope resolution으로 합리적으로 연결됨
-- `inferred`: 이름, 패턴, framework convention으로 추론됨
-- `unresolved`: 호출 또는 참조는 발견했지만 대상 심볼을 결정하지 못함
+Evidence는 분석 결과의 근거다. definition, callsite, framework mapping, import binding,
+runtime observation을 서로 다른 종류로 보존한다.
 
-UI는 confidence를 시각적으로 구분해야 하며, unresolved edge를 숨기거나 표시할 수 있어야 한다.
+### 4.7 Coverage Gap
 
-## 9. 성능 요구사항
+분석기가 경로를 완성하지 못한 이유다. ambiguous mapping, unresolved target, depth
+limit, step limit을 정상적인 제품 상태로 표현한다.
 
-### 9.1 초기 분석
+## 5. 의미론과 정확성 규칙
 
-- 1,000개 파일 이하 프로젝트는 기본 설정에서 30초 이내에 초기 분석을 완료하는 것을 목표로 한다.
-- 10,000개 파일 이상 프로젝트는 전체 분석 전에 progress, partial result, cancellation을 제공해야 한다.
+### 5.1 정적 흐름은 실행 기록이 아니다
 
-### 9.2 점진 분석
+정적 `A -> B -> C`는 도달 가능한 calls 관계이며 실제 시간 순서를 의미하지 않는다.
+UI는 정적 flow에 실행 시각, 호출 횟수, return 순서를 만들지 않는다.
 
-- 단일 파일 변경 시 해당 파일과 직접 영향을 받는 import graph 범위만 재분석한다.
-- 변경 파일 분석 결과는 기존 graph에 patch로 반영한다.
+함수 내부 `true`, `false`, `repeat`, `return` edge도 syntax가 허용하는 가능한 경로다.
+조건 값, 반복 횟수, callee 내부 exception, callback 실행 시점이 관찰되었다고 주장하지
+않는다.
 
-### 9.3 UI 성능
+### 5.2 confidence 보존
 
-- 한 화면에 렌더링되는 노드는 기본 500개 이하로 제한한다.
-- 큰 그래프는 clustering, paging, lazy expansion을 사용한다.
-- layout 계산은 가능한 경우 Web Worker에서 수행한다.
+- `exact`: 타입 시스템, AST 또는 직접 framework mapping으로 확인
+- `resolved`: scope/import 규칙으로 합리적으로 연결
+- `inferred`: 이름, 폴더, convention으로 추론
+- `unresolved`: 호출은 보이나 대상이 정해지지 않음
 
-### 9.4 캐싱
+색상만으로 confidence를 전달하지 않는다. label, line style, badge, accessible text를
+함께 사용한다.
 
-캐시는 workspace storage에 저장한다.
+### 5.3 observed evidence 분리
 
-캐시 key:
+향후 runtime trace가 추가되더라도 정적 edge를 덮어쓰지 않는다. 같은 관계에
+`Observed` evidence를 추가하고 어떤 실행 또는 테스트에서 관찰했는지 보존한다.
 
-- extension version
-- analyzer version
-- workspace root
-- file path
-- file content hash
-- language analyzer version
+### 5.4 순서와 presentation 분리
 
-캐시 무효화 조건:
+사용자가 flow를 설명하기 위해 step을 강조하거나 숨길 수는 있지만, call 관계의
+방향이나 analyzer evidence를 편집할 수는 없다. Presentation order가 causal order로
+오해되지 않게 별도 필드로 보존한다.
 
-- 파일 content hash 변경
-- analyzer version 변경
-- extension version의 breaking cache version 변경
-- 사용자 분석 설정 변경
+### 5.5 Unknown 우선
 
-## 10. GUI Surfaces
+근거가 부족한 역할, effect, business ownership, purity는 `Unknown`으로 남긴다.
+부정확한 완성도보다 명시적인 빈칸을 선호한다.
 
-확장은 Command Palette 중심 명령 대신 GUI 기반 흐름을 제공한다. Activity Bar의 Project Analyzer 사이드바는 분석 실행, 파일 탐색 트리, 그래프 브라우저 탭을 여는 제어 표면이며, 실제 그래프 canvas 탐색기는 별도의 editor tab WebviewPanel로 제공한다.
+## 6. UX 정보 구조
 
-사이드바는 다음 GUI 액션을 제공한다.
+제품의 기본 정보 구조는 하나의 질문과 하나의 flow에 집중한다.
 
-- Analyze Workspace
-- Analyze Current File
-- VS Code Explorer 형태의 file tree 탐색
-- Open Graph Browser
-- Export graph
-- Clear cache
-- Cancel analysis
+```text
+Activity Bar: Start a Flow
+  |- Entrypoints
+  |- Find a Function
+  `- Recent/Saved Flows
 
-Graph Browser WebviewPanel은 다음 GUI 액션을 제공한다.
-
-- Switch Files, Calls, and Classes views
-- Project Root에서 시작하는 progressive graph expansion
-- Folder, file, class, function, call child를 클릭으로 펼침
-- 노드 더블 클릭 시 원본 코드 위치 열기
-
-## 11. VS Code Settings
-
-```json
-{
-  "projectAnalyzer.enabled": true,
-  "projectAnalyzer.autoAnalyze": true,
-  "projectAnalyzer.include": ["**/*.{ts,tsx,js,jsx,py}"],
-  "projectAnalyzer.exclude": [
-    "**/node_modules/**",
-    "**/.git/**",
-    "**/dist/**",
-    "**/build/**",
-    "**/coverage/**",
-    "**/.venv/**",
-    "**/venv/**"
-  ],
-  "projectAnalyzer.maxFileSizeKb": 1024,
-  "projectAnalyzer.maxRenderedNodes": 500,
-  "projectAnalyzer.defaultDepth": 2,
-  "projectAnalyzer.includeExternalDependencies": false,
-  "projectAnalyzer.showUnresolvedEdges": true,
-  "projectAnalyzer.cache.enabled": true,
-  "projectAnalyzer.cache.maxSizeMb": 256
-}
+Editor/Sidebar: Flow Reader
+  |- Reading frame
+  |- Inter-function flow steps
+  |- Selected-function control-flow graph
+  |- Selected graph-node evidence
+  |- Evidence and unknowns
+  `- Source actions
 ```
 
-## 12. UX 요구사항
+Project Map, Reading Plan, Guided Tour, Analysis Dashboard는 기본 navigation에 두지
+않는다.
 
-- 분석 진행 중 상태 표시줄에 progress를 표시한다.
-- 사용자가 언제든 분석을 취소할 수 있어야 한다.
-- Webview가 열려 있을 때 분석 결과가 갱신되면 graph patch를 적용한다.
-- 대형 그래프에서는 먼저 요약된 구조를 보여주고 사용자가 필요한 부분을 펼치게 한다.
-- Request Flows는 기본적으로 section summary와 접힌 framework row까지만 만든다.
-  GraphQL은 `framework -> rootPath scope(복수 root일 때) -> operation type count ->
-  operation -> resolver/calls` 순서로 한 단계씩 펼친다.
-- 현재 summary-first projection은 초기 row와 DOM 정보량을 제한한다. analyzer scan과
-  semantic-flow index는 graph load 시 생성되며, server-side paging과 chunked
-  expansion은 후속 protocol 과제로 둔다.
-- 노드와 edge 스타일은 VS Code light/dark/high contrast theme을 따라야 한다.
-- 오류가 발생해도 가능한 부분 결과를 표시한다.
-- 빈 프로젝트 또는 지원하지 않는 언어만 있는 프로젝트에는 명확한 empty state를 제공한다.
+### 6.1 Empty State
 
-## 13. 보안 및 개인정보
+분석 전 화면은 제품의 읽기 방식을 한 문장으로 알려주고 `Analyze Workspace`를
+primary action으로 제공한다.
 
-- 기본 동작은 로컬 분석이어야 한다.
-- 사용자의 명시적 동의 없이 소스 코드를 외부 서비스로 전송하지 않는다.
-- export 파일은 사용자가 선택한 위치에만 저장한다.
-- Webview는 strict Content Security Policy를 사용한다.
-- Webview script는 nonce 기반으로 로드한다.
-- workspace 파일 경로와 코드 내용은 extension host 내부에서만 처리한다.
+```text
+Start at a boundary. Follow responsibility changes. Find effects. Verify in source.
+```
 
-## 14. 오류 처리
+지원 파일이 없거나 분석이 실패해도 다음 행동을 명확히 제공한다.
 
-분석기는 파일 단위 failure isolation을 보장한다.
+### 6.2 Start a Flow
 
-- 한 파일 파싱 실패가 전체 분석 실패로 이어지면 안 된다.
-- 파싱 실패 파일은 diagnostics에 기록한다.
-- import resolution 실패는 unresolved edge로 기록한다.
-- Webview message 처리 실패는 사용자에게 간결하게 표시하고 개발자 콘솔에 상세 정보를 기록한다.
+사용자는 두 가지 시작 방식을 가진다.
 
-## 15. 테스트 전략
+#### Entrypoints
 
-### 15.1 Unit Tests
+- HTTP route
+- GraphQL Query, Mutation, Subscription
+- 향후 event, job, CLI, test entrypoint
 
-- path filtering
-- language detection
-- AST symbol extraction
-- edge extraction
-- graph normalization
-- cache invalidation
-- message protocol validation
+목록은 framework와 scope로 필터링할 수 있고 텍스트 검색을 지원한다. 초기 payload는
+bounded summary이며 전체 function inventory를 전송하지 않는다.
 
-### 15.2 Fixture Tests
+#### Functions
 
-언어별 fixture 프로젝트를 사용하여 실제 graph snapshot을 검증한다.
+함수명, qualified name, workspace-relative source path로 검색한다. 검색 결과는 source
+token만 노출하며 analyzer ID와 host absolute path를 Webview로 보내지 않는다. 선택한
+함수는 Function Logic Reader로 열고, entrypoint flow의 concrete 함수 step에도
+`Inspect logic` action을 제공한다.
 
-필수 fixture:
+### 6.3 Flow Reader
 
-- TypeScript import/export
-- TypeScript class inheritance
-- JavaScript CommonJS
-- Python module import
-- Python class inheritance
-- recursive function call
-- circular dependency
-- unresolved dynamic call
+Entrypoint Flow Reader는 좁은 sidebar에서 vertical ribbon을 사용한다. 선택 함수의
+Function Logic Reader는 node와 labeled edge로 이루어진 scrollable control-flow graph를
+기본 표현으로 사용한다. 전체 Project Graph가 아니라 현재 선택 함수의 bounded block만
+layout 대상으로 삼는다.
 
-### 15.3 Integration Tests
+필수 요소:
 
-- VS Code command registration
-- workspace analysis command
-- current file analysis command
-- Webview open and message roundtrip
-- graph node open source navigation
-- export command
+- flow title과 root 종류
+- `Static path` 또는 `Observed path` 표시
+- Boundary, Path, Decision, Effect, Unknown stage
+- confidence badge
+- workspace-relative source location
+- one-click source open
+- branch indent와 collapsed count
+- coverage gap과 traversal limit
+- 임의 함수에서 시작한 경우 알려진 upstream entrypoint
 
-### 15.4 Performance Tests
+선택 함수에서는 같은 위치에 다음 요소를 제공한다.
 
-- 1,000 files synthetic project
-- 10,000 files synthetic project
-- incremental update latency
-- graph layout latency
-- cache read/write latency
+- 현재 함수 signature
+- 위에서 아래로 진행하는 control-flow rank
+- 같은 rank에서 좌우로 분리되는 branch lane
+- condition/loop/call/mutation/effect/exit kind
+- `true`, `false`, `iterate`, `exit`, `return`, `throw` labeled edge
+- `repeat`와 `continue`를 위한 외곽 back-edge channel
+- 중간 node를 가로지르지 않는 long-exit outer channel
+- exact solid edge와 inferred/exception/back dashed edge
+- exact/inferred confidence
+- workspace-relative statement location
+- graph node 선택 시 detail, outgoing target, source action을 보여 주는 evidence panel
+- 50%~160% bounded zoom과 양방향 scroll canvas
+- exact statement를 여는 evidence action
+- parser limitation과 runtime unknown
 
-## 16. 비기능 요구사항
+### 6.4 Evidence Detail
 
-- TypeScript strict mode를 사용한다.
-- Extension Host와 Webview 사이의 메시지는 런타임 검증을 거친다.
-- 분석 파이프라인은 cancellation token을 지원한다.
-- 긴 작업은 progress notification을 제공한다.
-- 로그 레벨을 설정할 수 있어야 한다.
-- 내부 graph format은 버전 필드를 가져야 한다.
-- public API와 internal API를 구분한다.
+step 또는 edge를 선택하면 다음을 보여준다.
 
-## 17. 구현 마일스톤
+- 왜 이 step이 flow에 포함되었는가
+- definition인지 callsite인지
+- edge confidence와 resolution
+- architecture/layer evidence가 있다면 그 근거
+- 분석이 확인하지 못한 항목
 
-### Milestone 1: Extension Skeleton
+### 6.5 Source Integration
 
-- VS Code extension scaffold
-- Activity Bar sidebar view registration
-- editor tab graph WebviewPanel
-- settings schema
-- Webview shell
-- basic message protocol
+- concrete step: 정확한 definition 열기
+- function logic block: 정확한 statement 또는 condition expression 열기
+- unresolved/external step: target definition으로 위장하지 않고 callsite 위치 표시
+- active graph가 바뀌면 이전 source token 무효화
+- active graph가 바뀌면 이전 statement evidence token도 무효화
+- source open은 이해 완료나 학습 완료로 기록하지 않음
 
-### Milestone 2: Rust TypeScript/JavaScript Analysis
+### 6.6 Progressive Disclosure
 
-- file scanner
-- Rust analyzer engine
-- TypeScript/JavaScript parser boundary
-- symbol extraction
-- import/export resolution
-- function and method call extraction
-- JSON graph export
+- 최초에는 핵심 flow와 branch summary만 표시
+- 한 번에 보여주는 concrete step 목표는 6~12개
+- 사용자가 선택한 branch만 추가 확장
+- 외부 라이브러리와 cross-cutting noise는 기본 접힘
+- 전체 structure와 inventory는 검색 또는 명시적 context action 뒤에만 로드
 
-### Milestone 3: Visual Explorer MVP
+## 7. MVP 범위
 
-- graph canvas
-- progressive root-to-child expansion
-- open source navigation from graph nodes
+### 7.1 포함
 
-### Milestone 4: Rust Python Analysis
+- workspace/current-file 로컬 분석
+- TypeScript, JavaScript, Python callable extraction
+- HTTP/GraphQL entrypoint catalog
+- entrypoint-centered bounded downstream flow
+- 임의 concrete function 검색
+- TypeScript/JavaScript 함수 내부 statement-level control flow
+- condition, branch, loop, switch, try, mutation, call, return/throw block
+- 함수 내부 exact statement evidence navigation
+- 함수 내부 effect candidate의 inferred confidence
+- 함수가 포함된 알려진 entrypoint 표시
+- confidence, unresolved, external, traversal gap 표시
+- source navigation
+- snapshot identity와 stale response rejection
+- VS Code theme, keyboard, high contrast 지원
 
-- Python parser boundary
-- module import resolution
-- function/class extraction
-- call edge extraction
-- Python fixture tests
+### 7.2 제외
 
-### Milestone 5: Incremental Analysis and Cache
+- 전체 프로젝트 force-directed graph를 기본 화면으로 제공
+- variable-level data-flow slicing
+- Python 함수 내부 statement-level CFG
+- expression-level short-circuit/ternary CFG
+- runtime instrumentation과 trace collection
+- AI가 생성한 자유 형식 설명
+- collaboration server와 실시간 공동 편집
+- architecture score, code health score, learning progress score
+- 모든 언어와 framework의 동적 dispatch 완전 해석
 
-- file watcher
-- content hash cache
-- graph patch update
-- clear cache sidebar action
-- graph panel refresh after analysis
-- performance telemetry without source code capture
+## 8. 아키텍처
 
-### Milestone 6: Advanced Views
+### 8.1 의존성 방향
 
-- class graph
-- file dependency graph
-- dependency matrix
-- graph diff
-- Mermaid/DOT/SVG/PNG export
+```text
+extension -> application/codeFlow -> insights/semanticFlow -> graph -> shared
+extension -> analyzer/functionLogic -> shared
+extension -> protocol/codeFlow -> shared
+webview/codeFlow -> protocol/codeFlow -> shared
+vscode/sourceNavigation -> shared
+```
+
+Webview는 Project Graph, 파일 시스템, VS Code API에 직접 접근하지 않는다.
+
+### 8.2 모듈 책임
+
+#### `insights/semanticFlow`
+
+- framework entrypoint와 callable mapping
+- bounded iterative traversal
+- confidence와 coverage gap 보존
+- Webview와 VS Code에 의존하지 않는 domain model
+
+#### `application/codeFlow`
+
+- 사용자 질문을 domain query로 변환
+- catalog와 detail payload projection
+- source display와 protocol budget 적용
+- stage/label을 evidence보다 강하게 표현하지 않음
+- function-local domain block을 opaque protocol identity와 safe source display로 변환
+- iterative longest-rank 계산과 branch lane 배치
+- repeat/continue와 long exit의 outer-channel edge routing
+
+#### `analyzer/functionLogic`
+
+- 현재 source에서 선택 함수 body를 정확한 이름과 선언 위치로 매칭
+- TypeScript/JavaScript compiler AST 기반 statement classification
+- 명시적 stack/container 기반 structured control-flow edge 구성
+- source range, exact/inferred confidence, parser/runtime gap 보존
+- Webview, protocol, VS Code API에 의존하지 않는 domain model
+
+#### `protocol/codeFlow`
+
+- catalog request/response
+- entrypoint selection
+- source selection
+- statement evidence selection
+- flow detail과 failure
+- runtime validation 가능한 JSON 계약
+
+#### `webview/codeFlow`
+
+- start mode와 검색
+- flow ribbon 렌더링
+- function signature, positioned graph node, SVG edge/label, selection panel 렌더링
+- confidence/unknown 표시
+- source action
+- 브라우저 상태와 late response rejection
+
+### 8.3 탐색 구현 규칙
+
+- queue 또는 stack 기반 반복 탐색
+- visited set 필수
+- 모든 query에 maxDepth와 maxSteps 적용
+- function-local traversal에는 maxLogicBlocks 적용
+- cycle과 converging branch를 finite하게 처리
+- unresolved와 external target을 concrete node와 구분
+- initial payload와 search result에 hard budget 적용
+
+## 9. Protocol 원칙
+
+- 모든 Webview request는 runtime validation을 통과해야 함
+- graph snapshot version이 일치하지 않는 request/response는 무시
+- 동일 query의 late response를 막기 위한 browser request ID 사용
+- analyzer node ID와 absolute path는 tokenized surface에 노출하지 않음
+- source token과 flow ID는 snapshot-local opaque identity
+- statement evidence token도 snapshot-local opaque identity이며 raw path/range를 request로
+  받지 않음
+- payload는 Map, Set, class instance 없이 JSON 직렬화 가능해야 함
+
+## 10. 성능
+
+- graph load 시 전체 graph는 Extension Host에 유지하고 Webview에는 shell과 bounded
+  catalog만 전송
+- catalog 기본 노출 수는 최대 24개, 검색 응답은 최대 50개
+- flow detail은 기본 depth 3, 최대 30 step
+- function logic은 기본 120, 최대 300 statement block
+- function graph layout은 block/edge 수에 선형으로 동작하고 finite canvas를 생성
+- function search는 host-side index와 cursor/request identity 사용
+- graph snapshot 동안 semantic-flow, function architecture, function index를 재사용
+- function logic은 선택 시 현재 editor document를 읽어 unsaved source도 반영
+- 브라우저는 DOM에 보이는 flow와 검색 결과만 렌더링
+- 대형 그래프에서도 사용자가 첫 유용한 flow를 선택하기 전 전체 row inventory를
+  만들지 않음
+
+## 11. 보안과 개인정보
+
+- 기본 분석은 로컬에서 수행
+- 명시적 동의 없이 source를 외부 서비스로 전송하지 않음
+- Webview는 strict CSP와 nonce script 사용
+- host absolute path와 analyzer identity를 tokenized payload에서 제거
+- statement path/range는 Host registry에만 보존하고 Webview에는 opaque evidence token과
+  safe display location만 전달
+- export는 사용자가 선택한 위치에만 생성
+- 브라우저 로그에 source content를 포함하지 않음
+
+## 12. 접근성
+
+- 모든 flow action은 키보드로 실행 가능
+- stage와 confidence는 색상만으로 전달하지 않음
+- tree/ribbon depth와 선택 상태에 ARIA 정보 제공
+- focus 이동이 source open과 flow expansion 사이에서 예측 가능해야 함
+- VS Code light, dark, high contrast theme 사용
+- reduced motion 환경에서 animation을 요구하지 않음
+
+## 13. 테스트 전략
+
+### 13.1 Domain
+
+- cycle, duplicate edge, depth limit, step limit
+- ambiguous handler, unresolved target, external target
+- HTTP와 GraphQL entrypoint
+- 임의 함수 downstream와 known entrypoint context
+- confidence 약화 규칙
+- if/else, nested branch, loop repeat/exit, switch, try, return/throw
+- mutation exact classification과 effect inferred classification
+- function match failure, unsupported language, block limit
+
+### 13.2 Application/Protocol
+
+- catalog/detail hard budget
+- opaque flow/source identity
+- opaque statement evidence identity와 snapshot invalidation
+- absolute path redaction
+- malformed request rejection
+- stale graph version rejection
+- late search response rejection
+
+### 13.3 Webview
+
+- 분석 전 empty state
+- entrypoint/function start mode 전환
+- catalog 검색과 선택
+- flow detail, gaps, confidence 렌더링
+- function signature, graph nodes, labeled edges, node selection 렌더링
+- branch lane, loop back edge, long exit channel 렌더링
+- exact statement evidence action
+- source action
+- cache clear와 graph replacement reset
+- keyboard와 accessible labels
+
+### 13.4 Architecture
+
+- initial publish가 Guided Tour/Reading Plan을 계산하거나 전송하지 않는지 확인
+- Webview가 raw Project Graph 내부를 직접 해석하지 않는지 확인
+- codeFlow public surface 밖의 deep import 방지
+- traversal 재귀 호출 금지
+- analyzer/functionLogic과 protocol/Webview 사이의 의존성 역전 확인
+
+## 14. 제품 전환과 제거 대상
+
+### 14.1 즉시 제거되는 기본 경험
+
+- Guide/Explore 탭
+- 자동 선택된 한 개 mission
+- Project Reading Plan
+- 학습 stage와 visited progress
+- Analysis Details 대시보드
+- Browse Structure accordion
+- 전체 그래프를 열기 위한 비활성 GUI action
+
+### 14.2 유지하는 엔진 자산
+
+- analyzer pipeline과 Rust engine
+- Project Graph schema
+- semantic-flow index
+- change-impact traversal
+- function architecture evidence
+- function search index
+- source token registry
+- cache와 snapshot delivery
+
+### 14.3 코드 정리 원칙
+
+기존 Guided Tour, Reading Guide, Learning Journey의 Webview/Host 모듈과 중앙
+message route는 제거한다. semantic-flow, architecture evidence처럼 새 CodeFlow가
+직접 재사용할 수 있는 분석 자산은 UI 제품 가정과 분리해 유지한다. 분석 자산을
+삭제하는 것과 제품 가정을 삭제하는 것을 구분한다.
+
+## 15. 구현 마일스톤
+
+### Milestone 1: Product Reset
+
+- 새 제품 정의와 README
+- Guide/Explore 기본 정보 구조 제거
+- CodeFlow protocol/application/webview feature folder
+- entrypoint catalog와 vertical Flow Reader
+- function search와 entrypoint step에서 Function Logic Reader 열기
+
+### Milestone 2: Function Logic Reader
+
+- TypeScript/JavaScript current-source AST parsing
+- statement/condition/loop/mutation/call/exit classification
+- structured true/false/iterate/repeat/return/throw transfer
+- exact statement evidence token과 source navigation
+- bounded layered graph layout과 labeled control edge
+- known entrypoint context와 parser/runtime gap
+
+### Milestone 3: Flow Interaction
+
+- caller/callee/context direction 전환
+- branch lazy expansion
+- set-as-root
+- edge evidence detail
+- 현재 편집기 심볼에서 시작
+
+### Milestone 4: Visual Canvas
+
+- editor-tab horizontal flow lanes
+- stable layout와 breadcrumbs
+- sidebar와 editor selection 동기화
+- flow pin/hide와 saved presentation
+- Mermaid/SVG export
+
+### Milestone 5: Change Understanding
+
+- Git 변경 심볼에서 시작
+- affected entrypoint cone
+- base/head flow diff
+- PR용 bounded flow artifact
+
+### Milestone 6: Deeper Evidence
+
+- type-backed JavaScript/TypeScript call resolution
+- Python function-local parser
+- expression-level short-circuit, optional-chain, ternary control flow
+- finally를 통과하는 abrupt completion의 정밀 모델
+- data-flow slice 실험
+- optional observed runtime evidence adapter
+
+## 16. 성공 기준
+
+정량 지표는 분석 데이터의 양이 아니라 이해 작업의 속도를 측정한다.
+
+- 분석 완료 후 두 번 이하의 action으로 첫 flow를 열 수 있음
+- 모든 concrete step에서 한 번의 action으로 source를 열 수 있음
+- 선택 함수에서 condition, branch, effect candidate, exit를 declaration이 아닌 실제
+  statement source로 한 번에 열 수 있음
+- 기본 flow가 스크롤 가능한 작은 단위로 유지됨
+- 사용자가 5분 안에 entry, 주요 responsibility shift, effect 또는 unknown을 설명할 수 있음
+- static/inferred 관계를 runtime fact로 오해하게 만드는 표기가 없음
+- unresolved와 traversal limit이 숨겨지지 않음
+- 새 graph snapshot에서 오래된 flow/source action이 실행되지 않음
+
+## 17. 완료 정의
+
+Product Reset MVP는 다음 조건을 모두 만족할 때 완료된다.
+
+- Activity Bar 첫 화면이 `Start a Flow` 경험임
+- Guided Tour와 Reading Plan이 production initial publish 경로에 없음
+- 사용자가 HTTP/GraphQL entrypoint를 검색하고 flow를 열 수 있음
+- 사용자가 임의 함수를 검색하고 그 함수 중심 flow context를 열 수 있음
+- TypeScript/JavaScript 선택 함수가 statement-level logic block과 가능한 transfer로
+  표시됨
+- flow step에 stage, source, confidence, resolution이 표시됨
+- source token으로 concrete definition을 열 수 있음
+- evidence token으로 exact function statement를 열 수 있음
+- coverage gap과 unknown이 별도 상태로 표시됨
+- 관련 unit, protocol validation, Webview 테스트가 통과함
+- README와 package description이 새 제품 약속을 반영함
 
 ## 18. Open Questions
 
-- TypeScript/JavaScript Rust parser는 tree-sitter 기반으로 갈지, swc/oxc 계열 parser를 사용할지 결정해야 한다.
-- Python Rust parser는 tree-sitter-python 기반으로 시작할지, RustPython parser 계열을 사용할지 결정해야 한다.
-- multi-root workspace에서 graph를 workspace별로 분리할지 하나의 통합 graph로 제공할지 결정해야 한다.
-- framework-specific convention 분석을 core에 둘지 plugin으로 분리할지 결정해야 한다.
-- AI 요약 기능을 제품 범위에 포함할 경우 로컬/원격 처리 정책을 별도 정의해야 한다.
-
-## 19. 완료 기준
-
-MVP는 다음 조건을 만족하면 완료로 본다.
-
-- 사용자가 Activity Bar의 Project Analyzer 사이드바를 열 수 있다.
-- TypeScript/JavaScript 프로젝트를 분석하여 파일, 함수, 클래스, 호출 관계를 graph로 볼 수 있다.
-- 그래프 노드를 더블 클릭하면 원본 코드 위치로 이동한다.
-- 특정 함수의 caller/callee를 depth 제한과 함께 탐색할 수 있다.
-- 분석 결과를 JSON으로 export할 수 있다.
-- 파일 변경 후 재분석 결과가 Webview에 반영된다.
-- 주요 분석 로직과 Webview message protocol에 테스트가 존재한다.
+- 최종 제품명에서 `Analyzer`를 유지할지 `Flow` 중심 이름으로 바꿀지
+- decision/effect stage를 어느 수준의 evidence부터 자동 부여할지
+- source callsite token을 definition token과 별도로 도입할지
+- Python function-local logic을 표준 라이브러리 parser 또는 별도 parser adapter 중
+  무엇으로 구현할지
+- saved flow를 workspace 파일로 저장할지 extension storage에 저장할지
+- editor canvas의 기본 grouping을 architecture layer와 source package 중 무엇으로 할지
+- runtime observation adapter를 core 제품에 포함할지 별도 plugin으로 둘지
