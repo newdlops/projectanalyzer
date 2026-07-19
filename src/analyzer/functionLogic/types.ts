@@ -42,6 +42,14 @@ export type FunctionLogicEdgeKind =
 /** Confidence says whether syntax proves the role or only supports a heuristic. */
 export type FunctionLogicConfidence = "exact" | "inferred";
 
+/** Language adapters that can produce function-internal control flow. */
+export type FunctionLogicLanguage =
+  | "typescript"
+  | "javascript"
+  | "python"
+  | "java"
+  | "unsupported";
+
 /** One statement or synthetic entry/exit block inside the selected function. */
 export type FunctionLogicBlock = {
   id: string;
@@ -53,6 +61,14 @@ export type FunctionLogicBlock = {
   confidence: FunctionLogicConfidence;
   filePath: string;
   range: SourceRange;
+};
+
+/** One direct call expression found inside the selected callable's own AST body. */
+export type FunctionLogicCallsite = {
+  filePath: string;
+  range: SourceRange;
+  calleeName: string;
+  calleeText: string;
 };
 
 /** One syntax-backed or conservative control transfer. */
@@ -76,7 +92,7 @@ export type FunctionLogicGap = {
   message: string;
 };
 
-/** Counts derived only from blocks included in this bounded analysis. */
+/** Counts derived from visible blocks and exact call expressions in this analysis. */
 export type FunctionLogicSummary = {
   blockCount: number;
   branchCount: number;
@@ -90,10 +106,13 @@ export type FunctionLogicSummary = {
 /** Complete static internal-flow result for one concrete callable. */
 export type FunctionLogicAnalysis = {
   functionNode: SymbolNode;
-  language: "typescript" | "javascript" | "unsupported";
+  language: FunctionLogicLanguage;
   signature: string;
+  /** Parser-proven lexical class/type owner used only for conservative call matching. */
+  lexicalOwnerQualifiedName?: string;
   blocks: FunctionLogicBlock[];
   edges: FunctionLogicEdge[];
+  callsites: FunctionLogicCallsite[];
   gaps: FunctionLogicGap[];
   summary: FunctionLogicSummary;
 };

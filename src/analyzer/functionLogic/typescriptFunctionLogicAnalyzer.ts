@@ -16,18 +16,23 @@ import type {
 } from "./types";
 import {
   appendDirectBlock,
-  createControlEdges,
+  createStructuredControlEdges
+} from "./core/structuredControlFlow";
+import {
   scheduleControlChildren
 } from "./typescriptFunctionLogicControlFlow";
 import type {
   ControlRecord,
-  FunctionLikeWithBody,
   InternalBlock,
-  LogicContainer,
+  LogicContainer
+} from "./core/structuredControlFlow";
+import type {
+  FunctionLikeWithBody,
   PendingStatement
 } from "./typescriptFunctionLogicInternal";
 import {
   classifyStatement,
+  collectFunctionCallsites,
   createBlockId,
   createFunctionSignature,
   findSelectedFunction,
@@ -97,6 +102,7 @@ function buildFunctionLogic(
   const controlsByBlockId = new Map<string, ControlRecord>();
   const visibleBlocks: InternalBlock[] = [];
   const gaps = createDefaultGaps();
+  const callsites = collectFunctionCallsites(sourceFile, graphNode.filePath, functionNode);
   const bodyRange = toSourceRange(sourceFile, functionNode.body);
   const entryBlock = createSyntheticBlock(
     graphNode,
@@ -122,7 +128,8 @@ function buildFunctionLogic(
       entryBlock,
       expressionBlock,
       exitBlock,
-      gaps
+      gaps,
+      callsites
     );
   }
 
@@ -174,7 +181,7 @@ function buildFunctionLogic(
     });
   }
 
-  const edges = createControlEdges({
+  const edges = createStructuredControlEdges({
     entryBlock,
     exitBlock,
     visibleBlocks,
@@ -192,8 +199,9 @@ function buildFunctionLogic(
     signature: createFunctionSignature(sourceFile, functionNode),
     blocks,
     edges,
+    callsites,
     gaps,
-    summary: createSummary(blocks)
+    summary: createSummary(blocks, callsites.length)
   };
 }
 
@@ -258,7 +266,8 @@ function finalizeSimpleExpressionAnalysis(
   entry: FunctionLogicBlock,
   expression: FunctionLogicBlock,
   exit: FunctionLogicBlock,
-  gaps: FunctionLogicGap[]
+  gaps: FunctionLogicGap[],
+  callsites: FunctionLogicAnalysis["callsites"]
 ): FunctionLogicAnalysis {
   const firstKey = `${entry.id}\0${expression.id}\0next`;
   const secondKey = `${expression.id}\0${exit.id}\0return`;
@@ -284,8 +293,9 @@ function finalizeSimpleExpressionAnalysis(
         confidence: "exact"
       }
     ],
+    callsites,
     gaps,
-    summary: createSummary([entry, expression, exit])
+    summary: createSummary([entry, expression, exit], callsites.length)
   };
 }
 
@@ -301,6 +311,7 @@ function createUnavailableAnalysis(
     signature: functionNode.qualifiedName || functionNode.name,
     blocks: [],
     edges: [],
+    callsites: [],
     gaps: [{ code, message }],
     summary: createSummary([])
   };
@@ -321,12 +332,16 @@ function createDefaultGaps(): FunctionLogicGap[] {
 }
 
 /** Derives visible counts without implying omitted runtime behavior. */
-function createSummary(blocks: FunctionLogicBlock[]): FunctionLogicSummary {
+function createSummary(
+  blocks: FunctionLogicBlock[],
+  callsiteCount?: number
+): FunctionLogicSummary {
   return {
     blockCount: blocks.length,
     branchCount: blocks.filter((block) => block.kind === "condition" || block.kind === "switch").length,
     loopCount: blocks.filter((block) => block.kind === "loop").length,
-    callCount: blocks.filter((block) => block.kind === "call" || block.kind === "effect").length,
+    callCount: callsiteCount
+      ?? blocks.filter((block) => block.kind === "call" || block.kind === "effect").length,
     effectCount: blocks.filter((block) => block.kind === "effect").length,
     mutationCount: blocks.filter((block) => block.kind === "mutation").length,
     exitCount: blocks.filter((block) => block.kind === "return" || block.kind === "throw").length

@@ -11,6 +11,7 @@ import type {
   FunctionLogicAnalysis,
   FunctionLogicBlock,
   FunctionLogicBlockKind,
+  FunctionLogicCallsite,
   FunctionLogicConfidence
 } from "./types";
 import type {
@@ -163,6 +164,87 @@ export function getImmediateChildren(node: ts.Node): ts.Node[] {
     return undefined;
   });
   return children;
+}
+
+/** Collects stable callsite names and exact ranges from this function body only. */
+export function collectFunctionCallsites(
+  sourceFile: ts.SourceFile,
+  filePath: string,
+  functionNode: FunctionLikeWithBody
+): FunctionLogicCallsite[] {
+  const callsites: FunctionLogicCallsite[] = [];
+  const seen = new Set<string>();
+  const root = functionNode.body;
+  const pending: ts.Node[] = [root];
+
+  while (pending.length > 0) {
+    const node = pending.pop();
+    if (!node) {
+      continue;
+    }
+    if (node !== root && isFunctionLikeWithBody(node)) {
+      continue;
+    }
+    if (ts.isCallExpression(node) || ts.isNewExpression(node)) {
+      const callee = readStableCallee(sourceFile, node.expression);
+      if (callee) {
+        const range = toSourceRange(sourceFile, node);
+        const key = `${filePath}\0${range.startLine}\0${range.startCharacter}`
+          + `\0${range.endLine}\0${range.endCharacter}\0${callee.name}`;
+        if (!seen.has(key)) {
+          seen.add(key);
+          callsites.push({
+            filePath,
+            range,
+            calleeName: callee.name,
+            calleeText: callee.text
+          });
+        }
+      }
+    }
+    const children = getImmediateChildren(node);
+    for (let index = children.length - 1; index >= 0; index -= 1) {
+      pending.push(children[index]);
+    }
+  }
+
+  return callsites.sort((left, right) =>
+    left.range.startLine - right.range.startLine
+    || left.range.startCharacter - right.range.startCharacter
+    || left.range.endLine - right.range.endLine
+    || left.range.endCharacter - right.range.endCharacter
+    || left.calleeText.localeCompare(right.calleeText)
+  );
+}
+
+/** Reads only identifier, property, or literal-element callees suitable for matching. */
+function readStableCallee(
+  sourceFile: ts.SourceFile,
+  expression: ts.LeftHandSideExpression
+): { name: string; text: string } | undefined {
+  let current: ts.Expression = expression;
+  while (ts.isParenthesizedExpression(current)) {
+    current = current.expression;
+  }
+  if (ts.isIdentifier(current)) {
+    return { name: current.text, text: current.text };
+  }
+  if (ts.isPropertyAccessExpression(current)) {
+    return {
+      name: current.name.text,
+      text: safeText(normalizeSourceText(current.getText(sourceFile)), current.name.text)
+    };
+  }
+  if (ts.isElementAccessExpression(current)) {
+    const argument = current.argumentExpression;
+    if (ts.isStringLiteral(argument) || ts.isNoSubstitutionTemplateLiteral(argument)) {
+      return {
+        name: argument.text,
+        text: safeText(normalizeSourceText(current.getText(sourceFile)), argument.text)
+      };
+    }
+  }
+  return undefined;
 }
 
 /** Collects direct and nested call names but stops at nested function scopes. */
