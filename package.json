@@ -2,7 +2,7 @@
   "name": "project-analyzer",
   "displayName": "Project Analyzer: Code Flow",
   "description": "Understand unfamiliar codebases through bounded, source-backed code flows.",
-  "version": "0.0.1016",
+  "version": "0.0.1017",
   "publisher": "local",
   "private": true,
   "license": "UNLICENSED",
