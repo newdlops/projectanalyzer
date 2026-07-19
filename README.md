@@ -7,7 +7,8 @@ It starts from one concrete entrypoint or function, follows only the bounded cod
 paths relevant to that question, and keeps every visual step connected to source
 evidence. Static analysis and the project graph remain internal evidence engines;
 the product does not begin with a dashboard, curriculum, file inventory, or a
-whole-repository graph.
+raw, unbounded whole-repository graph. A bounded Module Flow is available when
+the question is how project responsibilities connect.
 
 ## The Reading Frame
 
@@ -94,6 +95,29 @@ dedicated Function Visualizer tab with a bounded control-flow graph:
 
 Opening source is verification, not a claim that the code has been understood.
 
+## Open Module Flow
+
+Choose **Open Module Flow** from the Command Palette or the Code Flow sidebar
+title. The extension resolves the current workspace graph and opens a dedicated
+**Module Flow** editor tab. This view shows possible static responsibility
+relationships, not an observed runtime trace.
+
+The initial scene is bounded to 80 modules and 160 edges and reports exact
+omitted counts. It provides:
+
+- **Execution**, **Dependency**, and **All boundaries** relationship lenses
+- content-sized module boxes with complete wrapped labels and details
+- SCC cycle groups and top-to-bottom component layout
+- orthogonal, obstacle-safe edge routes that do not cross unrelated boxes
+- click-to-attach boundary functions to the same canvas while preserving the
+  clicked module's scroll anchor
+- reduced-motion-aware entry animation for only the newly attached nodes and edges
+- bounded module/edge detail, representative evidence, and source actions
+- one-action handoff from a concrete function to its statement-level Function Visualizer
+
+The complete module index stays in the Extension Host. The browser receives only
+the current bounded scene, a selected detail, or one lazy expansion layer.
+
 ## Product Scope
 
 The product combines interprocedural feature flow with intraprocedural function
@@ -110,12 +134,18 @@ Selected TypeScript/JavaScript/Python/Java function
   -> Condition or loop
   -> Branch-local operation/call/mutation/effect
   -> Return, throw, repeat, or fallthrough exit
+
+Workspace Module Flow
+  -> Project responsibility boundary
+  -> Static execution/dependency relation
+  -> Boundary function
+  -> Function Visualizer
 ```
 
-Variable-level data flow, runtime instrumentation, collaboration, and
-whole-project graph views remain outside the first flow-first experience. The
-repository's `SPEC.MD` contains the product contract, semantics, UX states, and
-milestones.
+Cross-statement def-use slicing, runtime instrumentation, collaboration, and a
+raw unbounded whole-project graph remain outside the flow-first experience. The
+bounded Module Flow is part of the current product. The repository's `SPEC.MD`
+contains the product contract, semantics, UX states, and milestones.
 
 ## Current Analysis Coverage
 
@@ -123,6 +153,13 @@ Workspace analysis recognizes HTTP route-to-handler entrypoints for Django,
 FastAPI, Express, and NestJS, plus code-first GraphQL root operations for NestJS
 GraphQL and Strawberry. The semantic-flow traversal follows only analyzed
 `calls` edges and uses explicit depth, step, cycle, and duplicate guards.
+
+Module Flow derives non-overlapping responsibility boundaries from workspace
+manifests, nested packages, framework roots, and conservative source-area
+fallbacks. It aggregates cross-module calls, imports, exports, and framework
+relations while preserving external boundaries, confidence buckets, evidence,
+and exact omission counts. These are possible static relationships; even the
+Execution lens does not claim observed order, frequency, or timing.
 
 The Rust engine remains a lightweight syntax analyzer rather than a compiler
 frontend. Cross-function JavaScript and TypeScript extraction uses textual and
@@ -170,6 +207,11 @@ Current Source -> Function Logic Analyzer -> Logic Projection -> Function Visual
                                       |             |               `- Statement evidence
                                       |             `-> Direct Callee Tokens -> Lazy Inline Branch
                                       `-> Layered Graph Layout -> Node Detail
+
+Workspace Graph -> Project Module Index -> Bounded Module Flow -> Module Visualizer
+                         |                        |              |- Detail / Evidence
+                         |                        |              `- Function Visualizer handoff
+                         `-> Host-only index      `-> Lazy same-canvas boundary functions
 ```
 
 Key reusable modules:
@@ -178,7 +220,11 @@ Key reusable modules:
   traversal
 - `src/insights/changeImpact/` — bounded reverse-call impact
 - `src/insights/architecturalLayers/` — evidence-backed responsibility hints
+- `src/insights/projectModules/` — manifest/framework/source-area responsibility
+  boundaries and cross-module relation aggregation
 - `src/application/codeFlow/` — flow catalog and detail projection
+- `src/application/moduleFlow/` — bounded module projection, iterative SCC layout,
+  variable box sizing, and obstacle-safe orthogonal routing
 - `src/application/codeFlow/functionLogicGraphLayout.ts` — bounded layered graph
   layout and outer-channel edge routing
 - `src/application/codeFlow/functionLogicDrillTargets.ts` — bounded direct-callee
@@ -197,7 +243,12 @@ Key reusable modules:
   merge used to add Java evidence without replacing primary Rust results
 - `src/extension/currentFunctionVisualization/` — editor command and exact
   cursor-target graph adaptation
+- `src/extension/workspaceAnalysis/` — exact-fingerprint workspace graph
+  acquisition with no latest/stale cache fallback
+- `src/extension/moduleVisualization/` — Module Flow command composition
 - `src/protocol/codeFlow.ts` — typed Host/Webview contract
+- `src/protocol/moduleFlow.ts` — bounded list/detail/expand/source requests,
+  opaque identities, and stale-response guards
 - `src/protocol/functionLogic.ts` — logic blocks, transfers, drill targets, and
   evidence requests
 - `src/protocol/functionVisualizer.ts` — editor-tab navigation session contract
@@ -205,6 +256,8 @@ Key reusable modules:
   renderer
 - `src/webview/functionVisualizer/` — editor-tab lifecycle, reading UX, and
   cycle-safe lazy function navigation
+- `src/webview/moduleVisualizer/` — dedicated Module Flow tab, detail/evidence,
+  lazy same-canvas expansion, and Function Visualizer handoff
 - `src/webview/sourceNavigation/` — snapshot-local source tokens
 
 ## Flow Bounds
@@ -224,6 +277,13 @@ as an explicit gap or omitted count instead of disappearing silently. Those
 graph-size budgets do not truncate text inside a retained block: statement,
 branch, value-change, child-function, and resume labels remain complete and make
 their boxes grow vertically as they wrap.
+
+Module Flow uses independent hard budgets: 80 modules/160 edges for the initial
+scene, 40 relations/5 evidence rows for detail, and 48 nodes/96 edges for one
+expansion delta. The full module index remains Host-side. Module, edge, function,
+source, and evidence identities are snapshot-local opaque tokens, and mismatched
+graph versions or late request IDs are rejected instead of being merged into the
+current tab.
 
 ## Development
 
