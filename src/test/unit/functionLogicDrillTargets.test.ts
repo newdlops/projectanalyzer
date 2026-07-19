@@ -5,7 +5,11 @@
 
 import assert from "node:assert/strict";
 import test from "node:test";
-import type { FunctionLogicAnalysis, FunctionLogicBlock } from "../../analyzer/functionLogic";
+import {
+  analyzeFunctionLogic,
+  type FunctionLogicAnalysis,
+  type FunctionLogicBlock
+} from "../../analyzer/functionLogic";
 import { createFunctionLogicDrillTargets } from "../../application/codeFlow";
 import type { SourceNodeToken } from "../../protocol/sourceNavigation";
 import { createContentHash } from "../../shared/hash";
@@ -59,6 +63,123 @@ test("maps concrete direct callsites to the narrowest logic blocks", () => {
   assert.doesNotMatch(JSON.stringify(projection.callees), /\/workspace/u);
 });
 
+test("recovers control-expression callees when a multiline function has no graph call edges", () => {
+  const source = [
+    "function isReady() { return true; }",
+    "function hasNext() { return false; }",
+    "function selectMode() { return 'done'; }",
+    "function run(",
+    "  value: number",
+    ") {",
+    "  if (isReady()) {",
+    "    return value;",
+    "  }",
+    "  while (hasNext()) {",
+    "    break;",
+    "  }",
+    "  switch (selectMode()) {",
+    "    case 'done': return 1;",
+    "    default: return 0;",
+    "  }",
+    "}"
+  ].join("\n");
+  const caller = createCallable("caller", "run", range(3, 0, 16, 1));
+  const isReady = createCallable("ready", "isReady", range(0, 0, 0, 35));
+  const hasNext = createCallable("next", "hasNext", range(1, 0, 1, 36));
+  const selectMode = createCallable("mode", "selectMode", range(2, 0, 2, 40));
+  const analysis = analyzeFunctionLogic({ functionNode: caller, sourceText: source });
+  const condition = analysis.blocks.find((block) => block.kind === "condition");
+  const loop = analysis.blocks.find((block) => block.kind === "loop");
+  const switchBlock = analysis.blocks.find((block) => block.kind === "switch");
+
+  const projection = createFunctionLogicDrillTargets(
+    createGraph([caller, isReady, hasNext, selectMode], []),
+    caller,
+    analysis,
+    createSourceToken
+  );
+
+  assert.deepEqual(analysis.callsites.map((callsite) => callsite.calleeText), [
+    "isReady",
+    "hasNext",
+    "selectMode"
+  ]);
+  assert.ok(condition && loop && switchBlock);
+  assert.deepEqual(projection.callees.map((target) => target.qualifiedName), [
+    "isReady",
+    "hasNext",
+    "selectMode"
+  ]);
+  assert.ok(projection.callees.every((target) => target.confidence === "inferred"));
+  assert.equal(projection.targetsByBlockId.get(condition.id)?.[0]?.qualifiedName, "isReady");
+  assert.equal(projection.targetsByBlockId.get(loop.id)?.[0]?.qualifiedName, "hasNext");
+  assert.equal(projection.targetsByBlockId.get(switchBlock.id)?.[0]?.qualifiedName, "selectMode");
+});
+
+test("does not override an explicit unresolved condition call with a same-name function", () => {
+  const caller = createCallable("caller", "run", range(0, 0, 5, 1));
+  const concrete = createCallable("concrete", "isReady", range(10, 0, 10, 35));
+  const unresolved = createCallable(
+    "unresolved",
+    "isReady",
+    range(2, 6, 2, 15),
+    "external"
+  );
+  const condition = createBlock("condition", "condition", range(2, 6, 2, 15));
+  const analysis = createAnalysis(caller, [condition]);
+  analysis.callsites = [{
+    filePath: caller.filePath,
+    range: range(2, 6, 2, 15),
+    calleeName: "isReady",
+    calleeText: "isReady"
+  }];
+
+  const projection = createFunctionLogicDrillTargets(
+    createGraph(
+      [caller, concrete, unresolved],
+      [createCall("unresolved-condition", caller, unresolved, range(2, 6, 2, 14), "unresolved")]
+    ),
+    caller,
+    analysis,
+    createSourceToken
+  );
+
+  assert.deepEqual(projection.callees, []);
+  assert.equal(projection.targetsByBlockId.size, 0);
+});
+
+test("resolves Python self calls to the callable owned by the current class", () => {
+  const caller = createCallable("caller", "Service.run.callback", range(0, 0, 5, 1));
+  const owned = createCallable("owned", "Service.validate", range(10, 0, 12, 1));
+  const unrelated = createCallable("unrelated", "Other.validate", range(20, 0, 22, 1));
+  const condition = createBlock("condition", "condition", range(2, 2, 2, 24));
+  const analysis = createAnalysis(caller, [condition]);
+  analysis.language = "python";
+  analysis.lexicalOwnerQualifiedName = "Service";
+  analysis.callsites = [{
+    filePath: caller.filePath,
+    range: range(2, 5, 2, 20),
+    calleeName: "validate",
+    calleeText: "self.validate"
+  }];
+
+  const projection = createFunctionLogicDrillTargets(
+    createGraph([caller, owned, unrelated], []),
+    caller,
+    analysis,
+    createSourceToken
+  );
+
+  assert.deepEqual(projection.callees.map((target) => ({
+    name: target.qualifiedName,
+    confidence: target.confidence
+  })), [{ name: "Service.validate", confidence: "resolved" }]);
+  assert.equal(
+    projection.targetsByBlockId.get(condition.id)?.[0]?.qualifiedName,
+    "Service.validate"
+  );
+});
+
 test("bounds unique callees without recursively traversing their calls", () => {
   const caller = createCallable("caller", "caller", range(0, 0, 40, 1));
   const callees = Array.from({ length: 27 }, (_, index) =>
@@ -93,6 +214,7 @@ function createAnalysis(
     signature: `function ${caller.name}()`,
     blocks,
     edges: [],
+    callsites: [],
     gaps: [],
     summary: {
       blockCount: blocks.length,

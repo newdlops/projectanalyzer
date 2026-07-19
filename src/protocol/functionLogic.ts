@@ -122,7 +122,7 @@ export type FunctionLogicGraphLayoutPayload = {
 
 /** Complete selected-function logic projection delivered to the browser. */
 export type FunctionLogicPayload = {
-  language: "typescript" | "javascript" | "unsupported";
+  language: "typescript" | "javascript" | "python" | "java" | "unsupported";
   signature: string;
   blocks: FunctionLogicBlockPayload[];
   edges: FunctionLogicEdgePayload[];

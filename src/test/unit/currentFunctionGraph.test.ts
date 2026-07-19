@@ -42,6 +42,21 @@ test("adds an exact callable when analysis only modeled a non-callable property"
   assert.equal(resolution.graph.metadata.edgeCount, 1);
 });
 
+test("records parser evidence for Python and Java cursor callables", () => {
+  const graph = createGraph([createFileNode()]);
+  const python = resolveCurrentFunctionGraph(graph, {
+    ...createTarget("run_python", 6, 4),
+    language: "python"
+  });
+  const java = resolveCurrentFunctionGraph(graph, {
+    ...createTarget("runJava", 8, 6),
+    language: "java"
+  });
+
+  assert.equal(python.node.metadata?.syntaxEvidence, "pythonLezerAst");
+  assert.equal(java.node.metadata?.syntaxEvidence, "javaLezerAst");
+});
+
 test("an anonymous cursor node can drive Function Logic by exact source position", () => {
   const source = [
     "export function collect(items: number[]) {",

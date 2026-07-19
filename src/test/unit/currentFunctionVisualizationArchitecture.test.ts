@@ -27,6 +27,7 @@ test("package contributions activate and expose the current-function editor menu
   const contextMenu = packageJson.contributes.menus["editor/context"] ?? [];
   const menuItem = contextMenu.find((item) => item.command === commandId);
   assert.match(menuItem?.when ?? "", /typescript.*javascript/u);
+  assert.match(menuItem?.when ?? "", /python.*java/u);
 });
 
 test("activation registers a text-editor command that opens the dedicated panel", () => {
@@ -45,8 +46,15 @@ test("activation registers a text-editor command that opens the dedicated panel"
 });
 
 test("cursor resolution stays host-independent and the panel owns isolated delivery", () => {
-  const resolver = readSource(
+  const typescriptResolver = readSource(
     "src/analyzer/functionLogic/typescriptFunctionCursorResolver.ts"
+  );
+  const resolver = readSource("src/analyzer/functionLogic/functionCursorResolver.ts");
+  const pythonResolver = readSource(
+    "src/analyzer/functionLogic/languages/python/pythonFunctionCursorResolver.ts"
+  );
+  const javaResolver = readSource(
+    "src/analyzer/functionLogic/languages/java/javaFunctionCursorResolver.ts"
   );
   const provider = readSource("src/webview/explorerViewProvider.ts");
   const panel = readSource(
@@ -54,8 +62,15 @@ test("cursor resolution stays host-independent and the panel owns isolated deliv
   );
   const codeFlowHost = readSource("src/webview/codeFlow/codeFlowHostDelivery.ts");
 
-  assert.match(resolver, /while \(pending\.length > 0\)/u);
-  assert.doesNotMatch(resolver, /from ".*(?:vscode|webview|protocol|extension)/u);
+  assert.match(typescriptResolver, /while \(pending\.length > 0\)/u);
+  assert.match(resolver, /case "python"/u);
+  assert.match(resolver, /case "java"/u);
+  assert.match(pythonResolver, /collectPythonCallables/u);
+  assert.match(javaResolver, /collectJavaCallables/u);
+  assert.doesNotMatch(
+    [typescriptResolver, resolver, pythonResolver, javaResolver].join("\n"),
+    /from ".*(?:vscode|webview|protocol|extension)/u
+  );
   assert.match(panel, /createWebviewPanel/u);
   assert.match(panel, /functionVisualizer\/sessionLoaded/u);
   assert.match(panel, /new WebviewGraphDelivery\(\)/u);
@@ -64,6 +79,88 @@ test("cursor resolution stays host-independent and the panel owns isolated deliv
   assert.match(provider, /functionVisualizerPanelProvider\.openFunction/u);
   assert.doesNotMatch(provider, /CurrentFunctionVisualizationHostDelivery/u);
   assert.match(codeFlowHost, /public async publishFunctionNode/u);
+});
+
+test("Python and Java logic adapters share iterative CFG contracts", () => {
+  const dispatcher = readSource("src/analyzer/functionLogic/functionLogicAnalyzer.ts");
+  const lezerAnalyzer = readSource(
+    "src/analyzer/functionLogic/core/lezerFunctionLogicAnalyzer.ts"
+  );
+  const structuredControl = readSource(
+    "src/analyzer/functionLogic/core/structuredControlFlow.ts"
+  );
+  const python = readSource(
+    "src/analyzer/functionLogic/languages/python/pythonFunctionLogicAnalyzer.ts"
+  );
+  const java = readSource(
+    "src/analyzer/functionLogic/languages/java/javaFunctionLogicAnalyzer.ts"
+  );
+  const rustSupplement = readSource("src/analyzer/rust/rustAnalyzerBackend.ts");
+
+  assert.match(dispatcher, /analyzePythonFunctionLogic/u);
+  assert.match(dispatcher, /analyzeJavaFunctionLogic/u);
+  assert.match(lezerAnalyzer, /while \(pending\.length > 0\)/u);
+  assert.match(lezerAnalyzer, /createStructuredControlEdges/u);
+  assert.match(structuredControl, /while \(currentBlock\)/u);
+  assert.match(structuredControl, /while \(container\?\.ownerBlockId\)/u);
+  assert.match(python, /LezerFunctionLogicAdapter/u);
+  assert.match(java, /LezerFunctionLogicAdapter/u);
+  assert.match(rustSupplement, /addSupplementalLanguages/u);
+  assert.doesNotMatch(
+    [lezerAnalyzer, structuredControl, python, java].join("\n"),
+    /from ".*(?:vscode|webview|protocol|extension)/u
+  );
+});
+
+test("shared Python and Java syntax stays below Function Logic boundaries", () => {
+  const lezerSource = readSource("src/analyzer/core/lezerSource.ts");
+  const pythonSyntax = readSource("src/analyzer/languages/python/pythonLezerSyntax.ts");
+  const javaSyntax = readSource("src/analyzer/languages/java/javaLezerSyntax.ts");
+
+  assert.match(lezerSource, /while \(pending\.length > 0\)/u);
+  assert.doesNotMatch(
+    [pythonSyntax, javaSyntax].join("\n"),
+    /from ".*functionLogic/u
+  );
+});
+
+test("child functions use bounded iterative attachment on one shared graph canvas", () => {
+  const browser = readSource(
+    "src/webview/functionVisualizer/functionVisualizerBrowserSource.ts"
+  );
+  const compoundScene = readSource(
+    "src/webview/functionVisualizer/compoundFunctionLogicGraphSource.ts"
+  );
+  const compoundRouting = readSource(
+    "src/webview/functionVisualizer/compoundFunctionLogicRoutingSource.ts"
+  );
+  const sharedRenderer = readSource(
+    "src/webview/codeFlow/functionLogicBrowserSource.ts"
+  );
+
+  assert.match(browser, /MAX_ATTACHED_FUNCTION_DEPTH = 6/u);
+  assert.match(browser, /MAX_ATTACHED_FUNCTIONS = 32/u);
+  assert.match(browser, /while \(cursor < pendingIds\.length\)/u);
+  assert.match(browser, /visitedScopeIds/u);
+  assert.match(browser, /status = ancestorTokens\.includes/u);
+  assert.match(browser, /createAttachedFunctionGraphScene/u);
+  assert.match(browser, /renderFunctionLogic\(\s*attachedScene\.logic/u);
+  assert.doesNotMatch(browser, /renderInlineFunctionExpansions|createInlineExpansionCard/u);
+  assert.match(compoundScene, /while \(scopeCursor < pendingScopeIds\.length\)/u);
+  assert.match(compoundScene, /createCompoundFunctionGraphLayout/u);
+  assert.match(compoundScene, /rankBounds/u);
+  assert.match(compoundScene, /relation: "call"/u);
+  assert.match(compoundScene, /compound-resume:/u);
+  assert.match(compoundScene, /relation: "callReturn"/u);
+  assert.match(compoundRouting, /orderCompoundBlocksByParentLane/u);
+  assert.match(compoundRouting, /sourceTrackIndex/u);
+  assert.match(compoundRouting, /targetTrackIndex/u);
+  assert.match(compoundRouting, /sourceX/u);
+  assert.match(compoundRouting, /targetX/u);
+  assert.doesNotMatch(compoundScene, /from ".*application/u);
+  assert.doesNotMatch(compoundRouting, /from ".*application/u);
+  assert.match(sharedRenderer, /createFunctionLogicGraph\(logic, graphContext\)/u);
+  assert.match(sharedRenderer, /graphContext\.onExpandableBlockClick\(block\)/u);
 });
 
 /** Reads one repository file for stable composition and dependency assertions. */

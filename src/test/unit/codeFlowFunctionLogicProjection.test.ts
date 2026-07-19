@@ -60,6 +60,39 @@ test("projects internal logic with opaque evidence and known entrypoint origins"
   assert.doesNotMatch(JSON.stringify(detail), /\/workspace/u);
 });
 
+test("projects an inferred drill target onto an if block without a graph call edge", () => {
+  const filePath = "/workspace/src/guard.ts";
+  const caller = createCallableNode("run", filePath, 1);
+  const helper = createCallableNode("isReady", filePath, 0);
+  const graph = createGraph({ files: [filePath], callables: [caller, helper] });
+  const analysis = analyzeFunctionLogic({
+    functionNode: caller,
+    sourceText: [
+      "function isReady() { return true; }",
+      "function run(",
+      "  value: number",
+      ") {",
+      "  if (isReady()) return value;",
+      "  return 0;",
+      "}"
+    ].join("\n")
+  });
+  const detail = createFunctionLogicCodeFlowDetail(
+    graph,
+    createFlowIndex(graph.version, []),
+    caller,
+    analysis,
+    "sidebar-snapshot:logic:condition",
+    (path, range) => `code-evidence:${createContentHash(`${path}:${range.startLine}`)}` as CodeFlowEvidenceToken,
+    (nodeId) => `source-node:${createContentHash(nodeId)}` as SourceNodeToken
+  );
+  const condition = detail.logic?.blocks.find((block) => block.kind === "condition");
+
+  assert.equal(condition?.drillTargets?.[0]?.qualifiedName, "isReady");
+  assert.equal(condition?.drillTargets?.[0]?.confidence, "inferred");
+  assert.equal(detail.logic?.callees[0]?.qualifiedName, "isReady");
+});
+
 /** Creates a graph identity whose ID matches the semantic handler fixture. */
 function createHandlerNode(filePath: string): SymbolNode {
   const range = { startLine: 0, startCharacter: 16, endLine: 0, endCharacter: 23 };
@@ -68,6 +101,21 @@ function createHandlerNode(filePath: string): SymbolNode {
     kind: "function",
     name: "handler",
     qualifiedName: "handler",
+    filePath,
+    range,
+    selectionRange: range,
+    language: "typescript"
+  };
+}
+
+/** Creates one same-file callable used by AST-only callee recovery fixtures. */
+function createCallableNode(name: string, filePath: string, line: number): SymbolNode {
+  const range = { startLine: line, startCharacter: 9, endLine: line, endCharacter: 9 + name.length };
+  return {
+    id: `function:${name}`,
+    kind: "function",
+    name,
+    qualifiedName: name,
     filePath,
     range,
     selectionRange: range,

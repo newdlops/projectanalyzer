@@ -3,7 +3,11 @@
  * syntax blocks with bounded iterative scans and replaces node IDs with tokens.
  */
 
-import type { FunctionLogicAnalysis, FunctionLogicBlock } from "../../analyzer/functionLogic";
+import type {
+  FunctionLogicAnalysis,
+  FunctionLogicBlock,
+  FunctionLogicCallsite
+} from "../../analyzer/functionLogic";
 import type { FunctionLogicDrillTargetPayload } from "../../protocol/functionLogic";
 import type { SourceNodeToken } from "../../protocol/sourceNavigation";
 import type {
@@ -32,7 +36,21 @@ export type FunctionLogicDrillProjection = {
 
 type CalleeGroup = {
   node: SymbolNode;
-  edges: GraphEdge[];
+  callsites: MatchedCallsite[];
+  confidence: EdgeConfidence;
+};
+
+/** One graph- or syntax-backed direct call retained for block attachment. */
+type MatchedCallsite = {
+  key: string;
+  filePath: string;
+  range?: SourceRange;
+  confidence: EdgeConfidence;
+};
+
+/** Concrete target resolution synthesized only when no graph edge covers the callsite. */
+type SyntaxTargetResolution = {
+  node: SymbolNode;
   confidence: EdgeConfidence;
 };
 
@@ -46,29 +64,72 @@ export function createFunctionLogicDrillTargets(
 ): FunctionLogicDrillProjection {
   const nodesById = new Map(graph.nodes.map((node) => [node.id, node]));
   const groupsByNodeId = new Map<string, CalleeGroup>();
+  const directEdges = graph.edges.filter((edge) =>
+    edge.kind === "calls"
+    && edge.sourceId === functionNode.id
+    && edge.targetId !== functionNode.id
+  );
+  const usedEdgeIds = new Set<string>();
 
-  for (const edge of graph.edges) {
-    if (edge.kind !== "calls"
-      || edge.sourceId !== functionNode.id
-      || edge.targetId === functionNode.id
-      || edge.confidence === "unresolved") {
+  // Syntax callsites attach calls inside condition/loop/switch expressions and
+  // also recover conservative targets when a lightweight graph missed a
+  // multiline function body. An explicit unresolved edge always wins and
+  // prevents the syntax name fallback from inventing a concrete target.
+  for (const callsite of analysis.callsites) {
+    const matchingEdge = findMatchingDirectEdge(
+      callsite,
+      directEdges,
+      nodesById,
+      usedEdgeIds
+    );
+    if (matchingEdge) {
+      usedEdgeIds.add(matchingEdge.id);
+      const target = nodesById.get(matchingEdge.targetId);
+      if (matchingEdge.confidence !== "unresolved"
+        && target
+        && isConcreteCallable(target)) {
+        addMatchedCallsite(groupsByNodeId, target, {
+          key: createSyntaxCallsiteKey(callsite),
+          filePath: callsite.filePath,
+          range: callsite.range,
+          confidence: matchingEdge.confidence
+        });
+      }
+      continue;
+    }
+
+    const syntaxResolution = resolveSyntaxTarget(
+      graph,
+      functionNode,
+      callsite,
+      analysis.lexicalOwnerQualifiedName
+    );
+    if (syntaxResolution) {
+      addMatchedCallsite(groupsByNodeId, syntaxResolution.node, {
+        key: createSyntaxCallsiteKey(callsite),
+        filePath: callsite.filePath,
+        range: callsite.range,
+        confidence: syntaxResolution.confidence
+      });
+    }
+  }
+
+  // Graph edges without AST coverage still remain available for languages or
+  // analyzer versions that provide only call-edge ranges.
+  for (const edge of directEdges) {
+    if (usedEdgeIds.has(edge.id) || edge.confidence === "unresolved") {
       continue;
     }
     const target = nodesById.get(edge.targetId);
     if (!target || !isConcreteCallable(target)) {
       continue;
     }
-    const existing = groupsByNodeId.get(target.id);
-    if (existing) {
-      existing.edges.push(edge);
-      existing.confidence = strongerConfidence(existing.confidence, edge.confidence);
-    } else {
-      groupsByNodeId.set(target.id, {
-        node: target,
-        edges: [edge],
-        confidence: edge.confidence
-      });
-    }
+    addMatchedCallsite(groupsByNodeId, target, {
+      key: `edge:${edge.id}`,
+      filePath: edge.filePath,
+      range: edge.range,
+      confidence: edge.confidence
+    });
   }
 
   const orderedGroups = [...groupsByNodeId.values()].sort(compareCalleeGroups);
@@ -93,9 +154,9 @@ export function createFunctionLogicDrillTargets(
     callees.push(target);
 
     const callsiteCountByBlockId = new Map<string, number>();
-    for (const edge of group.edges) {
-      const block = edge.range
-        ? findCallsiteBlock(analysis.blocks, edge.filePath, edge.range)
+    for (const callsite of group.callsites) {
+      const block = callsite.range
+        ? findCallsiteBlock(analysis.blocks, callsite.filePath, callsite.range)
         : undefined;
       if (block) {
         callsiteCountByBlockId.set(
@@ -130,8 +191,152 @@ function createTarget(
     qualifiedName: group.node.qualifiedName || group.node.name || "Anonymous callable",
     sourceLocation,
     confidence: group.confidence,
-    callsiteCount: group.edges.length
+    callsiteCount: group.callsites.length
   };
+}
+
+/** Matches an AST call to the nearest same-name graph edge at that source range. */
+function findMatchingDirectEdge(
+  callsite: FunctionLogicCallsite,
+  edges: GraphEdge[],
+  nodesById: ReadonlyMap<string, SymbolNode>,
+  usedEdgeIds: ReadonlySet<string>
+): GraphEdge | undefined {
+  return edges
+    .filter((edge) => {
+      if (usedEdgeIds.has(edge.id)
+        || !edge.range
+        || !sameFilePath(edge.filePath, callsite.filePath)
+        || !rangesOverlap(edge.range, callsite.range)) {
+        return false;
+      }
+      const target = nodesById.get(edge.targetId);
+      return Boolean(target && (
+        target.name === callsite.calleeName
+        || target.qualifiedName.split(".").at(-1) === callsite.calleeName
+      ));
+    })
+    .sort((left, right) =>
+      callsiteDistance(left.range, callsite.range)
+      - callsiteDistance(right.range, callsite.range)
+      || compareEdges(left, right)
+    )[0];
+}
+
+/** Resolves AST names only when graph candidates make one target unambiguous. */
+function resolveSyntaxTarget(
+  graph: ProjectGraph,
+  functionNode: SymbolNode,
+  callsite: FunctionLogicCallsite,
+  lexicalOwnerQualifiedName?: string
+): SyntaxTargetResolution | undefined {
+  const candidates = graph.nodes.filter((node) =>
+    node.id !== functionNode.id && isConcreteCallable(node)
+  );
+  const normalizedText = callsite.calleeText
+    .replace(/\?\./gu, ".")
+    .replace(/\s+/gu, "");
+  const ownerQualifiedName = lexicalOwnerQualifiedName
+    || functionNode.qualifiedName.split(".").slice(0, -1).join(".");
+
+  const usesCurrentInstance = normalizedText.startsWith("this.")
+    || normalizedText.startsWith("self.");
+  if (usesCurrentInstance && ownerQualifiedName) {
+    const ownedName = `${ownerQualifiedName}.${callsite.calleeName}`;
+    const owned = candidates.filter((node) => node.qualifiedName === ownedName);
+    if (owned.length === 1) {
+      return { node: owned[0], confidence: "resolved" };
+    }
+  }
+
+  if (normalizedText.includes(".") && !usesCurrentInstance) {
+    const qualified = candidates.filter((node) => node.qualifiedName === normalizedText);
+    if (qualified.length === 1) {
+      return { node: qualified[0], confidence: "resolved" };
+    }
+  }
+
+  const sameFile = candidates.filter((node) =>
+    sameFilePath(node.filePath, callsite.filePath)
+    && node.name === callsite.calleeName
+  );
+  if (sameFile.length === 1) {
+    return { node: sameFile[0], confidence: "inferred" };
+  }
+
+  const workspaceMatches = candidates.filter((node) => node.name === callsite.calleeName);
+  return workspaceMatches.length === 1
+    ? { node: workspaceMatches[0], confidence: "inferred" }
+    : undefined;
+}
+
+/** Adds one de-duplicated callsite while retaining the strongest target evidence. */
+function addMatchedCallsite(
+  groupsByNodeId: Map<string, CalleeGroup>,
+  node: SymbolNode,
+  callsite: MatchedCallsite
+): void {
+  const existing = groupsByNodeId.get(node.id);
+  if (!existing) {
+    groupsByNodeId.set(node.id, {
+      node,
+      callsites: [callsite],
+      confidence: callsite.confidence
+    });
+    return;
+  }
+  const prior = existing.callsites.find((candidate) => candidate.key === callsite.key);
+  if (prior) {
+    prior.confidence = strongerConfidence(prior.confidence, callsite.confidence);
+  } else {
+    existing.callsites.push(callsite);
+  }
+  existing.confidence = strongerConfidence(existing.confidence, callsite.confidence);
+}
+
+/** Creates a stable key for one exact AST call expression. */
+function createSyntaxCallsiteKey(callsite: FunctionLogicCallsite): string {
+  return [
+    "syntax",
+    callsite.filePath,
+    callsite.range.startLine,
+    callsite.range.startCharacter,
+    callsite.range.endLine,
+    callsite.range.endCharacter,
+    callsite.calleeText
+  ].join(":");
+}
+
+/** Scores graph edges by start position against a containing AST call range. */
+function callsiteDistance(
+  edgeRange: SourceRange | undefined,
+  callsiteRange: SourceRange
+): number {
+  if (!edgeRange) {
+    return Number.MAX_SAFE_INTEGER;
+  }
+  return (Math.abs(edgeRange.startLine - callsiteRange.startLine) * 1_000_000)
+    + Math.abs(edgeRange.startCharacter - callsiteRange.startCharacter);
+}
+
+/** Accepts the usual callee-only edge range nested inside a full AST call range. */
+function rangesOverlap(left: SourceRange, right: SourceRange): boolean {
+  return comparePositions(
+    left.startLine,
+    left.startCharacter,
+    right.endLine,
+    right.endCharacter
+  ) <= 0 && comparePositions(
+    right.startLine,
+    right.startCharacter,
+    left.endLine,
+    left.endCharacter
+  ) <= 0;
+}
+
+/** Compares analyzer paths without depending on the extension-host platform. */
+function sameFilePath(left: string, right: string): boolean {
+  return left.replace(/\\/gu, "/") === right.replace(/\\/gu, "/");
 }
 
 /** Finds the narrowest non-synthetic block containing a call expression. */
@@ -174,11 +379,26 @@ function compareBlockSpecificity(left: FunctionLogicBlock, right: FunctionLogicB
 
 /** Orders callees by first source callsite, then stable qualified identity. */
 function compareCalleeGroups(left: CalleeGroup, right: CalleeGroup): number {
-  const leftEdge = [...left.edges].sort(compareEdges)[0];
-  const rightEdge = [...right.edges].sort(compareEdges)[0];
-  const edgeOrder = compareEdges(leftEdge, rightEdge);
-  return edgeOrder || left.node.qualifiedName.localeCompare(right.node.qualifiedName)
+  const leftCallsite = [...left.callsites].sort(compareMatchedCallsites)[0];
+  const rightCallsite = [...right.callsites].sort(compareMatchedCallsites)[0];
+  const callsiteOrder = compareMatchedCallsites(leftCallsite, rightCallsite);
+  return callsiteOrder || left.node.qualifiedName.localeCompare(right.node.qualifiedName)
     || left.node.id.localeCompare(right.node.id);
+}
+
+/** Orders matched syntax/edge evidence by source position and stable key. */
+function compareMatchedCallsites(left: MatchedCallsite, right: MatchedCallsite): number {
+  if (left.range && right.range) {
+    return comparePositions(
+      left.range.startLine,
+      left.range.startCharacter,
+      right.range.startLine,
+      right.range.startCharacter
+    ) || left.key.localeCompare(right.key);
+  }
+  if (left.range) return -1;
+  if (right.range) return 1;
+  return left.key.localeCompare(right.key);
 }
 
 /** Orders graph edges by callsite and stable edge identity. */

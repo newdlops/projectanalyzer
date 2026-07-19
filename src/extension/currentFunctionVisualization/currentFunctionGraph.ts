@@ -96,9 +96,20 @@ function createCursorFunctionNode(
     metadata: {
       cursorResolved: true,
       anonymous: target.anonymous,
-      syntaxEvidence: "typescriptCompilerAst"
+      syntaxEvidence: createCursorSyntaxEvidence(target.language)
     }
   };
+}
+
+/** Records which parser supplied the exact current-editor callable identity. */
+function createCursorSyntaxEvidence(language: string): string {
+  if (language === "python") {
+    return "pythonLezerAst";
+  }
+  if (language === "java") {
+    return "javaLezerAst";
+  }
+  return "typescriptCompilerAst";
 }
 
 /** Adds normal graph containment without claiming a call relationship. */
