@@ -21,6 +21,8 @@ import type {
   ModuleFlowDetailPayload,
   ModuleFlowExpandPayload,
   ModuleFlowFailurePayload,
+  ModuleFlowLaunchRequest,
+  ModuleFlowLaunchResultPayload,
   ModuleFlowListPayload,
   ModuleFlowRequest
 } from "./moduleFlow";
@@ -92,6 +94,7 @@ export type WebviewRequest =
   | { type: "export/run"; payload: ExportRequest }
   | CodeFlowRequest
   | FunctionExplorerRequest
+  | ModuleFlowLaunchRequest
   | ModuleFlowRequest
   | { type: "telemetry/log"; payload: WebviewLogRequest };
 
@@ -129,6 +132,7 @@ export type ExtensionResponse =
   | { type: "function/indexLoaded"; payload: FunctionExplorerPayload }
   | { type: "function/searchLoaded"; payload: FunctionExplorerSearchPayload }
   | { type: "function/searchFailed"; payload: FunctionExplorerSearchFailurePayload }
+  | { type: "moduleFlow/openCompleted"; payload: ModuleFlowLaunchResultPayload }
   | { type: "moduleFlow/listLoaded"; payload: ModuleFlowListPayload }
   | { type: "moduleFlow/detailLoaded"; payload: ModuleFlowDetailPayload }
   | { type: "moduleFlow/expanded"; payload: ModuleFlowExpandPayload }

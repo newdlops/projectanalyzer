@@ -129,6 +129,7 @@ function validateReadableWebviewRequest(value: unknown): WebviewRequestValidatio
     case "graph/showWorkspaceScope":
     case "analysis/cancel":
     case "cache/clear":
+    case "moduleFlow/open":
       payloadIsValid = isEmptyRecord(payload);
       break;
     case "graph/load":

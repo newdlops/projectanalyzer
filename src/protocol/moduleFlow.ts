@@ -303,6 +303,18 @@ export type ModuleFlowOpenSourceRequest = {
   target: ModuleFlowOpenSourceTarget;
 };
 
+/** Sidebar request that opens the project-level Module Flow editor surface. */
+export type ModuleFlowLaunchRequest = {
+  type: "moduleFlow/open";
+  payload: Record<string, never>;
+};
+
+/** Correlated completion state used to reset the visible sidebar launcher. */
+export type ModuleFlowLaunchResultPayload = {
+  outcome: "opened" | "unavailable" | "failed";
+  message: string;
+};
+
 /** Requests owned by the Module Flow vertical slice. */
 export type ModuleFlowRequest =
   | { type: "moduleFlow/list"; payload: ModuleFlowListRequest }
