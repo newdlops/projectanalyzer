@@ -17,6 +17,7 @@ import { readProjectAnalyzerConfig } from "../vscode/configuration";
 import { VsCodeWorkspaceFileSystem } from "../vscode/workspaceFileSystem";
 import { ExplorerGraphPanelProvider } from "../webview/explorerGraphPanelProvider";
 import { ExplorerViewProvider } from "../webview/explorerViewProvider";
+import { FunctionVisualizerPanelProvider } from "../webview/functionVisualizer";
 
 /** Runtime services shared by command handlers. */
 export type ExtensionServices = {
@@ -24,6 +25,7 @@ export type ExtensionServices = {
   cacheStore: AnalysisCacheStore;
   explorerGraphPanelProvider: ExplorerGraphPanelProvider;
   explorerViewProvider: ExplorerViewProvider;
+  functionVisualizerPanelProvider: FunctionVisualizerPanelProvider;
 };
 
 /**
@@ -55,11 +57,16 @@ export function createExtensionServices(context: vscode.ExtensionContext): Exten
     config,
     logger
   });
+  const functionVisualizerPanelProvider = new FunctionVisualizerPanelProvider({
+    config,
+    logger
+  });
   const explorerViewProvider = new ExplorerViewProvider({
     context,
     analyzer,
     cacheStore,
     config,
+    functionVisualizerPanelProvider,
     graphPanelProvider: explorerGraphPanelProvider,
     logger
   });
@@ -68,6 +75,7 @@ export function createExtensionServices(context: vscode.ExtensionContext): Exten
     analyzer,
     cacheStore,
     explorerGraphPanelProvider,
-    explorerViewProvider
+    explorerViewProvider,
+    functionVisualizerPanelProvider
   };
 }

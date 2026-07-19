@@ -2,7 +2,7 @@
   "name": "project-analyzer",
   "displayName": "Project Analyzer: Code Flow",
   "description": "Understand unfamiliar codebases through bounded, source-backed code flows.",
-  "version": "0.0.1009",
+  "version": "0.0.1011",
   "publisher": "local",
   "private": true,
   "license": "UNLICENSED",
@@ -14,7 +14,8 @@
     "Other"
   ],
   "activationEvents": [
-    "onView:projectAnalyzer.explorerView"
+    "onView:projectAnalyzer.explorerView",
+    "onCommand:projectAnalyzer.visualizeCurrentFunction"
   ],
   "main": "./out/extension/activate.js",
   "contributes": {
@@ -33,6 +34,22 @@
           "id": "projectAnalyzer.explorerView",
           "name": "Understand Code",
           "type": "webview"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "projectAnalyzer.visualizeCurrentFunction",
+        "title": "Visualize Current Function",
+        "category": "Code Flow"
+      }
+    ],
+    "menus": {
+      "editor/context": [
+        {
+          "command": "projectAnalyzer.visualizeCurrentFunction",
+          "when": "editorLangId =~ /^(typescript|typescriptreact|javascript|javascriptreact)$/",
+          "group": "navigation@100"
         }
       ]
     },
