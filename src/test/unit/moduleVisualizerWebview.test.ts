@@ -94,7 +94,7 @@ test("attaches boundary functions to the existing scene and hands functions off"
     /node\.expandable && node\.expandable\.boundaryFunctions\s*\? "boundaryFunctions"/u
   );
   assert.match(program, /post\("moduleFlow\/expand"/u);
-  assert.match(program, /state\.expansions\.set\(pending\.key, payload\)/u);
+  assert.match(program, /state\.expansions\.retain\([\s\S]*pending\.key,[\s\S]*payload/u);
   assert.match(
     program,
     /function collectScene\(\)[\s\S]*for \(const expansion of state\.expansions\.values\(\)\)[\s\S]*nodes\.set\(node\.id, node\)[\s\S]*edges\.set\(edge\.id, edge\)/u
@@ -155,6 +155,12 @@ test("coalesces visual writes and reuses keyed graph DOM outside structural chan
   const program = requireBrowserProgram(createDocument());
 
   assert.match(program, /new ModuleFlowFrameScheduler\(/u);
+  assert.match(program, /new ModuleFlowExpansionStore\(500, 1000\)/u);
+  assert.match(program, /new ModuleFlowLayoutCache\(2\)/u);
+  assert.match(program, /state\.detailRequestTimer = window\.setTimeout/u);
+  assert.match(program, /\}, 60\);/u);
+  assert.match(program, /state\.expansions\.retain\(/u);
+  assert.match(program, /retention\.evictedKeys\.length/u);
   assert.match(program, /state\.frameScheduler\.schedule\(\)/u);
   assert.match(program, /nodeElementsById: new Map\(\)/u);
   assert.match(program, /edgeElementsById: new Map\(\)/u);
@@ -170,6 +176,25 @@ test("coalesces visual writes and reuses keyed graph DOM outside structural chan
     program,
     /function applyPendingModuleFlowZoom\(pending\)[\s\S]*?createModuleFlowGraphLayout\(/u
   );
+  assert.match(program, /const layoutKey = state\.baseSceneKey/u);
+  assert.doesNotMatch(program, /JSON\.stringify\(\[layoutNodes, layoutEdges\]\)/u);
+});
+
+test("releases hidden Webview resources and rehydrates from Host projection state", () => {
+  const program = requireBrowserProgram(createDocument());
+  const panelSource = readSource(
+    "src/webview/moduleVisualizer/moduleVisualizerPanelProvider.ts"
+  );
+
+  assert.match(panelSource, /retainContextWhenHidden: false/u);
+  assert.match(panelSource, /onDidChangeViewState[\s\S]*this\.webviewReady = false/u);
+  assert.match(
+    panelSource,
+    /case "ui\/ready":[\s\S]*if \(this\.pendingGraph\)[\s\S]*this\.publishActiveScene\(\)/u
+  );
+  assert.match(panelSource, /private async publishActiveScene\(\): Promise<void>/u);
+  assert.match(program, /state\.frameScheduler\.dispose\(\)/u);
+  assert.match(program, /state\.resizeObserver\.disconnect\(\)/u);
 });
 
 test("keeps complete labels and mounts all Host text through textContent", () => {

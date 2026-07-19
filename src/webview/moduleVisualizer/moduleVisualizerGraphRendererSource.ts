@@ -70,7 +70,11 @@ export function getModuleVisualizerGraphRendererSource(): string {
       }
       layoutNodes.sort(function (left, right) { return compareModuleFlowIdentity(left.id, right.id); });
       layoutEdges.sort(function (left, right) { return compareModuleFlowIdentity(left.id, right.id); });
-      const layoutKey = state.graphVersion + "\\n" + JSON.stringify([layoutNodes, layoutEdges]);
+      // The Host snapshot and expansion identities already define structure.
+      // Keeping serialized node/edge payloads as cache keys duplicated the
+      // complete scene up to four times and made every rebuild stringify it.
+      const layoutKey = state.baseSceneKey + "\\n"
+        + Array.from(state.expansions.keys()).sort(compareModuleFlowIdentity).join("\\n");
       let layout = state.layoutCache.get(layoutKey);
       if (!layout) {
         layout = createModuleFlowGraphLayout(layoutNodes, layoutEdges);

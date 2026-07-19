@@ -35,7 +35,8 @@ import type { SourceNodeToken } from "../../protocol/sourceNavigation";
 import type {
   GraphEdge,
   ProjectGraph,
-  SourceRange
+  SourceRange,
+  SymbolNode
 } from "../../shared/types";
 import {
   createModuleFlowEdgeId,
@@ -80,11 +81,6 @@ export type ModuleFlowProjectionTokenFactories = {
   ): ModuleFlowEvidenceToken | undefined;
 };
 
-/** Concrete backing retained for each opaque edge issued in this snapshot. */
-type EdgeBacking =
-  | { kind: "relations"; aggregate: RelationAggregate }
-  | { kind: "contains" };
-
 /** Builds initial scenes, detail panes, and same-canvas expansion deltas. */
 export class ModuleFlowProjectionService {
   private graphVersion: string | undefined;
@@ -92,8 +88,16 @@ export class ModuleFlowProjectionService {
   private index: ProjectModuleIndex | undefined;
   private moduleIdsByDomainId = new Map<string, ModuleFlowModuleId>();
   private domainIdsByModuleId = new Map<ModuleFlowModuleId, string>();
-  private edgeBackingById = new Map<ModuleFlowEdgeId, EdgeBacking>();
+  /** Backing exists only for the bounded aggregate edges on the active canvas. */
+  private sceneEdgeBackingById = new Map<ModuleFlowEdgeId, RelationAggregate>();
+
+  /** The current detail rail replaces this bounded set on every module click. */
+  private detailEdgeBackingById = new Map<ModuleFlowEdgeId, RelationAggregate>();
+
   private visibleDomainModuleIds = new Set<string>();
+
+  /** Avoids scanning every module for every projected card. */
+  private moduleIdsWithChildren = new Set<string>();
 
   public constructor(
     private readonly tokenFactories: ModuleFlowProjectionTokenFactories
@@ -109,6 +113,9 @@ export class ModuleFlowProjectionService {
       const id = createModuleFlowModuleId(graphVersion, module.id);
       this.moduleIdsByDomainId.set(module.id, id);
       this.domainIdsByModuleId.set(id, module.id);
+      if (module.parentModuleId) {
+        this.moduleIdsWithChildren.add(module.parentModuleId);
+      }
     }
   }
 
@@ -119,8 +126,10 @@ export class ModuleFlowProjectionService {
     this.index = undefined;
     this.moduleIdsByDomainId.clear();
     this.domainIdsByModuleId.clear();
-    this.edgeBackingById.clear();
+    this.sceneEdgeBackingById.clear();
+    this.detailEdgeBackingById.clear();
     this.visibleDomainModuleIds.clear();
+    this.moduleIdsWithChildren.clear();
   }
 
   /** Returns whether one browser request belongs to the active projection. */
@@ -131,6 +140,10 @@ export class ModuleFlowProjectionService {
   /** Projects the bounded module shell for one user-selected relation lens. */
   public projectList(request: ModuleFlowListRequest): ModuleFlowListPayload {
     const state = this.requireState(request.graphVersion);
+    // A list response replaces the complete browser scene and therefore expires
+    // every old base/detail edge backing immediately.
+    this.sceneEdgeBackingById.clear();
+    this.detailEdgeBackingById.clear();
     const modules = state.index.modules.filter((module) =>
       request.includeExternal !== false || !isExternalModule(module)
     );
@@ -148,19 +161,39 @@ export class ModuleFlowProjectionService {
     const selectedIds = new Set(selectedModules.map((module) => module.id));
     this.visibleDomainModuleIds = selectedIds;
 
-    const allVisualEdges = [
-      ...relationAggregates.map((aggregate) => this.projectRelationAggregate(aggregate)),
-      ...createContainmentEdges(modules, this.graphVersion ?? "", this.moduleIdsByDomainId)
+    // Project only relations whose endpoints can actually enter the bounded
+    // scene. Previously every workspace aggregate allocated a payload/backing
+    // before the 160-edge slice was applied.
+    const aggregateByProjectedId = new Map<ModuleFlowEdgeId, RelationAggregate>();
+    const eligibleRelationEdges = relationAggregates
+      .filter((aggregate) =>
+        selectedIds.has(aggregate.sourceModuleId)
+        && selectedIds.has(aggregate.targetModuleId)
+      )
+      .map((aggregate) => {
+        const edge = this.projectRelationAggregate(aggregate);
+        aggregateByProjectedId.set(edge.id, aggregate);
+        return edge;
+      });
+    const eligibleEdges = [
+      ...eligibleRelationEdges,
+      ...createContainmentEdges(
+        selectedModules,
+        this.graphVersion ?? "",
+        this.moduleIdsByDomainId
+      )
     ];
-    const eligibleEdges = allVisualEdges.filter((edge) => {
-      const sourceId = this.domainIdsByModuleId.get(edge.sourceId as ModuleFlowModuleId);
-      const targetId = this.domainIdsByModuleId.get(edge.targetId as ModuleFlowModuleId);
-      return Boolean(sourceId && targetId && selectedIds.has(sourceId) && selectedIds.has(targetId));
-    });
     const edgeLimit = clampLimit(request.edgeLimit, 0, 160);
     const visibleEdges = [...eligibleEdges]
       .sort(compareProjectedEdges)
       .slice(0, edgeLimit);
+    for (const edge of visibleEdges) {
+      const aggregate = aggregateByProjectedId.get(edge.id);
+      if (aggregate) {
+        this.sceneEdgeBackingById.set(edge.id, aggregate);
+      }
+    }
+    const totalEdgeCount = relationAggregates.length + countModuleContainmentEdges(modules);
 
     return {
       graphVersion: request.graphVersion,
@@ -174,9 +207,9 @@ export class ModuleFlowProjectionService {
         totalModuleCount: modules.length,
         visibleModuleCount: selectedModules.length,
         omittedModuleCount: modules.length - selectedModules.length,
-        totalEdgeCount: allVisualEdges.length,
+        totalEdgeCount,
         visibleEdgeCount: visibleEdges.length,
-        omittedEdgeCount: allVisualEdges.length - visibleEdges.length,
+        omittedEdgeCount: totalEdgeCount - visibleEdges.length,
         crossModuleEvidenceCount: state.index.summary.crossModuleEvidenceCount,
         internalRelationEvidenceCount: state.index.summary.internalRelationEvidenceCount,
         externalRelationEvidenceCount: state.index.summary.externalRelationEvidenceCount,
@@ -205,8 +238,9 @@ export class ModuleFlowProjectionService {
       };
     }
 
-    const backing = this.edgeBackingById.get(request.target.id);
-    if (!backing || backing.kind !== "relations") {
+    const aggregate = this.detailEdgeBackingById.get(request.target.id)
+      ?? this.sceneEdgeBackingById.get(request.target.id);
+    if (!aggregate) {
       return undefined;
     }
     return {
@@ -214,7 +248,7 @@ export class ModuleFlowProjectionService {
       requestId: request.requestId,
       detail: this.projectEdgeDetail(
         request.target.id,
-        backing.aggregate,
+        aggregate,
         clampLimit(request.evidenceLimit, 0, 5)
       )
     };
@@ -239,9 +273,7 @@ export class ModuleFlowProjectionService {
     const parentId = module.parentModuleId
       ? this.moduleIdsByDomainId.get(module.parentModuleId)
       : undefined;
-    const hasChildren = this.index?.modules.some((candidate) =>
-      candidate.parentModuleId === module.id
-    ) ?? false;
+    const hasChildren = this.moduleIdsWithChildren.has(module.id);
 
     return {
       id: this.requireModuleToken(module.id),
@@ -275,7 +307,6 @@ export class ModuleFlowProjectionService {
   /** Aggregates relation kinds for one routed module pair. */
   private projectRelationAggregate(aggregate: RelationAggregate): ModuleFlowEdgePayload {
     const id = createModuleFlowEdgeId(this.graphVersion ?? "", aggregate.key);
-    this.edgeBackingById.set(id, { kind: "relations", aggregate });
     const confidenceCounts = createConfidenceCounts();
     const relationCounts = new Map<ModuleFlowRelationKind, number>();
     let evidenceCount = 0;
@@ -314,21 +345,29 @@ export class ModuleFlowProjectionService {
       throw new Error("Module Flow projection is not active.");
     }
     const aggregates = createRelationAggregates(index.relations, "boundary", true);
-    const incoming = aggregates
+    const incomingCandidates = aggregates
       .filter((aggregate) => aggregate.targetModuleId === module.id)
-      .map((aggregate) => this.projectRelationAggregate(aggregate))
-      .sort(compareProjectedEdges);
-    const outgoing = aggregates
+      .map((aggregate) => ({ aggregate, edge: this.projectRelationAggregate(aggregate) }))
+      .sort((left, right) => compareProjectedEdges(left.edge, right.edge));
+    const outgoingCandidates = aggregates
       .filter((aggregate) => aggregate.sourceModuleId === module.id)
-      .map((aggregate) => this.projectRelationAggregate(aggregate))
-      .sort(compareProjectedEdges);
+      .map((aggregate) => ({ aggregate, edge: this.projectRelationAggregate(aggregate) }))
+      .sort((left, right) => compareProjectedEdges(left.edge, right.edge));
+    const incoming = incomingCandidates.slice(0, relationLimit);
+    const outgoing = outgoingCandidates.slice(0, relationLimit);
+    this.detailEdgeBackingById.clear();
+    for (const candidate of [...incoming, ...outgoing]) {
+      this.detailEdgeBackingById.set(candidate.edge.id, candidate.aggregate);
+    }
     const sourceDisplay = createSourceDisplayFormatter(graph.workspaceRoot, {
       preserveFullText: true
     });
-    const directFiles = graph.nodes
-      .filter((node) => node.kind === "file" && index.moduleIdByNodeId.get(node.id) === module.id)
-      .sort(compareNodes)
-      .slice(0, sourceLimit);
+    const directFiles = selectRepresentativeModuleFiles(
+      graph.nodes,
+      index.moduleIdByNodeId,
+      module.id,
+      sourceLimit
+    );
     const representativeSources: ModuleFlowSourcePayload[] = directFiles.map((node) => ({
       label: sourceDisplay.path(node.filePath) ?? "Source file",
       sourceToken: this.tokenFactories.createSourceToken(node.id)
@@ -348,10 +387,10 @@ export class ModuleFlowProjectionService {
         .sort(compareRelationCounts),
       representativeSources,
       omittedSourceCount: Math.max(0, module.analyzedFileCount - representativeSources.length),
-      incomingEdges: incoming.slice(0, relationLimit),
-      outgoingEdges: outgoing.slice(0, relationLimit),
-      omittedIncomingEdgeCount: Math.max(0, incoming.length - relationLimit),
-      omittedOutgoingEdgeCount: Math.max(0, outgoing.length - relationLimit)
+      incomingEdges: incoming.map((candidate) => candidate.edge),
+      outgoingEdges: outgoing.map((candidate) => candidate.edge),
+      omittedIncomingEdgeCount: Math.max(0, incomingCandidates.length - incoming.length),
+      omittedOutgoingEdgeCount: Math.max(0, outgoingCandidates.length - outgoing.length)
     };
   }
 
@@ -612,7 +651,6 @@ export class ModuleFlowProjectionService {
       this.graphVersion ?? "",
       `contains\0${parentDomainId}\0${childDomainId}`
     );
-    this.edgeBackingById.set(id, { kind: "contains" });
     return createContainmentEdgePayload(
       id,
       this.requireModuleToken(parentDomainId),
@@ -629,7 +667,6 @@ export class ModuleFlowProjectionService {
       this.graphVersion ?? "",
       `owns\0${moduleDomainId}\0${functionNodeId}`
     );
-    this.edgeBackingById.set(id, { kind: "contains" });
     return createContainmentEdgePayload(
       id,
       this.requireModuleToken(moduleDomainId),
@@ -656,4 +693,43 @@ export class ModuleFlowProjectionService {
     }
     return { graph: this.graph, index: this.index };
   }
+}
+
+/** Counts hierarchy routes without allocating one payload per workspace module. */
+function countModuleContainmentEdges(modules: readonly ProjectModule[]): number {
+  const moduleIds = new Set(modules.map((module) => module.id));
+  let count = 0;
+  for (const module of modules) {
+    if (module.parentModuleId && moduleIds.has(module.parentModuleId)) {
+      count += 1;
+    }
+  }
+  return count;
+}
+
+/** Retains only the smallest bounded source rows instead of sorting all files. */
+function selectRepresentativeModuleFiles(
+  nodes: readonly SymbolNode[],
+  moduleIdByNodeId: ReadonlyMap<string, string>,
+  moduleId: string,
+  limit: number
+): SymbolNode[] {
+  if (limit <= 0) {
+    return [];
+  }
+  const retained: SymbolNode[] = [];
+  for (const node of nodes) {
+    if (node.kind !== "file" || moduleIdByNodeId.get(node.id) !== moduleId) {
+      continue;
+    }
+    let insertionIndex = retained.findIndex((candidate) => compareNodes(node, candidate) < 0);
+    if (insertionIndex < 0) {
+      insertionIndex = retained.length;
+    }
+    retained.splice(insertionIndex, 0, node);
+    if (retained.length > limit) {
+      retained.pop();
+    }
+  }
+  return retained;
 }

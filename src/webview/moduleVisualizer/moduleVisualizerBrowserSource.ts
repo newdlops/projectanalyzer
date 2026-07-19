@@ -8,6 +8,7 @@
 
 import { getModuleFlowGraphLayoutBrowserSource } from "../../application/moduleFlow/moduleFlowGraphLayout";
 import { getModuleFlowViewportBrowserSource } from "../../application/moduleFlow/moduleFlowViewport";
+import { getModuleFlowExpansionStoreBrowserSource } from "./moduleFlowExpansionStore";
 import { getModuleFlowFrameSchedulerBrowserSource } from "./moduleFlowFrameScheduler";
 import { getModuleFlowLayoutCacheBrowserSource } from "./moduleFlowLayoutCache";
 import { getModuleVisualizerGraphRendererSource } from "./moduleVisualizerGraphRendererSource";
@@ -19,6 +20,7 @@ export function getModuleVisualizerBrowserSource(): string {
     "use strict";
     ${getModuleFlowGraphLayoutBrowserSource()}
     ${getModuleFlowViewportBrowserSource()}
+    ${getModuleFlowExpansionStoreBrowserSource()}
     ${getModuleFlowFrameSchedulerBrowserSource()}
     ${getModuleFlowLayoutCacheBrowserSource()}
     ${getModuleVisualizerGraphRendererSource()}
@@ -51,7 +53,9 @@ export function getModuleVisualizerBrowserSource(): string {
       mode: "execution",
       baseNodes: new Map(),
       baseEdges: new Map(),
-      expansions: new Map(),
+      // Per-response limits are insufficient when many branches remain open.
+      // This store enforces the complete canvas budget across all expansions.
+      expansions: new ModuleFlowExpansionStore(500, 1000),
       pending: new Map(),
       pendingModules: new Set(),
       nextRequestId: 0,
@@ -61,9 +65,12 @@ export function getModuleVisualizerBrowserSource(): string {
       enteringNodeIds: new Set(),
       enteringEdgeIds: new Set(),
       scale: 1,
+      baseSceneKey: "",
       layout: undefined,
       layoutByNodeId: new Map(),
-      layoutCache: new ModuleFlowLayoutCache(4),
+      // Current and immediately previous structures cover expand/collapse while
+      // bounding retained routed geometry for 500-node scenes.
+      layoutCache: new ModuleFlowLayoutCache(2),
       nodesById: new Map(),
       edgesById: new Map(),
       nodeElementsById: new Map(),
@@ -76,6 +83,8 @@ export function getModuleVisualizerBrowserSource(): string {
       pendingAnchor: undefined,
       pendingZoom: undefined,
       pendingResizeCenter: undefined,
+      detailRequestTimer: undefined,
+      pendingDetailTarget: undefined,
       enteringTimer: undefined,
       zoomAnnouncementTimer: undefined,
       resizeObserver: undefined,
@@ -115,12 +124,24 @@ export function getModuleVisualizerBrowserSource(): string {
     /** Requests detail without changing the graph selection or canvas. */
     function requestDetail(target) {
       if (!state.graphVersion) return;
-      post("moduleFlow/detail", {
-        graphVersion: state.graphVersion,
-        target: target,
-        relationLimit: 40,
-        evidenceLimit: 5
-      }, { operation: "detail", target: target });
+      state.pendingDetailTarget = target;
+      if (state.detailRequestTimer !== undefined) {
+        window.clearTimeout(state.detailRequestTimer);
+      }
+      // Selection can move rapidly across a large canvas. Only the settled
+      // target should trigger Host-side relation aggregation and token work.
+      state.detailRequestTimer = window.setTimeout(function () {
+        const settledTarget = state.pendingDetailTarget;
+        state.pendingDetailTarget = undefined;
+        state.detailRequestTimer = undefined;
+        if (!settledTarget || !state.graphVersion) return;
+        post("moduleFlow/detail", {
+          graphVersion: state.graphVersion,
+          target: settledTarget,
+          relationLimit: 40,
+          evidenceLimit: 5
+        }, { operation: "detail", target: settledTarget });
+      }, 60);
     }
 
     /** Opens a Host-approved definition or exact evidence range. */
@@ -161,7 +182,7 @@ export function getModuleVisualizerBrowserSource(): string {
     }
 
     /** Handles typed Extension Host responses with stale correlation guards. */
-    window.addEventListener("message", function (event) {
+    function handleModuleFlowHostMessage(event) {
       const message = event.data;
       if (!message || typeof message.type !== "string" || !message.payload) return;
       const payload = message.payload;
@@ -184,7 +205,8 @@ export function getModuleVisualizerBrowserSource(): string {
       } else if (message.type === "moduleFlow/requestFailed") {
         acceptFailure(payload);
       }
-    });
+    }
+    window.addEventListener("message", handleModuleFlowHostMessage);
 
     /** Replaces the base scene while preserving a brand-new panel snapshot. */
     function acceptList(payload) {
@@ -204,7 +226,14 @@ export function getModuleVisualizerBrowserSource(): string {
       state.baseNodes = new Map((payload.nodes || []).map(function (node) { return [node.id, node]; }));
       state.baseEdges = new Map((payload.edges || []).map(function (edge) { return [edge.id, edge]; }));
       state.expansions.clear();
+      state.layoutCache.clear();
+      state.baseSceneKey = payload.graphVersion + ":" + payload.requestId + ":" + payload.mode;
       state.pending.clear();
+      if (state.detailRequestTimer !== undefined) {
+        window.clearTimeout(state.detailRequestTimer);
+        state.detailRequestTimer = undefined;
+      }
+      state.pendingDetailTarget = undefined;
       state.pendingModules.clear();
       state.selectedNodeId = undefined;
       state.selectedEdgeId = undefined;
@@ -230,12 +259,28 @@ export function getModuleVisualizerBrowserSource(): string {
       state.pending.delete(payload.requestId);
       state.pendingModules.delete(pending.moduleId);
       const currentAnchor = captureViewportAnchor(pending.moduleId) || pending.anchor;
-      state.expansions.set(pending.key, payload);
+      const retention = state.expansions.retain(
+        pending.key,
+        payload,
+        state.baseNodes.keys(),
+        state.baseEdges.keys()
+      );
+      if (!retention.accepted) {
+        state.enteringNodeIds.clear();
+        state.enteringEdgeIds.clear();
+        renderGraph(currentAnchor, false);
+        setStatus("This expansion exceeds the complete canvas resource budget");
+        return;
+      }
       state.enteringNodeIds = new Set((payload.nodes || []).map(function (node) { return node.id; }));
       state.enteringEdgeIds = new Set((payload.edges || []).map(function (edge) { return edge.id; }));
       renderGraph(currentAnchor, true);
+      const released = retention.evictedKeys.length > 0
+        ? " · " + retention.evictedKeys.length + " oldest branch(es) released"
+        : "";
       setStatus(payload.summary.visibleNodeCount + " nodes attached · "
-        + payload.summary.omittedNodeCount + " additional nodes outside this expansion budget");
+        + payload.summary.omittedNodeCount + " additional nodes outside this expansion budget"
+        + released);
     }
 
     /** Clears request-local loading state and exposes a display-safe failure. */
@@ -517,6 +562,28 @@ export function getModuleVisualizerBrowserSource(): string {
       }
     }
 
+    /** Releases browser-owned registries before a hidden tab context is removed. */
+    function disposeModuleFlowBrowser() {
+      window.removeEventListener("message", handleModuleFlowHostMessage);
+      window.removeEventListener("resize", handleModuleFlowResize);
+      state.frameScheduler.dispose();
+      if (state.resizeObserver) state.resizeObserver.disconnect();
+      if (state.enteringTimer !== undefined) window.clearTimeout(state.enteringTimer);
+      if (state.zoomAnnouncementTimer !== undefined) window.clearTimeout(state.zoomAnnouncementTimer);
+      if (state.detailRequestTimer !== undefined) window.clearTimeout(state.detailRequestTimer);
+      resetModuleFlowScene();
+      state.baseNodes.clear();
+      state.baseEdges.clear();
+      state.expansions.clear();
+      state.pending.clear();
+      state.pendingModules.clear();
+      state.nodesById.clear();
+      state.edgesById.clear();
+      state.enteringNodeIds.clear();
+      state.enteringEdgeIds.clear();
+      dom.detail.replaceChildren();
+    }
+
     for (const button of document.querySelectorAll(".mode-button")) {
       button.addEventListener("click", function () {
         if (!button.dataset.mode || button.dataset.mode === state.mode) return;
@@ -529,12 +596,7 @@ export function getModuleVisualizerBrowserSource(): string {
     dom.includeInferred.addEventListener("change", requestList);
     initializeModuleFlowSceneRenderer();
     initializeModuleFlowViewport();
-    window.addEventListener("beforeunload", function () {
-      state.frameScheduler.dispose();
-      if (state.resizeObserver) state.resizeObserver.disconnect();
-      if (state.enteringTimer !== undefined) window.clearTimeout(state.enteringTimer);
-      if (state.zoomAnnouncementTimer !== undefined) window.clearTimeout(state.zoomAnnouncementTimer);
-    });
+    window.addEventListener("beforeunload", disposeModuleFlowBrowser);
 
     vscode.postMessage({ type: "ui/ready", payload: {} });
   })();`;

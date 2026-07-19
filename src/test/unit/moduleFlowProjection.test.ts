@@ -169,6 +169,41 @@ test("projects module source tokens and bounded edge evidence tokens", () => {
   assertBrowserSafePayload(moduleDetail, edgeDetail);
 });
 
+test("retains edge backing only for the active bounded scene and detail rail", () => {
+  const service = createService(createTokenRecorder());
+  service.activate(SNAPSHOT, createFixtureGraph());
+  const scene = service.projectList({
+    ...createListRequest("boundary"),
+    edgeLimit: 2
+  });
+  const resourceState = service as unknown as {
+    sceneEdgeBackingById: Map<string, unknown>;
+    detailEdgeBackingById: Map<string, unknown>;
+  };
+  const aggregateEdgeCount = scene.edges.filter((edge) => edge.presentationKind === "aggregate").length;
+  assert.equal(resourceState.sceneEdgeBackingById.size, aggregateEdgeCount);
+
+  const api = findModuleNode(scene, "apps/api");
+  service.projectDetail({
+    graphVersion: SNAPSHOT,
+    requestId: 12,
+    target: { kind: "module", id: api.id },
+    relationLimit: 1,
+    evidenceLimit: 1
+  });
+  assert.ok(resourceState.detailEdgeBackingById.size <= 2);
+
+  service.projectList({
+    ...createListRequest("execution"),
+    requestId: 13,
+    edgeLimit: 0
+  });
+  assert.equal(resourceState.sceneEdgeBackingById.size, 0);
+  assert.equal(resourceState.detailEdgeBackingById.size, 0);
+  service.clear();
+  assert.equal(resourceState.sceneEdgeBackingById.size, 0);
+});
+
 test("attaches boundary functions to the same canvas with source tokens and exact limits", () => {
   const recorder = createTokenRecorder();
   const service = createService(recorder);

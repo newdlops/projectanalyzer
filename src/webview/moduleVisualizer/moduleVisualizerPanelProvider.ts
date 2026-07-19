@@ -36,7 +36,7 @@ export type ModuleVisualizerPanelProviderDependencies = {
 };
 
 /** Creates and synchronizes one reusable project Module Flow editor tab. */
-export class ModuleVisualizerPanelProvider {
+export class ModuleVisualizerPanelProvider implements vscode.Disposable {
   public static readonly viewType = "projectAnalyzer.moduleVisualizer";
 
   /** Reusable editor panel, absent before the first explicit command. */
@@ -94,7 +94,9 @@ export class ModuleVisualizerPanelProvider {
       ModuleVisualizerPanelProvider.viewType,
       "Module Flow",
       vscode.ViewColumn.Active,
-      { enableScripts: true, retainContextWhenHidden: true }
+      // Module Flow can retain hundreds of DOM/SVG objects. Let VS Code destroy
+      // the browser context while hidden; the Host snapshot rehydrates it later.
+      { enableScripts: true, retainContextWhenHidden: false }
     );
     this.webviewReady = false;
     this.panel.webview.html = getModuleVisualizerHtml({
@@ -112,6 +114,11 @@ export class ModuleVisualizerPanelProvider {
       }
       void this.handleMessage(validation.value);
     });
+    this.panel.onDidChangeViewState((event) => {
+      if (!event.webviewPanel.visible) {
+        this.webviewReady = false;
+      }
+    });
     this.panel.onDidDispose(() => this.disposePanelState());
   }
 
@@ -122,7 +129,11 @@ export class ModuleVisualizerPanelProvider {
       case "ui/ready":
         this.webviewReady = true;
         await this.postMessage({ type: "ui/ready", payload: {} });
-        await this.enqueuePendingGraph();
+        if (this.pendingGraph) {
+          await this.enqueuePendingGraph();
+        } else {
+          await this.publishActiveScene();
+        }
         break;
       case "moduleFlow/list":
         await this.publishList(message.payload);
@@ -171,18 +182,21 @@ export class ModuleVisualizerPanelProvider {
     this.sourceNodeTokens.activate(activation.snapshot.version, graph);
     this.evidenceTokens.activate(activation.snapshot.version, graph);
     this.projection.activate(activation.snapshot.version, graph);
-    const request: ModuleFlowListRequest = {
-      graphVersion: activation.snapshot.version,
-      requestId: 0,
-      mode: "execution",
-      moduleLimit: 80,
-      edgeLimit: 160,
-      includeExternal: true,
-      includeInferred: true
-    };
     await this.postMessage({
       type: "moduleFlow/listLoaded",
-      payload: this.projection.projectList(request)
+      payload: this.projection.projectList(createInitialListRequest(activation.snapshot.version))
+    });
+  }
+
+  /** Rehydrates a newly recreated hidden Webview without rebuilding its Host index. */
+  private async publishActiveScene(): Promise<void> {
+    const snapshot = this.graphDelivery.current();
+    if (!snapshot || !this.projection.matches(snapshot.version)) {
+      return;
+    }
+    await this.postMessage({
+      type: "moduleFlow/listLoaded",
+      payload: this.projection.projectList(createInitialListRequest(snapshot.version))
     });
   }
 
@@ -328,16 +342,39 @@ export class ModuleVisualizerPanelProvider {
     await this.panel.webview.postMessage(message);
   }
 
+  /** Releases the panel and every graph authority during extension deactivation. */
+  public dispose(): void {
+    if (this.panel) {
+      this.panel.dispose();
+      return;
+    }
+    this.disposePanelState();
+  }
+
   /** Drops every snapshot authority when the editor tab is closed. */
   private disposePanelState(): void {
     this.panel = undefined;
     this.webviewReady = false;
     this.pendingGraph = undefined;
+    this.deliveryQueue = Promise.resolve();
     this.graphDelivery.clear();
     this.projection.clear();
     this.sourceNodeTokens.clear();
     this.evidenceTokens.clear();
   }
+}
+
+/** Default bounded scene used both for first delivery and hidden-tab restore. */
+function createInitialListRequest(graphVersion: string): ModuleFlowListRequest {
+  return {
+    graphVersion,
+    requestId: 0,
+    mode: "execution",
+    moduleLimit: 80,
+    edgeLimit: 160,
+    includeExternal: true,
+    includeInferred: true
+  };
 }
 
 /** Function nodes hand off to the existing dedicated Function Visualizer tab. */
