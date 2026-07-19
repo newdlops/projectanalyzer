@@ -8,10 +8,11 @@ import { createEdgeId } from "../../shared/ids";
 import { createEmptyProjectGraph } from "../../graph/emptyGraph";
 import type { GraphEdge, ProjectGraph, SourceFile, SymbolNode } from "../../shared/types";
 import { createFileNode } from "./graphNodes";
-import type { LanguageAnalyzer } from "./languageAnalyzer";
+import type { AnalysisContext, LanguageAnalyzer } from "./languageAnalyzer";
 import { WorkspaceScanner } from "./workspaceScanner";
 import type { WorkspaceFileSystem } from "./workspaceScanner";
 import type { AnalysisBackend } from "./analysisBackend";
+import { createSourceFilePathIndex } from "./sourceFileIndex";
 
 /** Result returned by workspace and current-file analysis requests. */
 export type AnalyzeResult = {
@@ -77,11 +78,16 @@ export class AnalyzerPipeline implements AnalysisBackend {
 
     graph.metadata.fileCount = files.length;
     graph.metadata.languages = getLanguages(files);
+    const analysisContext = {
+      sourceFiles: files,
+      workspaceRoot,
+      sourceFilePathIndex: createSourceFilePathIndex(files)
+    };
 
     for (const file of files) {
       const fileNode = createFileNode(file, workspaceRoot);
       store.addNode(fileNode);
-      await this.analyzeFileIntoStore(file, fileNode, files, workspaceRoot, store, graph);
+      await this.analyzeFileIntoStore(file, fileNode, analysisContext, store, graph);
     }
 
     return store.toProjectGraph();
@@ -93,8 +99,7 @@ export class AnalyzerPipeline implements AnalysisBackend {
   private async analyzeFileIntoStore(
     file: SourceFile,
     fileNode: SymbolNode,
-    files: readonly SourceFile[],
-    workspaceRoot: string,
+    context: AnalysisContext,
     store: InMemoryGraphStore,
     graph: ProjectGraph
   ): Promise<void> {
@@ -107,7 +112,7 @@ export class AnalyzerPipeline implements AnalysisBackend {
     try {
       const parsed = await analyzer.parse(file);
       const symbols = await analyzer.extractSymbols(parsed);
-      const edges = await analyzer.extractEdges(parsed, { sourceFiles: files, workspaceRoot });
+      const edges = await analyzer.extractEdges(parsed, context);
 
       for (const symbol of symbols) {
         store.addNode(symbol);

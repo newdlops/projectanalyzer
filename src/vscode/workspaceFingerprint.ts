@@ -31,7 +31,7 @@ export async function createWorkspaceAnalysisCacheKey(
   // excluded or unsupported editor tabs must not invalidate this analysis key.
   const dirtyByPath = new Map(
     vscode.workspace.textDocuments
-      .filter((document) => document.isDirty && document.uri.scheme === "file")
+      .filter((document) => document.isDirty)
       .filter((document) => includedPaths.has(normalizePath(document.uri.fsPath)))
       .map((document) => {
         const content = document.getText();

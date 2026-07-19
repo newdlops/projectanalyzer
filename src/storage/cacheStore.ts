@@ -45,6 +45,13 @@ type AnalysisCacheState = {
 
 const CACHE_FILE_NAME = "analysis-cache.json";
 
+/** Per-scope history caps prevent one JSON cache file from retaining revisions forever. */
+const CACHE_ENTRY_LIMIT_BY_SCOPE: Record<AnalysisCacheScope, number> = {
+  workspace: 2,
+  currentFile: 8,
+  latest: 1
+};
+
 /** In-memory cache for tests and disabled persistent cache mode. */
 export class MemoryAnalysisCacheStore implements AnalysisCacheStore {
   /** Scoped graph entries saved during this extension session. */
@@ -52,6 +59,8 @@ export class MemoryAnalysisCacheStore implements AnalysisCacheStore {
 
   /** Active graph pointer used by sidebar and graph panel load requests. */
   private active: AnalysisCachePointer | undefined;
+
+  public constructor(private readonly maximumEntries = 16) {}
 
   /** Returns the currently active project graph. */
   public async getLatestGraph(): Promise<ProjectGraph | undefined> {
@@ -75,6 +84,7 @@ export class MemoryAnalysisCacheStore implements AnalysisCacheStore {
     if (activate) {
       this.active = { scope: entry.scope, cacheKey: entry.cacheKey };
     }
+    this.trimEntries();
   }
 
   /** Saves a graph in the legacy latest slot for older call sites. */
@@ -98,6 +108,29 @@ export class MemoryAnalysisCacheStore implements AnalysisCacheStore {
   public async clear(): Promise<void> {
     this.entries.clear();
     this.active = undefined;
+  }
+
+  /** Keeps disabled-persistence sessions from retaining every analyzed revision. */
+  private trimEntries(): void {
+    const configuredLimit = Math.floor(this.maximumEntries);
+    const limit = Number.isFinite(configuredLimit) && configuredLimit > 0
+      ? configuredLimit
+      : 1;
+    while (this.entries.size > limit) {
+      const activeKey = this.active
+        ? cacheEntryKey(this.active.scope, this.active.cacheKey)
+        : undefined;
+      const oldest = [...this.entries.entries()]
+        .filter(([key]) => key !== activeKey)
+        .sort((left, right) =>
+          left[1].savedAt.localeCompare(right[1].savedAt)
+          || left[0].localeCompare(right[0])
+        )[0];
+      if (!oldest) {
+        break;
+      }
+      this.entries.delete(oldest[0]);
+    }
   }
 }
 
@@ -172,7 +205,10 @@ export class FileAnalysisCacheStore implements AnalysisCacheStore {
       return;
     }
 
-    await this.saveState({ ...state, active: { scope, cacheKey } });
+    await this.saveState(trimCacheState(
+      { ...state, active: { scope, cacheKey } },
+      this.maxSizeMb
+    ));
   }
 
   /** Removes the persisted cache file. */
@@ -225,10 +261,24 @@ function newestEntry(entries: readonly AnalysisCacheEntry[]): AnalysisCacheEntry
 /** Evicts old entries when serialized cache data exceeds the configured budget. */
 function trimCacheState(state: AnalysisCacheState, maxSizeMb: number): AnalysisCacheState {
   const maxBytes = Math.max(1, maxSizeMb) * 1024 * 1024;
-  let entries = [...state.entries].sort((left, right) => right.savedAt.localeCompare(left.savedAt));
+  const retainedByScope = new Map<AnalysisCacheScope, number>();
+  let entries = [...state.entries]
+    .sort((left, right) => right.savedAt.localeCompare(left.savedAt))
+    .filter((entry) => {
+      const retained = retainedByScope.get(entry.scope) ?? 0;
+      if (retained >= CACHE_ENTRY_LIMIT_BY_SCOPE[entry.scope]) {
+        return false;
+      }
+      retainedByScope.set(entry.scope, retained + 1);
+      return true;
+    })
+    .filter((entry) => Buffer.byteLength(JSON.stringify({
+      version: 1,
+      entries: [entry]
+    }), "utf8") <= maxBytes);
   let trimmed = { ...state, entries };
 
-  while (Buffer.byteLength(JSON.stringify(trimmed), "utf8") > maxBytes && entries.length > 1) {
+  while (Buffer.byteLength(JSON.stringify(trimmed), "utf8") > maxBytes && entries.length > 0) {
     entries = entries.slice(0, -1);
     trimmed = { ...state, entries };
   }

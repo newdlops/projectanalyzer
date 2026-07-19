@@ -6,6 +6,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { AnalyzerPipeline } from "../../analyzer/core/analyzerPipeline";
+import type { LanguageAnalyzer } from "../../analyzer/core/languageAnalyzer";
 import type { WorkspaceFileSystem } from "../../analyzer/core/workspaceScanner";
 import { TypeScriptAnalyzer } from "../../analyzer/languages/typescript";
 import { createContentHash } from "../../shared/hash";
@@ -85,6 +86,35 @@ test("AnalyzerPipeline builds TypeScript file import edges", async () => {
   assert.equal(importEdge.confidence, "resolved");
   assert.equal(importEdge.metadata?.moduleSpecifier, "./service");
   assert.ok(exportEdge);
+});
+
+test("AnalyzerPipeline shares one source path index across every file extraction", async () => {
+  const files = [
+    createTestSourceFile("/workspace/a.ts", "export const a = 1;"),
+    createTestSourceFile("/workspace/b.ts", "export const b = 2;")
+  ];
+  const observedIndexes: Array<ReadonlyMap<string, string> | undefined> = [];
+  const analyzer: LanguageAnalyzer = {
+    languageId: "typescript",
+    extensions: [".ts"],
+    async parse(file) {
+      return { file, ast: {} };
+    },
+    async extractSymbols() {
+      return [];
+    },
+    async extractEdges(_parsed, context) {
+      observedIndexes.push(context.sourceFilePathIndex);
+      return [];
+    }
+  };
+  const pipeline = new AnalyzerPipeline(new TestWorkspaceFileSystem(files), [analyzer]);
+
+  await pipeline.analyzeWorkspace();
+
+  assert.equal(observedIndexes.length, 2);
+  assert.equal(observedIndexes[0], observedIndexes[1]);
+  assert.equal(observedIndexes[0]?.size, 2);
 });
 
 /**

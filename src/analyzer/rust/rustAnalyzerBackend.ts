@@ -6,13 +6,14 @@
 import * as childProcess from "node:child_process";
 import * as fs from "node:fs";
 import * as path from "node:path";
+import { Readable } from "node:stream";
 import type { AnalysisBackend } from "../core/analysisBackend";
 import type { AnalyzeResult } from "../core/analyzerPipeline";
 import type { WorkspaceFileSystem } from "../core/workspaceScanner";
 import { normalizeProjectGraphMetadata } from "../../graph/graphMetadata";
 import type { ProjectAnalyzerLogger } from "../../observability/logger";
 import type { ProjectGraph, SourceFile } from "../../shared/types";
-import { createWorkspaceSourceManifest } from "./workspaceSourceManifest";
+import { createWorkspaceSourceManifestInput } from "./workspaceSourceManifest";
 import { mergeSupplementalLanguageGraph } from "./supplementalLanguageGraph";
 
 /** Languages whose symbols are supplied by the in-process analyzer for now. */
@@ -33,11 +34,29 @@ type EngineInvocation = {
   args: string[];
 };
 
+/** Backpressure-aware stdin plus its diagnostic byte count. */
+type EngineStdin = {
+  content: string | Buffer | Iterable<Uint8Array>;
+  byteLength: number;
+};
+
 /**
  * Analysis backend that delegates workspace and current-file analysis to Rust.
  */
 export class RustAnalyzerBackend implements AnalysisBackend {
+  /** Child engines still running during this Extension Host session. */
+  private readonly activeProcesses = new Set<childProcess.ChildProcess>();
+
   public constructor(private readonly options: RustAnalyzerBackendOptions) {}
+
+  /** Terminates only analyzer engines owned by this backend during deactivation. */
+  public dispose(): void {
+    for (const process of this.activeProcesses) {
+      process.stdin?.destroy();
+      process.kill();
+    }
+    this.activeProcesses.clear();
+  }
 
   /**
    * Analyzes the workspace through the Rust CLI, falling back only when the engine
@@ -55,9 +74,9 @@ export class RustAnalyzerBackend implements AnalysisBackend {
       // The VS Code adapter is the source of truth for configured globs and dirty
       // documents; Rust deliberately does not attempt to reproduce VS Code glob semantics.
       const sourceFiles = await this.options.workspaceFileSystem.findSourceFiles();
-      const manifest = createWorkspaceSourceManifest(sourceFiles);
+      const manifest = createWorkspaceSourceManifestInput(sourceFiles);
       this.options.logger.info("rust.workspace.start", {
-        manifestBytes: manifest.length,
+        manifestBytes: manifest.byteLength,
         maxFileSizeKb: this.options.maxFileSizeKb,
         sourceFiles: sourceFiles.length,
         workspaceRoot
@@ -69,7 +88,7 @@ export class RustAnalyzerBackend implements AnalysisBackend {
         "--source-manifest-stdin",
         "--max-file-size-kb",
         String(this.options.maxFileSizeKb)
-      ], manifest);
+      ], { content: manifest.chunks, byteLength: manifest.byteLength });
 
       const enrichedGraph = await this.addSupplementalLanguages(graph, sourceFiles);
       this.options.logger.info("rust.workspace.complete", summarizeGraph(enrichedGraph));
@@ -106,7 +125,7 @@ export class RustAnalyzerBackend implements AnalysisBackend {
           "--language",
           file.languageId
         ],
-        file.content
+        { content: file.content, byteLength: file.sizeBytes }
       );
 
       const enrichedGraph = await this.addSupplementalLanguages(graph, [file]);
@@ -123,15 +142,20 @@ export class RustAnalyzerBackend implements AnalysisBackend {
   /**
    * Executes the Rust engine and parses the emitted ProjectGraph JSON.
    */
-  private async runEngine(engineArgs: string[], stdin?: string | Buffer): Promise<ProjectGraph> {
+  private async runEngine(engineArgs: string[], stdin?: EngineStdin): Promise<ProjectGraph> {
     const invocation = resolveEngineInvocation(this.options.engineRoot, engineArgs);
     const startedAt = Date.now();
     this.options.logger.debug("rust.process.spawn", {
       args: invocation.args,
       command: invocation.command,
-      stdinBytes: stdin ? Buffer.byteLength(stdin, "utf8") : 0
+      stdinBytes: stdin?.byteLength ?? 0
     });
-    const output = await runProcess(invocation, this.options.logger, stdin);
+    const output = await runProcess(
+      invocation,
+      this.options.logger,
+      this.activeProcesses,
+      stdin?.content
+    );
     this.options.logger.debug("rust.process.stdout", {
       durationMs: Date.now() - startedAt,
       stdoutBytes: Buffer.byteLength(output, "utf8")
@@ -229,13 +253,17 @@ function selectNewestExistingBinary(binaryPaths: string[]): string | undefined {
 function runProcess(
   invocation: EngineInvocation,
   logger: ProjectAnalyzerLogger,
-  stdin?: string | Buffer
+  activeProcesses: Set<childProcess.ChildProcess>,
+  stdin?: string | Buffer | Iterable<Uint8Array>
 ): Promise<string> {
   return new Promise((resolve, reject) => {
     const startedAt = Date.now();
     const child = childProcess.spawn(invocation.command, invocation.args, {
       stdio: ["pipe", "pipe", "pipe"]
     });
+    activeProcesses.add(child);
+    /** Lazy manifest source, destroyed explicitly if the engine exits early. */
+    let inputStream: Readable | undefined;
     const stdoutChunks: Buffer[] = [];
     const stderrChunks: Buffer[] = [];
 
@@ -250,11 +278,20 @@ function runProcess(
         preview: chunk.toString("utf8").slice(0, 300)
       });
     });
+    child.stdin.on("error", (error) => {
+      // A child that exits early can close stdin before the lazy manifest is
+      // exhausted. The close handler below retains its more useful stderr.
+      logger.debug("rust.process.stdinClosed", { error: formatError(error) });
+    });
     child.on("error", (error) => {
+      activeProcesses.delete(child);
+      inputStream?.destroy();
       logger.error("rust.process.error", { error: formatError(error) });
       reject(error);
     });
     child.on("close", (code) => {
+      activeProcesses.delete(child);
+      inputStream?.destroy();
       const stderr = Buffer.concat(stderrChunks).toString("utf8");
       logger.debug("rust.process.close", {
         code,
@@ -270,7 +307,14 @@ function runProcess(
       resolve(Buffer.concat(stdoutChunks).toString("utf8"));
     });
 
-    if (stdin !== undefined) {
+    if (stdin !== undefined && typeof stdin !== "string" && !Buffer.isBuffer(stdin)) {
+      inputStream = Readable.from(stdin, { objectMode: false });
+      inputStream.on("error", (error) => {
+        logger.error("rust.process.stdinError", { error: formatError(error) });
+        child.stdin.destroy(error);
+      });
+      inputStream.pipe(child.stdin);
+    } else if (stdin !== undefined) {
       child.stdin.end(stdin);
     } else {
       child.stdin.end();

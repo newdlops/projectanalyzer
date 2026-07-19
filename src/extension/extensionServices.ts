@@ -44,7 +44,8 @@ export function createExtensionServices(context: vscode.ExtensionContext): Exten
   const storageDirectory = context.storageUri?.fsPath ?? context.globalStorageUri.fsPath;
   const cacheStore = config.cache.enabled
     ? new FileAnalysisCacheStore(storageDirectory, config.cache.maxSizeMb)
-    : new MemoryAnalysisCacheStore();
+    // Persistence-disabled mode needs only the graph currently feeding the UI.
+    : new MemoryAnalysisCacheStore(1);
   const fallbackAnalyzer = new AnalyzerPipeline(fileSystem, [
     new TypeScriptAnalyzer(),
     new JavaScriptAnalyzer(),
@@ -58,6 +59,7 @@ export function createExtensionServices(context: vscode.ExtensionContext): Exten
     fallbackBackend: fallbackAnalyzer,
     logger
   });
+  context.subscriptions.push(analyzer);
   const explorerGraphPanelProvider = new ExplorerGraphPanelProvider({
     context,
     cacheStore,
@@ -81,6 +83,7 @@ export function createExtensionServices(context: vscode.ExtensionContext): Exten
     openFunction: (graph, nodeId) =>
       functionVisualizerPanelProvider.openFunction(graph, nodeId)
   });
+  context.subscriptions.push(moduleVisualizerPanelProvider);
   const explorerViewProvider = new ExplorerViewProvider({
     context,
     analyzer,

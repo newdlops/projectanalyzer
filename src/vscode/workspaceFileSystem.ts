@@ -8,6 +8,7 @@ import type { SourceFile } from "../shared/types";
 import type { WorkspaceFileSystem } from "../analyzer/core/workspaceScanner";
 import type { ProjectAnalyzerConfig } from "./configuration";
 import { createContentHash } from "../shared/hash";
+import { inferSourceLanguageId } from "./sourceLanguage";
 
 /** Maximum number of files returned by the initial scaffold scan. */
 const DEFAULT_FIND_LIMIT = 10_000;
@@ -34,12 +35,34 @@ export class VsCodeWorkspaceFileSystem implements WorkspaceFileSystem {
     const includePattern = createWorkspaceGlob(this.config.include);
     const excludePattern = createWorkspaceGlob(this.config.exclude);
     const uris = await vscode.workspace.findFiles(includePattern, excludePattern, DEFAULT_FIND_LIMIT);
+    const openDocumentsByUri = new Map(
+      vscode.workspace.textDocuments
+        .map((document) => [document.uri.toString(), document] as const)
+    );
+    const maxSizeBytes = this.config.maxFileSizeKb * 1024;
 
     for (const uri of uris) {
-      const document = await vscode.workspace.openTextDocument(uri);
-      const content = document.getText();
-      const sizeBytes = Buffer.byteLength(content, "utf8");
-      const maxSizeBytes = this.config.maxFileSizeKb * 1024;
+      const openDocument = openDocumentsByUri.get(uri.toString());
+      let content: string;
+      let languageId: string;
+      let sizeBytes: number;
+
+      if (openDocument) {
+        // Open/dirty documents remain authoritative for unsaved analysis state.
+        content = openDocument.getText();
+        languageId = openDocument.languageId;
+        sizeBytes = Buffer.byteLength(content, "utf8");
+      } else {
+        // openTextDocument retains every scanned file in VS Code's document
+        // cache. Direct reads keep saved workspace scans transient instead.
+        const bytes = await vscode.workspace.fs.readFile(uri);
+        sizeBytes = bytes.byteLength;
+        if (sizeBytes > maxSizeBytes) {
+          continue;
+        }
+        content = Buffer.from(bytes).toString("utf8");
+        languageId = inferSourceLanguageId(uri.fsPath);
+      }
 
       if (sizeBytes > maxSizeBytes) {
         continue;
@@ -47,7 +70,7 @@ export class VsCodeWorkspaceFileSystem implements WorkspaceFileSystem {
 
       files.push({
         path: uri.fsPath,
-        languageId: document.languageId,
+        languageId,
         content,
         sizeBytes,
         contentHash: createContentHash(content)

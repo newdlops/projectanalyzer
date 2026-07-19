@@ -11,4 +11,6 @@ export interface AnalysisBackend {
   analyzeWorkspace(): Promise<AnalyzeResult>;
   analyzeFile(file: SourceFile): Promise<AnalyzeResult>;
   analyzeFiles?(files: readonly SourceFile[]): Promise<AnalyzeResult>;
+  /** Optional lifecycle hook for external-process or worker-backed analyzers. */
+  dispose?(): void;
 }

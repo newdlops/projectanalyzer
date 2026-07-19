@@ -9,6 +9,10 @@ import { createFileNodeId } from "../../core/graphNodes";
 import type { AnalysisContext, ParsedFile } from "../../core/languageAnalyzer";
 import { createEdgeId } from "../../../shared/ids";
 import type { EdgeKind, GraphEdge, SourceRange } from "../../../shared/types";
+import {
+  createSourceFilePathIndex,
+  normalizeSourceFilePath
+} from "../../core/sourceFileIndex";
 
 /** File extensions checked when an import omits the concrete suffix. */
 const RESOLVABLE_EXTENSIONS = [".ts", ".tsx", ".js", ".jsx"] as const;
@@ -22,7 +26,8 @@ export function extractTypeScriptLikeImportEdges(
 ): GraphEdge[] {
   const sourceFile = asTypeScriptSourceFile(parsed.ast);
   const sourceId = createFileNodeId(parsed.file.path);
-  const sourceFileByPath = createSourceFilePathMap(context.sourceFiles);
+  const sourceFileByPath = context.sourceFilePathIndex
+    ?? createSourceFilePathIndex(context.sourceFiles);
   const edges: GraphEdge[] = [];
 
   sourceFile.forEachChild((node) => {
@@ -50,13 +55,6 @@ function asTypeScriptSourceFile(ast: unknown): ts.SourceFile {
   }
 
   return ast as ts.SourceFile;
-}
-
-/**
- * Creates a lookup from normalized absolute file path to original source file.
- */
-function createSourceFilePathMap(sourceFiles: readonly { path: string }[]): Map<string, string> {
-  return new Map(sourceFiles.map((file) => [normalizeFilePath(file.path), file.path]));
 }
 
 /**
@@ -130,7 +128,7 @@ function resolveLocalModulePath(
   const candidates = createResolutionCandidates(basePath);
 
   for (const candidate of candidates) {
-    const resolved = sourceFileByPath.get(normalizeFilePath(candidate));
+    const resolved = sourceFileByPath.get(normalizeSourceFilePath(candidate));
 
     if (resolved) {
       return resolved;
@@ -169,11 +167,4 @@ function getNodeRange(sourceFile: ts.SourceFile, node: ts.Node): SourceRange {
     endLine: end.line,
     endCharacter: end.character
   };
-}
-
-/**
- * Normalizes paths for stable matching across platform-specific separators.
- */
-function normalizeFilePath(filePath: string): string {
-  return path.resolve(filePath);
 }

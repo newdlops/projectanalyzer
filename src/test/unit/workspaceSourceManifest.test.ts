@@ -5,7 +5,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { SourceFile } from "../../shared/types";
-import { createWorkspaceSourceManifest } from "../../analyzer/rust/workspaceSourceManifest";
+import {
+  createWorkspaceSourceManifest,
+  createWorkspaceSourceManifestInput
+} from "../../analyzer/rust/workspaceSourceManifest";
 
 /** Reads one newline-terminated ASCII integer from a manifest buffer. */
 function readLength(buffer: Buffer, cursor: { offset: number }): number {
@@ -64,4 +67,18 @@ test("workspace source manifest preserves content and uses stable path order", (
   assert.equal(readField(manifest, cursor, secondLengths[1]), "typescript");
   assert.equal(readField(manifest, cursor, secondLengths[2]), "export const View = () => null;\n");
   assert.equal(cursor.offset, manifest.length);
+});
+
+test("lazy manifest chunks preserve bytes without one full workspace input copy", () => {
+  const files = [
+    source("/workspace/a.ts", "typescript", "export const a = 1;\n"),
+    source("/workspace/b.py", "python", "b = 2\n")
+  ];
+  const buffered = createWorkspaceSourceManifest(files);
+  const streamed = createWorkspaceSourceManifestInput(files);
+  const joined = Buffer.concat([...streamed.chunks], streamed.byteLength);
+
+  assert.equal(streamed.byteLength, buffered.byteLength);
+  assert.deepEqual(joined, buffered);
+  assert.deepEqual(Buffer.concat([...streamed.chunks]), buffered, "input must be replayable");
 });

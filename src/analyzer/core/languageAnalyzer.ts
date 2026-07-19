@@ -15,6 +15,8 @@ export type ParsedFile = {
 export type AnalysisContext = {
   sourceFiles: readonly SourceFile[];
   workspaceRoot: string;
+  /** Snapshot-wide normalized path index; optional for direct plugin callers. */
+  sourceFilePathIndex?: ReadonlyMap<string, string>;
 };
 
 /** Common interface implemented by TypeScript, JavaScript, Python, and future analyzers. */
