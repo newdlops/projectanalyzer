@@ -8,6 +8,10 @@
  */
 
 import type { ProjectGraph, SymbolNode } from "../../shared/types";
+import {
+  findNearestPortableAncestor,
+  getPortableProjectParentKey
+} from "../../shared/portableProjectPath";
 import type { SemanticFlow, SemanticFlowIndex } from "../semanticFlow";
 import type { PortableProjectPathNormalizer } from "./portableRootPath";
 import {
@@ -187,48 +191,12 @@ export function findOwningScope<T>(
   pathKey: string,
   scopesByKey: ReadonlyMap<string, T>
 ): T | undefined {
-  const visited = new Set<string>();
-  let currentKey: string | undefined = pathKey;
-
-  while (currentKey !== undefined && !visited.has(currentKey)) {
-    visited.add(currentKey);
-    const scope = scopesByKey.get(currentKey);
-    if (scope !== undefined) {
-      return scope;
-    }
-
-    const parentKey = getPortableParentKey(currentKey);
-    currentKey = parentKey !== currentKey ? parentKey : undefined;
-  }
-
-  return undefined;
+  return findNearestPortableAncestor(pathKey, scopesByKey);
 }
 
 /** Returns the lexical parent of a canonical portable path key. */
 export function getPortableParentKey(key: string): string | undefined {
-  const normalized = trimNonRootTrailingSeparators(key);
-
-  if (
-    normalized === "."
-    || normalized === "/"
-    || /^[a-z]:\/$/u.test(normalized)
-    || /^\/\/[^/]+\/[^/]+$/u.test(normalized)
-  ) {
-    return undefined;
-  }
-
-  const separatorIndex = normalized.lastIndexOf("/");
-  if (separatorIndex < 0) {
-    return ".";
-  }
-  if (separatorIndex === 0) {
-    return "/";
-  }
-  if (separatorIndex === 2 && /^[a-z]:\//u.test(normalized)) {
-    return normalized.slice(0, 3);
-  }
-
-  return normalized.slice(0, separatorIndex);
+  return getPortableProjectParentKey(key);
 }
 
 /** Creates or merges one exact normalized root scope. */
@@ -493,14 +461,6 @@ function getFlowTransportOrder(flow: SemanticFlow): number {
 /** Stable scope identity contains the complete collision-safe canonical key. */
 function createScopeId(scopeKey: string): string {
   return `project-reading:scope:${encodeURIComponent(scopeKey)}`;
-}
-
-/** Removes trailing separators without changing canonical volume roots. */
-function trimNonRootTrailingSeparators(key: string): string {
-  if (key === "/" || /^[a-z]:\/$/u.test(key)) {
-    return key;
-  }
-  return key.replace(/\/+$/u, "");
 }
 
 /** Locale-independent comparison for reproducible persisted projections. */

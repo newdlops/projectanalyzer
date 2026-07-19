@@ -8,6 +8,7 @@
  */
 
 import type { SemanticFlow } from "../semanticFlow";
+import { getPortableProjectBaseName } from "../../shared/portableProjectPath";
 import type { PortableProjectPathNormalizer } from "./portableRootPath";
 import {
   getPortableParentKey,
@@ -203,7 +204,7 @@ function findSourceAreaKey(
     return scopeKey;
   }
 
-  const directChildName = getPortableBaseName(directChildKey);
+  const directChildName = getPortableProjectBaseName(directChildKey);
   if (!TWO_SEGMENT_AREA_CONTAINERS.has(directChildName.toLowerCase())) {
     return directChildKey;
   }
@@ -267,13 +268,6 @@ function getEntrypointFilePath(flow: SemanticFlow): string | undefined {
 /** Stable identity preserves both selected scope and normalized area root. */
 function createAreaId(scopeId: string, areaKey: string): string {
   return `${scopeId}:area:${encodeURIComponent(areaKey)}`;
-}
-
-/** Reads one canonical terminal segment without host-OS path semantics. */
-function getPortableBaseName(key: string): string {
-  const trimmed = key.replace(/\/+$/u, "");
-  const separatorIndex = trimmed.lastIndexOf("/");
-  return separatorIndex < 0 ? trimmed : trimmed.slice(separatorIndex + 1);
 }
 
 /** Formats a canonical area key relative to its canonical workspace key. */
