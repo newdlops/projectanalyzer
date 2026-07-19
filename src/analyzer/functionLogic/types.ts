@@ -80,6 +80,8 @@ export type FunctionLogicCallsite = {
   range: SourceRange;
   calleeName: string;
   calleeText: string;
+  /** Python receiver-chain stage retained for conservative drill recovery. */
+  callChain?: "start" | "continuation";
 };
 
 /** One syntax-backed or conservative control transfer. */

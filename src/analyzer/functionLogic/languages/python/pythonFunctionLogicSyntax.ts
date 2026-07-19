@@ -14,6 +14,7 @@ import type {
 } from "../../types";
 import type {
   LezerCallableDescriptor,
+  LezerStatementInput,
   LezerStatementTask
 } from "../../core/lezerFunctionLogicAnalyzer";
 import {
@@ -36,6 +37,10 @@ import {
   type PythonCallableSyntax
 } from "../../../languages/python/pythonLezerSyntax";
 import { collectPythonValueChanges } from "../../valueChanges";
+import {
+  classifyPythonExpressionFlowTask,
+  expandPythonFlowStatements
+} from "./pythonExpressionFlow";
 
 const PYTHON_MUTATION_NODES = new Set([
   "AssignStatement",
@@ -81,10 +86,13 @@ export function findSelectedPythonCallable(
 
 /** Returns a selected callable's direct body statements or lambda expression. */
 export function getPythonRootStatements(
-  _source: LezerSource,
+  source: LezerSource,
   callable: LezerCallableDescriptor
-): SyntaxNode[] {
-  return callable.expressionBody ? [callable.body] : getPythonBodyStatements(callable.body);
+): LezerStatementInput[] {
+  return expandPythonFlowStatements(
+    source,
+    callable.expressionBody ? [callable.body] : getPythonBodyStatements(callable.body)
+  );
 }
 
 /** Classifies one visible Python statement with exact source evidence. */
@@ -93,6 +101,10 @@ export function classifyPythonStatement(
   filePath: string,
   task: LezerStatementTask
 ): FunctionLogicBlock {
+  const expressionFlowBlock = classifyPythonExpressionFlowTask(source, filePath, task);
+  if (expressionFlowBlock) {
+    return expressionFlowBlock;
+  }
   const node = task.node;
   let kind: FunctionLogicBlockKind = "operation";
   let confidence: FunctionLogicConfidence = "exact";
@@ -192,7 +204,8 @@ export function collectPythonFunctionCallsites(
     filePath,
     range: lezerNodeRange(source, call.node),
     calleeName: call.calleeName,
-    calleeText: call.calleeText
+    calleeText: call.calleeText,
+    callChain: call.callChain
   }));
 }
 
@@ -200,7 +213,7 @@ export function collectPythonFunctionCallsites(
 export function createPythonFunctionLogicGaps(): FunctionLogicGap[] {
   return [{
     code: "parseLimited",
-    message: "Boolean short-circuiting, comprehensions, generators, and expression-level conditions stay inside their containing block."
+    message: "Boolean short-circuiting, standalone lazy generator expressions, nested comprehension result expressions, and other expression-level conditions stay inside their containing block. Generator-argument loops are structural; whether and how far a callee consumes them remains inferred."
   }, {
     code: "dynamicBehavior",
     message: "Monkey patching, decorators, descriptors, dynamic dispatch, exceptions from callees, and runtime values are not observed."

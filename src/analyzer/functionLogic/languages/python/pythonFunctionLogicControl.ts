@@ -6,7 +6,8 @@
 import type { SyntaxNode } from "@lezer/common";
 import type {
   LezerControlBranchDescription,
-  LezerControlDescription
+  LezerControlDescription,
+  LezerStatementTask
 } from "../../core/lezerFunctionLogicAnalyzer";
 import {
   getLezerChildNamed,
@@ -15,12 +16,21 @@ import {
   type LezerSource
 } from "../../../core/lezerSource";
 import { getPythonBodyStatements } from "../../../languages/python/pythonLezerSyntax";
+import {
+  describePythonExpressionFlowControl,
+  expandPythonFlowStatements
+} from "./pythonExpressionFlow";
 
 /** Describes Python branch containers owned by one visible statement. */
 export function describePythonControl(
   source: LezerSource,
-  node: SyntaxNode
+  node: SyntaxNode,
+  task: LezerStatementTask
 ): LezerControlDescription | undefined {
+  const expressionControl = describePythonExpressionFlowControl(task);
+  if (expressionControl) {
+    return expressionControl;
+  }
   switch (node.name) {
     case "IfStatement":
       return describePythonIf(source, node);
@@ -32,7 +42,7 @@ export function describePythonControl(
     case "TryStatement":
       return describePythonTry(source, node);
     case "WithStatement":
-      return describePythonWith(node);
+      return describePythonWith(source, node);
     default:
       return undefined;
   }
@@ -67,7 +77,7 @@ function describePythonIf(
       role: isFirst ? "then" : isElse ? "else" : "case",
       edgeKind: isFirst ? "true" : isElse ? "false" : "case",
       label: isFirst ? "true" : isElse ? "false" : `elif ${condition}`,
-      statements: getPythonBodyStatements(child)
+      statements: expandPythonFlowStatements(source, getPythonBodyStatements(child))
     });
   }
   return { kind: "condition", branches };
@@ -75,7 +85,7 @@ function describePythonIf(
 
 /** Preserves Python loop-else as the normal exit branch skipped by break. */
 function describePythonLoop(
-  _source: LezerSource,
+  source: LezerSource,
   node: SyntaxNode
 ): LezerControlDescription {
   const bodies = getLezerChildren(node).filter((child) => child.name === "Body");
@@ -85,7 +95,7 @@ function describePythonLoop(
       role: "loopBody",
       edgeKind: "iterate",
       label: "iterate",
-      statements: getPythonBodyStatements(bodies[0])
+      statements: expandPythonFlowStatements(source, getPythonBodyStatements(bodies[0]))
     });
   }
   if (bodies[1]) {
@@ -93,7 +103,7 @@ function describePythonLoop(
       role: "else",
       edgeKind: "exit",
       label: "loop completed",
-      statements: getPythonBodyStatements(bodies[1])
+      statements: expandPythonFlowStatements(source, getPythonBodyStatements(bodies[1]))
     });
   }
   return { kind: "loop", branches };
@@ -126,7 +136,7 @@ function describePythonMatch(
       role: "case",
       edgeKind: "case",
       label: defaultCase ? "default" : rawLabel,
-      statements: getPythonBodyStatements(body)
+      statements: expandPythonFlowStatements(source, getPythonBodyStatements(body))
     }];
   });
   return { kind: "switch", branches, hasDefaultBranch };
@@ -151,7 +161,7 @@ function describePythonTry(
     if (child.name !== "Body") {
       continue;
     }
-    const statements = getPythonBodyStatements(child);
+    const statements = expandPythonFlowStatements(source, getPythonBodyStatements(child));
     if (keyword === "else") {
       const normalBranch = branches.find((branch) => branch.role === "tryBody");
       normalBranch?.statements.push(...statements);
@@ -174,7 +184,10 @@ function describePythonTry(
 }
 
 /** Treats a with body as one guaranteed nested execution region. */
-function describePythonWith(node: SyntaxNode): LezerControlDescription | undefined {
+function describePythonWith(
+  source: LezerSource,
+  node: SyntaxNode
+): LezerControlDescription | undefined {
   const body = getLezerChildNamed(node, "Body");
   return body
     ? {
@@ -183,7 +196,7 @@ function describePythonWith(node: SyntaxNode): LezerControlDescription | undefin
           role: "tryBody",
           edgeKind: "next",
           label: "with body",
-          statements: getPythonBodyStatements(body)
+          statements: expandPythonFlowStatements(source, getPythonBodyStatements(body))
         }]
       }
     : undefined;

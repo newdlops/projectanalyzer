@@ -4,16 +4,31 @@
  */
 
 import assert from "node:assert/strict";
+import fs from "node:fs";
+import path from "node:path";
 import test from "node:test";
 import {
   analyzeFunctionLogic,
   type FunctionLogicAnalysis,
   type FunctionLogicBlock
 } from "../../analyzer/functionLogic";
+import { PythonAnalyzer } from "../../analyzer/languages/python";
 import { createFunctionLogicDrillTargets } from "../../application/codeFlow";
 import type { SourceNodeToken } from "../../protocol/sourceNavigation";
 import { createContentHash } from "../../shared/hash";
-import type { GraphEdge, ProjectGraph, SourceRange, SymbolNode } from "../../shared/types";
+import type {
+  GraphEdge,
+  ProjectGraph,
+  SourceFile,
+  SourceRange,
+  SymbolNode
+} from "../../shared/types";
+
+const projectRoot = path.resolve(__dirname, "../../..");
+const functionalChainFixturePath = path.join(
+  projectRoot,
+  "src/test/fixtures/functionLogic/python_functional_chaining.py"
+);
 
 test("maps concrete direct callsites to the narrowest logic blocks", () => {
   const caller = createCallable("caller", "caller", range(0, 0, 8, 1));
@@ -178,6 +193,88 @@ test("resolves Python self calls to the callable owned by the current class", ()
     projection.targetsByBlockId.get(condition.id)?.[0]?.qualifiedName,
     "Service.validate"
   );
+});
+
+test("recovers every Python functional-chain stage as an expandable function flow", async () => {
+  const filePath = "/workspace/src/python_functional_chaining.py";
+  const source = fs.readFileSync(functionalChainFixturePath, "utf8");
+  const fixtureFile: SourceFile = {
+    path: filePath,
+    languageId: "python",
+    content: source,
+    sizeBytes: Buffer.byteLength(source, "utf8"),
+    contentHash: createContentHash(source)
+  };
+  const analyzer = new PythonAnalyzer();
+  const parsed = await analyzer.parse(fixtureFile);
+  const concrete = await analyzer.extractSymbols(parsed);
+  const caller = concrete.find((node) => node.qualifiedName === "run_functional_chain");
+  assert.ok(caller, "missing functional-chain fixture entry function");
+  const analysis = analyzeFunctionLogic({ functionNode: caller, sourceText: source });
+  assert.deepEqual(analysis.callsites.map((callsite) => ({
+    name: callsite.calleeName,
+    chain: callsite.callChain
+  })), [
+    { name: "FunctionalPipeline", chain: "start" },
+    { name: "filter", chain: "continuation" },
+    { name: "map", chain: "continuation" },
+    { name: "flat_map", chain: "continuation" },
+    { name: "tap", chain: "continuation" },
+    { name: "reduce", chain: "continuation" }
+  ]);
+
+  const unresolved = analysis.callsites.map((callsite, index) => ({
+    ...createCallable(
+      `unresolved-${index}`,
+      callsite.calleeName,
+      callsite.range,
+      "external"
+    ),
+    filePath,
+    language: "python"
+  }));
+  const graph = createGraph(
+    [...concrete, ...unresolved],
+    analysis.callsites.map((callsite, index) =>
+      createCall(`unresolved-chain-${index}`, caller, unresolved[index], callsite.range, "unresolved")
+    )
+  );
+  const projection = createFunctionLogicDrillTargets(
+    graph,
+    caller,
+    analysis,
+    createSourceToken
+  );
+  const targetByLabel = new Map(analysis.blocks.map((block) => [
+    block.label,
+    projection.targetsByBlockId.get(block.id)?.[0]
+  ]));
+
+  assert.equal(
+    targetByLabel.get("call FunctionalPipeline(records)")?.qualifiedName,
+    "FunctionalPipeline.__init__"
+  );
+  assert.equal(
+    targetByLabel.get("call filter(is_billable) on previous result")?.qualifiedName,
+    "FunctionalPipeline.filter"
+  );
+  assert.equal(
+    targetByLabel.get("call map(normalize_record) on previous result")?.qualifiedName,
+    "FunctionalPipeline.map"
+  );
+  assert.equal(
+    targetByLabel.get("call flat_map(expand_record) on previous result")?.qualifiedName,
+    "FunctionalPipeline.flat_map"
+  );
+  assert.equal(
+    targetByLabel.get("call tap(audit) on previous result")?.qualifiedName,
+    "FunctionalPipeline.tap"
+  );
+  assert.equal(
+    targetByLabel.get("call reduce(merge_totals, {}) on previous result")?.qualifiedName,
+    "FunctionalPipeline.reduce"
+  );
+  assert.ok(projection.callees.every((target) => target.confidence === "inferred"));
 });
 
 test("bounds unique callees without recursively traversing their calls", () => {

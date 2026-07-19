@@ -68,6 +68,14 @@ dedicated Function Visualizer tab with a bounded control-flow graph:
 - inline `VAR`, `FIELD`, and `RECEIVER` rows showing which value changes at each block
 - exact assignment/update/delete evidence and visibly dashed inferred receiver mutations
 - loop-binding changes such as `item ← each items` on the loop decision itself
+- eager Python list/set/dictionary comprehensions expanded into nested iterable,
+  filter, item-emission, repeat, and final assignment blocks
+- Python generator comprehensions passed directly as call arguments expanded as
+  deferred, inferred loops leading into the receiving call
+- Python receiver-call chains split into inner-to-outer execution steps such as
+  `source()` -> `filter()` -> `map()` while preserving the complete call evidence;
+  every stage keeps its own drill target so an available child-function flow can
+  be appended to the same graph
 - sibling lanes for `true`/`false`, loop-body/exit, and switch branches
 - compound body frames that enclose each `if`, loop, switch, try, and context-manager
   owner with only its nested statements, excluding the following continuation
@@ -113,17 +121,24 @@ omitted counts. It provides:
 - orthogonal, obstacle-safe edge routes that do not cross unrelated boxes
 - click-to-attach boundary functions to the same canvas while preserving the
   clicked module's scroll anchor
+- a complete-canvas budget of 500 nodes and 1,000 edges; attaching beyond it
+  releases the oldest expansion branches instead of retaining unbounded DOM/layout state
 - reduced-motion-aware entry animation for only the newly attached nodes and edges
 - focal zoom with `−`/percentage/`+`, whole-graph **Fit**, `+`/`-`/`0`/`F`
   graph shortcuts, and Ctrl/Cmd-wheel zoom around the cursor
 - background drag panning, centered small graphs, and resize-stable reading position
 - frame-coalesced viewport updates plus keyed card/edge reuse, so zoom, selection,
   loading, and panning do not rerun SCC layout or remount the graph
+- hidden editor tabs release their Webview DOM and restore from the existing Host
+  projection when revealed, without rerunning workspace analysis
 - bounded module/edge detail, representative evidence, and source actions
 - one-action handoff from a concrete function to its statement-level Function Visualizer
 
 The complete module index stays in the Extension Host. The browser receives only
-the current bounded scene, a selected detail, or one lazy expansion layer.
+the current bounded scene, a selected detail, or one lazy expansion layer. Saved
+workspace files are read directly instead of being retained as VS Code text
+documents, and the Rust source manifest is streamed with backpressure rather than
+duplicating the complete workspace input in one buffer.
 
 ## Product Scope
 
@@ -182,10 +197,11 @@ compiler AST, while Python and Java use Lezer syntax trees. All four languages
 produce the same statement-level block, transfer, callsite, source-range, and
 coverage-gap contract. Every adapter also emits source-complete, de-duplicated
 value-change evidence for variable/property writes and conservative in-place
-receiver calls. Python models
-`if`/`elif`/`else`, loops including loop
-`else`, `match`/`case`, `try`/`except`/`finally`, `with`, mutations, calls, and
-exits. Java models branches, all common loop forms, `switch`,
+receiver calls. Python models `if`/`elif`/`else`, loops including loop `else`,
+eager list/set/dictionary comprehensions with nested `for` and `if` clauses,
+deferred generator-argument loops, receiver-call chains in evaluation order, `match`/`case`,
+`try`/`except`/`finally`, `with`, mutations, calls, and exits. Java models
+branches, all common loop forms, `switch`,
 `try`/`catch`/`finally`, try-with-resources, synchronized/labeled regions,
 mutations, calls, constructors, and exits. Editor-context selection can add an
 exact snapshot-local callable node when the project analyzer did not model a
@@ -201,8 +217,13 @@ Python `with` and `async with` keep only the context-manager header in their
 structural node. Each indented body statement remains a separate flow node and
 continues to the first statement after context exit.
 
-Expression-level short-circuiting remains inside its containing block. Python
-monkey patching, decorators, descriptors, and dynamic dispatch are not observed;
+Expression-level short-circuiting remains inside its containing block. Standalone
+Python generator expressions remain a visible lazy-analysis gap because their
+bodies run when advanced rather than when created. A generator passed directly
+to a call is shown structurally, but whether and how far the callee consumes it
+remains inferred. Nested comprehensions used directly as another comprehension's
+emitted value also remain inside that emission block.
+Python monkey patching, decorators, descriptors, and dynamic dispatch are not observed;
 Java virtual dispatch, reflection, framework interception, threads, and overload
 typing beyond conservative arity checks are also not observed.
 
@@ -297,7 +318,8 @@ their boxes grow vertically as they wrap.
 
 Module Flow uses independent hard budgets: 80 modules/160 edges for the initial
 scene, 40 relations/5 evidence rows for detail, and 48 nodes/96 edges for one
-expansion delta. The full module index remains Host-side. Module, edge, function,
+expansion delta. The merged browser scene is capped at 500 nodes/1,000 edges and
+evicts oldest expansion branches first. The full module index remains Host-side. Module, edge, function,
 source, and evidence identities are snapshot-local opaque tokens, and mismatched
 graph versions or late request IDs are rejected instead of being merged into the
 current tab.

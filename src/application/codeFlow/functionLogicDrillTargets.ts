@@ -73,8 +73,9 @@ export function createFunctionLogicDrillTargets(
 
   // Syntax callsites attach calls inside condition/loop/switch expressions and
   // also recover conservative targets when a lightweight graph missed a
-  // multiline function body. An explicit unresolved edge always wins and
-  // prevents the syntax name fallback from inventing a concrete target.
+  // multiline function body. An explicit unresolved edge normally prevents
+  // syntax fallback; parser-proven receiver-chain stages get the narrow,
+  // inferred recovery path documented below.
   for (const callsite of analysis.callsites) {
     const matchingEdge = findMatchingDirectEdge(
       callsite,
@@ -85,9 +86,27 @@ export function createFunctionLogicDrillTargets(
     if (matchingEdge) {
       usedEdgeIds.add(matchingEdge.id);
       const target = nodesById.get(matchingEdge.targetId);
-      if (matchingEdge.confidence !== "unresolved"
-        && target
-        && isConcreteCallable(target)) {
+      if (matchingEdge.confidence === "unresolved") {
+        // Primary lightweight analyzers often preserve fluent receiver calls as
+        // unresolved. A parser-proven chain stage may still recover one unique
+        // callable conservatively so its function flow remains expandable.
+        const chainResolution = callsite.callChain
+          ? resolveSyntaxTarget(
+              graph,
+              functionNode,
+              callsite,
+              analysis.lexicalOwnerQualifiedName
+            )
+          : undefined;
+        if (chainResolution) {
+          addMatchedCallsite(groupsByNodeId, chainResolution.node, {
+            key: createSyntaxCallsiteKey(callsite),
+            filePath: callsite.filePath,
+            range: callsite.range,
+            confidence: chainResolution.confidence
+          });
+        }
+      } else if (target && isConcreteCallable(target)) {
         addMatchedCallsite(groupsByNodeId, target, {
           key: createSyntaxCallsiteKey(callsite),
           filePath: callsite.filePath,
@@ -241,11 +260,23 @@ function resolveSyntaxTarget(
 
   const usesCurrentInstance = normalizedText.startsWith("this.")
     || normalizedText.startsWith("self.");
-  if (usesCurrentInstance && ownerQualifiedName) {
+  const directCurrentInstanceCall = usesCurrentInstance
+    && callsite.callChain !== "continuation";
+  if (directCurrentInstanceCall && ownerQualifiedName) {
     const ownedName = `${ownerQualifiedName}.${callsite.calleeName}`;
     const owned = candidates.filter((node) => node.qualifiedName === ownedName);
     if (owned.length === 1) {
       return { node: owned[0], confidence: "resolved" };
+    }
+  }
+
+  if (callsite.callChain === "start") {
+    const constructors = candidates.filter((node) =>
+      node.kind === "constructor"
+      && node.qualifiedName.split(".").slice(-2, -1)[0] === callsite.calleeName
+    );
+    if (constructors.length === 1) {
+      return { node: constructors[0], confidence: "inferred" };
     }
   }
 
@@ -254,6 +285,11 @@ function resolveSyntaxTarget(
     if (qualified.length === 1) {
       return { node: qualified[0], confidence: "resolved" };
     }
+  }
+
+  const fluentOwner = resolveFluentOwnerTarget(candidates, callsite, normalizedText);
+  if (fluentOwner) {
+    return { node: fluentOwner, confidence: "inferred" };
   }
 
   const sameFile = candidates.filter((node) =>
@@ -268,6 +304,27 @@ function resolveSyntaxTarget(
   return workspaceMatches.length === 1
     ? { node: workspaceMatches[0], confidence: "inferred" }
     : undefined;
+}
+
+/** Uses an explicit class constructor at the start of a chain as owner evidence. */
+function resolveFluentOwnerTarget(
+  candidates: readonly SymbolNode[],
+  callsite: FunctionLogicCallsite,
+  normalizedText: string
+): SymbolNode | undefined {
+  if (callsite.callChain !== "continuation") {
+    return undefined;
+  }
+  const firstCall = normalizedText.slice(0, normalizedText.indexOf("("));
+  const ownerName = firstCall.split(".").at(-1);
+  if (!ownerName || !/^[A-Z][\p{L}\p{N}_]*$/u.test(ownerName)) {
+    return undefined;
+  }
+  const suffix = `${ownerName}.${callsite.calleeName}`;
+  const matches = candidates.filter((node) =>
+    node.qualifiedName === suffix || node.qualifiedName.endsWith(`.${suffix}`)
+  );
+  return matches.length === 1 ? matches[0] : undefined;
 }
 
 /** Adds one de-duplicated callsite while retaining the strongest target evidence. */

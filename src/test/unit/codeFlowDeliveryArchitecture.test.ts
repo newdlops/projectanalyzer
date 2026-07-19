@@ -75,13 +75,20 @@ test("Function Logic callsite recovery stays AST-backed, iterative, and conserva
   const drill = readSource(
     "src/application/codeFlow/functionLogicDrillTargets.ts"
   );
+  const pythonSyntax = readSource(
+    "src/analyzer/languages/python/pythonLezerSyntax.ts"
+  );
 
   assert.match(syntax, /collectFunctionCallsites/u);
   assert.match(syntax, /while \(pending\.length > 0\)/u);
   assert.match(syntax, /ts\.isCallExpression\(node\) \|\| ts\.isNewExpression\(node\)/u);
   assert.match(drill, /resolveSyntaxTarget/u);
-  assert.match(drill, /matchingEdge\.confidence !== "unresolved"/u);
+  assert.match(drill, /matchingEdge\.confidence === "unresolved"/u);
+  assert.match(drill, /const chainResolution = callsite\.callChain/u);
+  assert.match(drill, /matches\.length === 1 \? matches\[0\] : undefined/u);
   assert.match(drill, /confidence: "inferred"/u);
+  assert.match(pythonSyntax, /createPythonCallChainRoles/u);
+  assert.match(pythonSyntax, /while \(receiver\)/u);
   assert.doesNotMatch(drill, /from "typescript"/u);
 });
 

@@ -48,6 +48,8 @@ export type ControlBranch = {
 export type ControlRecord = {
   kind: "condition" | "loop" | "switch" | "try";
   branches: ControlBranch[];
+  /** Optional uncertainty inherited by structural choice/repeat/exit edges. */
+  confidence?: FunctionLogicConfidence;
   hasDefaultBranch?: boolean;
   finallyContainerId?: string;
 };
@@ -114,7 +116,7 @@ export function createStructuredControlEdges(
       transfer.targetId,
       transfer.kind,
       transfer.kind === "repeat" ? "repeat" : undefined,
-      "exact"
+      transfer.confidence
     );
   }
 
@@ -141,6 +143,7 @@ function appendControlEdges(
   edgeKeys: Set<string>
 ): void {
   const continuation = findContinuation(block.id, input).targetId;
+  const controlConfidence = control.confidence ?? "exact";
   const finallyEntry = control.finallyContainerId
     ? input.directBlockIdsByContainer.get(control.finallyContainerId)?.[0]
     : undefined;
@@ -160,7 +163,7 @@ function appendControlEdges(
         first,
         branch.edgeKind,
         branch.label,
-        branch.edgeKind === "exception" ? "inferred" : "exact"
+        branch.edgeKind === "exception" ? "inferred" : controlConfidence
       );
     } else if (branch.edgeKind !== "exception") {
       const emptyBranchContinuation = control.kind === "try"
@@ -173,21 +176,29 @@ function appendControlEdges(
         emptyBranchContinuation,
         branch.edgeKind,
         branch.label,
-        "exact"
+        controlConfidence
       );
     }
   }
 
   if (control.kind === "condition"
     && !control.branches.some((branch) => branch.edgeKind === "false")) {
-    addEdge(edges, edgeKeys, block.id, continuation, "false", "false", "exact");
+    addEdge(edges, edgeKeys, block.id, continuation, "false", "false", controlConfidence);
   }
   if (control.kind === "loop"
     && !control.branches.some((branch) => branch.edgeKind === "exit")) {
-    addEdge(edges, edgeKeys, block.id, continuation, "exit", "exit loop", "exact");
+    addEdge(edges, edgeKeys, block.id, continuation, "exit", "exit loop", controlConfidence);
   }
   if (control.kind === "switch" && !control.hasDefaultBranch) {
-    addEdge(edges, edgeKeys, block.id, continuation, "exit", "no case matched", "exact");
+    addEdge(
+      edges,
+      edgeKeys,
+      block.id,
+      continuation,
+      "exit",
+      "no case matched",
+      controlConfidence
+    );
   }
 }
 
@@ -195,27 +206,35 @@ function appendControlEdges(
 function findContinuation(
   blockId: string,
   input: ControlFlowBuildInput
-): { targetId: string; kind: "next" | "repeat" } {
+): {
+  targetId: string;
+  kind: "next" | "repeat";
+  confidence: FunctionLogicConfidence;
+} {
   let currentBlock = input.blocksById.get(blockId);
 
   while (currentBlock) {
     const siblings = input.directBlockIdsByContainer.get(currentBlock.containerId) ?? [];
     const index = siblings.indexOf(currentBlock.id);
     if (index >= 0 && index + 1 < siblings.length) {
-      return { targetId: siblings[index + 1], kind: "next" };
+      return { targetId: siblings[index + 1], kind: "next", confidence: "exact" };
     }
 
     const container = input.containers.get(currentBlock.containerId);
     if (!container?.ownerBlockId) {
-      return { targetId: input.exitBlock.id, kind: "next" };
+      return { targetId: input.exitBlock.id, kind: "next", confidence: "exact" };
     }
     const owner = input.blocksById.get(container.ownerBlockId);
     if (!owner) {
-      return { targetId: input.exitBlock.id, kind: "next" };
+      return { targetId: input.exitBlock.id, kind: "next", confidence: "exact" };
     }
     const ownerControl = input.controlsByBlockId.get(owner.id);
     if (container.role === "loopBody") {
-      return { targetId: owner.id, kind: "repeat" };
+      return {
+        targetId: owner.id,
+        kind: "repeat",
+        confidence: ownerControl?.confidence ?? "exact"
+      };
     }
     if (ownerControl?.kind === "try"
       && container.role !== "finally"
@@ -223,13 +242,13 @@ function findContinuation(
       const firstFinally = input.directBlockIdsByContainer
         .get(ownerControl.finallyContainerId)?.[0];
       if (firstFinally) {
-        return { targetId: firstFinally, kind: "next" };
+        return { targetId: firstFinally, kind: "next", confidence: "exact" };
       }
     }
     currentBlock = owner;
   }
 
-  return { targetId: input.exitBlock.id, kind: "next" };
+  return { targetId: input.exitBlock.id, kind: "next", confidence: "exact" };
 }
 
 /** Resolves break/continue to the nearest loop or switch without recursion. */

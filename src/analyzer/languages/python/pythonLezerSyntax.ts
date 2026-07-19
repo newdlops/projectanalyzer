@@ -8,10 +8,10 @@ import { parser as pythonParser } from "@lezer/python";
 import {
   compactLezerText,
   createLezerSource,
-  findLezerDescendants,
   getLezerChildNamed,
   getLezerChildren,
   lezerNodeRange,
+  normalizeLezerText,
   type LezerSource
 } from "../../core/lezerSource";
 
@@ -37,6 +37,8 @@ export type PythonCallSyntax = {
   calleeName: string;
   calleeText: string;
   argumentCount: number;
+  /** Receiver-chain role in runtime inner-to-outer evaluation order. */
+  callChain?: "start" | "continuation";
 };
 
 /** One lexical owner carried by the explicit syntax traversal stack. */
@@ -137,34 +139,189 @@ export function isPythonNestedScope(node: SyntaxNode): boolean {
     || node.name === "LambdaExpression";
 }
 
+/** Detects Python's flat `consumer(item for item in values)` ArgList form. */
+export function isPythonGeneratorArgumentList(node: SyntaxNode): boolean {
+  return node.name === "ArgList"
+    && getLezerChildren(node).some((child) => child.name === "for");
+}
+
 /** Collects exact call expressions while optionally pruning nested bodies. */
 export function collectPythonCalls(
   source: LezerSource,
   root: SyntaxNode,
   skipBodies = false
 ): PythonCallSyntax[] {
-  // Expression-bodied lambdas can use the call expression itself as `root`,
-  // while the iterative descendant helper intentionally starts at children.
-  const callNodes = [
-    ...(root.name === "CallExpression" ? [root] : []),
-    ...findLezerDescendants(
-      root,
-      (node) => node.name === "CallExpression",
-      (node) => isPythonNestedScope(node) || (skipBodies && node.name === "Body")
-    )
-  ];
-  return callNodes.map((node) => {
-    const argList = getLezerChildren(node).find((child) => child.name === "ArgList");
-    const raw = source.text.slice(node.from, argList?.from ?? node.to);
-    const calleeText = compactLezerText(raw, "call").replace(/\s+/gu, "");
-    const nameMatch = calleeText.match(/([\p{L}_][\p{L}\p{N}_]*)$/u);
-    return {
-      node,
-      calleeName: nameMatch?.[1] ?? calleeText,
-      calleeText,
-      argumentCount: argList ? countPythonArguments(argList) : 0
-    };
-  });
+  const callNodes = collectPythonCallNodesInExecutionOrder(root, skipBodies);
+  const chainRoles = createPythonCallChainRoles(callNodes);
+  return callNodes.map((node) =>
+    createPythonCallSyntax(source, node, chainRoles.get(pythonSyntaxNodeKey(node)))
+  );
+}
+
+/** Reads one call without shortening a chained callee's source identity. */
+export function createPythonCallSyntax(
+  source: LezerSource,
+  node: SyntaxNode,
+  callChain?: PythonCallSyntax["callChain"]
+): PythonCallSyntax {
+  const argList = getLezerChildren(node).find((child) => child.name === "ArgList");
+  const raw = source.text.slice(node.from, argList?.from ?? node.to);
+  const calleeText = normalizeLezerText(raw, "call").replace(/\s+/gu, "");
+  const nameMatch = calleeText.match(/([\p{L}_][\p{L}\p{N}_]*)$/u);
+  return {
+    node,
+    calleeName: nameMatch?.[1] ?? calleeText,
+    calleeText,
+    argumentCount: argList ? countPythonArguments(argList) : 0,
+    callChain
+  };
+}
+
+/** Locates the evaluated call that supplies another call's callee/receiver. */
+export function findPythonReceiverCall(call: SyntaxNode): SyntaxNode | undefined {
+  let receiver = getLezerChildren(call).find((child) => child.name !== "ArgList");
+  const visited = new Set<string>();
+  while (receiver) {
+    const key = pythonSyntaxNodeKey(receiver);
+    if (visited.has(key)) {
+      return undefined;
+    }
+    visited.add(key);
+    if (receiver.name === "CallExpression") {
+      return receiver;
+    }
+    if (receiver.name !== "MemberExpression"
+      && receiver.name !== "ParenthesizedExpression"
+      && receiver.name !== "AwaitExpression") {
+      return undefined;
+    }
+
+    // Only the left/base expression supplies the receiver. Calls inside a
+    // subscript key such as `registry[make_key()]()` are ordinary arguments to
+    // lookup and must never be labeled as receiver-chain stages.
+    receiver = getLezerChildren(receiver).find((child) =>
+      child.name !== "("
+      && child.name !== ")"
+      && child.name !== "await"
+    );
+  }
+  return undefined;
+}
+
+/** Marks every call participating in a receiver chain without recursive walks. */
+function createPythonCallChainRoles(
+  callNodes: readonly SyntaxNode[]
+): ReadonlyMap<string, PythonCallSyntax["callChain"]> {
+  const callKeys = new Set(callNodes.map(pythonSyntaxNodeKey));
+  const roles = new Map<string, PythonCallSyntax["callChain"]>();
+  for (const call of callNodes) {
+    const receiver = findPythonReceiverCall(call);
+    const receiverKey = receiver ? pythonSyntaxNodeKey(receiver) : undefined;
+    if (!receiverKey || !callKeys.has(receiverKey)) {
+      continue;
+    }
+    roles.set(receiverKey, roles.get(receiverKey) ?? "start");
+    roles.set(pythonSyntaxNodeKey(call), "continuation");
+  }
+  return roles;
+}
+
+/** Stable positional identity avoids depending on ephemeral Lezer wrappers. */
+function pythonSyntaxNodeKey(node: SyntaxNode): string {
+  return `${node.name}:${node.from}:${node.to}`;
+}
+
+/**
+ * Collects calls in Python evaluation order with an iterative post-order walk.
+ * This makes `source().filter().map()` read inner-to-outer and also places
+ * argument calls before the call that consumes their result.
+ */
+function collectPythonCallNodesInExecutionOrder(
+  root: SyntaxNode,
+  skipBodies: boolean
+): SyntaxNode[] {
+  const calls: SyntaxNode[] = [];
+  const pending: Array<{ node: SyntaxNode; exiting: boolean }> = [{
+    node: root,
+    exiting: false
+  }];
+
+  while (pending.length > 0) {
+    const entry = pending.pop();
+    if (!entry) {
+      continue;
+    }
+    if (entry.exiting) {
+      if (entry.node.name === "CallExpression") {
+        calls.push(entry.node);
+      }
+      continue;
+    }
+    if (entry.node !== root && (
+      isPythonNestedScope(entry.node)
+      || (skipBodies && entry.node.name === "Body")
+    )) {
+      continue;
+    }
+    pending.push({ node: entry.node, exiting: true });
+    const children = getPythonEvaluationChildren(entry.node);
+    for (let index = children.length - 1; index >= 0; index -= 1) {
+      pending.push({ node: children[index], exiting: false });
+    }
+  }
+  return calls;
+}
+
+/**
+ * Reorders flat comprehension syntax into its runtime evaluation sequence:
+ * iterable, filters/nested iterables, then the value emitted per iteration.
+ */
+function getPythonEvaluationChildren(node: SyntaxNode): SyntaxNode[] {
+  const children = getLezerChildren(node);
+  const expressionComprehension = ["ArrayComprehensionExpression", "ComprehensionExpression",
+    "DictionaryComprehensionExpression", "SetComprehensionExpression"].includes(node.name);
+  if (!expressionComprehension && !isPythonGeneratorArgumentList(node)) {
+    return children;
+  }
+  const markers: Array<{ name: "for" | "if"; index: number; from: number }> = [];
+  for (let index = 0; index < children.length; index += 1) {
+    const child = children[index];
+    if (child.name === "for" || child.name === "if") {
+      markers.push({
+        name: child.name,
+        index,
+        from: child.name === "for" && children[index - 1]?.name === "async"
+          ? children[index - 1].from
+          : child.from
+      });
+    }
+  }
+  if (markers.length === 0) {
+    return children;
+  }
+  const closingFrom = children.at(-1)?.from ?? node.to;
+  const resultNodes = children.filter((child) =>
+    child.from >= (children[0]?.to ?? node.from)
+    && child.to <= markers[0].from
+  );
+  const evaluated: SyntaxNode[] = [];
+  for (let markerIndex = 0; markerIndex < markers.length; markerIndex += 1) {
+    const marker = markers[markerIndex];
+    const segmentEnd = markers[markerIndex + 1]?.from ?? closingFrom;
+    const expressionStart = marker.name === "if"
+      ? children[marker.index].to
+      : children.find((child, index) =>
+          index > marker.index && child.from < segmentEnd && child.name === "in"
+        )?.to;
+    if (expressionStart === undefined) {
+      continue;
+    }
+    evaluated.push(...children.filter((child) =>
+      child.from >= expressionStart && child.to <= segmentEnd
+    ));
+  }
+  evaluated.push(...resultNodes);
+  return evaluated;
 }
 
 /** Creates a normalized source signature ending at the executable body. */

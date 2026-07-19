@@ -11,6 +11,7 @@ import type {
   FunctionLogicAnalysisInput,
   FunctionLogicBlock,
   FunctionLogicCallsite,
+  FunctionLogicConfidence,
   FunctionLogicEdgeKind,
   FunctionLogicGap,
   FunctionLogicLanguage
@@ -51,20 +52,34 @@ export type LezerStatementTask = {
   depth: number;
   branchLabel?: string;
   implicitReturn?: boolean;
+  /** Opaque language-owned metadata for syntax-backed synthetic flow steps. */
+  adapterData?: unknown;
 };
+
+/** Syntax node plus optional language metadata before a container is assigned. */
+export type LezerStatementSeed = {
+  taskSeed: true;
+  node: SyntaxNode;
+  implicitReturn?: boolean;
+  adapterData?: unknown;
+};
+
+/** Raw parser statements and adapter-created flow steps share one scheduler. */
+export type LezerStatementInput = SyntaxNode | LezerStatementSeed;
 
 /** One adapter-described branch scheduled under a control block. */
 export type LezerControlBranchDescription = {
   role: ContainerRole;
   edgeKind: FunctionLogicEdgeKind;
   label?: string;
-  statements: SyntaxNode[];
+  statements: LezerStatementInput[];
 };
 
 /** Complete structured branching metadata for one syntax statement. */
 export type LezerControlDescription = {
   kind: ControlRecord["kind"];
   branches: LezerControlBranchDescription[];
+  confidence?: FunctionLogicConfidence;
   hasDefaultBranch?: boolean;
 };
 
@@ -78,7 +93,7 @@ export type LezerFunctionLogicAdapter = {
   getRootStatements(
     source: LezerSource,
     callable: LezerCallableDescriptor
-  ): SyntaxNode[];
+  ): LezerStatementInput[];
   classifyStatement(
     source: LezerSource,
     filePath: string,
@@ -86,7 +101,8 @@ export type LezerFunctionLogicAdapter = {
   ): FunctionLogicBlock;
   describeControl(
     source: LezerSource,
-    node: SyntaxNode
+    node: SyntaxNode,
+    task: LezerStatementTask
   ): LezerControlDescription | undefined;
   collectCallsites(
     source: LezerSource,
@@ -191,7 +207,7 @@ function buildLezerFunctionLogic(
     visibleBlocks.push(block);
     blocksById.set(block.id, block);
     appendDirectBlock(directBlockIdsByContainer, task.containerId, block.id);
-    const control = adapter.describeControl(source, task.node);
+    const control = adapter.describeControl(source, task.node, task);
     if (control) {
       scheduleLezerControlChildren(
         task,
@@ -281,11 +297,14 @@ function scheduleLezerControlChildren(
       label: branch.label
     });
     for (const statement of branch.statements) {
+      const seed = normalizeLezerStatementInput(statement);
       childTasks.push({
-        node: statement,
+        node: seed.node,
         containerId,
         depth: task.depth + 1,
-        branchLabel: branch.label
+        branchLabel: branch.label,
+        implicitReturn: seed.implicitReturn,
+        adapterData: seed.adapterData
       });
     }
   }
@@ -296,6 +315,7 @@ function scheduleLezerControlChildren(
   controlsByBlockId.set(block.id, {
     kind: description.kind,
     branches: controlBranches,
+    confidence: description.confidence,
     hasDefaultBranch: description.hasDefaultBranch,
     finallyContainerId
   });
@@ -304,19 +324,38 @@ function scheduleLezerControlChildren(
 /** Schedules source-ordered statements on the shared LIFO work stack. */
 function pushLezerStatements(
   pending: LezerStatementTask[],
-  statements: readonly SyntaxNode[],
+  statements: readonly LezerStatementInput[],
   containerId: string,
   depth: number,
   branchLabel?: string,
   implicitReturn = false
 ): void {
   for (let index = statements.length - 1; index >= 0; index -= 1) {
+    const seed = normalizeLezerStatementInput(statements[index]);
     pending.push({
-      node: statements[index],
+      node: seed.node,
       containerId,
       depth,
       branchLabel,
-      implicitReturn
+      // An expression-bodied callable can be expanded into preparatory steps;
+      // only its final seed performs the implicit return.
+      implicitReturn: seed.implicitReturn
+        ?? (implicitReturn && index === statements.length - 1),
+      adapterData: seed.adapterData
     });
   }
+}
+
+/** Normalizes parser nodes and adapter seeds without leaking language details. */
+function normalizeLezerStatementInput(
+  input: LezerStatementInput
+): LezerStatementSeed {
+  return isLezerStatementSeed(input)
+    ? input
+    : { taskSeed: true, node: input };
+}
+
+/** Uses an explicit marker because Lezer nodes expose their own `node` getter. */
+function isLezerStatementSeed(input: LezerStatementInput): input is LezerStatementSeed {
+  return (input as { taskSeed?: unknown }).taskSeed === true;
 }
