@@ -7,12 +7,22 @@
  */
 
 import { getModuleFlowGraphLayoutBrowserSource } from "../../application/moduleFlow/moduleFlowGraphLayout";
+import { getModuleFlowViewportBrowserSource } from "../../application/moduleFlow/moduleFlowViewport";
+import { getModuleFlowFrameSchedulerBrowserSource } from "./moduleFlowFrameScheduler";
+import { getModuleFlowLayoutCacheBrowserSource } from "./moduleFlowLayoutCache";
+import { getModuleVisualizerGraphRendererSource } from "./moduleVisualizerGraphRendererSource";
+import { getModuleVisualizerViewportBrowserSource } from "./moduleVisualizerViewportBrowserSource";
 
 /** Returns one nonce-compatible script with the pure layout runtime embedded. */
 export function getModuleVisualizerBrowserSource(): string {
   return /* javascript */ `(function () {
     "use strict";
     ${getModuleFlowGraphLayoutBrowserSource()}
+    ${getModuleFlowViewportBrowserSource()}
+    ${getModuleFlowFrameSchedulerBrowserSource()}
+    ${getModuleFlowLayoutCacheBrowserSource()}
+    ${getModuleVisualizerGraphRendererSource()}
+    ${getModuleVisualizerViewportBrowserSource()}
 
     const vscode = acquireVsCodeApi();
     const SVG_NS = "http://www.w3.org/2000/svg";
@@ -21,6 +31,7 @@ export function getModuleVisualizerBrowserSource(): string {
       status: document.getElementById("module-status"),
       viewport: document.getElementById("module-viewport"),
       stage: document.getElementById("module-stage"),
+      scene: document.getElementById("module-scene"),
       cycles: document.getElementById("module-cycles"),
       edges: document.getElementById("module-edges"),
       nodes: document.getElementById("module-nodes"),
@@ -28,7 +39,10 @@ export function getModuleVisualizerBrowserSource(): string {
       includeExternal: document.getElementById("include-external"),
       includeInferred: document.getElementById("include-inferred"),
       fit: document.getElementById("fit-graph"),
-      reset: document.getElementById("reset-graph")
+      zoomOut: document.getElementById("zoom-out"),
+      zoomLevel: document.getElementById("zoom-level"),
+      zoomIn: document.getElementById("zoom-in"),
+      zoomAnnouncement: document.getElementById("zoom-announcement")
     };
     const state = {
       graphVersion: undefined,
@@ -48,9 +62,31 @@ export function getModuleVisualizerBrowserSource(): string {
       enteringEdgeIds: new Set(),
       scale: 1,
       layout: undefined,
+      layoutByNodeId: new Map(),
+      layoutCache: new ModuleFlowLayoutCache(4),
       nodesById: new Map(),
-      edgesById: new Map()
+      edgesById: new Map(),
+      nodeElementsById: new Map(),
+      edgeElementsById: new Map(),
+      cycleElementsById: new Map(),
+      viewportFrame: undefined,
+      sceneDirty: false,
+      presentationDirty: false,
+      viewportDirty: false,
+      pendingAnchor: undefined,
+      pendingZoom: undefined,
+      pendingResizeCenter: undefined,
+      enteringTimer: undefined,
+      zoomAnnouncementTimer: undefined,
+      resizeObserver: undefined,
+      pan: undefined,
+      frameScheduler: undefined
     };
+    state.frameScheduler = new ModuleFlowFrameScheduler(
+      window.requestAnimationFrame.bind(window),
+      window.cancelAnimationFrame.bind(window),
+      flushGraphCommit
+    );
 
     /** Sends one request with a monotonic browser correlation identity. */
     function post(type, payload, pending) {
@@ -106,7 +142,7 @@ export function getModuleVisualizerBrowserSource(): string {
         state.pendingModules.delete(module.id);
         state.enteringNodeIds.clear();
         state.enteringEdgeIds.clear();
-        renderGraph(anchor);
+        renderGraph(anchor, true);
         setStatus("Collapsed " + module.label);
         return;
       }
@@ -121,7 +157,7 @@ export function getModuleVisualizerBrowserSource(): string {
         nodeLimit: 48,
         edgeLimit: 96
       }, { operation: "expand", key: key, anchor: anchor, moduleId: module.id });
-      renderGraph(anchor);
+      renderGraph(anchor, false);
     }
 
     /** Handles typed Extension Host responses with stale correlation guards. */
@@ -160,6 +196,7 @@ export function getModuleVisualizerBrowserSource(): string {
         && state.snapshotSession === snapshotIdentity.session
         && snapshotIdentity.revision <= state.snapshotRevision) return;
       if (!replacingSnapshot && payload.requestId < state.latestListRequestId) return;
+      if (replacingSnapshot) resetModuleFlowScene();
       state.graphVersion = payload.graphVersion;
       state.snapshotSession = snapshotIdentity && snapshotIdentity.session;
       state.snapshotRevision = snapshotIdentity ? snapshotIdentity.revision : state.snapshotRevision + 1;
@@ -180,7 +217,7 @@ export function getModuleVisualizerBrowserSource(): string {
         + " modules · " + summary.visibleEdgeCount + " of " + summary.totalEdgeCount
         + " relationships · " + summary.crossModuleEvidenceCount + " evidence points";
       renderEmptyDetail();
-      renderGraph(undefined);
+      renderGraph(undefined, true);
       setStatus(summary.omittedModuleCount + summary.omittedEdgeCount > 0
         ? "Bounded scene loaded; omitted counts are shown in the header"
         : "Module Flow ready");
@@ -192,10 +229,11 @@ export function getModuleVisualizerBrowserSource(): string {
       if (!pending || pending.operation !== "expand") return;
       state.pending.delete(payload.requestId);
       state.pendingModules.delete(pending.moduleId);
+      const currentAnchor = captureViewportAnchor(pending.moduleId) || pending.anchor;
       state.expansions.set(pending.key, payload);
       state.enteringNodeIds = new Set((payload.nodes || []).map(function (node) { return node.id; }));
       state.enteringEdgeIds = new Set((payload.edges || []).map(function (edge) { return edge.id; }));
-      renderGraph(pending.anchor);
+      renderGraph(currentAnchor, true);
       setStatus(payload.summary.visibleNodeCount + " nodes attached · "
         + payload.summary.omittedNodeCount + " additional nodes outside this expansion budget");
     }
@@ -208,7 +246,7 @@ export function getModuleVisualizerBrowserSource(): string {
         if (pending.moduleId) state.pendingModules.delete(pending.moduleId);
       }
       setStatus(payload.message || "Module Flow request failed");
-      renderGraph(pending && pending.anchor);
+      renderGraph(undefined, false);
     }
 
     /** Merges the base scene and every currently expanded same-canvas branch. */
@@ -225,39 +263,6 @@ export function getModuleVisualizerBrowserSource(): string {
         for (const edge of expansion.edges || []) edges.set(edge.id, edge);
       }
       return { nodes: nodes, edges: edges };
-    }
-
-    /** Runs the shared layout and mounts complete text without truncation. */
-    function renderGraph(anchor) {
-      const scene = collectScene();
-      state.nodesById = scene.nodes;
-      state.edgesById = scene.edges;
-      const depthByModuleId = createModuleDepthIndex(scene.nodes);
-      const layoutNodes = [];
-      for (const node of scene.nodes.values()) {
-        layoutNodes.push(toLayoutNode(node));
-      }
-      const layoutEdges = [];
-      for (const edge of scene.edges.values()) {
-        layoutEdges.push({
-          id: edge.id,
-          sourceId: edge.sourceId,
-          targetId: edge.targetId,
-          label: edgeLabel(edge),
-          kind: edge.presentationKind
-        });
-      }
-      const layout = createModuleFlowGraphLayout(layoutNodes, layoutEdges);
-      state.layout = layout;
-      sizeStage(layout);
-      renderCycles(layout);
-      renderEdges(layout, scene.edges);
-      renderNodes(layout, scene.nodes, depthByModuleId);
-      restoreViewportAnchor(anchor, layout);
-      requestAnimationFrame(function () {
-        state.enteringNodeIds.clear();
-        state.enteringEdgeIds.clear();
-      });
     }
 
     /** Projects all browser-visible strings into the layout measurement contract. */
@@ -315,138 +320,6 @@ export function getModuleVisualizerBrowserSource(): string {
       return result;
     }
 
-    /** Sizes logical layers while the outer stage supplies scaled scroll extent. */
-    function sizeStage(layout) {
-      const scaledWidth = Math.max(dom.viewport.clientWidth, layout.width * state.scale);
-      const scaledHeight = Math.max(dom.viewport.clientHeight, layout.height * state.scale);
-      dom.stage.style.width = scaledWidth + "px";
-      dom.stage.style.height = scaledHeight + "px";
-      for (const layer of [dom.cycles, dom.edges, dom.nodes]) {
-        layer.style.width = layout.width + "px";
-        layer.style.height = layout.height + "px";
-        layer.style.transformOrigin = "0 0";
-        layer.style.transform = "scale(" + state.scale + ")";
-      }
-      dom.edges.setAttribute("viewBox", "0 0 " + Math.max(1, layout.width) + " " + Math.max(1, layout.height));
-      dom.edges.setAttribute("width", String(Math.max(1, layout.width)));
-      dom.edges.setAttribute("height", String(Math.max(1, layout.height)));
-    }
-
-    /** Mounts dashed SCC enclosures behind their member cards. */
-    function renderCycles(layout) {
-      dom.cycles.replaceChildren();
-      for (const group of layout.cycleGroups) {
-        const element = document.createElement("div");
-        element.className = "cycle-group";
-        element.style.left = group.x + "px";
-        element.style.top = group.y + "px";
-        element.style.width = group.width + "px";
-        element.style.height = group.height + "px";
-        element.textContent = group.label;
-        dom.cycles.appendChild(element);
-      }
-    }
-
-    /** Mounts orthogonal routes with wide hit targets and source-safe labels. */
-    function renderEdges(layout, edgesById) {
-      dom.edges.replaceChildren();
-      const defs = document.createElementNS(SVG_NS, "defs");
-      const marker = document.createElementNS(SVG_NS, "marker");
-      marker.setAttribute("id", "module-arrow");
-      marker.setAttribute("viewBox", "0 0 10 10");
-      marker.setAttribute("refX", "9");
-      marker.setAttribute("refY", "5");
-      marker.setAttribute("markerWidth", "6");
-      marker.setAttribute("markerHeight", "6");
-      marker.setAttribute("orient", "auto-start-reverse");
-      const arrow = document.createElementNS(SVG_NS, "path");
-      arrow.setAttribute("d", "M 0 0 L 10 5 L 0 10 z");
-      arrow.setAttribute("fill", "context-stroke");
-      marker.appendChild(arrow);
-      defs.appendChild(marker);
-      dom.edges.appendChild(defs);
-      for (const edgeLayout of layout.edges) {
-        const edge = edgesById.get(edgeLayout.edgeId);
-        if (!edge || edgeLayout.points.length < 2) continue;
-        const group = document.createElementNS(SVG_NS, "g");
-        const pathData = edgeLayout.points.map(function (point, index) {
-          return (index === 0 ? "M " : "L ") + point.x + " " + point.y;
-        }).join(" ");
-        const labelValue = edgeLabel(edge);
-        const hit = document.createElementNS(SVG_NS, "path");
-        hit.setAttribute("d", pathData);
-        hit.setAttribute("class", "module-edge-hit");
-        hit.addEventListener("click", function () { selectEdge(edge); });
-        const path = document.createElementNS(SVG_NS, "path");
-        const selected = state.selectedEdgeId === edge.id ? " selected" : "";
-        const entering = state.enteringEdgeIds.has(edge.id) ? " entering" : "";
-        path.setAttribute("d", pathData);
-        path.setAttribute("class", "module-edge " + edge.presentationKind + selected + entering);
-        path.setAttribute("marker-end", "url(#module-arrow)");
-        path.setAttribute("tabindex", "0");
-        path.setAttribute("role", "button");
-        path.setAttribute("aria-label", "Inspect relationship: " + labelValue);
-        path.addEventListener("click", function () { selectEdge(edge); });
-        path.addEventListener("keydown", function (event) {
-          if (event.key !== "Enter" && event.key !== " ") return;
-          event.preventDefault();
-          selectEdge(edge);
-        });
-        group.appendChild(hit);
-        group.appendChild(path);
-        if (labelValue) {
-          const label = document.createElementNS(SVG_NS, "text");
-          label.setAttribute("class", "edge-label");
-          label.setAttribute("x", String(edgeLayout.labelX));
-          label.setAttribute("y", String(edgeLayout.labelY));
-          label.textContent = labelValue;
-          group.appendChild(label);
-        }
-        dom.edges.appendChild(group);
-      }
-    }
-
-    /** Mounts keyboard-accessible variable-size HTML cards over the SVG routes. */
-    function renderNodes(layout, nodesById, depthByModuleId) {
-      dom.nodes.replaceChildren();
-      for (const nodeLayout of layout.nodes) {
-        const node = nodesById.get(nodeLayout.nodeId);
-        if (!node) continue;
-        const card = document.createElement("button");
-        card.type = "button";
-        card.className = "module-card " + (node.kind === "function" ? "function" : "module")
-          + (node.external ? " external" : "")
-          + (state.selectedNodeId === node.id ? " selected" : "")
-          + (state.pendingModules.has(node.id) ? " loading" : "")
-          + (state.enteringNodeIds.has(node.id) ? " entering" : "");
-        card.style.left = nodeLayout.x + "px";
-        card.style.top = nodeLayout.y + "px";
-        card.style.width = nodeLayout.width + "px";
-        card.style.height = nodeLayout.height + "px";
-        card.style.setProperty("--module-depth", String(depthByModuleId.get(node.id) || 0));
-        appendText(card, "div", "module-card-kind", node.kind === "function" ? "Boundary function" : node.detail);
-        appendText(card, "div", "module-card-title", node.label);
-        appendText(card, "div", "module-card-detail", node.detail);
-        if (node.locationLabel) appendText(card, "div", "module-card-location", node.locationLabel);
-        const badges = document.createElement("div");
-        badges.className = "module-card-badges";
-        const badgeValues = node.kind === "function"
-          ? [node.confidence || "static"]
-          : [node.basis, node.confidence].concat(node.frameworks || [], node.ecosystems || []);
-        for (const value of badgeValues) appendText(badges, "span", "module-badge", value);
-        card.appendChild(badges);
-        if (node.kind === "function") {
-          appendText(card, "div", "module-card-metric", node.incomingBoundaryCount + " incoming · " + node.outgoingBoundaryCount + " outgoing boundary calls");
-          appendText(card, "div", "module-card-hint", "Open in Function Visualizer");
-        } else if (!node.external) {
-          appendText(card, "div", "module-card-metric", node.metrics.callableCount + " direct functions · " + node.metrics.entrypointCount + " entrypoints");
-          appendText(card, "div", "module-card-hint", expansionHint(node));
-        }
-        card.addEventListener("click", function () { selectNode(node); });
-        dom.nodes.appendChild(card);
-      }
-    }
-
     /** Selects a module/function; module clicks toggle their preferred expansion. */
     function selectNode(node) {
       state.selectedNodeId = node.id;
@@ -457,7 +330,7 @@ export function getModuleVisualizerBrowserSource(): string {
       }
       requestDetail({ kind: "module", id: node.id });
       if (node.external) {
-        renderGraph(captureViewportAnchor(node.id));
+        renderGraph(undefined, false);
         return;
       }
       const expansion = node.expandable && node.expandable.boundaryFunctions
@@ -466,14 +339,14 @@ export function getModuleVisualizerBrowserSource(): string {
           ? "childModules"
           : undefined;
       if (expansion) toggleExpansion(node, expansion);
-      else renderGraph(captureViewportAnchor(node.id));
+      else renderGraph(undefined, false);
     }
 
     /** Selects an evidence-backed aggregate route for its detail rows. */
     function selectEdge(edge) {
       state.selectedEdgeId = edge.id;
       state.selectedNodeId = undefined;
-      renderGraph(undefined);
+      renderGraph(undefined, false);
       if (edge.hasDetails) requestDetail({ kind: "edge", id: edge.id });
       else renderLocalEdgeDetail(edge);
     }
@@ -581,13 +454,17 @@ export function getModuleVisualizerBrowserSource(): string {
 
     /** Captures one node's viewport-relative location before a graph rebuild. */
     function captureViewportAnchor(nodeId) {
-      if (!state.layout || !nodeId) return undefined;
-      const layout = state.layout.nodes.find(function (node) { return node.nodeId === nodeId; });
+      if (!state.layout || !state.viewportFrame || !nodeId) return undefined;
+      const layout = state.layoutByNodeId.get(nodeId);
       if (!layout) return undefined;
       return {
         nodeId: nodeId,
-        relativeX: layout.x * state.scale - dom.viewport.scrollLeft,
-        relativeY: layout.y * state.scale - dom.viewport.scrollTop,
+        relativeX: state.viewportFrame.offsetX
+          + (layout.x + layout.width / 2) * state.scale
+          - dom.viewport.scrollLeft,
+        relativeY: state.viewportFrame.offsetY
+          + (layout.y + layout.height / 2) * state.scale
+          - dom.viewport.scrollTop,
         scrollLeft: dom.viewport.scrollLeft,
         scrollTop: dom.viewport.scrollTop
       };
@@ -595,14 +472,17 @@ export function getModuleVisualizerBrowserSource(): string {
 
     /** Compensates for layout movement after expansion or local collapse. */
     function restoreViewportAnchor(anchor, layout) {
-      if (!anchor) return;
-      const node = layout.nodes.find(function (candidate) { return candidate.nodeId === anchor.nodeId; });
-      const nextLeft = node ? node.x * state.scale - anchor.relativeX : anchor.scrollLeft;
-      const nextTop = node ? node.y * state.scale - anchor.relativeY : anchor.scrollTop;
-      requestAnimationFrame(function () {
-        dom.viewport.scrollLeft = Math.max(0, nextLeft);
-        dom.viewport.scrollTop = Math.max(0, nextTop);
-      });
+      if (!anchor || !state.viewportFrame) return;
+      const node = state.layoutByNodeId.get(anchor.nodeId);
+      const frame = state.viewportFrame;
+      const nextLeft = node
+        ? frame.offsetX + (node.x + node.width / 2) * state.scale - anchor.relativeX
+        : anchor.scrollLeft;
+      const nextTop = node
+        ? frame.offsetY + (node.y + node.height / 2) * state.scale - anchor.relativeY
+        : anchor.scrollTop;
+      dom.viewport.scrollLeft = clampModuleFlowScroll(nextLeft, frame.maxScrollLeft);
+      dom.viewport.scrollTop = clampModuleFlowScroll(nextTop, frame.maxScrollTop);
     }
 
     function edgeLabel(edge) {
@@ -647,20 +527,13 @@ export function getModuleVisualizerBrowserSource(): string {
     }
     dom.includeExternal.addEventListener("change", requestList);
     dom.includeInferred.addEventListener("change", requestList);
-    dom.fit.addEventListener("click", function () {
-      if (!state.layout || state.layout.width <= 0 || state.layout.height <= 0) return;
-      state.scale = Math.min(
-        1,
-        Math.max(0.2, (dom.viewport.clientWidth - 32) / state.layout.width),
-        Math.max(0.2, (dom.viewport.clientHeight - 32) / state.layout.height)
-      );
-      renderGraph(undefined);
-      dom.viewport.scrollLeft = 0;
-      dom.viewport.scrollTop = 0;
-    });
-    dom.reset.addEventListener("click", function () {
-      state.scale = 1;
-      renderGraph(undefined);
+    initializeModuleFlowSceneRenderer();
+    initializeModuleFlowViewport();
+    window.addEventListener("beforeunload", function () {
+      state.frameScheduler.dispose();
+      if (state.resizeObserver) state.resizeObserver.disconnect();
+      if (state.enteringTimer !== undefined) window.clearTimeout(state.enteringTimer);
+      if (state.zoomAnnouncementTimer !== undefined) window.clearTimeout(state.zoomAnnouncementTimer);
     });
 
     vscode.postMessage({ type: "ui/ready", payload: {} });

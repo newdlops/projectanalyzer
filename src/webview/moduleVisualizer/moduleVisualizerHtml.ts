@@ -41,23 +41,31 @@ export function getModuleVisualizerHtml(
       <span class="toolbar-spacer"></span>
       <label class="toolbar-check"><input id="include-external" type="checkbox" checked> External</label>
       <label class="toolbar-check"><input id="include-inferred" type="checkbox" checked> Inferred</label>
-      <button id="fit-graph" class="toolbar-button" type="button">Fit</button>
-      <button id="reset-graph" class="toolbar-button" type="button">100%</button>
+      <div class="zoom-controls" role="group" aria-label="Graph zoom controls">
+        <button id="zoom-out" class="zoom-button" type="button" aria-label="Zoom out" aria-controls="module-viewport" title="Zoom out (-)">−</button>
+        <button id="zoom-level" class="zoom-level" type="button" aria-label="Reset zoom to 100 percent" aria-controls="module-viewport" title="Reset zoom (0)">100%</button>
+        <button id="zoom-in" class="zoom-button" type="button" aria-label="Zoom in" aria-controls="module-viewport" title="Zoom in (+)">+</button>
+      </div>
+      <button id="fit-graph" class="toolbar-button" type="button" aria-controls="module-viewport" title="Fit complete graph (F)">Fit</button>
     </nav>
 
     <section class="module-flow-workspace">
-      <div id="module-viewport" class="module-flow-viewport" aria-label="Project module flow graph">
+      <p id="module-viewport-help" class="visually-hidden">Use plus, minus, zero, or F while this graph is focused. Hold Control or Command while scrolling to zoom. Drag empty canvas space to pan.</p>
+      <div id="module-viewport" class="module-flow-viewport" role="region" tabindex="0" aria-label="Project module flow graph" aria-describedby="module-viewport-help">
         <div id="module-status" class="module-flow-status" role="status" aria-live="polite">Connecting to the analyzer</div>
         <div id="module-stage" class="module-flow-stage">
-          <div id="module-cycles" class="module-flow-cycles"></div>
-          <svg id="module-edges" class="module-flow-edges" aria-label="Module relationships"></svg>
-          <div id="module-nodes" class="module-flow-nodes"></div>
+          <div id="module-scene" class="module-flow-scene">
+            <div id="module-cycles" class="module-flow-cycles"></div>
+            <svg id="module-edges" class="module-flow-edges" aria-label="Module relationships"></svg>
+            <div id="module-nodes" class="module-flow-nodes"></div>
+          </div>
         </div>
       </div>
       <aside id="module-detail" class="module-flow-detail" aria-label="Selected module or relationship details">
         <div class="detail-empty">Select a module or relationship to inspect source-backed details.</div>
       </aside>
     </section>
+    <div id="zoom-announcement" class="visually-hidden" aria-live="polite"></div>
   </main>
   <script nonce="${options.nonce}">${getModuleVisualizerBrowserSource()}</script>
 </body>

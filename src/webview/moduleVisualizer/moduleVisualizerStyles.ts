@@ -84,6 +84,8 @@ export function getModuleVisualizerStyles(): string {
 
     .mode-button,
     .toolbar-button,
+    .zoom-button,
+    .zoom-level,
     .detail-action {
       min-height: 28px;
       padding: 4px 10px;
@@ -94,12 +96,50 @@ export function getModuleVisualizerStyles(): string {
       cursor: pointer;
     }
 
+    .mode-button:hover,
+    .toolbar-button:hover,
+    .zoom-button:hover,
+    .zoom-level:hover,
+    .detail-action:hover {
+      border-color: var(--vscode-focusBorder);
+    }
+
+    .zoom-button:disabled {
+      opacity: 0.42;
+      cursor: default;
+    }
+
     .mode-button.active {
       color: var(--vscode-button-foreground);
       background: var(--vscode-button-background);
     }
 
     .toolbar-spacer { flex: 1 1 20px; }
+
+    .zoom-controls {
+      display: inline-grid;
+      grid-template-columns: 30px minmax(54px, auto) 30px;
+      align-items: stretch;
+      border: 1px solid var(--vscode-button-border, var(--vscode-panel-border));
+      border-radius: 6px;
+      overflow: hidden;
+    }
+
+    .zoom-button,
+    .zoom-level {
+      min-height: 28px;
+      padding: 3px 7px;
+      color: var(--vscode-foreground);
+      background: var(--vscode-button-secondaryBackground);
+      border: 0;
+      border-right: 1px solid var(--vscode-button-border, var(--vscode-panel-border));
+      border-radius: 0;
+      cursor: pointer;
+    }
+
+    .zoom-button:last-child { border-right: 0; }
+    .zoom-button { font-size: 16px; line-height: 1; }
+    .zoom-level { font-size: 10px; font-variant-numeric: tabular-nums; }
 
     .toolbar-check {
       display: inline-flex;
@@ -126,12 +166,30 @@ export function getModuleVisualizerStyles(): string {
         linear-gradient(90deg, color-mix(in srgb, var(--vscode-panel-border) 22%, transparent) 1px, transparent 1px);
       background-size: 24px 24px;
       scrollbar-width: thin;
+      cursor: grab;
+      overscroll-behavior: contain;
+    }
+
+    .module-flow-viewport.panning {
+      cursor: grabbing;
+      user-select: none;
+    }
+
+    .module-flow-viewport:focus-visible {
+      outline: 1px solid var(--vscode-focusBorder);
+      outline-offset: -1px;
     }
 
     .module-flow-stage {
       position: relative;
       min-width: 100%;
       min-height: 100%;
+    }
+
+    .module-flow-scene {
+      position: absolute;
+      top: 0;
+      left: 0;
       transform-origin: 0 0;
     }
 
@@ -176,7 +234,12 @@ export function getModuleVisualizerStyles(): string {
       text-align: left;
       pointer-events: auto;
       cursor: pointer;
+      contain: layout style paint;
+      content-visibility: auto;
+      contain-intrinsic-size: 280px 140px;
     }
+
+    .module-flow-viewport.overview .module-card { box-shadow: none; }
 
     .module-card.function {
       background: color-mix(in srgb, var(--vscode-symbolIcon-functionForeground) 9%, var(--vscode-editorWidget-background));
@@ -269,6 +332,7 @@ export function getModuleVisualizerStyles(): string {
       stroke-width: 12;
       pointer-events: stroke;
       cursor: pointer;
+      vector-effect: non-scaling-stroke;
     }
 
     .edge-label {
@@ -335,6 +399,18 @@ export function getModuleVisualizerStyles(): string {
     }
 
     .module-flow-status:empty { display: none; }
+
+    .visually-hidden {
+      position: absolute !important;
+      width: 1px !important;
+      height: 1px !important;
+      padding: 0 !important;
+      margin: -1px !important;
+      overflow: hidden !important;
+      clip: rect(0, 0, 0, 0) !important;
+      white-space: nowrap !important;
+      border: 0 !important;
+    }
 
     button:focus-visible,
     .module-edge:focus-visible {

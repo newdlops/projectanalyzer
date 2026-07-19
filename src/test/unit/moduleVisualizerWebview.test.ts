@@ -1,7 +1,7 @@
 /**
  * Contract tests for the generated Module Flow Webview and its Host boundary.
- * They keep the single-canvas graph, safe text rendering, motion, stale-request
- * guards, and snapshot-scoped token lifecycle visible without a VS Code runtime.
+ * They keep the single-canvas graph, keyed rendering, viewport controls, safe
+ * text, stale-request guards, and snapshot lifecycle visible without VS Code.
  */
 
 import assert from "node:assert/strict";
@@ -48,9 +48,10 @@ test("generates one nonce-protected stage with HTML cards and SVG edges", () => 
   const scriptTags = document.match(/<script\b[^>]*>/gu) ?? [];
 
   assert.equal(document.match(/id="module-stage"/gu)?.length, 1);
+  assert.equal(document.match(/id="module-scene"/gu)?.length, 1);
   assert.equal(document.match(/id="module-nodes"/gu)?.length, 1);
   assert.equal(document.match(/id="module-edges"/gu)?.length, 1);
-  assert.match(document, /<div id="module-stage"[\s\S]*<svg id="module-edges"[\s\S]*<div id="module-nodes"/u);
+  assert.match(document, /<div id="module-stage"[\s\S]*<div id="module-scene"[\s\S]*<svg id="module-edges"[\s\S]*<div id="module-nodes"/u);
   assert.deepEqual(scriptTags, [`<script nonce="${nonce}">`]);
   assert.match(
     document,
@@ -58,10 +59,12 @@ test("generates one nonce-protected stage with HTML cards and SVG edges", () => 
   );
   assert.match(program, /document\.createElement\("button"\)/u);
   assert.match(program, /document\.createElementNS\(SVG_NS, "path"\)/u);
-  assert.match(program, /dom\.nodes\.appendChild\(card\)/u);
-  assert.match(program, /dom\.edges\.appendChild\(group\)/u);
+  assert.match(program, /additions\.appendChild\(card\)/u);
+  assert.match(program, /additions\.appendChild\(group\)/u);
   assert.match(program, /path\.setAttribute\("tabindex", "0"\)/u);
   assert.match(program, /event\.key !== "Enter" && event\.key !== " "/u);
+  assert.doesNotMatch(program, /\bexports\./u);
+  assert.doesNotMatch(program, /\brequire\s*\(/u);
   assert.doesNotThrow(
     () => new Function("acquireVsCodeApi", program),
     "the complete generated browser program must parse"
@@ -75,8 +78,9 @@ test("embeds the shared layout, SCC, and orthogonal routing runtime", () => {
   assert.match(program, /function createModuleFlowSccIndex\(/u);
   assert.match(program, /function routeModuleFlowGraphEdges\(/u);
   assert.match(program, /createModuleFlowGraphLayout\(layoutNodes, layoutEdges\)/u);
-  assert.match(program, /renderEdges\(layout, scene\.edges\)/u);
-  assert.match(program, /renderNodes\(layout, scene\.nodes, depthByModuleId\)/u);
+  assert.match(program, /reconcileModuleFlowEdges\(layout, scene\.edges\)/u);
+  assert.match(program, /reconcileModuleFlowNodes\(layout, scene\.nodes, depthByModuleId\)/u);
+  assert.match(program, /state\.layoutCache\.get\(layoutKey\)/u);
 });
 
 test("attaches boundary functions to the existing scene and hands functions off", () => {
@@ -110,10 +114,11 @@ test("preserves the clicked anchor and honors enter-motion preferences", () => {
 
   assert.match(program, /const anchor = captureViewportAnchor\(module\.id\)/u);
   assert.match(program, /\{ operation: "expand", key: key, anchor: anchor, moduleId: module\.id \}/u);
-  assert.match(program, /renderGraph\(pending\.anchor\)/u);
+  assert.match(program, /const currentAnchor = captureViewportAnchor\(pending\.moduleId\) \|\| pending\.anchor/u);
+  assert.match(program, /renderGraph\(currentAnchor, true\)/u);
   assert.match(program, /function restoreViewportAnchor\(anchor, layout\)/u);
-  assert.match(program, /dom\.viewport\.scrollLeft = Math\.max\(0, nextLeft\)/u);
-  assert.match(program, /dom\.viewport\.scrollTop = Math\.max\(0, nextTop\)/u);
+  assert.match(program, /dom\.viewport\.scrollLeft = clampModuleFlowScroll\(nextLeft, frame\.maxScrollLeft\)/u);
+  assert.match(program, /dom\.viewport\.scrollTop = clampModuleFlowScroll\(nextTop, frame\.maxScrollTop\)/u);
   assert.match(
     styles,
     /\.module-card\.entering\s*\{\s*animation: module-node-enter 260ms/u
@@ -125,6 +130,45 @@ test("preserves the clicked anchor and honors enter-motion preferences", () => {
   assert.match(
     styles,
     /@media \(prefers-reduced-motion: reduce\)[\s\S]*\.module-card\.entering,[\s\S]*\.module-edge\.entering\s*\{ animation: none; \}/u
+  );
+});
+
+test("offers focal zoom, fit, keyboard controls, resize preservation, and drag pan", () => {
+  const document = createDocument();
+  const program = requireBrowserProgram(document);
+
+  assert.match(document, /id="zoom-out"[^>]*aria-label="Zoom out"/u);
+  assert.match(document, /id="zoom-level"[^>]*>100%<\/button>/u);
+  assert.match(document, /id="zoom-in"[^>]*aria-label="Zoom in"/u);
+  assert.match(document, /id="module-viewport"[^>]*role="region"[^>]*tabindex="0"/u);
+  assert.match(program, /createModuleFlowFocalZoom\(/u);
+  assert.match(program, /createModuleFlowFitScale\(/u);
+  assert.match(program, /addEventListener\("wheel", handleModuleFlowWheel, \{ passive: false \}\)/u);
+  assert.match(program, /if \(!event\.ctrlKey && !event\.metaKey\) return;\s*event\.preventDefault\(\)/u);
+  assert.match(program, /event\.key === "f" \|\| event\.key === "F"/u);
+  assert.match(program, /new ResizeObserver\(handleModuleFlowResize\)/u);
+  assert.match(program, /handleModuleFlowPointerMove/u);
+  assert.match(program, /dom\.scene\.style\.transform = "translate3d\("/u);
+});
+
+test("coalesces visual writes and reuses keyed graph DOM outside structural changes", () => {
+  const program = requireBrowserProgram(createDocument());
+
+  assert.match(program, /new ModuleFlowFrameScheduler\(/u);
+  assert.match(program, /state\.frameScheduler\.schedule\(\)/u);
+  assert.match(program, /nodeElementsById: new Map\(\)/u);
+  assert.match(program, /edgeElementsById: new Map\(\)/u);
+  assert.match(program, /cycleElementsById: new Map\(\)/u);
+  assert.match(program, /document\.createDocumentFragment\(\)/u);
+  assert.match(program, /renderGraph\(undefined, false\)/u);
+  assert.doesNotMatch(program, /dom\.(?:nodes|edges|cycles)\.replaceChildren\(/u);
+  assert.match(
+    program,
+    /function applyPendingModuleFlowZoom\(pending\)[\s\S]*?applyModuleFlowViewportFrame\(layout\)[\s\S]*?updateModuleFlowZoomControls\(pending\.announce\)/u
+  );
+  assert.doesNotMatch(
+    program,
+    /function applyPendingModuleFlowZoom\(pending\)[\s\S]*?createModuleFlowGraphLayout\(/u
   );
 });
 
