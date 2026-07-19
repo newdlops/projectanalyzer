@@ -10,6 +10,7 @@ import assert from "node:assert/strict";
 export type SidebarWebviewRuntime = {
   click(elementId: string): void;
   clickByTitle(title: string): void;
+  countRenderedByClass(elementId: string, className: string): number;
   dispatchMessage(message: unknown): void;
   getAttribute(elementId: string, name: string): string | undefined;
   getFocusedElementId(): string | undefined;
@@ -207,6 +208,17 @@ export function installSidebarWebviewRuntime(initialWebviewState?: unknown): Sid
       for (const handler of handlers) {
         handler({ preventDefault() {} });
       }
+    },
+    countRenderedByClass(elementId, className) {
+      let count = 0;
+      const pending = [getOrCreateElement(elementId)];
+      while (pending.length > 0) {
+        const current = pending.pop();
+        if (!current) continue;
+        if (current.className.split(/\s+/u).includes(className)) count += 1;
+        for (const child of current.children) pending.push(child);
+      }
+      return count;
     },
     dispatchMessage(message) {
       const handler = windowListeners.get("message");

@@ -1,14 +1,18 @@
 /**
- * Browser program for the dedicated Function Visualizer tab. It owns a bounded
- * navigation trail and reuses the shared source-backed control-flow renderer.
+ * Browser program for the dedicated Function Visualizer tab. It owns bounded
+ * navigation and lazily attaches child functions to one compound graph canvas.
  */
 
 import { getFunctionLogicBrowserSource } from "../codeFlow/functionLogicBrowserSource";
+import { getCompoundFunctionLogicGraphSource } from "./compoundFunctionLogicGraphSource";
 
 /** Returns CSP-compatible JavaScript for one Function Visualizer panel. */
 export function getFunctionVisualizerBrowserSource(): string {
   return /* js */ `
     const vscode = acquireVsCodeApi();
+    const MAX_ATTACHED_FUNCTION_DEPTH = 6;
+    const MAX_ATTACHED_FUNCTIONS = 32;
+    const ROOT_FUNCTION_SCOPE_PREFIX = "function-root:";
 
     const state = {
       graph: undefined,
@@ -16,6 +20,9 @@ export function getFunctionVisualizerBrowserSource(): string {
       history: [],
       historyIndex: -1,
       pendingTarget: undefined,
+      pendingExpansionId: undefined,
+      attachedFunctions: [],
+      nextAttachedFunctionId: 0,
       loading: false,
       error: undefined,
       selectedLogicBlockId: undefined,
@@ -67,6 +74,9 @@ export function getFunctionVisualizerBrowserSource(): string {
       state.history = [];
       state.historyIndex = -1;
       state.pendingTarget = payload.root;
+      state.pendingExpansionId = undefined;
+      state.attachedFunctions = [];
+      state.nextAttachedFunctionId = 0;
       state.loading = true;
       state.error = undefined;
       state.selectedLogicBlockId = undefined;
@@ -77,10 +87,16 @@ export function getFunctionVisualizerBrowserSource(): string {
     /** Adds one correlated function result to the active, cycle-safe trail. */
     function acceptFunctionDetail(detail) {
       if (!detail || detail.kind !== "functionLogic" || !detail.logic
-        || !isCurrentGraph(detail.graphVersion) || !state.pendingTarget) {
+        || !isCurrentGraph(detail.graphVersion)
+        || (!state.pendingTarget && !state.pendingExpansionId)) {
+        return;
+      }
+      if (state.pendingExpansionId) {
+        acceptAttachedFunctionDetail(detail);
         return;
       }
       const target = state.pendingTarget;
+      if (!target) return;
       const existingIndex = state.history.findIndex((entry) =>
         entry.target.sourceToken === target.sourceToken
       );
@@ -102,10 +118,48 @@ export function getFunctionVisualizerBrowserSource(): string {
 
     /** Keeps the current function visible when a deeper static analysis fails. */
     function acceptFunctionFailure(payload) {
-      if (!payload || !isCurrentGraph(payload.graphVersion) || !state.pendingTarget) return;
+      if (!payload || !isCurrentGraph(payload.graphVersion)
+        || (!state.pendingTarget && !state.pendingExpansionId)) return;
+      if (state.pendingExpansionId) {
+        acceptAttachedFunctionFailure(payload.message);
+        return;
+      }
       state.pendingTarget = undefined;
       state.loading = false;
       state.error = payload.message || "This function flow is unavailable.";
+      render();
+    }
+
+    /** Attaches one correlated child detail to its callsite inside the graph. */
+    function acceptAttachedFunctionDetail(detail) {
+      const expansionId = state.pendingExpansionId;
+      const expansion = state.attachedFunctions.find((candidate) =>
+        candidate.id === expansionId
+      );
+      if (expansion) {
+        expansion.status = "loaded";
+        expansion.detail = detail;
+        expansion.error = undefined;
+      }
+      state.pendingExpansionId = undefined;
+      state.loading = false;
+      pumpAttachedFunctionQueue();
+      render();
+    }
+
+    /** Keeps the parent flow visible and turns a failed child into one graph node. */
+    function acceptAttachedFunctionFailure(message) {
+      const expansionId = state.pendingExpansionId;
+      const expansion = state.attachedFunctions.find((candidate) =>
+        candidate.id === expansionId
+      );
+      if (expansion) {
+        expansion.status = "failed";
+        expansion.error = message || "This called function flow is unavailable.";
+      }
+      state.pendingExpansionId = undefined;
+      state.loading = false;
+      pumpAttachedFunctionQueue();
       render();
     }
 
@@ -141,8 +195,10 @@ export function getFunctionVisualizerBrowserSource(): string {
     function navigateToHistory(index) {
       if (index < 0 || index >= state.history.length) return;
       state.historyIndex = index;
-      state.pendingTarget = undefined;
-      state.loading = false;
+      if (state.pendingTarget) {
+        state.pendingTarget = undefined;
+        state.loading = false;
+      }
       state.error = undefined;
       state.selectedLogicBlockId = undefined;
       state.logicGraphScale = 1;
@@ -176,13 +232,28 @@ export function getFunctionVisualizerBrowserSource(): string {
       elements.title.textContent = detail.title;
       elements.subtitle.textContent = detail.subtitle;
       elements.summary.textContent = createFunctionLogicSummaryText(detail.logic);
-      elements.semantics.textContent = "Blocks come from source syntax. Arrows show possible transfers; child links use statically resolved calls.";
+      elements.semantics.textContent = "Blocks come from source syntax. Click a block with called code to attach that function inside this graph.";
+      const pendingExpansion = state.attachedFunctions.find((candidate) =>
+        candidate.id === state.pendingExpansionId
+      );
       elements.status.textContent = state.error
-        || (state.loading && state.pendingTarget
-          ? "Building " + state.pendingTarget.label + "…"
-          : "Select a block to explain it, or open a called function to go deeper.");
+        || (pendingExpansion
+          ? "Attaching " + expansionTargetLabel(pendingExpansion) + "…"
+          : state.loading && state.pendingTarget
+            ? "Building " + state.pendingTarget.label + "…"
+            : "Select a block to explain it; called functions attach to this canvas.");
       renderOrigins(detail.origins || []);
-      renderFunctionLogic(detail.logic);
+      const rootScopeId = createRootScopeId(entry.target.sourceToken);
+      const attachedScene = createAttachedFunctionGraphScene(
+        detail.logic,
+        rootScopeId,
+        detail.title,
+        state.attachedFunctions
+      );
+      renderFunctionLogic(
+        attachedScene.logic,
+        createAttachedGraphContext(attachedScene)
+      );
       renderGaps(detail.gaps || []);
     }
 
@@ -243,6 +314,180 @@ export function getFunctionVisualizerBrowserSource(): string {
       empty.textContent = message;
       return empty;
     }
+
+    /** Creates the root scope identity used only inside this browser session. */
+    function createRootScopeId(sourceToken) {
+      return ROOT_FUNCTION_SCOPE_PREFIX + sourceToken;
+    }
+
+    /** Adapts the compound scene to the reusable single-graph renderer. */
+    function createAttachedGraphContext(scene) {
+      return {
+        selectedBlockId: state.selectedLogicBlockId,
+        graphTitle: scene.attachedFunctionCount > 0
+          ? "Control paths · " + (scene.attachedFunctionCount + 1) + " functions in one graph"
+          : "Control paths",
+        onSelectionChanged: (blockId) => {
+          state.selectedLogicBlockId = blockId;
+        },
+        readScale: () => state.logicGraphScale,
+        writeScale: (scale) => {
+          state.logicGraphScale = scale;
+        },
+        isBlockExpanded: (blockId) => {
+          const identity = scene.blockIdentityById.get(blockId);
+          return Boolean(identity && state.attachedFunctions.some((candidate) =>
+            candidate.parentScopeId === identity.scopeId
+            && candidate.anchorBlockId === identity.sourceBlockId
+          ));
+        },
+        isTargetExpanded: (blockId, target) => {
+          const identity = scene.blockIdentityById.get(blockId);
+          return Boolean(identity && state.attachedFunctions.some((candidate) =>
+            candidate.parentScopeId === identity.scopeId
+            && candidate.anchorBlockId === identity.sourceBlockId
+            && candidate.target.sourceToken === target.sourceToken
+          ));
+        },
+        onExpandableBlockClick: (block) => {
+          const identity = scene.blockIdentityById.get(block.id);
+          if (!identity) return;
+          toggleAttachedFunctionBlock(identity.scopeId, {
+            ...block,
+            id: identity.sourceBlockId
+          });
+        },
+        onExpandableTargetClick: (block, target) => {
+          const identity = scene.blockIdentityById.get(block.id);
+          if (!identity) return;
+          toggleAttachedFunctionBlock(identity.scopeId, {
+            ...block,
+            id: identity.sourceBlockId
+          }, target);
+        }
+      };
+    }
+
+    /** Toggles every direct function attached to one graph block, or one target. */
+    function toggleAttachedFunctionBlock(parentScopeId, block, selectedTarget) {
+      if (state.loading && state.pendingTarget) return;
+      const rawTargets = selectedTarget ? [selectedTarget] : (block.drillTargets || []);
+      const targets = [];
+      const seenTokens = new Set();
+      for (const target of rawTargets) {
+        if (!target || !target.sourceToken || seenTokens.has(target.sourceToken)) continue;
+        seenTokens.add(target.sourceToken);
+        targets.push(target);
+      }
+      if (targets.length === 0) return;
+
+      const selectedTokens = new Set(targets.map((target) => target.sourceToken));
+      const existing = state.attachedFunctions.filter((candidate) =>
+        candidate.parentScopeId === parentScopeId
+        && candidate.anchorBlockId === block.id
+        && (!selectedTarget || selectedTokens.has(candidate.target.sourceToken))
+      );
+      state.error = undefined;
+      if (existing.length > 0) {
+        removeAttachedFunctionBranches(existing.map((candidate) => candidate.id));
+        pumpAttachedFunctionQueue();
+        render();
+        return;
+      }
+
+      const ancestorTokens = collectScopeSourceTokens(parentScopeId);
+      const childDepth = ancestorTokens.length;
+      let availableSlots = MAX_ATTACHED_FUNCTIONS - state.attachedFunctions.length;
+      let addedCount = 0;
+      for (const target of targets) {
+        if (availableSlots <= 0) break;
+        state.nextAttachedFunctionId += 1;
+        const status = ancestorTokens.includes(target.sourceToken)
+          ? "cycle"
+          : childDepth > MAX_ATTACHED_FUNCTION_DEPTH
+            ? "limited"
+            : "queued";
+        state.attachedFunctions.push({
+          id: "attached-function:" + state.nextAttachedFunctionId,
+          parentScopeId,
+          anchorBlockId: block.id,
+          target,
+          depth: childDepth,
+          status
+        });
+        availableSlots -= 1;
+        addedCount += 1;
+      }
+      if (addedCount < targets.length) {
+        state.error = "The attached function limit was reached. Collapse a branch before expanding more.";
+      }
+      pumpAttachedFunctionQueue();
+      render();
+    }
+
+    /** Removes an expansion and all of its descendants with an explicit queue. */
+    function removeAttachedFunctionBranches(rootIds) {
+      const removedIds = new Set(rootIds);
+      const pendingIds = [...rootIds];
+      let cursor = 0;
+      while (cursor < pendingIds.length) {
+        const parentId = pendingIds[cursor];
+        cursor += 1;
+        for (const candidate of state.attachedFunctions) {
+          if (candidate.parentScopeId !== parentId || removedIds.has(candidate.id)) continue;
+          removedIds.add(candidate.id);
+          pendingIds.push(candidate.id);
+        }
+      }
+      state.attachedFunctions = state.attachedFunctions.filter((candidate) =>
+        !removedIds.has(candidate.id)
+      );
+    }
+
+    /** Returns ancestor function tokens for depth checks and call-cycle guards. */
+    function collectScopeSourceTokens(scopeId) {
+      const tokens = [];
+      const visitedScopeIds = new Set();
+      let currentScopeId = scopeId;
+      while (currentScopeId && !visitedScopeIds.has(currentScopeId)) {
+        visitedScopeIds.add(currentScopeId);
+        if (currentScopeId.startsWith(ROOT_FUNCTION_SCOPE_PREFIX)) {
+          tokens.push(currentScopeId.slice(ROOT_FUNCTION_SCOPE_PREFIX.length));
+          break;
+        }
+        const expansion = state.attachedFunctions.find((candidate) =>
+          candidate.id === currentScopeId
+        );
+        if (!expansion) break;
+        tokens.push(expansion.target.sourceToken);
+        currentScopeId = expansion.parentScopeId;
+      }
+      return tokens;
+    }
+
+    /** Sends at most one child request at a time so generic Host responses correlate safely. */
+    function pumpAttachedFunctionQueue() {
+      if (!state.graph || state.loading) return;
+      const next = state.attachedFunctions.find((candidate) => candidate.status === "queued");
+      if (!next) return;
+      next.status = "loading";
+      state.pendingExpansionId = next.id;
+      state.loading = true;
+      vscode.postMessage({
+        type: "codeFlow/selectSource",
+        payload: {
+          graphVersion: state.graph.version,
+          sourceToken: next.target.sourceToken
+        }
+      });
+    }
+
+    /** Returns the safest available label for one opaque child target. */
+    function expansionTargetLabel(expansion) {
+      return expansion.target.qualifiedName || expansion.target.name || "Called function";
+    }
+
+    ${getCompoundFunctionLogicGraphSource()}
 
     ${getFunctionLogicBrowserSource()}
 

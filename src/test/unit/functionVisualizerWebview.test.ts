@@ -1,6 +1,6 @@
 /**
  * Generated-browser tests for the dedicated Function Visualizer tab. They cover
- * easy-reading cues, lazy child requests, breadcrumbs, cycle reuse, and evidence.
+ * single-canvas child attachment, serialized requests, collapse, cycles, and evidence.
  */
 
 import assert from "node:assert/strict";
@@ -11,7 +11,252 @@ import { installSidebarWebviewRuntime } from "./helpers/sidebarWebviewRuntime";
 const graphVersion = "sidebar-snapshot:function-panel:1";
 const rootToken = "source-node:1111111111111111111111111111111111111111111111111111111111111111";
 const childToken = "source-node:2222222222222222222222222222222222222222222222222222222222222222";
+const siblingToken = "source-node:3333333333333333333333333333333333333333333333333333333333333333";
 const evidenceToken = "code-evidence:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+
+type TestCallee = {
+  sourceToken: string;
+  name: string;
+  qualifiedName: string;
+  sourceLocation: string;
+  confidence: string;
+  callsiteCount: number;
+};
+
+test("requests a child attachment when the function call belongs to an if box", () => {
+  const runtime = installSidebarWebviewRuntime();
+
+  try {
+    new Function(requireFunctionVisualizerScript())();
+    runtime.dispatchMessage(createSessionMessage());
+    runtime.dispatchMessage(createFunctionDetail("Root.run", rootToken, {
+      sourceToken: childToken,
+      name: "isReady",
+      qualifiedName: "Guard.isReady",
+      sourceLocation: "src/guard.ts:4",
+      confidence: "inferred",
+      callsiteCount: 1
+    }, "condition"));
+
+    runtime.clickByTitle("Expand called function · Guard.isReady");
+    assert.deepEqual(latestPayload(runtime.messages, "codeFlow/selectSource"), {
+      graphVersion,
+      sourceToken: childToken
+    });
+  } finally {
+    runtime.restore();
+  }
+});
+
+test("routes attached function edges through rank gaps without crossing unrelated boxes", () => {
+  const runtime = installSidebarWebviewRuntime();
+  const exposedBuilder = "__projectAnalyzerAttachedSceneBuilder";
+
+  try {
+    new Function(
+      requireFunctionVisualizerScript()
+        + `\nglobalThis.${exposedBuilder} = createAttachedFunctionGraphScene;`
+    )();
+    const createScene = Reflect.get(globalThis, exposedBuilder) as AttachedSceneBuilder;
+    const rootLogic = createBranchingRootTestLogic();
+    const childLogic = createLayeredTestLogic("child", "operation");
+    const siblingLogic = createLayeredTestLogic("sibling", "operation");
+    const scene = createScene(rootLogic, "root-scope", "Root.run", [{
+      id: "attached-function:1",
+      parentScopeId: "root-scope",
+      anchorBlockId: "root-middle",
+      target: {
+        sourceToken: childToken,
+        name: "load",
+        qualifiedName: "Child.load",
+        sourceLocation: "src/child.ts:4",
+        confidence: "resolved",
+        callsiteCount: 1
+      },
+      depth: 1,
+      status: "loaded",
+      detail: { title: "Child.load", logic: childLogic }
+    }, {
+      id: "attached-function:2",
+      parentScopeId: "root-scope",
+      anchorBlockId: "root-middle",
+      target: {
+        sourceToken: siblingToken,
+        name: "save",
+        qualifiedName: "Sibling.save",
+        sourceLocation: "src/sibling.ts:8",
+        confidence: "resolved",
+        callsiteCount: 1
+      },
+      depth: 1,
+      status: "loaded",
+      detail: { title: "Sibling.save", logic: siblingLogic }
+    }]);
+
+    assert.equal(scene.attachedFunctionCount, 2);
+    assert.equal(scene.logic.blocks.length, 11);
+    assert.equal(scene.logic.blocks.filter((block) => block.functionLabel === "Child.load").length, 3);
+    assert.equal(scene.logic.blocks.filter((block) => block.functionLabel === "Sibling.save").length, 3);
+    assert.equal(scene.logic.edges.filter((edge) => edge.relation === "call").length, 2);
+    assert.equal(scene.logic.edges.filter((edge) => edge.relation === "callReturn").length, 2);
+
+    const resume = scene.logic.blocks.find((block) => block.id.startsWith("compound-resume:"));
+    assert.ok(resume, "the caller continuation must become an explicit resume gateway");
+    const callerBranches = scene.logic.edges.filter((edge) =>
+      edge.targetId.endsWith(":root-true-exit")
+        || edge.targetId.endsWith(":root-false-exit")
+    );
+    assert.equal(callerBranches.length, 2);
+    assert.ok(callerBranches.every((edge) => edge.sourceId === resume.id));
+    assert.ok(scene.logic.edges
+      .filter((edge) => edge.relation === "callReturn")
+      .every((edge) => edge.targetId === resume.id));
+
+    assertChildFlowPrecedesCallerContinuation(scene.logic, resume.id);
+    assertCompoundEdgesAvoidBoxes(scene.logic);
+    assertCompoundEdgesDoNotOverlap(scene.logic);
+  } finally {
+    Reflect.deleteProperty(globalThis, exposedBuilder);
+    runtime.restore();
+  }
+});
+
+test("attaches a called function to the original graph canvas and collapses its branch", () => {
+  const runtime = installSidebarWebviewRuntime();
+
+  try {
+    new Function(requireFunctionVisualizerScript())();
+    runtime.dispatchMessage(createSessionMessage());
+    runtime.dispatchMessage(createFunctionDetail("Root.run", rootToken, {
+      sourceToken: childToken,
+      name: "load",
+      qualifiedName: "Child.load",
+      sourceLocation: "src/child.ts:4",
+      confidence: "resolved",
+      callsiteCount: 1
+    }));
+
+    runtime.clickByTitle("Expand called function · Child.load");
+    assert.deepEqual(latestPayload(runtime.messages, "codeFlow/selectSource"), {
+      graphVersion,
+      sourceToken: childToken
+    });
+    runtime.dispatchMessage(createFunctionDetail("Child.load", childToken, {
+      sourceToken: rootToken,
+      name: "run",
+      qualifiedName: "Root.run",
+      sourceLocation: "src/root.ts:2",
+      confidence: "resolved",
+      callsiteCount: 1
+    }));
+
+    const attachedText = runtime.getRenderedText("flow-steps");
+    assert.equal(runtime.countRenderedByClass("flow-steps", "logic-graph"), 1);
+    assert.equal(runtime.countRenderedByClass("flow-steps", "logic-graph-viewport"), 1);
+    assert.equal(runtime.countRenderedByClass("flow-steps", "logic-graph-node"), 2);
+    assert.equal(runtime.countRenderedByClass("flow-steps", "logic-node-function"), 1);
+    assert.ok(attachedText.includes("Control paths · 2 functions in one graph"));
+    assert.ok(attachedText.includes("Child.load"));
+    assert.ok(!attachedText.includes("Functions appended to this flow"));
+    assert.ok(runtime.getRenderedText("function-title").includes("Root.run"));
+
+    const requestCount = runtime.messages.filter((message) =>
+      message.type === "codeFlow/selectSource"
+    ).length;
+    runtime.clickByTitle("Expand called function · Root.run");
+    assert.equal(runtime.messages.filter((message) =>
+      message.type === "codeFlow/selectSource"
+    ).length, requestCount);
+    assert.equal(runtime.countRenderedByClass("flow-steps", "logic-graph"), 1);
+    assert.equal(runtime.countRenderedByClass("flow-steps", "logic-graph-node"), 3);
+    assert.ok(runtime.getRenderedText("flow-steps").includes("Call cycle · Root.run"));
+
+    runtime.clickByTitle("Collapse called function · Child.load");
+    assert.equal(runtime.countRenderedByClass("flow-steps", "logic-graph-node"), 1);
+    assert.equal(runtime.countRenderedByClass("flow-steps", "logic-node-function"), 0);
+  } finally {
+    runtime.restore();
+  }
+});
+
+test("keeps the parent canvas visible when an attached child analysis fails", () => {
+  const runtime = installSidebarWebviewRuntime();
+
+  try {
+    new Function(requireFunctionVisualizerScript())();
+    runtime.dispatchMessage(createSessionMessage());
+    runtime.dispatchMessage(createFunctionDetail("Root.run", rootToken, {
+      sourceToken: childToken,
+      name: "load",
+      qualifiedName: "Child.load",
+      sourceLocation: "src/child.ts:4",
+      confidence: "resolved",
+      callsiteCount: 1
+    }));
+
+    runtime.clickByTitle("Expand called function · Child.load");
+    runtime.dispatchMessage({
+      type: "codeFlow/detailFailed",
+      payload: {
+        graphVersion,
+        code: "sourceNotFound",
+        message: "The called function changed before it could be analyzed."
+      }
+    });
+
+    assert.ok(runtime.getRenderedText("function-title").includes("Root.run"));
+    assert.equal(runtime.countRenderedByClass("flow-steps", "logic-graph"), 1);
+    assert.equal(runtime.countRenderedByClass("flow-steps", "logic-graph-node"), 2);
+    assert.ok(runtime.getRenderedText("flow-steps").includes(
+      "The called function changed before it could be analyzed."
+    ));
+  } finally {
+    runtime.restore();
+  }
+});
+
+test("serializes every concrete function attached to the same call box", () => {
+  const runtime = installSidebarWebviewRuntime();
+  const sibling: TestCallee = {
+    sourceToken: siblingToken,
+    name: "save",
+    qualifiedName: "Sibling.save",
+    sourceLocation: "src/sibling.ts:8",
+    confidence: "resolved",
+    callsiteCount: 1
+  };
+
+  try {
+    new Function(requireFunctionVisualizerScript())();
+    runtime.dispatchMessage(createSessionMessage());
+    runtime.dispatchMessage(createFunctionDetail("Root.run", rootToken, [{
+      sourceToken: childToken,
+      name: "load",
+      qualifiedName: "Child.load",
+      sourceLocation: "src/child.ts:4",
+      confidence: "resolved",
+      callsiteCount: 1
+    }, sibling]));
+
+    runtime.clickByTitle("Expand called function · Child.load, Sibling.save");
+    runtime.dispatchMessage(createFunctionDetail("Child.load", childToken));
+    const requests = runtime.messages.filter((message) =>
+      message.type === "codeFlow/selectSource"
+    );
+    assert.deepEqual(requests.map((message) =>
+      (message.payload as { sourceToken: string }).sourceToken
+    ), [childToken, siblingToken]);
+
+    runtime.dispatchMessage(createFunctionDetail("Sibling.save", siblingToken));
+    const attachedText = runtime.getRenderedText("flow-steps");
+    assert.equal(runtime.countRenderedByClass("flow-steps", "logic-graph"), 1);
+    assert.equal(runtime.countRenderedByClass("flow-steps", "logic-graph-node"), 3);
+    assert.ok(attachedText.includes("Child.load"));
+    assert.ok(attachedText.includes("Sibling.save"));
+  } finally {
+    runtime.restore();
+  }
+});
 
 test("drills into a child and reuses history when a call cycle returns to root", () => {
   const runtime = installSidebarWebviewRuntime();
@@ -116,15 +361,10 @@ function createSessionMessage(): unknown {
 function createFunctionDetail(
   title: string,
   _currentToken: string,
-  callee?: {
-    sourceToken: string;
-    name: string;
-    qualifiedName: string;
-    sourceLocation: string;
-    confidence: string;
-    callsiteCount: number;
-  }
+  callee?: TestCallee | TestCallee[],
+  blockKind: "call" | "condition" = "call"
 ): unknown {
+  const callees = callee ? (Array.isArray(callee) ? callee : [callee]) : [];
   const blockId = title === "Root.run"
     ? "function-logic-block:11111111111111111111111111111111"
     : "function-logic-block:22222222222222222222222222222222";
@@ -145,14 +385,19 @@ function createFunctionDetail(
         signature: "function " + title + "()",
         blocks: [{
           id: blockId,
-          kind: "call",
-          label: callee ? callee.qualifiedName + "();" : "return true;",
-          detail: callee ? "Calls a concrete child definition." : "Returns from this function.",
+          kind: blockKind,
+          label: callees.length > 0
+            ? (blockKind === "condition" ? "if " : "")
+              + callees.map((target) => target.qualifiedName + "();").join(" ")
+            : "return true;",
+          detail: callees.length > 0
+            ? "Calls concrete child definitions."
+            : "Returns from this function.",
           depth: 0,
           confidence: "exact",
           sourceLocation: location,
           evidenceToken,
-          drillTargets: callee ? [callee] : undefined
+          drillTargets: callees.length > 0 ? callees : undefined
         }],
         edges: [],
         layout: {
@@ -165,12 +410,12 @@ function createFunctionDetail(
           blockCount: 1,
           branchCount: title === "Root.run" ? 2 : 0,
           loopCount: 0,
-          callCount: callee ? 1 : 0,
+          callCount: callees.length,
           effectCount: 0,
           mutationCount: 0,
           exitCount: 1
         },
-        callees: callee ? [callee] : [],
+        callees,
         omittedCalleeCount: 0
       },
       origins: [],
@@ -195,4 +440,342 @@ function latestPayload(
   const message = [...messages].reverse().find((candidate) => candidate.type === type);
   assert.ok(message, `missing ${type} request`);
   return message.payload;
+}
+
+type TestLogicBlock = {
+  id: string;
+  kind: string;
+  label: string;
+  detail: string;
+  depth: number;
+  confidence: string;
+  functionLabel?: string;
+  functionScopeId?: string;
+  sourceBlockId?: string;
+};
+
+type TestLogicEdge = {
+  id: string;
+  sourceId: string;
+  targetId: string;
+  kind: string;
+  confidence: string;
+  relation?: string;
+};
+
+type TestLogicLayout = {
+  width: number;
+  height: number;
+  nodes: Array<{
+    blockId: string;
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    rank: number;
+    lane: number;
+  }>;
+  edges: Array<{
+    edgeId: string;
+    points: Array<{ x: number; y: number }>;
+    labelX: number;
+    labelY: number;
+    route: string;
+  }>;
+};
+
+type TestFunctionLogic = {
+  blocks: TestLogicBlock[];
+  edges: TestLogicEdge[];
+  layout: TestLogicLayout;
+  [key: string]: unknown;
+};
+
+type AttachedSceneBuilder = (
+  rootLogic: TestFunctionLogic,
+  rootScopeId: string,
+  rootTitle: string,
+  expansions: unknown[]
+) => {
+  attachedFunctionCount: number;
+  logic: TestFunctionLogic;
+};
+
+/** Creates a three-rank function fragment with stable variable-size node dimensions. */
+function createLayeredTestLogic(prefix: string, middleKind: string): TestFunctionLogic {
+  const blocks: TestLogicBlock[] = [{
+    id: `${prefix}-entry`,
+    kind: "entry",
+    label: `Start ${prefix}`,
+    detail: "Entry",
+    depth: 0,
+    confidence: "exact"
+  }, {
+    id: `${prefix}-middle`,
+    kind: middleKind,
+    label: `${prefix} middle`,
+    detail: "Middle operation",
+    depth: 0,
+    confidence: "exact"
+  }, {
+    id: `${prefix}-exit`,
+    kind: "exit",
+    label: `End ${prefix}`,
+    detail: "Exit",
+    depth: 0,
+    confidence: "exact"
+  }];
+  const edges: TestLogicEdge[] = [{
+    id: `${prefix}-edge-1`,
+    sourceId: `${prefix}-entry`,
+    targetId: `${prefix}-middle`,
+    kind: "next",
+    confidence: "exact"
+  }, {
+    id: `${prefix}-edge-2`,
+    sourceId: `${prefix}-middle`,
+    targetId: `${prefix}-exit`,
+    kind: "next",
+    confidence: "exact"
+  }];
+  return {
+    blocks,
+    edges,
+    layout: {
+      width: 320,
+      height: 390,
+      nodes: blocks.map((block, index) => ({
+        blockId: block.id,
+        x: 58,
+        y: 20 + index * 118,
+        width: index === 1 ? 220 : 184,
+        height: index === 1 ? 84 : 72,
+        rank: index,
+        lane: 0
+      })),
+      edges: edges.map((edge) => ({
+        edgeId: edge.id,
+        points: [],
+        labelX: 0,
+        labelY: 0,
+        route: "forward"
+      }))
+    }
+  };
+}
+
+/** Creates a caller whose true/false branches must resume only after child flows. */
+function createBranchingRootTestLogic(): TestFunctionLogic {
+  const blocks: TestLogicBlock[] = [{
+    id: "root-entry",
+    kind: "entry",
+    label: "Start root",
+    detail: "Entry",
+    depth: 0,
+    confidence: "exact"
+  }, {
+    id: "root-middle",
+    kind: "condition",
+    label: "if Child.load() or Sibling.save()",
+    detail: "Calls two concrete child definitions before branching.",
+    depth: 0,
+    confidence: "exact"
+  }, {
+    id: "root-true-exit",
+    kind: "exit",
+    label: "Return success",
+    detail: "True exit",
+    depth: 0,
+    confidence: "exact"
+  }, {
+    id: "root-false-exit",
+    kind: "exit",
+    label: "Return failure",
+    detail: "False exit",
+    depth: 0,
+    confidence: "exact"
+  }];
+  const edges: TestLogicEdge[] = [{
+    id: "root-edge-entry",
+    sourceId: "root-entry",
+    targetId: "root-middle",
+    kind: "next",
+    confidence: "exact"
+  }, {
+    id: "root-edge-true",
+    sourceId: "root-middle",
+    targetId: "root-true-exit",
+    kind: "true",
+    confidence: "exact"
+  }, {
+    id: "root-edge-false",
+    sourceId: "root-middle",
+    targetId: "root-false-exit",
+    kind: "false",
+    confidence: "exact"
+  }];
+  return {
+    blocks,
+    edges,
+    layout: {
+      width: 560,
+      height: 390,
+      nodes: [{
+        blockId: "root-entry", x: 188, y: 20, width: 184, height: 72, rank: 0, lane: 0
+      }, {
+        blockId: "root-middle", x: 158, y: 138, width: 244, height: 84, rank: 1, lane: 0
+      }, {
+        blockId: "root-true-exit", x: 58, y: 276, width: 184, height: 72, rank: 2, lane: 0
+      }, {
+        blockId: "root-false-exit", x: 318, y: 276, width: 184, height: 72, rank: 2, lane: 1
+      }],
+      edges: edges.map((edge) => ({
+        edgeId: edge.id,
+        points: [],
+        labelX: 0,
+        labelY: 0,
+        route: "forward"
+      }))
+    }
+  };
+}
+
+/** Confirms child ranks sit between the callsite and the caller's resume gateway. */
+function assertChildFlowPrecedesCallerContinuation(
+  logic: TestFunctionLogic,
+  resumeId: string
+): void {
+  const nodeByBlockId = new Map(logic.layout.nodes.map((node) => [node.blockId, node]));
+  const callsite = logic.blocks.find((block) => block.sourceBlockId === "root-middle");
+  assert.ok(callsite);
+  const callsiteRank = nodeByBlockId.get(callsite.id)?.rank;
+  const resumeRank = nodeByBlockId.get(resumeId)?.rank;
+  assert.notEqual(callsiteRank, undefined);
+  assert.notEqual(resumeRank, undefined);
+  assert.ok((callsiteRank as number) < (resumeRank as number));
+
+  for (const functionLabel of ["Child.load", "Sibling.save"]) {
+    const childNodes = logic.blocks
+      .filter((block) => block.functionLabel === functionLabel)
+      .map((block) => nodeByBlockId.get(block.id))
+      .filter((node): node is NonNullable<typeof node> => Boolean(node));
+    assert.equal(childNodes.length, 3);
+    assert.ok(childNodes.every((node) =>
+      node.rank > (callsiteRank as number) && node.rank < (resumeRank as number)
+    ));
+  }
+}
+
+/** Ensures every compound route is orthogonal and avoids non-endpoint boxes. */
+function assertCompoundEdgesAvoidBoxes(logic: TestFunctionLogic): void {
+  const edgeById = new Map(logic.edges.map((edge) => [edge.id, edge]));
+  for (const routedEdge of logic.layout.edges) {
+    const edge = edgeById.get(routedEdge.edgeId);
+    assert.ok(edge, `missing compound edge ${routedEdge.edgeId}`);
+    for (let pointIndex = 1; pointIndex < routedEdge.points.length; pointIndex += 1) {
+      const start = routedEdge.points[pointIndex - 1];
+      const end = routedEdge.points[pointIndex];
+      assert.ok(start.x === end.x || start.y === end.y, `${routedEdge.edgeId} is not orthogonal`);
+      for (const node of logic.layout.nodes) {
+        if (node.blockId === edge.sourceId || node.blockId === edge.targetId) continue;
+        assert.equal(
+          segmentCrossesBoxInterior(start, end, node),
+          false,
+          `${routedEdge.edgeId} crosses ${node.blockId}`
+        );
+      }
+    }
+  }
+}
+
+/** Rejects positive-length collinear overlap between any two routed edges. */
+function assertCompoundEdgesDoNotOverlap(logic: TestFunctionLogic): void {
+  for (let leftIndex = 0; leftIndex < logic.layout.edges.length; leftIndex += 1) {
+    const left = logic.layout.edges[leftIndex];
+    for (let rightIndex = leftIndex + 1; rightIndex < logic.layout.edges.length; rightIndex += 1) {
+      const right = logic.layout.edges[rightIndex];
+      for (let leftPoint = 1; leftPoint < left.points.length; leftPoint += 1) {
+        for (let rightPoint = 1; rightPoint < right.points.length; rightPoint += 1) {
+          assert.equal(
+            segmentsOverlap(
+              left.points[leftPoint - 1],
+              left.points[leftPoint],
+              right.points[rightPoint - 1],
+              right.points[rightPoint]
+            ),
+            false,
+            `${left.edgeId} overlaps ${right.edgeId}`
+          );
+        }
+      }
+    }
+  }
+}
+
+/** Detects only shared line length; a single shared endpoint is not overlap. */
+function segmentsOverlap(
+  firstStart: { x: number; y: number },
+  firstEnd: { x: number; y: number },
+  secondStart: { x: number; y: number },
+  secondEnd: { x: number; y: number }
+): boolean {
+  if (firstStart.x === firstEnd.x
+    && secondStart.x === secondEnd.x
+    && firstStart.x === secondStart.x) {
+    return intervalOverlapLength(
+      firstStart.y,
+      firstEnd.y,
+      secondStart.y,
+      secondEnd.y
+    ) > 0;
+  }
+  if (firstStart.y === firstEnd.y
+    && secondStart.y === secondEnd.y
+    && firstStart.y === secondStart.y) {
+    return intervalOverlapLength(
+      firstStart.x,
+      firstEnd.x,
+      secondStart.x,
+      secondEnd.x
+    ) > 0;
+  }
+  return false;
+}
+
+/** Returns the positive shared length of two scalar intervals. */
+function intervalOverlapLength(
+  firstStart: number,
+  firstEnd: number,
+  secondStart: number,
+  secondEnd: number
+): number {
+  return Math.min(
+    Math.max(firstStart, firstEnd),
+    Math.max(secondStart, secondEnd)
+  ) - Math.max(
+    Math.min(firstStart, firstEnd),
+    Math.min(secondStart, secondEnd)
+  );
+}
+
+/** Tests an orthogonal segment against the strict interior of one graph box. */
+function segmentCrossesBoxInterior(
+  start: { x: number; y: number },
+  end: { x: number; y: number },
+  box: { x: number; y: number; width: number; height: number }
+): boolean {
+  const left = box.x;
+  const right = box.x + box.width;
+  const top = box.y;
+  const bottom = box.y + box.height;
+  if (start.x === end.x) {
+    const segmentTop = Math.min(start.y, end.y);
+    const segmentBottom = Math.max(start.y, end.y);
+    return start.x > left && start.x < right
+      && segmentBottom > top && segmentTop < bottom;
+  }
+  const segmentLeft = Math.min(start.x, end.x);
+  const segmentRight = Math.max(start.x, end.x);
+  return start.y > top && start.y < bottom
+    && segmentRight > left && segmentLeft < right;
 }

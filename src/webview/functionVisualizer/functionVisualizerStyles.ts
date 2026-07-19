@@ -1,4 +1,4 @@
-/** Theme-aware layout for the dedicated, drillable Function Visualizer tab. */
+/** Theme-aware layout for the navigable, single-canvas Function Visualizer tab. */
 
 import { getFunctionLogicGraphStyles } from "../codeFlow/functionLogicGraphStyles";
 
@@ -234,6 +234,22 @@ export function getFunctionVisualizerStyles(): string {
     }
 
     ${getFunctionLogicGraphStyles()}
+
+    .visualizer-shell .logic-graph-node.expandable {
+      border-color: color-mix(in srgb, var(--vscode-textLink-foreground) 58%, var(--vscode-panel-border));
+      cursor: zoom-in;
+    }
+
+    .visualizer-shell .logic-graph-node.expandable.expanded {
+      background: color-mix(in srgb, var(--vscode-textLink-foreground) 12%, var(--vscode-sideBar-background));
+      box-shadow: 0 0 0 2px color-mix(in srgb, var(--vscode-textLink-foreground) 22%, transparent);
+      cursor: zoom-out;
+    }
+
+    .visualizer-shell .logic-callee-button.expanded {
+      border-color: var(--vscode-textLink-foreground);
+      background: color-mix(in srgb, var(--vscode-textLink-foreground) 10%, transparent);
+    }
 
     .logic-signature { padding: 12px 14px; }
     .logic-signature > span { font-size: 10px; }

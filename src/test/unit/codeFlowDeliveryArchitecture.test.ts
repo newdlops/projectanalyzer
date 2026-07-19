@@ -68,6 +68,23 @@ test("Function Logic graph layout stays pure, bounded, and iterative", () => {
   assert.doesNotMatch(layout, /createFunctionLogicGraphLayout\([^)]*\)[\s\S]*createFunctionLogicGraphLayout\(/u);
 });
 
+test("Function Logic callsite recovery stays AST-backed, iterative, and conservative", () => {
+  const syntax = readSource(
+    "src/analyzer/functionLogic/typescriptFunctionLogicSyntax.ts"
+  );
+  const drill = readSource(
+    "src/application/codeFlow/functionLogicDrillTargets.ts"
+  );
+
+  assert.match(syntax, /collectFunctionCallsites/u);
+  assert.match(syntax, /while \(pending\.length > 0\)/u);
+  assert.match(syntax, /ts\.isCallExpression\(node\) \|\| ts\.isNewExpression\(node\)/u);
+  assert.match(drill, /resolveSyntaxTarget/u);
+  assert.match(drill, /matchingEdge\.confidence !== "unresolved"/u);
+  assert.match(drill, /confidence: "inferred"/u);
+  assert.doesNotMatch(drill, /from "typescript"/u);
+});
+
 /** Reads one repository source file for a stable dependency-boundary assertion. */
 function readSource(relativePath: string): string {
   return fs.readFileSync(path.join(projectRoot, relativePath), "utf8");

@@ -184,6 +184,17 @@ export function getFunctionLogicGraphStyles(): string {
       text-transform: none;
     }
 
+    .flow-badge.logic-node-function {
+      max-width: 100%;
+      color: var(--vscode-textLink-foreground);
+      border-color: color-mix(in srgb, var(--vscode-textLink-foreground) 55%, var(--vscode-panel-border));
+      font-size: 7px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      text-transform: none;
+      white-space: nowrap;
+    }
+
     .logic-graph {
       display: grid;
       gap: 7px;
@@ -343,6 +354,17 @@ export function getFunctionLogicGraphStyles(): string {
       stroke-width: 1.8;
     }
 
+    .logic-edge-call {
+      stroke: var(--vscode-textLink-foreground);
+      stroke-width: 2;
+    }
+
+    .logic-edge-call-return {
+      stroke: var(--vscode-charts-green, var(--vscode-textLink-foreground));
+      stroke-dasharray: 3 3;
+      stroke-width: 1.8;
+    }
+
     .logic-arrow-head {
       fill: var(--vscode-descriptionForeground);
     }
@@ -371,6 +393,16 @@ export function getFunctionLogicGraphStyles(): string {
     .logic-edge-label-repeat,
     .logic-edge-label-continue {
       fill: var(--vscode-charts-purple, var(--vscode-textLink-foreground));
+    }
+
+    .logic-edge-label-call {
+      fill: var(--vscode-textLink-foreground);
+      font-weight: 700;
+    }
+
+    .logic-edge-label-call-return {
+      fill: var(--vscode-charts-green, var(--vscode-textLink-foreground));
+      font-weight: 700;
     }
 
     .logic-graph-node {
@@ -544,6 +576,11 @@ export function getFunctionLogicGraphStyles(): string {
     .flow-badge.logic-transfer.repeat,
     .flow-badge.logic-transfer.continue {
       color: var(--vscode-charts-purple, var(--vscode-textLink-foreground));
+    }
+
+    .flow-badge.logic-transfer.callReturn {
+      color: var(--vscode-charts-green, var(--vscode-textLink-foreground));
+      border-style: dashed;
     }
 
     .logic-open-statement {

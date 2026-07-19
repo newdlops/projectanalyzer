@@ -1,7 +1,8 @@
 /**
  * Browser rendering fragment for the bounded Function Logic graph. It draws
  * Host-positioned nodes and routed control edges, then keeps full statement
- * evidence in a keyboard-accessible selection panel below the canvas.
+ * evidence in a keyboard-accessible selection panel. Optional graph contexts
+ * let the editor tab attach multiple function fragments to one graph canvas.
  */
 
 /** Returns browser functions for rendering the function-local control graph. */
@@ -10,7 +11,7 @@ export function getFunctionLogicBrowserSource(): string {
     const LOGIC_SVG_NAMESPACE = "http://www.w3.org/2000/svg";
 
     /** Renders the function signature, graph canvas, legend, and node details. */
-    function renderFunctionLogic(logic) {
+    function renderFunctionLogic(logic, graphContext) {
       elements.flowSteps.append(createFunctionUnderstanding(logic));
       const signature = createLogicSignature(logic.signature);
       elements.flowSteps.append(signature);
@@ -28,6 +29,11 @@ export function getFunctionLogicBrowserSource(): string {
         return;
       }
 
+      elements.flowSteps.append(createFunctionLogicGraph(logic, graphContext));
+    }
+
+    /** Builds one independently selectable and zoomable function graph surface. */
+    function createFunctionLogicGraph(logic, graphContext) {
       const blocksById = new Map(logic.blocks.map((block) => [block.id, block]));
       const edgesById = new Map(logic.edges.map((edge) => [edge.id, edge]));
       const outgoingBySourceId = createOutgoingLogicEdgeIndex(logic.edges);
@@ -39,8 +45,24 @@ export function getFunctionLogicBrowserSource(): string {
       const edgeRendering = createLogicEdgeSvg(logic.layout, edgesById);
       const detailPanel = document.createElement("section");
       const nodeButtonsById = new Map();
-      const applyScale = () => applyLogicGraphScale(stage, canvas, logic.layout);
-      const graphHeader = createLogicGraphHeader(applyScale);
+      const readScale = graphContext && graphContext.readScale
+        ? graphContext.readScale
+        : () => state.logicGraphScale;
+      const writeScale = graphContext && graphContext.writeScale
+        ? graphContext.writeScale
+        : (value) => { state.logicGraphScale = value; };
+      const applyScale = () => applyLogicGraphScale(
+        stage,
+        canvas,
+        logic.layout,
+        readScale()
+      );
+      const graphHeader = createLogicGraphHeader(
+        applyScale,
+        readScale,
+        writeScale,
+        graphContext?.graphTitle
+      );
 
       graph.className = "logic-graph";
       viewport.className = "logic-graph-viewport";
@@ -62,18 +84,26 @@ export function getFunctionLogicBrowserSource(): string {
           block,
           nodeLayout,
           outgoingBySourceId.get(block.id) || [],
-          blocksById
-        );
-        node.addEventListener("click", () => selectLogicGraphNode(
-          block.id,
-          nodeButtonsById,
           blocksById,
-          outgoingBySourceId,
-          connectedEdgeIdsByBlockId,
-          edgeRendering.elementsById,
-          detailPanel,
-          true
-        ));
+          graphContext
+        );
+        node.addEventListener("click", () => {
+          selectLogicGraphNode(
+            block.id,
+            nodeButtonsById,
+            blocksById,
+            outgoingBySourceId,
+            connectedEdgeIdsByBlockId,
+            edgeRendering.elementsById,
+            detailPanel,
+            true,
+            graphContext
+          );
+          if (block.drillTargets && block.drillTargets.length > 0
+            && graphContext && graphContext.onExpandableBlockClick) {
+            graphContext.onExpandableBlockClick(block);
+          }
+        });
         nodeButtonsById.set(block.id, node);
         canvas.append(node);
       }
@@ -82,9 +112,10 @@ export function getFunctionLogicBrowserSource(): string {
       stage.append(canvas);
       viewport.append(stage);
       graph.append(graphHeader, viewport, detailPanel);
-      elements.flowSteps.append(graph);
 
-      const preferredBlock = blocksById.get(state.selectedLogicBlockId)
+      const preferredBlock = blocksById.get(
+        graphContext ? graphContext.selectedBlockId : state.selectedLogicBlockId
+      )
         || logic.blocks.find((block) => ["condition", "loop", "switch"].includes(block.kind))
         || logic.blocks[0];
       selectLogicGraphNode(
@@ -95,8 +126,10 @@ export function getFunctionLogicBrowserSource(): string {
         connectedEdgeIdsByBlockId,
         edgeRendering.elementsById,
         detailPanel,
-        false
+        false,
+        graphContext
       );
+      return graph;
     }
 
     /** Creates the compact current-function header above the graph. */
@@ -209,14 +242,27 @@ export function getFunctionLogicBrowserSource(): string {
       return section;
     }
 
-    /** Creates one token-only direct-callee navigation action. */
-    function createDrillTargetButton(target) {
+    /** Creates one token-only direct-callee navigation or graph-attachment action. */
+    function createDrillTargetButton(target, block, graphContext) {
       const button = document.createElement("button");
       const name = document.createElement("strong");
       const meta = document.createElement("span");
+      const expandsInline = Boolean(
+        block && graphContext && graphContext.onExpandableTargetClick
+      );
+      const expandedInline = Boolean(
+        expandsInline && graphContext.isTargetExpanded
+        && graphContext.isTargetExpanded(block.id, target)
+      );
       button.type = "button";
       button.className = "logic-callee-button";
-      button.title = "Open child function · " + target.qualifiedName;
+      button.classList.toggle("expanded", expandedInline);
+      button.title = (expandedInline
+        ? "Collapse attached function · "
+        : expandsInline
+          ? "Attach child function · "
+          : "Open child function · ")
+        + target.qualifiedName;
       name.textContent = target.qualifiedName || target.name;
       meta.textContent = [
         target.sourceLocation,
@@ -224,21 +270,33 @@ export function getFunctionLogicBrowserSource(): string {
         target.callsiteCount + " callsite" + plural(target.callsiteCount)
       ].filter(Boolean).join(" · ");
       button.append(name, meta);
-      button.addEventListener("click", () => drillIntoFunction(target));
+      button.addEventListener("click", () => {
+        if (expandsInline) {
+          graphContext.onExpandableTargetClick(block, target);
+          return;
+        }
+        drillIntoFunction(target);
+      });
       return button;
     }
 
     /** Creates graph semantics and confidence legend without color-only meaning. */
-    function createLogicGraphHeader(applyScale) {
+    function createLogicGraphHeader(applyScale, readScale, writeScale, graphTitle) {
       const header = document.createElement("div");
       const title = document.createElement("strong");
       const controls = document.createElement("div");
       const legend = document.createElement("div");
-      const zoomOut = createLogicZoomButton("−", "Zoom out function graph", -0.2, applyScale);
-      const zoomReset = createLogicZoomButton("100%", "Reset function graph zoom", 0, applyScale);
-      const zoomIn = createLogicZoomButton("+", "Zoom in function graph", 0.2, applyScale);
+      const zoomOut = createLogicZoomButton(
+        "−", "Zoom out function graph", -0.2, applyScale, readScale, writeScale
+      );
+      const zoomReset = createLogicZoomButton(
+        "100%", "Reset function graph zoom", 0, applyScale, readScale, writeScale
+      );
+      const zoomIn = createLogicZoomButton(
+        "+", "Zoom in function graph", 0.2, applyScale, readScale, writeScale
+      );
       header.className = "logic-graph-header";
-      title.textContent = "Control paths";
+      title.textContent = graphTitle || "Control paths";
       controls.className = "logic-graph-controls";
       legend.className = "logic-graph-legend";
       legend.append(
@@ -252,24 +310,24 @@ export function getFunctionLogicBrowserSource(): string {
     }
 
     /** Creates one bounded graph zoom action without changing analyzer data. */
-    function createLogicZoomButton(label, title, delta, applyScale) {
+    function createLogicZoomButton(label, title, delta, applyScale, readScale, writeScale) {
       const button = document.createElement("button");
       button.type = "button";
       button.className = "logic-zoom-button";
       button.textContent = label;
       button.title = title;
       button.addEventListener("click", () => {
-        state.logicGraphScale = delta === 0
+        const nextScale = delta === 0
           ? 1
-          : Math.min(1.6, Math.max(0.5, state.logicGraphScale + delta));
+          : Math.min(1.6, Math.max(0.5, readScale() + delta));
+        writeScale(nextScale);
         applyScale();
       });
       return button;
     }
 
     /** Scales presentation while preserving the canvas's scrollable dimensions. */
-    function applyLogicGraphScale(stage, canvas, layout) {
-      const scale = state.logicGraphScale;
+    function applyLogicGraphScale(stage, canvas, layout, scale) {
       stage.style.setProperty("width", Math.round(layout.width * scale) + "px");
       stage.style.setProperty("height", Math.round(layout.height * scale) + "px");
       canvas.style.setProperty("transform", "scale(" + scale + ")");
@@ -316,12 +374,16 @@ export function getFunctionLogicBrowserSource(): string {
         const path = createLogicSvgElement("path");
         const label = createLogicSvgElement("text");
         path.setAttribute("class", "logic-edge logic-edge-" + edge.kind
+          + (edge.relation === "call" ? " logic-edge-call" : "")
+          + (edge.relation === "callReturn" ? " logic-edge-call-return" : "")
           + (edge.confidence === "inferred" ? " inferred" : "")
           + (edgeLayout.route === "back" ? " back-edge" : "")
           + (edgeLayout.route === "long" ? " long-edge" : ""));
         path.setAttribute("d", createLogicEdgePath(edgeLayout.points));
         path.setAttribute("marker-end", "url(#logic-graph-arrow)");
-        label.setAttribute("class", "logic-edge-label logic-edge-label-" + edge.kind);
+        label.setAttribute("class", "logic-edge-label logic-edge-label-" + edge.kind
+          + (edge.relation === "call" ? " logic-edge-label-call" : "")
+          + (edge.relation === "callReturn" ? " logic-edge-label-call-return" : ""));
         label.setAttribute("x", String(edgeLayout.labelX));
         label.setAttribute("y", String(edgeLayout.labelY));
         if (edgeLayout.route !== "forward") label.setAttribute("text-anchor", "end");
@@ -359,7 +421,7 @@ export function getFunctionLogicBrowserSource(): string {
     }
 
     /** Creates one positioned, keyboard-accessible control-flow graph node. */
-    function createLogicGraphNode(block, layout, outgoing, blocksById) {
+    function createLogicGraphNode(block, layout, outgoing, blocksById, graphContext) {
       const node = document.createElement("button");
       const top = document.createElement("span");
       const kind = createBadge(formatLogicKind(block.kind), "logic-kind " + block.kind);
@@ -370,16 +432,33 @@ export function getFunctionLogicBrowserSource(): string {
         const target = blocksById.get(edge.targetId);
         return formatLogicEdge(edge) + (target ? " to " + compactTargetLabel(target) : "");
       }).join(", ");
+      const expandable = Boolean(block.drillTargets && block.drillTargets.length > 0);
+      const expanded = Boolean(
+        expandable && graphContext && graphContext.isBlockExpanded
+        && graphContext.isBlockExpanded(block.id)
+      );
 
       node.type = "button";
       node.className = "logic-graph-node logic-node-" + block.kind;
-      node.title = "Select logic · " + block.label;
+      node.classList.toggle("expandable", expandable);
+      node.classList.toggle("expanded", expanded);
+      node.title = expandable && graphContext && graphContext.onExpandableBlockClick
+        ? (expanded ? "Collapse called function · " : "Expand called function · ")
+          + block.drillTargets.map((target) => target.qualifiedName || target.name).join(", ")
+        : "Select logic · " + block.label;
       node.style.setProperty("left", layout.x + "px");
       node.style.setProperty("top", layout.y + "px");
       node.style.setProperty("width", layout.width + "px");
       node.style.setProperty("height", layout.height + "px");
-      node.setAttribute("aria-label", block.label + (outgoingText ? ". Paths: " + outgoingText : ""));
+      node.setAttribute("aria-label", block.label
+        + (outgoingText ? ". Paths: " + outgoingText : "")
+        + (expandable && graphContext && graphContext.onExpandableBlockClick
+          ? (expanded ? ". Activate to collapse called functions." : ". Activate to attach called functions.")
+          : ""));
       node.setAttribute("aria-pressed", "false");
+      if (expandable && graphContext && graphContext.onExpandableBlockClick) {
+        node.setAttribute("aria-expanded", expanded ? "true" : "false");
+      }
       top.className = "logic-node-top";
       branch.className = "logic-node-branch";
       branch.textContent = block.branchLabel || "";
@@ -388,6 +467,9 @@ export function getFunctionLogicBrowserSource(): string {
       meta.className = "logic-node-meta";
       meta.textContent = block.sourceLocation || block.detail;
       top.append(kind);
+      if (block.functionLabel) {
+        top.append(createBadge(block.functionLabel, "logic-node-function"));
+      }
       if (block.drillTargets && block.drillTargets.length > 0) {
         top.append(createBadge(
           block.drillTargets.length + " child" + plural(block.drillTargets.length),
@@ -408,11 +490,16 @@ export function getFunctionLogicBrowserSource(): string {
       connectedEdgeIdsByBlockId,
       edgeElementsById,
       detailPanel,
-      moveFocus
+      moveFocus,
+      graphContext
     ) {
       const selected = blocksById.get(blockId);
       if (!selected) return;
-      state.selectedLogicBlockId = blockId;
+      if (graphContext && graphContext.onSelectionChanged) {
+        graphContext.onSelectionChanged(blockId);
+      } else {
+        state.selectedLogicBlockId = blockId;
+      }
       for (const [candidateId, button] of nodeButtonsById) {
         const active = candidateId === blockId;
         button.classList.toggle("selected", active);
@@ -430,13 +517,14 @@ export function getFunctionLogicBrowserSource(): string {
         selected,
         outgoingBySourceId.get(blockId) || [],
         blocksById,
-        detailPanel
+        detailPanel,
+        graphContext
       );
       if (moveFocus) nodeButtonsById.get(blockId)?.focus();
     }
 
     /** Shows complete source meaning and transfers for the selected graph node. */
-    function renderLogicSelection(block, outgoing, blocksById, panel) {
+    function renderLogicSelection(block, outgoing, blocksById, panel, graphContext) {
       clearElement(panel);
       const header = document.createElement("div");
       const name = document.createElement("strong");
@@ -460,7 +548,9 @@ export function getFunctionLogicBrowserSource(): string {
           const target = blocksById.get(edge.targetId);
           transfers.append(createBadge(
             formatLogicEdge(edge) + (target ? " → " + compactTargetLabel(target) : ""),
-            "logic-transfer " + edge.kind + (edge.confidence === "inferred" ? " inferred" : "")
+            "logic-transfer " + edge.kind
+              + (edge.relation ? " " + edge.relation : "")
+              + (edge.confidence === "inferred" ? " inferred" : "")
           ));
         }
         panel.append(transfers);
@@ -473,7 +563,7 @@ export function getFunctionLogicBrowserSource(): string {
         title.textContent = "Continue into called code";
         callees.append(title);
         for (const target of block.drillTargets) {
-          callees.append(createDrillTargetButton(target));
+          callees.append(createDrillTargetButton(target, block, graphContext));
         }
         panel.append(callees);
       }
