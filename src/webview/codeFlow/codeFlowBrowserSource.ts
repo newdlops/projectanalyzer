@@ -355,11 +355,16 @@ export function getCodeFlowBrowserSource(): string {
       if (!state.graph || !row.sourceToken) {
         return;
       }
-      beginDetailLoad();
+      elements.status.textContent = "Opening Function Visualizer in a new tab";
       vscode.postMessage({
         type: "codeFlow/selectSource",
         payload: { graphVersion: state.graph.version, sourceToken: row.sourceToken }
       });
+    }
+
+    /** Routes shared renderer drill actions to the dedicated editor tab. */
+    function drillIntoFunction(target) {
+      selectFunction(target);
     }
 
     /** Moves from the launcher to an explicit loading state. */

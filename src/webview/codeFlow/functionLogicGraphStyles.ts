@@ -30,6 +30,160 @@ export function getFunctionLogicGraphStyles(): string {
       white-space: normal;
     }
 
+    .logic-understanding {
+      display: grid;
+      gap: 8px;
+      min-width: 0;
+      padding: 10px;
+      background: color-mix(in srgb, var(--vscode-textLink-foreground) 5%, var(--vscode-editor-background));
+      border: 1px solid color-mix(in srgb, var(--vscode-textLink-foreground) 26%, var(--vscode-panel-border));
+      border-radius: 7px;
+    }
+
+    .logic-understanding-header {
+      display: grid;
+      gap: 2px;
+    }
+
+    .logic-understanding-header > span {
+      color: var(--vscode-textLink-foreground);
+      font-size: 8px;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+    }
+
+    .logic-understanding-header > strong {
+      font-size: 11px;
+    }
+
+    .logic-understanding-cards {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 5px;
+    }
+
+    .logic-understanding-card {
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr);
+      align-items: start;
+      gap: 6px;
+      min-width: 0;
+      padding: 7px;
+      background: color-mix(in srgb, var(--vscode-editor-background) 92%, transparent);
+      border: 1px solid var(--vscode-panel-border);
+      border-radius: 5px;
+    }
+
+    .logic-understanding-number {
+      display: grid;
+      width: 19px;
+      height: 19px;
+      place-items: center;
+      color: var(--vscode-button-foreground);
+      background: var(--vscode-button-background);
+      border-radius: 50%;
+      font-size: 8px;
+      font-weight: 800;
+    }
+
+    .logic-understanding-card strong {
+      font-size: 9px;
+    }
+
+    .logic-understanding-card p {
+      margin: 2px 0 0;
+      color: var(--vscode-descriptionForeground);
+      font-size: 8px;
+      line-height: 1.4;
+      overflow-wrap: anywhere;
+    }
+
+    .logic-callees {
+      display: grid;
+      gap: 7px;
+      min-width: 0;
+      padding: 9px;
+      background: color-mix(in srgb, var(--vscode-charts-green) 5%, var(--vscode-editor-background));
+      border: 1px solid color-mix(in srgb, var(--vscode-charts-green) 30%, var(--vscode-panel-border));
+      border-radius: 7px;
+    }
+
+    .logic-callees-header {
+      display: flex;
+      min-width: 0;
+      align-items: start;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .logic-callees-header strong { font-size: 10px; }
+
+    .logic-callees-header p {
+      margin: 2px 0 0;
+      color: var(--vscode-descriptionForeground);
+      font-size: 8px;
+      line-height: 1.4;
+    }
+
+    .logic-callee-list,
+    .logic-selection-callees {
+      display: grid;
+      gap: 4px;
+      min-width: 0;
+    }
+
+    .logic-callee-button {
+      display: grid;
+      gap: 2px;
+      min-width: 0;
+      padding: 6px 8px;
+      color: var(--vscode-foreground);
+      background: var(--vscode-button-secondaryBackground);
+      border: 1px solid var(--vscode-button-border, var(--vscode-panel-border));
+      border-radius: 4px;
+      text-align: left;
+      cursor: pointer;
+    }
+
+    .logic-callee-button:hover {
+      background: var(--vscode-list-hoverBackground);
+      border-color: var(--vscode-focusBorder);
+    }
+
+    .logic-callee-button strong {
+      min-width: 0;
+      font-family: var(--vscode-editor-font-family);
+      font-size: 9px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .logic-callee-button span,
+    .logic-callee-omitted {
+      min-width: 0;
+      color: var(--vscode-descriptionForeground);
+      font-size: 7px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .logic-selection-callees {
+      padding-top: 6px;
+      border-top: 1px solid color-mix(in srgb, var(--vscode-panel-border) 60%, transparent);
+    }
+
+    .logic-selection-callees > strong {
+      font-size: 8px;
+    }
+
+    .flow-badge.logic-node-callee {
+      color: var(--vscode-charts-green, var(--vscode-textLink-foreground));
+      font-size: 7px;
+      text-transform: none;
+    }
+
     .logic-graph {
       display: grid;
       gap: 7px;
@@ -223,7 +377,8 @@ export function getFunctionLogicGraphStyles(): string {
       position: absolute;
       z-index: 1;
       display: grid;
-      grid-template-rows: auto minmax(0, 1fr) auto;
+      grid-template-rows: auto auto auto;
+      align-content: start;
       gap: 4px;
       min-width: 0;
       box-sizing: border-box;
@@ -282,6 +437,7 @@ export function getFunctionLogicGraphStyles(): string {
       display: flex;
       align-items: center;
       justify-content: space-between;
+      flex-wrap: wrap;
       gap: 4px;
     }
 
@@ -290,22 +446,19 @@ export function getFunctionLogicGraphStyles(): string {
       color: var(--vscode-textLink-foreground);
       font-size: 7px;
       font-weight: 700;
-      overflow: hidden;
-      text-overflow: ellipsis;
+      overflow-wrap: anywhere;
       text-transform: uppercase;
-      white-space: nowrap;
+      white-space: normal;
     }
 
     .logic-node-label {
-      display: -webkit-box;
+      display: block;
       min-width: 0;
       font-family: var(--vscode-editor-font-family);
       font-size: 9px;
       line-height: 1.3;
-      overflow: hidden;
       overflow-wrap: anywhere;
-      -webkit-box-orient: vertical;
-      -webkit-line-clamp: 2;
+      white-space: normal;
     }
 
     .logic-node-meta {
@@ -313,9 +466,9 @@ export function getFunctionLogicGraphStyles(): string {
       color: var(--vscode-descriptionForeground);
       font-family: var(--vscode-editor-font-family);
       font-size: 7px;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
+      line-height: 1.35;
+      overflow-wrap: anywhere;
+      white-space: normal;
     }
 
     .logic-selection {
@@ -408,6 +561,18 @@ export function getFunctionLogicGraphStyles(): string {
       .logic-arrow-head {
         stroke: CanvasText;
         fill: CanvasText;
+      }
+    }
+
+    @media (max-width: 760px) {
+      .logic-understanding-cards {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+
+    @media (max-width: 430px) {
+      .logic-understanding-cards {
+        grid-template-columns: 1fr;
       }
     }
   `;

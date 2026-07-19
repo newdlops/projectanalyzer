@@ -24,6 +24,9 @@ test("sidebar exposes the Code Flow reading mindset and one start question", () 
   assert.match(html, /statically discoverable call relationships, not observed runtime order/u);
   assert.match(html, /What remains unknown/u);
   assert.match(html, /Export Evidence JSON/u);
+  assert.match(html, /\.logic-node-label[\s\S]*white-space: normal/u);
+  assert.match(html, /\.logic-node-meta[\s\S]*white-space: normal/u);
+  assert.doesNotMatch(html, /-webkit-line-clamp/u);
 
   assert.doesNotMatch(html, /Project Reading Plan|Explore Code Flows|Browse Structure|Analysis Details|Guided Tour/u);
   assert.doesNotMatch(html, /accordion-|project-brief|analysis-signals|framework-tree|call-tree/u);

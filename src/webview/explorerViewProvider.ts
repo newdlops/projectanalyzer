@@ -7,6 +7,7 @@ import * as vscode from "vscode";
 import type { AnalysisBackend } from "../analyzer/core/analysisBackend";
 import { CodeFlowInsightCache } from "../application/codeFlow";
 import { FunctionExplorerProjectionService } from "../application/functionExplorer";
+import type { CodeFlowSelectSourceRequest } from "../protocol/codeFlow";
 import type {
   AnalysisStatusPayload,
   ExportRequest,
@@ -26,6 +27,7 @@ import {
   createWorkspaceAnalysisCacheKey
 } from "../vscode/workspaceFingerprint";
 import type { ExplorerGraphPanelProvider } from "./explorerGraphPanelProvider";
+import type { FunctionVisualizerPanelProvider } from "./functionVisualizer";
 import { deliverFunctionSearch } from "./functionSearch";
 import {
   projectGraphForSidebarShell
@@ -55,6 +57,7 @@ export type ExplorerViewProviderDependencies = {
   analyzer: AnalysisBackend;
   cacheStore: AnalysisCacheStore;
   config: ProjectAnalyzerConfig;
+  functionVisualizerPanelProvider: FunctionVisualizerPanelProvider;
   graphPanelProvider: ExplorerGraphPanelProvider;
   logger: ProjectAnalyzerLogger;
 };
@@ -219,7 +222,7 @@ export class ExplorerViewProvider implements vscode.WebviewViewProvider {
         await this.codeFlowDelivery.publishEntrypoint(message.payload);
         break;
       case "codeFlow/selectSource":
-        await this.codeFlowDelivery.publishSourceContext(message.payload);
+        await this.openFunctionVisualizer(message.payload);
         break;
       case "codeFlow/openEvidence":
         await this.codeFlowDelivery.openEvidence(message.payload);
@@ -585,6 +588,26 @@ export class ExplorerViewProvider implements vscode.WebviewViewProvider {
       return;
     }
     await this.publishFunctionIndex(snapshot.graph, snapshot.version, request);
+  }
+
+  /** Opens one sidebar-issued callable token in the dedicated editor tab. */
+  private async openFunctionVisualizer(request: CodeFlowSelectSourceRequest): Promise<void> {
+    const snapshot = this.graphDelivery.current();
+    if (!snapshot || !this.graphDelivery.matches(request.graphVersion)) {
+      await this.postStatus("idle", "The analyzed graph changed; choose the function again");
+      return;
+    }
+    const node = this.sourceNodeTokens.resolve(request.sourceToken);
+    if (!node || !["function", "method", "constructor"].includes(node.kind)) {
+      await this.postStatus("idle", "This function is no longer available");
+      return;
+    }
+
+    await this.dependencies.functionVisualizerPanelProvider.openFunction(
+      snapshot.graph,
+      node.id
+    );
+    await this.postStatus("complete", "Function Visualizer opened in a new tab");
   }
 
   /** Resolves a snapshot token or legacy active ID and opens its source. */

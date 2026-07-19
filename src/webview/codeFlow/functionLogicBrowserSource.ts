@@ -11,8 +11,14 @@ export function getFunctionLogicBrowserSource(): string {
 
     /** Renders the function signature, graph canvas, legend, and node details. */
     function renderFunctionLogic(logic) {
+      elements.flowSteps.append(createFunctionUnderstanding(logic));
       const signature = createLogicSignature(logic.signature);
       elements.flowSteps.append(signature);
+      const callees = createLogicCalleeExplorer(
+        logic.callees || [],
+        logic.omittedCalleeCount || 0
+      );
+      if (callees) elements.flowSteps.append(callees);
 
       if (logic.blocks.length === 0 || logic.layout.nodes.length === 0) {
         const empty = document.createElement("div");
@@ -103,6 +109,123 @@ export function getFunctionLogicBrowserSource(): string {
       signatureCode.textContent = signatureText;
       signature.append(signatureLabel, signatureCode);
       return signature;
+    }
+
+    /** Turns raw counters into a repeatable four-pass function reading frame. */
+    function createFunctionUnderstanding(logic) {
+      const summary = logic.summary;
+      const section = document.createElement("section");
+      const header = document.createElement("div");
+      const kicker = document.createElement("span");
+      const title = document.createElement("strong");
+      const cards = document.createElement("div");
+      section.className = "logic-understanding";
+      header.className = "logic-understanding-header";
+      kicker.textContent = "HOW TO READ IT";
+      title.textContent = "Understand this function in four passes";
+      cards.className = "logic-understanding-cards";
+      header.append(kicker, title);
+      cards.append(
+        createUnderstandingCard("1", "Start", "Read the signature, then find the first source-backed block."),
+        createUnderstandingCard("2", "Choose", createDecisionUnderstanding(summary)),
+        createUnderstandingCard("3", "Do", createActionUnderstanding(summary)),
+        createUnderstandingCard("4", "Finish", summary.exitCount
+          ? summary.exitCount + " explicit finish point" + plural(summary.exitCount)
+            + (summary.exitCount === 1 ? " is visible." : " are visible.")
+          : "Follow the final transfer to see how control leaves the function.")
+      );
+      section.append(header, cards);
+      return section;
+    }
+
+    /** Creates one numbered reading cue backed by function-logic counters. */
+    function createUnderstandingCard(number, label, detailText) {
+      const card = document.createElement("article");
+      const numberBadge = document.createElement("span");
+      const content = document.createElement("div");
+      const title = document.createElement("strong");
+      const detail = document.createElement("p");
+      card.className = "logic-understanding-card";
+      numberBadge.className = "logic-understanding-number";
+      numberBadge.textContent = number;
+      title.textContent = label;
+      detail.textContent = detailText;
+      content.append(title, detail);
+      card.append(numberBadge, content);
+      return card;
+    }
+
+    /** Describes only decision structures visible in the bounded syntax graph. */
+    function createDecisionUnderstanding(summary) {
+      const parts = [];
+      if (summary.branchCount) parts.push(
+        summary.branchCount + " branch decision" + plural(summary.branchCount)
+      );
+      if (summary.loopCount) parts.push(summary.loopCount + " loop" + plural(summary.loopCount));
+      return parts.length
+        ? parts.join(" and ") + " can change the path."
+        : "No branch or loop is visible; read the main path from top to bottom.";
+    }
+
+    /** Describes visible work without guessing business purpose or runtime values. */
+    function createActionUnderstanding(summary) {
+      const parts = [];
+      if (summary.callCount) parts.push(summary.callCount + " call site" + plural(summary.callCount));
+      if (summary.effectCount) parts.push(summary.effectCount + " possible effect" + plural(summary.effectCount));
+      if (summary.mutationCount) parts.push(summary.mutationCount + " mutation" + plural(summary.mutationCount));
+      return parts.length
+        ? "Inspect " + parts.join(", ") + "."
+        : "The visible blocks contain no classified call, effect, or mutation.";
+    }
+
+    /** Lists concrete direct callees so readers can expand only when useful. */
+    function createLogicCalleeExplorer(targets, omittedCount) {
+      if (targets.length === 0 && omittedCount === 0) return undefined;
+      const section = document.createElement("section");
+      const header = document.createElement("div");
+      const text = document.createElement("div");
+      const title = document.createElement("strong");
+      const detail = document.createElement("p");
+      const list = document.createElement("div");
+      section.className = "logic-callees";
+      header.className = "logic-callees-header";
+      title.textContent = "Go deeper into called functions";
+      detail.textContent = "Open a statically resolved definition, then use the breadcrumb to return.";
+      list.className = "logic-callee-list";
+      text.append(title, detail);
+      header.append(text, createBadge(
+        targets.length + " direct callee" + plural(targets.length),
+        "logic-callee-count"
+      ));
+      for (const target of targets) list.append(createDrillTargetButton(target));
+      if (omittedCount > 0) {
+        const omitted = document.createElement("small");
+        omitted.className = "logic-callee-omitted";
+        omitted.textContent = omittedCount + " additional concrete callee" + plural(omittedCount)
+          + " omitted by the display limit.";
+        list.append(omitted);
+      }
+      section.append(header, list);
+      return section;
+    }
+
+    /** Creates one token-only direct-callee navigation action. */
+    function createDrillTargetButton(target) {
+      const button = document.createElement("button");
+      const name = document.createElement("strong");
+      const meta = document.createElement("span");
+      button.type = "button";
+      button.className = "logic-callee-button";
+      button.title = "Open child function · " + target.qualifiedName;
+      name.textContent = target.qualifiedName || target.name;
+      meta.textContent = [
+        target.sourceLocation,
+        target.confidence,
+        target.callsiteCount + " callsite" + plural(target.callsiteCount)
+      ].filter(Boolean).join(" · ");
+      button.append(name, meta);
+      button.addEventListener("click", () => drillIntoFunction(target));
+      return button;
     }
 
     /** Creates graph semantics and confidence legend without color-only meaning. */
@@ -265,6 +388,12 @@ export function getFunctionLogicBrowserSource(): string {
       meta.className = "logic-node-meta";
       meta.textContent = block.sourceLocation || block.detail;
       top.append(kind);
+      if (block.drillTargets && block.drillTargets.length > 0) {
+        top.append(createBadge(
+          block.drillTargets.length + " child" + plural(block.drillTargets.length),
+          "logic-node-callee"
+        ));
+      }
       if (branch.textContent) top.append(branch);
       node.append(top, label, meta);
       return node;
@@ -335,6 +464,18 @@ export function getFunctionLogicBrowserSource(): string {
           ));
         }
         panel.append(transfers);
+      }
+
+      if (block.drillTargets && block.drillTargets.length > 0) {
+        const callees = document.createElement("div");
+        const title = document.createElement("strong");
+        callees.className = "logic-selection-callees";
+        title.textContent = "Continue into called code";
+        callees.append(title);
+        for (const target of block.drillTargets) {
+          callees.append(createDrillTargetButton(target));
+        }
+        panel.append(callees);
       }
 
       if (block.evidenceToken) {
