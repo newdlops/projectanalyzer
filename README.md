@@ -62,6 +62,9 @@ dedicated Function Visualizer tab with a bounded control-flow graph:
 - the current function signature
 - statement nodes arranged in top-to-bottom execution ranks
 - content-sized node boxes that wrap the full visible label and source detail
+- inline `VAR`, `FIELD`, and `RECEIVER` rows showing which value changes at each block
+- exact assignment/update/delete evidence and visibly dashed inferred receiver mutations
+- loop-binding changes such as `item ← each items` on the loop decision itself
 - sibling lanes for `true`/`false`, loop-body/exit, and switch branches
 - labeled edges for `true`, `false`, `iterate`, `repeat`, `return`, and `throw`
 - outer channels for loop-back and long exit edges so they do not cross nodes
@@ -130,7 +133,9 @@ evidence from the current workspace.
 After a function is selected, TypeScript and JavaScript use the TypeScript
 compiler AST, while Python and Java use Lezer syntax trees. All four languages
 produce the same statement-level block, transfer, callsite, source-range, and
-coverage-gap contract. Python models `if`/`elif`/`else`, loops including loop
+coverage-gap contract. Every adapter also emits bounded value-change evidence for
+variable/property writes and conservative in-place receiver calls. Python models
+`if`/`elif`/`else`, loops including loop
 `else`, `match`/`case`, `try`/`except`/`finally`, `with`, mutations, calls, and
 exits. Java models branches, all common loop forms, `switch`,
 `try`/`catch`/`finally`, try-with-resources, synchronized/labeled regions,
