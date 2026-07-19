@@ -489,12 +489,19 @@ export function getCompoundFunctionLogicGraphSource(): string {
     ) {
       const indegreeById = new Map(blocks.map((block) => [block.id, 0]));
       const outgoingById = new Map();
-      for (const edge of edges) {
-        if (backEdgeIds.has(edge.id)) continue;
-        indegreeById.set(edge.targetId, (indegreeById.get(edge.targetId) || 0) + 1);
-        const outgoing = outgoingById.get(edge.sourceId) || [];
-        outgoing.push(edge);
-        outgoingById.set(edge.sourceId, outgoing);
+      const rankConstraints = createCompoundForwardRankConstraints(
+        blocks,
+        edges,
+        backEdgeIds
+      );
+      for (const constraint of rankConstraints) {
+        indegreeById.set(
+          constraint.targetId,
+          (indegreeById.get(constraint.targetId) || 0) + 1
+        );
+        const outgoing = outgoingById.get(constraint.sourceId) || [];
+        outgoing.push(constraint);
+        outgoingById.set(constraint.sourceId, outgoing);
       }
       const rankById = new Map(blocks.map((block) => [block.id, 0]));
       const ready = blocks.filter((block) => (indegreeById.get(block.id) || 0) === 0);
@@ -509,13 +516,20 @@ export function getCompoundFunctionLogicGraphSource(): string {
         const outgoing = outgoingById.get(block.id) || [];
         outgoing.sort((left, right) =>
           (blockIndexById.get(left.targetId) || 0) - (blockIndexById.get(right.targetId) || 0)
+            || left.orderKey.localeCompare(right.orderKey)
         );
-        for (const edge of outgoing) {
-          rankById.set(edge.targetId, Math.max(rankById.get(edge.targetId) || 0, sourceRank + 1));
-          const nextIndegree = Math.max(0, (indegreeById.get(edge.targetId) || 0) - 1);
-          indegreeById.set(edge.targetId, nextIndegree);
+        for (const constraint of outgoing) {
+          rankById.set(
+            constraint.targetId,
+            Math.max(rankById.get(constraint.targetId) || 0, sourceRank + 1)
+          );
+          const nextIndegree = Math.max(
+            0,
+            (indegreeById.get(constraint.targetId) || 0) - 1
+          );
+          indegreeById.set(constraint.targetId, nextIndegree);
           if (nextIndegree === 0) {
-            const target = blocks[blockIndexById.get(edge.targetId) ?? -1];
+            const target = blocks[blockIndexById.get(constraint.targetId) ?? -1];
             if (target) ready.push(target);
           }
         }
@@ -527,6 +541,61 @@ export function getCompoundFunctionLogicGraphSource(): string {
         rankById.set(block.id, fallbackRank);
       }
       return rankById;
+    }
+
+    /** Keeps post-loop continuations below every body terminal in the visual DAG. */
+    function createCompoundForwardRankConstraints(blocks, edges, backEdgeIds) {
+      const blocksById = new Map(blocks.map((block) => [block.id, block]));
+      const constraints = [];
+      const constraintKeys = new Set();
+      const exitEdgesByLoopId = new Map();
+
+      for (const edge of edges) {
+        if (backEdgeIds.has(edge.id)) continue;
+        addCompoundRankConstraint(
+          constraints,
+          constraintKeys,
+          edge.sourceId,
+          edge.targetId,
+          edge.id
+        );
+        if ((blocksById.get(edge.sourceId) || {}).kind === "loop" && edge.kind === "exit") {
+          const exits = exitEdgesByLoopId.get(edge.sourceId) || [];
+          exits.push(edge);
+          exitEdgesByLoopId.set(edge.sourceId, exits);
+        }
+      }
+
+      for (const backEdge of edges) {
+        if (!backEdgeIds.has(backEdge.id)
+          || (blocksById.get(backEdge.targetId) || {}).kind !== "loop") {
+          continue;
+        }
+        for (const exitEdge of exitEdgesByLoopId.get(backEdge.targetId) || []) {
+          addCompoundRankConstraint(
+            constraints,
+            constraintKeys,
+            backEdge.sourceId,
+            exitEdge.targetId,
+            "loop-boundary:" + backEdge.id + ":" + exitEdge.id
+          );
+        }
+      }
+      return constraints;
+    }
+
+    /** Adds one layout-only rank edge without changing the rendered control graph. */
+    function addCompoundRankConstraint(
+      constraints,
+      keys,
+      sourceId,
+      targetId,
+      orderKey
+    ) {
+      const key = sourceId + "\\0" + targetId;
+      if (keys.has(key)) return;
+      keys.add(key);
+      constraints.push({ sourceId, targetId, orderKey });
     }
 
     /** Routes adjacent edges in rank gaps and non-local edges through outer channels. */

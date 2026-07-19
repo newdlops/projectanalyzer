@@ -121,6 +121,47 @@ test("routes attached function edges through rank gaps without crossing unrelate
   }
 });
 
+test("places a post-loop statement below the loop-back ring in the compound canvas", () => {
+  const runtime = installSidebarWebviewRuntime();
+  const exposedBuilder = "__projectAnalyzerAttachedSceneBuilder";
+
+  try {
+    new Function(
+      requireFunctionVisualizerScript()
+        + `\nglobalThis.${exposedBuilder} = createAttachedFunctionGraphScene;`
+    )();
+    const createScene = Reflect.get(globalThis, exposedBuilder) as AttachedSceneBuilder;
+    const scene = createScene(
+      createLoopThenStatementTestLogic(),
+      "root-scope",
+      "Root.run",
+      []
+    );
+    const bodyBlock = scene.logic.blocks.find((block) => block.sourceBlockId === "loop-body");
+    const afterBlock = scene.logic.blocks.find((block) => block.sourceBlockId === "after-loop");
+    const repeatEdge = scene.logic.edges.find((edge) => edge.kind === "repeat");
+    assert.ok(bodyBlock);
+    assert.ok(afterBlock);
+    assert.ok(repeatEdge);
+
+    const nodeByBlockId = new Map(scene.logic.layout.nodes.map((node) => [node.blockId, node]));
+    const bodyNode = nodeByBlockId.get(bodyBlock.id);
+    const afterNode = nodeByBlockId.get(afterBlock.id);
+    const repeatRoute = scene.logic.layout.edges.find((edge) =>
+      edge.edgeId === repeatEdge.id
+    );
+    assert.ok(bodyNode);
+    assert.ok(afterNode);
+    assert.ok(repeatRoute);
+    assert.ok(afterNode.rank > bodyNode.rank);
+    assert.ok(afterNode.y > Math.max(...repeatRoute.points.map((point) => point.y)));
+    assertCompoundEdgesAvoidBoxes(scene.logic);
+  } finally {
+    Reflect.deleteProperty(globalThis, exposedBuilder);
+    runtime.restore();
+  }
+});
+
 test("attaches a called function to the original graph canvas and collapses its branch", () => {
   const runtime = installSidebarWebviewRuntime();
 
@@ -635,6 +676,108 @@ function createBranchingRootTestLogic(): TestFunctionLogic {
         labelX: 0,
         labelY: 0,
         route: "forward"
+      }))
+    }
+  };
+}
+
+/** Creates the formerly ambiguous layout where body and continuation shared a rank. */
+function createLoopThenStatementTestLogic(): TestFunctionLogic {
+  const blocks: TestLogicBlock[] = [{
+    id: "loop-entry",
+    kind: "entry",
+    label: "Start root",
+    detail: "Entry",
+    depth: 0,
+    confidence: "exact"
+  }, {
+    id: "loop-header",
+    kind: "loop",
+    label: "while hasNext()",
+    detail: "Checks whether another item exists.",
+    depth: 0,
+    confidence: "exact"
+  }, {
+    id: "loop-body",
+    kind: "operation",
+    label: "consume(item)",
+    detail: "Consumes one item before repeating.",
+    depth: 1,
+    confidence: "exact"
+  }, {
+    id: "after-loop",
+    kind: "operation",
+    label: "publishSummary()",
+    detail: "Runs only after the loop finishes.",
+    depth: 0,
+    confidence: "exact"
+  }, {
+    id: "loop-exit",
+    kind: "exit",
+    label: "End root",
+    detail: "Exit",
+    depth: 0,
+    confidence: "exact"
+  }];
+  const edges: TestLogicEdge[] = [{
+    id: "loop-edge-entry",
+    sourceId: "loop-entry",
+    targetId: "loop-header",
+    kind: "next",
+    confidence: "exact"
+  }, {
+    id: "loop-edge-iterate",
+    sourceId: "loop-header",
+    targetId: "loop-body",
+    kind: "iterate",
+    confidence: "exact"
+  }, {
+    id: "loop-edge-repeat",
+    sourceId: "loop-body",
+    targetId: "loop-header",
+    kind: "repeat",
+    confidence: "exact"
+  }, {
+    id: "loop-edge-finished",
+    sourceId: "loop-header",
+    targetId: "after-loop",
+    kind: "exit",
+    confidence: "exact"
+  }, {
+    id: "loop-edge-exit",
+    sourceId: "after-loop",
+    targetId: "loop-exit",
+    kind: "next",
+    confidence: "exact"
+  }];
+  const rankByBlockId = new Map([
+    ["loop-entry", 0],
+    ["loop-header", 1],
+    ["loop-body", 2],
+    ["after-loop", 2],
+    ["loop-exit", 3]
+  ]);
+  return {
+    blocks,
+    edges,
+    layout: {
+      width: 560,
+      height: 510,
+      nodes: blocks.map((block, index) => ({
+        blockId: block.id,
+        x: block.id === "after-loop" ? 298 : 58,
+        y: 20 + (rankByBlockId.get(block.id) ?? index) * 118,
+        width: 204,
+        height: 76,
+        rank: rankByBlockId.get(block.id) ?? index,
+        lane: block.id === "after-loop" ? 1 : 0
+      })),
+      edges: edges.map((edge) => ({
+        edgeId: edge.id,
+        points: [],
+        labelX: 0,
+        labelY: 0,
+        route: edge.kind === "repeat" ? "back" : "forward"
       }))
     }
   };
