@@ -72,6 +72,39 @@ test("sizes each node from its visible label and detail without clipping lanes",
   assertEdgesAvoidUnrelatedNodes(layout, edges);
 });
 
+test("reserves variable node height for every visible value-change row", () => {
+  const plain = createBlock("plain", "operation", "process(item)");
+  const changed: FunctionLogicBlockPayload = {
+    ...createBlock("changed", "mutation", "update state"),
+    valueChanges: [{
+      target: "order.status",
+      targetKind: "property",
+      operation: "assign",
+      operator: "=",
+      value: "nextStatus",
+      confidence: "exact"
+    }, {
+      target: "pendingItems",
+      targetKind: "receiver",
+      operation: "mutate",
+      operator: "push()",
+      value: "item",
+      confidence: "inferred"
+    }]
+  };
+  const layout = createFunctionLogicGraphLayout(
+    [plain, changed],
+    [createEdge("next", "plain", "changed", "next")]
+  );
+  const nodesById = new Map(layout.nodes.map((node) => [node.blockId, node]));
+  const plainNode = nodesById.get("plain");
+  const changedNode = nodesById.get("changed");
+
+  assert.ok(plainNode && changedNode);
+  assert.ok(changedNode.height > plainNode.height);
+  assertEdgesAvoidUnrelatedNodes(layout, [createEdge("next", "plain", "changed", "next")]);
+});
+
 test("places the first post-loop statement below the loop-back ring", () => {
   const blocks = [
     createBlock("entry", "entry", "Start"),

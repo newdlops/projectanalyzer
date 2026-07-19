@@ -398,6 +398,7 @@ function createFunctionLogicDetailMessage(version: string): unknown {
           callCount: 1,
           effectCount: 1,
           mutationCount: 0,
+          valueChangeCount: 0,
           exitCount: 1
         }
       },

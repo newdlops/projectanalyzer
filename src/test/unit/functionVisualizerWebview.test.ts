@@ -23,6 +23,15 @@ type TestCallee = {
   callsiteCount: number;
 };
 
+type TestValueChange = {
+  target: string;
+  targetKind: "variable" | "property" | "receiver";
+  operation: "initialize" | "assign" | "update" | "delete" | "iterate" | "mutate";
+  operator: string;
+  value?: string;
+  confidence: "exact" | "inferred";
+};
+
 test("requests a child attachment when the function call belongs to an if box", () => {
   const runtime = installSidebarWebviewRuntime();
 
@@ -374,6 +383,53 @@ test("opens only Host-issued statement evidence from the active session", () => 
   }
 });
 
+test("renders variable and receiver changes inside the graph node and selection", () => {
+  const runtime = installSidebarWebviewRuntime();
+  const valueChanges: TestValueChange[] = [{
+    target: "total",
+    targetKind: "variable",
+    operation: "update",
+    operator: "+=",
+    value: "item.price",
+    confidence: "exact"
+  }, {
+    target: "items",
+    targetKind: "receiver",
+    operation: "mutate",
+    operator: "push()",
+    value: "item",
+    confidence: "inferred"
+  }];
+
+  try {
+    new Function(requireFunctionVisualizerScript())();
+    runtime.dispatchMessage(createSessionMessage());
+    runtime.dispatchMessage(createFunctionDetail(
+      "Root.run",
+      rootToken,
+      undefined,
+      "mutation",
+      valueChanges
+    ));
+
+    const rendered = runtime.getRenderedText("flow-steps");
+    const summary = runtime.getRenderedText("function-summary");
+    assert.ok(
+      summary.some((text) => text.includes("2 value changes")),
+      summary.join(" · ")
+    );
+    assert.ok(rendered.includes("VAR · CHANGES"));
+    assert.ok(rendered.includes("Control & value flow"));
+    assert.ok(rendered.includes("total += item.price"));
+    assert.ok(rendered.includes("RECEIVER · MAY CHANGE"));
+    assert.ok(rendered.includes("items push() item"));
+    assert.ok(rendered.includes("Values changed here"));
+    assert.equal(runtime.countRenderedByClass("flow-steps", "logic-value-change"), 4);
+  } finally {
+    runtime.restore();
+  }
+});
+
 /** Extracts the exact generated panel program from its nonce-protected HTML. */
 function requireFunctionVisualizerScript(): string {
   const html = getFunctionVisualizerHtml({
@@ -403,7 +459,8 @@ function createFunctionDetail(
   title: string,
   _currentToken: string,
   callee?: TestCallee | TestCallee[],
-  blockKind: "call" | "condition" = "call"
+  blockKind: "call" | "condition" | "mutation" = "call",
+  valueChanges: TestValueChange[] = []
 ): unknown {
   const callees = callee ? (Array.isArray(callee) ? callee : [callee]) : [];
   const blockId = title === "Root.run"
@@ -430,6 +487,8 @@ function createFunctionDetail(
           label: callees.length > 0
             ? (blockKind === "condition" ? "if " : "")
               + callees.map((target) => target.qualifiedName + "();").join(" ")
+            : valueChanges.length > 0
+              ? "total += item.price; items.push(item);"
             : "return true;",
           detail: callees.length > 0
             ? "Calls concrete child definitions."
@@ -438,13 +497,22 @@ function createFunctionDetail(
           confidence: "exact",
           sourceLocation: location,
           evidenceToken,
-          drillTargets: callees.length > 0 ? callees : undefined
+          drillTargets: callees.length > 0 ? callees : undefined,
+          valueChanges: valueChanges.length > 0 ? valueChanges : undefined
         }],
         edges: [],
         layout: {
           width: 300,
-          height: 130,
-          nodes: [{ blockId, x: 58, y: 20, width: 184, height: 72, rank: 0, lane: 0 }],
+          height: valueChanges.length > 0 ? 176 : 130,
+          nodes: [{
+            blockId,
+            x: 58,
+            y: 20,
+            width: 184,
+            height: valueChanges.length > 0 ? 128 : 72,
+            rank: 0,
+            lane: 0
+          }],
           edges: []
         },
         summary: {
@@ -453,7 +521,8 @@ function createFunctionDetail(
           loopCount: 0,
           callCount: callees.length,
           effectCount: 0,
-          mutationCount: 0,
+          mutationCount: blockKind === "mutation" ? 1 : 0,
+          valueChangeCount: valueChanges.length,
           exitCount: 1
         },
         callees,

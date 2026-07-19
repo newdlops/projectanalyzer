@@ -124,6 +124,30 @@ test("shared Python and Java syntax stays below Function Logic boundaries", () =
   );
 });
 
+test("value-change evidence stays language-adapted, bounded, and UI-independent", () => {
+  const support = readSource(
+    "src/analyzer/functionLogic/valueChanges/valueChangeSupport.ts"
+  );
+  const typescript = readSource(
+    "src/analyzer/functionLogic/valueChanges/typescriptValueChanges.ts"
+  );
+  const python = readSource(
+    "src/analyzer/functionLogic/valueChanges/pythonValueChanges.ts"
+  );
+  const java = readSource(
+    "src/analyzer/functionLogic/valueChanges/javaValueChanges.ts"
+  );
+  const combined = [support, typescript, python, java].join("\n");
+
+  assert.match(support, /MAX_VALUE_CHANGES_PER_BLOCK = 6/u);
+  assert.match(support, /isPotentialReceiverMutationMethod/u);
+  assert.match(typescript, /while \(pending\.length > 0\)/u);
+  assert.match(python, /while \(pending\.length > 0\)/u);
+  assert.match(java, /while \(pending\.length > 0\)/u);
+  assert.match(combined, /confidence: "inferred"/u);
+  assert.doesNotMatch(combined, /from ".*(?:webview|protocol|vscode|extension)/u);
+});
+
 test("child functions use bounded iterative attachment on one shared graph canvas", () => {
   const browser = readSource(
     "src/webview/functionVisualizer/functionVisualizerBrowserSource.ts"

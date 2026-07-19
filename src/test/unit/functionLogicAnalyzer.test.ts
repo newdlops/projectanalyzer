@@ -38,7 +38,7 @@ test("builds statement, branch, repeat, effect, and exit paths inside a function
     "entry",
     "condition",
     "throw",
-    "operation",
+    "mutation",
     "loop",
     "mutation",
     "condition",
@@ -50,7 +50,7 @@ test("builds statement, branch, repeat, effect, and exit paths inside a function
 
   const firstCondition = analysis.blocks.find((block) => block.label.startsWith("if !order.items"));
   const loop = analysis.blocks.find((block) => block.kind === "loop");
-  const mutation = analysis.blocks.find((block) => block.kind === "mutation");
+  const mutation = analysis.blocks.find((block) => block.label.includes("total +="));
   const secondCondition = analysis.blocks.find((block) => block.label.startsWith("if total > limit"));
   const effects = analysis.blocks.filter((block) => block.kind === "effect");
   assert.ok(firstCondition && loop && mutation && secondCondition);
@@ -76,7 +76,8 @@ test("builds statement, branch, repeat, effect, and exit paths inside a function
     loopCount: 1,
     callCount: 3,
     effectCount: 2,
-    mutationCount: 1,
+    mutationCount: 2,
+    valueChangeCount: 3,
     exitCount: 2
   });
 });

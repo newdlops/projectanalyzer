@@ -27,6 +27,7 @@ test("projects internal logic with opaque evidence and known entrypoint origins"
     sourceText: [
       "export function handler(order: Order) {",
       "  if (!order.valid) return false;",
+      "  order.status = 'saving';",
       "  repository.save(order);",
       "  return true;",
       "}"
@@ -47,6 +48,18 @@ test("projects internal logic with opaque evidence and known entrypoint origins"
   assert.equal(detail.logic?.blocks.length, analysis.blocks.length);
   assert.ok(detail.logic?.blocks.some((block) => block.kind === "condition"));
   assert.ok(detail.logic?.blocks.some((block) => block.kind === "effect"));
+  assert.deepEqual(
+    detail.logic?.blocks.flatMap((block) => block.valueChanges ?? [])[0],
+    {
+      target: "order.status",
+      targetKind: "property",
+      operation: "assign",
+      operator: "=",
+      value: "'saving'",
+      confidence: "exact"
+    }
+  );
+  assert.equal(detail.logic?.summary.valueChangeCount, 1);
   assert.ok(detail.logic?.edges.some((edge) => edge.kind === "true"));
   assert.equal(detail.logic?.layout.nodes.length, detail.logic?.blocks.length);
   assert.equal(detail.logic?.layout.edges.length, detail.logic?.edges.length);

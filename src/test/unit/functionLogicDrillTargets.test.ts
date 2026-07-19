@@ -223,6 +223,7 @@ function createAnalysis(
       callCount: 0,
       effectCount: 0,
       mutationCount: 0,
+      valueChangeCount: 0,
       exitCount: 0
     }
   };
