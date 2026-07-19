@@ -25,6 +25,10 @@ import {
 } from "./codeFlowCatalog";
 import { createCodeFlowIdentity } from "./codeFlowIdentity";
 import { createFunctionLogicGraphLayout } from "./functionLogicGraphLayout";
+import {
+  createFunctionLogicDrillTargets,
+  type FunctionLogicSourceTokenFactory
+} from "./functionLogicDrillTargets";
 
 const DEFAULT_ORIGIN_LIMIT = 5;
 const DISPLAY_TEXT_LIMIT = 180;
@@ -43,11 +47,18 @@ export function createFunctionLogicCodeFlowDetail(
   analysis: FunctionLogicAnalysis,
   deliveryVersion: string,
   createEvidenceToken: CodeFlowEvidenceTokenFactory,
+  createSourceToken: FunctionLogicSourceTokenFactory,
   originLimit = DEFAULT_ORIGIN_LIMIT
 ): CodeFlowDetailPayload {
   const flowId = createCodeFlowIdentity(deliveryVersion, `function-logic\0${node.id}`);
   const sourceDisplay = createSourceDisplayFormatter(graph.workspaceRoot);
   const protocolBlockIds = new Map<string, string>();
+  const drillProjection = createFunctionLogicDrillTargets(
+    graph,
+    node,
+    analysis,
+    createSourceToken
+  );
   const blocks: FunctionLogicBlockPayload[] = analysis.blocks.map((block, index) => {
     const id = createLogicBlockId(flowId, block.id, index);
     protocolBlockIds.set(block.id, id);
@@ -60,7 +71,8 @@ export function createFunctionLogicCodeFlowDetail(
       branchLabel: block.branchLabel ? safeText(block.branchLabel, "branch") : undefined,
       confidence: block.confidence,
       sourceLocation: sourceDisplay.location(block.filePath, block.range),
-      evidenceToken: createEvidenceToken(block.filePath, block.range)
+      evidenceToken: createEvidenceToken(block.filePath, block.range),
+      drillTargets: drillProjection.targetsByBlockId.get(block.id)
     };
   });
   const edges: FunctionLogicEdgePayload[] = analysis.edges.flatMap((edge, index) => {
@@ -106,7 +118,9 @@ export function createFunctionLogicCodeFlowDetail(
       blocks,
       edges,
       layout: createFunctionLogicGraphLayout(blocks, edges),
-      summary: analysis.summary
+      summary: analysis.summary,
+      callees: drillProjection.callees,
+      omittedCalleeCount: drillProjection.omittedCalleeCount
     },
     origins,
     gaps,

@@ -8,6 +8,7 @@ import test from "node:test";
 import { analyzeFunctionLogic } from "../../analyzer/functionLogic";
 import { createFunctionLogicCodeFlowDetail } from "../../application/codeFlow";
 import type { CodeFlowEvidenceToken } from "../../protocol/functionLogic";
+import type { SourceNodeToken } from "../../protocol/sourceNavigation";
 import { createContentHash } from "../../shared/hash";
 import type { SymbolNode } from "../../shared/types";
 import {
@@ -37,7 +38,8 @@ test("projects internal logic with opaque evidence and known entrypoint origins"
     node,
     analysis,
     "sidebar-snapshot:logic:1",
-    (path, range) => `code-evidence:${createContentHash(`${path}:${range.startLine}`)}` as CodeFlowEvidenceToken
+    (path, range) => `code-evidence:${createContentHash(`${path}:${range.startLine}`)}` as CodeFlowEvidenceToken,
+    (nodeId) => `source-node:${createContentHash(nodeId)}` as SourceNodeToken
   );
 
   assert.equal(detail.kind, "functionLogic");
@@ -52,6 +54,8 @@ test("projects internal logic with opaque evidence and known entrypoint origins"
   assert.ok(detail.logic?.blocks.every((block) => /^function-logic-block:[0-9a-f]{32}$/u.test(block.id)));
   assert.ok(detail.logic?.blocks.every((block) => /^code-evidence:[0-9a-f]{64}$/u.test(block.evidenceToken ?? "")));
   assert.equal(detail.origins[0]?.name, "GET /orders");
+  assert.deepEqual(detail.logic?.callees, []);
+  assert.equal(detail.logic?.omittedCalleeCount, 0);
   assert.match(detail.subtitle, /src\/orders\.ts:1/u);
   assert.doesNotMatch(JSON.stringify(detail), /\/workspace/u);
 });

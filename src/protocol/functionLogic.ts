@@ -1,8 +1,11 @@
 /**
- * JSON-only Function Logic Reader contracts. Source ranges remain behind
- * snapshot-local Host tokens so browser code cannot request arbitrary files or
- * positions while every visual block can still reveal its exact evidence.
+ * JSON-only Function Logic Reader contracts. Source ranges and callable IDs
+ * remain behind snapshot-local Host tokens so browser code can verify or drill
+ * into only the definitions approved for the active graph.
  */
+
+import type { EdgeConfidence } from "../shared/types";
+import type { SourceNodeToken } from "./sourceNavigation";
 
 /** Browser-visible function-local block kinds mirrored by the application projector. */
 export type FunctionLogicBlockPayloadKind =
@@ -44,6 +47,16 @@ export type FunctionLogicPayloadConfidence = "exact" | "inferred";
 /** Opaque reference to one Host-approved source range in the active snapshot. */
 export type CodeFlowEvidenceToken = `code-evidence:${string}`;
 
+/** One concrete direct callee that the reader may open as another function flow. */
+export type FunctionLogicDrillTargetPayload = {
+  sourceToken: SourceNodeToken;
+  name: string;
+  qualifiedName: string;
+  sourceLocation?: string;
+  confidence: EdgeConfidence;
+  callsiteCount: number;
+};
+
 /** One syntax-backed step inside the selected function body. */
 export type FunctionLogicBlockPayload = {
   id: string;
@@ -55,6 +68,7 @@ export type FunctionLogicBlockPayload = {
   confidence: FunctionLogicPayloadConfidence;
   sourceLocation?: string;
   evidenceToken?: CodeFlowEvidenceToken;
+  drillTargets?: FunctionLogicDrillTargetPayload[];
 };
 
 /** One possible transfer between function-local logic blocks. */
@@ -114,6 +128,8 @@ export type FunctionLogicPayload = {
   edges: FunctionLogicEdgePayload[];
   layout: FunctionLogicGraphLayoutPayload;
   summary: FunctionLogicSummaryPayload;
+  callees: FunctionLogicDrillTargetPayload[];
+  omittedCalleeCount: number;
 };
 
 /** Request to reveal one evidence range previously issued by the Host. */

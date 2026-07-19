@@ -12,6 +12,12 @@ export {
 } from "./codeFlowFunctionLogicProjection";
 export { createFunctionLogicGraphLayout } from "./functionLogicGraphLayout";
 export {
+  FUNCTION_LOGIC_DEFAULT_CALLEE_LIMIT,
+  createFunctionLogicDrillTargets,
+  type FunctionLogicDrillProjection,
+  type FunctionLogicSourceTokenFactory
+} from "./functionLogicDrillTargets";
+export {
   CodeFlowInsightCache,
   type CodeFlowInsightSnapshot
 } from "./codeFlowInsightCache";
