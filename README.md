@@ -65,6 +65,7 @@ dedicated Function Visualizer tab with a bounded control-flow graph:
 - sibling lanes for `true`/`false`, loop-body/exit, and switch branches
 - labeled edges for `true`, `false`, `iterate`, `repeat`, `return`, and `throw`
 - outer channels for loop-back and long exit edges so they do not cross nodes
+- post-loop statements placed below the complete loop-back ring, never beside its body
 - rank-gap routing that prevents every unrelated edge segment from crossing a box
 - solid exact edges and dashed inferred, exception, and back edges
 - exact syntax evidence for conditions, mutations, calls, and exits
