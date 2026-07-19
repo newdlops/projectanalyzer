@@ -7,6 +7,7 @@ import type {
   FunctionLogicAnalysis,
   FunctionLogicAnalysisInput
 } from "./types";
+import { analyzeFunctionalFunctionLogic } from "./languages/functional/functionalFunctionLogicAnalyzer";
 import { analyzeJavaFunctionLogic } from "./languages/java/javaFunctionLogicAnalyzer";
 import { analyzePythonFunctionLogic } from "./languages/python/pythonFunctionLogicAnalyzer";
 import { analyzeFunctionLogic as analyzeTypeScriptFunctionLogic } from "./typescriptFunctionLogicAnalyzer";
@@ -22,6 +23,17 @@ export function analyzeFunctionLogic(
   }
   if (language === "java" || extension === "java") {
     return analyzeJavaFunctionLogic(input);
+  }
+  if (language === "fsharp"
+    || language === "ocaml"
+    || language === "elixir"
+    || extension === "fs"
+    || extension === "fsx"
+    || extension === "ml"
+    || extension === "mli"
+    || extension === "ex"
+    || extension === "exs") {
+    return analyzeFunctionalFunctionLogic(input);
   }
   return analyzeTypeScriptFunctionLogic(input);
 }

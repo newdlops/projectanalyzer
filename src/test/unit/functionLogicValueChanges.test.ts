@@ -236,7 +236,7 @@ function analyzeValueChanges(
 
 /** Creates an exact callable identity while allowing parser-position fallback. */
 function createFunctionNode(
-    language: "typescript" | "javascript" | "python" | "java",
+  language: Exclude<FunctionLogicLanguage, "unsupported">,
   filePath: string,
   name: string,
   qualifiedName: string,

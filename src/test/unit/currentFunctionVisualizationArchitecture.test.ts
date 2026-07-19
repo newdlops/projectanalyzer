@@ -28,6 +28,7 @@ test("package contributions activate and expose the current-function editor menu
   const menuItem = contextMenu.find((item) => item.command === commandId);
   assert.match(menuItem?.when ?? "", /typescript.*javascript/u);
   assert.match(menuItem?.when ?? "", /python.*java/u);
+  assert.match(menuItem?.when ?? "", /fsharp.*ocaml.*elixir/u);
 });
 
 test("activation registers a text-editor command that opens the dedicated panel", () => {
@@ -56,6 +57,9 @@ test("cursor resolution stays host-independent and the panel owns isolated deliv
   const javaResolver = readSource(
     "src/analyzer/functionLogic/languages/java/javaFunctionCursorResolver.ts"
   );
+  const functionalResolver = readSource(
+    "src/analyzer/functionLogic/languages/functional/functionalFunctionCursorResolver.ts"
+  );
   const provider = readSource("src/webview/explorerViewProvider.ts");
   const panel = readSource(
     "src/webview/functionVisualizer/functionVisualizerPanelProvider.ts"
@@ -65,10 +69,14 @@ test("cursor resolution stays host-independent and the panel owns isolated deliv
   assert.match(typescriptResolver, /while \(pending\.length > 0\)/u);
   assert.match(resolver, /case "python"/u);
   assert.match(resolver, /case "java"/u);
+  assert.match(resolver, /case "fsharp"/u);
+  assert.match(resolver, /case "ocaml"/u);
+  assert.match(resolver, /case "elixir"/u);
   assert.match(pythonResolver, /collectPythonCallables/u);
   assert.match(javaResolver, /collectJavaCallables/u);
+  assert.match(functionalResolver, /parseFunctionalSource/u);
   assert.doesNotMatch(
-    [typescriptResolver, resolver, pythonResolver, javaResolver].join("\n"),
+    [typescriptResolver, resolver, pythonResolver, javaResolver, functionalResolver].join("\n"),
     /from ".*(?:vscode|webview|protocol|extension)/u
   );
   assert.match(panel, /createWebviewPanel/u);
@@ -81,7 +89,7 @@ test("cursor resolution stays host-independent and the panel owns isolated deliv
   assert.match(codeFlowHost, /public async publishFunctionNode/u);
 });
 
-test("Python and Java logic adapters share iterative CFG contracts", () => {
+test("language logic adapters keep parser-specific semantics behind pure boundaries", () => {
   const dispatcher = readSource("src/analyzer/functionLogic/functionLogicAnalyzer.ts");
   const lezerAnalyzer = readSource(
     "src/analyzer/functionLogic/core/lezerFunctionLogicAnalyzer.ts"
@@ -95,31 +103,43 @@ test("Python and Java logic adapters share iterative CFG contracts", () => {
   const java = readSource(
     "src/analyzer/functionLogic/languages/java/javaFunctionLogicAnalyzer.ts"
   );
+  const functional = readSource(
+    "src/analyzer/functionLogic/languages/functional/functionalFunctionLogicAnalyzer.ts"
+  );
   const rustSupplement = readSource("src/analyzer/rust/rustAnalyzerBackend.ts");
+  const services = readSource("src/extension/extensionServices.ts");
 
   assert.match(dispatcher, /analyzePythonFunctionLogic/u);
   assert.match(dispatcher, /analyzeJavaFunctionLogic/u);
+  assert.match(dispatcher, /analyzeFunctionalFunctionLogic/u);
   assert.match(lezerAnalyzer, /while \(pending\.length > 0\)/u);
   assert.match(lezerAnalyzer, /createStructuredControlEdges/u);
   assert.match(structuredControl, /while \(currentBlock\)/u);
   assert.match(structuredControl, /while \(container\?\.ownerBlockId\)/u);
   assert.match(python, /LezerFunctionLogicAdapter/u);
   assert.match(java, /LezerFunctionLogicAdapter/u);
+  assert.match(functional, /collectFunctionalPipelineChains/u);
+  assert.match(functional, /for \(let index = 1; index < blocks\.length; index \+= 1\)/u);
   assert.match(rustSupplement, /addSupplementalLanguages/u);
+  assert.match(rustSupplement, /"fsharp"[\s\S]*"ocaml"[\s\S]*"elixir"/u);
+  assert.match(services, /new FunctionalLanguageAnalyzer\(\)/u);
   assert.doesNotMatch(
-    [lezerAnalyzer, structuredControl, python, java].join("\n"),
+    [lezerAnalyzer, structuredControl, python, java, functional].join("\n"),
     /from ".*(?:vscode|webview|protocol|extension)/u
   );
 });
 
-test("shared Python and Java syntax stays below Function Logic boundaries", () => {
+test("shared parser syntax stays below Function Logic boundaries", () => {
   const lezerSource = readSource("src/analyzer/core/lezerSource.ts");
   const pythonSyntax = readSource("src/analyzer/languages/python/pythonLezerSyntax.ts");
   const javaSyntax = readSource("src/analyzer/languages/java/javaLezerSyntax.ts");
+  const functionalSyntax = readSource(
+    "src/analyzer/languages/functional/functionalPipelineSyntax.ts"
+  );
 
   assert.match(lezerSource, /while \(pending\.length > 0\)/u);
   assert.doesNotMatch(
-    [pythonSyntax, javaSyntax].join("\n"),
+    [pythonSyntax, javaSyntax, functionalSyntax].join("\n"),
     /from ".*functionLogic/u
   );
 });

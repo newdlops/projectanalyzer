@@ -5,6 +5,7 @@
 
 import type { FunctionCursorTarget, FunctionCursorTargetInput } from "./types";
 import { findJavaFunctionAtPosition } from "./languages/java/javaFunctionCursorResolver";
+import { findFunctionalFunctionAtPosition } from "./languages/functional/functionalFunctionCursorResolver";
 import { findPythonFunctionAtPosition } from "./languages/python/pythonFunctionCursorResolver";
 import { findFunctionAtPosition as findTypeScriptFunctionAtPosition } from "./typescriptFunctionCursorResolver";
 
@@ -17,6 +18,10 @@ export function findFunctionAtPosition(
       return findPythonFunctionAtPosition(input);
     case "java":
       return findJavaFunctionAtPosition(input);
+    case "fsharp":
+    case "ocaml":
+    case "elixir":
+      return findFunctionalFunctionAtPosition(input);
     default:
       return findTypeScriptFunctionAtPosition(input);
   }

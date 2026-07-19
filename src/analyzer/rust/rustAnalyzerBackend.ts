@@ -17,7 +17,12 @@ import { createWorkspaceSourceManifestInput } from "./workspaceSourceManifest";
 import { mergeSupplementalLanguageGraph } from "./supplementalLanguageGraph";
 
 /** Languages whose symbols are supplied by the in-process analyzer for now. */
-const SUPPLEMENTAL_LANGUAGE_IDS = new Set(["java"]);
+const SUPPLEMENTAL_LANGUAGE_IDS = new Set([
+  "java",
+  "fsharp",
+  "ocaml",
+  "elixir"
+]);
 
 /** Options required to run the Rust analyzer engine. */
 export type RustAnalyzerBackendOptions = {

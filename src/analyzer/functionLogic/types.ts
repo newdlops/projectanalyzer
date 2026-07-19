@@ -55,6 +55,9 @@ export type FunctionLogicLanguage =
   | "javascript"
   | "python"
   | "java"
+  | "fsharp"
+  | "ocaml"
+  | "elixir"
   | "unsupported";
 
 /** One statement or synthetic entry/exit block inside the selected function. */
@@ -80,8 +83,8 @@ export type FunctionLogicCallsite = {
   range: SourceRange;
   calleeName: string;
   calleeText: string;
-  /** Python receiver-chain stage retained for conservative drill recovery. */
-  callChain?: "start" | "continuation";
+  /** Parser-proven receiver or pipeline stage retained for conservative drill recovery. */
+  callChain?: "start" | "continuation" | "pipeline";
 };
 
 /** One syntax-backed or conservative control transfer. */

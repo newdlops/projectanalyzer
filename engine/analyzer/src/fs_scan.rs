@@ -113,9 +113,35 @@ fn language_id_for_path(path: &Path) -> Option<String> {
         "rs" => Some("rust".to_string()),
         "go" => Some("go".to_string()),
         "java" => Some("java".to_string()),
+        "fs" | "fsx" => Some("fsharp".to_string()),
+        "ml" | "mli" => Some("ocaml".to_string()),
+        "ex" | "exs" => Some("elixir".to_string()),
         "kt" | "kts" => Some("kotlin".to_string()),
         "php" => Some("php".to_string()),
         "rb" => Some("ruby".to_string()),
         _ => None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::path::Path;
+
+    use super::language_id_for_path;
+
+    #[test]
+    fn recognizes_pipe_forward_functional_source_extensions() {
+        assert_eq!(
+            language_id_for_path(Path::new("Pipeline.fs")).as_deref(),
+            Some("fsharp")
+        );
+        assert_eq!(
+            language_id_for_path(Path::new("pipeline.ml")).as_deref(),
+            Some("ocaml")
+        );
+        assert_eq!(
+            language_id_for_path(Path::new("pipeline.exs")).as_deref(),
+            Some("elixir")
+        );
     }
 }

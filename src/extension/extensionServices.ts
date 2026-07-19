@@ -7,6 +7,7 @@ import * as path from "node:path";
 import * as vscode from "vscode";
 import type { AnalysisBackend } from "../analyzer/core/analysisBackend";
 import { AnalyzerPipeline } from "../analyzer/core/analyzerPipeline";
+import { FunctionalLanguageAnalyzer } from "../analyzer/languages/functional";
 import { JavaScriptAnalyzer } from "../analyzer/languages/javascript";
 import { JavaAnalyzer } from "../analyzer/languages/java";
 import { PythonAnalyzer } from "../analyzer/languages/python";
@@ -50,7 +51,8 @@ export function createExtensionServices(context: vscode.ExtensionContext): Exten
     new TypeScriptAnalyzer(),
     new JavaScriptAnalyzer(),
     new PythonAnalyzer(),
-    new JavaAnalyzer()
+    new JavaAnalyzer(),
+    new FunctionalLanguageAnalyzer()
   ]);
   const analyzer = new RustAnalyzerBackend({
     engineRoot: path.join(context.extensionUri.fsPath, "engine", "analyzer"),

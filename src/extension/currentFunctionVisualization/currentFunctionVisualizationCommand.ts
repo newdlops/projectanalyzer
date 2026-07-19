@@ -36,7 +36,7 @@ export async function visualizeCurrentFunction(
   const document = editor.document;
   if (document.isUntitled) {
     await vscode.window.showInformationMessage(
-      "Save this TypeScript, JavaScript, Python, or Java file before visualizing its function flow."
+      "Save this supported source file before visualizing its function flow."
     );
     return;
   }

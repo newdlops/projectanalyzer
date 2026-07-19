@@ -67,6 +67,29 @@ fn analyze_source_file_with_syntax(
 fn is_file_only_language(language_id: &str) -> bool {
     matches!(
         language_id,
-        "vue" | "svelte" | "rust" | "go" | "java" | "kotlin" | "php" | "ruby"
+        "vue"
+            | "svelte"
+            | "rust"
+            | "go"
+            | "java"
+            | "kotlin"
+            | "php"
+            | "ruby"
+            | "fsharp"
+            | "ocaml"
+            | "elixir"
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::is_file_only_language;
+
+    #[test]
+    fn keeps_pipe_forward_languages_available_for_supplemental_analysis() {
+        assert!(is_file_only_language("fsharp"));
+        assert!(is_file_only_language("ocaml"));
+        assert!(is_file_only_language("elixir"));
+        assert!(!is_file_only_language("haskell"));
+    }
 }

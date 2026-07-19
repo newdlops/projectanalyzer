@@ -11,7 +11,13 @@ const SOURCE_LANGUAGE_BY_EXTENSION = new Map<string, string>([
   [".js", "javascript"],
   [".jsx", "javascriptreact"],
   [".py", "python"],
-  [".java", "java"]
+  [".java", "java"],
+  [".fs", "fsharp"],
+  [".fsx", "fsharp"],
+  [".ml", "ocaml"],
+  [".mli", "ocaml"],
+  [".ex", "elixir"],
+  [".exs", "elixir"]
 ]);
 
 /** Infers the supported language without opening a persistent VS Code document. */
