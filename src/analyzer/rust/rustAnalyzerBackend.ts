@@ -13,6 +13,10 @@ import { normalizeProjectGraphMetadata } from "../../graph/graphMetadata";
 import type { ProjectAnalyzerLogger } from "../../observability/logger";
 import type { ProjectGraph, SourceFile } from "../../shared/types";
 import { createWorkspaceSourceManifest } from "./workspaceSourceManifest";
+import { mergeSupplementalLanguageGraph } from "./supplementalLanguageGraph";
+
+/** Languages whose symbols are supplied by the in-process analyzer for now. */
+const SUPPLEMENTAL_LANGUAGE_IDS = new Set(["java"]);
 
 /** Options required to run the Rust analyzer engine. */
 export type RustAnalyzerBackendOptions = {
@@ -67,8 +71,9 @@ export class RustAnalyzerBackend implements AnalysisBackend {
         String(this.options.maxFileSizeKb)
       ], manifest);
 
-      this.options.logger.info("rust.workspace.complete", summarizeGraph(graph));
-      return { graph };
+      const enrichedGraph = await this.addSupplementalLanguages(graph, sourceFiles);
+      this.options.logger.info("rust.workspace.complete", summarizeGraph(enrichedGraph));
+      return { graph: enrichedGraph };
     } catch (error) {
       this.options.logger.error("rust.workspace.failed", { error: formatError(error) });
       return this.analyzeWithFallback("analysis.rustWorkspaceFailed", error, () =>
@@ -104,8 +109,9 @@ export class RustAnalyzerBackend implements AnalysisBackend {
         file.content
       );
 
-      this.options.logger.info("rust.file.complete", summarizeGraph(graph));
-      return { graph };
+      const enrichedGraph = await this.addSupplementalLanguages(graph, [file]);
+      this.options.logger.info("rust.file.complete", summarizeGraph(enrichedGraph));
+      return { graph: enrichedGraph };
     } catch (error) {
       this.options.logger.error("rust.file.failed", { error: formatError(error), path: file.path });
       return this.analyzeWithFallback("analysis.rustFileFailed", error, () =>
@@ -137,6 +143,29 @@ export class RustAnalyzerBackend implements AnalysisBackend {
     }
 
     return normalizeProjectGraphMetadata(graph);
+  }
+
+  /** Merges selected fallback-language symbols without duplicating other engines. */
+  private async addSupplementalLanguages(
+    graph: ProjectGraph,
+    sourceFiles: readonly SourceFile[]
+  ): Promise<ProjectGraph> {
+    const supplementalFiles = sourceFiles.filter((file) =>
+      SUPPLEMENTAL_LANGUAGE_IDS.has(file.languageId)
+    );
+    if (supplementalFiles.length === 0) {
+      return graph;
+    }
+    const fallbackResult = this.options.fallbackBackend.analyzeFiles
+      ? await this.options.fallbackBackend.analyzeFiles(supplementalFiles)
+      : supplementalFiles.length === 1
+        ? await this.options.fallbackBackend.analyzeFile(supplementalFiles[0])
+        : await this.options.fallbackBackend.analyzeWorkspace();
+    return mergeSupplementalLanguageGraph(
+      graph,
+      fallbackResult.graph,
+      SUPPLEMENTAL_LANGUAGE_IDS
+    );
   }
 
   /**

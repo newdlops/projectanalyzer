@@ -10,4 +10,5 @@ import type { AnalyzeResult } from "./analyzerPipeline";
 export interface AnalysisBackend {
   analyzeWorkspace(): Promise<AnalyzeResult>;
   analyzeFile(file: SourceFile): Promise<AnalyzeResult>;
+  analyzeFiles?(files: readonly SourceFile[]): Promise<AnalyzeResult>;
 }

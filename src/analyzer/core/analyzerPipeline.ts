@@ -43,7 +43,7 @@ export class AnalyzerPipeline implements AnalysisBackend {
     const workspaceRoot = this.fileSystem.getWorkspaceRoot() ?? "";
     const scanner = new WorkspaceScanner(this.fileSystem);
     const files = await scanner.scan();
-    return { graph: await this.analyzeFiles(workspaceRoot, files) };
+    return { graph: await this.buildGraph(workspaceRoot, files) };
   }
 
   /**
@@ -51,7 +51,13 @@ export class AnalyzerPipeline implements AnalysisBackend {
    */
   public async analyzeFile(file: SourceFile): Promise<AnalyzeResult> {
     const workspaceRoot = this.fileSystem.getWorkspaceRoot() ?? "";
-    return { graph: await this.analyzeFiles(workspaceRoot, [file]) };
+    return { graph: await this.buildGraph(workspaceRoot, [file]) };
+  }
+
+  /** Analyzes an already acquired source collection without rescanning VS Code. */
+  public async analyzeFiles(files: readonly SourceFile[]): Promise<AnalyzeResult> {
+    const workspaceRoot = this.fileSystem.getWorkspaceRoot() ?? "";
+    return { graph: await this.buildGraph(workspaceRoot, files) };
   }
 
   /**
@@ -65,7 +71,7 @@ export class AnalyzerPipeline implements AnalysisBackend {
   /**
    * Runs language analyzers over source files and merges their nodes and edges.
    */
-  private async analyzeFiles(workspaceRoot: string, files: readonly SourceFile[]): Promise<ProjectGraph> {
+  private async buildGraph(workspaceRoot: string, files: readonly SourceFile[]): Promise<ProjectGraph> {
     const graph = createEmptyProjectGraph(workspaceRoot);
     const store = new InMemoryGraphStore(graph);
 
