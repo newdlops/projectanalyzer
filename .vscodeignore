@@ -16,6 +16,7 @@ package-lock.json
 tsconfig.json
 *.log
 log*.txt
+*.zip
 *.vsix
 
 # TypeScript and Rust sources are compiled before VSIX packaging
