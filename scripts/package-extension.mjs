@@ -19,6 +19,7 @@ const outputPath = path.resolve(
 
 run(process.platform === "win32" ? "vsce.cmd" : "vsce", [
   "package",
+  "--allow-missing-repository",
   "--target",
   target,
   "--out",

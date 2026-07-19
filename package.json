@@ -1,8 +1,8 @@
 {
   "name": "project-analyzer",
-  "displayName": "Project Analyzer",
-  "description": "Evidence-ranked project guided tours with architectural layers and source-backed exploration.",
-  "version": "0.0.1007",
+  "displayName": "Project Analyzer: Code Flow",
+  "description": "Understand unfamiliar codebases through bounded, source-backed code flows.",
+  "version": "0.0.1009",
   "publisher": "local",
   "private": true,
   "license": "UNLICENSED",
@@ -22,7 +22,7 @@
       "activitybar": [
         {
           "id": "projectAnalyzer",
-          "title": "Project Analyzer",
+          "title": "Code Flow",
           "icon": "media/project-analyzer.svg"
         }
       ]
@@ -31,13 +31,13 @@
       "projectAnalyzer": [
         {
           "id": "projectAnalyzer.explorerView",
-          "name": "Project Guide",
+          "name": "Understand Code",
           "type": "webview"
         }
       ]
     },
     "configuration": {
-      "title": "Project Analyzer",
+      "title": "Project Analyzer: Code Flow",
       "properties": {
         "projectAnalyzer.enabled": {
           "type": "boolean",
@@ -47,7 +47,7 @@
         "projectAnalyzer.autoAnalyze": {
           "type": "boolean",
           "default": true,
-          "description": "Analyze the workspace automatically when the explorer opens."
+          "description": "Analyze the workspace automatically so Code Flow starting points are ready when the view opens."
         },
         "projectAnalyzer.include": {
           "type": "array",
@@ -94,6 +94,27 @@
           "default": 2,
           "minimum": 0,
           "description": "Default graph expansion depth for caller and callee exploration."
+        },
+        "projectAnalyzer.codeFlow.maxDepth": {
+          "type": "number",
+          "default": 3,
+          "minimum": 0,
+          "maximum": 12,
+          "description": "Maximum downstream call depth shown for a selected-function Code Flow."
+        },
+        "projectAnalyzer.codeFlow.maxSteps": {
+          "type": "number",
+          "default": 30,
+          "minimum": 1,
+          "maximum": 200,
+          "description": "Maximum visible steps in a selected-function Code Flow."
+        },
+        "projectAnalyzer.codeFlow.maxLogicBlocks": {
+          "type": "number",
+          "default": 120,
+          "minimum": 1,
+          "maximum": 300,
+          "description": "Maximum syntax-backed statement blocks in a selected Function Logic flow."
         },
         "projectAnalyzer.includeExternalDependencies": {
           "type": "boolean",
