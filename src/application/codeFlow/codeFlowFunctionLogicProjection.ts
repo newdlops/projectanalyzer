@@ -72,7 +72,15 @@ export function createFunctionLogicCodeFlowDetail(
       confidence: block.confidence,
       sourceLocation: sourceDisplay.location(block.filePath, block.range),
       evidenceToken: createEvidenceToken(block.filePath, block.range),
-      drillTargets: drillProjection.targetsByBlockId.get(block.id)
+      drillTargets: drillProjection.targetsByBlockId.get(block.id),
+      valueChanges: block.valueChanges?.map((change) => ({
+        target: safeText(change.target, "value"),
+        targetKind: change.targetKind,
+        operation: change.operation,
+        operator: safeText(change.operator, "changes"),
+        value: change.value ? safeText(change.value, "value") : undefined,
+        confidence: change.confidence
+      }))
     };
   });
   const edges: FunctionLogicEdgePayload[] = analysis.edges.flatMap((edge, index) => {

@@ -44,6 +44,28 @@ export type FunctionLogicEdgePayloadKind =
 /** Confidence vocabulary for exact syntax and conservative inference. */
 export type FunctionLogicPayloadConfidence = "exact" | "inferred";
 
+/** Browser-visible target categories for source-backed value changes. */
+export type FunctionLogicValueTargetPayloadKind = "variable" | "property" | "receiver";
+
+/** Browser-visible operation vocabulary for one changed value. */
+export type FunctionLogicValueChangePayloadOperation =
+  | "initialize"
+  | "assign"
+  | "update"
+  | "delete"
+  | "iterate"
+  | "mutate";
+
+/** One bounded value-change annotation rendered inside its control block. */
+export type FunctionLogicValueChangePayload = {
+  target: string;
+  targetKind: FunctionLogicValueTargetPayloadKind;
+  operation: FunctionLogicValueChangePayloadOperation;
+  operator: string;
+  value?: string;
+  confidence: FunctionLogicPayloadConfidence;
+};
+
 /** Opaque reference to one Host-approved source range in the active snapshot. */
 export type CodeFlowEvidenceToken = `code-evidence:${string}`;
 
@@ -69,6 +91,7 @@ export type FunctionLogicBlockPayload = {
   sourceLocation?: string;
   evidenceToken?: CodeFlowEvidenceToken;
   drillTargets?: FunctionLogicDrillTargetPayload[];
+  valueChanges?: FunctionLogicValueChangePayload[];
 };
 
 /** One possible transfer between function-local logic blocks. */
@@ -89,6 +112,7 @@ export type FunctionLogicSummaryPayload = {
   callCount: number;
   effectCount: number;
   mutationCount: number;
+  valueChangeCount: number;
   exitCount: number;
 };
 
