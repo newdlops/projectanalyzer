@@ -145,6 +145,64 @@ test("projects an inferred drill target onto an if block without a graph call ed
   assert.equal(detail.logic?.callees[0]?.qualifiedName, "isReady");
 });
 
+test("remaps structural parents to opaque block IDs without relying on block order", () => {
+  const filePath = "/workspace/src/nested.ts";
+  const node = createCallableNode("run", filePath, 0);
+  const graph = createGraph({ files: [filePath], callables: [node] });
+  const analysis = analyzeFunctionLogic({
+    functionNode: node,
+    sourceText: [
+      "function run(items) {",
+      "  if (ready()) {",
+      "    for (const item of items) {",
+      "      consume(item);",
+      "    }",
+      "  }",
+      "  finish();",
+      "}"
+    ].join("\n")
+  });
+  const condition = analysis.blocks.find((block) => block.kind === "condition");
+  const loop = analysis.blocks.find((block) => block.kind === "loop");
+  const body = analysis.blocks.find((block) => block.label.includes("consume(item)"));
+  assert.ok(condition && loop && body);
+
+  // Put both children before their owners to prove that projection resolves
+  // parents from a complete identity map rather than source-order side effects.
+  const reorderedAnalysis = {
+    ...analysis,
+    blocks: [
+      body,
+      loop,
+      condition,
+      ...analysis.blocks.filter((block) =>
+        block.id !== body.id && block.id !== loop.id && block.id !== condition.id
+      )
+    ]
+  };
+  const detail = createFunctionLogicCodeFlowDetail(
+    graph,
+    createFlowIndex(graph.version, []),
+    node,
+    reorderedAnalysis,
+    "sidebar-snapshot:logic:parents",
+    (path, range) => `code-evidence:${createContentHash(`${path}:${range.startLine}`)}` as CodeFlowEvidenceToken,
+    (nodeId) => `source-node:${createContentHash(nodeId)}` as SourceNodeToken
+  );
+  const projectedCondition = detail.logic?.blocks.find((block) => block.kind === "condition");
+  const projectedLoop = detail.logic?.blocks.find((block) => block.kind === "loop");
+  const projectedBody = detail.logic?.blocks.find((block) =>
+    block.label.includes("consume(item)")
+  );
+
+  assert.ok(projectedCondition && projectedLoop && projectedBody);
+  assert.equal(projectedLoop.parentBlockId, projectedCondition.id);
+  assert.equal(projectedBody.parentBlockId, projectedLoop.id);
+  assert.ok(/^function-logic-block:[0-9a-f]{32}$/u.test(projectedLoop.parentBlockId));
+  assert.equal(JSON.stringify(detail).includes(condition.id), false);
+  assert.equal(JSON.stringify(detail).includes(loop.id), false);
+});
+
 /** Creates a graph identity whose ID matches the semantic handler fixture. */
 function createHandlerNode(filePath: string): SymbolNode {
   const range = { startLine: 0, startCharacter: 16, endLine: 0, endCharacter: 23 };

@@ -59,15 +59,24 @@ export function createFunctionLogicCodeFlowDetail(
     analysis,
     createSourceToken
   );
+  // Populate every opaque identity before resolving structural parents. This
+  // keeps the projection correct even if analyzer block ordering changes.
+  for (let index = 0; index < analysis.blocks.length; index += 1) {
+    const block = analysis.blocks[index];
+    protocolBlockIds.set(block.id, createLogicBlockId(flowId, block.id, index));
+  }
   const blocks: FunctionLogicBlockPayload[] = analysis.blocks.map((block, index) => {
-    const id = createLogicBlockId(flowId, block.id, index);
-    protocolBlockIds.set(block.id, id);
+    const id = protocolBlockIds.get(block.id)
+      ?? createLogicBlockId(flowId, block.id, index);
     return {
       id,
       kind: block.kind,
       label: completeGraphText(block.label, "Source statement"),
       detail: completeGraphText(block.detail, "Static source operation."),
       depth: Math.max(0, block.depth),
+      parentBlockId: block.parentBlockId
+        ? protocolBlockIds.get(block.parentBlockId)
+        : undefined,
       branchLabel: block.branchLabel
         ? completeGraphText(block.branchLabel, "branch")
         : undefined,

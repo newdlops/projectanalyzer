@@ -1,0 +1,223 @@
+/**
+ * JSX/TSX Function Logic regression tests. They cover custom component drill
+ * targets, nested callback boundaries, React wrappers, and React language IDs.
+ */
+
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import path from "node:path";
+import test from "node:test";
+import {
+  analyzeFunctionLogic,
+  findFunctionAtPosition,
+  type FunctionLogicAnalysis
+} from "../../analyzer/functionLogic";
+import { TypeScriptAnalyzer } from "../../analyzer/languages/typescript";
+import { createFunctionLogicDrillTargets } from "../../application/codeFlow";
+import type { SourceNodeToken } from "../../protocol/sourceNavigation";
+import { createContentHash } from "../../shared/hash";
+import type { ProjectGraph, SourceFile, SymbolNode } from "../../shared/types";
+
+const projectRoot = path.resolve(__dirname, "../../..");
+const fixturePath = path.join(
+  projectRoot,
+  "src/test/fixtures/functionLogic/jsx_component_flow.tsx"
+);
+const fixtureSource = fs.readFileSync(fixturePath, "utf8");
+
+test("collects custom JSX components for drill without intrinsic or callback leakage", async () => {
+  const symbols = await extractFixtureSymbols();
+  const renderCard = findSymbol(symbols, "RenderCard");
+  const analysis = analyzeFunctionLogic({ functionNode: renderCard, sourceText: fixtureSource });
+
+  assert.deepEqual(analysis.callsites.map((callsite) => callsite.calleeText), [
+    "formatLabel",
+    "Badge",
+    "UI.Panel",
+    "ReadyState",
+    "EmptyState"
+  ]);
+  assert.equal(analysis.callsites.some((callsite) =>
+    ["section", "button", "strong", "span", "div"].includes(callsite.calleeText)
+  ), false);
+  assert.equal(analysis.callsites.some((callsite) =>
+    callsite.calleeText === "trackSelection"
+  ), false);
+
+  const projection = createFunctionLogicDrillTargets(
+    createFixtureGraph(symbols),
+    renderCard,
+    analysis,
+    createSourceToken
+  );
+  assert.deepEqual(new Set(projection.callees.map((callee) => callee.name)), new Set([
+    "formatLabel",
+    "Badge",
+    "Panel",
+    "ReadyState",
+    "EmptyState"
+  ]));
+  const returnBlock = analysis.blocks.find((block) => block.kind === "return");
+  assert.ok(returnBlock);
+  assert.equal(projection.targetsByBlockId.get(returnBlock.id)?.length, 5);
+});
+
+test("keeps inline JSX handlers independently selectable and analyzable", () => {
+  const outer = analyzeAt(
+    fixtureSource,
+    "<button onClick",
+    fixturePath,
+    "typescriptreact"
+  );
+  const callback = analyzeAt(
+    fixtureSource,
+    "trackSelection(item.id)",
+    fixturePath,
+    "typescriptreact"
+  );
+
+  assert.equal(outer.functionNode.name, "RenderCard");
+  assert.equal(outer.callsites.some((callsite) =>
+    callsite.calleeText === "trackSelection"
+  ), false);
+  assert.equal(callback.functionNode.name, "anonymous function");
+  assert.deepEqual(callback.callsites.map((callsite) => callsite.calleeText), [
+    "trackSelection"
+  ]);
+});
+
+test("recognizes memo and forwardRef component bindings as functions", async () => {
+  const symbols = await extractFixtureSymbols();
+  assert.equal(findSymbol(symbols, "MemoCard").kind, "function");
+  assert.equal(findSymbol(symbols, "ForwardCard").kind, "function");
+
+  const memo = analyzeAt(
+    fixtureSource,
+    "<RenderCard item",
+    fixturePath,
+    "typescriptreact"
+  );
+  const forwarded = analyzeAt(
+    fixtureSource,
+    "<MemoCard ref",
+    fixturePath,
+    "typescriptreact"
+  );
+
+  assert.equal(memo.functionNode.name, "MemoCard");
+  assert.deepEqual(memo.callsites.map((callsite) => callsite.calleeText), ["RenderCard"]);
+  assert.equal(forwarded.functionNode.name, "ForwardCard");
+  assert.deepEqual(forwarded.callsites.map((callsite) => callsite.calleeText), ["MemoCard"]);
+});
+
+test("uses React language IDs for extensionless TypeScript and JavaScript JSX", () => {
+  const typedSource = [
+    "const TypedCard = (props: { label: string }) => (",
+    "  <Badge label={props.label} />",
+    ");"
+  ].join("\n");
+  const javascriptSource = [
+    "const JavaScriptCard = (props) => (",
+    "  <Badge label={props.label} />",
+    ");"
+  ].join("\n");
+  const typed = analyzeAt(
+    typedSource,
+    "<Badge",
+    "/workspace/typed-component",
+    "typescriptreact"
+  );
+  const javascript = analyzeAt(
+    javascriptSource,
+    "<Badge",
+    "/workspace/javascript-component",
+    "javascriptreact"
+  );
+
+  assert.equal(typed.language, "typescript");
+  assert.equal(javascript.language, "javascript");
+  assert.deepEqual(typed.callsites.map((callsite) => callsite.calleeText), ["Badge"]);
+  assert.deepEqual(javascript.callsites.map((callsite) => callsite.calleeText), ["Badge"]);
+  assert.equal(typed.gaps.some((gap) => gap.code === "functionNotFound"), false);
+  assert.equal(javascript.gaps.some((gap) => gap.code === "functionNotFound"), false);
+});
+
+/** Parses the fixture through the same TypeScript analyzer used by the pipeline. */
+async function extractFixtureSymbols(): Promise<SymbolNode[]> {
+  const analyzer = new TypeScriptAnalyzer();
+  const file: SourceFile = {
+    path: fixturePath,
+    languageId: "typescriptreact",
+    content: fixtureSource,
+    sizeBytes: Buffer.byteLength(fixtureSource, "utf8"),
+    contentHash: createContentHash(fixtureSource)
+  };
+  return analyzer.extractSymbols(await analyzer.parse(file));
+}
+
+/** Resolves the innermost callable at a marker and runs public Function Logic. */
+function analyzeAt(
+  sourceText: string,
+  marker: string,
+  filePath: string,
+  languageId: "typescriptreact" | "javascriptreact"
+): FunctionLogicAnalysis {
+  const offset = sourceText.indexOf(marker);
+  assert.notEqual(offset, -1, `missing marker: ${marker}`);
+  const before = sourceText.slice(0, offset).split("\n");
+  const target = findFunctionAtPosition({
+    filePath,
+    languageId,
+    sourceText,
+    position: {
+      line: before.length - 1,
+      character: before.at(-1)?.length ?? 0
+    }
+  });
+  assert.ok(target, `missing callable target at ${marker}`);
+  const node: SymbolNode = {
+    id: `cursor:${target.qualifiedName}`,
+    kind: target.kind,
+    name: target.name,
+    qualifiedName: target.qualifiedName,
+    filePath,
+    range: target.range,
+    selectionRange: target.selectionRange,
+    language: languageId,
+    metadata: {
+      cursorResolved: true,
+      anonymous: target.anonymous
+    }
+  };
+  return analyzeFunctionLogic({ functionNode: node, sourceText });
+}
+
+/** Returns one named graph symbol or fails with a focused fixture message. */
+function findSymbol(symbols: SymbolNode[], name: string): SymbolNode {
+  const symbol = symbols.find((candidate) => candidate.name === name);
+  assert.ok(symbol, `missing ${name} fixture symbol`);
+  return symbol;
+}
+
+/** Creates the smallest project graph needed for syntax-backed drill fallback. */
+function createFixtureGraph(nodes: SymbolNode[]): ProjectGraph {
+  return {
+    workspaceRoot: projectRoot,
+    version: "jsx-function-logic-fixture",
+    generatedAt: "2026-07-19T00:00:00.000Z",
+    nodes,
+    edges: [],
+    diagnostics: [],
+    metadata: {
+      languages: ["typescriptreact"],
+      fileCount: 1,
+      symbolCount: nodes.length,
+      edgeCount: 0
+    }
+  };
+}
+
+/** Creates a deterministic opaque token for every fixture symbol. */
+function createSourceToken(nodeId: string): SourceNodeToken {
+  return `source-node:${nodeId}` as SourceNodeToken;
+}

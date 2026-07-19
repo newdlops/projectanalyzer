@@ -64,6 +64,8 @@ export type FunctionLogicBlock = {
   label: string;
   detail: string;
   depth: number;
+  /** Nearest control statement whose body directly owns this statement. */
+  parentBlockId?: string;
   branchLabel?: string;
   confidence: FunctionLogicConfidence;
   /** Exact writes and conservative receiver changes visible inside this block. */

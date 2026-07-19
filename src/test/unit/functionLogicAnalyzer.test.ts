@@ -168,6 +168,77 @@ test("builds Python condition, loop, match, mutation, call, and exit paths", () 
   assert.equal(analysis.gaps.some((gap) => gap.code === "languageUnsupported"), false);
 });
 
+test("retains exact structural parents across TypeScript and shared Lezer adapters", () => {
+  const fixtures = [{
+    analysis: analyzeFunctionLogic({
+      functionNode: createFunctionNode("run", "/workspace/src/nested.ts", 0),
+      sourceText: [
+        "function run(items) {",
+        "  if (ready()) {",
+        "    for (const item of items) {",
+        "      consume(item);",
+        "    }",
+        "  }",
+        "  finish();",
+        "}"
+      ].join("\n")
+    }),
+    language: "typescript"
+  }, {
+    analysis: analyzeFunctionLogic({
+      functionNode: {
+        ...createFunctionNode("run", "/workspace/src/nested.py", 0),
+        language: "python"
+      },
+      sourceText: [
+        "def run(items):",
+        "    if ready():",
+        "        for item in items:",
+        "            consume(item)",
+        "    finish()"
+      ].join("\n")
+    }),
+    language: "python"
+  }, {
+    analysis: analyzeFunctionLogic({
+      functionNode: {
+        ...createFunctionNode("run", "/workspace/src/Nested.java", 1),
+        qualifiedName: "Nested.run",
+        language: "java"
+      },
+      sourceText: [
+        "class Nested {",
+        "  void run(List<Item> items) {",
+        "    if (ready()) {",
+        "      for (Item item : items) {",
+        "        consume(item);",
+        "      }",
+        "    }",
+        "    finish();",
+        "  }",
+        "}"
+      ].join("\n")
+    }),
+    language: "java"
+  }];
+
+  for (const fixture of fixtures) {
+    const condition = fixture.analysis.blocks.find((block) => block.kind === "condition");
+    const loop = fixture.analysis.blocks.find((block) => block.kind === "loop");
+    const body = fixture.analysis.blocks.find((block) => block.label.includes("consume(item)"));
+    const continuation = fixture.analysis.blocks.find((block) => block.label.includes("finish()"));
+
+    assert.ok(condition && loop && body && continuation, `missing ${fixture.language} blocks`);
+    assert.equal(condition.parentBlockId, undefined);
+    assert.equal(loop.parentBlockId, condition.id);
+    assert.equal(body.parentBlockId, loop.id);
+    assert.equal(continuation.parentBlockId, undefined);
+    assert.ok(fixture.analysis.blocks
+      .filter((block) => block.kind === "entry" || block.kind === "exit")
+      .every((block) => block.parentBlockId === undefined));
+  }
+});
+
 test("builds Java condition, loop, switch, try, mutation, call, and exit paths", () => {
   const javaSource = [
     "class OrderService {",

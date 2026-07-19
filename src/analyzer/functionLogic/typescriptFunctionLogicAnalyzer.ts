@@ -67,7 +67,7 @@ export function analyzeFunctionLogic(input: FunctionLogicAnalysisInput): Functio
     input.sourceText,
     ts.ScriptTarget.Latest,
     true,
-    getScriptKind(input.functionNode.filePath)
+    getScriptKind(input.functionNode.filePath, input.functionNode.language)
   );
   const functionNode = findSelectedFunction(sourceFile, input.functionNode);
   if (!functionNode) {
@@ -153,7 +153,11 @@ function buildFunctionLogic(
     }
 
     const classified = classifyStatement(sourceFile, graphNode.filePath, task);
-    const block: InternalBlock = { ...classified, containerId: task.containerId };
+    const block: InternalBlock = {
+      ...classified,
+      parentBlockId: containers.get(task.containerId)?.ownerBlockId,
+      containerId: task.containerId
+    };
     visibleBlocks.push(block);
     blocksById.set(block.id, block);
     appendDirectBlock(directBlockIdsByContainer, task.containerId, block.id);

@@ -9,6 +9,7 @@ import { createFileNodeId } from "../../core/graphNodes";
 import { createNodeId } from "../../../shared/ids";
 import type { SourceRange, SymbolKind, SymbolNode } from "../../../shared/types";
 import type { ParsedFile } from "../../core/languageAnalyzer";
+import { findTypeScriptLikeWrappedComponentFunction } from "./typescriptLikeJsxSyntax";
 
 /** Options that distinguish TypeScript, TSX, JavaScript, and JSX parsing. */
 export type TypeScriptLikeParseOptions = {
@@ -238,7 +239,9 @@ function createNamedDescriptor(
 function isFunctionLikeInitializer(initializer: ts.Expression | undefined): boolean {
   return Boolean(
     initializer &&
-      (ts.isArrowFunction(initializer) || ts.isFunctionExpression(initializer))
+      (ts.isArrowFunction(initializer)
+        || ts.isFunctionExpression(initializer)
+        || findTypeScriptLikeWrappedComponentFunction(initializer))
   );
 }
 

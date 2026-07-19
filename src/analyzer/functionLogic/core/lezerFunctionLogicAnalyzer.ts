@@ -183,7 +183,11 @@ function buildLezerFunctionLogic(
       continue;
     }
     const classified = adapter.classifyStatement(source, graphNode.filePath, task);
-    const block: InternalBlock = { ...classified, containerId: task.containerId };
+    const block: InternalBlock = {
+      ...classified,
+      parentBlockId: containers.get(task.containerId)?.ownerBlockId,
+      containerId: task.containerId
+    };
     visibleBlocks.push(block);
     blocksById.set(block.id, block);
     appendDirectBlock(directBlockIdsByContainer, task.containerId, block.id);

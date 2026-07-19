@@ -86,6 +86,8 @@ export type FunctionLogicBlockPayload = {
   label: string;
   detail: string;
   depth: number;
+  /** Opaque nearest control block that directly owns this statement body. */
+  parentBlockId?: string;
   branchLabel?: string;
   confidence: FunctionLogicPayloadConfidence;
   sourceLocation?: string;

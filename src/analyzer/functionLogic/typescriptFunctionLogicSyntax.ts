@@ -7,6 +7,10 @@
 import * as ts from "typescript";
 import { createContentHash } from "../../shared/hash";
 import type { SourceRange, SymbolNode } from "../../shared/types";
+import {
+  findTypeScriptLikeWrappedComponentBinding,
+  readTypeScriptLikeJsxComponentReference
+} from "../languages/typescriptLike/typescriptLikeJsxSyntax";
 import type {
   FunctionLogicAnalysis,
   FunctionLogicBlock,
@@ -196,18 +200,27 @@ export function collectFunctionCallsites(
     if (ts.isCallExpression(node) || ts.isNewExpression(node)) {
       const callee = readStableCallee(sourceFile, node.expression);
       if (callee) {
-        const range = toSourceRange(sourceFile, node);
-        const key = `${filePath}\0${range.startLine}\0${range.startCharacter}`
-          + `\0${range.endLine}\0${range.endCharacter}\0${callee.name}`;
-        if (!seen.has(key)) {
-          seen.add(key);
-          callsites.push({
-            filePath,
-            range,
-            calleeName: callee.name,
-            calleeText: callee.text
-          });
-        }
+        appendFunctionCallsite(
+          callsites,
+          seen,
+          filePath,
+          toSourceRange(sourceFile, node),
+          callee.name,
+          callee.text
+        );
+      }
+    }
+    if (ts.isJsxOpeningElement(node) || ts.isJsxSelfClosingElement(node)) {
+      const component = readTypeScriptLikeJsxComponentReference(sourceFile, node);
+      if (component) {
+        appendFunctionCallsite(
+          callsites,
+          seen,
+          filePath,
+          toSourceRange(sourceFile, component.node),
+          component.name,
+          component.text
+        );
       }
     }
     const children = getImmediateChildren(node);
@@ -223,6 +236,24 @@ export function collectFunctionCallsites(
     || left.range.endCharacter - right.range.endCharacter
     || left.calleeText.localeCompare(right.calleeText)
   );
+}
+
+/** Adds one exact source callsite without duplicating a previously seen node. */
+function appendFunctionCallsite(
+  callsites: FunctionLogicCallsite[],
+  seen: Set<string>,
+  filePath: string,
+  range: SourceRange,
+  calleeName: string,
+  calleeText: string
+): void {
+  const key = `${filePath}\0${range.startLine}\0${range.startCharacter}`
+    + `\0${range.endLine}\0${range.endCharacter}\0${calleeName}`;
+  if (seen.has(key)) {
+    return;
+  }
+  seen.add(key);
+  callsites.push({ filePath, range, calleeName, calleeText });
 }
 
 /** Reads only identifier, property, or literal-element callees suitable for matching. */
@@ -342,6 +373,10 @@ export function getFunctionName(
   if (ts.isConstructorDeclaration(node)) {
     return "constructor";
   }
+  const wrappedBinding = getWrappedComponentBinding(node);
+  if (wrappedBinding) {
+    return safeText(normalizeSourceText(wrappedBinding.name.getText(sourceFile)), "");
+  }
   if (node.name) {
     return safeText(normalizeSourceText(node.name.getText(sourceFile)), "");
   }
@@ -357,6 +392,10 @@ export function getFunctionName(
 
 /** Selects the identifier or syntax start that represents this callable. */
 export function getFunctionSelectionNode(node: FunctionLikeWithBody): ts.Node {
+  const wrappedBinding = getWrappedComponentBinding(node);
+  if (wrappedBinding) {
+    return wrappedBinding.name;
+  }
   if (node.name) {
     return node.name;
   }
@@ -376,6 +415,10 @@ export function getFunctionSelectionNode(node: FunctionLikeWithBody): ts.Node {
 
 /** Includes a function-valued binding so its name area counts as inside. */
 export function getFunctionDeclarationNode(node: FunctionLikeWithBody): ts.Node {
+  const wrappedBinding = getWrappedComponentBinding(node);
+  if (wrappedBinding) {
+    return wrappedBinding;
+  }
   const parent = node.parent;
   if (
     (ts.isVariableDeclaration(parent) || ts.isPropertyDeclaration(parent))
@@ -432,11 +475,18 @@ export function createBlockId(
 /** Maps source extension and analyzer language into the supported parser. */
 export function getSupportedLanguage(node: SymbolNode): FunctionLogicAnalysis["language"] {
   const extension = node.filePath.toLowerCase().split(".").at(-1);
-  if (node.language === "typescript" || extension === "ts" || extension === "tsx") {
+  const language = node.language.toLowerCase();
+  if (
+    language === "typescript"
+    || language === "typescriptreact"
+    || extension === "ts"
+    || extension === "tsx"
+  ) {
     return "typescript";
   }
   if (
-    node.language === "javascript"
+    language === "javascript"
+    || language === "javascriptreact"
     || extension === "js"
     || extension === "jsx"
     || extension === "mjs"
@@ -448,7 +498,10 @@ export function getSupportedLanguage(node: SymbolNode): FunctionLogicAnalysis["l
 }
 
 /** Selects JSX-aware parser modes from the source filename. */
-export function getScriptKind(filePath: string): ts.ScriptKind {
+export function getScriptKind(filePath: string, languageId?: string): ts.ScriptKind {
+  const language = languageId?.toLowerCase();
+  if (language === "typescriptreact") return ts.ScriptKind.TSX;
+  if (language === "javascriptreact") return ts.ScriptKind.JSX;
   const lower = filePath.toLowerCase();
   if (lower.endsWith(".tsx")) return ts.ScriptKind.TSX;
   if (lower.endsWith(".jsx")) return ts.ScriptKind.JSX;
@@ -456,6 +509,15 @@ export function getScriptKind(filePath: string): ts.ScriptKind {
     return ts.ScriptKind.JS;
   }
   return ts.ScriptKind.TS;
+}
+
+/** Reads a wrapper-owned binding only for callable expression node kinds. */
+function getWrappedComponentBinding(
+  node: FunctionLikeWithBody
+): ts.VariableDeclaration | undefined {
+  return ts.isArrowFunction(node) || ts.isFunctionExpression(node)
+    ? findTypeScriptLikeWrappedComponentBinding(node)
+    : undefined;
 }
 
 /** Applies the public block budget with a safe hard ceiling. */

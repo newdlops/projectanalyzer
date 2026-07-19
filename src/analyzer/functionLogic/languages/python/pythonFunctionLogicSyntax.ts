@@ -125,6 +125,10 @@ export function classifyPythonStatement(
     kind = "try";
     label = "try / except / finally";
     detail = "Separates normal, exceptional, and cleanup control paths.";
+  } else if (node.name === "WithStatement") {
+    kind = "try";
+    label = createPythonWithLabel(source, node);
+    detail = "Enters the context managers, executes the nested statements, then guarantees context exit.";
   } else if (node.name === "ReturnStatement") {
     kind = "return";
     detail = "Ends this function and returns control to its caller.";
@@ -234,6 +238,18 @@ function createPythonControlLabel(
     fallback
   );
   return header.startsWith(keyword) ? header : `${keyword} ${header}`;
+}
+
+/** Keeps a with control block limited to its header instead of duplicating its body. */
+function createPythonWithLabel(
+  source: LezerSource,
+  node: SyntaxNode
+): string {
+  const body = getLezerChildren(node).find((child) => child.name === "Body");
+  return normalizeLezerText(
+    source.text.slice(node.from, body?.from ?? node.to).replace(/:\s*$/u, ""),
+    "with context"
+  );
 }
 
 /** Collects calls belonging to one statement header or complete simple statement. */

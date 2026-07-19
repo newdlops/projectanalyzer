@@ -1,0 +1,39 @@
+/** TSX Function Logic fixture for component callsites and React wrappers. */
+
+type CardProps = {
+  item: { id: string; label: string };
+  ready: boolean;
+};
+
+export const Badge = ({ label }: { label: string }) => <strong>{label}</strong>;
+export const ReadyState = () => <span>Ready</span>;
+export const EmptyState = () => <span>Empty</span>;
+export const Panel = ({ children }: { children: unknown }) => <div>{children}</div>;
+
+export function formatLabel(label: string): string {
+  return label.trim();
+}
+
+export function trackSelection(id: string): void {
+  console.log(id);
+}
+
+export const RenderCard = ({ item, ready }: CardProps) => (
+  <section data-label={formatLabel(item.label)}>
+    <Badge label={item.label} />
+    <UI.Panel>
+      {ready ? <ReadyState /> : <EmptyState />}
+    </UI.Panel>
+    <button onClick={() => trackSelection(item.id)}>Select</button>
+  </section>
+);
+
+export const MemoCard = memo((props: CardProps) => (
+  <RenderCard item={props.item} ready={props.ready} />
+));
+
+export const ForwardCard = React.forwardRef<HTMLDivElement, CardProps>(
+  function ForwardCardImplementation(props, ref) {
+    return <MemoCard ref={ref} item={props.item} ready={props.ready} />;
+  }
+);
