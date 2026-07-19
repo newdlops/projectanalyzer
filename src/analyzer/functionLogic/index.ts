@@ -1,7 +1,7 @@
 /** Public analyzer surface for function-local structured control flow. */
 
-export { analyzeFunctionLogic } from "./typescriptFunctionLogicAnalyzer";
-export { findFunctionAtPosition } from "./typescriptFunctionCursorResolver";
+export { analyzeFunctionLogic } from "./functionLogicAnalyzer";
+export { findFunctionAtPosition } from "./functionCursorResolver";
 export type {
   FunctionCursorPosition,
   FunctionCursorTarget,
@@ -10,9 +10,11 @@ export type {
   FunctionLogicAnalysisInput,
   FunctionLogicBlock,
   FunctionLogicBlockKind,
+  FunctionLogicCallsite,
   FunctionLogicConfidence,
   FunctionLogicEdge,
   FunctionLogicEdgeKind,
   FunctionLogicGap,
+  FunctionLogicLanguage,
   FunctionLogicSummary
 } from "./types";

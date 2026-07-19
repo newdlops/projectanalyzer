@@ -1,6 +1,6 @@
 /**
  * Cursor-function resolver tests. They cover innermost selection, declaration
- * bindings, class callables, anonymous callbacks, JSX, and unsupported source.
+ * bindings, class callables, lambdas, JSX, Python, Java, and unsupported source.
  */
 
 import assert from "node:assert/strict";
@@ -72,12 +72,83 @@ test("parses JSX language modes and still chooses a nested event callback", () =
   assert.match(target?.qualifiedName ?? "", /^Card\.<anonymous@2:/u);
 });
 
+test("selects Python methods, constructors, and the innermost named lambda", () => {
+  const python = [
+    "class Service:",
+    "    def __init__(self, value):",
+    "        self.value = value",
+    "",
+    "    def run(self, items):",
+    "        transform = lambda item: self.save(item)",
+    "        return [transform(item) for item in items]"
+  ].join("\n");
+  const constructor = resolveAt(
+    python,
+    "self.value",
+    "python",
+    "/workspace/service.py"
+  );
+  const method = resolveAt(
+    python,
+    "return [transform",
+    "python",
+    "/workspace/service.py"
+  );
+  const lambda = resolveAt(
+    python,
+    "self.save(item)",
+    "python",
+    "/workspace/service.py"
+  );
+
+  assert.deepEqual([constructor?.kind, constructor?.name], ["constructor", "__init__"]);
+  assert.equal(method?.qualifiedName, "Service.run");
+  assert.deepEqual([lambda?.kind, lambda?.name], ["function", "transform"]);
+  assert.equal(lambda?.qualifiedName, "Service.run.transform");
+});
+
+test("selects Java constructors, methods, and the innermost named lambda", () => {
+  const java = [
+    "class Service {",
+    "  Service(int value) { this.value = value; }",
+    "  int run(int input) {",
+    "    java.util.function.Function<Integer, Integer> transform =",
+    "      value -> save(value);",
+    "    return transform.apply(input);",
+    "  }",
+    "}"
+  ].join("\n");
+  const constructor = resolveAt(
+    java,
+    "this.value",
+    "java",
+    "/workspace/Service.java"
+  );
+  const method = resolveAt(
+    java,
+    "return transform",
+    "java",
+    "/workspace/Service.java"
+  );
+  const lambda = resolveAt(
+    java,
+    "save(value)",
+    "java",
+    "/workspace/Service.java"
+  );
+
+  assert.deepEqual([constructor?.kind, constructor?.name], ["constructor", "Service"]);
+  assert.equal(method?.qualifiedName, "Service.run");
+  assert.deepEqual([lambda?.kind, lambda?.name], ["function", "transform"]);
+  assert.equal(lambda?.qualifiedName, "Service.run.transform");
+});
+
 test("returns no target outside a callable or for an unsupported language", () => {
   const outside = resolveAt("import { value } from './value';\nfunction run() {}", "import");
-  const python = resolveAt("def run():\n    return True", "return", "python", "/workspace/run.py");
+  const rust = resolveAt("fn run() {\n    true\n}", "true", "rust", "/workspace/run.rs");
 
   assert.equal(outside, undefined);
-  assert.equal(python, undefined);
+  assert.equal(rust, undefined);
 });
 
 /** Resolves the first occurrence of a marker into zero-based editor coordinates. */
