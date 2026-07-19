@@ -232,7 +232,7 @@ export function getFunctionVisualizerBrowserSource(): string {
       elements.title.textContent = detail.title;
       elements.subtitle.textContent = detail.subtitle;
       elements.summary.textContent = createFunctionLogicSummaryText(detail.logic);
-      elements.semantics.textContent = "Blocks come from source syntax. Click a block with called code to attach that function inside this graph.";
+      elements.semantics.textContent = "Blocks come from source syntax. Value rows show exact writes and dashed inferred receiver changes; called code can attach inside this graph.";
       const pendingExpansion = state.attachedFunctions.find((candidate) =>
         candidate.id === state.pendingExpansionId
       );
@@ -241,7 +241,7 @@ export function getFunctionVisualizerBrowserSource(): string {
           ? "Attaching " + expansionTargetLabel(pendingExpansion) + "…"
           : state.loading && state.pendingTarget
             ? "Building " + state.pendingTarget.label + "…"
-            : "Select a block to explain it; called functions attach to this canvas.");
+            : "Select a block to inspect control and value changes; called functions attach to this canvas.");
       renderOrigins(detail.origins || []);
       const rootScopeId = createRootScopeId(entry.target.sourceToken);
       const attachedScene = createAttachedFunctionGraphScene(
@@ -322,11 +322,14 @@ export function getFunctionVisualizerBrowserSource(): string {
 
     /** Adapts the compound scene to the reusable single-graph renderer. */
     function createAttachedGraphContext(scene) {
+      const graphKind = scene.logic.blocks.some((block) =>
+        block.valueChanges && block.valueChanges.length > 0
+      ) ? "Control & value flow" : "Control paths";
       return {
         selectedBlockId: state.selectedLogicBlockId,
         graphTitle: scene.attachedFunctionCount > 0
-          ? "Control paths · " + (scene.attachedFunctionCount + 1) + " functions in one graph"
-          : "Control paths",
+          ? graphKind + " · " + (scene.attachedFunctionCount + 1) + " functions in one graph"
+          : graphKind,
         onSelectionChanged: (blockId) => {
           state.selectedLogicBlockId = blockId;
         },

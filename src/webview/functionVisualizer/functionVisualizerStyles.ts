@@ -259,6 +259,8 @@ export function getFunctionVisualizerStyles(): string {
     .logic-graph-viewport { max-height: min(68vh, 760px); border-radius: 9px; }
     .logic-node-label { font-size: 10px; }
     .logic-node-meta { font-size: 8px; }
+    .logic-value-target-kind { font-size: 7px; }
+    .logic-value-change code { font-size: 9px; }
     .logic-selection { padding: 13px 14px; }
     .logic-selection-header > strong { font-size: 13px; }
     .logic-selection-detail,

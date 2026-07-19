@@ -61,7 +61,9 @@ export function getFunctionLogicBrowserSource(): string {
         applyScale,
         readScale,
         writeScale,
-        graphContext?.graphTitle
+        graphContext?.graphTitle || (logic.blocks.some((block) =>
+          block.valueChanges && block.valueChanges.length > 0
+        ) ? "Control & value flow" : "Control paths")
       );
 
       graph.className = "logic-graph";
@@ -205,7 +207,12 @@ export function getFunctionLogicBrowserSource(): string {
       const parts = [];
       if (summary.callCount) parts.push(summary.callCount + " call site" + plural(summary.callCount));
       if (summary.effectCount) parts.push(summary.effectCount + " possible effect" + plural(summary.effectCount));
-      if (summary.mutationCount) parts.push(summary.mutationCount + " mutation" + plural(summary.mutationCount));
+      if (summary.valueChangeCount) parts.push(
+        summary.valueChangeCount + " visible value change" + plural(summary.valueChangeCount)
+      );
+      else if (summary.mutationCount) parts.push(
+        summary.mutationCount + " mutation" + plural(summary.mutationCount)
+      );
       return parts.length
         ? "Inspect " + parts.join(", ") + "."
         : "The visible blocks contain no classified call, effect, or mutation.";
@@ -302,6 +309,7 @@ export function getFunctionLogicBrowserSource(): string {
       legend.append(
         createBadge("solid · exact", "logic-legend exact"),
         createBadge("dashed · inferred", "logic-legend inferred"),
+        createBadge("Δ value", "logic-legend value-change"),
         createBadge("↶ repeat", "logic-legend repeat")
       );
       controls.append(zoomOut, zoomReset, zoomIn);
@@ -428,6 +436,9 @@ export function getFunctionLogicBrowserSource(): string {
       const branch = document.createElement("span");
       const label = document.createElement("strong");
       const meta = document.createElement("small");
+      const valueChangeText = (block.valueChanges || []).map((change) =>
+        formatLogicValueChange(change) + " (" + change.confidence + ")"
+      ).join(", ");
       const outgoingText = outgoing.map((edge) => {
         const target = blocksById.get(edge.targetId);
         return formatLogicEdge(edge) + (target ? " to " + compactTargetLabel(target) : "");
@@ -451,6 +462,7 @@ export function getFunctionLogicBrowserSource(): string {
       node.style.setProperty("width", layout.width + "px");
       node.style.setProperty("height", layout.height + "px");
       node.setAttribute("aria-label", block.label
+        + (valueChangeText ? ". Value changes: " + valueChangeText : "")
         + (outgoingText ? ". Paths: " + outgoingText : "")
         + (expandable && graphContext && graphContext.onExpandableBlockClick
           ? (expanded ? ". Activate to collapse called functions." : ". Activate to attach called functions.")
@@ -477,7 +489,11 @@ export function getFunctionLogicBrowserSource(): string {
         ));
       }
       if (branch.textContent) top.append(branch);
-      node.append(top, label, meta);
+      node.append(top, label);
+      if (block.valueChanges && block.valueChanges.length > 0) {
+        node.append(createLogicValueChangeList(block.valueChanges, "logic-node-value-changes"));
+      }
+      node.append(meta);
       return node;
     }
 
@@ -541,6 +557,18 @@ export function getFunctionLogicBrowserSource(): string {
       panel.append(header, detail);
       if (meta.textContent) panel.append(meta);
 
+      if (block.valueChanges && block.valueChanges.length > 0) {
+        const changes = document.createElement("div");
+        const title = document.createElement("strong");
+        changes.className = "logic-selection-value-section";
+        title.textContent = "Values changed here";
+        changes.append(
+          title,
+          createLogicValueChangeList(block.valueChanges, "logic-selection-value-changes")
+        );
+        panel.append(changes);
+      }
+
       if (outgoing.length > 0) {
         const transfers = document.createElement("div");
         transfers.className = "logic-selection-transfers";
@@ -603,6 +631,41 @@ export function getFunctionLogicBrowserSource(): string {
       return kind;
     }
 
+    /** Builds exact/inferred value rows shared by graph nodes and selection details. */
+    function createLogicValueChangeList(changes, className) {
+      const list = document.createElement("span");
+      list.className = className;
+      for (const change of changes) {
+        const row = document.createElement("span");
+        const kind = document.createElement("span");
+        const value = document.createElement("code");
+        row.className = "logic-value-change " + change.confidence;
+        row.title = change.confidence === "exact"
+          ? "Source syntax proves this value change"
+          : "The receiver may change; verify the called method";
+        kind.className = "logic-value-target-kind";
+        kind.textContent = formatLogicValueTargetKind(change.targetKind)
+          + (change.confidence === "inferred" ? " · MAY CHANGE" : " · CHANGES");
+        value.textContent = formatLogicValueChange(change);
+        row.append(kind, value);
+        list.append(row);
+      }
+      return list;
+    }
+
+    /** Formats one value transition without claiming a runtime value. */
+    function formatLogicValueChange(change) {
+      return change.target + " " + change.operator
+        + (change.value ? " " + change.value : "");
+    }
+
+    /** Keeps graph target categories compact but textually distinguishable. */
+    function formatLogicValueTargetKind(kind) {
+      if (kind === "receiver") return "RECEIVER";
+      if (kind === "property") return "FIELD";
+      return "VAR";
+    }
+
     /** Keeps edge semantics explicit instead of implying observed execution. */
     function formatLogicEdge(edge) {
       if (edge.label) return edge.label;
@@ -627,7 +690,12 @@ export function getFunctionLogicBrowserSource(): string {
       if (summary.branchCount) parts.push(summary.branchCount + " branch" + plural(summary.branchCount));
       if (summary.loopCount) parts.push(summary.loopCount + " loop" + plural(summary.loopCount));
       if (summary.effectCount) parts.push(summary.effectCount + " possible effect" + plural(summary.effectCount));
-      if (summary.mutationCount) parts.push(summary.mutationCount + " mutation" + plural(summary.mutationCount));
+      if (summary.valueChangeCount) parts.push(
+        summary.valueChangeCount + " value change" + plural(summary.valueChangeCount)
+      );
+      else if (summary.mutationCount) parts.push(
+        summary.mutationCount + " mutation" + plural(summary.mutationCount)
+      );
       return parts.join(" · ");
     }
   `;

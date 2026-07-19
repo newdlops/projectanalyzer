@@ -256,6 +256,11 @@ export function getFunctionLogicGraphStyles(): string {
       color: var(--vscode-charts-purple, var(--vscode-textLink-foreground));
     }
 
+    .flow-badge.logic-legend.value-change {
+      color: var(--vscode-charts-orange, var(--vscode-textLink-foreground));
+      border-color: color-mix(in srgb, var(--vscode-charts-orange) 55%, var(--vscode-panel-border));
+    }
+
     .logic-graph-viewport {
       position: relative;
       min-height: 260px;
@@ -493,6 +498,48 @@ export function getFunctionLogicGraphStyles(): string {
       white-space: normal;
     }
 
+    .logic-node-value-changes,
+    .logic-selection-value-changes {
+      display: grid;
+      gap: 3px;
+      min-width: 0;
+    }
+
+    .logic-value-change {
+      display: flex;
+      min-width: 0;
+      align-items: baseline;
+      gap: 4px;
+      padding: 2px 4px;
+      color: var(--vscode-foreground);
+      background: color-mix(in srgb, var(--vscode-charts-orange) 9%, transparent);
+      border: 1px solid color-mix(in srgb, var(--vscode-charts-orange) 45%, var(--vscode-panel-border));
+      border-radius: 4px;
+      text-align: left;
+    }
+
+    .logic-value-change.inferred {
+      border-style: dashed;
+    }
+
+    .logic-value-target-kind {
+      flex: 0 0 auto;
+      color: var(--vscode-charts-orange, var(--vscode-textLink-foreground));
+      font-size: 6px;
+      font-weight: 800;
+      letter-spacing: 0.04em;
+      white-space: nowrap;
+    }
+
+    .logic-value-change code {
+      min-width: 0;
+      font-family: var(--vscode-editor-font-family);
+      font-size: 7px;
+      line-height: 1.3;
+      overflow-wrap: anywhere;
+      white-space: normal;
+    }
+
     .logic-node-meta {
       min-width: 0;
       color: var(--vscode-descriptionForeground);
@@ -539,6 +586,17 @@ export function getFunctionLogicGraphStyles(): string {
 
     .logic-selection-meta {
       font-family: var(--vscode-editor-font-family);
+    }
+
+    .logic-selection-value-section {
+      display: grid;
+      gap: 4px;
+      padding-top: 5px;
+      border-top: 1px solid color-mix(in srgb, var(--vscode-panel-border) 60%, transparent);
+    }
+
+    .logic-selection-value-section > strong {
+      font-size: 8px;
     }
 
     .logic-selection-transfers {
