@@ -1,6 +1,7 @@
 /**
  * Function Logic graph-layout tests. They cover sibling branch lanes, forward
- * rank progression, loop back-edge routing, non-overlap, and determinism.
+ * rank progression, variable content sizing, obstacle-free edge routing,
+ * non-overlap, and determinism.
  */
 
 import assert from "node:assert/strict";
@@ -31,10 +32,44 @@ test("lays out branches side-by-side and routes repeat edges through an outer ch
   assert.notEqual(trueNode.x, falseNode.x);
   assert.equal(repeatLayout.route, "back");
   assert.equal(longReturnLayout.route, "long");
-  assert.equal(repeatLayout.points.length, 4);
-  assert.ok(repeatLayout.points[1]?.x > Math.max(...layout.nodes.map((node) => node.x + node.width)));
+  assert.equal(repeatLayout.points.length, 6);
+  assert.ok(repeatLayout.points[2]?.x > Math.max(...layout.nodes.map((node) => node.x + node.width)));
   assertNoNodeOverlap(layout.nodes);
+  assertEdgesAvoidUnrelatedNodes(layout, edges);
   assert.deepEqual(createFunctionLogicGraphLayout(blocks, edges), layout);
+});
+
+test("sizes each node from its visible label and detail without clipping lanes", () => {
+  const blocks = [
+    createBlock("entry", "entry", "Start"),
+    {
+      ...createBlock(
+        "long-condition",
+        "condition",
+        "if the requested order contains every required billing and fulfillment field"
+      ),
+      detail: "Checks a deliberately long source-backed condition whose explanation must wrap across several visible lines instead of being clipped by a fixed-height box."
+    },
+    createBlock("short-return", "return", "return result"),
+    createBlock("exit", "exit", "Finish")
+  ];
+  const edges = [
+    createEdge("start-check", "entry", "long-condition", "next"),
+    createEdge("check-return", "long-condition", "short-return", "true"),
+    createEdge("return-exit", "short-return", "exit", "return")
+  ];
+  const layout = createFunctionLogicGraphLayout(blocks, edges);
+  const nodesById = new Map(layout.nodes.map((node) => [node.blockId, node]));
+  const entry = nodesById.get("entry");
+  const longCondition = nodesById.get("long-condition");
+  const shortReturn = nodesById.get("short-return");
+
+  assert.ok(entry && longCondition && shortReturn);
+  assert.ok(longCondition.width > entry.width);
+  assert.ok(longCondition.height > entry.height);
+  assert.notEqual(longCondition.width, shortReturn.width);
+  assertNoNodeOverlap(layout.nodes);
+  assertEdgesAvoidUnrelatedNodes(layout, edges);
 });
 
 test("returns an empty finite canvas for an unavailable function body", () => {
@@ -62,6 +97,7 @@ test("keeps a maximum-size linear function iterative and finite", () => {
   assert.ok(layout.edges.every((edge) =>
     edge.points.every((point) => Number.isFinite(point.x) && Number.isFinite(point.y))
   ));
+  assertEdgesAvoidUnrelatedNodes(layout, edges);
 });
 
 /** Creates a small branch-merge-loop fixture in source presentation order. */
@@ -135,4 +171,55 @@ function assertNoNodeOverlap(
       assert.equal(overlaps, false, `${left.blockId} overlaps ${right.blockId}`);
     }
   }
+}
+
+/** Ensures every routed segment avoids boxes other than its own endpoints. */
+function assertEdgesAvoidUnrelatedNodes(
+  layout: ReturnType<typeof createFunctionLogicGraphLayout>,
+  edges: FunctionLogicEdgePayload[]
+): void {
+  const edgeById = new Map(edges.map((edge) => [edge.id, edge]));
+  for (const routedEdge of layout.edges) {
+    const edge = edgeById.get(routedEdge.edgeId);
+    assert.ok(edge, `missing source edge ${routedEdge.edgeId}`);
+    for (const point of routedEdge.points) {
+      assert.ok(point.x >= 0 && point.x <= layout.width, `${routedEdge.edgeId} exceeds canvas width`);
+      assert.ok(point.y >= 0 && point.y <= layout.height, `${routedEdge.edgeId} exceeds canvas height`);
+    }
+    for (let pointIndex = 1; pointIndex < routedEdge.points.length; pointIndex += 1) {
+      const start = routedEdge.points[pointIndex - 1];
+      const end = routedEdge.points[pointIndex];
+      assert.ok(start.x === end.x || start.y === end.y, `${routedEdge.edgeId} is not orthogonal`);
+      for (const node of layout.nodes) {
+        if (node.blockId === edge.sourceId || node.blockId === edge.targetId) {
+          continue;
+        }
+        assert.equal(
+          segmentCrossesNodeInterior(start, end, node),
+          false,
+          `${routedEdge.edgeId} crosses ${node.blockId}`
+        );
+      }
+    }
+  }
+}
+
+/** Detects an axis-aligned segment crossing the open interior of one node box. */
+function segmentCrossesNodeInterior(
+  start: { x: number; y: number },
+  end: { x: number; y: number },
+  node: ReturnType<typeof createFunctionLogicGraphLayout>["nodes"][number]
+): boolean {
+  const nodeRight = node.x + node.width;
+  const nodeBottom = node.y + node.height;
+  if (start.x === end.x) {
+    return start.x > node.x
+      && start.x < nodeRight
+      && Math.max(start.y, end.y) > node.y
+      && Math.min(start.y, end.y) < nodeBottom;
+  }
+  return start.y > node.y
+    && start.y < nodeBottom
+    && Math.max(start.x, end.x) > node.x
+    && Math.min(start.x, end.x) < nodeRight;
 }

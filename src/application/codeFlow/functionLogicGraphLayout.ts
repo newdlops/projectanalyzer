@@ -1,7 +1,8 @@
 /**
  * Deterministic layered layout for one bounded Function Logic graph. Forward
  * control transfers flow top-to-bottom, source-ordered branches occupy sibling
- * lanes, and repeat/continue transfers use explicit outer back-edge channels.
+ * lanes, node dimensions follow visible content, and non-local transfers use
+ * outer channels whose connectors stay inside empty rank gaps.
  */
 
 import type {
@@ -12,13 +13,30 @@ import type {
   FunctionLogicGraphNodeLayoutPayload
 } from "../../protocol/functionLogic";
 
-const NODE_WIDTH = 184;
-const NODE_HEIGHT = 72;
+const MIN_NODE_WIDTH = 168;
+const MAX_NODE_WIDTH = 320;
+const MIN_NODE_HEIGHT = 68;
+const NODE_HORIZONTAL_PADDING = 18;
+const NODE_VERTICAL_PADDING = 14;
+const NODE_ROW_GAP = 4;
+const LABEL_CHARACTER_WIDTH = 7.2;
+const META_CHARACTER_WIDTH = 6.1;
+const TOP_CHARACTER_WIDTH = 5.8;
+const LABEL_LINE_HEIGHT = 15;
+const META_LINE_HEIGHT = 12;
+const TOP_LINE_HEIGHT = 18;
 const LANE_GAP = 34;
 const RANK_GAP = 66;
 const CANVAS_MARGIN_X = 38;
 const CANVAS_MARGIN_Y = 24;
 const BACK_EDGE_CHANNEL_GAP = 14;
+const CHANNEL_CONNECTOR_CLEARANCE = 18;
+
+/** Estimated rendered size of one browser graph node. */
+type NodeDimensions = { width: number; height: number };
+
+/** Empty-space boundaries shared by every node in one horizontal rank. */
+type RankBounds = { top: number; bottom: number };
 
 /** Builds a finite graph layout using only iterative queues and indexed maps. */
 export function createFunctionLogicGraphLayout(
@@ -39,22 +57,33 @@ export function createFunctionLogicGraphLayout(
   ).map((edge) => edge.id));
   const rankByBlockId = assignForwardRanks(blocks, validEdges, backEdgeIds, blockIndexById);
   const blocksByRank = groupBlocksByRank(blocks, rankByBlockId);
-  const maxLaneCount = Math.max(1, ...[...blocksByRank.values()].map((values) => values.length));
+  const dimensionsByBlockId = new Map(blocks.map((block) => [
+    block.id,
+    measureNodeDimensions(block)
+  ]));
   const channelEdgeIds = new Set(validEdges.filter((edge) =>
     backEdgeIds.has(edge.id) || isLongForwardEdge(edge, rankByBlockId)
   ).map((edge) => edge.id));
   const channelSpace = channelEdgeIds.size > 0
     ? BACK_EDGE_CHANNEL_GAP * channelEdgeIds.size + 18
     : 0;
-  const contentWidth = maxLaneCount * NODE_WIDTH + Math.max(0, maxLaneCount - 1) * LANE_GAP;
+  const contentWidth = Math.max(1, ...[...blocksByRank.values()].map((rankBlocks) =>
+    measureRankWidth(rankBlocks, dimensionsByBlockId)
+  ));
   const width = Math.max(280, contentWidth + CANVAS_MARGIN_X * 2 + channelSpace);
-  const maxRank = Math.max(0, ...rankByBlockId.values());
-  const height = CANVAS_MARGIN_Y * 2 + (maxRank + 1) * NODE_HEIGHT + maxRank * RANK_GAP;
-  const nodes = positionNodes(blocksByRank, width, channelSpace);
+  const nodes = positionNodes(
+    blocksByRank,
+    dimensionsByBlockId,
+    width,
+    channelSpace
+  );
+  const height = Math.max(...nodes.map((node) => node.y + node.height)) + CANVAS_MARGIN_Y;
   const nodeLayoutById = new Map(nodes.map((node) => [node.blockId, node]));
+  const rankBounds = createRankBounds(nodes);
   const routedEdges = routeEdges(
     validEdges,
     nodeLayoutById,
+    rankBounds,
     backEdgeIds,
     channelEdgeIds
   );
@@ -139,39 +168,127 @@ function groupBlocksByRank(
   return result;
 }
 
-/** Centers each rank and assigns non-overlapping horizontal lanes. */
+/** Estimates a node's browser dimensions from every string rendered inside it. */
+function measureNodeDimensions(block: FunctionLogicBlockPayload): NodeDimensions {
+  const metaText = block.sourceLocation || block.detail;
+  const longestLineUnits = Math.max(
+    1,
+    longestDisplayLineUnits(block.label),
+    longestDisplayLineUnits(metaText),
+    longestDisplayLineUnits(block.branchLabel ?? "")
+  );
+  const targetCharactersPerLine = clamp(
+    Math.ceil(Math.sqrt(longestLineUnits * 12)),
+    20,
+    42
+  );
+  const topTextUnits = estimateTopRowUnits(block);
+  const width = Math.round(clamp(
+    Math.max(
+      NODE_HORIZONTAL_PADDING + targetCharactersPerLine * LABEL_CHARACTER_WIDTH,
+      NODE_HORIZONTAL_PADDING + Math.min(topTextUnits, 48) * TOP_CHARACTER_WIDTH
+    ),
+    MIN_NODE_WIDTH,
+    MAX_NODE_WIDTH
+  ));
+  const innerWidth = Math.max(1, width - NODE_HORIZONTAL_PADDING);
+  const topLines = estimateWrappedLineCount(topTextUnits, innerWidth, TOP_CHARACTER_WIDTH);
+  const labelLines = estimateWrappedTextLineCount(
+    block.label,
+    innerWidth,
+    LABEL_CHARACTER_WIDTH
+  );
+  const metaLines = estimateWrappedTextLineCount(
+    metaText,
+    innerWidth,
+    META_CHARACTER_WIDTH
+  );
+  const height = Math.max(
+    MIN_NODE_HEIGHT,
+    NODE_VERTICAL_PADDING
+      + topLines * TOP_LINE_HEIGHT
+      + labelLines * LABEL_LINE_HEIGHT
+      + metaLines * META_LINE_HEIGHT
+      + NODE_ROW_GAP * 2
+  );
+  return { width, height: Math.ceil(height) };
+}
+
+/** Sums variable node widths and the fixed visual space between sibling lanes. */
+function measureRankWidth(
+  blocks: FunctionLogicBlockPayload[],
+  dimensionsByBlockId: Map<string, NodeDimensions>
+): number {
+  let width = Math.max(0, blocks.length - 1) * LANE_GAP;
+  for (const block of blocks) {
+    width += dimensionsByBlockId.get(block.id)?.width ?? MIN_NODE_WIDTH;
+  }
+  return width;
+}
+
+/** Centers each rank and assigns non-overlapping variable-width lanes. */
 function positionNodes(
   blocksByRank: Map<number, FunctionLogicBlockPayload[]>,
+  dimensionsByBlockId: Map<string, NodeDimensions>,
   canvasWidth: number,
   channelSpace: number
 ): FunctionLogicGraphNodeLayoutPayload[] {
   const result: FunctionLogicGraphNodeLayoutPayload[] = [];
   const ranks = [...blocksByRank.keys()].sort((left, right) => left - right);
   const usableWidth = canvasWidth - channelSpace;
+  let rankY = CANVAS_MARGIN_Y;
 
   for (const rank of ranks) {
     const blocks = blocksByRank.get(rank) ?? [];
-    const rankWidth = blocks.length * NODE_WIDTH + Math.max(0, blocks.length - 1) * LANE_GAP;
+    const rankWidth = measureRankWidth(blocks, dimensionsByBlockId);
     const startX = Math.max(CANVAS_MARGIN_X, (usableWidth - rankWidth) / 2);
+    const rankHeight = Math.max(
+      MIN_NODE_HEIGHT,
+      ...blocks.map((block) => dimensionsByBlockId.get(block.id)?.height ?? MIN_NODE_HEIGHT)
+    );
+    let laneX = startX;
     for (let lane = 0; lane < blocks.length; lane += 1) {
+      const dimensions = dimensionsByBlockId.get(blocks[lane].id)
+        ?? { width: MIN_NODE_WIDTH, height: MIN_NODE_HEIGHT };
       result.push({
         blockId: blocks[lane].id,
-        x: Math.round(startX + lane * (NODE_WIDTH + LANE_GAP)),
-        y: CANVAS_MARGIN_Y + rank * (NODE_HEIGHT + RANK_GAP),
-        width: NODE_WIDTH,
-        height: NODE_HEIGHT,
+        x: Math.round(laneX),
+        y: rankY,
+        width: dimensions.width,
+        height: dimensions.height,
         rank,
         lane
       });
+      laneX += dimensions.width + LANE_GAP;
+    }
+    rankY += rankHeight + RANK_GAP;
+  }
+  return result;
+}
+
+/** Indexes the occupied vertical extent of every rank for obstacle-free gaps. */
+function createRankBounds(
+  nodes: FunctionLogicGraphNodeLayoutPayload[]
+): Map<number, RankBounds> {
+  const result = new Map<number, RankBounds>();
+  for (const node of nodes) {
+    const existing = result.get(node.rank);
+    const bottom = node.y + node.height;
+    if (existing) {
+      existing.top = Math.min(existing.top, node.y);
+      existing.bottom = Math.max(existing.bottom, bottom);
+    } else {
+      result.set(node.rank, { top: node.y, bottom });
     }
   }
   return result;
 }
 
-/** Routes forward edges through rank gaps and backward edges through outer lanes. */
+/** Routes every horizontal segment through a rank gap or an outer channel. */
 function routeEdges(
   edges: FunctionLogicEdgePayload[],
   nodesById: Map<string, FunctionLogicGraphNodeLayoutPayload>,
+  rankBounds: Map<number, RankBounds>,
   backEdgeIds: Set<string>,
   channelEdgeIds: Set<string>
 ): FunctionLogicGraphEdgeLayoutPayload[] {
@@ -189,20 +306,14 @@ function routeEdges(
     if (channelEdgeIds.has(edge.id)) {
       const channelX = contentRight + 18 + channelEdgeIndex * BACK_EDGE_CHANNEL_GAP;
       channelEdgeIndex += 1;
-      const sourceY = source.y + source.height / 2;
-      const targetY = target.y + target.height / 2;
-      result.push({
-        edgeId: edge.id,
-        points: [
-          { x: source.x + source.width, y: sourceY },
-          { x: channelX, y: sourceY },
-          { x: channelX, y: targetY },
-          { x: target.x + target.width, y: targetY }
-        ],
-        labelX: channelX - 5,
-        labelY: Math.round((sourceY + targetY) / 2),
-        route: backEdge ? "back" : "long"
-      });
+      result.push(routeChannelEdge(
+        edge,
+        source,
+        target,
+        rankBounds,
+        channelX,
+        backEdge
+      ));
       continue;
     }
 
@@ -210,7 +321,9 @@ function routeEdges(
     const sourceY = source.y + source.height;
     const targetX = target.x + target.width / 2;
     const targetY = target.y;
-    const middleY = Math.round(sourceY + Math.max(18, (targetY - sourceY) / 2));
+    const sourceRankBottom = rankBounds.get(source.rank)?.bottom ?? sourceY;
+    const targetRankTop = rankBounds.get(target.rank)?.top ?? targetY;
+    const middleY = Math.round((sourceRankBottom + targetRankTop) / 2);
     result.push({
       edgeId: edge.id,
       points: [
@@ -225,6 +338,105 @@ function routeEdges(
     });
   }
   return result;
+}
+
+/** Routes long and backward transfers outside nodes before changing rank. */
+function routeChannelEdge(
+  edge: FunctionLogicEdgePayload,
+  source: FunctionLogicGraphNodeLayoutPayload,
+  target: FunctionLogicGraphNodeLayoutPayload,
+  rankBounds: Map<number, RankBounds>,
+  channelX: number,
+  backEdge: boolean
+): FunctionLogicGraphEdgeLayoutPayload {
+  const sourceX = source.x + source.width / 2;
+  const sourceY = source.y + source.height;
+  const sourceRankBottom = rankBounds.get(source.rank)?.bottom ?? sourceY;
+  const sourceGapY = sourceRankBottom + CHANNEL_CONNECTOR_CLEARANCE;
+  const targetX = target.x + target.width / 2;
+  const targetRank = rankBounds.get(target.rank);
+  const targetY = backEdge ? target.y + target.height : target.y;
+  const targetGapY = backEdge
+    ? (targetRank?.bottom ?? targetY) + CHANNEL_CONNECTOR_CLEARANCE
+    : (targetRank?.top ?? targetY) - CHANNEL_CONNECTOR_CLEARANCE;
+
+  return {
+    edgeId: edge.id,
+    points: [
+      { x: sourceX, y: sourceY },
+      { x: sourceX, y: sourceGapY },
+      { x: channelX, y: sourceGapY },
+      { x: channelX, y: targetGapY },
+      { x: targetX, y: targetGapY },
+      { x: targetX, y: targetY }
+    ],
+    labelX: channelX - 5,
+    labelY: Math.round((sourceGapY + targetGapY) / 2),
+    route: backEdge ? "back" : "long"
+  };
+}
+
+/** Estimates the combined badge and branch-label width in display units. */
+function estimateTopRowUnits(block: FunctionLogicBlockPayload): number {
+  let units = displayTextUnits(block.kind) + 6;
+  if (block.drillTargets && block.drillTargets.length > 0) {
+    units += displayTextUnits(`${block.drillTargets.length} child`) + 7;
+  }
+  if (block.branchLabel) {
+    units += displayTextUnits(block.branchLabel) + 5;
+  }
+  return units;
+}
+
+/** Counts conservatively wrapped browser lines, including explicit newlines. */
+function estimateWrappedTextLineCount(
+  text: string,
+  availableWidth: number,
+  characterWidth: number
+): number {
+  const capacity = Math.max(1, Math.floor(availableWidth / characterWidth));
+  let lines = 0;
+  for (const sourceLine of text.split(/\r?\n/u)) {
+    lines += Math.max(1, Math.ceil(displayTextUnits(sourceLine) / capacity));
+  }
+  return Math.max(1, lines);
+}
+
+/** Converts a precomputed display-unit count into conservative wrapped rows. */
+function estimateWrappedLineCount(
+  displayUnits: number,
+  availableWidth: number,
+  characterWidth: number
+): number {
+  const capacity = Math.max(1, Math.floor(availableWidth / characterWidth));
+  return Math.max(1, Math.ceil(displayUnits / capacity));
+}
+
+/** Returns the widest explicit source line using wide-character-aware units. */
+function longestDisplayLineUnits(text: string): number {
+  let longest = 0;
+  for (const line of text.split(/\r?\n/u)) {
+    longest = Math.max(longest, displayTextUnits(line));
+  }
+  return longest;
+}
+
+/** Approximates rendered width without requiring DOM measurement in the Host. */
+function displayTextUnits(text: string): number {
+  let units = 0;
+  for (const character of text) {
+    if (character === "\t") {
+      units += 4;
+      continue;
+    }
+    units += (character.codePointAt(0) ?? 0) > 0xff ? 2 : 1;
+  }
+  return units;
+}
+
+/** Bounds one finite layout estimate between its readable minimum and maximum. */
+function clamp(value: number, minimum: number, maximum: number): number {
+  return Math.min(maximum, Math.max(minimum, value));
 }
 
 /** Long forward jumps use an outer channel so they do not cross middle ranks. */

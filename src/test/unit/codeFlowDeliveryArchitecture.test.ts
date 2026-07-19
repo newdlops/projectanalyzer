@@ -60,6 +60,10 @@ test("Function Logic graph layout stays pure, bounded, and iterative", () => {
   assert.match(layout, /while \(readyIndex < ready\.length\)/u);
   assert.match(layout, /backEdgeIds/u);
   assert.match(layout, /isLongForwardEdge/u);
+  assert.match(layout, /measureNodeDimensions/u);
+  assert.match(layout, /createRankBounds/u);
+  assert.match(layout, /CHANNEL_CONNECTOR_CLEARANCE/u);
+  assert.doesNotMatch(layout, /const NODE_(?:WIDTH|HEIGHT)\s*=/u);
   assert.doesNotMatch(layout, /from ".*(?:webview|vscode|extension)/u);
   assert.doesNotMatch(layout, /createFunctionLogicGraphLayout\([^)]*\)[\s\S]*createFunctionLogicGraphLayout\(/u);
 });
