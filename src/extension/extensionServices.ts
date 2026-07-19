@@ -15,10 +15,13 @@ import { RustAnalyzerBackend } from "../analyzer/rust/rustAnalyzerBackend";
 import { createProjectAnalyzerLogger } from "../observability/logger";
 import { FileAnalysisCacheStore, MemoryAnalysisCacheStore, type AnalysisCacheStore } from "../storage/cacheStore";
 import { readProjectAnalyzerConfig } from "../vscode/configuration";
+import { createWorkspaceAnalysisCacheKey } from "../vscode/workspaceFingerprint";
 import { VsCodeWorkspaceFileSystem } from "../vscode/workspaceFileSystem";
 import { ExplorerGraphPanelProvider } from "../webview/explorerGraphPanelProvider";
 import { ExplorerViewProvider } from "../webview/explorerViewProvider";
 import { FunctionVisualizerPanelProvider } from "../webview/functionVisualizer";
+import { ModuleVisualizerPanelProvider } from "../webview/moduleVisualizer";
+import { WorkspaceGraphCoordinator } from "./workspaceAnalysis";
 
 /** Runtime services shared by command handlers. */
 export type ExtensionServices = {
@@ -27,6 +30,8 @@ export type ExtensionServices = {
   explorerGraphPanelProvider: ExplorerGraphPanelProvider;
   explorerViewProvider: ExplorerViewProvider;
   functionVisualizerPanelProvider: FunctionVisualizerPanelProvider;
+  moduleVisualizerPanelProvider: ModuleVisualizerPanelProvider;
+  workspaceGraphCoordinator: WorkspaceGraphCoordinator;
 };
 
 /**
@@ -63,6 +68,19 @@ export function createExtensionServices(context: vscode.ExtensionContext): Exten
     config,
     logger
   });
+  const workspaceGraphCoordinator = new WorkspaceGraphCoordinator({
+    analyzer,
+    cacheEnabled: config.cache.enabled,
+    cacheStore,
+    createWorkspaceCacheKey: (workspaceRoot) =>
+      createWorkspaceAnalysisCacheKey(workspaceRoot, config),
+    getWorkspaceRoot: () => vscode.workspace.workspaceFolders?.[0]?.uri.fsPath
+  });
+  const moduleVisualizerPanelProvider = new ModuleVisualizerPanelProvider({
+    logger,
+    openFunction: (graph, nodeId) =>
+      functionVisualizerPanelProvider.openFunction(graph, nodeId)
+  });
   const explorerViewProvider = new ExplorerViewProvider({
     context,
     analyzer,
@@ -70,7 +88,8 @@ export function createExtensionServices(context: vscode.ExtensionContext): Exten
     config,
     functionVisualizerPanelProvider,
     graphPanelProvider: explorerGraphPanelProvider,
-    logger
+    logger,
+    workspaceGraphCoordinator
   });
 
   return {
@@ -78,6 +97,8 @@ export function createExtensionServices(context: vscode.ExtensionContext): Exten
     cacheStore,
     explorerGraphPanelProvider,
     explorerViewProvider,
-    functionVisualizerPanelProvider
+    functionVisualizerPanelProvider,
+    moduleVisualizerPanelProvider,
+    workspaceGraphCoordinator
   };
 }

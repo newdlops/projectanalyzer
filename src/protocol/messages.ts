@@ -17,6 +17,13 @@ import type {
   FunctionExplorerSearchPayload
 } from "./functionExplorer";
 import type { FunctionVisualizerSessionPayload } from "./functionVisualizer";
+import type {
+  ModuleFlowDetailPayload,
+  ModuleFlowExpandPayload,
+  ModuleFlowFailurePayload,
+  ModuleFlowListPayload,
+  ModuleFlowRequest
+} from "./moduleFlow";
 
 /** Supported graph view modes shown by the explorer. */
 export type GraphViewMode = "call" | "file" | "class";
@@ -85,6 +92,7 @@ export type WebviewRequest =
   | { type: "export/run"; payload: ExportRequest }
   | CodeFlowRequest
   | FunctionExplorerRequest
+  | ModuleFlowRequest
   | { type: "telemetry/log"; payload: WebviewLogRequest };
 
 /** Search result returned to the Webview. */
@@ -121,6 +129,10 @@ export type ExtensionResponse =
   | { type: "function/indexLoaded"; payload: FunctionExplorerPayload }
   | { type: "function/searchLoaded"; payload: FunctionExplorerSearchPayload }
   | { type: "function/searchFailed"; payload: FunctionExplorerSearchFailurePayload }
+  | { type: "moduleFlow/listLoaded"; payload: ModuleFlowListPayload }
+  | { type: "moduleFlow/detailLoaded"; payload: ModuleFlowDetailPayload }
+  | { type: "moduleFlow/expanded"; payload: ModuleFlowExpandPayload }
+  | { type: "moduleFlow/requestFailed"; payload: ModuleFlowFailurePayload }
   | { type: "view/modeChanged"; payload: { mode: GraphViewMode } }
   | { type: "search/results"; payload: SearchResult[] }
   | { type: "error"; payload: ErrorPayload };

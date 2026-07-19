@@ -12,6 +12,14 @@ import type {
 } from "./functionExplorer";
 import type { CodeFlowId } from "./codeFlow";
 import type { WebviewRequest } from "./messages";
+import {
+  MODULE_FLOW_DETAIL_MAX_EVIDENCE,
+  MODULE_FLOW_DETAIL_MAX_RELATIONS,
+  MODULE_FLOW_EXPAND_MAX_EDGES,
+  MODULE_FLOW_EXPAND_MAX_NODES,
+  MODULE_FLOW_LIST_MAX_EDGES,
+  MODULE_FLOW_LIST_MAX_MODULES
+} from "./moduleFlow";
 
 /** Successful or rejected result returned by the Webview request validator. */
 export type WebviewRequestValidationResult =
@@ -77,6 +85,10 @@ const EDGE_CONFIDENCES = ["exact", "resolved", "inferred", "unresolved"] as cons
 const FUNCTION_SORT_KEYS = ["relevance", "path", "name", "fan-in", "fan-out", "unresolved"] as const;
 const FUNCTION_SEARCH_TEXT_LIMIT = 512;
 const CODE_FLOW_SEARCH_TEXT_LIMIT = 512;
+const MODULE_FLOW_GRAPH_VERSION_LIMIT = 128;
+const MODULE_FLOW_VIEW_MODES = ["execution", "dependency", "boundary"] as const;
+const MODULE_FLOW_EXPANSION_KINDS = ["childModules", "boundaryFunctions"] as const;
+const MODULE_FLOW_EXPANSION_DIRECTIONS = ["incoming", "outgoing", "both"] as const;
 
 /**
  * Validates an untrusted Webview value and returns a typed request only after
@@ -156,6 +168,18 @@ function validateReadableWebviewRequest(value: unknown): WebviewRequestValidatio
     case "codeFlow/openEvidence":
       payloadIsValid = isCodeFlowOpenEvidencePayload(payload);
       break;
+    case "moduleFlow/list":
+      payloadIsValid = isModuleFlowListPayload(payload);
+      break;
+    case "moduleFlow/detail":
+      payloadIsValid = isModuleFlowDetailPayload(payload);
+      break;
+    case "moduleFlow/expand":
+      payloadIsValid = isModuleFlowExpandPayload(payload);
+      break;
+    case "moduleFlow/openSource":
+      payloadIsValid = isModuleFlowOpenSourcePayload(payload);
+      break;
     case "function/index":
       payloadIsValid = isFunctionIndexPayload(payload);
       break;
@@ -234,6 +258,136 @@ function isCodeFlowOpenEvidencePayload(value: unknown): boolean {
 /** Keeps arbitrary browser strings from becoming Host flow references. */
 function isCodeFlowId(value: unknown): value is CodeFlowId {
   return typeof value === "string" && /^code-flow:[0-9a-f]{32}$/u.test(value);
+}
+
+/** Validates the independently bounded module and edge budgets for one scene. */
+function isModuleFlowListPayload(value: unknown): boolean {
+  return (
+    isRecord(value) &&
+    hasOnlyKeys(value, [
+      "graphVersion",
+      "requestId",
+      "mode",
+      "moduleLimit",
+      "edgeLimit",
+      "includeExternal",
+      "includeInferred"
+    ]) &&
+    isModuleFlowGraphVersion(value.graphVersion) &&
+    isNonNegativeInteger(value.requestId) &&
+    isOneOf(value.mode, MODULE_FLOW_VIEW_MODES) &&
+    isPositiveBoundedInteger(value.moduleLimit, MODULE_FLOW_LIST_MAX_MODULES) &&
+    isPositiveBoundedInteger(value.edgeLimit, MODULE_FLOW_LIST_MAX_EDGES) &&
+    isOptionalBoolean(value.includeExternal) &&
+    isOptionalBoolean(value.includeInferred)
+  );
+}
+
+/** Accepts only one opaque module or visual-edge detail target. */
+function isModuleFlowDetailPayload(value: unknown): boolean {
+  return (
+    isRecord(value) &&
+    hasOnlyKeys(value, [
+      "graphVersion",
+      "requestId",
+      "target",
+      "relationLimit",
+      "evidenceLimit"
+    ]) &&
+    isModuleFlowGraphVersion(value.graphVersion) &&
+    isNonNegativeInteger(value.requestId) &&
+    isModuleFlowDetailTarget(value.target) &&
+    isPositiveBoundedInteger(value.relationLimit, MODULE_FLOW_DETAIL_MAX_RELATIONS) &&
+    isPositiveBoundedInteger(value.evidenceLimit, MODULE_FLOW_DETAIL_MAX_EVIDENCE)
+  );
+}
+
+/** Validates one non-recursive, budgeted expansion around an opaque module. */
+function isModuleFlowExpandPayload(value: unknown): boolean {
+  return (
+    isRecord(value) &&
+    hasOnlyKeys(value, [
+      "graphVersion",
+      "requestId",
+      "moduleId",
+      "expansion",
+      "direction",
+      "nodeLimit",
+      "edgeLimit"
+    ]) &&
+    isModuleFlowGraphVersion(value.graphVersion) &&
+    isNonNegativeInteger(value.requestId) &&
+    isModuleFlowModuleId(value.moduleId) &&
+    isOneOf(value.expansion, MODULE_FLOW_EXPANSION_KINDS) &&
+    isOneOf(value.direction, MODULE_FLOW_EXPANSION_DIRECTIONS) &&
+    isPositiveBoundedInteger(value.nodeLimit, MODULE_FLOW_EXPAND_MAX_NODES) &&
+    isPositiveBoundedInteger(value.edgeLimit, MODULE_FLOW_EXPAND_MAX_EDGES)
+  );
+}
+
+/** Allows source reveal only through a current-snapshot node or evidence token. */
+function isModuleFlowOpenSourcePayload(value: unknown): boolean {
+  return (
+    isRecord(value) &&
+    hasOnlyKeys(value, ["graphVersion", "requestId", "target"]) &&
+    isModuleFlowGraphVersion(value.graphVersion) &&
+    isNonNegativeInteger(value.requestId) &&
+    isModuleFlowOpenSourceTarget(value.target)
+  );
+}
+
+/** Strict nested target validation prevents mixed or path-bearing references. */
+function isModuleFlowDetailTarget(value: unknown): boolean {
+  if (!isRecord(value)) {
+    return false;
+  }
+  if (value.kind === "module") {
+    return hasOnlyKeys(value, ["kind", "id"]) && isModuleFlowModuleId(value.id);
+  }
+  if (value.kind === "edge") {
+    return hasOnlyKeys(value, ["kind", "id"]) && isModuleFlowEdgeId(value.id);
+  }
+  return false;
+}
+
+/** Strict source target validation rejects analyzer IDs and absolute paths. */
+function isModuleFlowOpenSourceTarget(value: unknown): boolean {
+  if (!isRecord(value)) {
+    return false;
+  }
+  if (value.kind === "node") {
+    return hasOnlyKeys(value, ["kind", "sourceToken"]) && isSourceNodeToken(value.sourceToken);
+  }
+  if (value.kind === "evidence") {
+    return (
+      hasOnlyKeys(value, ["kind", "evidenceToken"])
+      && isModuleFlowEvidenceToken(value.evidenceToken)
+    );
+  }
+  return false;
+}
+
+/** Browser requests must use the active opaque Webview snapshot identity. */
+function isModuleFlowGraphVersion(value: unknown): value is string {
+  return (
+    isBoundedString(value, MODULE_FLOW_GRAPH_VERSION_LIMIT)
+    && value.length > 0
+  );
+}
+
+/** Opaque module identities have a fixed prefix and 128-bit lowercase digest. */
+function isModuleFlowModuleId(value: unknown): boolean {
+  return typeof value === "string" && /^module-flow-module:[0-9a-f]{32}$/u.test(value);
+}
+
+/** Opaque visual-edge identities have a fixed prefix and 128-bit digest. */
+function isModuleFlowEdgeId(value: unknown): boolean {
+  return typeof value === "string" && /^module-flow-edge:[0-9a-f]{32}$/u.test(value);
+}
+
+/** Source-range authority uses a longer digest than browser-visible canvas IDs. */
+function isModuleFlowEvidenceToken(value: unknown): boolean {
+  return typeof value === "string" && /^module-flow-evidence:[0-9a-f]{64}$/u.test(value);
 }
 
 /** Accepts only opaque source references issued by the active Host registry. */
@@ -417,6 +571,11 @@ function isNonNegativeInteger(value: unknown): value is number {
   return typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
 }
 
+/** Accepts a positive safe integer only while it stays under a feature budget. */
+function isPositiveBoundedInteger(value: unknown, maximum: number): value is number {
+  return isNonNegativeInteger(value) && value > 0 && value <= maximum;
+}
+
 /** Validates an optional string field. */
 function isOptionalString(value: unknown): value is string | undefined {
   return value === undefined || typeof value === "string";
@@ -463,6 +622,11 @@ function isOptionalEnum<T extends string>(value: unknown, choices: readonly T[])
 /** Validates arrays whose entries belong to a fixed string vocabulary. */
 function isEnumArray<T extends string>(value: unknown, choices: readonly T[]): value is T[] {
   return Array.isArray(value) && value.every((entry) => isOneOf(entry, choices));
+}
+
+/** Rejects ambiguous fields that a typed request does not implement. */
+function hasOnlyKeys(value: Record<string, unknown>, allowedKeys: readonly string[]): boolean {
+  return Object.keys(value).every((key) => allowedKeys.some((allowedKey) => allowedKey === key));
 }
 
 /** Creates a stable rejection without retaining arbitrary untrusted payloads. */

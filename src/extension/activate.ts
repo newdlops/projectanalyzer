@@ -6,6 +6,7 @@
 import * as vscode from "vscode";
 import { createExtensionServices } from "./extensionServices";
 import { registerCurrentFunctionVisualizationCommand } from "./currentFunctionVisualization";
+import { registerModuleVisualizationCommand } from "./moduleVisualization";
 import { registerProjectAnalyzerViews } from "./views";
 
 /**
@@ -15,6 +16,7 @@ export function activate(context: vscode.ExtensionContext): void {
   const services = createExtensionServices(context);
   registerProjectAnalyzerViews(context, services);
   registerCurrentFunctionVisualizationCommand(context, services);
+  registerModuleVisualizationCommand(context, services);
 }
 
 /**

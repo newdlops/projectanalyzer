@@ -19,14 +19,22 @@ export type SourceDisplayFormatter = {
   location(filePath: string, range?: Pick<SourceRange, "startLine">): string | undefined;
 };
 
+/** Presentation policy for surfaces whose variable boxes retain complete text. */
+export type SourceDisplayFormatterOptions = {
+  preserveFullText?: boolean;
+};
+
 /** Creates a safe, portable source formatter without exposing its host root. */
-export function createSourceDisplayFormatter(workspaceRoot: string): SourceDisplayFormatter {
+export function createSourceDisplayFormatter(
+  workspaceRoot: string,
+  options: SourceDisplayFormatterOptions = {}
+): SourceDisplayFormatter {
   const sourcePaths = createPortableProjectPathNormalizer(workspaceRoot);
 
   return {
-    path: (filePath) => createSafeSourceDisplayPath(filePath, sourcePaths),
+    path: (filePath) => createSafeSourceDisplayPath(filePath, sourcePaths, options),
     location(filePath, range) {
-      const displayPath = createSafeSourceDisplayPath(filePath, sourcePaths);
+      const displayPath = createSafeSourceDisplayPath(filePath, sourcePaths, options);
       if (!displayPath) {
         return undefined;
       }
@@ -37,7 +45,9 @@ export function createSourceDisplayFormatter(workspaceRoot: string): SourceDispl
         && startLine >= 0
         ? `:${startLine + 1}`
         : "";
-      return boundSourceDisplayText(`${displayPath}${lineSuffix}`);
+      return options.preserveFullText
+        ? `${displayPath}${lineSuffix}`
+        : boundSourceDisplayText(`${displayPath}${lineSuffix}`);
     }
   };
 }
@@ -45,7 +55,8 @@ export function createSourceDisplayFormatter(workspaceRoot: string): SourceDispl
 /** Returns a workspace-relative path or only the basename for out-of-root input. */
 function createSafeSourceDisplayPath(
   filePath: string,
-  sourcePaths: PortableProjectPathNormalizer
+  sourcePaths: PortableProjectPathNormalizer,
+  options: SourceDisplayFormatterOptions
 ): string | undefined {
   const value = filePath.trim();
   if (!value) {
@@ -57,7 +68,11 @@ function createSafeSourceDisplayPath(
   const displayPath = sourcePaths.contains(workspace.key, normalized.key)
     ? normalized.displayPath
     : getPortableBaseName(value);
-  return displayPath ? boundSourceDisplayText(displayPath) : undefined;
+  return displayPath
+    ? options.preserveFullText
+      ? displayPath
+      : boundSourceDisplayText(displayPath)
+    : undefined;
 }
 
 /** Extracts one filename without consulting host-specific path semantics. */

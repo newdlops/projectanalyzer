@@ -2,5 +2,6 @@
 
 export {
   createSourceDisplayFormatter,
-  type SourceDisplayFormatter
+  type SourceDisplayFormatter,
+  type SourceDisplayFormatterOptions
 } from "./sourceDisplay";

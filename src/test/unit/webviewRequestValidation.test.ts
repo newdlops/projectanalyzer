@@ -8,6 +8,14 @@ import test from "node:test";
 import type { FunctionExplorerFilters } from "../../protocol/functionExplorer";
 import type { WebviewRequest } from "../../protocol/messages";
 import {
+  MODULE_FLOW_DETAIL_MAX_EVIDENCE,
+  MODULE_FLOW_DETAIL_MAX_RELATIONS,
+  MODULE_FLOW_EXPAND_MAX_EDGES,
+  MODULE_FLOW_EXPAND_MAX_NODES,
+  MODULE_FLOW_LIST_MAX_EDGES,
+  MODULE_FLOW_LIST_MAX_MODULES
+} from "../../protocol/moduleFlow";
+import {
   isWebviewRequest,
   validateWebviewRequest
 } from "../../protocol/webviewRequestValidation";
@@ -41,6 +49,10 @@ test("accepts every current WebviewRequest variant", () => {
       "codeFlow/select",
       "codeFlow/selectSource",
       "codeFlow/openEvidence",
+      "moduleFlow/list",
+      "moduleFlow/detail",
+      "moduleFlow/expand",
+      "moduleFlow/openSource",
       "function/index",
       "function/sectionRows",
       "function/expand",
@@ -289,6 +301,246 @@ test("bounds CodeFlow search and accepts only opaque snapshot references", () =>
   }).ok, false);
 });
 
+test("accepts bounded Module Flow requests with strict opaque identities", () => {
+  const graphVersion = "sidebar-snapshot:validation:2";
+  const moduleId = `module-flow-module:${"a".repeat(32)}`;
+  const edgeId = `module-flow-edge:${"b".repeat(32)}`;
+  const sourceToken = `source-node:${"c".repeat(64)}`;
+  const evidenceToken = `module-flow-evidence:${"d".repeat(64)}`;
+  const requests: unknown[] = [
+    {
+      type: "moduleFlow/list",
+      payload: {
+        graphVersion,
+        requestId: 1,
+        mode: "execution",
+        moduleLimit: MODULE_FLOW_LIST_MAX_MODULES,
+        edgeLimit: MODULE_FLOW_LIST_MAX_EDGES,
+        includeExternal: true,
+        includeInferred: false
+      }
+    },
+    {
+      type: "moduleFlow/detail",
+      payload: {
+        graphVersion,
+        requestId: 2,
+        target: { kind: "module", id: moduleId },
+        relationLimit: MODULE_FLOW_DETAIL_MAX_RELATIONS,
+        evidenceLimit: MODULE_FLOW_DETAIL_MAX_EVIDENCE
+      }
+    },
+    {
+      type: "moduleFlow/detail",
+      payload: {
+        graphVersion,
+        requestId: 3,
+        target: { kind: "edge", id: edgeId },
+        relationLimit: 1,
+        evidenceLimit: 1
+      }
+    },
+    {
+      type: "moduleFlow/expand",
+      payload: {
+        graphVersion,
+        requestId: 4,
+        moduleId,
+        expansion: "boundaryFunctions",
+        direction: "both",
+        nodeLimit: MODULE_FLOW_EXPAND_MAX_NODES,
+        edgeLimit: MODULE_FLOW_EXPAND_MAX_EDGES
+      }
+    },
+    {
+      type: "moduleFlow/openSource",
+      payload: {
+        graphVersion,
+        requestId: 5,
+        target: { kind: "node", sourceToken }
+      }
+    },
+    {
+      type: "moduleFlow/openSource",
+      payload: {
+        graphVersion,
+        requestId: 6,
+        target: { kind: "evidence", evidenceToken }
+      }
+    }
+  ];
+
+  for (const request of requests) {
+    assert.equal(validateWebviewRequest(request).ok, true);
+  }
+});
+
+test("rejects unbounded or path-bearing Module Flow requests", () => {
+  const graphVersion = "sidebar-snapshot:validation:2";
+  const moduleId = `module-flow-module:${"a".repeat(32)}`;
+  const edgeId = `module-flow-edge:${"b".repeat(32)}`;
+  const sourceToken = `source-node:${"c".repeat(64)}`;
+  const malformed: unknown[] = [
+    {
+      type: "moduleFlow/list",
+      payload: {
+        graphVersion: "",
+        requestId: 1,
+        mode: "execution",
+        moduleLimit: 1,
+        edgeLimit: 1
+      }
+    },
+    {
+      type: "moduleFlow/list",
+      payload: {
+        graphVersion: "x".repeat(129),
+        requestId: 1,
+        mode: "execution",
+        moduleLimit: 1,
+        edgeLimit: 1
+      }
+    },
+    {
+      type: "moduleFlow/list",
+      payload: {
+        graphVersion,
+        requestId: 1,
+        mode: "all",
+        moduleLimit: 1,
+        edgeLimit: 1
+      }
+    },
+    {
+      type: "moduleFlow/list",
+      payload: {
+        graphVersion,
+        requestId: 1,
+        mode: "execution",
+        moduleLimit: 0,
+        edgeLimit: 1
+      }
+    },
+    {
+      type: "moduleFlow/list",
+      payload: {
+        graphVersion,
+        requestId: 1,
+        mode: "execution",
+        moduleLimit: MODULE_FLOW_LIST_MAX_MODULES + 1,
+        edgeLimit: 1
+      }
+    },
+    {
+      type: "moduleFlow/list",
+      payload: {
+        graphVersion,
+        requestId: 1,
+        mode: "execution",
+        moduleLimit: 1,
+        edgeLimit: MODULE_FLOW_LIST_MAX_EDGES + 1,
+        rootPath: "/workspace/packages/api"
+      }
+    },
+    {
+      type: "moduleFlow/detail",
+      payload: {
+        graphVersion,
+        requestId: 2,
+        target: { kind: "module", id: "project-module:/workspace/packages/api" },
+        relationLimit: 1,
+        evidenceLimit: 1
+      }
+    },
+    {
+      type: "moduleFlow/detail",
+      payload: {
+        graphVersion,
+        requestId: 2,
+        target: { kind: "edge", id: edgeId, edgeIds: ["raw-edge"] },
+        relationLimit: 1,
+        evidenceLimit: 1
+      }
+    },
+    {
+      type: "moduleFlow/detail",
+      payload: {
+        graphVersion,
+        requestId: 2,
+        target: { kind: "module", id: moduleId },
+        relationLimit: MODULE_FLOW_DETAIL_MAX_RELATIONS + 1,
+        evidenceLimit: 1
+      }
+    },
+    {
+      type: "moduleFlow/detail",
+      payload: {
+        graphVersion,
+        requestId: 2,
+        target: { kind: "module", id: moduleId },
+        relationLimit: 1,
+        evidenceLimit: MODULE_FLOW_DETAIL_MAX_EVIDENCE + 1
+      }
+    },
+    {
+      type: "moduleFlow/expand",
+      payload: {
+        graphVersion,
+        requestId: 3,
+        moduleId,
+        expansion: "recursive",
+        direction: "both",
+        nodeLimit: 1,
+        edgeLimit: 1
+      }
+    },
+    {
+      type: "moduleFlow/expand",
+      payload: {
+        graphVersion,
+        requestId: 3,
+        moduleId,
+        expansion: "childModules",
+        direction: "downstream",
+        nodeLimit: MODULE_FLOW_EXPAND_MAX_NODES + 1,
+        edgeLimit: MODULE_FLOW_EXPAND_MAX_EDGES + 1
+      }
+    },
+    {
+      type: "moduleFlow/openSource",
+      payload: {
+        graphVersion,
+        requestId: 4,
+        target: { kind: "node", sourceToken: "/workspace/src/index.ts" }
+      }
+    },
+    {
+      type: "moduleFlow/openSource",
+      payload: {
+        graphVersion,
+        requestId: 4,
+        target: {
+          kind: "node",
+          sourceToken,
+          evidenceToken: `module-flow-evidence:${"d".repeat(64)}`
+        }
+      }
+    },
+    {
+      type: "moduleFlow/openSource",
+      payload: {
+        graphVersion,
+        requestId: -1,
+        target: { kind: "evidence", evidenceToken: "module-flow-evidence:callsite" }
+      }
+    }
+  ];
+
+  for (const request of malformed) {
+    assert.equal(validateWebviewRequest(request).ok, false);
+  }
+});
+
 test("accepts only filters implemented by Function Explorer search", () => {
   const base = {
     graphVersion: "v1",
@@ -409,6 +661,54 @@ function createValidRequests(): WebviewRequest[] {
       payload: {
         graphVersion: "v1",
         evidenceToken: "code-evidence:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      }
+    },
+    {
+      type: "moduleFlow/list",
+      payload: {
+        graphVersion: "v1",
+        requestId: 1,
+        mode: "execution",
+        moduleLimit: 32,
+        edgeLimit: 64,
+        includeExternal: true,
+        includeInferred: false
+      }
+    },
+    {
+      type: "moduleFlow/detail",
+      payload: {
+        graphVersion: "v1",
+        requestId: 2,
+        target: {
+          kind: "module",
+          id: "module-flow-module:0123456789abcdef0123456789abcdef"
+        },
+        relationLimit: 20,
+        evidenceLimit: 5
+      }
+    },
+    {
+      type: "moduleFlow/expand",
+      payload: {
+        graphVersion: "v1",
+        requestId: 3,
+        moduleId: "module-flow-module:0123456789abcdef0123456789abcdef",
+        expansion: "boundaryFunctions",
+        direction: "both",
+        nodeLimit: 24,
+        edgeLimit: 48
+      }
+    },
+    {
+      type: "moduleFlow/openSource",
+      payload: {
+        graphVersion: "v1",
+        requestId: 4,
+        target: {
+          kind: "node",
+          sourceToken: "source-node:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+        }
       }
     },
     { type: "function/index", payload: {} },

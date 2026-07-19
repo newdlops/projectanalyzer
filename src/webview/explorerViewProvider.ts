@@ -7,6 +7,7 @@ import * as vscode from "vscode";
 import type { AnalysisBackend } from "../analyzer/core/analysisBackend";
 import { CodeFlowInsightCache } from "../application/codeFlow";
 import { FunctionExplorerProjectionService } from "../application/functionExplorer";
+import type { WorkspaceGraphCoordinator } from "../extension/workspaceAnalysis";
 import type { CodeFlowSelectSourceRequest } from "../protocol/codeFlow";
 import type {
   AnalysisStatusPayload,
@@ -23,8 +24,7 @@ import type { ProjectGraph } from "../shared/types";
 import type { AnalysisCacheScope, AnalysisCacheStore } from "../storage/cacheStore";
 import type { ProjectAnalyzerConfig } from "../vscode/configuration";
 import {
-  createCurrentFileAnalysisCacheKey,
-  createWorkspaceAnalysisCacheKey
+  createCurrentFileAnalysisCacheKey
 } from "../vscode/workspaceFingerprint";
 import type { ExplorerGraphPanelProvider } from "./explorerGraphPanelProvider";
 import type { FunctionVisualizerPanelProvider } from "./functionVisualizer";
@@ -60,10 +60,8 @@ export type ExplorerViewProviderDependencies = {
   functionVisualizerPanelProvider: FunctionVisualizerPanelProvider;
   graphPanelProvider: ExplorerGraphPanelProvider;
   logger: ProjectAnalyzerLogger;
+  workspaceGraphCoordinator: WorkspaceGraphCoordinator;
 };
-
-/** Cached workspace graph selected for reuse before running analysis. */
-type WorkspaceCacheMatch = { graph: ProjectGraph; kind: "exact" | "latest" };
 
 /** Temporary gate while the visual graph renderer is disconnected from the GUI. */
 const GRAPH_RENDERING_ENABLED = false;
@@ -284,44 +282,30 @@ export class ExplorerViewProvider implements vscode.WebviewViewProvider {
       return;
     }
 
-    const workspaceCacheKey = await this.createWorkspaceCacheKey();
-    const cachedWorkspace = await this.getReusableWorkspaceGraph(workspaceCacheKey);
-
-    if (cachedWorkspace) {
-      this.dependencies.logger.info("sidebar.workspaceAnalysis.cacheHit", {
-        cacheKind: cachedWorkspace.kind,
-        hasFingerprint: Boolean(workspaceCacheKey)
-      });
-      if (cachedWorkspace.kind === "exact" && workspaceCacheKey) {
-        await this.dependencies.cacheStore.setActiveGraph("workspace", workspaceCacheKey);
-      }
-      await this.publishGraph(cachedWorkspace.graph);
-      await this.postStatus(
-        "complete",
-        `Loaded cached workspace graph, ${cachedWorkspace.graph.nodes.length} nodes`
-      );
-      return;
-    }
-
     this.analysisRunning = true;
     this.dependencies.logger.info("sidebar.workspaceAnalysis.start", {
-      cacheEnabled: this.dependencies.config.cache.enabled,
-      hasFingerprint: Boolean(workspaceCacheKey)
+      cacheEnabled: this.dependencies.config.cache.enabled
     });
     await this.postStatus("running", "Analyzing workspace");
 
     try {
-      const result = await this.dependencies.analyzer.analyzeWorkspace();
+      const result = await this.dependencies.workspaceGraphCoordinator.resolveWorkspaceGraph();
+      if (result.status === "unavailable") {
+        await this.postStatus("idle", "Open a workspace folder first");
+        return;
+      }
       this.dependencies.logger.info("sidebar.workspaceAnalysis.complete", {
+        cacheSource: result.source,
         edges: result.graph.edges.length,
         files: result.graph.metadata.fileCount,
         nodes: result.graph.nodes.length
       });
-      await this.saveGraphToCache("workspace", workspaceCacheKey ?? "workspace", result.graph, "Workspace analysis");
       await this.publishGraph(result.graph);
       await this.postStatus(
         "complete",
-        `Indexed ${result.graph.metadata.fileCount} files, ${result.graph.nodes.length} nodes`
+        result.source === "exactCache"
+          ? `Loaded cached workspace graph, ${result.graph.nodes.length} nodes`
+          : `Indexed ${result.graph.metadata.fileCount} files, ${result.graph.nodes.length} nodes`
       );
     } catch (error) {
       this.dependencies.logger.error("sidebar.workspaceAnalysis.failed", {
@@ -448,27 +432,10 @@ export class ExplorerViewProvider implements vscode.WebviewViewProvider {
   }
 
   /**
-   * Restores the latest valid workspace graph after the user has viewed a
-   * current-file scoped graph. If the workspace cache is stale or absent, this
-   * falls back to a normal workspace analysis.
+   * Restores an exact workspace snapshot after a current-file scoped graph.
+   * The shared coordinator decides between fingerprint hit and fresh analysis.
    */
   private async showWorkspaceScope(): Promise<void> {
-    const workspaceCacheKey = await this.createWorkspaceCacheKey();
-    const cachedWorkspace = await this.getReusableWorkspaceGraph(workspaceCacheKey);
-
-    if (cachedWorkspace) {
-      if (cachedWorkspace.kind === "exact" && workspaceCacheKey) {
-        await this.dependencies.cacheStore.setActiveGraph("workspace", workspaceCacheKey);
-      }
-      await this.publishGraph(cachedWorkspace.graph);
-      await this.postStatus(
-        "complete",
-        `Workspace scope restored, ${cachedWorkspace.graph.nodes.length} nodes`
-      );
-      return;
-    }
-
-    await this.postStatus("running", "Workspace cache missing; analyzing workspace");
     await this.runWorkspaceAnalysis();
   }
 
@@ -645,40 +612,6 @@ export class ExplorerViewProvider implements vscode.WebviewViewProvider {
     return this.dependencies.cacheStore.getGraph(scope, cacheKey);
   }
 
-  /** Returns exact workspace cache first, then the newest saved workspace graph. */
-  private async getReusableWorkspaceGraph(cacheKey: string | undefined): Promise<WorkspaceCacheMatch | undefined> {
-    if (!this.dependencies.config.cache.enabled) {
-      return undefined;
-    }
-
-    if (cacheKey) {
-      const exactGraph = await this.dependencies.cacheStore.getGraph("workspace", cacheKey);
-
-      if (exactGraph) {
-        return { graph: exactGraph, kind: "exact" };
-      }
-
-      this.dependencies.logger.info("sidebar.workspaceAnalysis.cacheExactMiss", {
-        cacheKeyPrefix: cacheKey.slice(0, 12)
-      });
-    }
-
-    const latestGraph = await this.dependencies.cacheStore.getLatestGraphForScope("workspace");
-
-    if (!latestGraph) {
-      this.dependencies.logger.info("sidebar.workspaceAnalysis.cacheMiss", {
-        hasFingerprint: Boolean(cacheKey)
-      });
-      return undefined;
-    }
-
-    this.dependencies.logger.info("sidebar.workspaceAnalysis.cacheLatestFallback", {
-      hasFingerprint: Boolean(cacheKey),
-      nodes: latestGraph.nodes.length
-    });
-    return { graph: latestGraph, kind: "latest" };
-  }
-
   /** Saves a graph under a scoped cache key and makes it active for the UI. */
   private async saveGraphToCache(
     scope: AnalysisCacheScope,
@@ -693,24 +626,6 @@ export class ExplorerViewProvider implements vscode.WebviewViewProvider {
       label,
       savedAt: new Date().toISOString()
     });
-  }
-
-  /** Creates the current workspace cache key, returning undefined on failure. */
-  private async createWorkspaceCacheKey(): Promise<string | undefined> {
-    const workspaceRoot = this.getWorkspaceRoot();
-
-    if (!workspaceRoot || !this.dependencies.config.cache.enabled) {
-      return undefined;
-    }
-
-    try {
-      return await createWorkspaceAnalysisCacheKey(workspaceRoot, this.dependencies.config);
-    } catch (error) {
-      this.dependencies.logger.warn("sidebar.workspaceCacheKey.failed", {
-        error: error instanceof Error ? error.message : String(error)
-      });
-      return undefined;
-    }
   }
 
   /** Returns the first VS Code workspace root used by analyzer adapters. */
