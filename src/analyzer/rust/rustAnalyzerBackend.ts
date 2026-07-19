@@ -285,7 +285,8 @@ function summarizeGraph(graph: ProjectGraph): Record<string, unknown> {
     files: graph.metadata.fileCount,
     frameworks: graph.metadata.frameworks?.length ?? 0,
     languages: graph.metadata.languageSummary?.length ?? graph.metadata.languages.length,
-    nodes: graph.nodes.length
+    nodes: graph.nodes.length,
+    projectPackages: graph.metadata.projectPackageRoots?.length ?? 0
   };
 }
 

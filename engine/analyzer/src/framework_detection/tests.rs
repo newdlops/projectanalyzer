@@ -4,9 +4,9 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use crate::model::DetectedFramework;
+use crate::model::{DetectedFramework, ProjectPackageRoot};
 
-use super::detect_frameworks;
+use super::{detect_frameworks, detect_frameworks_and_project_package_roots};
 
 #[test]
 fn detects_javascript_frameworks_from_package_json() {
@@ -193,6 +193,57 @@ fn ignores_manifests_inside_excluded_directories() {
     remove_temp_workspace(&workspace);
 }
 
+#[test]
+fn merges_project_package_manifest_evidence_by_root_deterministically() {
+    let workspace = create_temp_workspace("project-package-roots");
+    // Deliberately create manifests out of lexical order. The iterative scanner
+    // and set-backed merge must still emit stable roots, paths, and ecosystems.
+    write_file(&workspace.join("api/requirements.txt"), "fastapi==0.111\n");
+    write_file(&workspace.join("package.json"), r#"{"private":true}"#);
+    write_file(
+        &workspace.join("api/Cargo.toml"),
+        "[package]\nname = \"api-sidecar\"\nversion = \"0.1.0\"\n",
+    );
+    write_file(
+        &workspace.join("api/pyproject.toml"),
+        "[project]\nname = \"api\"\n",
+    );
+    write_file(
+        &workspace.join("workers/go.mod"),
+        "module example.com/workers\n",
+    );
+    write_file(
+        &workspace.join("node_modules/ignored/package.json"),
+        r#"{"dependencies":{"react":"18"}}"#,
+    );
+
+    let detection = detect_frameworks_and_project_package_roots(&workspace)
+        .expect("detects frameworks and package roots");
+    let roots = detection.project_package_roots;
+
+    assert_eq!(
+        roots
+            .iter()
+            .map(|root| root.root_path.as_str())
+            .collect::<Vec<_>>(),
+        vec![".", "api", "workers"]
+    );
+    assert_package_root(&roots, ".", &["package.json"], &["javascript"]);
+    assert_package_root(
+        &roots,
+        "api",
+        &[
+            "api/Cargo.toml",
+            "api/pyproject.toml",
+            "api/requirements.txt",
+        ],
+        &["python", "rust"],
+    );
+    assert_package_root(&roots, "workers", &["workers/go.mod"], &["go"]);
+
+    remove_temp_workspace(&workspace);
+}
+
 fn assert_framework(
     frameworks: &[DetectedFramework],
     name: &str,
@@ -231,6 +282,33 @@ fn assert_no_framework(
                 && framework.root_path.as_deref() == Some(root_path)
         }),
         "unexpected framework {ecosystem}/{name} at {root_path}"
+    );
+}
+
+/// Verifies one deterministic neutral package-root record by exact root label.
+fn assert_package_root(
+    roots: &[ProjectPackageRoot],
+    root_path: &str,
+    manifest_paths: &[&str],
+    ecosystems: &[&str],
+) {
+    let root = roots
+        .iter()
+        .find(|root| root.root_path == root_path)
+        .unwrap_or_else(|| panic!("missing project package root at {root_path}"));
+    assert_eq!(
+        root.manifest_paths,
+        manifest_paths
+            .iter()
+            .map(|path| path.to_string())
+            .collect::<Vec<_>>()
+    );
+    assert_eq!(
+        root.ecosystems,
+        ecosystems
+            .iter()
+            .map(|ecosystem| ecosystem.to_string())
+            .collect::<Vec<_>>()
     );
 }
 

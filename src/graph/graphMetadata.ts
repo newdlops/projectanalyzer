@@ -35,6 +35,7 @@ export function normalizeProjectGraphMetadata(graph: ProjectGraph): ProjectGraph
       ...graph.metadata,
       languageSummary: graph.metadata.languageSummary ?? createLanguageSummaryFromNodes(graph.nodes),
       frameworks: graph.metadata.frameworks ?? [],
+      projectPackageRoots: graph.metadata.projectPackageRoots ?? [],
       frameworkUnits: graph.metadata.frameworkUnits ?? [],
       frameworkUnitEdges: graph.metadata.frameworkUnitEdges ?? []
     }

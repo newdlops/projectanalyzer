@@ -103,6 +103,20 @@ pub struct DetectedFramework {
     pub evidence: Vec<String>,
 }
 
+/// Neutral project package boundary discovered from ecosystem manifests.
+///
+/// Paths are workspace-relative and use `.` for the workspace root. Multiple
+/// manifests at one root are merged without assigning framework semantics.
+#[derive(Clone)]
+pub struct ProjectPackageRoot {
+    /// Workspace-relative directory, with `.` representing the workspace root.
+    pub root_path: String,
+    /// Sorted workspace-relative manifest paths at this exact root.
+    pub manifest_paths: Vec<String>,
+    /// Sorted unique ecosystems inferred only from the manifest filenames.
+    pub ecosystems: Vec<String>,
+}
+
 /// Framework-aware semantic unit derived from framework conventions.
 #[derive(Clone)]
 pub struct FrameworkUnit {
@@ -142,6 +156,7 @@ pub struct ProjectGraph {
     pub languages: Vec<String>,
     pub language_summary: Vec<LanguageSummary>,
     pub frameworks: Vec<DetectedFramework>,
+    pub project_package_roots: Vec<ProjectPackageRoot>,
     pub file_count: usize,
 }
 

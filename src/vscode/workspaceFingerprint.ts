@@ -13,9 +13,9 @@ import { createWorkspaceGlob } from "./workspaceFileSystem";
 import { createContentHash } from "../shared/hash";
 
 const DEFAULT_FIND_LIMIT = 10_000;
-// Version 2 invalidates graphs created before Rust consumed the host-selected
-// source manifest; their file set could differ despite identical settings.
-const WORKSPACE_CACHE_KEY_VERSION = "workspace-cache-v2";
+// Version 3 invalidates graphs created before neutral package-root metadata was
+// emitted; those graphs cannot produce the same module boundaries.
+const WORKSPACE_CACHE_KEY_VERSION = "workspace-cache-v3";
 
 /** Creates the cache key for the current saved and dirty workspace state. */
 export async function createWorkspaceAnalysisCacheKey(

@@ -97,6 +97,16 @@ export type DetectedFramework = {
   evidence: string[];
 };
 
+/** Neutral manifest evidence for one workspace package root. */
+export type ProjectPackageRoot = {
+  /** Workspace-relative package directory, with `.` representing the root. */
+  rootPath: string;
+  /** Workspace-relative manifests merged at this exact directory. */
+  manifestPaths: string[];
+  /** Ecosystems inferred only from manifest filenames. */
+  ecosystems: string[];
+};
+
 /** Framework-level semantic unit kinds shown above raw file imports. */
 export type FrameworkUnitKind =
   | "app"
@@ -165,6 +175,7 @@ export type ProjectGraph = {
     languages: string[];
     languageSummary?: LanguageSummary[];
     frameworks?: DetectedFramework[];
+    projectPackageRoots?: ProjectPackageRoot[];
     frameworkUnits?: FrameworkUnit[];
     frameworkUnitEdges?: FrameworkUnitEdge[];
     fileCount: number;

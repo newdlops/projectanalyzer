@@ -23,6 +23,51 @@ export type PortableProjectPathNormalizer = {
   depth(key: string): number;
 };
 
+/**
+ * Finds the nearest indexed ancestor with an iterative, cycle-safe parent walk.
+ * The input must already be a canonical key produced by this module.
+ */
+export function findNearestPortableAncestor<T>(
+  pathKey: string,
+  valuesByRootKey: ReadonlyMap<string, T>
+): T | undefined {
+  const visited = new Set<string>();
+  let currentKey: string | undefined = pathKey;
+
+  while (currentKey !== undefined && !visited.has(currentKey)) {
+    visited.add(currentKey);
+    const value = valuesByRootKey.get(currentKey);
+    if (value !== undefined) {
+      return value;
+    }
+
+    const parentKey = getPortableProjectParentKey(currentKey);
+    currentKey = parentKey !== currentKey ? parentKey : undefined;
+  }
+
+  return undefined;
+}
+
+/** Returns the canonical lexical parent of one canonical portable path key. */
+export function getPortableProjectParentKey(key: string): string | undefined {
+  const parsed = parsePortablePath(key);
+  if (parsed.keySegments.length === 0) {
+    return undefined;
+  }
+
+  return formatKey({
+    ...parsed,
+    keySegments: parsed.keySegments.slice(0, -1),
+    displaySegments: parsed.displaySegments.slice(0, -1)
+  });
+}
+
+/** Returns one canonical key's final lexical segment without host-OS semantics. */
+export function getPortableProjectBaseName(key: string): string {
+  const parsed = parsePortablePath(key);
+  return (parsed.displaySegments.at(-1) ?? parsed.rootDisplay) || ".";
+}
+
 type PortablePathKind = "posix" | "windowsDrive" | "unc" | "relative";
 
 /** Internal path form keeps display casing separate from identity casing. */

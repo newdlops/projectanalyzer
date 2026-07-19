@@ -9,7 +9,8 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::model::{
     full_content_range, AnalysisDiagnostic, DetectedFramework, FrameworkUnit, FrameworkUnitEdge,
-    GraphEdge, LanguageSummary, ProjectGraph, SourceInput, SourceRange, SymbolNode,
+    GraphEdge, LanguageSummary, ProjectGraph, ProjectPackageRoot, SourceInput, SourceRange,
+    SymbolNode,
 };
 
 /// Mutable graph builder used during one analysis run.
@@ -23,6 +24,7 @@ pub struct ProjectGraphBuilder {
     languages: BTreeSet<String>,
     language_file_counts: BTreeMap<String, usize>,
     frameworks: Vec<DetectedFramework>,
+    project_package_roots: Vec<ProjectPackageRoot>,
     external_node_ids: BTreeSet<String>,
     file_count: usize,
 }
@@ -40,6 +42,7 @@ impl ProjectGraphBuilder {
             languages: BTreeSet::new(),
             language_file_counts: BTreeMap::new(),
             frameworks: Vec::new(),
+            project_package_roots: Vec::new(),
             external_node_ids: BTreeSet::new(),
             file_count: 0,
         }
@@ -249,6 +252,11 @@ impl ProjectGraphBuilder {
         self.frameworks.extend(frameworks);
     }
 
+    /// Adds neutral manifest-backed project package roots to graph metadata.
+    pub fn add_project_package_roots(&mut self, roots: Vec<ProjectPackageRoot>) {
+        self.project_package_roots.extend(roots);
+    }
+
     /// Adds framework semantic units discovered after framework detection.
     pub fn add_framework_units(
         &mut self,
@@ -285,6 +293,7 @@ impl ProjectGraphBuilder {
             languages: self.languages.into_iter().collect(),
             language_summary,
             frameworks: self.frameworks,
+            project_package_roots: self.project_package_roots,
             file_count: self.file_count,
         }
     }
@@ -473,7 +482,7 @@ mod tests {
     }
 
     #[test]
-    fn json_serializes_optional_language_and_framework_metadata() {
+    fn json_serializes_optional_language_framework_and_package_metadata() {
         let mut builder = ProjectGraphBuilder::new(PathBuf::from("/workspace"));
 
         builder.add_file(&source("/workspace/src/main.rs", "rust"));
@@ -485,6 +494,11 @@ mod tests {
             root_path: Some("engine".to_string()),
             evidence: vec!["Cargo.toml dependency: axum".to_string()],
         }]);
+        builder.add_project_package_roots(vec![ProjectPackageRoot {
+            root_path: "engine".to_string(),
+            manifest_paths: vec!["engine/Cargo.toml".to_string()],
+            ecosystems: vec!["rust".to_string()],
+        }]);
 
         let json = builder.finish().to_json();
 
@@ -492,6 +506,9 @@ mod tests {
         assert!(json.contains("\"frameworks\":[{\"name\":\"Axum\""));
         assert!(json.contains("\"rootPath\":\"engine\""));
         assert!(json.contains("\"evidence\":[\"Cargo.toml dependency: axum\"]"));
+        assert!(json.contains(
+            "\"projectPackageRoots\":[{\"rootPath\":\"engine\",\"manifestPaths\":[\"engine/Cargo.toml\"],\"ecosystems\":[\"rust\"]}]"
+        ));
     }
 
     fn source(path: &str, language_id: &str) -> SourceInput {

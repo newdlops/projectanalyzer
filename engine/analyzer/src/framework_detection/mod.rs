@@ -1,6 +1,6 @@
-//! Manifest-based language framework detection.
+//! Manifest-based framework and project package evidence detection.
 //!
-//! The detector scans workspace manifests iteratively and records conservative
+//! One iterative workspace scan feeds both neutral package roots and conservative
 //! framework evidence from dependency and script declarations.
 
 mod detectors;
@@ -15,7 +15,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::Path;
 
-use crate::model::DetectedFramework;
+use crate::model::{DetectedFramework, ProjectPackageRoot};
 
 use self::detectors::detect_manifest;
 use self::django_project_scan::scan_django_project_roots;
@@ -28,13 +28,36 @@ pub(super) const DJANGO_DEFINITION: FrameworkDefinition = FrameworkDefinition {
     category: "backend",
 };
 
-/// Scans a workspace for known ecosystem manifests and returns framework metadata.
+/// Workspace metadata derived while reusing one iterative manifest scan.
+pub struct ManifestDetectionResult {
+    /// Framework-specific facts derived from manifest contents and project markers.
+    pub frameworks: Vec<DetectedFramework>,
+    /// Neutral package boundaries derived only from supported manifest filenames.
+    pub project_package_roots: Vec<ProjectPackageRoot>,
+}
+
+/// Compatibility wrapper that returns only framework-specific metadata.
+///
+/// The engine entrypoint consumes the richer result below, while framework-unit
+/// tests and internal callers can keep their existing framework-only contract.
+#[allow(dead_code)]
 pub fn detect_frameworks(workspace_root: &Path) -> Result<Vec<DetectedFramework>, String> {
+    Ok(detect_frameworks_and_project_package_roots(workspace_root)?.frameworks)
+}
+
+/// Detects frameworks and neutral package roots from one manifest discovery pass.
+///
+/// Django project markers remain a supplemental framework signal, while package
+/// roots are based only on the manifests returned by the iterative scanner.
+pub fn detect_frameworks_and_project_package_roots(
+    workspace_root: &Path,
+) -> Result<ManifestDetectionResult, String> {
     let manifests = scan_manifest_files(workspace_root)?;
+    let project_package_roots = create_project_package_roots(&manifests);
     let django_project_roots = scan_django_project_roots(workspace_root)?;
     let mut accumulator = FrameworkAccumulator::new();
 
-    for manifest in manifests {
+    for manifest in &manifests {
         let metadata = fs::metadata(&manifest.path).map_err(|error| {
             format!(
                 "failed to read manifest metadata {}: {error}",
@@ -52,7 +75,7 @@ pub fn detect_frameworks(workspace_root: &Path) -> Result<Vec<DetectedFramework>
                 manifest.path.display()
             )
         })?;
-        detect_manifest(&manifest, &content, &mut accumulator);
+        detect_manifest(manifest, &content, &mut accumulator);
     }
 
     for project_root in &django_project_roots {
@@ -69,7 +92,41 @@ pub fn detect_frameworks(workspace_root: &Path) -> Result<Vec<DetectedFramework>
         .collect::<Vec<_>>();
     accumulator.suppress_django_ancestor_roots(&django_project_root_paths);
 
-    Ok(accumulator.finish())
+    Ok(ManifestDetectionResult {
+        frameworks: accumulator.finish(),
+        project_package_roots,
+    })
+}
+
+/// Merges manifest paths and ecosystem labels by their exact package root.
+fn create_project_package_roots(
+    manifests: &[manifest_scan::ManifestFile],
+) -> Vec<ProjectPackageRoot> {
+    let mut drafts_by_root = BTreeMap::<String, ProjectPackageRootDraft>::new();
+
+    for manifest in manifests {
+        let draft = drafts_by_root
+            .entry(manifest.root_path.clone())
+            .or_default();
+        draft.manifest_paths.insert(manifest.manifest_path.clone());
+        draft.ecosystems.insert(manifest.ecosystem.to_string());
+    }
+
+    drafts_by_root
+        .into_iter()
+        .map(|(root_path, draft)| ProjectPackageRoot {
+            root_path,
+            manifest_paths: draft.manifest_paths.into_iter().collect(),
+            ecosystems: draft.ecosystems.into_iter().collect(),
+        })
+        .collect()
+}
+
+/// Deterministic set-backed package evidence accumulated before serialization.
+#[derive(Default)]
+struct ProjectPackageRootDraft {
+    manifest_paths: BTreeSet<String>,
+    ecosystems: BTreeSet<String>,
 }
 
 /// Static framework definition shared by manifest-specific detectors.

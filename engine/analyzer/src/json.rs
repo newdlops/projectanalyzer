@@ -5,7 +5,7 @@
 
 use crate::model::{
     AnalysisDiagnostic, DetectedFramework, FrameworkUnit, FrameworkUnitEdge, GraphEdge,
-    LanguageSummary, ProjectGraph, SourceRange, SymbolNode,
+    LanguageSummary, ProjectGraph, ProjectPackageRoot, SourceRange, SymbolNode,
 };
 
 impl ProjectGraph {
@@ -44,6 +44,15 @@ impl ProjectGraph {
         if !self.frameworks.is_empty() {
             output.push(',');
             push_array(&mut output, "frameworks", &self.frameworks, push_framework);
+        }
+        if !self.project_package_roots.is_empty() {
+            output.push(',');
+            push_array(
+                &mut output,
+                "projectPackageRoots",
+                &self.project_package_roots,
+                push_project_package_root,
+            );
         }
         if !self.framework_units.is_empty() {
             output.push(',');
@@ -203,6 +212,17 @@ fn push_framework(output: &mut String, framework: &DetectedFramework) {
 
     output.push(',');
     push_string_array(output, "evidence", &framework.evidence);
+    output.push('}');
+}
+
+/// Serializes one neutral manifest-backed project package root.
+fn push_project_package_root(output: &mut String, package_root: &ProjectPackageRoot) {
+    output.push('{');
+    push_string_field(output, "rootPath", &package_root.root_path);
+    output.push(',');
+    push_string_array(output, "manifestPaths", &package_root.manifest_paths);
+    output.push(',');
+    push_string_array(output, "ecosystems", &package_root.ecosystems);
     output.push('}');
 }
 

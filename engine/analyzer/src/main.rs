@@ -21,7 +21,7 @@ use std::path::PathBuf;
 
 use analyzer::{analyze_source_file, analyze_source_files, SourceInput};
 use cli::{Command, EngineArgs};
-use framework_detection::detect_frameworks;
+use framework_detection::detect_frameworks_and_project_package_roots;
 use framework_units::analyze_framework_units;
 use fs_scan::{scan_workspace, ScanOptions};
 use graph::ProjectGraphBuilder;
@@ -55,8 +55,9 @@ fn run() -> Result<(), String> {
             let mut builder = ProjectGraphBuilder::new(options.workspace_root);
 
             analyze_source_files(&mut builder, &files)?;
-            let frameworks = detect_frameworks(&workspace_root)?;
-            let mut framework_units = analyze_framework_units(&workspace_root, &frameworks)?;
+            let detection = detect_frameworks_and_project_package_roots(&workspace_root)?;
+            let mut framework_units =
+                analyze_framework_units(&workspace_root, &detection.frameworks)?;
             if source_manifest_stdin {
                 // Framework adapters still scan project conventions from disk. Limit
                 // their output to selected, saved-equivalent sources so excluded or
@@ -64,7 +65,8 @@ fn run() -> Result<(), String> {
                 framework_units.retain_source_files(&saved_source_paths(&files));
             }
             builder.add_framework_units(framework_units.units, framework_units.edges);
-            builder.add_frameworks(frameworks);
+            builder.add_frameworks(detection.frameworks);
+            builder.add_project_package_roots(detection.project_package_roots);
             println!("{}", builder.finish().to_json());
             Ok(())
         }
