@@ -10,6 +10,47 @@ the product does not begin with a dashboard, curriculum, file inventory, or a
 raw, unbounded whole-repository graph. A bounded Module Flow is available when
 the question is how project responsibilities connect.
 
+## Install
+
+Project Analyzer currently ships as a platform-specific VSIX because its local
+analyzer includes a native executable. Use a package that matches the operating
+system and CPU architecture running the VS Code Extension Host.
+
+1. Open the **Extensions** view in VS Code.
+2. Choose **Views and More Actions...** -> **Install from VSIX...**.
+3. Select the matching `project-analyzer-<version>-<target>.vsix` file.
+4. Reload the window when VS Code asks.
+
+Command-line installation is also supported:
+
+```sh
+code --install-extension project-analyzer-<version>-<target>.vsix
+```
+
+The extension requires VS Code 1.92 or newer and runs in the desktop Extension
+Host; it is not currently a browser/Web extension.
+
+## First Flow in 60 Seconds
+
+1. Open the codebase folder and let the initial local analysis finish.
+2. Place the cursor inside a supported function and right-click
+   **Visualize Current Function**.
+3. Read from the entry block through decisions, effects, mutations, and exits.
+4. Click a call block to attach the child function on the same canvas; click the
+   expanded call again to collapse that branch.
+5. Use **Open Module Flow** when the question moves from one function to project
+   responsibility boundaries.
+
+Supported source-first function visualization currently covers:
+
+| Language family | Function Logic coverage |
+| --- | --- |
+| TypeScript / JavaScript / JSX / TSX | Statements, branches, loops, effects, receiver chains, and component callsites |
+| Python | Statements, `with`, comprehensions, generator arguments, receiver chains, mutations, and exits |
+| Java | Methods, constructors, branches, loops, switches, structured regions, mutations, and exits |
+| F# / OCaml | Named functions and `|>` stages with final-argument insertion |
+| Elixir | Named functions and `|>` stages with first-argument insertion |
+
 ## The Reading Frame
 
 Every flow reinforces the same reusable way to read code:
@@ -39,8 +80,9 @@ After local workspace analysis, the sidebar offers two starting points:
    path, then inspect the statements, decisions, loops, effects, mutations, and
    exits inside the selected function.
 
-TypeScript, JavaScript, Python, and Java have a source-first shortcut: place the
-cursor inside a function, method, constructor, or supported lambda, then choose
+TypeScript, JavaScript, Python, Java, F#, OCaml, and Elixir have a source-first
+shortcut: place the cursor inside a supported callable (a named pipe-forward
+function for F#/OCaml/Elixir), then choose
 **Visualize Current Function** from the editor context menu. The command activates
 the extension, analyzes the current document snapshot including unsaved edits,
 and opens that callable in a dedicated **Function Visualizer** editor tab.
@@ -76,6 +118,9 @@ dedicated Function Visualizer tab with a bounded control-flow graph:
   `source()` -> `filter()` -> `map()` while preserving the complete call evidence;
   every stage keeps its own drill target so an available child-function flow can
   be appended to the same graph
+- F#, OCaml, and Elixir `|>` pipelines split into a complete input followed by
+  source-ordered stages; F#/OCaml retain final-argument insertion while Elixir
+  retains first-argument insertion, and named local stages remain drillable
 - sibling lanes for `true`/`false`, loop-body/exit, and switch branches
 - compound body frames that enclose each `if`, loop, switch, try, and context-manager
   owner with only its nested statements, excluding the following continuation
@@ -152,7 +197,7 @@ HTTP/GraphQL/selected function
   -> Repository or model
   -> External or state boundary
 
-Selected TypeScript/JavaScript/Python/Java function
+Selected TypeScript/JavaScript/Python/Java/F#/OCaml/Elixir function
   -> Condition or loop
   -> Branch-local operation/call/mutation/effect
   -> Return, throw, repeat, or fallthrough exit
@@ -188,16 +233,17 @@ frontend. Cross-function JavaScript and TypeScript extraction uses textual and
 line-oriented heuristics without a lexical scope graph, receiver resolution, or
 type checking. Python project symbols continue to use the Rust scanner when it
 is available and have a Lezer-backed in-process fallback. Because the Rust path
-currently produces only Java file nodes, the Extension Host supplements Java
-class, interface, enum, method, constructor, lambda, and conservative call
-evidence from the current workspace.
+currently produces only file nodes for Java and the pipe-forward functional
+languages, the Extension Host supplements Java symbols plus F#/OCaml/Elixir
+named functions and conservative pipeline-call evidence from the current workspace.
 
 After a function is selected, TypeScript and JavaScript use the TypeScript
-compiler AST, while Python and Java use Lezer syntax trees. All four languages
-produce the same statement-level block, transfer, callsite, source-range, and
-coverage-gap contract. Every adapter also emits source-complete, de-duplicated
-value-change evidence for variable/property writes and conservative in-place
-receiver calls. Python models `if`/`elif`/`else`, loops including loop `else`,
+compiler AST, Python and Java use Lezer syntax trees, and F#/OCaml/Elixir use a
+bounded pipe-forward syntax adapter. All adapters produce the same block,
+transfer, callsite, source-range, and coverage-gap contract. The imperative-language
+adapters also emit source-complete, de-duplicated value-change evidence for
+variable/property writes and conservative in-place receiver calls. Python models
+`if`/`elif`/`else`, loops including loop `else`,
 eager list/set/dictionary comprehensions with nested `for` and `if` clauses,
 deferred generator-argument loops, receiver-call chains in evaluation order, `match`/`case`,
 `try`/`except`/`finally`, `with`, mutations, calls, and exits. Java models
@@ -206,6 +252,13 @@ branches, all common loop forms, `switch`,
 mutations, calls, constructors, and exits. Editor-context selection can add an
 exact snapshot-local callable node when the project analyzer did not model a
 supported lambda or other cursor-selected callable.
+
+F#/OCaml/Elixir model `|>` as exact sequential evaluation, preserving complete
+input and stage text plus each language's argument-insertion direction. Named
+local stages can attach their Function Logic on the same canvas. Function
+composition, computation expressions/macros, Haskell composition, and monadic
+bind are not relabeled as pipe chains; higher-order callback execution remains a
+visible runtime limitation.
 
 JSX and TSX functions retain normal statement flow and also expose uppercase or
 member-style component tags such as `<Badge />` and `<UI.Panel />` as exact
@@ -273,12 +326,14 @@ Key reusable modules:
   orchestration, and iterative structured CFG construction
 - `src/analyzer/functionLogic/` — public language dispatcher and the
   TypeScript/JavaScript compiler-AST adapter
-- `src/analyzer/functionLogic/languages/` — Python and Java function-local
-  Lezer adapters
-- `src/analyzer/languages/python/` and `src/analyzer/languages/java/` —
-  Lezer-backed callable and conservative call-graph adapters
+- `src/analyzer/functionLogic/languages/` — Python/Java Lezer adapters and the
+  F#/OCaml/Elixir pipe-forward Function Logic adapter
+- `src/analyzer/languages/python/`, `src/analyzer/languages/java/`, and
+  `src/analyzer/languages/functional/` — shared callable, pipeline, and
+  conservative call-graph syntax boundaries
 - `src/analyzer/rust/supplementalLanguageGraph.ts` — selected-language graph
-  merge used to add Java evidence without replacing primary Rust results
+  merge used to add Java and functional-language evidence without replacing
+  primary Rust results
 - `src/extension/currentFunctionVisualization/` — editor command and exact
   cursor-target graph adaptation
 - `src/extension/workspaceAnalysis/` — exact-fingerprint workspace graph
@@ -323,6 +378,40 @@ evicts oldest expansion branches first. The full module index remains Host-side.
 source, and evidence identities are snapshot-local opaque tokens, and mismatched
 graph versions or late request IDs are rejected instead of being merged into the
 current tab.
+
+## Privacy and Local Data
+
+The current release analyzes workspace source locally in the VS Code Extension
+Host and its bundled native analyzer. It does not send workspace source to a
+remote analysis service. Structured UI diagnostics are written only to the local
+**Project Analyzer** output channel.
+
+When analysis caching is enabled, bounded graph data is stored in VS Code's
+extension storage. The default cache budget is 256 MiB. Use **Clear Analysis
+Cache** in the Code Flow sidebar to remove the persisted analysis cache, or set
+`projectAnalyzer.cache.enabled` to `false` to disable persistence. Graph export
+occurs only after an explicit user action.
+
+## Troubleshooting
+
+- **No context-menu command:** confirm the file uses a supported language and the
+  cursor is inside a supported callable. F#/OCaml/Elixir currently require a
+  named function containing a `|>` flow.
+- **No modules or functions:** wait for workspace analysis, then inspect the
+  `projectAnalyzer.include`, `projectAnalyzer.exclude`, and
+  `projectAnalyzer.maxFileSizeKb` settings.
+- **High analysis cost:** narrow the include globs, disable
+  `projectAnalyzer.autoAnalyze`, or lower the rendering and flow budgets before
+  reopening the view.
+- **Incomplete edges:** open the selected evidence. Dashed `inferred` and
+  `unresolved` connections are deliberate static-analysis limits, not observed
+  runtime facts.
+- **Unexpected stale results:** choose **Clear Analysis Cache**, reproduce once,
+  and inspect **View -> Output -> Project Analyzer**.
+
+When reporting a problem, include the extension version, VS Code version,
+platform/architecture, source language, minimal reproduction, and relevant local
+output lines. Remove proprietary source before sharing diagnostics.
 
 ## Development
 

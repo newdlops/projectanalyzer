@@ -23,7 +23,11 @@ const REQUIRED_PATHS = Object.freeze([
   "extension.vsixmanifest",
   "[Content_Types].xml",
   "extension/package.json",
-  "extension/out/extension/activate.js"
+  "extension/out/extension/activate.js",
+  "extension/readme.md",
+  "extension/changelog.md",
+  "extension/SUPPORT.md",
+  "extension/media/project-analyzer-icon.png"
 ]);
 
 const NATIVE_ENGINE_PATH_PATTERN =
@@ -147,7 +151,7 @@ export function isAllowedPackagePath(archivePath) {
     return true;
   }
 
-  if (/^extension\/(?:readme|changelog|license)(?:\.[^/]+)?$/i.test(archivePath)) {
+  if (/^extension\/(?:readme|changelog|license|support)(?:\.[^/]+)?$/i.test(archivePath)) {
     return true;
   }
   if (/^extension\/media\/[^/]+\.(?:svg|png|webp)$/i.test(archivePath)) {

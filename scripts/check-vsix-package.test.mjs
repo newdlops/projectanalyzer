@@ -1,13 +1,14 @@
 /**
- * Unit tests for the dependency-free VSIX allowlist and budget checker. Synthetic
- * package entries keep tests fast and independent of a locally built Rust binary.
+ * Unit tests for the VSIX allowlist, release documents, Marketplace icon, and
+ * size budget. Synthetic entries avoid requiring a locally built Rust binary.
  */
 
 import assert from "node:assert/strict";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { access, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import test from "node:test";
+import { fileURLToPath } from "node:url";
 import {
   isAllowedPackagePath,
   PACKAGE_BUDGET,
@@ -20,13 +21,18 @@ const REQUIRED_ENTRIES = [
   entry("[Content_Types].xml", 1_000),
   entry("extension/package.json", 4_000),
   entry("extension/out/extension/activate.js", 2_000),
+  entry("extension/readme.md", 20_000),
+  entry("extension/changelog.md", 2_000),
+  entry("extension/SUPPORT.md", 2_000),
+  entry("extension/media/project-analyzer-icon.png", 20_000),
   entry("extension/engine/analyzer/bin/darwin-arm64/project-analyzer-engine", 1_200_000)
 ];
+
+const PROJECT_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 
 test("accepts the intended runtime package surface", () => {
   const entries = [
     ...REQUIRED_ENTRIES,
-    entry("extension/readme.md", 2_000),
     entry("extension/media/project-analyzer.svg", 500),
     entry("extension/out/graph/graphStore.js", 8_000),
     entry("extension/node_modules/@lezer/common/dist/index.cjs", 40_000),
@@ -38,6 +44,22 @@ test("accepts the intended runtime package surface", () => {
 
   assert.deepEqual(result.errors, []);
   assert.equal(result.fileCount, entries.length);
+});
+
+test("declares a valid Retina Marketplace icon and release documents", async () => {
+  const packageJson = JSON.parse(await readFile(join(PROJECT_ROOT, "package.json"), "utf8"));
+  const iconPath = join(PROJECT_ROOT, packageJson.icon);
+  const icon = await readFile(iconPath);
+
+  assert.equal(packageJson.icon, "media/project-analyzer-icon.png");
+  assert.deepEqual([...icon.subarray(0, 8)], [137, 80, 78, 71, 13, 10, 26, 10]);
+  assert.equal(icon.readUInt32BE(16), 256);
+  assert.equal(icon.readUInt32BE(20), 256);
+  await Promise.all([
+    access(join(PROJECT_ROOT, "README.md")),
+    access(join(PROJECT_ROOT, "CHANGELOG.md")),
+    access(join(PROJECT_ROOT, "SUPPORT.md"))
+  ]);
 });
 
 test("rejects development files and undeclared runtime dependencies", () => {

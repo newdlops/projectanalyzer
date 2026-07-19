@@ -1,0 +1,57 @@
+<!--
+  Source artwork for the Marketplace icon. The compact, crossing-free merge
+  preserves the Activity Bar mark while adding a distribution-safe brand field.
+-->
+<svg width="256" height="256" viewBox="0 0 256 256" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <title>Project Analyzer Code Flow</title>
+  <defs>
+    <linearGradient id="background" x1="28" y1="20" x2="230" y2="240" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#172554"/>
+      <stop offset="0.52" stop-color="#111B3C"/>
+      <stop offset="1" stop-color="#07111F"/>
+    </linearGradient>
+    <linearGradient id="flow" x1="48" y1="70" x2="210" y2="178" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#A78BFA"/>
+      <stop offset="0.5" stop-color="#60A5FA"/>
+      <stop offset="1" stop-color="#2DD4BF"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0" cy="0" r="1" gradientTransform="translate(128 128) rotate(90) scale(104)" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#2563EB" stop-opacity="0.24"/>
+      <stop offset="1" stop-color="#2563EB" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="nodeShadow" x="20" y="32" width="218" height="192" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="6" stdDeviation="6" flood-color="#020617" flood-opacity="0.42"/>
+    </filter>
+  </defs>
+
+  <rect x="8" y="8" width="240" height="240" rx="52" fill="url(#background)"/>
+  <rect x="9" y="9" width="238" height="238" rx="51" stroke="#93C5FD" stroke-opacity="0.18" stroke-width="2"/>
+  <circle cx="128" cy="128" r="104" fill="url(#glow)"/>
+
+  <g opacity="0.26" stroke="#93C5FD" stroke-width="4" stroke-linecap="round">
+    <path d="M42 44H84"/>
+    <path d="M42 212H70"/>
+    <path d="M181 44H214"/>
+    <path d="M195 212H214"/>
+  </g>
+
+  <g filter="url(#nodeShadow)">
+    <path d="M63 72H91C101 72 108 77 114 86L128 108" stroke="url(#flow)" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M63 184H91C101 184 108 179 114 170L128 148" stroke="url(#flow)" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M150 128H198" stroke="url(#flow)" stroke-width="12" stroke-linecap="round"/>
+
+    <rect x="38" y="50" width="48" height="44" rx="14" fill="#6D5BDD" stroke="#DDD6FE" stroke-width="5"/>
+    <rect x="38" y="162" width="48" height="44" rx="14" fill="#3158C8" stroke="#BFDBFE" stroke-width="5"/>
+    <path d="M128 101L155 128L128 155L101 128L128 101Z" fill="#2563EB" stroke="#DBEAFE" stroke-width="5" stroke-linejoin="round"/>
+    <rect x="178" y="106" width="48" height="44" rx="14" fill="#0F9F91" stroke="#CCFBF1" stroke-width="5"/>
+  </g>
+
+  <g stroke="#F8FAFC" stroke-width="5" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M58 65L51 72L58 79"/>
+    <path d="M66 65L73 72L66 79"/>
+    <path d="M58 177L51 184L58 191"/>
+    <path d="M66 177L73 184L66 191"/>
+    <path d="M122 128H134"/>
+    <path d="M207 120L214 128L207 136"/>
+  </g>
+</svg>

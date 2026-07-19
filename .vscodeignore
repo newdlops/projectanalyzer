@@ -12,12 +12,16 @@
 AGENTS.md
 SPEC.MD
 FunctionSpec.md
+docs/**
 package-lock.json
 tsconfig.json
 *.log
 log*.txt
 *.zip
 *.vsix
+
+# Keep the editable Marketplace artwork in the repository, but ship only its PNG.
+media/project-analyzer-marketplace.svg
 
 # TypeScript and Rust sources are compiled before VSIX packaging
 src/**

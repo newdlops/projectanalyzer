@@ -2,10 +2,12 @@
   "name": "project-analyzer",
   "displayName": "Project Analyzer: Code Flow",
   "description": "Understand unfamiliar codebases through bounded, source-backed code flows.",
-  "version": "0.0.1030",
+  "version": "0.0.1033",
   "publisher": "local",
   "private": true,
   "license": "UNLICENSED",
+  "icon": "media/project-analyzer-icon.png",
+  "preview": true,
   "engines": {
     "vscode": "^1.92.0"
   },
@@ -13,6 +15,22 @@
     "Visualization",
     "Other"
   ],
+  "keywords": [
+    "code flow",
+    "code visualization",
+    "control flow",
+    "call graph",
+    "static analysis",
+    "codebase navigation",
+    "typescript",
+    "python",
+    "java",
+    "functional programming"
+  ],
+  "galleryBanner": {
+    "color": "#111B3C",
+    "theme": "dark"
+  },
   "activationEvents": [
     "onView:projectAnalyzer.explorerView",
     "onCommand:projectAnalyzer.visualizeCurrentFunction",
@@ -55,7 +73,7 @@
       "editor/context": [
         {
           "command": "projectAnalyzer.visualizeCurrentFunction",
-          "when": "editorLangId =~ /^(typescript|typescriptreact|javascript|javascriptreact|python|java)$/",
+          "when": "editorLangId =~ /^(typescript|typescriptreact|javascript|javascriptreact|python|java|fsharp|ocaml|elixir)$/",
           "group": "navigation@100"
         }
       ],
@@ -86,7 +104,7 @@
             "type": "string"
           },
           "default": [
-            "**/*.{ts,tsx,js,jsx,py,java}"
+            "**/*.{ts,tsx,js,jsx,py,java,fs,fsx,ml,mli,ex,exs}"
           ],
           "description": "Glob patterns included in project analysis."
         },
