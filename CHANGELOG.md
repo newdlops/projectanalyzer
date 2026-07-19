@@ -4,12 +4,14 @@ All notable user-visible changes to Project Analyzer: Code Flow are recorded in
 this file. The changelog starts with the first distribution-documented build;
 earlier local development builds were not tracked here.
 
-## 0.0.1033 - 2026-07-20
+## 0.0.1034 - 2026-07-20
 
 ### Added
 
 - A 256×256 Marketplace icon derived from the Code Flow Activity Bar mark, plus
   dark gallery-banner metadata and search keywords.
+- A prominent **See how modules connect** sidebar card with a labeled Module
+  Flow action, native tooltip, keyboard focus treatment, and opening status.
 - F#, OCaml, and Elixir `|>` pipeline visualization with language-correct
   argument insertion, exact stage ranges, and same-canvas child-function drill.
 - A first-run installation path, supported-language summary, local-data policy,

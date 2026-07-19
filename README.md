@@ -38,8 +38,9 @@ Host; it is not currently a browser/Web extension.
 3. Read from the entry block through decisions, effects, mutations, and exits.
 4. Click a call block to attach the child function on the same canvas; click the
    expanded call again to collapse that branch.
-5. Use **Open Module Flow** when the question moves from one function to project
-   responsibility boundaries.
+5. Use the visible **See how modules connect** card and **Open Module Flow**
+   button when the question moves from one function to project responsibility
+   boundaries.
 
 Supported source-first function visualization currently covers:
 
@@ -152,10 +153,12 @@ Opening source is verification, not a claim that the code has been understood.
 
 ## Open Module Flow
 
-Choose **Open Module Flow** from the Command Palette or the Code Flow sidebar
-title. The extension resolves the current workspace graph and opens a dedicated
-**Module Flow** editor tab. This view shows possible static responsibility
-relationships, not an observed runtime trace.
+Choose the **See how modules connect** card in the Code Flow sidebar, or run
+**Open Project Module Flow** from the Command Palette or sidebar title. The
+in-view action includes a descriptive tooltip, keyboard focus state, and visible
+opening progress. The extension resolves the current workspace graph and opens a
+dedicated **Module Flow** editor tab. This view shows possible static
+responsibility relationships, not an observed runtime trace.
 
 The initial scene is bounded to 80 modules and 160 edges and reports exact
 omitted counts. It provides:

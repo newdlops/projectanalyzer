@@ -2,7 +2,7 @@
   "name": "project-analyzer",
   "displayName": "Project Analyzer: Code Flow",
   "description": "Understand unfamiliar codebases through bounded, source-backed code flows.",
-  "version": "0.0.1033",
+  "version": "0.0.1034",
   "publisher": "local",
   "private": true,
   "license": "UNLICENSED",
@@ -64,7 +64,7 @@
       },
       {
         "command": "projectAnalyzer.openModuleFlow",
-        "title": "Open Module Flow",
+        "title": "Open Project Module Flow",
         "category": "Code Flow",
         "icon": "$(type-hierarchy)"
       }
