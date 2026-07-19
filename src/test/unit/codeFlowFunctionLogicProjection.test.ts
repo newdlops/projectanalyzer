@@ -73,6 +73,45 @@ test("projects internal logic with opaque evidence and known entrypoint origins"
   assert.doesNotMatch(JSON.stringify(detail), /\/workspace/u);
 });
 
+test("projects complete graph-box text and sizes its node for wrapped content", () => {
+  const filePath = "/workspace/src/orders.ts";
+  const completeTitle = `Orders.${"CompleteNamespaceSegment.".repeat(12)}handler`;
+  const node = {
+    ...createHandlerNode(filePath),
+    qualifiedName: completeTitle
+  };
+  const graph = createGraph({ files: [filePath], callables: [node] });
+  const literal = `"${"complete-source-value-".repeat(22)}projection_tail"`;
+  const analysis = analyzeFunctionLogic({
+    functionNode: node,
+    sourceText: `export function handler(order: Order) { order.snapshot = ${literal}; }`
+  });
+  const detail = createFunctionLogicCodeFlowDetail(
+    graph,
+    createFlowIndex(graph.version, []),
+    node,
+    analysis,
+    "sidebar-snapshot:logic:complete-text",
+    (path, range) => `code-evidence:${createContentHash(`${path}:${range.startLine}`)}` as CodeFlowEvidenceToken,
+    (nodeId) => `source-node:${createContentHash(nodeId)}` as SourceNodeToken
+  );
+  const mutation = detail.logic?.blocks.find((block) => block.kind === "mutation");
+  const mutationLayout = detail.logic?.layout.nodes.find((layout) =>
+    layout.blockId === mutation?.id
+  );
+  const entry = detail.logic?.blocks.find((block) => block.kind === "entry");
+  const entryLayout = detail.logic?.layout.nodes.find((layout) =>
+    layout.blockId === entry?.id
+  );
+
+  assert.ok(mutation && mutationLayout && entryLayout);
+  assert.equal(detail.title, completeTitle);
+  assert.ok(mutation.label.endsWith(`${literal};`));
+  assert.equal(mutation.valueChanges?.[0]?.value, literal);
+  assert.doesNotMatch(JSON.stringify(mutation), /…/u);
+  assert.ok(mutationLayout.height > entryLayout.height);
+});
+
 test("projects an inferred drill target onto an if block without a graph call edge", () => {
   const filePath = "/workspace/src/guard.ts";
   const caller = createCallableNode("run", filePath, 1);

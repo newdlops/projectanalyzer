@@ -15,13 +15,23 @@ export type SidebarWebviewRuntime = {
   getAttribute(elementId: string, name: string): string | undefined;
   getFocusedElementId(): string | undefined;
   getPersistedState(): unknown;
+  getRenderedPositionByTitle(
+    elementId: string,
+    title: string
+  ): { left: number; top: number };
   getRenderedText(elementId: string): string[];
+  getRenderedScrollByClass(elementId: string, className: string): { left: number; top: number };
   isDisabled(elementId: string): boolean;
   isHidden(elementId: string): boolean;
   keydown(elementId: string, key: string): void;
   keydownByTitle(title: string, key: string): void;
   messages: Array<{ type: string; payload: unknown }>;
   restore(): void;
+  setRenderedScrollByClass(
+    elementId: string,
+    className: string,
+    scroll: { left: number; top: number }
+  ): void;
   setValue(elementId: string, value: string): void;
   submit(elementId: string): void;
   textValues: string[];
@@ -53,6 +63,7 @@ export function installSidebarWebviewRuntime(initialWebviewState?: unknown): Sid
     const attributes = new Map<string, string>();
     const classes = new Set<string>();
     const children: SidebarFakeElement[] = [];
+    const styles = new Map<string, string>();
     let textContent = "";
     const element: SidebarFakeElement = {
       id,
@@ -77,13 +88,19 @@ export function installSidebarWebviewRuntime(initialWebviewState?: unknown): Sid
       disabled: false,
       hidden: false,
       style: {
-        setProperty() {}
+        getPropertyValue(name) {
+          return styles.get(name) ?? "";
+        },
+        setProperty(name, value) {
+          styles.set(name, value);
+        }
       },
       textContent: "",
       title: "",
       type: "",
       value: "",
       clientHeight: 220,
+      scrollLeft: 0,
       scrollTop: 0,
       addEventListener(type, handler) {
         const handlers = listeners.get(type) ?? [];
@@ -127,6 +144,9 @@ export function installSidebarWebviewRuntime(initialWebviewState?: unknown): Sid
       },
       setAttribute(name, value) {
         attributes.set(name, value);
+        if (name === "class") {
+          element.className = value;
+        }
       }
     };
 
@@ -235,8 +255,21 @@ export function installSidebarWebviewRuntime(initialWebviewState?: unknown): Sid
     getPersistedState() {
       return webviewState;
     },
+    getRenderedPositionByTitle(elementId, title) {
+      const element = findRenderedByTitle(getOrCreateElement(elementId), title);
+      assert.ok(element, `missing rendered element titled ${title} below ${elementId}`);
+      return {
+        left: Number.parseFloat(element.style.getPropertyValue("left")) || 0,
+        top: Number.parseFloat(element.style.getPropertyValue("top")) || 0
+      };
+    },
     getRenderedText(elementId) {
       return collectRenderedText(getOrCreateElement(elementId));
+    },
+    getRenderedScrollByClass(elementId, className) {
+      const element = findRenderedByClass(getOrCreateElement(elementId), className);
+      assert.ok(element, `missing rendered .${className} below ${elementId}`);
+      return { left: element.scrollLeft, top: element.scrollTop };
     },
     isDisabled(elementId) {
       return getOrCreateElement(elementId).disabled;
@@ -267,6 +300,12 @@ export function installSidebarWebviewRuntime(initialWebviewState?: unknown): Sid
       restoreGlobal("requestAnimationFrame", previousRequestAnimationFrame);
       restoreGlobal("acquireVsCodeApi", previousAcquireVsCodeApi);
     },
+    setRenderedScrollByClass(elementId, className, scroll) {
+      const element = findRenderedByClass(getOrCreateElement(elementId), className);
+      assert.ok(element, `missing rendered .${className} below ${elementId}`);
+      element.scrollLeft = scroll.left;
+      element.scrollTop = scroll.top;
+    },
     setValue(elementId, value) {
       getOrCreateElement(elementId).value = value;
     },
@@ -279,6 +318,38 @@ export function installSidebarWebviewRuntime(initialWebviewState?: unknown): Sid
     },
     textValues
   };
+}
+
+/** Finds the first currently attached descendant carrying one concrete class. */
+function findRenderedByClass(
+  root: SidebarFakeElement,
+  className: string
+): SidebarFakeElement | undefined {
+  const pending = [root];
+
+  while (pending.length > 0) {
+    const current = pending.shift();
+    if (!current) continue;
+    if (current.className.split(/\s+/u).includes(className)) return current;
+    pending.push(...current.children);
+  }
+  return undefined;
+}
+
+/** Finds a titled element only inside the currently attached fake DOM subtree. */
+function findRenderedByTitle(
+  root: SidebarFakeElement,
+  title: string
+): SidebarFakeElement | undefined {
+  const pending = [root];
+
+  while (pending.length > 0) {
+    const current = pending.shift();
+    if (!current) continue;
+    if (current.title === title) return current;
+    pending.push(...current.children);
+  }
+  return undefined;
 }
 
 /** Collects only text still attached below one fake DOM root after rerenders. */
@@ -326,12 +397,16 @@ type SidebarFakeElement = {
   dataset: Record<string, string>;
   disabled: boolean;
   hidden: boolean;
-  style: { setProperty: (name: string, value: string) => void };
+  style: {
+    getPropertyValue: (name: string) => string;
+    setProperty: (name: string, value: string) => void;
+  };
   textContent: string;
   title: string;
   type: string;
   value: string;
   clientHeight: number;
+  scrollLeft: number;
   scrollTop: number;
   addEventListener: (type: string, handler: SidebarEventHandler) => void;
   removeEventListener: (type: string, handler: SidebarEventHandler) => void;

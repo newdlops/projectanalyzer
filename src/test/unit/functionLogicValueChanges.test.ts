@@ -1,7 +1,7 @@
 /**
  * Cross-language Function Logic value-change fixtures. They prove exact
  * variable/property writes, inferred receiver mutations, loop bindings, and
- * bounded summary counts without relying on runtime values.
+ * complete source text/counts without relying on runtime values.
  */
 
 import assert from "node:assert/strict";
@@ -143,6 +143,79 @@ test("shows loop bindings on the loop block without absorbing body changes", () 
     assert.equal(loop?.valueChanges?.[0]?.target, "item");
     assert.equal(loop?.valueChanges?.[0]?.operation, "iterate");
     assert.notEqual(receiver?.id, loop?.id);
+  }
+});
+
+test("keeps every change from one statement instead of silently dropping later targets", () => {
+  const declarations = Array.from(
+    { length: 8 },
+    (_, index) => `value${index} = ${index}`
+  ).join(", ");
+  const analysis = analyzeValueChanges(
+    "typescript",
+    "/workspace/src/complete-values.ts",
+    "completeValues",
+    0,
+    `function completeValues() { let ${declarations}; }`
+  );
+  const changes = analysis.blocks.flatMap((block) => block.valueChanges ?? []);
+
+  assert.deepEqual(changes.map((change) => change.target), [
+    "value0",
+    "value1",
+    "value2",
+    "value3",
+    "value4",
+    "value5",
+    "value6",
+    "value7"
+  ]);
+  assert.equal(analysis.summary.valueChangeCount, 8);
+});
+
+test("preserves long targets and right-hand values through every language adapter", () => {
+  const literal = `"${"source-value-".repeat(24)}graph_value_tail"`;
+  const memberPath = `${"completeSegment.".repeat(12)}graph_target_tail`;
+  const typescriptTarget = `state.${memberPath}`;
+  const pythonTarget = `self.${memberPath}`;
+  const javaTarget = `this.${memberPath}`;
+  const analyses = [{
+    analysis: analyzeValueChanges(
+      "typescript",
+      "/workspace/src/complete-value.ts",
+      "completeValue",
+      0,
+      `function completeValue() { ${typescriptTarget} = ${literal}; }`
+    ),
+    target: typescriptTarget
+  }, {
+    analysis: analyzeValueChanges(
+      "python",
+      "/workspace/src/complete_value.py",
+      "complete_value",
+      0,
+      `def complete_value(self):\n    ${pythonTarget} = ${literal}`
+    ),
+    target: pythonTarget
+  }, {
+    analysis: analyzeValueChanges(
+      "java",
+      "/workspace/src/CompleteValue.java",
+      "completeValue",
+      1,
+      `class CompleteValue {\n  void completeValue() { ${javaTarget} = ${literal}; }\n}`,
+      "CompleteValue.completeValue"
+    ),
+    target: javaTarget
+  }];
+
+  for (const fixture of analyses) {
+    const change = requireChange(fixture.analysis, fixture.target, "assign");
+    assert.equal(change.target, fixture.target);
+    assert.equal(change.value, literal);
+    assert.ok(change.target.length > 80);
+    assert.doesNotMatch(change.value ?? "", /…/u);
+    assert.ok((change.value?.length ?? 0) > 120);
   }
 });
 

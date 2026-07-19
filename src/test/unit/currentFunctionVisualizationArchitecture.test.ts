@@ -124,7 +124,7 @@ test("shared Python and Java syntax stays below Function Logic boundaries", () =
   );
 });
 
-test("value-change evidence stays language-adapted, bounded, and UI-independent", () => {
+test("value-change evidence stays language-adapted, complete, and UI-independent", () => {
   const support = readSource(
     "src/analyzer/functionLogic/valueChanges/valueChangeSupport.ts"
   );
@@ -139,7 +139,9 @@ test("value-change evidence stays language-adapted, bounded, and UI-independent"
   );
   const combined = [support, typescript, python, java].join("\n");
 
-  assert.match(support, /MAX_VALUE_CHANGES_PER_BLOCK = 6/u);
+  assert.match(support, /normalizeValueChangeText/u);
+  assert.match(support, /const seen = new Set<string>\(\)/u);
+  assert.doesNotMatch(support, /MAX_VALUE_CHANGES_PER_BLOCK|slice\([^)]*\).*…/u);
   assert.match(support, /isPotentialReceiverMutationMethod/u);
   assert.match(typescript, /while \(pending\.length > 0\)/u);
   assert.match(python, /while \(pending\.length > 0\)/u);
@@ -158,8 +160,14 @@ test("child functions use bounded iterative attachment on one shared graph canva
   const compoundRouting = readSource(
     "src/webview/functionVisualizer/compoundFunctionLogicRoutingSource.ts"
   );
+  const compoundDimensions = readSource(
+    "src/webview/functionVisualizer/compoundFunctionLogicDimensionsSource.ts"
+  );
   const sharedRenderer = readSource(
     "src/webview/codeFlow/functionLogicBrowserSource.ts"
+  );
+  const graphStyles = readSource(
+    "src/webview/codeFlow/functionLogicGraphStyles.ts"
   );
 
   assert.match(browser, /MAX_ATTACHED_FUNCTION_DEPTH = 6/u);
@@ -169,6 +177,9 @@ test("child functions use bounded iterative attachment on one shared graph canva
   assert.match(browser, /status = ancestorTokens\.includes/u);
   assert.match(browser, /createAttachedFunctionGraphScene/u);
   assert.match(browser, /renderFunctionLogic\(\s*attachedScene\.logic/u);
+  assert.match(browser, /captureLogicGraphViewport/u);
+  assert.match(browser, /restoreLogicGraphViewport/u);
+  assert.match(browser, /enteringAttachedFunctionIds/u);
   assert.doesNotMatch(browser, /renderInlineFunctionExpansions|createInlineExpansionCard/u);
   assert.match(compoundScene, /while \(scopeCursor < pendingScopeIds\.length\)/u);
   assert.match(compoundScene, /createCompoundFunctionGraphLayout/u);
@@ -176,6 +187,13 @@ test("child functions use bounded iterative attachment on one shared graph canva
   assert.match(compoundScene, /relation: "call"/u);
   assert.match(compoundScene, /compound-resume:/u);
   assert.match(compoundScene, /relation: "callReturn"/u);
+  assert.match(compoundScene, /getCompoundFunctionLogicDimensionsSource/u);
+  assert.match(compoundScene, /measureCompoundBlockDimensions/u);
+  assert.match(compoundDimensions, /function measureCompoundBlockDimensions/u);
+  assert.doesNotMatch(
+    compoundScene,
+    /slice\(0, (?:31|41)\).*…/u
+  );
   assert.match(compoundRouting, /orderCompoundBlocksByParentLane/u);
   assert.match(compoundRouting, /sourceTrackIndex/u);
   assert.match(compoundRouting, /targetTrackIndex/u);
@@ -183,8 +201,28 @@ test("child functions use bounded iterative attachment on one shared graph canva
   assert.match(compoundRouting, /targetX/u);
   assert.doesNotMatch(compoundScene, /from ".*application/u);
   assert.doesNotMatch(compoundRouting, /from ".*application/u);
+  assert.doesNotMatch(compoundDimensions, /from ".*application/u);
   assert.match(sharedRenderer, /createFunctionLogicGraph\(logic, graphContext\)/u);
   assert.match(sharedRenderer, /graphContext\.onExpandableBlockClick\(block\)/u);
+  assert.match(sharedRenderer, /graphContext\.onGraphRendered/u);
+  assert.match(sharedRenderer, /logic-node-entering/u);
+  assert.match(sharedRenderer, /logic-edge-entering/u);
+  assert.match(sharedRenderer, /normalizeLogicVisualDepth/u);
+  assert.match(sharedRenderer, /logic-depth-/u);
+  assert.doesNotMatch(sharedRenderer, /compactTargetLabel/u);
+  assert.match(graphStyles, /--logic-node-depth-overlay/u);
+  assert.match(graphStyles, /\.logic-depth-5/u);
+  assert.match(graphStyles, /@keyframes logic-child-node-enter/u);
+  assert.match(graphStyles, /prefers-reduced-motion: reduce/u);
+  assert.doesNotMatch(
+    graphStyles,
+    /\.flow-badge\.logic-node-function\s*\{[^}]*text-overflow:\s*ellipsis/su
+  );
+  assert.doesNotMatch(
+    graphStyles,
+    /\.flow-badge\.logic-transfer\s*\{[^}]*text-overflow:\s*ellipsis/su
+  );
+  assert.doesNotMatch(graphStyles, /text-overflow:\s*ellipsis/u);
 });
 
 /** Reads one repository file for stable composition and dependency assertions. */

@@ -136,6 +136,9 @@ test("function detail renders internal branches and opens exact statement eviden
     runtime.dispatchMessage(createFunctionLogicDetailMessage(graphVersion));
 
     const rendered = runtime.getRenderedText("flow-steps");
+    assert.equal(runtime.countRenderedByClass("flow-steps", "logic-depth-0"), 1);
+    assert.equal(runtime.countRenderedByClass("flow-steps", "logic-depth-1"), 1);
+    assert.equal(runtime.countRenderedByClass("flow-steps", "logic-depth-2"), 1);
     assert.ok(rendered.includes("function place(order: Order)"));
     assert.ok(rendered.includes("if order.valid"));
     assert.ok(rendered.includes("true → repository.save(order);"));
@@ -153,6 +156,46 @@ test("function detail renders internal branches and opens exact statement eviden
       graphVersion,
       evidenceToken
     });
+  } finally {
+    runtime.restore();
+  }
+});
+
+test("function graph nodes render complete wrapped labels and value changes", () => {
+  const runtime = installSidebarWebviewRuntime();
+
+  try {
+    new Function(requireSidebarScript())();
+    const message = createFunctionLogicDetailMessage(graphVersion) as {
+      payload: {
+        logic: {
+          blocks: Array<Record<string, unknown>>;
+        };
+      };
+    };
+    const completeLabel = `${"order.snapshot = deriveCompleteValue(input, context) + ".repeat(9)}render_label_tail;`;
+    const completeValue = `${"fallbackValue + ".repeat(18)}render_value_tail`;
+    const block = message.payload.logic.blocks[1];
+    assert.ok(block);
+    block.label = completeLabel;
+    block.depth = 99;
+    block.valueChanges = [{
+      target: "order.snapshot.with.complete.path",
+      targetKind: "property",
+      operation: "assign",
+      operator: "=",
+      value: completeValue,
+      confidence: "exact"
+    }];
+
+    runtime.dispatchMessage(createGraphMessage(graphVersion));
+    runtime.dispatchMessage(message);
+    const rendered = runtime.getRenderedText("flow-steps").join("\n");
+
+    assert.equal(runtime.countRenderedByClass("flow-steps", "logic-depth-5"), 1);
+    assert.ok(rendered.includes(completeLabel));
+    assert.ok(rendered.includes("order.snapshot.with.complete.path"));
+    assert.ok(rendered.includes(completeValue));
   } finally {
     runtime.restore();
   }

@@ -72,6 +72,45 @@ test("sizes each node from its visible label and detail without clipping lanes",
   assertEdgesAvoidUnrelatedNodes(layout, edges);
 });
 
+test("grows vertically for complete source and value text beyond old display limits", () => {
+  const sourceTail = "layout_source_tail";
+  const valueTail = "layout_value_tail";
+  const longBlock: FunctionLogicBlockPayload = {
+    ...createBlock(
+      "complete-text",
+      "mutation",
+      `${"order.currentState = calculateNextState(input, context) + ".repeat(16)}${sourceTail}`
+    ),
+    detail: "src/orders.ts:42",
+    valueChanges: [{
+      target: "order.currentState",
+      targetKind: "property",
+      operation: "assign",
+      operator: "=",
+      value: `${"derive(sourceValue, fallbackValue) + ".repeat(14)}${valueTail}`,
+      confidence: "exact"
+    }]
+  };
+  const blocks = [
+    createBlock("entry-complete", "entry", "Start"),
+    longBlock,
+    createBlock("exit-complete", "exit", "Finish")
+  ];
+  const edges = [
+    createEdge("enter-complete", "entry-complete", "complete-text", "next"),
+    createEdge("leave-complete", "complete-text", "exit-complete", "next")
+  ];
+  const layout = createFunctionLogicGraphLayout(blocks, edges);
+  const completeNode = layout.nodes.find((node) => node.blockId === longBlock.id);
+
+  assert.ok(longBlock.label.endsWith(sourceTail));
+  assert.ok(longBlock.valueChanges?.[0]?.value?.endsWith(valueTail));
+  assert.doesNotMatch(JSON.stringify(longBlock), /…/u);
+  assert.ok(completeNode && completeNode.height > 300);
+  assertNoNodeOverlap(layout.nodes);
+  assertEdgesAvoidUnrelatedNodes(layout, edges);
+});
+
 test("reserves variable node height for every visible value-change row", () => {
   const plain = createBlock("plain", "operation", "process(item)");
   const changed: FunctionLogicBlockPayload = {

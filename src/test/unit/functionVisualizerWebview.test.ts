@@ -57,6 +57,44 @@ test("requests a child attachment when the function call belongs to an if box", 
   }
 });
 
+test("keeps the callsite fixed in the viewport while attached child nodes animate in", () => {
+  const runtime = installSidebarWebviewRuntime();
+  const expandTitle = "Expand called function · Child.load";
+  const collapseTitle = "Collapse called function · Child.load";
+
+  try {
+    new Function(requireFunctionVisualizerScript())();
+    runtime.dispatchMessage(createSessionMessage());
+    runtime.dispatchMessage(createFunctionDetail("Root.run", rootToken, {
+      sourceToken: childToken,
+      name: "load",
+      qualifiedName: "Child.load",
+      sourceLocation: "src/child.ts:4",
+      confidence: "resolved",
+      callsiteCount: 1
+    }));
+    runtime.setRenderedScrollByClass(
+      "flow-steps",
+      "logic-graph-viewport",
+      { left: 18, top: 24 }
+    );
+    const before = renderedViewportPosition(runtime, expandTitle);
+
+    runtime.clickByTitle(expandTitle);
+    assert.deepEqual(renderedViewportPosition(runtime, collapseTitle), before);
+    assert.equal(runtime.countRenderedByClass("flow-steps", "logic-node-entering"), 1);
+    assert.equal(runtime.countRenderedByClass("flow-steps", "logic-edge-entering"), 1);
+
+    const loadingPosition = renderedViewportPosition(runtime, collapseTitle);
+    runtime.dispatchMessage(createFunctionDetail("Child.load", childToken));
+    assert.deepEqual(renderedViewportPosition(runtime, collapseTitle), loadingPosition);
+    assert.equal(runtime.countRenderedByClass("flow-steps", "logic-node-entering"), 1);
+    assert.equal(runtime.countRenderedByClass("flow-steps", "logic-edge-entering"), 1);
+  } finally {
+    runtime.restore();
+  }
+});
+
 test("routes attached function edges through rank gaps without crossing unrelated boxes", () => {
   const runtime = installSidebarWebviewRuntime();
   const exposedBuilder = "__projectAnalyzerAttachedSceneBuilder";
@@ -124,6 +162,79 @@ test("routes attached function edges through rank gaps without crossing unrelate
     assertChildFlowPrecedesCallerContinuation(scene.logic, resume.id);
     assertCompoundEdgesAvoidBoxes(scene.logic);
     assertCompoundEdgesDoNotOverlap(scene.logic);
+  } finally {
+    Reflect.deleteProperty(globalThis, exposedBuilder);
+    runtime.restore();
+  }
+});
+
+test("keeps complete child and resume labels while expanding compound boxes", () => {
+  const runtime = installSidebarWebviewRuntime();
+  const exposedBuilder = "__projectAnalyzerAttachedSceneBuilder";
+
+  try {
+    new Function(
+      requireFunctionVisualizerScript()
+        + `\nglobalThis.${exposedBuilder} = createAttachedFunctionGraphScene;`
+    )();
+    const createScene = Reflect.get(globalThis, exposedBuilder) as AttachedSceneBuilder;
+    const rootLogic = createBranchingRootTestLogic();
+    const callerTail = "caller_resume_tail";
+    const callerLabel = `${"if completeCallerCondition(input, context) && ".repeat(12)}${callerTail}`;
+    const anchor = rootLogic.blocks.find((block) => block.id === "root-middle");
+    assert.ok(anchor);
+    anchor.label = callerLabel;
+    const childLogic = createLayeredTestLogic("complete-child", "operation");
+    const functionTail = "completeChildFunction";
+    const completeFunctionTitle = `Child.${"LongNamespaceSegment.".repeat(18)}${functionTail}`;
+    const scene = createScene(rootLogic, "root-scope", "Root.run", [{
+      id: "attached-function:complete-text",
+      parentScopeId: "root-scope",
+      anchorBlockId: "root-middle",
+      target: {
+        sourceToken: childToken,
+        name: functionTail,
+        qualifiedName: completeFunctionTitle,
+        sourceLocation: "src/child.ts:4",
+        confidence: "resolved",
+        callsiteCount: 1
+      },
+      depth: 1,
+      status: "loaded",
+      detail: { title: completeFunctionTitle, logic: childLogic }
+    }]);
+    const childBlock = scene.logic.blocks.find((block) =>
+      block.sourceBlockId === "complete-child-entry"
+    );
+    const childNode = scene.logic.layout.nodes.find((node) =>
+      node.blockId === childBlock?.id
+    );
+    const sourceChildNode = childLogic.layout.nodes.find((node) =>
+      node.blockId === "complete-child-entry"
+    );
+    const resume = scene.logic.blocks.find((block) =>
+      block.id.startsWith("compound-resume:")
+    );
+    const resumeNode = scene.logic.layout.nodes.find((node) =>
+      node.blockId === resume?.id
+    );
+
+    assert.ok(childBlock && childNode && sourceChildNode && resume && resumeNode);
+    assert.equal(childBlock.functionLabel, completeFunctionTitle);
+    assert.ok(childBlock.functionLabel);
+    assert.ok(childBlock.functionLabel.endsWith(functionTail));
+    assert.equal(resume.label, `Resume · ${callerLabel}`);
+    assert.ok(resume.label.endsWith(callerTail));
+    assert.doesNotMatch(
+      JSON.stringify(scene.logic.blocks.map((block) => ({
+        label: block.label,
+        functionLabel: block.functionLabel
+      }))),
+      /…/u
+    );
+    assert.ok(childNode.height > sourceChildNode.height);
+    assert.ok(resumeNode.height > 76);
+    assertCompoundEdgesAvoidBoxes(scene.logic);
   } finally {
     Reflect.deleteProperty(globalThis, exposedBuilder);
     runtime.restore();
@@ -550,6 +661,19 @@ function latestPayload(
   const message = [...messages].reverse().find((candidate) => candidate.type === type);
   assert.ok(message, `missing ${type} request`);
   return message.payload;
+}
+
+/** Measures one rendered node relative to the current graph viewport scroll. */
+function renderedViewportPosition(
+  runtime: ReturnType<typeof installSidebarWebviewRuntime>,
+  title: string
+): { left: number; top: number } {
+  const position = runtime.getRenderedPositionByTitle("flow-steps", title);
+  const scroll = runtime.getRenderedScrollByClass("flow-steps", "logic-graph-viewport");
+  return {
+    left: position.left - scroll.left,
+    top: position.top - scroll.top
+  };
 }
 
 type TestLogicBlock = {
