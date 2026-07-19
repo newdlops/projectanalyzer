@@ -10,12 +10,8 @@ import type {
   FunctionExplorerSearchFilters,
   FunctionExplorerTraversalOptions
 } from "./functionExplorer";
+import type { CodeFlowId } from "./codeFlow";
 import type { WebviewRequest } from "./messages";
-import type { ProjectReadingScopePayloadId } from "./projectReadingGuide";
-import type {
-  GuidedTourMissionPayloadId,
-  GuidedTourStopPayloadId
-} from "./guidedTour";
 
 /** Successful or rejected result returned by the Webview request validator. */
 export type WebviewRequestValidationResult =
@@ -80,6 +76,7 @@ const FUNCTION_TAGS = [
 const EDGE_CONFIDENCES = ["exact", "resolved", "inferred", "unresolved"] as const;
 const FUNCTION_SORT_KEYS = ["relevance", "path", "name", "fan-in", "fan-out", "unresolved"] as const;
 const FUNCTION_SEARCH_TEXT_LIMIT = 512;
+const CODE_FLOW_SEARCH_TEXT_LIMIT = 512;
 
 /**
  * Validates an untrusted Webview value and returns a typed request only after
@@ -125,9 +122,6 @@ function validateReadableWebviewRequest(value: unknown): WebviewRequestValidatio
     case "graph/load":
       payloadIsValid = isGraphLoadPayload(payload);
       break;
-    case "graph/loadStructure":
-      payloadIsValid = isRecord(payload) && typeof payload.graphVersion === "string";
-      break;
     case "graph/focusNode":
     case "node/openSource":
       payloadIsValid = isNodeIdentityPayload(payload);
@@ -144,23 +138,23 @@ function validateReadableWebviewRequest(value: unknown): WebviewRequestValidatio
         typeof payload.nodeId === "string" &&
         isOneOf(payload.direction, ["callers", "callees"]);
       break;
-    case "project/readingGuideScope":
-      payloadIsValid =
-        isRecord(payload) &&
-        typeof payload.graphVersion === "string" &&
-        isProjectReadingScopePayloadId(payload.scopeId);
-      break;
-    case "project/guidedTourOpenSource":
-      payloadIsValid = isGuidedTourOpenSourcePayload(payload);
-      break;
-    case "project/loadOverview":
-      payloadIsValid = isRecord(payload) && typeof payload.graphVersion === "string";
-      break;
     case "search/query":
       payloadIsValid = isRecord(payload) && typeof payload.query === "string";
       break;
     case "export/run":
       payloadIsValid = isRecord(payload) && isOneOf(payload.format, EXPORT_FORMATS);
+      break;
+    case "codeFlow/catalog":
+      payloadIsValid = isCodeFlowCatalogPayload(payload);
+      break;
+    case "codeFlow/select":
+      payloadIsValid = isCodeFlowSelectPayload(payload);
+      break;
+    case "codeFlow/selectSource":
+      payloadIsValid = isCodeFlowSelectSourcePayload(payload);
+      break;
+    case "codeFlow/openEvidence":
+      payloadIsValid = isCodeFlowOpenEvidencePayload(payload);
       break;
     case "function/index":
       payloadIsValid = isFunctionIndexPayload(payload);
@@ -194,34 +188,52 @@ function validateReadableWebviewRequest(value: unknown): WebviewRequestValidatio
   return { ok: true, value: value as WebviewRequest };
 }
 
-/** Validates the complete correlation tuple for one Guided Tour source action. */
-function isGuidedTourOpenSourcePayload(value: unknown): boolean {
+/** Validates a bounded entrypoint catalog search and its response identity. */
+function isCodeFlowCatalogPayload(value: unknown): boolean {
   return (
     isRecord(value) &&
-    hasOnlyKeys(value, [
-      "graphVersion",
-      "missionId",
-      "stopId",
-      "sourceToken",
-      "requestId"
-    ]) &&
     isBoundedString(value.graphVersion, 128) &&
     value.graphVersion.length > 0 &&
-    isGuidedTourMissionPayloadId(value.missionId) &&
-    isGuidedTourStopPayloadId(value.stopId) &&
-    isSourceNodeToken(value.sourceToken) &&
-    isNonNegativeInteger(value.requestId)
+    isNonNegativeInteger(value.requestId) &&
+    isBoundedString(value.query, CODE_FLOW_SEARCH_TEXT_LIMIT) &&
+    isNonNegativeInteger(value.limit)
   );
 }
 
-/** Keeps arbitrary strings from being treated as Host-issued mission identities. */
-function isGuidedTourMissionPayloadId(value: unknown): value is GuidedTourMissionPayloadId {
-  return typeof value === "string" && /^guided-mission:[0-9a-f]{24}$/u.test(value);
+/** Accepts only snapshot-derived opaque flow identities. */
+function isCodeFlowSelectPayload(value: unknown): boolean {
+  return (
+    isRecord(value) &&
+    isBoundedString(value.graphVersion, 128) &&
+    value.graphVersion.length > 0 &&
+    isCodeFlowId(value.flowId)
+  );
 }
 
-/** Keeps arbitrary strings from being treated as Host-issued stop identities. */
-function isGuidedTourStopPayloadId(value: unknown): value is GuidedTourStopPayloadId {
-  return typeof value === "string" && /^guided-stop:[0-9a-f]{24}$/u.test(value);
+/** Accepts only source tokens issued by the active Host registry. */
+function isCodeFlowSelectSourcePayload(value: unknown): boolean {
+  return (
+    isRecord(value) &&
+    isBoundedString(value.graphVersion, 128) &&
+    value.graphVersion.length > 0 &&
+    isSourceNodeToken(value.sourceToken)
+  );
+}
+
+/** Accepts only statement-evidence tokens issued for the active graph. */
+function isCodeFlowOpenEvidencePayload(value: unknown): boolean {
+  return (
+    isRecord(value) &&
+    isBoundedString(value.graphVersion, 128) &&
+    value.graphVersion.length > 0 &&
+    typeof value.evidenceToken === "string" &&
+    /^code-evidence:[0-9a-f]{64}$/u.test(value.evidenceToken)
+  );
+}
+
+/** Keeps arbitrary browser strings from becoming Host flow references. */
+function isCodeFlowId(value: unknown): value is CodeFlowId {
+  return typeof value === "string" && /^code-flow:[0-9a-f]{32}$/u.test(value);
 }
 
 /** Accepts only opaque source references issued by the active Host registry. */
@@ -415,24 +427,12 @@ function isBoundedString(value: unknown, maxLength: number): value is string {
   return typeof value === "string" && value.length <= maxLength;
 }
 
-/** Rejects reflected or accidentally broadened request payload fields. */
-function hasOnlyKeys(value: Record<string, unknown>, expectedKeys: readonly string[]): boolean {
-  const expected = new Set(expectedKeys);
-  const actualKeys = Object.keys(value);
-  return actualKeys.length === expected.size && actualKeys.every((key) => expected.has(key));
-}
-
 /** Validates an optional bounded string without coercing untrusted values. */
 function isOptionalBoundedString(
   value: unknown,
   maxLength: number
 ): value is string | undefined {
   return value === undefined || isBoundedString(value, maxLength);
-}
-
-/** Accepts only fixed-size opaque scope tokens issued by the host adapter. */
-function isProjectReadingScopePayloadId(value: unknown): value is ProjectReadingScopePayloadId {
-  return typeof value === "string" && /^reading-scope:[0-9a-f]{24}$/u.test(value);
 }
 
 /** Validates an optional boolean field. */

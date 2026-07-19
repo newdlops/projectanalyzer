@@ -2,13 +2,7 @@
  * Theme-aware CSS shared by the Project Analyzer sidebar and graph panel.
  */
 
-import {
-  getProjectGuideStyles,
-  getSidebarDisclosureStyles
-} from "./explorerSidebarStructureStyles";
-import { getFunctionSearchStyles } from "./functionSearch";
-import { getGuidedTourStyles } from "./guidedTour";
-import { getProjectLearningJourneyStyles } from "./projectLearningJourney";
+import { getCodeFlowStyles } from "./codeFlow";
 
 /** Visual surface that receives the shared explorer styles. */
 export type ExplorerSurface = "sidebar" | "panel";
@@ -243,9 +237,7 @@ export function getExplorerStyles(surface: ExplorerSurface): string {
       cursor: grabbing;
     }
 
-${getProjectGuideStyles()}
-${getGuidedTourStyles()}
-${getProjectLearningJourneyStyles()}
+${getCodeFlowStyles()}
     .list {
       display: flex;
       min-height: 0;
@@ -255,8 +247,6 @@ ${getProjectLearningJourneyStyles()}
       overflow: auto;
     }
 
-${getSidebarDisclosureStyles()}
-${getFunctionSearchStyles()}
     .explorer-tree {
       gap: 0;
       padding: 2px 0;

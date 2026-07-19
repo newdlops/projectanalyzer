@@ -1,6 +1,7 @@
 /**
- * Webview HTML factory for Project Analyzer GUI surfaces. The sidebar is a
- * control surface; the graph browser is rendered only inside a WebviewPanel tab.
+ * Webview HTML factory. The Activity Bar owns the flow-first reading surface;
+ * the retained editor panel remains an internal graph-renderer compatibility
+ * boundary until the horizontal CodeFlow canvas replaces it.
  */
 
 import * as vscode from "vscode";
@@ -19,21 +20,15 @@ export type WebviewHtmlOptions = {
   surface: ExplorerSurface;
 };
 
-/**
- * Builds the requested Project Analyzer Webview document.
- */
+/** Builds the requested Project Analyzer Webview document. */
 export function getExplorerHtml(options: WebviewHtmlOptions): string {
-  if (options.surface === "panel") {
-    return getGraphPanelHtml(options);
-  }
-
-  return getSidebarHtml(options);
+  return options.surface === "panel"
+    ? getGraphPanelHtml(options)
+    : getCodeFlowSidebarHtml(options);
 }
 
-/**
- * Builds the Activity Bar sidebar control surface.
- */
-function getSidebarHtml(options: WebviewHtmlOptions): string {
+/** Builds the Activity Bar Code Flow Reader surface. */
+function getCodeFlowSidebarHtml(options: WebviewHtmlOptions): string {
   const cspSource = options.webview.cspSource;
   const clientScript = getExplorerSidebarScript();
 
@@ -43,149 +38,103 @@ function getSidebarHtml(options: WebviewHtmlOptions): string {
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${cspSource} 'unsafe-inline'; script-src 'nonce-${options.nonce}';">
-  <title>Project Analyzer</title>
+  <title>Project Analyzer Code Flow</title>
   <style>${getExplorerStyles("sidebar")}</style>
 </head>
 <body>
-  <div class="shell sidebar-shell">
-    <div class="toolbar">
+  <main class="shell code-flow-shell">
+    <header class="product-intro">
+      <div class="product-eyebrow">CODE FLOW READER</div>
+      <h1>Understand this codebase</h1>
+      <p>Start at a boundary. Follow responsibility changes. Find effects. Verify every jump in source.</p>
+    </header>
+
+    <div class="toolbar analysis-toolbar">
       <button id="analyze-workspace" class="primary-button" type="button">Analyze Workspace</button>
     </div>
-    <details class="more-actions">
-      <summary>More actions</summary>
-      <div class="button-grid more-actions-grid">
-        <button id="analyze-current" class="secondary-button" type="button">Current File</button>
-        <button id="show-workspace" class="secondary-button" type="button">Workspace Scope</button>
-        <button id="export-json" class="secondary-button" type="button">Export JSON</button>
-        <button id="clear-cache" class="secondary-button" type="button">Clear Cache</button>
+    <div id="status" class="status" role="status" aria-live="polite">Ready</div>
+
+    <section class="reading-frame" aria-labelledby="reading-frame-title">
+      <div id="reading-frame-title" class="section-kicker">READ CODE WITH FIVE QUESTIONS</div>
+      <ol>
+        <li><span>1</span><strong>Boundary</strong><small>What starts it?</small></li>
+        <li><span>2</span><strong>Responsibility</strong><small>Who owns the next step?</small></li>
+        <li><span>3</span><strong>Decision</strong><small>Where can behavior change?</small></li>
+        <li><span>4</span><strong>Effect</strong><small>What state or system is touched?</small></li>
+        <li><span>5</span><strong>Verify</strong><small>Which source proves the jump?</small></li>
+      </ol>
+    </section>
+
+    <section id="flow-start" class="flow-start" aria-labelledby="flow-start-title">
+      <div class="section-heading-row">
+        <div>
+          <div class="section-kicker">START</div>
+          <h2 id="flow-start-title">Choose one question</h2>
+        </div>
+        <span id="catalog-summary" class="summary-chip"></span>
+      </div>
+
+      <div class="start-mode-switch" role="tablist" aria-label="Flow starting point">
+        <button id="mode-entrypoints" class="start-mode active" type="button" role="tab" aria-selected="true">Entrypoints</button>
+        <button id="mode-functions" class="start-mode" type="button" role="tab" aria-selected="false">Functions</button>
+      </div>
+
+      <form id="flow-search-form" class="flow-search" role="search">
+        <input
+          id="flow-search-input"
+          type="search"
+          maxlength="512"
+          autocomplete="off"
+          placeholder="Route, operation, or framework"
+          aria-label="Search entrypoints"
+        >
+        <button id="flow-search-submit" class="search-submit" type="submit" aria-label="Search">Find</button>
+      </form>
+      <div id="flow-search-meta" class="flow-search-meta" aria-live="polite"></div>
+      <div id="flow-results" class="flow-results" role="listbox" aria-label="Flow starting points"></div>
+      <button id="flow-search-more" class="text-button" type="button" hidden>Load more functions</button>
+    </section>
+
+    <section id="flow-reader" class="flow-reader" aria-labelledby="flow-title" hidden>
+      <button id="flow-back" class="back-button" type="button">← Choose another start</button>
+      <div class="flow-reader-header">
+        <div id="flow-reader-kicker" class="section-kicker">STATIC FLOW · POSSIBLE CALL PATH</div>
+        <h2 id="flow-title"></h2>
+        <div id="flow-subtitle" class="flow-subtitle"></div>
+        <div id="flow-summary" class="flow-summary"></div>
+      </div>
+      <div id="flow-semantics-note" class="semantics-note">
+        Arrows mean statically discoverable call relationships, not observed runtime order.
+      </div>
+
+      <section id="flow-origins-section" class="flow-origins" aria-labelledby="flow-origins-title" hidden>
+        <h3 id="flow-origins-title">Known entrypoints</h3>
+        <div id="flow-origins"></div>
+      </section>
+
+      <div id="flow-steps" class="flow-steps" role="tree" aria-label="Code flow steps"></div>
+
+      <section id="flow-gaps-section" class="flow-gaps" aria-labelledby="flow-gaps-title" hidden>
+        <h3 id="flow-gaps-title">What remains unknown</h3>
+        <div id="flow-gaps"></div>
+      </section>
+    </section>
+
+    <details class="utility-actions">
+      <summary>Analysis and data</summary>
+      <div class="button-grid utility-action-grid">
+        <button id="analyze-current" class="secondary-button" type="button">Analyze Current File</button>
+        <button id="show-workspace" class="secondary-button" type="button">Restore Workspace</button>
+        <button id="export-json" class="secondary-button" type="button">Export Evidence JSON</button>
+        <button id="clear-cache" class="secondary-button" type="button">Clear Analysis Cache</button>
       </div>
     </details>
-    <div id="status" class="status" role="status" aria-live="polite">Ready</div>
-    <div class="sidebar-surface-tabs" role="tablist" aria-label="Project learning surface">
-      <button
-        id="surface-guide-tab"
-        class="surface-tab active"
-        type="button"
-        role="tab"
-        aria-selected="true"
-        aria-controls="guided-tour-surface"
-      >Guide</button>
-      <button
-        id="surface-explore-tab"
-        class="surface-tab"
-        type="button"
-        role="tab"
-        aria-selected="false"
-        aria-controls="explore-surface"
-        tabindex="-1"
-      >Explore</button>
-    </div>
-    <section
-      id="guided-tour-surface"
-      class="sidebar-surface guided-tour-surface"
-      role="tabpanel"
-      aria-labelledby="surface-guide-tab"
-    >
-      <div class="summary-title">Project Guided Tour</div>
-      <div class="learning-intro">
-        Follow one evidence-ranked source path. Opening source records a visit, not understanding.
-      </div>
-      <div id="guided-tour-content" class="guided-tour-content"></div>
-    </section>
-    <section
-      id="explore-surface"
-      class="sidebar-surface explore-surface"
-      role="tabpanel"
-      aria-labelledby="surface-explore-tab"
-      hidden
-    >
-      <div id="project-guide" class="project-guide" aria-label="Project reading plan">
-        <div class="summary-title">Project Reading Plan</div>
-        <div class="learning-intro">
-          Choose a scope, then follow entrypoints ranked by explainable layer evidence. Candidate does not mean pure or business-critical.
-        </div>
-        <div id="guide-summary" class="guide-summary" aria-live="polite"></div>
-        <div class="guide-section-label">Detected scopes</div>
-        <div id="guide-scopes" class="guide-scopes" aria-live="polite"></div>
-        <div id="guide-scope-detail" class="guide-scope-detail" aria-live="polite"></div>
-        <details class="learning-roadmap-disclosure">
-          <summary>Learning method and roadmap</summary>
-          <div id="learning-progress" class="learning-progress" aria-live="polite"></div>
-          <div id="learning-current" class="learning-current"></div>
-          <div id="learning-roadmap" class="learning-roadmap"></div>
-        </details>
-      </div>
-      <div class="accordion" aria-label="Detailed explorer sections">
-      <section id="call-section" class="tree-section calls-section collapsed">
-        <button id="accordion-calls" class="accordion-header" type="button" aria-expanded="false" aria-controls="call-panel">
-          <span class="accordion-disclosure"></span>
-          <span class="accordion-title">Explore Code Flows</span>
-        </button>
-        <div id="call-panel" class="accordion-panel calls-panel" hidden>
-          <div id="function-search" class="function-search" role="search" aria-label="Search all analyzed functions">
-            <div class="function-search-row">
-              <input
-                id="function-search-input"
-                class="function-search-input"
-                type="search"
-                placeholder="Function name or source path"
-                aria-label="Function name or source path"
-                maxlength="512"
-              >
-              <button id="function-search-submit" class="function-search-button" type="button">Find</button>
-              <button id="function-search-clear" class="function-search-button" type="button" hidden>Clear</button>
-            </div>
-            <div class="function-search-meta">
-              <span id="function-search-status" class="function-search-status" aria-live="polite"></span>
-              <button id="function-search-more" class="function-search-more" type="button" hidden>Load more</button>
-            </div>
-          </div>
-          <div id="call-tree" class="list explorer-tree call-tree" role="tree" aria-label="Code flow tree"></div>
-        </div>
-      </section>
-      <section id="structure-section" class="tree-section structure-section collapsed">
-        <button id="accordion-structure" class="accordion-header" type="button" aria-expanded="false" aria-controls="structure-panel">
-          <span class="accordion-disclosure"></span>
-          <span class="accordion-title">Browse Structure</span>
-        </button>
-        <div id="structure-panel" class="accordion-panel" hidden>
-          <div class="structure-switch" role="tablist" aria-label="Structure view">
-            <button id="structure-frameworks" class="view-button active" type="button" role="tab" aria-selected="true">Components</button>
-            <button id="structure-files" class="view-button" type="button" role="tab" aria-selected="false">Files</button>
-          </div>
-          <div id="framework-tree" class="list explorer-tree framework-tree" role="tree" aria-label="Framework semantic tree"></div>
-          <div id="explorer-tree" class="list explorer-tree" role="tree" aria-label="Project import tree" hidden></div>
-        </div>
-      </section>
-      <section id="analysis-section" class="tree-section analysis-section collapsed">
-        <button id="accordion-analysis" class="accordion-header" type="button" aria-expanded="false" aria-controls="analysis-panel">
-          <span class="accordion-disclosure"></span>
-          <span class="accordion-title">Analysis Details</span>
-        </button>
-        <div id="analysis-panel" class="accordion-panel analysis-panel" hidden>
-          <div id="project-overview" class="project-overview" aria-label="Project Brief and analysis signals">
-            <div class="overview-block">
-              <div class="summary-title">Analysis Scope</div>
-              <div id="project-brief" class="overview-list" aria-live="polite"></div>
-            </div>
-            <div class="overview-block">
-              <div class="summary-title">Analysis Signals</div>
-              <div id="analysis-signals" class="signal-list" aria-live="polite"></div>
-            </div>
-          </div>
-        </div>
-      </section>
-      </div>
-    </section>
-  </div>
+  </main>
   <script nonce="${options.nonce}">${clientScript}</script>
 </body>
 </html>`;
 }
-
-/**
- * Builds the editor-tab graph browser WebviewPanel.
- */
+/** Builds the retained editor-tab graph renderer compatibility surface. */
 function getGraphPanelHtml(options: WebviewHtmlOptions): string {
   const cspSource = options.webview.cspSource;
   const canvasWidth = 960;
@@ -225,15 +174,7 @@ function getGraphPanelHtml(options: WebviewHtmlOptions): string {
     </div>
     <div id="status" class="status">Ready</div>
     <div class="graph-panel" aria-label="Graph canvas">
-      <canvas
-        id="graph-canvas"
-        class="graph-canvas"
-        width="${canvasWidth}"
-        height="${canvasHeight}"
-        role="application"
-        tabindex="0"
-        aria-label="Project graph canvas"
-      ></canvas>
+      <canvas id="graph-canvas" class="graph-canvas" width="${canvasWidth}" height="${canvasHeight}" role="application" tabindex="0" aria-label="Project graph canvas"></canvas>
     </div>
   </div>
   <script nonce="${options.nonce}">${clientScript}</script>

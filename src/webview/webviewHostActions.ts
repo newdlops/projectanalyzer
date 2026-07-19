@@ -5,7 +5,7 @@
 
 import * as crypto from "node:crypto";
 import * as vscode from "vscode";
-import type { ProjectGraph, SymbolNode } from "../shared/types";
+import type { ProjectGraph, SourceRange, SymbolNode } from "../shared/types";
 
 /**
  * Opens a graph node's source range in the active editor group.
@@ -19,6 +19,31 @@ export async function openNodeInEditor(node: SymbolNode): Promise<void> {
     new vscode.Position(node.selectionRange.endLine, node.selectionRange.endCharacter)
   );
 
+  editor.selection = new vscode.Selection(range.start, range.end);
+  editor.revealRange(range, vscode.TextEditorRevealType.InCenterIfOutsideViewport);
+}
+
+/** Reads the current editor document snapshot, including unsaved changes. */
+export async function readSourceText(filePath: string): Promise<string | undefined> {
+  try {
+    const document = await vscode.workspace.openTextDocument(vscode.Uri.file(filePath));
+    return document.getText();
+  } catch {
+    return undefined;
+  }
+}
+
+/** Opens one Host-approved statement range in the active editor group. */
+export async function openSourceLocationInEditor(
+  filePath: string,
+  sourceRange: SourceRange
+): Promise<void> {
+  const document = await vscode.workspace.openTextDocument(vscode.Uri.file(filePath));
+  const editor = await vscode.window.showTextDocument(document);
+  const range = new vscode.Range(
+    new vscode.Position(sourceRange.startLine, sourceRange.startCharacter),
+    new vscode.Position(sourceRange.endLine, sourceRange.endCharacter)
+  );
   editor.selection = new vscode.Selection(range.start, range.end);
   editor.revealRange(range, vscode.TextEditorRevealType.InCenterIfOutsideViewport);
 }

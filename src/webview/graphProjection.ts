@@ -95,14 +95,13 @@ export function projectGraphForSidebar(graph: ProjectGraph): ProjectGraph {
 }
 
 /**
- * Creates the initial guide handshake without file, framework, or symbol rows.
- * The richer sidebar structure projection is sent only after Browse Structure
- * is opened, keeping first delivery constant-size even for very large repos.
+ * Creates the initial CodeFlow handshake without file, framework, or symbol
+ * rows, keeping first delivery constant-size even for very large repositories.
  */
 export function projectGraphForSidebarShell(graph: ProjectGraph): ProjectGraph {
   return {
-    // The initial guide does not need a filesystem path; keep it host-side
-    // until Browse Structure is explicitly opened.
+    // CodeFlow receives source display text only through bounded projections;
+    // keep the absolute filesystem root behind the Host boundary.
     workspaceRoot: ".",
     version: graph.version,
     generatedAt: graph.generatedAt,

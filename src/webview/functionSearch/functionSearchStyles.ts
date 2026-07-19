@@ -1,6 +1,6 @@
 /** CSS for the bounded host-backed function search controls. */
 
-/** Returns styles scoped to the Explore Code Flows search region. */
+/** Returns legacy styles for the reusable function-search browser fragment. */
 export function getFunctionSearchStyles(): string {
   return /* css */ `
     .calls-panel {

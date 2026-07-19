@@ -5,24 +5,17 @@
 
 import type { ProjectGraph } from "../shared/types";
 import type {
+  CodeFlowCatalogPayload,
+  CodeFlowDetailPayload,
+  CodeFlowFailurePayload,
+  CodeFlowRequest
+} from "./codeFlow";
+import type {
   FunctionExplorerPayload,
   FunctionExplorerRequest,
   FunctionExplorerSearchFailurePayload,
   FunctionExplorerSearchPayload
 } from "./functionExplorer";
-import type { ProjectOverviewPayload } from "./projectOverview";
-import type {
-  GuidedTourOpenSourceRequest,
-  GuidedTourPayload,
-  GuidedTourSourceOpenedPayload,
-  GuidedTourSourceOpenFailurePayload
-} from "./guidedTour";
-import type {
-  ProjectReadingGuidePayload,
-  ProjectReadingGuideScopeFailurePayload,
-  ProjectReadingScopePayloadId,
-  ProjectScopeReadingGuidePayload
-} from "./projectReadingGuide";
 
 /** Supported graph view modes shown by the explorer. */
 export type GraphViewMode = "call" | "file" | "class";
@@ -78,7 +71,6 @@ export type WebviewLogRequest = {
 export type WebviewRequest =
   | { type: "ui/ready"; payload: Record<string, never> }
   | { type: "graph/load"; payload: GraphLoadRequest }
-  | { type: "graph/loadStructure"; payload: { graphVersion: string } }
   | { type: "graph/openPanel"; payload: Record<string, never> }
   | { type: "graph/showWorkspaceScope"; payload: Record<string, never> }
   | { type: "graph/focusNode"; payload: GraphFocusNodeRequest }
@@ -87,15 +79,10 @@ export type WebviewRequest =
   | { type: "analysis/cancel"; payload: Record<string, never> }
   | { type: "cache/clear"; payload: Record<string, never> }
   | { type: "node/openSource"; payload: { nodeId: string } }
-  | { type: "project/guidedTourOpenSource"; payload: GuidedTourOpenSourceRequest }
   | { type: "node/showRelationship"; payload: NodeRelationshipRequest }
-  | {
-      type: "project/readingGuideScope";
-      payload: { graphVersion: string; scopeId: ProjectReadingScopePayloadId };
-    }
-  | { type: "project/loadOverview"; payload: { graphVersion: string } }
   | { type: "search/query"; payload: SearchRequest }
   | { type: "export/run"; payload: ExportRequest }
+  | CodeFlowRequest
   | FunctionExplorerRequest
   | { type: "telemetry/log"; payload: WebviewLogRequest };
 
@@ -123,17 +110,12 @@ export type ExtensionResponse =
   | { type: "ui/ready"; payload: Record<string, never> }
   | { type: "graph/loaded"; payload: ProjectGraph }
   | { type: "graph/updated"; payload: ProjectGraph }
-  | { type: "graph/structureLoaded"; payload: ProjectGraph }
   | { type: "graph/focusNode"; payload: GraphFocusNodeRequest }
   | { type: "graph/cleared"; payload: Record<string, never> }
   | { type: "analysis/status"; payload: AnalysisStatusPayload }
-  | { type: "project/overviewLoaded"; payload: ProjectOverviewPayload }
-  | { type: "project/guidedTourLoaded"; payload: GuidedTourPayload }
-  | { type: "project/guidedTourSourceOpened"; payload: GuidedTourSourceOpenedPayload }
-  | { type: "project/guidedTourSourceOpenFailed"; payload: GuidedTourSourceOpenFailurePayload }
-  | { type: "project/readingGuideLoaded"; payload: ProjectReadingGuidePayload }
-  | { type: "project/readingGuideScopeLoaded"; payload: ProjectScopeReadingGuidePayload }
-  | { type: "project/readingGuideScopeFailed"; payload: ProjectReadingGuideScopeFailurePayload }
+  | { type: "codeFlow/catalogLoaded"; payload: CodeFlowCatalogPayload }
+  | { type: "codeFlow/detailLoaded"; payload: CodeFlowDetailPayload }
+  | { type: "codeFlow/detailFailed"; payload: CodeFlowFailurePayload }
   | { type: "function/indexLoaded"; payload: FunctionExplorerPayload }
   | { type: "function/searchLoaded"; payload: FunctionExplorerSearchPayload }
   | { type: "function/searchFailed"; payload: FunctionExplorerSearchFailurePayload }

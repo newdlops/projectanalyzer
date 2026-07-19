@@ -26,7 +26,6 @@ test("accepts every current WebviewRequest variant", () => {
     [
       "ui/ready",
       "graph/load",
-      "graph/loadStructure",
       "graph/openPanel",
       "graph/showWorkspaceScope",
       "graph/focusNode",
@@ -36,10 +35,12 @@ test("accepts every current WebviewRequest variant", () => {
       "cache/clear",
       "node/openSource",
       "node/showRelationship",
-      "project/readingGuideScope",
-      "project/loadOverview",
       "search/query",
       "export/run",
+      "codeFlow/catalog",
+      "codeFlow/select",
+      "codeFlow/selectSource",
+      "codeFlow/openEvidence",
       "function/index",
       "function/sectionRows",
       "function/expand",
@@ -122,6 +123,31 @@ test("rejects malformed top-level values and signal payloads", () => {
   for (const value of malformed) {
     assert.equal(validateWebviewRequest(value).ok, false);
     assert.equal(isWebviewRequest(value), false);
+  }
+});
+
+test("rejects retired guide, dashboard, and structure request routes", () => {
+  const retiredRequests: unknown[] = [
+    { type: "graph/loadStructure", payload: { graphVersion: "v1" } },
+    { type: "project/loadOverview", payload: { graphVersion: "v1" } },
+    {
+      type: "project/readingGuideScope",
+      payload: { graphVersion: "v1", scopeId: "reading-scope:0123456789abcdef01234567" }
+    },
+    {
+      type: "project/guidedTourOpenSource",
+      payload: {
+        graphVersion: "v1",
+        missionId: "guided-mission:0123456789abcdef01234567",
+        stopId: "guided-stop:0123456789abcdef01234567",
+        sourceToken: `source-node:${"a".repeat(64)}`,
+        requestId: 1
+      }
+    }
+  ];
+
+  for (const request of retiredRequests) {
+    assert.equal(validateWebviewRequest(request).ok, false);
   }
 });
 
@@ -223,6 +249,46 @@ test("bounds Function Explorer search query and cursor text", () => {
   }).ok, false);
 });
 
+test("bounds CodeFlow search and accepts only opaque snapshot references", () => {
+  const graphVersion = "sidebar-snapshot:validation:1";
+  const flowId = "code-flow:0123456789abcdef0123456789abcdef";
+  const sourceToken = `source-node:${"a".repeat(64)}`;
+  const evidenceToken = `code-evidence:${"b".repeat(64)}`;
+
+  assert.equal(validateWebviewRequest({
+    type: "codeFlow/catalog",
+    payload: { graphVersion, requestId: 0, query: "x".repeat(512), limit: 24 }
+  }).ok, true);
+  assert.equal(validateWebviewRequest({
+    type: "codeFlow/catalog",
+    payload: { graphVersion, requestId: 1, query: "x".repeat(513), limit: 24 }
+  }).ok, false);
+  assert.equal(validateWebviewRequest({
+    type: "codeFlow/select",
+    payload: { graphVersion, flowId }
+  }).ok, true);
+  assert.equal(validateWebviewRequest({
+    type: "codeFlow/select",
+    payload: { graphVersion, flowId: "GET /orders" }
+  }).ok, false);
+  assert.equal(validateWebviewRequest({
+    type: "codeFlow/selectSource",
+    payload: { graphVersion, sourceToken }
+  }).ok, true);
+  assert.equal(validateWebviewRequest({
+    type: "codeFlow/selectSource",
+    payload: { graphVersion, sourceToken: "source-node:root" }
+  }).ok, false);
+  assert.equal(validateWebviewRequest({
+    type: "codeFlow/openEvidence",
+    payload: { graphVersion, evidenceToken }
+  }).ok, true);
+  assert.equal(validateWebviewRequest({
+    type: "codeFlow/openEvidence",
+    payload: { graphVersion, evidenceToken: "code-evidence:/workspace/src/orders.ts:12" }
+  }).ok, false);
+});
+
 test("accepts only filters implemented by Function Explorer search", () => {
   const base = {
     graphVersion: "v1",
@@ -312,7 +378,6 @@ function createValidRequests(): WebviewRequest[] {
   return [
     { type: "ui/ready", payload: {} },
     { type: "graph/load", payload: { mode: "call", rootNodeId: "node:root", depth: 2 } },
-    { type: "graph/loadStructure", payload: { graphVersion: "delivery:v1" } },
     { type: "graph/openPanel", payload: {} },
     { type: "graph/showWorkspaceScope", payload: {} },
     { type: "graph/focusNode", payload: { nodeId: "node:focus" } },
@@ -322,13 +387,30 @@ function createValidRequests(): WebviewRequest[] {
     { type: "cache/clear", payload: {} },
     { type: "node/openSource", payload: { nodeId: "node:source" } },
     { type: "node/showRelationship", payload: { nodeId: "node:1", direction: "callers" } },
-    {
-      type: "project/readingGuideScope",
-      payload: { graphVersion: "v1", scopeId: "reading-scope:0123456789abcdef01234567" }
-    },
-    { type: "project/loadOverview", payload: { graphVersion: "v1" } },
     { type: "search/query", payload: { query: "handler" } },
     { type: "export/run", payload: { format: "markdown" } },
+    {
+      type: "codeFlow/catalog",
+      payload: { graphVersion: "v1", requestId: 1, query: "orders", limit: 24 }
+    },
+    {
+      type: "codeFlow/select",
+      payload: { graphVersion: "v1", flowId: "code-flow:0123456789abcdef0123456789abcdef" }
+    },
+    {
+      type: "codeFlow/selectSource",
+      payload: {
+        graphVersion: "v1",
+        sourceToken: "source-node:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+      }
+    },
+    {
+      type: "codeFlow/openEvidence",
+      payload: {
+        graphVersion: "v1",
+        evidenceToken: "code-evidence:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      }
+    },
     { type: "function/index", payload: {} },
     {
       type: "function/sectionRows",

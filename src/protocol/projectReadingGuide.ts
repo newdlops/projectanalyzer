@@ -1,7 +1,7 @@
 /**
- * Bounded Project Reading Plan messages shared by the Extension Host and
- * Webview. The first payload carries only three scope summaries; source areas
- * and evidence-ranked execution paths cross the boundary after scope selection.
+ * JSON records retained by the standalone project-reading projector. They are
+ * no longer part of the central Extension Host/Webview message union; CodeFlow
+ * owns the active product protocol.
  */
 
 import type { EdgeConfidence } from "../shared/types";

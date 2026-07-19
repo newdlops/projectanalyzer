@@ -8,11 +8,6 @@
 
 import { randomBytes } from "node:crypto";
 import type { FunctionExplorerPayload } from "../protocol/functionExplorer";
-import type { ProjectOverviewPayload } from "../protocol/projectOverview";
-import type {
-  ProjectReadingGuidePayload,
-  ProjectScopeReadingGuidePayload
-} from "../protocol/projectReadingGuide";
 import type { ProjectGraph } from "../shared/types";
 
 /** One active host graph and its opaque browser delivery identity. */
@@ -64,30 +59,6 @@ export class SidebarGraphDelivery {
 /** Replaces the engine version on a graph payload crossing to the sidebar. */
 export function withSidebarGraphVersion(graph: ProjectGraph, version: string): ProjectGraph {
   return { ...graph, version };
-}
-
-/** Tags the bounded first-read guide with its browser snapshot identity. */
-export function withReadingGuideVersion(
-  payload: ProjectReadingGuidePayload,
-  version: string
-): ProjectReadingGuidePayload {
-  return { ...payload, graphVersion: version };
-}
-
-/** Tags one lazy scope detail with its browser snapshot identity. */
-export function withReadingScopeVersion(
-  payload: ProjectScopeReadingGuidePayload,
-  version: string
-): ProjectScopeReadingGuidePayload {
-  return { ...payload, graphVersion: version };
-}
-
-/** Tags lazy Analysis Details with its browser snapshot identity. */
-export function withProjectOverviewVersion(
-  payload: ProjectOverviewPayload,
-  version: string
-): ProjectOverviewPayload {
-  return { ...payload, graphVersion: version };
 }
 
 /** Tags both Function Explorer version fields used by browser stale guards. */

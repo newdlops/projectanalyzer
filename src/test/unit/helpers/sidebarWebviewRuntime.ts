@@ -22,6 +22,7 @@ export type SidebarWebviewRuntime = {
   messages: Array<{ type: string; payload: unknown }>;
   restore(): void;
   setValue(elementId: string, value: string): void;
+  submit(elementId: string): void;
   textValues: string[];
 };
 
@@ -74,7 +75,9 @@ export function installSidebarWebviewRuntime(initialWebviewState?: unknown): Sid
       dataset: {},
       disabled: false,
       hidden: false,
-      style: {},
+      style: {
+        setProperty() {}
+      },
       textContent: "",
       title: "",
       type: "",
@@ -92,6 +95,13 @@ export function installSidebarWebviewRuntime(initialWebviewState?: unknown): Sid
       },
       append(...appendedChildren) {
         children.push(...appendedChildren);
+      },
+      removeChild(child) {
+        const index = children.indexOf(child);
+        if (index >= 0) {
+          children.splice(index, 1);
+        }
+        return child;
       },
       focus() {
         focusedElementId = id;
@@ -131,6 +141,12 @@ export function installSidebarWebviewRuntime(initialWebviewState?: unknown): Sid
         }
       }
     });
+    Object.defineProperty(element, "firstChild", {
+      configurable: true,
+      get() {
+        return children[0];
+      }
+    });
 
     elementListeners.set(id, listeners);
     elements.set(id, element);
@@ -148,6 +164,10 @@ export function installSidebarWebviewRuntime(initialWebviewState?: unknown): Sid
   });
   Reflect.set(globalThis, "document", {
     createElement(tagName: string) {
+      generatedElementId += 1;
+      return getOrCreateElement(`${tagName}:${generatedElementId}`);
+    },
+    createElementNS(_namespace: string, tagName: string) {
       generatedElementId += 1;
       return getOrCreateElement(`${tagName}:${generatedElementId}`);
     },
@@ -238,6 +258,13 @@ export function installSidebarWebviewRuntime(initialWebviewState?: unknown): Sid
     setValue(elementId, value) {
       getOrCreateElement(elementId).value = value;
     },
+    submit(elementId) {
+      const handlers = elementListeners.get(elementId)?.get("submit") ?? [];
+      assert.ok(handlers.length > 0, `missing submit handler for ${elementId}`);
+      for (const handler of handlers) {
+        handler({ preventDefault() {} });
+      }
+    },
     textValues
   };
 }
@@ -277,6 +304,7 @@ type SidebarFakeElement = {
   attributes: Map<string, string>;
   id: string;
   children: SidebarFakeElement[];
+  readonly firstChild?: SidebarFakeElement;
   className: string;
   classList: {
     add: (...names: string[]) => void;
@@ -286,7 +314,7 @@ type SidebarFakeElement = {
   dataset: Record<string, string>;
   disabled: boolean;
   hidden: boolean;
-  style: Record<string, string>;
+  style: { setProperty: (name: string, value: string) => void };
   textContent: string;
   title: string;
   type: string;
@@ -296,6 +324,7 @@ type SidebarFakeElement = {
   addEventListener: (type: string, handler: SidebarEventHandler) => void;
   removeEventListener: (type: string, handler: SidebarEventHandler) => void;
   append: (...children: SidebarFakeElement[]) => void;
+  removeChild: (child: SidebarFakeElement) => SidebarFakeElement;
   focus: () => void;
   querySelectorAll: (selector: string) => SidebarFakeElement[];
   replaceChildren: (...children: SidebarFakeElement[]) => void;
