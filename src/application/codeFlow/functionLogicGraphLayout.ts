@@ -38,6 +38,13 @@ type NodeDimensions = { width: number; height: number };
 /** Empty-space boundaries shared by every node in one horizontal rank. */
 type RankBounds = { top: number; bottom: number };
 
+/** One real or layout-only ordering rule used by longest-path ranking. */
+type RankConstraint = {
+  sourceId: string;
+  targetId: string;
+  orderKey: string;
+};
+
 /** Builds a finite graph layout using only iterative queues and indexed maps. */
 export function createFunctionLogicGraphLayout(
   blocks: FunctionLogicBlockPayload[],
@@ -99,16 +106,17 @@ function assignForwardRanks(
   blockIndexById: Map<string, number>
 ): Map<string, number> {
   const indegreeById = new Map(blocks.map((block) => [block.id, 0]));
-  const outgoingById = new Map<string, FunctionLogicEdgePayload[]>();
+  const outgoingById = new Map<string, RankConstraint[]>();
+  const rankConstraints = createForwardRankConstraints(blocks, edges, backEdgeIds);
 
-  for (const edge of edges) {
-    if (backEdgeIds.has(edge.id)) {
-      continue;
-    }
-    indegreeById.set(edge.targetId, (indegreeById.get(edge.targetId) ?? 0) + 1);
-    const outgoing = outgoingById.get(edge.sourceId) ?? [];
-    outgoing.push(edge);
-    outgoingById.set(edge.sourceId, outgoing);
+  for (const constraint of rankConstraints) {
+    indegreeById.set(
+      constraint.targetId,
+      (indegreeById.get(constraint.targetId) ?? 0) + 1
+    );
+    const outgoing = outgoingById.get(constraint.sourceId) ?? [];
+    outgoing.push(constraint);
+    outgoingById.set(constraint.sourceId, outgoing);
   }
 
   const rankById = new Map(blocks.map((block) => [block.id, 0]));
@@ -127,13 +135,23 @@ function assignForwardRanks(
     processed.add(block.id);
     const sourceRank = rankById.get(block.id) ?? 0;
     const outgoing = outgoingById.get(block.id) ?? [];
-    outgoing.sort((left, right) => compareEdgeOrder(left, right, blockIndexById));
-    for (const edge of outgoing) {
-      rankById.set(edge.targetId, Math.max(rankById.get(edge.targetId) ?? 0, sourceRank + 1));
-      const nextIndegree = Math.max(0, (indegreeById.get(edge.targetId) ?? 0) - 1);
-      indegreeById.set(edge.targetId, nextIndegree);
+    outgoing.sort((left, right) => compareRankConstraintOrder(
+      left,
+      right,
+      blockIndexById
+    ));
+    for (const constraint of outgoing) {
+      rankById.set(
+        constraint.targetId,
+        Math.max(rankById.get(constraint.targetId) ?? 0, sourceRank + 1)
+      );
+      const nextIndegree = Math.max(
+        0,
+        (indegreeById.get(constraint.targetId) ?? 0) - 1
+      );
+      indegreeById.set(constraint.targetId, nextIndegree);
       if (nextIndegree === 0) {
-        const target = blocks[blockIndexById.get(edge.targetId) ?? -1];
+        const target = blocks[blockIndexById.get(constraint.targetId) ?? -1];
         if (target) {
           ready.push(target);
         }
@@ -151,6 +169,73 @@ function assignForwardRanks(
     }
   }
   return rankById;
+}
+
+/**
+ * Adds a layout-only body-terminal -> loop-exit ordering rule. Without it the
+ * loop body and the first post-loop statement are sibling ranks, so the latter
+ * appears inside the visual loop-back ring even though control has left it.
+ */
+function createForwardRankConstraints(
+  blocks: FunctionLogicBlockPayload[],
+  edges: FunctionLogicEdgePayload[],
+  backEdgeIds: ReadonlySet<string>
+): RankConstraint[] {
+  const blocksById = new Map(blocks.map((block) => [block.id, block]));
+  const constraints: RankConstraint[] = [];
+  const constraintKeys = new Set<string>();
+  const exitEdgesByLoopId = new Map<string, FunctionLogicEdgePayload[]>();
+
+  for (const edge of edges) {
+    if (backEdgeIds.has(edge.id)) {
+      continue;
+    }
+    addRankConstraint(
+      constraints,
+      constraintKeys,
+      edge.sourceId,
+      edge.targetId,
+      edge.id
+    );
+    if (blocksById.get(edge.sourceId)?.kind === "loop" && edge.kind === "exit") {
+      const exits = exitEdgesByLoopId.get(edge.sourceId) ?? [];
+      exits.push(edge);
+      exitEdgesByLoopId.set(edge.sourceId, exits);
+    }
+  }
+
+  for (const backEdge of edges) {
+    if (!backEdgeIds.has(backEdge.id)
+      || blocksById.get(backEdge.targetId)?.kind !== "loop") {
+      continue;
+    }
+    for (const exitEdge of exitEdgesByLoopId.get(backEdge.targetId) ?? []) {
+      addRankConstraint(
+        constraints,
+        constraintKeys,
+        backEdge.sourceId,
+        exitEdge.targetId,
+        `loop-boundary:${backEdge.id}:${exitEdge.id}`
+      );
+    }
+  }
+  return constraints;
+}
+
+/** Adds one de-duplicated ranking constraint without changing rendered edges. */
+function addRankConstraint(
+  constraints: RankConstraint[],
+  keys: Set<string>,
+  sourceId: string,
+  targetId: string,
+  orderKey: string
+): void {
+  const key = `${sourceId}\0${targetId}`;
+  if (keys.has(key)) {
+    return;
+  }
+  keys.add(key);
+  constraints.push({ sourceId, targetId, orderKey });
 }
 
 /** Groups blocks by rank while preserving branch/source presentation order. */
@@ -472,12 +557,12 @@ function compareBlockOrder(
     - (blockIndexById.get(rightId) ?? Number.MAX_SAFE_INTEGER);
 }
 
-/** Stable edge order follows the target's source presentation position. */
-function compareEdgeOrder(
-  left: FunctionLogicEdgePayload,
-  right: FunctionLogicEdgePayload,
+/** Stable rank-constraint order follows target presentation position. */
+function compareRankConstraintOrder(
+  left: RankConstraint,
+  right: RankConstraint,
   blockIndexById: Map<string, number>
 ): number {
   return compareBlockOrder(left.targetId, right.targetId, blockIndexById)
-    || (left.id < right.id ? -1 : left.id > right.id ? 1 : 0);
+    || (left.orderKey < right.orderKey ? -1 : left.orderKey > right.orderKey ? 1 : 0);
 }

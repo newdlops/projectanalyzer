@@ -72,6 +72,64 @@ test("sizes each node from its visible label and detail without clipping lanes",
   assertEdgesAvoidUnrelatedNodes(layout, edges);
 });
 
+test("places the first post-loop statement below the loop-back ring", () => {
+  const blocks = [
+    createBlock("entry", "entry", "Start"),
+    createBlock("loop", "loop", "while pending"),
+    createBlock("body", "operation", "process next item", "iterate"),
+    createBlock("after", "operation", "publish completed result"),
+    createBlock("exit", "exit", "Finish")
+  ];
+  const edges = [
+    createEdge("enter", "entry", "loop", "next"),
+    createEdge("iterate", "loop", "body", "iterate"),
+    createEdge("repeat", "body", "loop", "repeat"),
+    createEdge("leave", "loop", "after", "exit"),
+    createEdge("finish", "after", "exit", "next")
+  ];
+  const layout = createFunctionLogicGraphLayout(blocks, edges);
+  const nodesById = new Map(layout.nodes.map((node) => [node.blockId, node]));
+  const body = nodesById.get("body");
+  const after = nodesById.get("after");
+  const repeat = layout.edges.find((edge) => edge.edgeId === "repeat");
+
+  assert.ok(body && after && repeat);
+  assert.ok(after.rank > body.rank, "post-loop continuation must follow every loop-body rank");
+  assert.ok(
+    after.y > Math.max(...repeat.points.map((point) => point.y)),
+    "post-loop continuation must sit outside the loop-back ring"
+  );
+  assertEdgesAvoidUnrelatedNodes(layout, edges);
+});
+
+test("keeps nested-loop continuations outside their respective loop bodies", () => {
+  const blocks = [
+    createBlock("entry", "entry", "Start"),
+    createBlock("outer", "loop", "for outer item"),
+    createBlock("inner", "loop", "while inner item"),
+    createBlock("inner-body", "operation", "consume inner item", "iterate"),
+    createBlock("after-inner", "operation", "finish outer item"),
+    createBlock("after-outer", "operation", "publish all items"),
+    createBlock("exit", "exit", "Finish")
+  ];
+  const edges = [
+    createEdge("enter", "entry", "outer", "next"),
+    createEdge("outer-iterate", "outer", "inner", "iterate"),
+    createEdge("inner-iterate", "inner", "inner-body", "iterate"),
+    createEdge("inner-repeat", "inner-body", "inner", "repeat"),
+    createEdge("inner-exit", "inner", "after-inner", "exit"),
+    createEdge("outer-repeat", "after-inner", "outer", "repeat"),
+    createEdge("outer-exit", "outer", "after-outer", "exit"),
+    createEdge("finish", "after-outer", "exit", "next")
+  ];
+  const layout = createFunctionLogicGraphLayout(blocks, edges);
+  const rankById = new Map(layout.nodes.map((node) => [node.blockId, node.rank]));
+
+  assert.ok((rankById.get("after-inner") ?? -1) > (rankById.get("inner-body") ?? -1));
+  assert.ok((rankById.get("after-outer") ?? -1) > (rankById.get("after-inner") ?? -1));
+  assertEdgesAvoidUnrelatedNodes(layout, edges);
+});
+
 test("returns an empty finite canvas for an unavailable function body", () => {
   assert.deepEqual(createFunctionLogicGraphLayout([], []), {
     width: 0,
