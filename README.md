@@ -38,8 +38,8 @@ After local workspace analysis, the sidebar offers two starting points:
    path, then inspect the statements, decisions, loops, effects, mutations, and
    exits inside the selected function.
 
-TypeScript and JavaScript also have a source-first shortcut: place the cursor
-inside a function, method, constructor, arrow function, or callback, then choose
+TypeScript, JavaScript, Python, and Java have a source-first shortcut: place the
+cursor inside a function, method, constructor, or supported lambda, then choose
 **Visualize Current Function** from the editor context menu. The command activates
 the extension, analyzes the current document snapshot including unsaved edits,
 and opens that callable in a dedicated **Function Visualizer** editor tab.
@@ -71,9 +71,16 @@ dedicated Function Visualizer tab with a bounded control-flow graph:
 - conservative, visibly `inferred` effect candidates
 - a selected-node panel with complete detail and outgoing targets
 - direct concrete callees matched to their source call blocks
-- lazy **Open child function** actions instead of eager recursive expansion
+- parser-backed callsite recovery for calls nested in conditions, loops, and
+  switch/match expressions
+- visibly inferred unique-name fallback when a lightweight graph misses a multiline body
+- click-to-attach child function blocks to the original graph canvas
+- `callsite → child flow → resume → caller branch` attachment on one compound canvas
+- distinct call/return styling plus per-edge node ports and rank-gap tracks that prevent overlapping routes
+- parent-aware child lanes and branch collapse for nested functions
+- lazy one-function-at-a-time analysis instead of eager recursive loading
 - breadcrumb and parent navigation through already-read function details
-- cycle reuse: revisiting a function selects its existing breadcrumb
+- visible cycle guards that reuse an attached ancestor or an existing breadcrumb
 - bounded 50%–160% graph zoom with a scrollable canvas
 - one-click navigation to the exact statement rather than only the declaration
 - known HTTP/GraphQL entrypoints that reach the selected function
@@ -92,7 +99,7 @@ HTTP/GraphQL/selected function
   -> Repository or model
   -> External or state boundary
 
-Selected TypeScript/JavaScript function
+Selected TypeScript/JavaScript/Python/Java function
   -> Condition or loop
   -> Branch-local operation/call/mutation/effect
   -> Return, throw, repeat, or fallthrough exit
@@ -113,21 +120,30 @@ GraphQL and Strawberry. The semantic-flow traversal follows only analyzed
 The Rust engine remains a lightweight syntax analyzer rather than a compiler
 frontend. Cross-function JavaScript and TypeScript extraction uses textual and
 line-oriented heuristics without a lexical scope graph, receiver resolution, or
-type checking. After a function is selected, its current TypeScript/JavaScript
-document is parsed with the TypeScript compiler AST to build statement-level
-logic and exact source ranges. Editor-context selection can add an exact,
-snapshot-local callable node when the lightweight project analyzer did not model
-an anonymous callback or function-valued property. Expression-level
-short-circuiting, optional chaining, ternaries, callee exceptions, callback
-invocation order, and runtime values remain explicit limitations.
+type checking. Python project symbols continue to use the Rust scanner when it
+is available and have a Lezer-backed in-process fallback. Because the Rust path
+currently produces only Java file nodes, the Extension Host supplements Java
+class, interface, enum, method, constructor, lambda, and conservative call
+evidence from the current workspace.
 
-Python uses a stateful scanner that masks comments and strings and preserves
-UTF-16 source locations. Python functions can be searched and followed in the
-inter-function flow, but function-internal logic currently reports an explicit
-unsupported-language gap rather than inventing blocks.
+After a function is selected, TypeScript and JavaScript use the TypeScript
+compiler AST, while Python and Java use Lezer syntax trees. All four languages
+produce the same statement-level block, transfer, callsite, source-range, and
+coverage-gap contract. Python models `if`/`elif`/`else`, loops including loop
+`else`, `match`/`case`, `try`/`except`/`finally`, `with`, mutations, calls, and
+exits. Java models branches, all common loop forms, `switch`,
+`try`/`catch`/`finally`, try-with-resources, synchronized/labeled regions,
+mutations, calls, constructors, and exits. Editor-context selection can add an
+exact snapshot-local callable node when the project analyzer did not model a
+supported lambda or other cursor-selected callable.
 
-Same-file lexical or qualified-name matches are reported as `resolved`, while
-conservative unique-name fallbacks can be `inferred`. Dynamic dispatch, computed
+Expression-level short-circuiting remains inside its containing block. Python
+monkey patching, decorators, descriptors, and dynamic dispatch are not observed;
+Java virtual dispatch, reflection, framework interception, threads, and overload
+typing beyond conservative arity checks are also not observed.
+
+Lexical-owner and unambiguous qualified-name matches can be `resolved`, while
+conservative same-file or unique-name fallbacks remain `inferred`. Dynamic dispatch, computed
 properties, runtime registration, ambiguous imports, and unsupported syntax may
 remain unresolved or be missed. The Flow Reader must keep these limitations
 visible instead of filling gaps with guesses.
@@ -142,7 +158,7 @@ Analyzer -> Project Graph -> Semantic Flow -> CodeFlow Projection
 Current Source -> Function Logic Analyzer -> Logic Projection -> Function Visualizer
                                       |             |               |- Breadcrumbs
                                       |             |               `- Statement evidence
-                                      |             `-> Direct Callee Tokens -> Lazy Drill
+                                      |             `-> Direct Callee Tokens -> Lazy Inline Branch
                                       `-> Layered Graph Layout -> Node Detail
 ```
 
@@ -157,7 +173,18 @@ Key reusable modules:
   layout and outer-channel edge routing
 - `src/application/codeFlow/functionLogicDrillTargets.ts` — bounded direct-callee
   and callsite-to-logic-block projection
-- `src/analyzer/functionLogic/` — TypeScript/JavaScript function-local AST and CFG
+- `src/analyzer/core/lezerSource.ts` — shared parser snapshot, UTF-16 range, and
+  iterative syntax-tree helpers
+- `src/analyzer/functionLogic/core/` — language-neutral block budgets, Lezer
+  orchestration, and iterative structured CFG construction
+- `src/analyzer/functionLogic/` — public language dispatcher and the
+  TypeScript/JavaScript compiler-AST adapter
+- `src/analyzer/functionLogic/languages/` — Python and Java function-local
+  Lezer adapters
+- `src/analyzer/languages/python/` and `src/analyzer/languages/java/` —
+  Lezer-backed callable and conservative call-graph adapters
+- `src/analyzer/rust/supplementalLanguageGraph.ts` — selected-language graph
+  merge used to add Java evidence without replacing primary Rust results
 - `src/extension/currentFunctionVisualization/` — editor command and exact
   cursor-target graph adaptation
 - `src/protocol/codeFlow.ts` — typed Host/Webview contract
@@ -177,9 +204,13 @@ Entrypoint flows are intentionally finite. Configure their reading budget with
 `projectAnalyzer.codeFlow.maxSteps` (default `30`). Function-internal projections
 use `projectAnalyzer.codeFlow.maxLogicBlocks` (default `120`, maximum `300`).
 Direct callee navigation is capped at 24 unique concrete definitions per
-function and expands only after a user action. Cycle, visited, and hard-budget
-guards remain active, and anything beyond a selected budget appears as an
-explicit gap or omitted count instead of disappearing silently.
+function and expands only after a user action. The editor tab attaches at most 32
+child functions across six nested levels to one compound graph canvas; clicking an
+expanded call box collapses its whole descendant branch. A loaded child is placed
+between its callsite and an explicit resume gateway, so the caller's original
+`true`/`false`/`next` path continues only after the child flow. Cycle, visited, and
+hard-budget guards remain active, and anything beyond a selected budget appears
+as an explicit gap or omitted count instead of disappearing silently.
 
 ## Development
 
