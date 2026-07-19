@@ -5,10 +5,14 @@
  * let the editor tab attach multiple function fragments to one graph canvas.
  */
 
+import { getFunctionLogicCompoundGroupBrowserSource } from "./functionLogicCompoundGroupBrowserSource";
+
 /** Returns browser functions for rendering the function-local control graph. */
 export function getFunctionLogicBrowserSource(): string {
   return /* js */ `
     const LOGIC_SVG_NAMESPACE = "http://www.w3.org/2000/svg";
+
+    ${getFunctionLogicCompoundGroupBrowserSource()}
 
     /** Renders the function signature, graph canvas, legend, and node details. */
     function renderFunctionLogic(logic, graphContext) {
@@ -45,11 +49,22 @@ export function getFunctionLogicBrowserSource(): string {
       const nodeLayoutsByBlockId = new Map(
         logic.layout.nodes.map((nodeLayout) => [nodeLayout.blockId, nodeLayout])
       );
+      const compoundGroups = createLogicCompoundGroups(
+        logic.blocks,
+        nodeLayoutsByBlockId
+      );
+      const compoundOwnerIds = new Set(
+        compoundGroups.map((group) => group.ownerBlockId)
+      );
       const graph = document.createElement("section");
       const viewport = document.createElement("div");
       const stage = document.createElement("div");
       const canvas = document.createElement("div");
       const edgeRendering = createLogicEdgeSvg(logic.layout, edgesById, graphContext);
+      const compoundGroupLayer = createLogicCompoundGroupLayer(
+        compoundGroups,
+        blocksById
+      );
       const detailPanel = document.createElement("section");
       const nodeButtonsById = new Map();
       const readScale = graphContext && graphContext.readScale
@@ -84,7 +99,7 @@ export function getFunctionLogicBrowserSource(): string {
       canvas.style.setProperty("height", logic.layout.height + "px");
       detailPanel.className = "logic-selection";
       detailPanel.setAttribute("aria-live", "polite");
-      canvas.append(edgeRendering.svg);
+      canvas.append(compoundGroupLayer, edgeRendering.svg);
 
       for (const nodeLayout of logic.layout.nodes) {
         const block = blocksById.get(nodeLayout.blockId);
@@ -94,7 +109,8 @@ export function getFunctionLogicBrowserSource(): string {
           nodeLayout,
           outgoingBySourceId.get(block.id) || [],
           blocksById,
-          graphContext
+          graphContext,
+          compoundOwnerIds.has(block.id)
         );
         node.addEventListener("click", () => {
           selectLogicGraphNode(
@@ -447,7 +463,14 @@ export function getFunctionLogicBrowserSource(): string {
     }
 
     /** Creates one positioned, keyboard-accessible control-flow graph node. */
-    function createLogicGraphNode(block, layout, outgoing, blocksById, graphContext) {
+    function createLogicGraphNode(
+      block,
+      layout,
+      outgoing,
+      blocksById,
+      graphContext,
+      ownsCompoundBody
+    ) {
       const node = document.createElement("button");
       const top = document.createElement("span");
       const kind = createBadge(formatLogicKind(block.kind), "logic-kind " + block.kind);
@@ -475,6 +498,7 @@ export function getFunctionLogicBrowserSource(): string {
       node.type = "button";
       node.className = "logic-graph-node logic-node-" + block.kind
         + " logic-depth-" + visualDepth
+        + (ownsCompoundBody ? " logic-node-body-owner" : "")
         + (entering ? " logic-node-entering" : "");
       node.classList.toggle("expandable", expandable);
       node.classList.toggle("expanded", expanded);

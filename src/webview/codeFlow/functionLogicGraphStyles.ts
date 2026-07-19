@@ -1,8 +1,12 @@
 /** Theme-aware styles for the bounded function-local control-flow graph. */
 
+import { getFunctionLogicCompoundGroupStyles } from "./functionLogicCompoundGroupStyles";
+
 /** Returns CSS for graph nodes, routed edges, lanes, and selection evidence. */
 export function getFunctionLogicGraphStyles(): string {
   return /* css */ `
+    ${getFunctionLogicCompoundGroupStyles()}
+
     .logic-signature {
       display: grid;
       gap: 4px;
@@ -302,7 +306,7 @@ export function getFunctionLogicGraphStyles(): string {
     .logic-edge-layer {
       position: absolute;
       inset: 0;
-      z-index: 0;
+      z-index: 1;
       overflow: visible;
       pointer-events: none;
     }
@@ -417,7 +421,7 @@ export function getFunctionLogicGraphStyles(): string {
       --logic-node-depth-overlay: transparent;
       --logic-node-surface: color-mix(in srgb, var(--vscode-editor-background) 96%, var(--vscode-sideBar-background));
       position: absolute;
-      z-index: 1;
+      z-index: 2;
       display: grid;
       grid-template-rows: auto auto auto;
       align-content: start;

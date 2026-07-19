@@ -68,13 +68,27 @@ export function getCompoundFunctionLogicGraphSource(): string {
       const firstBlockIdByScopeId = new Map();
       const terminalBlockIdsByScopeId = new Map();
 
+      // Namespace every identity before copying blocks so parent references do
+      // not depend on source order and cannot collide across attached scopes.
+      for (const scope of orderedScopes) {
+        for (const block of scope.logic.blocks) {
+          compoundBlockIdByScopeBlock.set(
+            createScopeBlockKey(scope.id, block.id),
+            createCompoundBlockId(scope.id, block.id)
+          );
+        }
+      }
+
       for (const scope of orderedScopes) {
         const nodeLayoutByBlockId = new Map(
           scope.logic.layout.nodes.map((node) => [node.blockId, node])
         );
         for (let blockIndex = 0; blockIndex < scope.logic.blocks.length; blockIndex += 1) {
           const block = scope.logic.blocks[blockIndex];
-          const compoundBlockId = createCompoundBlockId(scope.id, block.id);
+          const compoundBlockId = compoundBlockIdByScopeBlock.get(
+            createScopeBlockKey(scope.id, block.id)
+          );
+          if (!compoundBlockId) continue;
           const sourceLayout = nodeLayoutByBlockId.get(block.id);
           const functionLabel = scope.isRoot
             ? undefined
@@ -82,15 +96,16 @@ export function getCompoundFunctionLogicGraphSource(): string {
           const compoundBlock = {
             ...block,
             id: compoundBlockId,
+            parentBlockId: block.parentBlockId
+              ? compoundBlockIdByScopeBlock.get(
+                  createScopeBlockKey(scope.id, block.parentBlockId)
+                )
+              : undefined,
             functionLabel,
             functionScopeId: scope.id,
             sourceBlockId: block.id
           };
           blocks.push(compoundBlock);
-          compoundBlockIdByScopeBlock.set(
-            createScopeBlockKey(scope.id, block.id),
-            compoundBlockId
-          );
           blockIdentityById.set(compoundBlockId, {
             scopeId: scope.id,
             sourceBlockId: block.id
@@ -220,6 +235,7 @@ export function getCompoundFunctionLogicGraphSource(): string {
             depth: sourceBlock.depth,
             branchLabel: "after child",
             confidence: sourceBlock.confidence,
+            parentBlockId: sourceBlock.parentBlockId,
             functionLabel: callerScope?.isRoot
               ? undefined
               : completeAttachedFunctionLabel(callerScope?.title)
