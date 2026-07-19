@@ -4,6 +4,13 @@
  */
 
 import type { SourceRange, SymbolNode } from "../../shared/types";
+import type { FunctionLogicValueChange } from "./valueChanges/types";
+
+export type {
+  FunctionLogicValueChange,
+  FunctionLogicValueChangeOperation,
+  FunctionLogicValueTargetKind
+} from "./valueChanges/types";
 
 /** Statement roles visible in the Function Logic Reader. */
 export type FunctionLogicBlockKind =
@@ -59,6 +66,8 @@ export type FunctionLogicBlock = {
   depth: number;
   branchLabel?: string;
   confidence: FunctionLogicConfidence;
+  /** Exact writes and conservative receiver changes visible inside this block. */
+  valueChanges?: FunctionLogicValueChange[];
   filePath: string;
   range: SourceRange;
 };
@@ -100,6 +109,7 @@ export type FunctionLogicSummary = {
   callCount: number;
   effectCount: number;
   mutationCount: number;
+  valueChangeCount: number;
   exitCount: number;
 };
 

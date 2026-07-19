@@ -18,6 +18,7 @@ import type {
   FunctionLikeWithBody,
   PendingStatement
 } from "./typescriptFunctionLogicInternal";
+import { collectTypeScriptValueChanges } from "./valueChanges";
 
 const DEFAULT_MAX_BLOCKS = 120;
 const ALLOWED_MAX_BLOCKS = 300;
@@ -35,6 +36,7 @@ export function classifyStatement(
   let label = safeText(normalizeSourceText(node.getText(sourceFile)), "Statement");
   let detail = "Executes one source statement.";
   let evidenceNode: ts.Node = node;
+  const valueChanges = collectTypeScriptValueChanges(sourceFile, node);
 
   if (ts.isIfStatement(node)) {
     kind = "condition";
@@ -75,9 +77,14 @@ export function classifyStatement(
     detail = "Starts the next iteration of the nearest loop.";
   } else {
     const calls = collectCallNames(sourceFile, node);
-    if (isMutationStatement(node)) {
+    if (valueChanges.length > 0) {
       kind = "mutation";
-      detail = "Assignment or update mutates a local binding or object property.";
+      confidence = valueChanges.some((change) => change.confidence === "exact")
+        ? "exact"
+        : "inferred";
+      detail = confidence === "exact"
+        ? "Shows which variable or property receives a new source-level value."
+        : "A known in-place method suggests that its receiver may change; verify the callee semantics.";
     } else if (calls.length > 0) {
       const effectCall = calls.find(isPotentialEffectCall);
       kind = effectCall ? "effect" : "call";
@@ -97,6 +104,7 @@ export function classifyStatement(
     depth: task.depth,
     branchLabel: task.branchLabel,
     confidence,
+    valueChanges: valueChanges.length > 0 ? valueChanges : undefined,
     filePath,
     range
   };
@@ -269,24 +277,6 @@ function collectCallNames(sourceFile: ts.SourceFile, root: ts.Node): string[] {
     }
   }
   return [...new Set(names)];
-}
-
-/** Returns whether syntax proves an assignment or increment/decrement. */
-function isMutationStatement(node: ts.Statement): boolean {
-  if (!ts.isExpressionStatement(node)) {
-    return false;
-  }
-  const expression = node.expression;
-  if (ts.isPrefixUnaryExpression(expression) || ts.isPostfixUnaryExpression(expression)) {
-    return expression.operator === ts.SyntaxKind.PlusPlusToken
-      || expression.operator === ts.SyntaxKind.MinusMinusToken;
-  }
-  return ts.isBinaryExpression(expression) && isAssignmentOperator(expression.operatorToken.kind);
-}
-
-/** Enumerates assignment operators without interpreting the assigned value. */
-function isAssignmentOperator(kind: ts.SyntaxKind): boolean {
-  return kind >= ts.SyntaxKind.FirstAssignment && kind <= ts.SyntaxKind.LastAssignment;
 }
 
 /** Conservative name-only effect hint; it never upgrades to exact evidence. */

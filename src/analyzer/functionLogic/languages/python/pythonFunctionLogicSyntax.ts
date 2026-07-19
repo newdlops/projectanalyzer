@@ -35,6 +35,7 @@ import {
   getPythonCallableBodyRange,
   type PythonCallableSyntax
 } from "../../../languages/python/pythonLezerSyntax";
+import { collectPythonValueChanges } from "../../valueChanges";
 
 const PYTHON_MUTATION_NODES = new Set([
   "AssignStatement",
@@ -97,6 +98,7 @@ export function classifyPythonStatement(
   let confidence: FunctionLogicConfidence = "exact";
   let label = compactLezerText(source.text.slice(node.from, node.to), "Statement");
   let detail = "Executes one Python source statement.";
+  const valueChanges = collectPythonValueChanges(source, node);
 
   if (task.implicitReturn) {
     kind = "return";
@@ -143,7 +145,15 @@ export function classifyPythonStatement(
     detail = "Assignment, update, or deletion mutates a binding or object value.";
   } else {
     const calls = collectPythonCallNames(source, node, true);
-    if (calls.length > 0) {
+    if (valueChanges.length > 0) {
+      kind = "mutation";
+      confidence = valueChanges.some((change) => change.confidence === "exact")
+        ? "exact"
+        : "inferred";
+      detail = confidence === "exact"
+        ? "Shows which Python binding or property receives a new source-level value."
+        : "A known in-place method suggests that its receiver may change; verify the callee semantics.";
+    } else if (calls.length > 0) {
       const effectCall = calls.find(isPotentialFunctionEffectCall);
       kind = effectCall ? "effect" : "call";
       confidence = effectCall ? "inferred" : "exact";
@@ -162,6 +172,7 @@ export function classifyPythonStatement(
     depth: task.depth,
     branchLabel: task.branchLabel,
     confidence,
+    valueChanges: valueChanges.length > 0 ? valueChanges : undefined,
     filePath,
     range
   };

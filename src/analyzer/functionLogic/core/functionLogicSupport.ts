@@ -89,6 +89,10 @@ export function createFunctionLogicSummary(
       ?? blocks.filter((block) => block.kind === "call" || block.kind === "effect").length,
     effectCount: blocks.filter((block) => block.kind === "effect").length,
     mutationCount: blocks.filter((block) => block.kind === "mutation").length,
+    valueChangeCount: blocks.reduce(
+      (count, block) => count + (block.valueChanges?.length ?? 0),
+      0
+    ),
     exitCount: blocks.filter((block) =>
       block.kind === "return" || block.kind === "throw"
     ).length

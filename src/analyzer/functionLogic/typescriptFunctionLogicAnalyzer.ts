@@ -42,6 +42,7 @@ import {
   safeText,
   toSourceRange
 } from "./typescriptFunctionLogicSyntax";
+import { collectTypeScriptExpressionValueChanges } from "./valueChanges";
 
 /** Analyzes one selected callable against its current source snapshot. */
 export function analyzeFunctionLogic(input: FunctionLogicAnalysisInput): FunctionLogicAnalysis {
@@ -246,6 +247,7 @@ function createExpressionBodyBlock(
 ): FunctionLogicBlock {
   const range = toSourceRange(sourceFile, expression);
   const expressionText = expression.getText(sourceFile);
+  const valueChanges = collectTypeScriptExpressionValueChanges(sourceFile, expression);
   return {
     id: createBlockId(node.filePath, "return", range, expressionText),
     kind: "return",
@@ -253,6 +255,7 @@ function createExpressionBodyBlock(
     detail: "Concise arrow body implicitly returns this expression.",
     depth: 1,
     confidence: "exact",
+    valueChanges: valueChanges.length > 0 ? valueChanges : undefined,
     filePath: node.filePath,
     range
   };
@@ -344,6 +347,10 @@ function createSummary(
       ?? blocks.filter((block) => block.kind === "call" || block.kind === "effect").length,
     effectCount: blocks.filter((block) => block.kind === "effect").length,
     mutationCount: blocks.filter((block) => block.kind === "mutation").length,
+    valueChangeCount: blocks.reduce(
+      (count, block) => count + (block.valueChanges?.length ?? 0),
+      0
+    ),
     exitCount: blocks.filter((block) => block.kind === "return" || block.kind === "throw").length
   };
 }

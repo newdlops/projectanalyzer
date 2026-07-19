@@ -37,6 +37,7 @@ import {
   isJavaNestedScope,
   type JavaCallableSyntax
 } from "../../../languages/java/javaLezerSyntax";
+import { collectJavaValueChanges } from "../../valueChanges";
 
 const JAVA_CONTROL_NODES = new Map<string, {
   kind: FunctionLogicBlockKind;
@@ -131,6 +132,7 @@ export function classifyJavaStatement(
   let label = compactLezerText(source.text.slice(node.from, node.to), "Statement");
   let detail = "Executes one Java source statement.";
   const control = JAVA_CONTROL_NODES.get(node.name);
+  const valueChanges = collectJavaValueChanges(source, node);
 
   if (task.implicitReturn) {
     kind = "return";
@@ -165,7 +167,15 @@ export function classifyJavaStatement(
     detail = "Variable declaration, assignment, or update mutates local or object state.";
   } else {
     const calls = collectJavaCallNames(source, node, true);
-    if (calls.length > 0) {
+    if (valueChanges.length > 0) {
+      kind = "mutation";
+      confidence = valueChanges.some((change) => change.confidence === "exact")
+        ? "exact"
+        : "inferred";
+      detail = confidence === "exact"
+        ? "Shows which Java variable or field receives a new source-level value."
+        : "A known in-place method suggests that its receiver may change; verify the callee semantics.";
+    } else if (calls.length > 0) {
       const effectCall = calls.find(isPotentialFunctionEffectCall);
       kind = effectCall ? "effect" : "call";
       confidence = effectCall ? "inferred" : "exact";
@@ -184,6 +194,7 @@ export function classifyJavaStatement(
     depth: task.depth,
     branchLabel: task.branchLabel,
     confidence,
+    valueChanges: valueChanges.length > 0 ? valueChanges : undefined,
     filePath,
     range
   };

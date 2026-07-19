@@ -18,3 +18,8 @@ export type {
   FunctionLogicLanguage,
   FunctionLogicSummary
 } from "./types";
+export type {
+  FunctionLogicValueChange,
+  FunctionLogicValueChangeOperation,
+  FunctionLogicValueTargetKind
+} from "./valueChanges";
