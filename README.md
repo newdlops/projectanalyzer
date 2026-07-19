@@ -61,7 +61,9 @@ dedicated Function Visualizer tab with a bounded control-flow graph:
 - a four-pass reading frame: Start, Choose, Do, Finish
 - the current function signature
 - statement nodes arranged in top-to-bottom execution ranks
-- content-sized node boxes that wrap the full visible label and source detail
+- content-sized node boxes that preserve complete source labels, values, and
+  child-function names by wrapping instead of adding ellipses
+- subtle depth tints that distinguish nested blocks without replacing semantic kind colors
 - inline `VAR`, `FIELD`, and `RECEIVER` rows showing which value changes at each block
 - exact assignment/update/delete evidence and visibly dashed inferred receiver mutations
 - loop-binding changes such as `item ← each items` on the loop decision itself
@@ -79,6 +81,7 @@ dedicated Function Visualizer tab with a bounded control-flow graph:
   switch/match expressions
 - visibly inferred unique-name fallback when a lightweight graph misses a multiline body
 - click-to-attach child function blocks to the original graph canvas
+- callsite-anchored scroll restoration and reduced-motion-aware child entry animation
 - `callsite → child flow → resume → caller branch` attachment on one compound canvas
 - distinct call/return styling plus per-edge node ports and rank-gap tracks that prevent overlapping routes
 - parent-aware child lanes and branch collapse for nested functions
@@ -133,8 +136,9 @@ evidence from the current workspace.
 After a function is selected, TypeScript and JavaScript use the TypeScript
 compiler AST, while Python and Java use Lezer syntax trees. All four languages
 produce the same statement-level block, transfer, callsite, source-range, and
-coverage-gap contract. Every adapter also emits bounded value-change evidence for
-variable/property writes and conservative in-place receiver calls. Python models
+coverage-gap contract. Every adapter also emits source-complete, de-duplicated
+value-change evidence for variable/property writes and conservative in-place
+receiver calls. Python models
 `if`/`elif`/`else`, loops including loop
 `else`, `match`/`case`, `try`/`except`/`finally`, `with`, mutations, calls, and
 exits. Java models branches, all common loop forms, `switch`,
@@ -216,7 +220,10 @@ expanded call box collapses its whole descendant branch. A loaded child is place
 between its callsite and an explicit resume gateway, so the caller's original
 `true`/`false`/`next` path continues only after the child flow. Cycle, visited, and
 hard-budget guards remain active, and anything beyond a selected budget appears
-as an explicit gap or omitted count instead of disappearing silently.
+as an explicit gap or omitted count instead of disappearing silently. Those
+graph-size budgets do not truncate text inside a retained block: statement,
+branch, value-change, child-function, and resume labels remain complete and make
+their boxes grow vertically as they wrap.
 
 ## Development
 
