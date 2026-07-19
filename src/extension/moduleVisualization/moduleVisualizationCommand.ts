@@ -1,6 +1,7 @@
 /** VS Code command adapter for opening project-level Module Flow. */
 
 import * as vscode from "vscode";
+import type { ModuleFlowLaunchResultPayload } from "../../protocol/moduleFlow";
 import type { ModuleVisualizerPanelProvider } from "../../webview/moduleVisualizer";
 import type { WorkspaceGraphCoordinator } from "../workspaceAnalysis";
 
@@ -29,28 +30,35 @@ export function registerModuleVisualizationCommand(
 /** Resolves an exact workspace snapshot and reveals its reusable graph tab. */
 export async function openModuleFlow(
   services: ModuleVisualizationCommandServices
-): Promise<void> {
+): Promise<ModuleFlowLaunchResultPayload> {
   try {
-    await vscode.window.withProgress(
+    return await vscode.window.withProgress(
       {
         location: vscode.ProgressLocation.Window,
         title: "Code Flow: preparing project module flow"
       },
-      async () => {
+      async (): Promise<ModuleFlowLaunchResultPayload> => {
         const resolution = await services.workspaceGraphCoordinator.resolveWorkspaceGraph();
         if (resolution.status === "unavailable") {
+          const message = "Open a workspace folder before visualizing project Module Flow.";
           await vscode.window.showInformationMessage(
-            "Open a workspace folder before visualizing project Module Flow."
+            message
           );
-          return;
+          return { outcome: "unavailable", message };
         }
         await services.moduleVisualizerPanelProvider.openGraph(resolution.graph);
+        return {
+          outcome: "opened",
+          message: "Module Flow opened in an editor tab."
+        };
       }
     );
   } catch (error) {
+    const message = `Could not open project Module Flow: ${formatError(error)}`;
     await vscode.window.showErrorMessage(
-      `Could not open project Module Flow: ${formatError(error)}`
+      message
     );
+    return { outcome: "failed", message };
   }
 }
 

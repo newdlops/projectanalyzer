@@ -22,6 +22,7 @@ import { ExplorerGraphPanelProvider } from "../webview/explorerGraphPanelProvide
 import { ExplorerViewProvider } from "../webview/explorerViewProvider";
 import { FunctionVisualizerPanelProvider } from "../webview/functionVisualizer";
 import { ModuleVisualizerPanelProvider } from "../webview/moduleVisualizer";
+import { openModuleFlow } from "./moduleVisualization";
 import { WorkspaceGraphCoordinator } from "./workspaceAnalysis";
 
 /** Runtime services shared by command handlers. */
@@ -94,6 +95,10 @@ export function createExtensionServices(context: vscode.ExtensionContext): Exten
     functionVisualizerPanelProvider,
     graphPanelProvider: explorerGraphPanelProvider,
     logger,
+    openModuleFlow: () => openModuleFlow({
+      moduleVisualizerPanelProvider,
+      workspaceGraphCoordinator
+    }),
     workspaceGraphCoordinator
   });
 

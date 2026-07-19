@@ -9,6 +9,7 @@ import { CodeFlowInsightCache } from "../application/codeFlow";
 import { FunctionExplorerProjectionService } from "../application/functionExplorer";
 import type { WorkspaceGraphCoordinator } from "../extension/workspaceAnalysis";
 import type { CodeFlowSelectSourceRequest } from "../protocol/codeFlow";
+import type { ModuleFlowLaunchResultPayload } from "../protocol/moduleFlow";
 import type {
   AnalysisStatusPayload,
   ExportRequest,
@@ -60,6 +61,7 @@ export type ExplorerViewProviderDependencies = {
   functionVisualizerPanelProvider: FunctionVisualizerPanelProvider;
   graphPanelProvider: ExplorerGraphPanelProvider;
   logger: ProjectAnalyzerLogger;
+  openModuleFlow: () => Promise<ModuleFlowLaunchResultPayload>;
   workspaceGraphCoordinator: WorkspaceGraphCoordinator;
 };
 
@@ -225,6 +227,9 @@ export class ExplorerViewProvider implements vscode.WebviewViewProvider {
       case "codeFlow/openEvidence":
         await this.codeFlowDelivery.openEvidence(message.payload);
         break;
+      case "moduleFlow/open":
+        await this.openModuleFlow();
+        break;
       case "node/openSource":
         await this.openSourceNode(message.payload.nodeId);
         break;
@@ -240,6 +245,18 @@ export class ExplorerViewProvider implements vscode.WebviewViewProvider {
       default:
         break;
     }
+  }
+
+  /** Opens the project module graph and reports completion to the visible CTA. */
+  private async openModuleFlow(): Promise<void> {
+    const result = await this.dependencies.openModuleFlow();
+    this.dependencies.logger.info("sidebar.moduleFlow.openCompleted", {
+      outcome: result.outcome
+    });
+    await this.postMessage({
+      type: "moduleFlow/openCompleted",
+      payload: result
+    });
   }
 
   /**
