@@ -38,6 +38,14 @@ After local workspace analysis, the sidebar offers two starting points:
    path, then inspect the statements, decisions, loops, effects, mutations, and
    exits inside the selected function.
 
+TypeScript and JavaScript also have a source-first shortcut: place the cursor
+inside a function, method, constructor, arrow function, or callback, then choose
+**Visualize Current Function** from the editor context menu. The command activates
+the extension, analyzes the current document snapshot including unsaved edits,
+and opens that callable in a dedicated **Function Visualizer** editor tab.
+Nested callables use the innermost function containing the cursor, so the
+Activity Bar does not need to be open first.
+
 Entrypoint flows show a compact inter-function ribbon with:
 
 - Boundary, Path, Decision, Effect, and Unknown stages
@@ -47,19 +55,25 @@ Entrypoint flows show a compact inter-function ribbon with:
 - known upstream entrypoints for a selected function
 - explicit ambiguity, depth, and step-limit gaps
 
-Every concrete function step has an **Inspect logic** action. The Function Logic
-Reader then replaces the call-neighborhood view with a bounded control-flow
-graph:
+Every concrete function step has an **Inspect logic** action. It opens the same
+dedicated Function Visualizer tab with a bounded control-flow graph:
 
+- a four-pass reading frame: Start, Choose, Do, Finish
 - the current function signature
 - statement nodes arranged in top-to-bottom execution ranks
+- content-sized node boxes that wrap the full visible label and source detail
 - sibling lanes for `true`/`false`, loop-body/exit, and switch branches
 - labeled edges for `true`, `false`, `iterate`, `repeat`, `return`, and `throw`
 - outer channels for loop-back and long exit edges so they do not cross nodes
+- rank-gap routing that prevents every unrelated edge segment from crossing a box
 - solid exact edges and dashed inferred, exception, and back edges
 - exact syntax evidence for conditions, mutations, calls, and exits
 - conservative, visibly `inferred` effect candidates
 - a selected-node panel with complete detail and outgoing targets
+- direct concrete callees matched to their source call blocks
+- lazy **Open child function** actions instead of eager recursive expansion
+- breadcrumb and parent navigation through already-read function details
+- cycle reuse: revisiting a function selects its existing breadcrumb
 - bounded 50%–160% graph zoom with a scrollable canvas
 - one-click navigation to the exact statement rather than only the declaration
 - known HTTP/GraphQL entrypoints that reach the selected function
@@ -101,9 +115,11 @@ frontend. Cross-function JavaScript and TypeScript extraction uses textual and
 line-oriented heuristics without a lexical scope graph, receiver resolution, or
 type checking. After a function is selected, its current TypeScript/JavaScript
 document is parsed with the TypeScript compiler AST to build statement-level
-logic and exact source ranges. Expression-level short-circuiting, optional
-chaining, ternaries, callee exceptions, callbacks, and runtime values remain
-explicit limitations.
+logic and exact source ranges. Editor-context selection can add an exact,
+snapshot-local callable node when the lightweight project analyzer did not model
+an anonymous callback or function-valued property. Expression-level
+short-circuiting, optional chaining, ternaries, callee exceptions, callback
+invocation order, and runtime values remain explicit limitations.
 
 Python uses a stateful scanner that masks comments and strings and preserves
 UTF-16 source locations. Python functions can be searched and followed in the
@@ -123,7 +139,10 @@ Analyzer -> Project Graph -> Semantic Flow -> CodeFlow Projection
                                                 |
                               Flow Catalog -> Flow Reader -> Source
 
-Current Source -> Function Logic Analyzer -> Logic Projection -> Statement
+Current Source -> Function Logic Analyzer -> Logic Projection -> Function Visualizer
+                                      |             |               |- Breadcrumbs
+                                      |             |               `- Statement evidence
+                                      |             `-> Direct Callee Tokens -> Lazy Drill
                                       `-> Layered Graph Layout -> Node Detail
 ```
 
@@ -136,10 +155,19 @@ Key reusable modules:
 - `src/application/codeFlow/` — flow catalog and detail projection
 - `src/application/codeFlow/functionLogicGraphLayout.ts` — bounded layered graph
   layout and outer-channel edge routing
+- `src/application/codeFlow/functionLogicDrillTargets.ts` — bounded direct-callee
+  and callsite-to-logic-block projection
 - `src/analyzer/functionLogic/` — TypeScript/JavaScript function-local AST and CFG
+- `src/extension/currentFunctionVisualization/` — editor command and exact
+  cursor-target graph adaptation
 - `src/protocol/codeFlow.ts` — typed Host/Webview contract
-- `src/protocol/functionLogic.ts` — logic blocks, transfers, and evidence requests
-- `src/webview/codeFlow/` — flow-first browser UX
+- `src/protocol/functionLogic.ts` — logic blocks, transfers, drill targets, and
+  evidence requests
+- `src/protocol/functionVisualizer.ts` — editor-tab navigation session contract
+- `src/webview/codeFlow/` — flow-first Activity Bar launcher and shared graph
+  renderer
+- `src/webview/functionVisualizer/` — editor-tab lifecycle, reading UX, and
+  cycle-safe lazy function navigation
 - `src/webview/sourceNavigation/` — snapshot-local source tokens
 
 ## Flow Bounds
@@ -148,8 +176,10 @@ Entrypoint flows are intentionally finite. Configure their reading budget with
 `projectAnalyzer.codeFlow.maxDepth` (default `3`) and
 `projectAnalyzer.codeFlow.maxSteps` (default `30`). Function-internal projections
 use `projectAnalyzer.codeFlow.maxLogicBlocks` (default `120`, maximum `300`).
-Cycle, visited, and hard-budget guards remain active, and anything beyond a
-selected budget appears as an explicit gap instead of disappearing silently.
+Direct callee navigation is capped at 24 unique concrete definitions per
+function and expands only after a user action. Cycle, visited, and hard-budget
+guards remain active, and anything beyond a selected budget appears as an
+explicit gap or omitted count instead of disappearing silently.
 
 ## Development
 
