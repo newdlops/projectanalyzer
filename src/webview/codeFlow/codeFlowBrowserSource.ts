@@ -36,6 +36,7 @@ export function getCodeFlowBrowserSource(): string {
       detailError: undefined,
       selectedLogicBlockId: undefined,
       logicGraphScale: 1,
+      moduleFlowOpening: false,
       searchTimer: undefined
     };
 
@@ -45,6 +46,9 @@ export function getCodeFlowBrowserSource(): string {
       showWorkspace: document.getElementById("show-workspace"),
       exportJson: document.getElementById("export-json"),
       clearCache: document.getElementById("clear-cache"),
+      openModuleFlow: document.getElementById("open-module-flow"),
+      moduleFlowActionLabel: document.getElementById("module-flow-action-label"),
+      moduleFlowActionHint: document.getElementById("module-flow-action-hint"),
       status: document.getElementById("status"),
       flowStart: document.getElementById("flow-start"),
       catalogSummary: document.getElementById("catalog-summary"),
@@ -88,6 +92,15 @@ export function getCodeFlowBrowserSource(): string {
     elements.clearCache.addEventListener("click", () =>
       postRequest("cache/clear", {}, "Clearing analysis cache")
     );
+    elements.openModuleFlow.addEventListener("click", () => {
+      if (state.moduleFlowOpening || state.analysisState === "running") {
+        return;
+      }
+      state.moduleFlowOpening = true;
+      elements.status.textContent = "Preparing Module Flow";
+      renderActions();
+      vscode.postMessage({ type: "moduleFlow/open", payload: {} });
+    });
     elements.modeEntrypoints.addEventListener("click", () => setStartMode("entrypoints"));
     elements.modeFunctions.addEventListener("click", () => setStartMode("functions"));
     elements.searchForm.addEventListener("submit", (event) => {
@@ -207,6 +220,13 @@ export function getCodeFlowBrowserSource(): string {
         return;
       }
 
+      if (message.type === "moduleFlow/openCompleted") {
+        state.moduleFlowOpening = false;
+        elements.status.textContent = message.payload.message;
+        renderActions();
+        return;
+      }
+
       if (message.type === "graph/cleared") {
         state.graph = undefined;
         state.analysisState = "idle";
@@ -228,6 +248,7 @@ export function getCodeFlowBrowserSource(): string {
         state.catalogLoading = false;
         state.functionLoading = false;
         state.detailLoading = false;
+        state.moduleFlowOpening = false;
         state.detailError = message.payload.message;
         elements.status.textContent = message.payload.message;
         render();
@@ -727,6 +748,19 @@ export function getCodeFlowBrowserSource(): string {
       elements.showWorkspace.disabled = running;
       elements.exportJson.disabled = !hasGraph || running;
       elements.clearCache.disabled = running;
+      elements.openModuleFlow.disabled = running || state.moduleFlowOpening;
+      elements.openModuleFlow.setAttribute(
+        "aria-busy",
+        state.moduleFlowOpening ? "true" : "false"
+      );
+      elements.moduleFlowActionLabel.textContent = state.moduleFlowOpening
+        ? "Opening Module Flow…"
+        : "Open Module Flow";
+      elements.moduleFlowActionHint.textContent = running
+        ? "Available when workspace analysis finishes"
+        : state.moduleFlowOpening
+          ? "Building a bounded project graph"
+          : "Opens beside your code";
       elements.searchInput.disabled = !hasGraph || running;
     }
 

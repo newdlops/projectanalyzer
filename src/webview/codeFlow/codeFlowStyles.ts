@@ -76,6 +76,102 @@ export function getCodeFlowStyles(): string {
       font-weight: 600;
     }
 
+    .module-flow-launcher {
+      position: relative;
+      padding: 11px;
+      border: 1px solid color-mix(in srgb, var(--vscode-focusBorder) 48%, var(--vscode-panel-border));
+      border-radius: 8px;
+      background:
+        linear-gradient(
+          135deg,
+          color-mix(in srgb, var(--vscode-charts-blue) 12%, transparent),
+          color-mix(in srgb, var(--vscode-charts-purple) 7%, transparent)
+        ),
+        var(--vscode-sideBarSectionHeader-background, var(--vscode-sideBar-background));
+    }
+
+    .module-flow-launcher h2 {
+      margin: 2px 0 0;
+      color: var(--vscode-foreground);
+      font-size: 14px;
+      line-height: 1.3;
+    }
+
+    .module-flow-launcher > p {
+      margin: 5px 0 0;
+      color: var(--vscode-descriptionForeground);
+      font-size: 10px;
+      line-height: 1.45;
+    }
+
+    .module-flow-cta {
+      display: grid;
+      width: 100%;
+      min-width: 0;
+      min-height: 54px;
+      grid-template-columns: 30px minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 9px;
+      box-sizing: border-box;
+      margin-top: 9px;
+      padding: 8px 10px;
+      color: var(--vscode-button-foreground);
+      background: var(--vscode-button-background);
+      border: 1px solid var(--vscode-button-border, transparent);
+      border-radius: 6px;
+      text-align: left;
+      cursor: pointer;
+    }
+
+    .module-flow-cta:hover {
+      background: var(--vscode-button-hoverBackground);
+      box-shadow: 0 0 0 1px color-mix(in srgb, var(--vscode-focusBorder) 38%, transparent);
+    }
+
+    .module-flow-cta:focus-visible {
+      outline: 2px solid var(--vscode-focusBorder);
+      outline-offset: 2px;
+    }
+
+    .module-flow-cta:disabled {
+      cursor: wait;
+      opacity: 0.62;
+    }
+
+    .module-flow-cta-icon {
+      width: 30px;
+      height: 30px;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      opacity: 0.95;
+    }
+
+    .module-flow-cta-copy {
+      display: grid;
+      min-width: 0;
+      gap: 2px;
+    }
+
+    .module-flow-cta-copy strong {
+      font-size: 11px;
+      line-height: 1.25;
+    }
+
+    .module-flow-cta-copy small {
+      color: color-mix(in srgb, currentColor 78%, transparent);
+      font-size: 9px;
+      line-height: 1.3;
+      white-space: normal;
+    }
+
+    .module-flow-cta-arrow {
+      font-size: 16px;
+      line-height: 1;
+    }
+
     .reading-frame {
       padding: 10px;
       border: 1px solid var(--vscode-panel-border);

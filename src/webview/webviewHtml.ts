@@ -54,6 +54,33 @@ function getCodeFlowSidebarHtml(options: WebviewHtmlOptions): string {
     </div>
     <div id="status" class="status" role="status" aria-live="polite">Ready</div>
 
+    <section class="module-flow-launcher" aria-labelledby="module-flow-launcher-title">
+      <div class="section-kicker">PROJECT MAP</div>
+      <h2 id="module-flow-launcher-title">See how modules connect</h2>
+      <p id="module-flow-description">
+        Open a bounded graph of execution, dependencies, and responsibility boundaries.
+      </p>
+      <button
+        id="open-module-flow"
+        class="module-flow-cta"
+        type="button"
+        title="Open Project Module Flow in a new editor tab"
+        aria-describedby="module-flow-description module-flow-action-hint"
+      >
+        <svg class="module-flow-cta-icon" viewBox="0 0 32 32" aria-hidden="true" focusable="false">
+          <path d="M7 8h6m-6 16h6m6-8h6M13 8l6 8m-6 8 6-8"/>
+          <circle cx="5" cy="8" r="3"/>
+          <circle cx="5" cy="24" r="3"/>
+          <circle cx="27" cy="16" r="3"/>
+        </svg>
+        <span class="module-flow-cta-copy">
+          <strong id="module-flow-action-label">Open Module Flow</strong>
+          <small id="module-flow-action-hint">Opens beside your code</small>
+        </span>
+        <span class="module-flow-cta-arrow" aria-hidden="true">→</span>
+      </button>
+    </section>
+
     <section class="reading-frame" aria-labelledby="reading-frame-title">
       <div id="reading-frame-title" class="section-kicker">READ CODE WITH FIVE QUESTIONS</div>
       <ol>
