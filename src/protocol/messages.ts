@@ -16,6 +16,7 @@ import type {
   FunctionExplorerSearchFailurePayload,
   FunctionExplorerSearchPayload
 } from "./functionExplorer";
+import type { FunctionVisualizerSessionPayload } from "./functionVisualizer";
 
 /** Supported graph view modes shown by the explorer. */
 export type GraphViewMode = "call" | "file" | "class";
@@ -116,6 +117,7 @@ export type ExtensionResponse =
   | { type: "codeFlow/catalogLoaded"; payload: CodeFlowCatalogPayload }
   | { type: "codeFlow/detailLoaded"; payload: CodeFlowDetailPayload }
   | { type: "codeFlow/detailFailed"; payload: CodeFlowFailurePayload }
+  | { type: "functionVisualizer/sessionLoaded"; payload: FunctionVisualizerSessionPayload }
   | { type: "function/indexLoaded"; payload: FunctionExplorerPayload }
   | { type: "function/searchLoaded"; payload: FunctionExplorerSearchPayload }
   | { type: "function/searchFailed"; payload: FunctionExplorerSearchFailurePayload }
