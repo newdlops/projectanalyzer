@@ -29,7 +29,11 @@ export function getFunctionLogicBrowserSource(): string {
         return;
       }
 
-      elements.flowSteps.append(createFunctionLogicGraph(logic, graphContext));
+      const graphRendering = createFunctionLogicGraph(logic, graphContext);
+      elements.flowSteps.append(graphRendering.element);
+      if (graphContext && graphContext.onGraphRendered) {
+        graphContext.onGraphRendered(graphRendering);
+      }
     }
 
     /** Builds one independently selectable and zoomable function graph surface. */
@@ -38,11 +42,14 @@ export function getFunctionLogicBrowserSource(): string {
       const edgesById = new Map(logic.edges.map((edge) => [edge.id, edge]));
       const outgoingBySourceId = createOutgoingLogicEdgeIndex(logic.edges);
       const connectedEdgeIdsByBlockId = createConnectedLogicEdgeIndex(logic.edges);
+      const nodeLayoutsByBlockId = new Map(
+        logic.layout.nodes.map((nodeLayout) => [nodeLayout.blockId, nodeLayout])
+      );
       const graph = document.createElement("section");
       const viewport = document.createElement("div");
       const stage = document.createElement("div");
       const canvas = document.createElement("div");
-      const edgeRendering = createLogicEdgeSvg(logic.layout, edgesById);
+      const edgeRendering = createLogicEdgeSvg(logic.layout, edgesById, graphContext);
       const detailPanel = document.createElement("section");
       const nodeButtonsById = new Map();
       const readScale = graphContext && graphContext.readScale
@@ -131,7 +138,12 @@ export function getFunctionLogicBrowserSource(): string {
         false,
         graphContext
       );
-      return graph;
+      return {
+        element: graph,
+        viewport,
+        nodeButtonsById,
+        nodeLayoutsByBlockId
+      };
     }
 
     /** Creates the compact current-function header above the graph. */
@@ -366,7 +378,7 @@ export function getFunctionLogicBrowserSource(): string {
     }
 
     /** Draws every routed edge and label behind the interactive HTML nodes. */
-    function createLogicEdgeSvg(layout, edgesById) {
+    function createLogicEdgeSvg(layout, edgesById, graphContext) {
       const svg = createLogicSvgElement("svg");
       const elementsById = new Map();
       svg.setAttribute("class", "logic-edge-layer");
@@ -381,17 +393,23 @@ export function getFunctionLogicBrowserSource(): string {
         if (!edge || edgeLayout.points.length < 2) continue;
         const path = createLogicSvgElement("path");
         const label = createLogicSvgElement("text");
+        const entering = Boolean(
+          graphContext && graphContext.isEdgeEntering
+          && graphContext.isEdgeEntering(edge)
+        );
         path.setAttribute("class", "logic-edge logic-edge-" + edge.kind
           + (edge.relation === "call" ? " logic-edge-call" : "")
           + (edge.relation === "callReturn" ? " logic-edge-call-return" : "")
           + (edge.confidence === "inferred" ? " inferred" : "")
           + (edgeLayout.route === "back" ? " back-edge" : "")
-          + (edgeLayout.route === "long" ? " long-edge" : ""));
+          + (edgeLayout.route === "long" ? " long-edge" : "")
+          + (entering ? " logic-edge-entering" : ""));
         path.setAttribute("d", createLogicEdgePath(edgeLayout.points));
         path.setAttribute("marker-end", "url(#logic-graph-arrow)");
         label.setAttribute("class", "logic-edge-label logic-edge-label-" + edge.kind
           + (edge.relation === "call" ? " logic-edge-label-call" : "")
-          + (edge.relation === "callReturn" ? " logic-edge-label-call-return" : ""));
+          + (edge.relation === "callReturn" ? " logic-edge-label-call-return" : "")
+          + (entering ? " logic-edge-label-entering" : ""));
         label.setAttribute("x", String(edgeLayout.labelX));
         label.setAttribute("y", String(edgeLayout.labelY));
         if (edgeLayout.route !== "forward") label.setAttribute("text-anchor", "end");
@@ -441,16 +459,23 @@ export function getFunctionLogicBrowserSource(): string {
       ).join(", ");
       const outgoingText = outgoing.map((edge) => {
         const target = blocksById.get(edge.targetId);
-        return formatLogicEdge(edge) + (target ? " to " + compactTargetLabel(target) : "");
+        return formatLogicEdge(edge) + (target ? " to " + completeTargetLabel(target) : "");
       }).join(", ");
       const expandable = Boolean(block.drillTargets && block.drillTargets.length > 0);
       const expanded = Boolean(
         expandable && graphContext && graphContext.isBlockExpanded
         && graphContext.isBlockExpanded(block.id)
       );
+      const visualDepth = normalizeLogicVisualDepth(block.depth);
+      const entering = Boolean(
+        graphContext && graphContext.isBlockEntering
+        && graphContext.isBlockEntering(block.id)
+      );
 
       node.type = "button";
-      node.className = "logic-graph-node logic-node-" + block.kind;
+      node.className = "logic-graph-node logic-node-" + block.kind
+        + " logic-depth-" + visualDepth
+        + (entering ? " logic-node-entering" : "");
       node.classList.toggle("expandable", expandable);
       node.classList.toggle("expanded", expanded);
       node.title = expandable && graphContext && graphContext.onExpandableBlockClick
@@ -461,6 +486,12 @@ export function getFunctionLogicBrowserSource(): string {
       node.style.setProperty("top", layout.y + "px");
       node.style.setProperty("width", layout.width + "px");
       node.style.setProperty("height", layout.height + "px");
+      if (entering) {
+        node.style.setProperty(
+          "--logic-enter-delay",
+          Math.min(140, Math.max(0, Number(layout.rank) || 0) * 18) + "ms"
+        );
+      }
       node.setAttribute("aria-label", block.label
         + (valueChangeText ? ". Value changes: " + valueChangeText : "")
         + (outgoingText ? ". Paths: " + outgoingText : "")
@@ -575,7 +606,7 @@ export function getFunctionLogicBrowserSource(): string {
         for (const edge of outgoing) {
           const target = blocksById.get(edge.targetId);
           transfers.append(createBadge(
-            formatLogicEdge(edge) + (target ? " → " + compactTargetLabel(target) : ""),
+            formatLogicEdge(edge) + (target ? " → " + completeTargetLabel(target) : ""),
             "logic-transfer " + edge.kind
               + (edge.relation ? " " + edge.relation : "")
               + (edge.confidence === "inferred" ? " inferred" : "")
@@ -666,6 +697,14 @@ export function getFunctionLogicBrowserSource(): string {
       return "VAR";
     }
 
+    /** Maps arbitrary analyzer nesting onto a small, stable visual tint scale. */
+    function normalizeLogicVisualDepth(depth) {
+      const value = Number(depth);
+      return Number.isFinite(value)
+        ? Math.min(5, Math.max(0, Math.floor(value)))
+        : 0;
+    }
+
     /** Keeps edge semantics explicit instead of implying observed execution. */
     function formatLogicEdge(edge) {
       if (edge.label) return edge.label;
@@ -675,12 +714,11 @@ export function getFunctionLogicBrowserSource(): string {
       return edge.kind;
     }
 
-    /** Creates a bounded target hint for the selected-node transfer list. */
-    function compactTargetLabel(block) {
+    /** Creates a complete target hint for accessibility and transfer details. */
+    function completeTargetLabel(block) {
       if (block.kind === "exit") return "END";
       if (block.kind === "entry") return "START";
-      const value = block.label || block.kind;
-      return value.length <= 42 ? value : value.slice(0, 41) + "…";
+      return block.label || block.kind;
     }
 
     /** Summarizes internal logic rather than call-graph size. */

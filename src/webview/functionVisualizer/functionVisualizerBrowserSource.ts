@@ -22,7 +22,9 @@ export function getFunctionVisualizerBrowserSource(): string {
       pendingTarget: undefined,
       pendingExpansionId: undefined,
       attachedFunctions: [],
+      enteringAttachedFunctionIds: new Set(),
       nextAttachedFunctionId: 0,
+      activeLogicGraphSurface: undefined,
       loading: false,
       error: undefined,
       selectedLogicBlockId: undefined,
@@ -76,7 +78,9 @@ export function getFunctionVisualizerBrowserSource(): string {
       state.pendingTarget = payload.root;
       state.pendingExpansionId = undefined;
       state.attachedFunctions = [];
+      state.enteringAttachedFunctionIds.clear();
       state.nextAttachedFunctionId = 0;
+      state.activeLogicGraphSurface = undefined;
       state.loading = true;
       state.error = undefined;
       state.selectedLogicBlockId = undefined;
@@ -208,10 +212,15 @@ export function getFunctionVisualizerBrowserSource(): string {
     /** Renders the active function and its evidence-backed analysis gaps. */
     function render() {
       renderNavigation();
+      const entry = state.history[state.historyIndex];
+      const rootScopeId = entry
+        ? createRootScopeId(entry.target.sourceToken)
+        : undefined;
+      const graphViewportSnapshot = captureLogicGraphViewport(rootScopeId);
+      state.activeLogicGraphSurface = undefined;
       clearElement(elements.flowSteps);
       clearElement(elements.flowGaps);
       clearElement(elements.origins);
-      const entry = state.history[state.historyIndex];
 
       if (!entry) {
         elements.title.textContent = state.pendingTarget?.label || "Function Visualizer";
@@ -243,7 +252,6 @@ export function getFunctionVisualizerBrowserSource(): string {
             ? "Building " + state.pendingTarget.label + "…"
             : "Select a block to inspect control and value changes; called functions attach to this canvas.");
       renderOrigins(detail.origins || []);
-      const rootScopeId = createRootScopeId(entry.target.sourceToken);
       const attachedScene = createAttachedFunctionGraphScene(
         detail.logic,
         rootScopeId,
@@ -252,7 +260,7 @@ export function getFunctionVisualizerBrowserSource(): string {
       );
       renderFunctionLogic(
         attachedScene.logic,
-        createAttachedGraphContext(attachedScene)
+        createAttachedGraphContext(attachedScene, rootScopeId, graphViewportSnapshot)
       );
       renderGaps(detail.gaps || []);
     }
@@ -321,10 +329,16 @@ export function getFunctionVisualizerBrowserSource(): string {
     }
 
     /** Adapts the compound scene to the reusable single-graph renderer. */
-    function createAttachedGraphContext(scene) {
+    function createAttachedGraphContext(scene, rootScopeId, graphViewportSnapshot) {
       const graphKind = scene.logic.blocks.some((block) =>
         block.valueChanges && block.valueChanges.length > 0
       ) ? "Control & value flow" : "Control paths";
+      const isEnteringBlock = (blockId) => {
+        const identity = scene.blockIdentityById.get(blockId);
+        return Boolean(
+          identity && state.enteringAttachedFunctionIds.has(identity.scopeId)
+        );
+      };
       return {
         selectedBlockId: state.selectedLogicBlockId,
         graphTitle: scene.attachedFunctionCount > 0
@@ -336,6 +350,19 @@ export function getFunctionVisualizerBrowserSource(): string {
         readScale: () => state.logicGraphScale,
         writeScale: (scale) => {
           state.logicGraphScale = scale;
+        },
+        isBlockEntering: isEnteringBlock,
+        isEdgeEntering: (edge) =>
+          isEnteringBlock(edge.sourceId) || isEnteringBlock(edge.targetId),
+        onGraphRendered: (graphRendering) => {
+          const surface = {
+            rootScopeId,
+            viewport: graphRendering.viewport,
+            nodeLayoutsByBlockId: graphRendering.nodeLayoutsByBlockId
+          };
+          restoreLogicGraphViewport(graphViewportSnapshot, surface);
+          state.activeLogicGraphSurface = surface;
+          finishAttachedFunctionEntryAnimations();
         },
         isBlockExpanded: (blockId) => {
           const identity = scene.blockIdentityById.get(blockId);
@@ -369,6 +396,55 @@ export function getFunctionVisualizerBrowserSource(): string {
           }, target);
         }
       };
+    }
+
+    /** Captures one selected callsite's viewport-relative position before rebuilding the graph. */
+    function captureLogicGraphViewport(rootScopeId) {
+      const surface = state.activeLogicGraphSurface;
+      if (!rootScopeId || !surface || surface.rootScopeId !== rootScopeId) return undefined;
+      const scrollLeft = Number(surface.viewport.scrollLeft) || 0;
+      const scrollTop = Number(surface.viewport.scrollTop) || 0;
+      const blockId = state.selectedLogicBlockId;
+      const nodeLayout = blockId
+        ? surface.nodeLayoutsByBlockId.get(blockId)
+        : undefined;
+      const scale = Number(state.logicGraphScale) || 1;
+      return {
+        blockId: nodeLayout ? blockId : undefined,
+        relativeX: nodeLayout ? nodeLayout.x * scale - scrollLeft : undefined,
+        relativeY: nodeLayout ? nodeLayout.y * scale - scrollTop : undefined,
+        scrollLeft,
+        scrollTop
+      };
+    }
+
+    /** Restores raw scroll or compensates for layout movement around the selected callsite. */
+    function restoreLogicGraphViewport(snapshot, surface) {
+      if (!snapshot || !surface) return;
+      const nodeLayout = snapshot.blockId
+        ? surface.nodeLayoutsByBlockId.get(snapshot.blockId)
+        : undefined;
+      const scale = Number(state.logicGraphScale) || 1;
+      const nextLeft = nodeLayout && Number.isFinite(snapshot.relativeX)
+        ? nodeLayout.x * scale - snapshot.relativeX
+        : snapshot.scrollLeft;
+      const nextTop = nodeLayout && Number.isFinite(snapshot.relativeY)
+        ? nodeLayout.y * scale - snapshot.relativeY
+        : snapshot.scrollTop;
+      surface.viewport.scrollLeft = Math.max(0, nextLeft);
+      surface.viewport.scrollTop = Math.max(0, nextTop);
+    }
+
+    /** Stops marking terminal child scopes after their entry frame has been mounted once. */
+    function finishAttachedFunctionEntryAnimations() {
+      for (const expansionId of state.enteringAttachedFunctionIds) {
+        const expansion = state.attachedFunctions.find((candidate) =>
+          candidate.id === expansionId
+        );
+        if (!expansion || (expansion.status !== "queued" && expansion.status !== "loading")) {
+          state.enteringAttachedFunctionIds.delete(expansionId);
+        }
+      }
     }
 
     /** Toggles every direct function attached to one graph block, or one target. */
@@ -405,19 +481,21 @@ export function getFunctionVisualizerBrowserSource(): string {
       for (const target of targets) {
         if (availableSlots <= 0) break;
         state.nextAttachedFunctionId += 1;
+        const expansionId = "attached-function:" + state.nextAttachedFunctionId;
         const status = ancestorTokens.includes(target.sourceToken)
           ? "cycle"
           : childDepth > MAX_ATTACHED_FUNCTION_DEPTH
             ? "limited"
             : "queued";
         state.attachedFunctions.push({
-          id: "attached-function:" + state.nextAttachedFunctionId,
+          id: expansionId,
           parentScopeId,
           anchorBlockId: block.id,
           target,
           depth: childDepth,
           status
         });
+        state.enteringAttachedFunctionIds.add(expansionId);
         availableSlots -= 1;
         addedCount += 1;
       }
@@ -445,6 +523,9 @@ export function getFunctionVisualizerBrowserSource(): string {
       state.attachedFunctions = state.attachedFunctions.filter((candidate) =>
         !removedIds.has(candidate.id)
       );
+      for (const removedId of removedIds) {
+        state.enteringAttachedFunctionIds.delete(removedId);
+      }
     }
 
     /** Returns ancestor function tokens for depth checks and call-cycle guards. */

@@ -65,20 +65,22 @@ export function createFunctionLogicCodeFlowDetail(
     return {
       id,
       kind: block.kind,
-      label: safeText(block.label, "Source statement"),
-      detail: safeText(block.detail, "Static source operation."),
+      label: completeGraphText(block.label, "Source statement"),
+      detail: completeGraphText(block.detail, "Static source operation."),
       depth: Math.max(0, block.depth),
-      branchLabel: block.branchLabel ? safeText(block.branchLabel, "branch") : undefined,
+      branchLabel: block.branchLabel
+        ? completeGraphText(block.branchLabel, "branch")
+        : undefined,
       confidence: block.confidence,
       sourceLocation: sourceDisplay.location(block.filePath, block.range),
       evidenceToken: createEvidenceToken(block.filePath, block.range),
       drillTargets: drillProjection.targetsByBlockId.get(block.id),
       valueChanges: block.valueChanges?.map((change) => ({
-        target: safeText(change.target, "value"),
+        target: completeGraphText(change.target, "value"),
         targetKind: change.targetKind,
         operation: change.operation,
-        operator: safeText(change.operator, "changes"),
-        value: change.value ? safeText(change.value, "value") : undefined,
+        operator: completeGraphText(change.operator, "changes"),
+        value: change.value ? completeGraphText(change.value, "value") : undefined,
         confidence: change.confidence
       }))
     };
@@ -115,14 +117,14 @@ export function createFunctionLogicCodeFlowDetail(
     graphVersion: deliveryVersion,
     id: flowId,
     kind: "functionLogic",
-    title: safeText(node.qualifiedName || node.name, "Anonymous callable"),
+    title: completeGraphText(node.qualifiedName || node.name, "Anonymous callable"),
     subtitle: location ? `Function logic · ${location}` : "Function logic",
     semantics: "static",
     focusStepId: blocks[0]?.id,
     steps: [],
     logic: {
       language: analysis.language,
-      signature: safeText(analysis.signature, node.name || "Function body"),
+      signature: completeGraphText(analysis.signature, node.name || "Function body"),
       blocks,
       edges,
       layout: createFunctionLogicGraphLayout(blocks, edges),
@@ -194,4 +196,9 @@ function safeText(value: string, fallback: string): string {
   return normalized.length <= DISPLAY_TEXT_LIMIT
     ? normalized
     : `${normalized.slice(0, DISPLAY_TEXT_LIMIT - 1)}…`;
+}
+
+/** Preserves complete graph semantics while normalizing source whitespace. */
+function completeGraphText(value: string, fallback: string): string {
+  return value.replace(/\s+/gu, " ").trim() || fallback;
 }

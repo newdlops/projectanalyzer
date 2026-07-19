@@ -154,9 +154,8 @@ export function getFunctionLogicGraphStyles(): string {
       min-width: 0;
       font-family: var(--vscode-editor-font-family);
       font-size: 9px;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
+      overflow-wrap: anywhere;
+      white-space: normal;
     }
 
     .logic-callee-button span,
@@ -164,9 +163,8 @@ export function getFunctionLogicGraphStyles(): string {
       min-width: 0;
       color: var(--vscode-descriptionForeground);
       font-size: 7px;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
+      overflow-wrap: anywhere;
+      white-space: normal;
     }
 
     .logic-selection-callees {
@@ -189,10 +187,9 @@ export function getFunctionLogicGraphStyles(): string {
       color: var(--vscode-textLink-foreground);
       border-color: color-mix(in srgb, var(--vscode-textLink-foreground) 55%, var(--vscode-panel-border));
       font-size: 7px;
-      overflow: hidden;
-      text-overflow: ellipsis;
+      overflow-wrap: anywhere;
       text-transform: none;
-      white-space: nowrap;
+      white-space: normal;
     }
 
     .logic-graph {
@@ -410,7 +407,15 @@ export function getFunctionLogicGraphStyles(): string {
       font-weight: 700;
     }
 
+    /* Newly attached child routes fade in without changing exact/inferred dash semantics. */
+    .logic-edge-entering,
+    .logic-edge-label-entering {
+      animation: logic-child-edge-enter 240ms ease-out backwards;
+    }
+
     .logic-graph-node {
+      --logic-node-depth-overlay: transparent;
+      --logic-node-surface: color-mix(in srgb, var(--vscode-editor-background) 96%, var(--vscode-sideBar-background));
       position: absolute;
       z-index: 1;
       display: grid;
@@ -421,7 +426,9 @@ export function getFunctionLogicGraphStyles(): string {
       box-sizing: border-box;
       padding: 7px 8px;
       color: var(--vscode-foreground);
-      background: color-mix(in srgb, var(--vscode-editor-background) 96%, var(--vscode-sideBar-background));
+      background:
+        linear-gradient(var(--logic-node-depth-overlay), var(--logic-node-depth-overlay)),
+        var(--logic-node-surface);
       border: 1px solid var(--vscode-panel-border);
       border-left: 3px solid var(--vscode-charts-blue, var(--vscode-focusBorder));
       border-radius: 6px;
@@ -430,8 +437,30 @@ export function getFunctionLogicGraphStyles(): string {
       overflow: hidden;
     }
 
+    .logic-graph-node.logic-node-entering {
+      transform-origin: top center;
+      animation: logic-child-node-enter 280ms cubic-bezier(0.2, 0.8, 0.2, 1)
+        var(--logic-enter-delay, 0ms) backwards;
+    }
+
+    @keyframes logic-child-node-enter {
+      from {
+        opacity: 0;
+        transform: translateY(-10px) scale(0.985);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+      }
+    }
+
+    @keyframes logic-child-edge-enter {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+
     .logic-graph-node:hover {
-      background: color-mix(in srgb, var(--vscode-list-hoverBackground) 72%, var(--vscode-editor-background));
+      --logic-node-surface: color-mix(in srgb, var(--vscode-list-hoverBackground) 72%, var(--vscode-editor-background));
       border-color: color-mix(in srgb, var(--vscode-focusBorder) 58%, var(--vscode-panel-border));
     }
 
@@ -452,14 +481,14 @@ export function getFunctionLogicGraphStyles(): string {
     .logic-node-switch,
     .logic-node-loop,
     .logic-node-try {
-      background: color-mix(in srgb, var(--vscode-charts-purple) 8%, var(--vscode-editor-background));
+      --logic-node-surface: color-mix(in srgb, var(--vscode-charts-purple) 8%, var(--vscode-editor-background));
       border-left-color: var(--vscode-charts-purple, var(--vscode-charts-blue));
       border-radius: 14px;
     }
 
     .logic-node-effect,
     .logic-node-mutation {
-      background: color-mix(in srgb, var(--vscode-charts-orange) 8%, var(--vscode-editor-background));
+      --logic-node-surface: color-mix(in srgb, var(--vscode-charts-orange) 8%, var(--vscode-editor-background));
       border-left-color: var(--vscode-charts-orange, var(--vscode-charts-yellow));
     }
 
@@ -468,6 +497,26 @@ export function getFunctionLogicGraphStyles(): string {
     .logic-node-break,
     .logic-node-continue {
       border-left-color: var(--vscode-charts-yellow, var(--vscode-descriptionForeground));
+    }
+
+    .logic-depth-1 {
+      --logic-node-depth-overlay: color-mix(in srgb, var(--vscode-focusBorder) 2%, transparent);
+    }
+
+    .logic-depth-2 {
+      --logic-node-depth-overlay: color-mix(in srgb, var(--vscode-focusBorder) 4%, transparent);
+    }
+
+    .logic-depth-3 {
+      --logic-node-depth-overlay: color-mix(in srgb, var(--vscode-focusBorder) 6%, transparent);
+    }
+
+    .logic-depth-4 {
+      --logic-node-depth-overlay: color-mix(in srgb, var(--vscode-focusBorder) 8%, transparent);
+    }
+
+    .logic-depth-5 {
+      --logic-node-depth-overlay: color-mix(in srgb, var(--vscode-focusBorder) 11%, transparent);
     }
 
     .logic-node-top {
@@ -611,8 +660,8 @@ export function getFunctionLogicGraphStyles(): string {
       max-width: 100%;
       color: var(--vscode-textLink-foreground);
       text-transform: none;
-      overflow: hidden;
-      text-overflow: ellipsis;
+      overflow-wrap: anywhere;
+      white-space: normal;
     }
 
     .flow-badge.logic-transfer.inferred {
@@ -643,6 +692,14 @@ export function getFunctionLogicGraphStyles(): string {
 
     .logic-open-statement {
       margin-top: 2px;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .logic-graph-node.logic-node-entering,
+      .logic-edge-entering,
+      .logic-edge-label-entering {
+        animation: none;
+      }
     }
 
     @media (forced-colors: active) {

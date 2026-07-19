@@ -4,6 +4,7 @@
  * layered layout whose orthogonal routes stay inside empty rank gaps.
  */
 
+import { getCompoundFunctionLogicDimensionsSource } from "./compoundFunctionLogicDimensionsSource";
 import { getCompoundFunctionLogicRoutingSource } from "./compoundFunctionLogicRoutingSource";
 
 /** Returns CSP-compatible helpers for composing attached functions in one canvas. */
@@ -18,8 +19,8 @@ export function getCompoundFunctionLogicGraphSource(): string {
     const COMPOUND_EDGE_TRACK_GAP = 12;
     const COMPOUND_EDGE_TRACK_PADDING = 16;
     const COMPOUND_NODE_PORT_PADDING = 18;
-    const ATTACHED_FUNCTION_LABEL_HEIGHT = 18;
 
+    ${getCompoundFunctionLogicDimensionsSource()}
     ${getCompoundFunctionLogicRoutingSource()}
 
     /**
@@ -77,7 +78,7 @@ export function getCompoundFunctionLogicGraphSource(): string {
           const sourceLayout = nodeLayoutByBlockId.get(block.id);
           const functionLabel = scope.isRoot
             ? undefined
-            : compactAttachedFunctionLabel(scope.title);
+            : completeAttachedFunctionLabel(scope.title);
           const compoundBlock = {
             ...block,
             id: compoundBlockId,
@@ -97,11 +98,13 @@ export function getCompoundFunctionLogicGraphSource(): string {
           if (!firstBlockIdByScopeId.has(scope.id) || block.kind === "entry") {
             firstBlockIdByScopeId.set(scope.id, compoundBlockId);
           }
-          dimensionsByBlockId.set(compoundBlockId, {
-            width: sourceLayout?.width || 184,
-            height: (sourceLayout?.height || 72)
-              + (scope.isRoot ? 0 : ATTACHED_FUNCTION_LABEL_HEIGHT)
-          });
+          dimensionsByBlockId.set(compoundBlockId, measureCompoundBlockDimensions(
+            compoundBlock,
+            {
+              width: sourceLayout?.width || 184,
+              height: sourceLayout?.height || 72
+            }
+          ));
         }
 
         const sourceEdgeLayoutById = new Map(
@@ -212,21 +215,24 @@ export function getCompoundFunctionLogicGraphSource(): string {
             kind: isControlContinuationKind(sourceBlock.kind)
               ? sourceBlock.kind
               : "operation",
-            label: "Resume · " + compactAttachedContinuationLabel(sourceBlock.label),
+            label: "Resume · " + completeAttachedContinuationLabel(sourceBlock.label),
             detail: "Called code returns here before the caller continues.",
             depth: sourceBlock.depth,
             branchLabel: "after child",
             confidence: sourceBlock.confidence,
             functionLabel: callerScope?.isRoot
               ? undefined
-              : compactAttachedFunctionLabel(callerScope?.title)
+              : completeAttachedFunctionLabel(callerScope?.title)
           };
           scene.blocks.push(continuationBlock);
           blocksById.set(continuationId, continuationBlock);
-          scene.dimensionsByBlockId.set(continuationId, {
-            width: Math.max(184, sourceDimensions.width),
-            height: 76 + (callerScope?.isRoot ? 0 : ATTACHED_FUNCTION_LABEL_HEIGHT)
-          });
+          scene.dimensionsByBlockId.set(
+            continuationId,
+            measureCompoundBlockDimensions(continuationBlock, {
+              width: Math.max(COMPOUND_MIN_NODE_WIDTH, sourceDimensions.width),
+              height: 76
+            })
+          );
           for (const edge of callerOutgoing) edge.sourceId = continuationId;
         }
 
@@ -269,10 +275,9 @@ export function getCompoundFunctionLogicGraphSource(): string {
       return kind === "condition" || kind === "loop" || kind === "switch" || kind === "try";
     }
 
-    /** Keeps the duplicated source cue compact enough for a continuation box. */
-    function compactAttachedContinuationLabel(label) {
-      const value = String(label || "caller flow");
-      return value.length <= 42 ? value : value.slice(0, 41) + "…";
+    /** Preserves the complete caller cue shown in a continuation box. */
+    function completeAttachedContinuationLabel(label) {
+      return String(label || "caller flow");
     }
 
     /** Converts loading, cycle, limit, and failure states into real graph nodes. */
@@ -345,7 +350,7 @@ export function getCompoundFunctionLogicGraphSource(): string {
       }
       return {
         label: "Loading · " + targetLabel,
-        detail: "Reading the called function body into this graph…"
+        detail: "Reading the called function body into this graph."
       };
     }
 
@@ -710,10 +715,9 @@ export function getCompoundFunctionLogicGraphSource(): string {
       return expansion.target.qualifiedName || expansion.target.name || "Called function";
     }
 
-    /** Keeps a function badge readable inside variable-size graph boxes. */
-    function compactAttachedFunctionLabel(label) {
-      const value = String(label || "Called function");
-      return value.length <= 32 ? value : value.slice(0, 31) + "…";
+    /** Preserves the complete function badge inside variable-size graph boxes. */
+    function completeAttachedFunctionLabel(label) {
+      return String(label || "Called function");
     }
   `;
 }
