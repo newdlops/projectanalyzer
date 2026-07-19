@@ -49,6 +49,7 @@ test("accepts every current WebviewRequest variant", () => {
       "codeFlow/select",
       "codeFlow/selectSource",
       "codeFlow/openEvidence",
+      "moduleFlow/open",
       "moduleFlow/list",
       "moduleFlow/detail",
       "moduleFlow/expand",
@@ -129,7 +130,8 @@ test("rejects malformed top-level values and signal payloads", () => {
     { type: "ui/ready" },
     { type: "ui/ready", payload: { unexpected: true } },
     { type: "analysis/cancel", payload: [] },
-    { type: "cache/clear", payload: null }
+    { type: "cache/clear", payload: null },
+    { type: "moduleFlow/open", payload: { graphVersion: "not-allowed" } }
   ];
 
   for (const value of malformed) {
@@ -663,6 +665,7 @@ function createValidRequests(): WebviewRequest[] {
         evidenceToken: "code-evidence:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
       }
     },
+    { type: "moduleFlow/open", payload: {} },
     {
       type: "moduleFlow/list",
       payload: {

@@ -1,6 +1,6 @@
 /**
  * Product-shell tests for the flow-first Webview. They protect the reading
- * frame, one-question launcher, source-backed reader, and retained panel shell.
+ * frame, visible module launcher, source-backed reader, and retained panel shell.
  */
 
 import assert from "node:assert/strict";
@@ -20,6 +20,13 @@ test("sidebar exposes the Code Flow reading mindset and one start question", () 
   assert.match(html, /id="mode-functions"/u);
   assert.match(html, /id="flow-search-input"[\s\S]*maxlength="512"/u);
   assert.match(html, /id="flow-reader"/u);
+  assert.match(html, /id="open-module-flow"/u);
+  assert.match(html, /See how modules connect/u);
+  assert.match(html, /title="Open Project Module Flow in a new editor tab"/u);
+  assert.match(
+    html,
+    /aria-describedby="module-flow-description module-flow-action-hint"/u
+  );
   assert.match(html, /STATIC FLOW · POSSIBLE CALL PATH/u);
   assert.match(html, /statically discoverable call relationships, not observed runtime order/u);
   assert.match(html, /What remains unknown/u);
@@ -43,6 +50,9 @@ test("sidebar script uses bounded, correlated CodeFlow protocol routes", () => {
   assert.match(script, /codeFlow\/select/u);
   assert.match(script, /codeFlow\/selectSource/u);
   assert.match(script, /codeFlow\/openEvidence/u);
+  assert.match(script, /type: "moduleFlow\/open", payload: \{\}/u);
+  assert.match(script, /message\.type === "moduleFlow\/openCompleted"/u);
+  assert.match(script, /"aria-busy"/u);
   assert.match(script, /function\/search/u);
   assert.match(script, /message\.payload\.requestId !== state\.catalogPendingRequestId/u);
   assert.match(script, /payload\.requestId === state\.functionPendingRequestId/u);

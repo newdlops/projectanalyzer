@@ -12,7 +12,7 @@ import test from "node:test";
 
 const OPEN_MODULE_FLOW_COMMAND = "projectAnalyzer.openModuleFlow";
 
-test("package contributes Module Flow activation, command, and sidebar title only", () => {
+test("package contributes a descriptive Module Flow command and sidebar title action", () => {
   const packageJson = JSON.parse(readSource("package.json")) as {
     activationEvents: string[];
     contributes: {
@@ -26,7 +26,7 @@ test("package contributes Module Flow activation, command, and sidebar title onl
   );
   assert.ok(packageJson.contributes.commands.some((command) =>
     command.command === OPEN_MODULE_FLOW_COMMAND
-      && command.title === "Open Module Flow"
+      && command.title === "Open Project Module Flow"
       && command.category === "Code Flow"
   ));
 
@@ -61,7 +61,24 @@ test("the composition root constructs one coordinator and one module panel", () 
   assert.match(services, /moduleVisualizerPanelProvider: ModuleVisualizerPanelProvider/u);
   assert.match(services, /workspaceGraphCoordinator: WorkspaceGraphCoordinator/u);
   assert.match(services, /moduleVisualizerPanelProvider,\s*workspaceGraphCoordinator\s*\}/su);
+  assert.match(services, /openModuleFlow: \(\) => openModuleFlow\(\{/u);
   assert.match(services, /workspaceGraphCoordinator\s*\n\s*\}\);/u);
+});
+
+test("the sidebar exposes a labeled accessible Module Flow launcher", () => {
+  const html = readSource("src/webview/webviewHtml.ts");
+  const browser = readSource("src/webview/codeFlow/codeFlowBrowserSource.ts");
+  const provider = readSource("src/webview/explorerViewProvider.ts");
+
+  assert.match(html, /id="open-module-flow"/u);
+  assert.match(html, /See how modules connect/u);
+  assert.match(html, /title="Open Project Module Flow in a new editor tab"/u);
+  assert.match(html, /aria-describedby="module-flow-description module-flow-action-hint"/u);
+  assert.match(browser, /type: "moduleFlow\/open", payload: \{\}/u);
+  assert.match(browser, /moduleFlow\/openCompleted/u);
+  assert.match(browser, /state\.moduleFlowOpening/u);
+  assert.match(provider, /case "moduleFlow\/open":/u);
+  assert.match(provider, /type: "moduleFlow\/openCompleted"/u);
 });
 
 test("the command uses only exact coordinator acquisition and the module panel", () => {
