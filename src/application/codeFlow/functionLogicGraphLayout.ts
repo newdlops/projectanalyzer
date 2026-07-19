@@ -25,6 +25,9 @@ const TOP_CHARACTER_WIDTH = 5.8;
 const LABEL_LINE_HEIGHT = 15;
 const META_LINE_HEIGHT = 12;
 const TOP_LINE_HEIGHT = 18;
+const VALUE_CHANGE_CHARACTER_WIDTH = 6.2;
+const VALUE_CHANGE_LINE_HEIGHT = 15;
+const VALUE_CHANGE_ROW_GAP = 3;
 const LANE_GAP = 34;
 const RANK_GAP = 66;
 const CANVAS_MARGIN_X = 38;
@@ -256,11 +259,13 @@ function groupBlocksByRank(
 /** Estimates a node's browser dimensions from every string rendered inside it. */
 function measureNodeDimensions(block: FunctionLogicBlockPayload): NodeDimensions {
   const metaText = block.sourceLocation || block.detail;
+  const valueChangeTexts = (block.valueChanges ?? []).map(formatValueChangeText);
   const longestLineUnits = Math.max(
     1,
     longestDisplayLineUnits(block.label),
     longestDisplayLineUnits(metaText),
-    longestDisplayLineUnits(block.branchLabel ?? "")
+    longestDisplayLineUnits(block.branchLabel ?? ""),
+    ...valueChangeTexts.map(longestDisplayLineUnits)
   );
   const targetCharactersPerLine = clamp(
     Math.ceil(Math.sqrt(longestLineUnits * 12)),
@@ -288,15 +293,34 @@ function measureNodeDimensions(block: FunctionLogicBlockPayload): NodeDimensions
     innerWidth,
     META_CHARACTER_WIDTH
   );
+  const valueChangeLines = valueChangeTexts.reduce(
+    (count, text) => count + estimateWrappedTextLineCount(
+      text,
+      innerWidth,
+      VALUE_CHANGE_CHARACTER_WIDTH
+    ),
+    0
+  );
+  const valueChangeHeight = valueChangeLines * VALUE_CHANGE_LINE_HEIGHT
+    + Math.max(0, valueChangeTexts.length - 1) * VALUE_CHANGE_ROW_GAP;
   const height = Math.max(
     MIN_NODE_HEIGHT,
     NODE_VERTICAL_PADDING
       + topLines * TOP_LINE_HEIGHT
       + labelLines * LABEL_LINE_HEIGHT
+      + valueChangeHeight
       + metaLines * META_LINE_HEIGHT
-      + NODE_ROW_GAP * 2
+      + NODE_ROW_GAP * (valueChangeTexts.length > 0 ? 3 : 2)
   );
   return { width, height: Math.ceil(height) };
+}
+
+/** Mirrors the compact value-change text rendered inside a graph node. */
+function formatValueChangeText(
+  change: NonNullable<FunctionLogicBlockPayload["valueChanges"]>[number]
+): string {
+  return `${change.targetKind} ${change.confidence} ${change.target} ${change.operator}`
+    + (change.value ? ` ${change.value}` : "");
 }
 
 /** Sums variable node widths and the fixed visual space between sibling lanes. */
