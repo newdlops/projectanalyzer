@@ -19,6 +19,7 @@ import {
 const REQUIRED_ENTRIES = [
   entry("extension.vsixmanifest", 1_000),
   entry("[Content_Types].xml", 1_000),
+  entry("extension/LICENSE.txt", 1_100),
   entry("extension/package.json", 4_000),
   entry("extension/out/extension/activate.js", 2_000),
   entry("extension/readme.md", 20_000),
@@ -50,7 +51,13 @@ test("declares a valid Retina Marketplace icon and release documents", async () 
   const packageJson = JSON.parse(await readFile(join(PROJECT_ROOT, "package.json"), "utf8"));
   const iconPath = join(PROJECT_ROOT, packageJson.icon);
   const icon = await readFile(iconPath);
+  const license = await readFile(join(PROJECT_ROOT, "LICENSE"), "utf8");
 
+  assert.equal(packageJson.publisher, "newdlops");
+  assert.equal(packageJson.license, "MIT");
+  assert.equal(packageJson.repository.url, "https://github.com/newdlops/projectanalyzer.git");
+  assert.match(license, /^MIT License/);
+  assert.match(license, /Copyright \(c\) 2026 newdlops/);
   assert.equal(packageJson.icon, "media/project-analyzer-icon.png");
   assert.deepEqual([...icon.subarray(0, 8)], [137, 80, 78, 71, 13, 10, 26, 10]);
   assert.equal(icon.readUInt32BE(16), 256);
@@ -102,6 +109,7 @@ test("requires the extension entrypoint and one release analyzer binary", () => 
   const errors = result.errors.join("\n");
 
   assert.match(errors, /extension\/out\/extension\/activate\.js/);
+  assert.match(errors, /extension\/LICENSE\.txt/);
   assert.match(errors, /staged analyzer binary is missing/);
 });
 

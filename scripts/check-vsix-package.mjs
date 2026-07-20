@@ -22,6 +22,7 @@ export const PACKAGE_BUDGET = Object.freeze({
 const REQUIRED_PATHS = Object.freeze([
   "extension.vsixmanifest",
   "[Content_Types].xml",
+  "extension/LICENSE.txt",
   "extension/package.json",
   "extension/out/extension/activate.js",
   "extension/readme.md",

@@ -1,0 +1,186 @@
+# Builds runner-native analyzer binaries, publishes the complete target-specific
+# VSIX set, and mirrors those packages to one immutable GitHub release.
+name: Release VS Code Extension
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing v<major>.<minor>.<patch> tag to publish
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: project-analyzer-release-${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+env:
+  RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+
+jobs:
+  validate:
+    name: Validate release source
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+
+    steps:
+      - name: Check out release tag
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.RELEASE_TAG }}
+
+      - name: Use Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Match manifest, lockfile, changelog, and tag
+        run: npm run release:check -- "$RELEASE_TAG"
+
+      - name: Run all tests
+        run: npm test
+
+  package:
+    name: Package ${{ matrix.target }}
+    needs: validate
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: linux-x64
+            runner: ubuntu-24.04
+          - target: linux-arm64
+            runner: ubuntu-24.04-arm
+          - target: darwin-x64
+            runner: macos-15-intel
+          - target: darwin-arm64
+            runner: macos-15
+          - target: win32-x64
+            runner: windows-2025
+          - target: win32-arm64
+            runner: windows-11-arm
+
+    steps:
+      - name: Check out release tag
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.RELEASE_TAG }}
+
+      - name: Use Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Build and validate target VSIX
+        run: npm run package:vsix
+
+      - name: Upload target VSIX
+        uses: actions/upload-artifact@v4
+        with:
+          name: vsix-${{ matrix.target }}
+          path: project-analyzer-*-${{ matrix.target }}.vsix
+          if-no-files-found: error
+          retention-days: 14
+
+  publish:
+    name: Publish Marketplace and GitHub release
+    needs: package
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    environment:
+      name: vscode-marketplace
+      url: https://marketplace.visualstudio.com/items?itemName=newdlops.project-analyzer
+    permissions:
+      contents: write
+      id-token: write
+
+    steps:
+      - name: Check out release tag
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.RELEASE_TAG }}
+
+      - name: Use Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Download all platform packages
+        uses: actions/download-artifact@v4
+        with:
+          pattern: vsix-*
+          path: release-artifacts
+          merge-multiple: true
+
+      - name: Require the complete release package set
+        run: npm run release:check -- "$RELEASE_TAG" release-artifacts
+
+      - name: Recheck downloaded VSIX boundaries
+        shell: bash
+        run: |
+          for vsix in release-artifacts/*.vsix; do
+            npm run package:check -- "$vsix"
+          done
+
+      - name: Sign in to Azure with GitHub OIDC
+        if: ${{ vars.AZURE_CLIENT_ID != '' }}
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Publish with Microsoft Entra ID
+        if: ${{ vars.AZURE_CLIENT_ID != '' }}
+        run: npm exec -- vsce publish --azure-credential --skip-duplicate --packagePath release-artifacts/*.vsix
+
+      - name: Require PAT fallback when OIDC is not configured
+        if: ${{ vars.AZURE_CLIENT_ID == '' }}
+        shell: bash
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+        run: |
+          if [[ -z "$VSCE_PAT" ]]; then
+            echo "::error::Configure Entra OIDC variables or the VSCE_PAT environment secret."
+            exit 1
+          fi
+
+      - name: Publish with PAT fallback
+        if: ${{ vars.AZURE_CLIENT_ID == '' }}
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+        run: npm exec -- vsce publish --skip-duplicate --packagePath release-artifacts/*.vsix
+
+      - name: Create or refresh GitHub release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release upload "$RELEASE_TAG" release-artifacts/*.vsix --clobber
+          else
+            gh release create "$RELEASE_TAG" release-artifacts/*.vsix \
+              --verify-tag \
+              --generate-notes \
+              --title "Project Analyzer $RELEASE_TAG"
+          fi
