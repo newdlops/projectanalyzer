@@ -2,6 +2,7 @@
 
 import { getFunctionLogicCompoundGroupStyles } from "./functionLogicCompoundGroupStyles";
 import { getFunctionLogicBranchChoiceStyles } from "./branchChoices";
+import { getFunctionLogicDataFlowStyles } from "./dataFlow";
 
 /** Returns CSS for graph nodes, routed edges, lanes, and selection evidence. */
 export function getFunctionLogicGraphStyles(): string {
@@ -765,6 +766,7 @@ export function getFunctionLogicGraphStyles(): string {
       }
     }
 
+    ${getFunctionLogicDataFlowStyles()}
     ${getFunctionLogicBranchChoiceStyles()}
   `;
 }

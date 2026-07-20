@@ -77,6 +77,9 @@ export function installSidebarWebviewRuntime(initialWebviewState?: unknown): Sid
         remove(...names) {
           for (const name of names) classes.delete(name);
         },
+        contains(name) {
+          return classes.has(name);
+        },
         toggle(name, force) {
           const enabled = force ?? !classes.has(name);
           if (enabled) classes.add(name);
@@ -392,6 +395,7 @@ type SidebarFakeElement = {
   classList: {
     add: (...names: string[]) => void;
     remove: (...names: string[]) => void;
+    contains: (name: string) => boolean;
     toggle: (name: string, force?: boolean) => boolean;
   };
   dataset: Record<string, string>;

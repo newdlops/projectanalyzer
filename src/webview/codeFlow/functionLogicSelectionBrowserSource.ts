@@ -96,6 +96,21 @@ export function getFunctionLogicSelectionBrowserSource(): string {
         panel.append(changes);
       }
 
+      if (block.valueAccesses && block.valueAccesses.length > 0) {
+        const accesses = document.createElement("div");
+        const title = document.createElement("strong");
+        accesses.className = "logic-selection-access-section";
+        title.textContent = "Parameters, locals, and constants here";
+        accesses.append(
+          title,
+          createFunctionLogicValueAccessList(
+            block.valueAccesses,
+            "logic-selection-value-accesses"
+          )
+        );
+        panel.append(accesses);
+      }
+
       if (outgoing.length > 0) {
         const transfers = document.createElement("div");
         transfers.className = "logic-selection-transfers";

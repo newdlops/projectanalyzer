@@ -216,6 +216,73 @@ test("function graph nodes render complete wrapped labels and value changes", ()
   }
 });
 
+test("function graph traces parameter, local, and constant definition-use flow", () => {
+  const runtime = installSidebarWebviewRuntime();
+
+  try {
+    new Function(requireSidebarScript())();
+    const message = createFunctionLogicDetailMessage(graphVersion) as {
+      payload: {
+        logic: {
+          blocks: Array<Record<string, unknown>>;
+          valueBindings?: Array<Record<string, unknown>>;
+          valueFlows?: Array<Record<string, unknown>>;
+        };
+      };
+    };
+    const source = message.payload.logic.blocks[0];
+    const target = message.payload.logic.blocks[1];
+    assert.ok(source && target);
+    const sourceId = String(source.id);
+    const targetId = String(target.id);
+    const bindingId = "function-logic-binding:11111111111111111111111111111111";
+    source.valueAccesses = [{
+      bindingId,
+      name: "order",
+      bindingKind: "parameter",
+      access: "define",
+      confidence: "exact"
+    }];
+    target.valueAccesses = [{
+      bindingId,
+      name: "order",
+      bindingKind: "parameter",
+      access: "read",
+      confidence: "exact"
+    }];
+    message.payload.logic.valueBindings = [{
+      id: bindingId,
+      name: "order",
+      kind: "parameter",
+      definitionBlockId: sourceId,
+      confidence: "exact"
+    }];
+    message.payload.logic.valueFlows = [{
+      id: "function-logic-value-flow:11111111111111111111111111111111",
+      bindingId,
+      sourceBlockId: sourceId,
+      targetBlockId: targetId,
+      targetAccess: "read",
+      confidence: "exact"
+    }];
+
+    runtime.dispatchMessage(createGraphMessage(graphVersion));
+    runtime.dispatchMessage(message);
+    const rendered = runtime.getRenderedText("flow-steps").join("\n");
+
+    assert.ok(rendered.includes("Values in this function"));
+    assert.ok(rendered.includes("PARAM order · 1 access"));
+    assert.ok(rendered.includes("PARAM · DEFINE"));
+    assert.ok(rendered.includes("PARAM · READ"));
+    assert.equal(runtime.countRenderedByClass("flow-steps", "logic-data-flow-edge"), 1);
+    assert.equal(runtime.countRenderedByClass("flow-steps", "logic-value-access"), 3);
+    runtime.clickByTitle("Trace parameter order");
+    runtime.clickByTitle("Trace parameter order");
+  } finally {
+    runtime.restore();
+  }
+});
+
 test("a new graph removes old flow DOM and rejects late detail", () => {
   const runtime = installSidebarWebviewRuntime();
 

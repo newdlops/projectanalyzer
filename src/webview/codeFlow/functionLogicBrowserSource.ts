@@ -8,6 +8,7 @@
 import { getFunctionLogicCompoundGroupBrowserSource } from "./functionLogicCompoundGroupBrowserSource";
 import { getFunctionLogicDrillBrowserSource } from "./functionLogicDrillBrowserSource";
 import { getFunctionLogicBranchChoicesBrowserSource } from "./branchChoices";
+import { getFunctionLogicDataFlowBrowserSource } from "./dataFlow";
 import { getFunctionLogicSelectionBrowserSource } from "./functionLogicSelectionBrowserSource";
 
 /** Returns browser functions for rendering the function-local control graph. */
@@ -18,6 +19,7 @@ export function getFunctionLogicBrowserSource(): string {
     ${getFunctionLogicCompoundGroupBrowserSource()}
     ${getFunctionLogicDrillBrowserSource()}
     ${getFunctionLogicBranchChoicesBrowserSource()}
+    ${getFunctionLogicDataFlowBrowserSource()}
     ${getFunctionLogicSelectionBrowserSource()}
 
     /** Renders the function signature, graph canvas, legend, and node details. */
@@ -72,6 +74,7 @@ export function getFunctionLogicBrowserSource(): string {
       const choiceSessionKey = (state.graph?.version || "graph") + "::" + rootBlock.id;
       let branchChoices = readFunctionLogicBranchChoices(choiceSessionKey, logic.edges);
       let edgeRendering;
+      let valueFlowRendering;
       const applyBranchChoice = (edge) => {
         branchChoices = edge
           ? toggleFunctionLogicBranchChoiceSession(choiceSessionKey, logic.edges, edge)
@@ -83,6 +86,7 @@ export function getFunctionLogicBrowserSource(): string {
           nodeButtonsById,
           edgeRendering.elementsById
         );
+        if (valueFlowRendering) valueFlowRendering.refresh();
         const selectedBlockId = edge?.sourceId || state.selectedLogicBlockId || rootBlock.id;
         selectLogicGraphNode(
           selectedBlockId,
@@ -104,6 +108,12 @@ export function getFunctionLogicBrowserSource(): string {
         graphContext,
         applyBranchChoice
       );
+      valueFlowRendering = createFunctionLogicValueFlowRendering(
+        logic,
+        nodeLayoutsByBlockId,
+        nodeButtonsById,
+        choiceSessionKey
+      );
       const compoundGroupLayer = createLogicCompoundGroupLayer(
         compoundGroups,
         blocksById
@@ -123,28 +133,31 @@ export function getFunctionLogicBrowserSource(): string {
       const hasJsxFlow = logic.blocks.some((block) => block.kind === "render");
       const hasEventFlow = logic.blocks.some((block) => block.kind === "event");
       const hasRenderFlow = hasJsxFlow || hasEventFlow;
-      const hasValueFlow = logic.blocks.some((block) =>
+      const hasValueChanges = logic.blocks.some((block) =>
         block.valueChanges && block.valueChanges.length > 0
       );
+      const hasValueFlow = (logic.valueBindings || []).length > 0;
       const graphHeader = createLogicGraphHeader(
         applyScale,
         readScale,
         writeScale,
         graphContext?.graphTitle || (hasRenderFlow
-          ? (hasValueFlow
+          ? (hasValueFlow || hasValueChanges
               ? "Control, render, event & value flow"
               : hasJsxFlow && hasEventFlow
                 ? "Control, JSX & event boundaries"
                 : hasJsxFlow ? "Control & JSX render flow" : "Control & event boundaries")
-          : (hasValueFlow ? "Control & value flow" : "Control paths"))
+          : (hasValueFlow || hasValueChanges ? "Control & value flow" : "Control paths"))
       );
 
       graph.className = "logic-graph";
       viewport.className = "logic-graph-viewport";
       viewport.setAttribute("role", "region");
-      viewport.setAttribute("aria-label", hasRenderFlow
-        ? "Function control, JSX render, and event-boundary graph"
-        : "Function control-flow graph");
+      const graphSemantics = ["Function control"];
+      if (hasJsxFlow) graphSemantics.push("JSX render");
+      if (hasEventFlow) graphSemantics.push("event boundaries");
+      if (hasValueFlow) graphSemantics.push("lexical value flow");
+      viewport.setAttribute("aria-label", graphSemantics.join(", ") + " graph");
       viewport.tabIndex = 0;
       stage.className = "logic-graph-stage";
       canvas.className = "logic-graph-canvas";
@@ -153,6 +166,7 @@ export function getFunctionLogicBrowserSource(): string {
       detailPanel.className = "logic-selection";
       detailPanel.setAttribute("aria-live", "polite");
       canvas.append(compoundGroupLayer, edgeRendering.svg);
+      if (valueFlowRendering) canvas.append(valueFlowRendering.svg);
 
       for (const nodeLayout of logic.layout.nodes) {
         const block = blocksById.get(nodeLayout.blockId);
@@ -195,11 +209,14 @@ export function getFunctionLogicBrowserSource(): string {
         nodeButtonsById,
         edgeRendering.elementsById
       );
+      if (valueFlowRendering) valueFlowRendering.refresh();
 
       applyScale();
       stage.append(canvas);
       viewport.append(stage);
-      graph.append(graphHeader, viewport, detailPanel);
+      graph.append(graphHeader);
+      if (valueFlowRendering) graph.append(valueFlowRendering.toolbar);
+      graph.append(viewport, detailPanel);
 
       const preferredBlock = blocksById.get(
         graphContext ? graphContext.selectedBlockId : state.selectedLogicBlockId
@@ -256,7 +273,11 @@ export function getFunctionLogicBrowserSource(): string {
       cards.append(
         createUnderstandingCard("1", "Start", "Read the signature, then find the first source-backed block."),
         createUnderstandingCard("2", "Choose", createDecisionUnderstanding(summary)),
-        createUnderstandingCard("3", "Do", createActionUnderstanding(summary, logic.blocks)),
+        createUnderstandingCard(
+          "3",
+          "Do",
+          createActionUnderstanding(summary, logic.blocks, logic.valueBindings || [])
+        ),
         createUnderstandingCard("4", "Finish", summary.exitCount
           ? summary.exitCount + " explicit finish point" + plural(summary.exitCount)
             + (summary.exitCount === 1 ? " is visible." : " are visible.")
@@ -297,7 +318,7 @@ export function getFunctionLogicBrowserSource(): string {
     }
 
     /** Describes visible work without guessing business purpose or runtime values. */
-    function createActionUnderstanding(summary, blocks) {
+    function createActionUnderstanding(summary, blocks, valueBindings) {
       const parts = [];
       const renderCount = blocks.filter((block) => block.kind === "render").length;
       const eventCount = blocks.filter((block) => block.kind === "event").length;
@@ -310,6 +331,10 @@ export function getFunctionLogicBrowserSource(): string {
       );
       else if (summary.mutationCount) parts.push(
         summary.mutationCount + " mutation" + plural(summary.mutationCount)
+      );
+      if (valueBindings.length) parts.push(
+        valueBindings.length + " parameter/local/constant binding"
+          + plural(valueBindings.length)
       );
       return parts.length
         ? "Inspect " + parts.join(", ") + "."
@@ -340,6 +365,7 @@ export function getFunctionLogicBrowserSource(): string {
         createBadge("dashed · inferred", "logic-legend inferred"),
         createBadge("⚡ event · no return", "logic-legend event"),
         createBadge("Δ value", "logic-legend value-change"),
+        createBadge("⇢ param/local/const", "logic-legend value-flow"),
         createBadge("◇ selectable choice", "logic-legend choice"),
         createBadge("↶ repeat", "logic-legend repeat")
       );
@@ -503,6 +529,10 @@ export function getFunctionLogicBrowserSource(): string {
       const valueChangeText = (block.valueChanges || []).map((change) =>
         formatLogicValueChange(change) + " (" + change.confidence + ")"
       ).join(", ");
+      const valueAccessText = (block.valueAccesses || []).map((access) =>
+        formatFunctionLogicBindingKind(access.bindingKind) + " "
+          + access.name + " " + formatFunctionLogicValueAccess(access.access)
+      ).join(", ");
       const outgoingText = outgoing.map((edge) => {
         const target = blocksById.get(edge.targetId);
         return formatLogicEdge(edge) + (target ? " to " + completeTargetLabel(target) : "");
@@ -550,6 +580,7 @@ export function getFunctionLogicBrowserSource(): string {
       }
       node.setAttribute("aria-label", block.label
         + (valueChangeText ? ". Value changes: " + valueChangeText : "")
+        + (valueAccessText ? ". Value flow: " + valueAccessText : "")
         + (outgoingText ? ". Paths: " + outgoingText : "")
         + (expandable && graphContext && graphContext.onExpandableBlockClick
           ? (expanded
@@ -589,6 +620,12 @@ export function getFunctionLogicBrowserSource(): string {
       node.append(top, label);
       if (block.valueChanges && block.valueChanges.length > 0) {
         node.append(createLogicValueChangeList(block.valueChanges, "logic-node-value-changes"));
+      }
+      if (block.valueAccesses && block.valueAccesses.length > 0) {
+        node.append(createFunctionLogicValueAccessList(
+          block.valueAccesses,
+          "logic-node-value-accesses"
+        ));
       }
       node.append(meta);
       return node;
@@ -695,6 +732,10 @@ export function getFunctionLogicBrowserSource(): string {
       );
       else if (summary.mutationCount) parts.push(
         summary.mutationCount + " mutation" + plural(summary.mutationCount)
+      );
+      const bindingCount = (logic.valueBindings || []).length;
+      if (bindingCount) parts.push(
+        bindingCount + " tracked binding" + plural(bindingCount)
       );
       return parts.join(" · ");
     }
