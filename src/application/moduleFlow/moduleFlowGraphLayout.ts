@@ -15,7 +15,7 @@ import {
 } from "./moduleFlowScc";
 import {
   getModuleFlowGraphRoutingBrowserSource,
-  routeModuleFlowGraphEdges
+  routeModuleFlowGraphEdges, type ModuleFlowEdgeBridge
 } from "./moduleFlowGraphRouting";
 
 // Local aliases prevent CommonJS import rewrites from leaking into the
@@ -84,6 +84,7 @@ export type ModuleFlowGraphEdgeLayout = {
   route: ModuleFlowGraphEdgeRoute;
   /** Stable, unique index for an edge using the graph's outer channel. */
   outerTrack?: number;
+  bridges?: ModuleFlowEdgeBridge[];
 };
 
 /** Visible enclosure for one cyclic strongly connected component. */
@@ -211,7 +212,6 @@ export function createModuleFlowGraphLayout(
       outerChannelOffset: MODULE_FLOW_OUTER_CHANNEL_OFFSET
     }
   });
-
   return {
     width,
     height,

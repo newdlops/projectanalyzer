@@ -218,24 +218,51 @@ export function getModuleVisualizerGraphRendererSource(): string {
           path.setAttribute("marker-end", "url(#module-arrow)");
           path.setAttribute("tabindex", "0");
           path.setAttribute("role", "button");
+          const direction = document.createElementNS(SVG_NS, "path");
+          direction.setAttribute("aria-hidden", "true");
           group.appendChild(hit);
           group.appendChild(path);
-          record = { group: group, hit: hit, path: path, label: undefined };
+          group.appendChild(direction);
+          record = {
+            group: group,
+            hit: hit,
+            path: path,
+            direction: direction,
+            label: undefined
+          };
           state.edgeElementsById.set(edge.id, record);
           additions.appendChild(group);
           created.add(edge.id);
         }
-        const pathData = edgeLayout.points.map(function (point, index) {
-          return (index === 0 ? "M " : "L ") + point.x + " " + point.y;
-        }).join(" ");
+        const bridges = edgeLayout.bridges || [];
+        const pathData = createModuleFlowEdgePath(edgeLayout.points, bridges);
+        const directionData = createModuleFlowBridgeDirectionPath(edgeLayout.points, bridges);
+        const crossingCount = bridges.reduce(function (count, bridge) {
+          return count + (bridge.crossingCount || 1);
+        }, 0);
         const labelValue = edgeLabel(edge);
-        const geometryKey = pathData + "\\n" + edgeLayout.labelX + ":" + edgeLayout.labelY + "\\n" + labelValue + "\\n" + edge.presentationKind;
+        const geometryKey = pathData + "\\n" + directionData + "\\n" + edgeLayout.labelX + ":" + edgeLayout.labelY + "\\n" + labelValue + "\\n" + edge.presentationKind;
         if (record.group.dataset.geometryKey !== geometryKey) {
           record.group.dataset.geometryKey = geometryKey;
+          record.group.dataset.crossingCount = String(crossingCount);
           record.hit.setAttribute("d", pathData);
           record.path.setAttribute("d", pathData);
-          record.path.setAttribute("class", "module-edge " + edge.presentationKind);
-          record.path.setAttribute("aria-label", "Inspect relationship: " + labelValue);
+          record.path.setAttribute(
+            "class",
+            "module-edge " + edge.presentationKind + (crossingCount > 0 ? " crossed" : "")
+          );
+          record.path.setAttribute(
+            "aria-label",
+            "Inspect relationship: " + labelValue
+              + (crossingCount > 0
+                ? "; " + crossingCount + " crossed line" + (crossingCount === 1 ? "" : "s") + " bridged"
+                : "")
+          );
+          record.direction.setAttribute("d", directionData);
+          record.direction.setAttribute(
+            "class",
+            "module-edge-direction " + edge.presentationKind
+          );
           if (labelValue) {
             if (!record.label) {
               record.label = document.createElementNS(SVG_NS, "text");
@@ -350,6 +377,8 @@ export function getModuleVisualizerGraphRendererSource(): string {
       for (const [edgeId, record] of state.edgeElementsById) {
         record.path.classList.toggle("selected", state.selectedEdgeId === edgeId);
         record.path.classList.toggle("entering", state.enteringEdgeIds.has(edgeId));
+        record.direction.classList.toggle("selected", state.selectedEdgeId === edgeId);
+        record.direction.classList.toggle("entering", state.enteringEdgeIds.has(edgeId));
       }
     }
 
@@ -373,8 +402,8 @@ export function getModuleVisualizerGraphRendererSource(): string {
       marker.setAttribute("viewBox", "0 0 10 10");
       marker.setAttribute("refX", "9");
       marker.setAttribute("refY", "5");
-      marker.setAttribute("markerWidth", "6");
-      marker.setAttribute("markerHeight", "6");
+      marker.setAttribute("markerWidth", "8");
+      marker.setAttribute("markerHeight", "8");
       marker.setAttribute("orient", "auto-start-reverse");
       const arrow = document.createElementNS(SVG_NS, "path");
       arrow.setAttribute("d", "M 0 0 L 10 5 L 0 10 z");

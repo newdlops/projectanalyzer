@@ -12,6 +12,14 @@ import type {
   ModuleFlowGraphNodeLayout,
   ModuleFlowGraphRankBounds
 } from "./moduleFlowGraphLayout";
+import {
+  createModuleFlowEdgeBridges,
+  getModuleFlowEdgeBridgesBrowserSource
+} from "./moduleFlowEdgeBridges";
+export type { ModuleFlowEdgeBridge } from "./moduleFlowEdgeBridges";
+
+// Serialized routing calls the browser declaration instead of a CommonJS import.
+const createModuleFlowEdgeBridgesForRouting = createModuleFlowEdgeBridges;
 
 /** Geometry constants supplied by the layout so spacing and routing agree. */
 export type ModuleFlowGraphRoutingOptions = {
@@ -42,6 +50,8 @@ type MutableEdgeRouting = {
 /** Returns all routing declarations for a nonce-protected inline script. */
 export function getModuleFlowGraphRoutingBrowserSource(): string {
   return [
+    getModuleFlowEdgeBridgesBrowserSource(),
+    "const createModuleFlowEdgeBridgesForRouting = createModuleFlowEdgeBridges;",
     compareRoutingText,
     groupRoutingEdges,
     nodeCenterX,
@@ -140,7 +150,11 @@ export function routeModuleFlowGraphEdges(
     });
   }
 
-  return result;
+  const bridgesByEdgeId = createModuleFlowEdgeBridgesForRouting(result);
+  return result.map((edge) => {
+    const bridges = bridgesByEdgeId.get(edge.edgeId);
+    return bridges && bridges.length > 0 ? { ...edge, bridges } : edge;
+  });
 }
 
 /** Allocates distinct source/target ports and rank tracks for every edge. */

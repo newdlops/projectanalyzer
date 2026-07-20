@@ -124,6 +124,11 @@ test("routes diamond and long-forward edges outside every unrelated node box", (
   assert.ok(longEdge);
   assert.equal(longEdge.route, "long");
   assert.equal(typeof longEdge.outerTrack, "number");
+  assert.equal(longEdge.bridges?.length, 2);
+  assert.equal(
+    longEdge.bridges?.reduce((count, bridge) => count + bridge.crossingCount, 0),
+    2
+  );
   assertNoNodeOverlap(layout.nodes);
   assertEdgesAvoidUnrelatedNodes(layout, edges);
 });
@@ -142,6 +147,7 @@ test("exports the same self-contained layout implementation for a browser script
 
   assert.match(source, /function createModuleFlowSccIndex/u);
   assert.match(source, /function routeModuleFlowGraphEdges/u);
+  assert.match(source, /function createModuleFlowEdgeBridges/u);
   assert.match(source, /function createModuleFlowGraphLayout/u);
   assert.deepEqual(browserLayout(nodes, edges), createModuleFlowGraphLayout(nodes, edges));
 });

@@ -315,6 +315,8 @@ export function getModuleVisualizerStyles(): string {
       fill: none;
       stroke: color-mix(in srgb, var(--vscode-descriptionForeground) 68%, transparent);
       stroke-width: 1.5;
+      stroke-linecap: round;
+      stroke-linejoin: round;
       vector-effect: non-scaling-stroke;
       pointer-events: stroke;
       cursor: pointer;
@@ -325,6 +327,22 @@ export function getModuleVisualizerStyles(): string {
     .module-edge.contains { stroke-dasharray: 4 4; opacity: 0.62; }
     .module-edge.selected { stroke: var(--vscode-focusBorder); stroke-width: 3; }
     .module-edge.entering { animation: module-edge-enter 260ms ease-out both; }
+
+    .module-edge-direction {
+      fill: color-mix(in srgb, var(--vscode-descriptionForeground) 84%, transparent);
+      stroke: var(--vscode-editor-background);
+      stroke-width: 1.2;
+      stroke-linejoin: round;
+      paint-order: stroke fill;
+      vector-effect: non-scaling-stroke;
+      pointer-events: none;
+    }
+
+    .module-edge-direction.aggregate { fill: var(--vscode-textLink-foreground); }
+    .module-edge-direction.concreteCall { fill: var(--vscode-symbolIcon-functionForeground); }
+    .module-edge-direction.contains { opacity: 0.68; }
+    .module-edge-direction.selected { fill: var(--vscode-focusBorder); stroke-width: 2; }
+    .module-edge-direction.entering { animation: module-edge-enter 260ms ease-out both; }
 
     .module-edge-hit {
       fill: none;
@@ -435,7 +453,8 @@ export function getModuleVisualizerStyles(): string {
 
     @media (prefers-reduced-motion: reduce) {
       .module-card.entering,
-      .module-edge.entering { animation: none; }
+      .module-edge.entering,
+      .module-edge-direction.entering { animation: none; }
     }
   `;
 }

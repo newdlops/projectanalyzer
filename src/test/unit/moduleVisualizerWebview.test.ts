@@ -77,6 +77,8 @@ test("embeds the shared layout, SCC, and orthogonal routing runtime", () => {
   assert.match(program, /function createModuleFlowGraphLayout\(/u);
   assert.match(program, /function createModuleFlowSccIndex\(/u);
   assert.match(program, /function routeModuleFlowGraphEdges\(/u);
+  assert.match(program, /function createModuleFlowEdgeBridges\(/u);
+  assert.match(program, /function createModuleFlowEdgePath\(/u);
   assert.match(program, /createModuleFlowGraphLayout\(layoutNodes, layoutEdges\)/u);
   assert.match(program, /reconcileModuleFlowEdges\(layout, scene\.edges\)/u);
   assert.match(program, /reconcileModuleFlowNodes\(layout, scene\.nodes, depthByModuleId\)/u);
@@ -129,8 +131,23 @@ test("preserves the clicked anchor and honors enter-motion preferences", () => {
   );
   assert.match(
     styles,
-    /@media \(prefers-reduced-motion: reduce\)[\s\S]*\.module-card\.entering,[\s\S]*\.module-edge\.entering\s*\{ animation: none; \}/u
+    /@media \(prefers-reduced-motion: reduce\)[\s\S]*\.module-card\.entering,[\s\S]*\.module-edge\.entering,[\s\S]*\.module-edge-direction\.entering\s*\{ animation: none; \}/u
   );
+});
+
+test("renders crossed edges as curved bridges with local direction cues", () => {
+  const document = createDocument();
+  const program = requireBrowserProgram(document);
+  const styles = requireStyles(document);
+
+  assert.match(program, /const bridges = edgeLayout\.bridges \|\| \[\]/u);
+  assert.match(program, /createModuleFlowEdgePath\(edgeLayout\.points, bridges\)/u);
+  assert.match(program, /createModuleFlowBridgeDirectionPath\(edgeLayout\.points, bridges\)/u);
+  assert.match(program, /record\.direction\.setAttribute\("d", directionData\)/u);
+  assert.match(program, /crossed line/u);
+  assert.match(program, /marker\.setAttribute\("markerWidth", "8"\)/u);
+  assert.match(styles, /\.module-edge-direction\s*\{[\s\S]*paint-order: stroke fill;/u);
+  assert.match(styles, /\.module-edge-direction\.selected\s*\{/u);
 });
 
 test("offers focal zoom, fit, keyboard controls, resize preservation, and drag pan", () => {

@@ -127,6 +127,26 @@ test("Explorer workspace analysis delegates to the coordinator without latest fa
   assert.doesNotMatch(explorer, /createWorkspaceCacheKey/u);
 });
 
+test("edge crossing bridges stay inside the pure iterative Module Flow layer", () => {
+  const bridges = readSource(
+    "src/application/moduleFlow/moduleFlowEdgeBridges.ts"
+  );
+  const routing = readSource(
+    "src/application/moduleFlow/moduleFlowGraphRouting.ts"
+  );
+
+  assert.match(bridges, /export function createModuleFlowEdgeBridges/u);
+  assert.match(bridges, /while \(low < high\)/u);
+  assert.match(bridges, /for \(const crossingSegment of vertical\)/u);
+  assert.match(bridges, /export function createModuleFlowEdgePath/u);
+  assert.match(bridges, /export function createModuleFlowBridgeDirectionPath/u);
+  assert.doesNotMatch(bridges, /from "(?:\.\.\/)*(?:webview|vscode|extension|protocol)/u);
+  assert.match(
+    routing,
+    /createModuleFlowEdgeBridgesForRouting\(result\)/u
+  );
+});
+
 /** Reads a repository source file without assuming the compiled output location. */
 function readSource(relativePath: string): string {
   return fs.readFileSync(path.join(process.cwd(), relativePath), "utf8");
