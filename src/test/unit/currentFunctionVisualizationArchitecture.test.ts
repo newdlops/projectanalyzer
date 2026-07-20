@@ -235,6 +235,52 @@ test("value-change evidence stays language-adapted, complete, and UI-independent
   assert.doesNotMatch(combined, /from ".*(?:webview|protocol|vscode|extension)/u);
 });
 
+test("lexical value flow stays parser-adapted, bounded, iterative, and protocol-safe", () => {
+  const projection = readSource(
+    "src/analyzer/functionLogic/dataFlow/functionLogicDataFlow.ts"
+  );
+  const typescript = readSource(
+    "src/analyzer/functionLogic/dataFlow/typescriptFunctionDataFlow.ts"
+  );
+  const lezer = readSource(
+    "src/analyzer/functionLogic/dataFlow/lezerFunctionDataFlow.ts"
+  );
+  const sharedLezerPipeline = readSource(
+    "src/analyzer/functionLogic/core/lezerFunctionLogicAnalyzer.ts"
+  );
+  const protocol = readSource("src/protocol/functionLogic.ts");
+  const renderer = readSource("src/webview/codeFlow/functionLogicBrowserSource.ts");
+  const browser = readSource(
+    "src/webview/codeFlow/dataFlow/functionLogicDataFlowBrowserSource.ts"
+  );
+  const compound = readSource(
+    "src/webview/functionVisualizer/compoundFunctionLogicGraphSource.ts"
+  );
+
+  assert.match(projection, /maximumDepth = blocks\.length/u);
+  assert.match(projection, /maximumFlows = DEFAULT_MAX_VALUE_FLOWS/u);
+  assert.match(projection, /while \(cursor < pending\.length\)/u);
+  assert.match(projection, /const bestDepthByBlockId = new Map/u);
+  assert.match(projection, /findReachingDefinitionBlocks/u);
+  assert.match(typescript, /while \(pending\.length > 0\)/u);
+  assert.match(typescript, /NodeFlags\.Const/u);
+  assert.match(lezer, /collectPythonFunctionValueFacts/u);
+  assert.match(lezer, /collectJavaFunctionValueFacts/u);
+  assert.match(lezer, /\bfinal\b/u);
+  assert.match(sharedLezerPipeline, /collectValueFacts/u);
+  assert.doesNotMatch(
+    [projection, typescript, lezer].join("\n"),
+    /from ".*(?:webview|protocol|vscode|extension)/u
+  );
+  assert.match(protocol, /FunctionLogicValueBindingPayload/u);
+  assert.match(protocol, /FunctionLogicValueFlowPayload/u);
+  assert.match(renderer, /getFunctionLogicDataFlowBrowserSource/u);
+  assert.match(browser, /createFunctionLogicValueFlowPath/u);
+  assert.match(browser, /formatFunctionLogicBindingKind/u);
+  assert.match(compound, /createCompoundBindingId/u);
+  assert.match(compound, /createCompoundValueFlowId/u);
+});
+
 test("child functions use bounded iterative attachment on one shared graph canvas", () => {
   const browser = readSource(
     "src/webview/functionVisualizer/functionVisualizerBrowserSource.ts"
@@ -273,6 +319,8 @@ test("child functions use bounded iterative attachment on one shared graph canva
   assert.match(compoundScene, /eventHandler \|\| !continuationId/u);
   assert.match(compoundScene, /compound-resume:/u);
   assert.match(compoundScene, /relation: "callReturn"/u);
+  assert.match(compoundScene, /valueBindings/u);
+  assert.match(compoundScene, /valueFlows/u);
   assert.match(compoundScene, /getCompoundFunctionLogicDimensionsSource/u);
   assert.match(compoundScene, /measureCompoundBlockDimensions/u);
   assert.match(compoundDimensions, /function measureCompoundBlockDimensions/u);

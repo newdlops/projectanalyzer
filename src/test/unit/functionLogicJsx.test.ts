@@ -145,6 +145,26 @@ test("models concise JSX map callbacks as inferred repeated render flow", async 
   assert.equal(target.relation, "render");
   assert.equal(target.confidence, "inferred");
   assert.equal(projection.targetsByBlockId.get(renderedCard.id)?.[0]?.name, "RenderCard");
+
+  const items = analysis.valueBindings?.find((binding) => binding.name === "items");
+  const item = analysis.valueBindings?.find((binding) => binding.name === "item");
+  assert.ok(items && item);
+  assert.deepEqual(
+    [items.kind, items.confidence, item.kind, item.confidence],
+    ["parameter", "exact", "parameter", "inferred"]
+  );
+  assert.ok(loop.valueAccesses?.some((access) =>
+    access.bindingId === item.id && access.access === "define"
+  ));
+  assert.ok(renderedCard.valueAccesses?.some((access) =>
+    access.bindingId === item.id && access.access === "read"
+  ));
+  assert.ok(analysis.valueFlows?.some((flow) =>
+    flow.bindingId === item.id
+      && flow.sourceBlockId === loop.id
+      && flow.targetBlockId === renderedCard.id
+      && flow.confidence === "inferred"
+  ));
 });
 
 test("preserves nested ternary ownership inside JSX render flow", async () => {

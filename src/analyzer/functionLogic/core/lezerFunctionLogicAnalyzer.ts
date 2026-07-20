@@ -34,6 +34,10 @@ import {
 } from "./functionLogicSupport";
 import type { LezerSource } from "../../core/lezerSource";
 import { hasLezerError } from "../../core/lezerSource";
+import {
+  createFunctionLogicDataFlowProjection,
+  type FunctionLogicValueFacts
+} from "../dataFlow";
 
 /** Selected callable and its executable body in one parsed source snapshot. */
 export type LezerCallableDescriptor = {
@@ -109,6 +113,10 @@ export type LezerFunctionLogicAdapter = {
     filePath: string,
     callable: LezerCallableDescriptor
   ): FunctionLogicCallsite[];
+  collectValueFacts?(
+    source: LezerSource,
+    callable: LezerCallableDescriptor
+  ): FunctionLogicValueFacts;
   createDefaultGaps(): FunctionLogicGap[];
 };
 
@@ -252,16 +260,34 @@ function buildLezerFunctionLogic(
     rootContainerId
   });
   const blocks = [entryBlock, ...visibleBlocks, exitBlock];
+  const dataFlow = adapter.collectValueFacts
+    ? createFunctionLogicDataFlowProjection(
+        blocks,
+        edges,
+        adapter.collectValueFacts(source, callable)
+      )
+    : undefined;
+  const omittedDataFlowCount = (dataFlow?.omittedFactCount ?? 0)
+    + (dataFlow?.omittedFlowCount ?? 0);
+  if (omittedDataFlowCount > 0) {
+    gaps.push({
+      code: "parseLimited",
+      message: `${omittedDataFlowCount} additional value-flow fact(s) were omitted after the bounded data-flow limit.`
+    });
+  }
+  const projectedBlocks = dataFlow?.blocks ?? blocks;
   return {
     functionNode: graphNode,
     language: adapter.language,
     signature: callable.signature,
     lexicalOwnerQualifiedName: callable.lexicalOwnerQualifiedName || undefined,
-    blocks,
+    blocks: projectedBlocks,
     edges,
     callsites,
+    valueBindings: dataFlow?.valueBindings,
+    valueFlows: dataFlow?.valueFlows,
     gaps,
-    summary: createFunctionLogicSummary(blocks, callsites.length)
+    summary: createFunctionLogicSummary(projectedBlocks, callsites.length)
   };
 }
 

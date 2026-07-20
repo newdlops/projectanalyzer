@@ -5,12 +5,24 @@
 
 import type { SourceRange, SymbolNode } from "../../shared/types";
 import type { FunctionLogicValueChange } from "./valueChanges/types";
+import type {
+  FunctionLogicValueAccess,
+  FunctionLogicValueBinding,
+  FunctionLogicValueFlow
+} from "./dataFlow/types";
 
 export type {
   FunctionLogicValueChange,
   FunctionLogicValueChangeOperation,
   FunctionLogicValueTargetKind
 } from "./valueChanges/types";
+export type {
+  FunctionLogicValueAccess,
+  FunctionLogicValueAccessKind,
+  FunctionLogicValueBinding,
+  FunctionLogicValueBindingKind,
+  FunctionLogicValueFlow
+} from "./dataFlow/types";
 
 /** Statement roles visible in the Function Logic Reader. */
 export type FunctionLogicBlockKind =
@@ -75,6 +87,8 @@ export type FunctionLogicBlock = {
   confidence: FunctionLogicConfidence;
   /** Exact writes and conservative receiver changes visible inside this block. */
   valueChanges?: FunctionLogicValueChange[];
+  /** Parameter/local/constant definitions and uses mapped to this block. */
+  valueAccesses?: FunctionLogicValueAccess[];
   filePath: string;
   range: SourceRange;
 };
@@ -138,6 +152,9 @@ export type FunctionLogicAnalysis = {
   blocks: FunctionLogicBlock[];
   edges: FunctionLogicEdge[];
   callsites: FunctionLogicCallsite[];
+  /** Bounded lexical binding identities and possible reaching-definition links. */
+  valueBindings?: FunctionLogicValueBinding[];
+  valueFlows?: FunctionLogicValueFlow[];
   gaps: FunctionLogicGap[];
   summary: FunctionLogicSummary;
 };

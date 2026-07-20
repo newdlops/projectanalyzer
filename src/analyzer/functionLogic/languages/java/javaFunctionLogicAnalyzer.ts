@@ -20,6 +20,7 @@ import {
   findSelectedJavaCallable,
   getJavaRootStatements
 } from "./javaFunctionLogicSyntax";
+import { collectJavaFunctionValueFacts } from "../../dataFlow";
 
 const JAVA_FUNCTION_LOGIC_ADAPTER: LezerFunctionLogicAdapter = {
   language: "java",
@@ -28,6 +29,7 @@ const JAVA_FUNCTION_LOGIC_ADAPTER: LezerFunctionLogicAdapter = {
   classifyStatement: classifyJavaStatement,
   describeControl: describeJavaControl,
   collectCallsites: collectJavaFunctionCallsites,
+  collectValueFacts: collectJavaFunctionValueFacts,
   createDefaultGaps: createJavaFunctionLogicGaps
 };
 

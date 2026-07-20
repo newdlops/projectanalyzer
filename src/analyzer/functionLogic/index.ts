@@ -23,3 +23,17 @@ export type {
   FunctionLogicValueChangeOperation,
   FunctionLogicValueTargetKind
 } from "./valueChanges";
+export {
+  createFunctionLogicDataFlowProjection
+} from "./dataFlow";
+export type {
+  FunctionLogicDataFlowProjection,
+  FunctionLogicValueAccess,
+  FunctionLogicValueAccessFact,
+  FunctionLogicValueAccessKind,
+  FunctionLogicValueBinding,
+  FunctionLogicValueBindingFact,
+  FunctionLogicValueBindingKind,
+  FunctionLogicValueFacts,
+  FunctionLogicValueFlow
+} from "./dataFlow";

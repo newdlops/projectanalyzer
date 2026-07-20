@@ -54,6 +54,11 @@ import {
   toSourceRange
 } from "./typescriptFunctionLogicSyntax";
 import { collectTypeScriptExpressionValueChanges } from "./valueChanges";
+import {
+  collectTypeScriptFunctionValueFacts,
+  createFunctionLogicDataFlowProjection,
+  type FunctionLogicDataFlowProjection
+} from "./dataFlow";
 
 /** Analyzes one selected callable against its current source snapshot. */
 export function analyzeFunctionLogic(input: FunctionLogicAnalysisInput): FunctionLogicAnalysis {
@@ -256,16 +261,25 @@ function buildFunctionLogic(
   if (jsxExpansion.omittedBlockCount > 0) {
     gaps.push(createJsxLimitGap(jsxExpansion.omittedBlockCount, maxBlocks));
   }
+  const dataFlow = createTypeScriptDataFlow(
+    sourceFile,
+    functionNode,
+    jsxExpansion.blocks,
+    jsxExpansion.edges,
+    gaps
+  );
 
   return {
     functionNode: graphNode,
     language: getSupportedLanguage(graphNode),
     signature: createFunctionSignature(sourceFile, functionNode),
-    blocks: jsxExpansion.blocks,
+    blocks: dataFlow.blocks,
     edges: jsxExpansion.edges,
     callsites,
+    valueBindings: dataFlow.valueBindings,
+    valueFlows: dataFlow.valueFlows,
     gaps,
-    summary: createSummary(jsxExpansion.blocks, countDirectCallsites(callsites))
+    summary: createSummary(dataFlow.blocks, countDirectCallsites(callsites))
   };
 }
 
@@ -386,16 +400,48 @@ function finalizeSimpleExpressionAnalysis(
   if (expansion.omittedBlockCount > 0) {
     gaps.push(createJsxLimitGap(expansion.omittedBlockCount, maxBlocks));
   }
+  const dataFlow = createTypeScriptDataFlow(
+    sourceFile,
+    functionNode,
+    expansion.blocks,
+    expansion.edges,
+    gaps
+  );
   return {
     functionNode: graphNode,
     language: getSupportedLanguage(graphNode),
     signature: createFunctionSignature(sourceFile, functionNode),
-    blocks: expansion.blocks,
+    blocks: dataFlow.blocks,
     edges: expansion.edges,
     callsites,
+    valueBindings: dataFlow.valueBindings,
+    valueFlows: dataFlow.valueFlows,
     gaps,
-    summary: createSummary(expansion.blocks, countDirectCallsites(callsites))
+    summary: createSummary(dataFlow.blocks, countDirectCallsites(callsites))
   };
+}
+
+/** Adds lexical binding uses and bounded reaching-definition links to the CFG. */
+function createTypeScriptDataFlow(
+  sourceFile: ts.SourceFile,
+  functionNode: FunctionLikeWithBody,
+  blocks: FunctionLogicBlock[],
+  edges: FunctionLogicEdge[],
+  gaps: FunctionLogicGap[]
+): FunctionLogicDataFlowProjection {
+  const projection = createFunctionLogicDataFlowProjection(
+    blocks,
+    edges,
+    collectTypeScriptFunctionValueFacts(sourceFile, functionNode)
+  );
+  const omittedCount = projection.omittedFactCount + projection.omittedFlowCount;
+  if (omittedCount > 0) {
+    gaps.push({
+      code: "parseLimited",
+      message: `${omittedCount} additional value-flow fact(s) were omitted after the bounded data-flow limit.`
+    });
+  }
+  return projection;
 }
 
 /** Gives an expanded JSX return a compact terminal node instead of duplicate markup. */

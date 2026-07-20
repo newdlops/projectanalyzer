@@ -20,6 +20,7 @@ import {
   findSelectedPythonCallable,
   getPythonRootStatements
 } from "./pythonFunctionLogicSyntax";
+import { collectPythonFunctionValueFacts } from "../../dataFlow";
 
 const PYTHON_FUNCTION_LOGIC_ADAPTER: LezerFunctionLogicAdapter = {
   language: "python",
@@ -28,6 +29,7 @@ const PYTHON_FUNCTION_LOGIC_ADAPTER: LezerFunctionLogicAdapter = {
   classifyStatement: classifyPythonStatement,
   describeControl: describePythonControl,
   collectCallsites: collectPythonFunctionCallsites,
+  collectValueFacts: collectPythonFunctionValueFacts,
   createDefaultGaps: createPythonFunctionLogicGaps
 };
 
