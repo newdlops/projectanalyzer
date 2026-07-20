@@ -36,8 +36,8 @@ Host; it is not currently a browser/Web extension.
 2. Place the cursor inside a supported function and right-click
    **Visualize Current Function**.
 3. Read from the entry block through decisions, effects, mutations, and exits.
-4. Click a call block to attach the child function on the same canvas; click the
-   expanded call again to collapse that branch.
+4. Click a call or custom JSX render block to attach the child function or
+   component on the same canvas; click it again to collapse that branch.
 5. Use the visible **See how modules connect** card and **Open Module Flow**
    button when the question moves from one function to project responsibility
    boundaries.
@@ -46,7 +46,7 @@ Supported source-first function visualization currently covers:
 
 | Language family | Function Logic coverage |
 | --- | --- |
-| TypeScript / JavaScript / JSX / TSX | Statements, branches, loops, effects, receiver chains, and component callsites |
+| TypeScript / JavaScript / JSX / TSX | Statements, branches, loops, effects, JSX render choices/events, receiver chains, and component drill targets |
 | Python | Statements, `with`, comprehensions, generator arguments, receiver chains, mutations, and exits |
 | Java | Methods, constructors, branches, loops, switches, structured regions, mutations, and exits |
 | F# / OCaml | Named functions and `|>` stages with final-argument insertion |
@@ -263,11 +263,15 @@ composition, computation expressions/macros, Haskell composition, and monadic
 bind are not relabeled as pipe chains; higher-order callback execution remains a
 visible runtime limitation.
 
-JSX and TSX functions retain normal statement flow and also expose uppercase or
-member-style component tags such as `<Badge />` and `<UI.Panel />` as exact
-component callsites. Lowercase intrinsic elements stay presentation syntax,
-inline event callbacks remain independently selectable functions, and
-`memo`/`forwardRef` wrapped components retain their binding names for analysis.
+JSX and TSX returns expand into a source-ordered render flow alongside normal
+statement control flow. Intrinsic elements, custom components, prop/child call
+expressions, ternary and logical render choices, and event bindings receive
+separate graph nodes. Uppercase or member-style tags such as `<Badge />` and
+`<UI.Panel />` expose exact render relations that can attach the component's
+Function Logic without pretending JSX is an immediate JavaScript call. Concise
+`.map(item => <Item />)` output is shown as an inferred repeated render path.
+Inline event callback bodies remain outside the render path and independently
+selectable, while `memo`/`forwardRef` components retain their binding names.
 
 Python `with` and `async with` keep only the context-manager header in their
 structural node. Each indented body statement remains a separate flow node and
@@ -460,3 +464,12 @@ npm run package:vsix
 
 Packaging builds one target-specific native engine, excludes Cargo build
 artifacts, and checks the VSIX size budget.
+
+Marketplace releases use the publisher identity `newdlops.project-analyzer`.
+Pushing a matching `v<major>.<minor>.<patch>` tag runs the guarded six-platform
+release workflow. Maintainer credentials, OIDC setup, version checks, supported
+targets, and retry behavior are documented in [Releasing Project Analyzer](docs/RELEASING.md).
+
+## License
+
+Project Analyzer is available under the [MIT License](LICENSE).
