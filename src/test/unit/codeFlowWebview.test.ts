@@ -141,7 +141,22 @@ test("function detail renders internal branches and opens exact statement eviden
     assert.equal(runtime.countRenderedByClass("flow-steps", "logic-depth-2"), 1);
     assert.ok(rendered.includes("function place(order: Order)"));
     assert.ok(rendered.includes("if order.valid"));
-    assert.ok(rendered.includes("true → repository.save(order);"));
+    assert.ok(rendered.includes("Choose true → repository.save(order);"));
+    assert.ok(rendered.includes("Choose false → END"));
+    runtime.clickByTitle("Choose path · true → repository.save(order);");
+    assert.ok(runtime.getRenderedText("flow-steps").includes(
+      "1 branch choice selected · reachable continuation highlighted"
+    ));
+    assert.ok(runtime.getRenderedText("flow-steps").includes(
+      "Selected true → repository.save(order);"
+    ));
+    runtime.clickByTitle("Clear all selected branch choices");
+    assert.ok(runtime.getRenderedText("flow-steps").includes(
+      "Choose true → repository.save(order);"
+    ));
+    runtime.clickByTitle("Choose path · false → END");
+    assert.ok(runtime.getRenderedText("flow-steps").includes("Selected false → END"));
+    runtime.clickByTitle("Clear all selected branch choices");
     runtime.clickByTitle("Zoom out function graph");
     runtime.clickByTitle("Reset function graph zoom");
     runtime.clickByTitle("Zoom in function graph");
@@ -407,6 +422,14 @@ function createFunctionLogicDetailMessage(version: string): unknown {
             kind: "return",
             label: "return",
             confidence: "exact"
+          },
+          {
+            id: "function-logic-edge:44444444444444444444444444444444",
+            sourceId: conditionId,
+            targetId: exitId,
+            kind: "false",
+            label: "false",
+            confidence: "exact"
           }
         ],
         layout: {
@@ -431,6 +454,18 @@ function createFunctionLogicDetailMessage(version: string): unknown {
               labelX: 155,
               labelY: 242,
               route: "forward"
+            },
+            {
+              edgeId: "function-logic-edge:44444444444444444444444444444444",
+              points: [
+                { x: 242, y: 56 },
+                { x: 270, y: 56 },
+                { x: 270, y: 304 },
+                { x: 242, y: 304 }
+              ],
+              labelX: 265,
+              labelY: 180,
+              route: "long"
             }
           ]
         },

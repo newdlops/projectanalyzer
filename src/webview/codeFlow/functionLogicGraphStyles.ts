@@ -1,6 +1,7 @@
 /** Theme-aware styles for the bounded function-local control-flow graph. */
 
 import { getFunctionLogicCompoundGroupStyles } from "./functionLogicCompoundGroupStyles";
+import { getFunctionLogicBranchChoiceStyles } from "./branchChoices";
 
 /** Returns CSS for graph nodes, routed edges, lanes, and selection evidence. */
 export function getFunctionLogicGraphStyles(): string {
@@ -763,5 +764,7 @@ export function getFunctionLogicGraphStyles(): string {
         grid-template-columns: 1fr;
       }
     }
+
+    ${getFunctionLogicBranchChoiceStyles()}
   `;
 }

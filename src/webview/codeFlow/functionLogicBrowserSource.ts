@@ -7,6 +7,8 @@
 
 import { getFunctionLogicCompoundGroupBrowserSource } from "./functionLogicCompoundGroupBrowserSource";
 import { getFunctionLogicDrillBrowserSource } from "./functionLogicDrillBrowserSource";
+import { getFunctionLogicBranchChoicesBrowserSource } from "./branchChoices";
+import { getFunctionLogicSelectionBrowserSource } from "./functionLogicSelectionBrowserSource";
 
 /** Returns browser functions for rendering the function-local control graph. */
 export function getFunctionLogicBrowserSource(): string {
@@ -15,6 +17,8 @@ export function getFunctionLogicBrowserSource(): string {
 
     ${getFunctionLogicCompoundGroupBrowserSource()}
     ${getFunctionLogicDrillBrowserSource()}
+    ${getFunctionLogicBranchChoicesBrowserSource()}
+    ${getFunctionLogicSelectionBrowserSource()}
 
     /** Renders the function signature, graph canvas, legend, and node details. */
     function renderFunctionLogic(logic, graphContext) {
@@ -62,13 +66,48 @@ export function getFunctionLogicBrowserSource(): string {
       const viewport = document.createElement("div");
       const stage = document.createElement("div");
       const canvas = document.createElement("div");
-      const edgeRendering = createLogicEdgeSvg(logic.layout, edgesById, graphContext);
+      const detailPanel = document.createElement("section");
+      const nodeButtonsById = new Map();
+      const rootBlock = logic.blocks.find((block) => block.kind === "entry") || logic.blocks[0];
+      const choiceSessionKey = (state.graph?.version || "graph") + "::" + rootBlock.id;
+      let branchChoices = readFunctionLogicBranchChoices(choiceSessionKey, logic.edges);
+      let edgeRendering;
+      const applyBranchChoice = (edge) => {
+        branchChoices = edge
+          ? toggleFunctionLogicBranchChoiceSession(choiceSessionKey, logic.edges, edge)
+          : clearFunctionLogicBranchChoiceSession(choiceSessionKey);
+        applyFunctionLogicBranchChoicePresentation(
+          logic.blocks,
+          logic.edges,
+          branchChoices,
+          nodeButtonsById,
+          edgeRendering.elementsById
+        );
+        const selectedBlockId = edge?.sourceId || state.selectedLogicBlockId || rootBlock.id;
+        selectLogicGraphNode(
+          selectedBlockId,
+          nodeButtonsById,
+          blocksById,
+          outgoingBySourceId,
+          connectedEdgeIdsByBlockId,
+          edgeRendering.elementsById,
+          detailPanel,
+          false,
+          graphContext,
+          applyBranchChoice,
+          branchChoices
+        );
+      };
+      edgeRendering = createLogicEdgeSvg(
+        logic.layout,
+        edgesById,
+        graphContext,
+        applyBranchChoice
+      );
       const compoundGroupLayer = createLogicCompoundGroupLayer(
         compoundGroups,
         blocksById
       );
-      const detailPanel = document.createElement("section");
-      const nodeButtonsById = new Map();
       const readScale = graphContext && graphContext.readScale
         ? graphContext.readScale
         : () => state.logicGraphScale;
@@ -136,7 +175,9 @@ export function getFunctionLogicBrowserSource(): string {
             edgeRendering.elementsById,
             detailPanel,
             true,
-            graphContext
+            graphContext,
+            applyBranchChoice,
+            branchChoices
           );
           if (block.drillTargets && block.drillTargets.length > 0
             && graphContext && graphContext.onExpandableBlockClick) {
@@ -146,6 +187,14 @@ export function getFunctionLogicBrowserSource(): string {
         nodeButtonsById.set(block.id, node);
         canvas.append(node);
       }
+
+      applyFunctionLogicBranchChoicePresentation(
+        logic.blocks,
+        logic.edges,
+        branchChoices,
+        nodeButtonsById,
+        edgeRendering.elementsById
+      );
 
       applyScale();
       stage.append(canvas);
@@ -166,7 +215,9 @@ export function getFunctionLogicBrowserSource(): string {
         edgeRendering.elementsById,
         detailPanel,
         false,
-        graphContext
+        graphContext,
+        applyBranchChoice,
+        branchChoices
       );
       return {
         element: graph,
@@ -241,6 +292,7 @@ export function getFunctionLogicBrowserSource(): string {
       if (summary.loopCount) parts.push(summary.loopCount + " loop" + plural(summary.loopCount));
       return parts.length
         ? parts.join(" and ") + " can change the path."
+          + (summary.branchCount ? " Select a true, false, or case label to follow one scenario." : "")
         : "No branch or loop is visible; read the main path from top to bottom.";
     }
 
@@ -288,6 +340,7 @@ export function getFunctionLogicBrowserSource(): string {
         createBadge("dashed · inferred", "logic-legend inferred"),
         createBadge("⚡ event · no return", "logic-legend event"),
         createBadge("Δ value", "logic-legend value-change"),
+        createBadge("◇ selectable choice", "logic-legend choice"),
         createBadge("↶ repeat", "logic-legend repeat")
       );
       controls.append(zoomOut, zoomReset, zoomIn);
@@ -344,14 +397,15 @@ export function getFunctionLogicBrowserSource(): string {
     }
 
     /** Draws every routed edge and label behind the interactive HTML nodes. */
-    function createLogicEdgeSvg(layout, edgesById, graphContext) {
+    function createLogicEdgeSvg(layout, edgesById, graphContext, onBranchChoice) {
       const svg = createLogicSvgElement("svg");
       const elementsById = new Map();
       svg.setAttribute("class", "logic-edge-layer");
       svg.setAttribute("width", String(layout.width));
       svg.setAttribute("height", String(layout.height));
       svg.setAttribute("viewBox", "0 0 " + layout.width + " " + layout.height);
-      svg.setAttribute("aria-hidden", "true");
+      svg.setAttribute("role", "group");
+      svg.setAttribute("aria-label", "Control paths; true, false, and case labels are selectable");
       svg.append(createLogicArrowMarker());
 
       for (const edgeLayout of layout.edges) {
@@ -359,6 +413,7 @@ export function getFunctionLogicBrowserSource(): string {
         if (!edge || edgeLayout.points.length < 2) continue;
         const path = createLogicSvgElement("path");
         const label = createLogicSvgElement("text");
+        const choice = isFunctionLogicBranchChoiceEdge(edge);
         const entering = Boolean(
           graphContext && graphContext.isEdgeEntering
           && graphContext.isEdgeEntering(edge)
@@ -377,13 +432,29 @@ export function getFunctionLogicBrowserSource(): string {
           + (edge.relation === "call" ? " logic-edge-label-call" : "")
           + (edge.relation === "event" ? " logic-edge-label-event" : "")
           + (edge.relation === "callReturn" ? " logic-edge-label-call-return" : "")
+          + (choice ? " logic-edge-choice" : "")
           + (entering ? " logic-edge-label-entering" : ""));
         label.setAttribute("x", String(edgeLayout.labelX));
         label.setAttribute("y", String(edgeLayout.labelY));
         if (edgeLayout.route !== "forward") label.setAttribute("text-anchor", "end");
         label.textContent = formatLogicEdge(edge);
+        path.setAttribute("aria-hidden", "true");
+        if (choice) {
+          label.setAttribute("role", "button");
+          label.setAttribute("tabindex", "0");
+          label.setAttribute("aria-label", "Choose path: " + formatLogicEdge(edge));
+          label.setAttribute("aria-pressed", "false");
+          label.addEventListener("click", () => onBranchChoice(edge));
+          label.addEventListener("keydown", (event) => {
+            if (event.key !== "Enter" && event.key !== " ") return;
+            event.preventDefault();
+            onBranchChoice(edge);
+          });
+        } else {
+          label.setAttribute("aria-hidden", "true");
+        }
         svg.append(path, label);
-        elementsById.set(edge.id, { path, label });
+        elementsById.set(edge.id, { path, label, choice });
       }
       return { svg, elementsById };
     }
@@ -521,120 +592,6 @@ export function getFunctionLogicBrowserSource(): string {
       }
       node.append(meta);
       return node;
-    }
-
-    /** Synchronizes graph selection and rebuilds the evidence detail panel. */
-    function selectLogicGraphNode(
-      blockId,
-      nodeButtonsById,
-      blocksById,
-      outgoingBySourceId,
-      connectedEdgeIdsByBlockId,
-      edgeElementsById,
-      detailPanel,
-      moveFocus,
-      graphContext
-    ) {
-      const selected = blocksById.get(blockId);
-      if (!selected) return;
-      if (graphContext && graphContext.onSelectionChanged) {
-        graphContext.onSelectionChanged(blockId);
-      } else {
-        state.selectedLogicBlockId = blockId;
-      }
-      for (const [candidateId, button] of nodeButtonsById) {
-        const active = candidateId === blockId;
-        button.classList.toggle("selected", active);
-        button.setAttribute("aria-pressed", active ? "true" : "false");
-      }
-      const connectedEdgeIds = new Set(connectedEdgeIdsByBlockId.get(blockId) || []);
-      for (const [edgeId, edgeElements] of edgeElementsById) {
-        const active = connectedEdgeIds.has(edgeId);
-        edgeElements.path.classList.toggle("active", active);
-        edgeElements.path.classList.toggle("dimmed", !active);
-        edgeElements.label.classList.toggle("active", active);
-        edgeElements.label.classList.toggle("dimmed", !active);
-      }
-      renderLogicSelection(
-        selected,
-        outgoingBySourceId.get(blockId) || [],
-        blocksById,
-        detailPanel,
-        graphContext
-      );
-      if (moveFocus) nodeButtonsById.get(blockId)?.focus();
-    }
-
-    /** Shows complete source meaning and transfers for the selected graph node. */
-    function renderLogicSelection(block, outgoing, blocksById, panel, graphContext) {
-      clearElement(panel);
-      const header = document.createElement("div");
-      const name = document.createElement("strong");
-      const confidence = createBadge(block.confidence, "confidence " + block.confidence);
-      const detail = document.createElement("p");
-      const meta = document.createElement("div");
-      header.className = "logic-selection-header";
-      name.textContent = block.label;
-      detail.className = "logic-selection-detail";
-      detail.textContent = block.detail;
-      meta.className = "logic-selection-meta";
-      meta.textContent = [block.branchLabel, block.sourceLocation].filter(Boolean).join(" · ");
-      header.append(createBadge(formatLogicKind(block.kind), "logic-kind " + block.kind), name, confidence);
-      panel.append(header, detail);
-      if (meta.textContent) panel.append(meta);
-
-      if (block.valueChanges && block.valueChanges.length > 0) {
-        const changes = document.createElement("div");
-        const title = document.createElement("strong");
-        changes.className = "logic-selection-value-section";
-        title.textContent = "Values changed here";
-        changes.append(
-          title,
-          createLogicValueChangeList(block.valueChanges, "logic-selection-value-changes")
-        );
-        panel.append(changes);
-      }
-
-      if (outgoing.length > 0) {
-        const transfers = document.createElement("div");
-        transfers.className = "logic-selection-transfers";
-        for (const edge of outgoing) {
-          const target = blocksById.get(edge.targetId);
-          transfers.append(createBadge(
-            formatLogicEdge(edge) + (target ? " → " + completeTargetLabel(target) : ""),
-            "logic-transfer " + edge.kind
-              + (edge.relation ? " " + edge.relation : "")
-              + (edge.confidence === "inferred" ? " inferred" : "")
-          ));
-        }
-        panel.append(transfers);
-      }
-
-      if (block.drillTargets && block.drillTargets.length > 0) {
-        const callees = document.createElement("div");
-        const title = document.createElement("strong");
-        callees.className = "logic-selection-callees";
-        title.textContent = block.drillTargets.some((target) => target.relation === "event")
-          ? "Inspect separately dispatched event handlers"
-          : block.drillTargets.some((target) => target.relation === "render")
-            ? "Continue into rendered or called code"
-            : "Continue into called code";
-        callees.append(title);
-        for (const target of block.drillTargets) {
-          callees.append(createDrillTargetButton(target, block, graphContext));
-        }
-        panel.append(callees);
-      }
-
-      if (block.evidenceToken) {
-        const source = document.createElement("button");
-        source.type = "button";
-        source.className = "logic-button logic-open-statement";
-        source.textContent = "Open statement";
-        source.title = "Open statement" + (block.sourceLocation ? " · " + block.sourceLocation : "");
-        source.addEventListener("click", () => openLogicEvidence(block.evidenceToken));
-        panel.append(source);
-      }
     }
 
     /** Creates SVG nodes without interpolating Host text into markup. */

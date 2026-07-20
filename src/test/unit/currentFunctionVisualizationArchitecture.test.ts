@@ -179,6 +179,36 @@ test("shared parser syntax stays below Function Logic boundaries", () => {
   );
 });
 
+test("branch choices use a pure iterative reachability module and shared renderer", () => {
+  const choices = readSource(
+    "src/webview/codeFlow/branchChoices/functionLogicBranchChoices.ts"
+  );
+  const renderer = readSource(
+    "src/webview/codeFlow/functionLogicBrowserSource.ts"
+  );
+  const selection = readSource(
+    "src/webview/codeFlow/functionLogicSelectionBrowserSource.ts"
+  );
+  const styles = readSource(
+    "src/webview/codeFlow/branchChoices/functionLogicBranchChoiceStyles.ts"
+  );
+
+  assert.match(choices, /edge\.kind === "true"[\s\S]*edge\.kind === "false"[\s\S]*edge\.kind === "case"/u);
+  assert.match(choices, /while \(cursor < pendingBlocks\.length\)/u);
+  assert.match(choices, /const activeBlockIds = new Set/u);
+  assert.match(choices, /const bestDepthByBlockId = new Map/u);
+  assert.match(choices, /maximumDepth = blocks\.length/u);
+  assert.match(choices, /pruneFunctionLogicBranchChoices/u);
+  assert.doesNotMatch(choices, /from ".*(?:analyzer|application|protocol|vscode|extension)/u);
+  assert.match(renderer, /getFunctionLogicBranchChoicesBrowserSource/u);
+  assert.match(renderer, /applyFunctionLogicBranchChoicePresentation/u);
+  assert.match(renderer, /label\.addEventListener\("keydown"/u);
+  assert.match(selection, /createFunctionLogicBranchChoiceButton/u);
+  assert.match(selection, /createFunctionLogicBranchChoiceSummary/u);
+  assert.match(styles, /\.logic-edge\.choice-selected/u);
+  assert.match(styles, /\.logic-graph-node\.choice-dimmed/u);
+});
+
 test("value-change evidence stays language-adapted, complete, and UI-independent", () => {
   const support = readSource(
     "src/analyzer/functionLogic/valueChanges/valueChangeSupport.ts"

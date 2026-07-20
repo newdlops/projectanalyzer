@@ -438,7 +438,13 @@ test("drills into a child and reuses history when a call cycle returns to root",
 
     const rootText = runtime.getRenderedText("flow-steps");
     assert.ok(rootText.includes("Understand this function in four passes"));
-    assert.ok(rootText.includes("2 branch decisions can change the path."));
+    assert.ok(
+      rootText.includes(
+        "2 branch decisions can change the path. "
+          + "Select a true, false, or case label to follow one scenario."
+      ),
+      `missing decision guidance in: ${rootText}`
+    );
     assert.ok(rootText.includes("Go deeper into called functions"));
     assert.ok(rootText.includes("Child.load"));
 
