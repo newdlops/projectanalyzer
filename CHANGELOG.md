@@ -9,6 +9,14 @@ earlier local development builds were not tracked here.
 ### Added
 
 - An MIT License covering the extension source and bundled Rust analyzer.
+- Detached event-handler branches for named JSX handlers,
+  `addEventListener`, EventEmitter-style listeners, subscriptions, and event
+  property assignments. Handler flows do not return into registration flow.
+
+### Fixed
+
+- Added publisher-migration cleanup guidance and a manifest regression guard
+  for duplicate **Visualize Current Function** command/menu contributions.
 
 ## 0.0.1034 - 2026-07-20
 

@@ -27,6 +27,15 @@ Command-line installation is also supported:
 code --install-extension project-analyzer-<version>-<target>.vsix
 ```
 
+Builds before the `newdlops` publisher migration used the extension ID
+`local.project-analyzer`. If that legacy build is still installed, uninstall it
+before installing the current VSIX; otherwise both manifests contribute the
+same editor context-menu command:
+
+```sh
+code --uninstall-extension local.project-analyzer
+```
+
 The extension requires VS Code 1.92 or newer and runs in the desktop Extension
 Host; it is not currently a browser/Web extension.
 
@@ -36,8 +45,8 @@ Host; it is not currently a browser/Web extension.
 2. Place the cursor inside a supported function and right-click
    **Visualize Current Function**.
 3. Read from the entry block through decisions, effects, mutations, and exits.
-4. Click a call or custom JSX render block to attach the child function or
-   component on the same canvas; click it again to collapse that branch.
+4. Click a call, custom JSX render, or named event-binding block to attach the
+   related function on the same canvas; click it again to collapse that branch.
 5. Use the visible **See how modules connect** card and **Open Module Flow**
    button when the question moves from one function to project responsibility
    boundaries.
@@ -46,7 +55,7 @@ Supported source-first function visualization currently covers:
 
 | Language family | Function Logic coverage |
 | --- | --- |
-| TypeScript / JavaScript / JSX / TSX | Statements, branches, loops, effects, JSX render choices/events, receiver chains, and component drill targets |
+| TypeScript / JavaScript / JSX / TSX | Statements, branches, loops, effects, JSX render choices, listener registrations, detached event handlers, receiver chains, and component drill targets |
 | Python | Statements, `with`, comprehensions, generator arguments, receiver chains, mutations, and exits |
 | Java | Methods, constructors, branches, loops, switches, structured regions, mutations, and exits |
 | F# / OCaml | Named functions and `|>` stages with final-argument insertion |
@@ -138,8 +147,12 @@ dedicated Function Visualizer tab with a bounded control-flow graph:
   switch/match expressions
 - visibly inferred unique-name fallback when a lightweight graph misses a multiline body
 - click-to-attach child function blocks to the original graph canvas
+- named JSX handlers plus `addEventListener`, EventEmitter-style, subscription,
+  and `onmessage = handler` registrations shown as event boundaries
 - callsite-anchored scroll restoration and reduced-motion-aware child entry animation
 - `callsite → child flow → resume → caller branch` attachment on one compound canvas
+- `event binding → handler flow` attachment as a separate dashed dispatch branch,
+  with the registration's normal continuation preserved and no handler-to-caller return edge
 - distinct call/return styling plus per-edge node ports and rank-gap tracks that prevent overlapping routes
 - parent-aware child lanes and branch collapse for nested functions
 - lazy one-function-at-a-time analysis instead of eager recursive loading
@@ -271,7 +284,17 @@ separate graph nodes. Uppercase or member-style tags such as `<Badge />` and
 Function Logic without pretending JSX is an immediate JavaScript call. Concise
 `.map(item => <Item />)` output is shown as an inferred repeated render path.
 Inline event callback bodies remain outside the render path and independently
-selectable, while `memo`/`forwardRef` components retain their binding names.
+selectable. Stable references such as `onClick={handleClick}` expose an `event`
+drill target; attaching it creates a no-return dispatch branch instead of
+placing the handler body in the render continuation. `memo`/`forwardRef`
+components retain their binding names.
+
+TypeScript and JavaScript listener calls such as
+`target.addEventListener("click", handleClick)`, `emitter.on("data", handleData)`,
+`stream.subscribe(handleValue)`, and event-property assignments such as
+`socket.onmessage = handleMessage` receive the same event-boundary treatment.
+Generic `on`/`once`/`subscribe` and event-property spellings remain visibly
+`inferred` because static syntax alone does not prove the receiver's runtime type.
 
 Python `with` and `async with` keep only the context-manager header in their
 structural node. Each indented body statement remains a separate flow node and
@@ -333,6 +356,8 @@ Key reusable modules:
   orchestration, and iterative structured CFG construction
 - `src/analyzer/functionLogic/` — public language dispatcher and the
   TypeScript/JavaScript compiler-AST adapter
+- `src/analyzer/functionLogic/events/` — TypeScript/JavaScript JSX, listener API,
+  and event-property registration boundaries
 - `src/analyzer/functionLogic/languages/` — Python/Java Lezer adapters and the
   F#/OCaml/Elixir pipe-forward Function Logic adapter
 - `src/analyzer/languages/python/`, `src/analyzer/languages/java/`, and

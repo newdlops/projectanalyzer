@@ -12,20 +12,29 @@ const projectRoot = path.resolve(__dirname, "../../..");
 
 test("package contributions activate and expose the current-function editor menu", () => {
   const packageJson = JSON.parse(readSource("package.json")) as {
+    publisher: string;
     activationEvents: string[];
     contributes: {
-      commands: Array<{ command: string; title: string }>;
+      commands: Array<{ command: string; title: string; category?: string }>;
       menus: Record<string, Array<{ command: string; when?: string }>>;
     };
   };
   const commandId = "projectAnalyzer.visualizeCurrentFunction";
 
+  assert.equal(packageJson.publisher, "newdlops");
   assert.ok(packageJson.activationEvents.includes(`onCommand:${commandId}`));
-  assert.ok(packageJson.contributes.commands.some((command) =>
-    command.command === commandId && command.title === "Visualize Current Function"
-  ));
+  assert.deepEqual(
+    packageJson.contributes.commands.filter((command) => command.command === commandId),
+    [{
+      command: commandId,
+      title: "Visualize Current Function",
+      category: "Code Flow"
+    }]
+  );
   const contextMenu = packageJson.contributes.menus["editor/context"] ?? [];
-  const menuItem = contextMenu.find((item) => item.command === commandId);
+  const currentFunctionItems = contextMenu.filter((item) => item.command === commandId);
+  assert.equal(currentFunctionItems.length, 1);
+  const menuItem = currentFunctionItems[0];
   assert.match(menuItem?.when ?? "", /typescript.*javascript/u);
   assert.match(menuItem?.when ?? "", /python.*java/u);
   assert.match(menuItem?.when ?? "", /fsharp.*ocaml.*elixir/u);
@@ -106,6 +115,9 @@ test("language logic adapters keep parser-specific semantics behind pure boundar
   const functional = readSource(
     "src/analyzer/functionLogic/languages/functional/functionalFunctionLogicAnalyzer.ts"
   );
+  const events = readSource(
+    "src/analyzer/functionLogic/events/typescriptEventBindings.ts"
+  );
   const rustSupplement = readSource("src/analyzer/rust/rustAnalyzerBackend.ts");
   const services = readSource("src/extension/extensionServices.ts");
 
@@ -120,11 +132,13 @@ test("language logic adapters keep parser-specific semantics behind pure boundar
   assert.match(java, /LezerFunctionLogicAdapter/u);
   assert.match(functional, /collectFunctionalPipelineChains/u);
   assert.match(functional, /for \(let index = 1; index < blocks\.length; index \+= 1\)/u);
+  assert.match(events, /while \(pending\.length > 0\)/u);
+  assert.match(events, /readTypeScriptEventBinding/u);
   assert.match(rustSupplement, /addSupplementalLanguages/u);
   assert.match(rustSupplement, /"fsharp"[\s\S]*"ocaml"[\s\S]*"elixir"/u);
   assert.match(services, /new FunctionalLanguageAnalyzer\(\)/u);
   assert.doesNotMatch(
-    [lezerAnalyzer, structuredControl, python, java, functional].join("\n"),
+    [lezerAnalyzer, structuredControl, python, java, functional, events].join("\n"),
     /from ".*(?:vscode|webview|protocol|extension)/u
   );
 });
@@ -204,7 +218,8 @@ test("child functions use bounded iterative attachment on one shared graph canva
   assert.match(compoundScene, /while \(scopeCursor < pendingScopeIds\.length\)/u);
   assert.match(compoundScene, /createCompoundFunctionGraphLayout/u);
   assert.match(compoundScene, /rankBounds/u);
-  assert.match(compoundScene, /relation: "call"/u);
+  assert.match(compoundScene, /eventHandler \? "event" : "call"/u);
+  assert.match(compoundScene, /eventHandler \|\| !continuationId/u);
   assert.match(compoundScene, /compound-resume:/u);
   assert.match(compoundScene, /relation: "callReturn"/u);
   assert.match(compoundScene, /getCompoundFunctionLogicDimensionsSource/u);
