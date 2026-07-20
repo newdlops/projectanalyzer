@@ -28,6 +28,7 @@ const TOP_LINE_HEIGHT = 18;
 const VALUE_CHANGE_CHARACTER_WIDTH = 6.2;
 const VALUE_CHANGE_LINE_HEIGHT = 15;
 const VALUE_CHANGE_ROW_GAP = 3;
+const MAX_VALUE_ACCESS_ROWS = 8;
 const LANE_GAP = 34;
 const RANK_GAP = 66;
 const CANVAS_MARGIN_X = 38;
@@ -260,12 +261,18 @@ function groupBlocksByRank(
 function measureNodeDimensions(block: FunctionLogicBlockPayload): NodeDimensions {
   const metaText = block.sourceLocation || block.detail;
   const valueChangeTexts = (block.valueChanges ?? []).map(formatValueChangeText);
+  const allValueAccessTexts = (block.valueAccesses ?? []).map(formatValueAccessText);
+  const valueAccessTexts = allValueAccessTexts.slice(0, MAX_VALUE_ACCESS_ROWS);
+  if (allValueAccessTexts.length > MAX_VALUE_ACCESS_ROWS) {
+    valueAccessTexts.push(`+${allValueAccessTexts.length - MAX_VALUE_ACCESS_ROWS} more bindings`);
+  }
+  const valueRowTexts = [...valueChangeTexts, ...valueAccessTexts];
   const longestLineUnits = Math.max(
     1,
     longestDisplayLineUnits(block.label),
     longestDisplayLineUnits(metaText),
     longestDisplayLineUnits(block.branchLabel ?? ""),
-    ...valueChangeTexts.map(longestDisplayLineUnits)
+    ...valueRowTexts.map(longestDisplayLineUnits)
   );
   const targetCharactersPerLine = clamp(
     Math.ceil(Math.sqrt(longestLineUnits * 12)),
@@ -293,7 +300,7 @@ function measureNodeDimensions(block: FunctionLogicBlockPayload): NodeDimensions
     innerWidth,
     META_CHARACTER_WIDTH
   );
-  const valueChangeLines = valueChangeTexts.reduce(
+  const valueRowLines = valueRowTexts.reduce(
     (count, text) => count + estimateWrappedTextLineCount(
       text,
       innerWidth,
@@ -301,18 +308,25 @@ function measureNodeDimensions(block: FunctionLogicBlockPayload): NodeDimensions
     ),
     0
   );
-  const valueChangeHeight = valueChangeLines * VALUE_CHANGE_LINE_HEIGHT
-    + Math.max(0, valueChangeTexts.length - 1) * VALUE_CHANGE_ROW_GAP;
+  const valueRowHeight = valueRowLines * VALUE_CHANGE_LINE_HEIGHT
+    + Math.max(0, valueRowTexts.length - 1) * VALUE_CHANGE_ROW_GAP;
   const height = Math.max(
     MIN_NODE_HEIGHT,
     NODE_VERTICAL_PADDING
       + topLines * TOP_LINE_HEIGHT
       + labelLines * LABEL_LINE_HEIGHT
-      + valueChangeHeight
+      + valueRowHeight
       + metaLines * META_LINE_HEIGHT
-      + NODE_ROW_GAP * (valueChangeTexts.length > 0 ? 3 : 2)
+      + NODE_ROW_GAP * (valueRowTexts.length > 0 ? 3 : 2)
   );
   return { width, height: Math.ceil(height) };
+}
+
+/** Mirrors one parameter/local/constant access row rendered in the browser. */
+function formatValueAccessText(
+  access: NonNullable<FunctionLogicBlockPayload["valueAccesses"]>[number]
+): string {
+  return `${access.bindingKind} ${access.access} ${access.name} ${access.confidence}`;
 }
 
 /** Mirrors the compact value-change text rendered inside a graph node. */

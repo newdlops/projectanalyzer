@@ -14,7 +14,9 @@ import type {
 import type {
   CodeFlowEvidenceToken,
   FunctionLogicBlockPayload,
-  FunctionLogicEdgePayload
+  FunctionLogicEdgePayload,
+  FunctionLogicValueBindingPayload,
+  FunctionLogicValueFlowPayload
 } from "../../protocol/functionLogic";
 import { createContentHash } from "../../shared/hash";
 import type { ProjectGraph, SourceRange, SymbolNode } from "../../shared/types";
@@ -53,6 +55,7 @@ export function createFunctionLogicCodeFlowDetail(
   const flowId = createCodeFlowIdentity(deliveryVersion, `function-logic\0${node.id}`);
   const sourceDisplay = createSourceDisplayFormatter(graph.workspaceRoot);
   const protocolBlockIds = new Map<string, string>();
+  const protocolBindingIds = new Map<string, string>();
   const drillProjection = createFunctionLogicDrillTargets(
     graph,
     node,
@@ -64,6 +67,12 @@ export function createFunctionLogicCodeFlowDetail(
   for (let index = 0; index < analysis.blocks.length; index += 1) {
     const block = analysis.blocks[index];
     protocolBlockIds.set(block.id, createLogicBlockId(flowId, block.id, index));
+  }
+  for (let index = 0; index < (analysis.valueBindings?.length ?? 0); index += 1) {
+    const binding = analysis.valueBindings?.[index];
+    if (binding) {
+      protocolBindingIds.set(binding.id, createLogicBindingId(flowId, binding.id, index));
+    }
   }
   const blocks: FunctionLogicBlockPayload[] = analysis.blocks.map((block, index) => {
     const id = protocolBlockIds.get(block.id)
@@ -91,7 +100,19 @@ export function createFunctionLogicCodeFlowDetail(
         operator: completeGraphText(change.operator, "changes"),
         value: change.value ? completeGraphText(change.value, "value") : undefined,
         confidence: change.confidence
-      }))
+      })),
+      valueAccesses: block.valueAccesses?.flatMap((access) => {
+        const bindingId = protocolBindingIds.get(access.bindingId);
+        return bindingId
+          ? [{
+              bindingId,
+              name: completeGraphText(access.name, "value"),
+              bindingKind: access.bindingKind,
+              access: access.access,
+              confidence: access.confidence
+            }]
+          : [];
+      })
     };
   });
   const edges: FunctionLogicEdgePayload[] = analysis.edges.flatMap((edge, index) => {
@@ -121,6 +142,37 @@ export function createFunctionLogicCodeFlowDetail(
     .slice(0, normalizeOriginLimit(originLimit));
   const gaps = analysis.gaps.map((gap, index) => createLogicGap(flowId, gap, index));
   const location = sourceDisplay.location(node.filePath, node.selectionRange);
+  const valueBindings: FunctionLogicValueBindingPayload[] =
+    analysis.valueBindings?.flatMap((binding) => {
+      const id = protocolBindingIds.get(binding.id);
+      const definitionBlockId = protocolBlockIds.get(binding.definitionBlockId);
+      return id && definitionBlockId
+        ? [{
+            id,
+            name: completeGraphText(binding.name, "value"),
+            kind: binding.kind,
+            definitionBlockId,
+            confidence: binding.confidence
+          }]
+        : [];
+    }) ?? [];
+  const valueFlows: FunctionLogicValueFlowPayload[] = analysis.valueFlows?.flatMap(
+    (valueFlow, index) => {
+      const bindingId = protocolBindingIds.get(valueFlow.bindingId);
+      const sourceBlockId = protocolBlockIds.get(valueFlow.sourceBlockId);
+      const targetBlockId = protocolBlockIds.get(valueFlow.targetBlockId);
+      return bindingId && sourceBlockId && targetBlockId
+        ? [{
+            id: createLogicValueFlowId(flowId, valueFlow.id, index),
+            bindingId,
+            sourceBlockId,
+            targetBlockId,
+            targetAccess: valueFlow.targetAccess,
+            confidence: valueFlow.confidence
+          }]
+        : [];
+    }
+  ) ?? [];
 
   return {
     graphVersion: deliveryVersion,
@@ -136,6 +188,8 @@ export function createFunctionLogicCodeFlowDetail(
       signature: completeGraphText(analysis.signature, node.name || "Function body"),
       blocks,
       edges,
+      valueBindings,
+      valueFlows,
       layout: createFunctionLogicGraphLayout(blocks, edges),
       summary: analysis.summary,
       callees: drillProjection.callees,
@@ -192,6 +246,16 @@ function createLogicBlockId(flowId: CodeFlowId, blockId: string, index: number):
 /** Creates a browser-local edge identity linked only to projected block IDs. */
 function createLogicEdgeId(flowId: CodeFlowId, edgeId: string, index: number): string {
   return `function-logic-edge:${createContentHash(`${flowId}\0${edgeId}\0${index}`).slice(0, 32)}`;
+}
+
+/** Creates a browser-local binding identity without exposing analyzer keys. */
+function createLogicBindingId(flowId: CodeFlowId, bindingId: string, index: number): string {
+  return `function-logic-binding:${createContentHash(`${flowId}\0${bindingId}\0${index}`).slice(0, 32)}`;
+}
+
+/** Creates a browser-local value-flow edge identity. */
+function createLogicValueFlowId(flowId: CodeFlowId, valueFlowId: string, index: number): string {
+  return `function-logic-value-flow:${createContentHash(`${flowId}\0${valueFlowId}\0${index}`).slice(0, 32)}`;
 }
 
 /** Bounds origin chips against accidental caller-provided extremes. */

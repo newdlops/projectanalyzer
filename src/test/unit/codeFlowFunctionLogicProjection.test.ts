@@ -60,6 +60,22 @@ test("projects internal logic with opaque evidence and known entrypoint origins"
     }
   );
   assert.equal(detail.logic?.summary.valueChangeCount, 1);
+  const orderBinding = detail.logic?.valueBindings?.find((binding) => binding.name === "order");
+  assert.ok(orderBinding);
+  assert.match(orderBinding.id, /^function-logic-binding:[0-9a-f]{32}$/u);
+  assert.ok(detail.logic?.blocks.some((block) =>
+    block.id === orderBinding.definitionBlockId
+      && block.valueAccesses?.some((access) =>
+        access.bindingId === orderBinding.id && access.access === "define"
+      )
+  ));
+  assert.ok(detail.logic?.valueFlows?.every((valueFlow) =>
+    /^function-logic-value-flow:[0-9a-f]{32}$/u.test(valueFlow.id)
+      && valueFlow.bindingId === orderBinding.id
+      && detail.logic?.blocks.some((block) => block.id === valueFlow.sourceBlockId)
+      && detail.logic?.blocks.some((block) => block.id === valueFlow.targetBlockId)
+  ));
+  assert.equal(JSON.stringify(detail).includes(analysis.valueBindings?.[0]?.id ?? "missing"), false);
   assert.ok(detail.logic?.edges.some((edge) => edge.kind === "true"));
   assert.equal(detail.logic?.layout.nodes.length, detail.logic?.blocks.length);
   assert.equal(detail.logic?.layout.edges.length, detail.logic?.edges.length);

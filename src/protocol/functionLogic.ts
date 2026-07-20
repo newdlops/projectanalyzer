@@ -68,6 +68,40 @@ export type FunctionLogicValueChangePayload = {
   confidence: FunctionLogicPayloadConfidence;
 };
 
+/** Browser-visible lexical binding categories for static value flow. */
+export type FunctionLogicValueBindingPayloadKind = "parameter" | "local" | "constant";
+
+/** Browser-visible definition/use roles attached to one control block. */
+export type FunctionLogicValueAccessPayloadKind = "define" | "read" | "write" | "readwrite";
+
+/** One opaque function-local binding available in the value-flow selector. */
+export type FunctionLogicValueBindingPayload = {
+  id: string;
+  name: string;
+  kind: FunctionLogicValueBindingPayloadKind;
+  definitionBlockId: string;
+  confidence: FunctionLogicPayloadConfidence;
+};
+
+/** One parameter/local/constant interaction rendered inside its control block. */
+export type FunctionLogicValueAccessPayload = {
+  bindingId: string;
+  name: string;
+  bindingKind: FunctionLogicValueBindingPayloadKind;
+  access: FunctionLogicValueAccessPayloadKind;
+  confidence: FunctionLogicPayloadConfidence;
+};
+
+/** One possible static definition-to-use relation with opaque graph identities. */
+export type FunctionLogicValueFlowPayload = {
+  id: string;
+  bindingId: string;
+  sourceBlockId: string;
+  targetBlockId: string;
+  targetAccess: "read" | "readwrite";
+  confidence: FunctionLogicPayloadConfidence;
+};
+
 /** Opaque reference to one Host-approved source range in the active snapshot. */
 export type CodeFlowEvidenceToken = `code-evidence:${string}`;
 
@@ -98,6 +132,7 @@ export type FunctionLogicBlockPayload = {
   evidenceToken?: CodeFlowEvidenceToken;
   drillTargets?: FunctionLogicDrillTargetPayload[];
   valueChanges?: FunctionLogicValueChangePayload[];
+  valueAccesses?: FunctionLogicValueAccessPayload[];
 };
 
 /** One possible transfer between function-local logic blocks. */
@@ -164,6 +199,9 @@ export type FunctionLogicPayload = {
   signature: string;
   blocks: FunctionLogicBlockPayload[];
   edges: FunctionLogicEdgePayload[];
+  /** Optional for backward-compatible compound/status fragments. */
+  valueBindings?: FunctionLogicValueBindingPayload[];
+  valueFlows?: FunctionLogicValueFlowPayload[];
   layout: FunctionLogicGraphLayoutPayload;
   summary: FunctionLogicSummaryPayload;
   callees: FunctionLogicDrillTargetPayload[];

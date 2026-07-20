@@ -144,6 +144,28 @@ test("reserves variable node height for every visible value-change row", () => {
   assertEdgesAvoidUnrelatedNodes(layout, [createEdge("next", "plain", "changed", "next")]);
 });
 
+test("reserves bounded rows for parameter, local, and constant accesses", () => {
+  const plain = createBlock("plain-access", "operation", "process(item)");
+  const bindingKinds = ["parameter", "local", "constant"] as const;
+  const tracked: FunctionLogicBlockPayload = {
+    ...createBlock("tracked-access", "operation", "calculate result"),
+    valueAccesses: Array.from({ length: 12 }, (_, index) => ({
+      bindingId: `binding:${index}`,
+      name: `complete_binding_name_${index}`,
+      bindingKind: bindingKinds[index % bindingKinds.length] ?? "local",
+      access: index === 0 ? "define" : index % 2 === 0 ? "readwrite" : "read",
+      confidence: "exact" as const
+    }))
+  };
+  const edge = createEdge("value-next", plain.id, tracked.id, "next");
+  const layout = createFunctionLogicGraphLayout([plain, tracked], [edge]);
+  const nodesById = new Map(layout.nodes.map((node) => [node.blockId, node]));
+
+  assert.ok((nodesById.get(tracked.id)?.height ?? 0) > (nodesById.get(plain.id)?.height ?? 0));
+  assert.ok((nodesById.get(tracked.id)?.height ?? 0) < 400);
+  assertEdgesAvoidUnrelatedNodes(layout, [edge]);
+});
+
 test("places the first post-loop statement below the loop-back ring", () => {
   const blocks = [
     createBlock("entry", "entry", "Start"),
