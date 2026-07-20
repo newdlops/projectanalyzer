@@ -106,9 +106,9 @@ function insertValueFragment(
 } {
   const fragmentBlocks = fragment.blocks.map((block) => ({
     ...block,
-    depth: anchor.depth,
-    parentBlockId: anchor.parentBlockId,
-    branchLabel: anchor.branchLabel
+    depth: anchor.depth + block.depth,
+    parentBlockId: block.parentBlockId ?? anchor.parentBlockId,
+    branchLabel: block.branchLabel ?? anchor.branchLabel
   }));
   const completion = specializeValueCompletionAnchor(anchor, fragmentBlocks);
   const rewired = edges.map((edge) => edge.targetId === anchor.id
@@ -189,10 +189,13 @@ function renameBooleanFragmentEntry(
   return {
     ...fragment,
     entryBlockId: anchorId,
-    blocks: fragment.blocks.map((block) => block.id === oldEntryId
-      ? { ...block, id: anchorId }
-      : block
-    ),
+    blocks: fragment.blocks.map((block) => ({
+      ...block,
+      id: rename(block.id),
+      parentBlockId: block.parentBlockId
+        ? rename(block.parentBlockId)
+        : undefined
+    })),
     edges: fragment.edges.map((edge) => createFunctionLogicEdge(
       rename(edge.sourceId),
       rename(edge.targetId),
@@ -238,9 +241,9 @@ function decorateBooleanFragmentBlocks(
     }
     return {
       ...block,
-      depth: anchor.depth + 1,
-      parentBlockId: anchor.id,
-      branchLabel: anchor.branchLabel
+      depth: anchor.depth + Math.max(1, block.depth),
+      parentBlockId: block.parentBlockId ?? anchor.id,
+      branchLabel: block.branchLabel ?? anchor.branchLabel
     };
   });
 }

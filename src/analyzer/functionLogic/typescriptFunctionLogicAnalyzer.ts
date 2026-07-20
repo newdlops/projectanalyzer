@@ -533,7 +533,7 @@ function createDefaultGaps(): FunctionLogicGap[] {
   return [
     {
       code: "parseLimited",
-      message: "Optional chaining and nested branch expressions that are not the outer initializer, assignment, return, switch, or control condition stay inside their containing statement."
+      message: "Optional chaining and branch expressions embedded inside a larger call argument or non-branch operation stay inside their containing statement. Ternaries nested beneath a selected outer ternary are expanded."
     },
     {
       code: "dynamicBehavior",

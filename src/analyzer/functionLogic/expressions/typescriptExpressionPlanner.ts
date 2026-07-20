@@ -207,7 +207,17 @@ function combineConditional(
   if (!condition || !whenTrue || !whenFalse || whenTrue.mode !== mode || whenFalse.mode !== mode) {
     return undefined;
   }
-  const parts = mergeFragments(condition, whenTrue, whenFalse);
+  const nestedWhenTrue = nestConditionalBranch(
+    whenTrue,
+    condition.entryBlockId,
+    "then"
+  );
+  const nestedWhenFalse = nestConditionalBranch(
+    whenFalse,
+    condition.entryBlockId,
+    "else"
+  );
+  const parts = mergeFragments(condition, nestedWhenTrue, nestedWhenFalse);
   const edges = [
     ...parts.edges,
     ...connectExits(condition.truthyExits, whenTrue.entryBlockId, "true", "true · choose then"),
@@ -259,6 +269,27 @@ function combineConditional(
   }
   context.budgetExceeded = true;
   return undefined;
+}
+
+/**
+ * Retains relative ownership when a ternary arm is itself another ternary.
+ * Blocks without an existing inner owner become direct children of this
+ * decision; already nested descendants keep their nearest condition owner.
+ */
+function nestConditionalBranch(
+  fragment: PlannedFragment,
+  ownerBlockId: string,
+  branchLabel: "then" | "else"
+): PlannedFragment {
+  return {
+    ...fragment,
+    blocks: fragment.blocks.map((block) => ({
+      ...block,
+      depth: block.depth + 1,
+      parentBlockId: block.parentBlockId ?? ownerBlockId,
+      branchLabel: block.branchLabel ?? branchLabel
+    }))
+  };
 }
 
 /** Inverts one boolean child without inventing a duplicate runtime evaluation. */
