@@ -4,6 +4,25 @@ All notable user-visible changes to Project Analyzer: Code Flow are recorded in
 this file. The changelog starts with the first distribution-documented build;
 earlier local development builds were not tracked here.
 
+## 0.0.1036 - 2026-07-20
+
+### Added
+
+- TypeScript/JavaScript Function Logic branches for outer ternary expressions
+  and `&&`, `||`, and `??` short-circuit evaluation in conditions,
+  initializers, direct `=` assignments, returns, switch values, and concise
+  arrow bodies.
+
+### Analysis boundaries
+
+- Optional chaining and branch expressions nested inside larger call arguments
+  remain in their containing statement rather than claiming an unsafe order.
+
+### Fixed
+
+- Module Flow now draws curved line bridges and local direction triangles where
+  perpendicular edges cross, with a larger arrowhead at each edge destination.
+
 ## 0.0.1035 - 2026-07-20
 
 ### Added

@@ -180,6 +180,7 @@ omitted counts. It provides:
 - content-sized module boxes with complete wrapped labels and details
 - SCC cycle groups and top-to-bottom component layout
 - orthogonal, obstacle-safe edge routes that do not cross unrelated boxes
+- curved line bridges plus local direction triangles where perpendicular edges cross
 - click-to-attach boundary functions to the same canvas while preserving the
   clicked module's scroll anchor
 - a complete-canvas budget of 500 nodes and 1,000 edges; attaching beyond it
@@ -300,8 +301,15 @@ Python `with` and `async with` keep only the context-manager header in their
 structural node. Each indented body statement remains a separate flow node and
 continues to the first statement after context exit.
 
-Expression-level short-circuiting remains inside its containing block. Standalone
-Python generator expressions remain a visible lazy-analysis gap because their
+TypeScript and JavaScript expand outer ternary expressions plus `&&`, `||`, and
+`??` into source-backed Function Logic branches. Control conditions preserve
+truthy/falsy short-circuit order, while initializers, direct `=` assignments,
+returns, switch values, and concise arrow bodies merge the selected value back
+into their containing operation. Optional chaining and branch expressions
+nested inside a larger call argument remain inside that containing statement so
+the graph does not claim an unsafe evaluation order.
+
+Standalone Python generator expressions remain a visible lazy-analysis gap because their
 bodies run when advanced rather than when created. A generator passed directly
 to a call is shown structurally, but whether and how far the callee consumes it
 remains inferred. Nested comprehensions used directly as another comprehension's
@@ -345,7 +353,8 @@ Key reusable modules:
   boundaries and cross-module relation aggregation
 - `src/application/codeFlow/` — flow catalog and detail projection
 - `src/application/moduleFlow/` — bounded module projection, iterative SCC layout,
-  variable box sizing, and obstacle-safe orthogonal routing
+  variable box sizing, obstacle-safe orthogonal routing, and deterministic
+  crossing bridges with local direction cues
 - `src/application/codeFlow/functionLogicGraphLayout.ts` — bounded layered graph
   layout and outer-channel edge routing
 - `src/application/codeFlow/functionLogicDrillTargets.ts` — bounded direct-callee
