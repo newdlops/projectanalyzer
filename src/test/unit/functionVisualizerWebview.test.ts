@@ -274,6 +274,71 @@ test("accepts Scenario inputs without executing source or messaging the Host", (
   }
 });
 
+test("keeps an editable Scenario variable surface when analyzer bindings are absent", () => {
+  const runtime = installSidebarWebviewRuntime();
+
+  try {
+    new Function(requireFunctionVisualizerScript())();
+    runtime.dispatchMessage(createSessionMessage());
+    runtime.dispatchMessage(createFunctionDetail(
+      "Root.run",
+      rootToken,
+      undefined,
+      "mutation",
+      [{
+        target: "total",
+        targetKind: "variable",
+        operation: "assign",
+        operator: "=",
+        value: "input * 2",
+        confidence: "exact"
+      }]
+    ));
+    const beforeInputMessages = runtime.messages.length;
+    const initial = runtime.getRenderedText("flow-steps");
+
+    assert.ok(initial.includes("Scenario values"));
+    assert.ok(initial.includes("No tracked bindings were reported. Add a variable name below; "
+      + "the Inspector will keep this editor available."));
+    assert.equal(runtime.getRenderedAttributeByClass(
+      "flow-steps",
+      "logic-inspector-drawer",
+      "aria-hidden"
+    ), "false");
+
+    runtime.inputByTitle("Scenario variable name", "total");
+    runtime.inputByTitle("Initial Scenario value", "0");
+    runtime.clickByTitle("Add Scenario variable");
+    runtime.inputByTitle("Scenario variable name", "input");
+    runtime.inputByTitle("Initial Scenario value", "4");
+    runtime.clickByTitle("Add Scenario variable");
+
+    const added = runtime.getRenderedText("flow-steps");
+    assert.ok(added.includes("CUSTOM"));
+    assert.ok(added.includes("user-added"));
+    assert.ok(added.includes("total = input * 2"));
+    assert.ok(added.includes("0 → 8"));
+    assert.ok(added.includes("CUSTOM input · input 4 · current 4 · 1 step"));
+    assert.equal(runtime.messages.length, beforeInputMessages);
+
+    runtime.inputByTitle("Scenario input for custom input", "7");
+    assert.ok(runtime.getRenderedText("flow-steps").includes(
+      "CUSTOM input · input 7 · current 7 · 1 step"
+    ));
+    assert.ok(runtime.getRenderedText("flow-steps").includes("0 → 14"));
+    assert.equal(runtime.messages.length, beforeInputMessages);
+
+    runtime.clickByTitle("Remove Scenario variable input");
+    runtime.clickByTitle("Remove Scenario variable total");
+    assert.ok(runtime.getRenderedText("flow-steps").includes(
+      "No tracked bindings were reported. Add a variable name below; "
+        + "the Inspector will keep this editor available."
+    ));
+  } finally {
+    runtime.restore();
+  }
+});
+
 test("calculates entered values through nested ternaries and subsequent assignments", () => {
   const runtime = installSidebarWebviewRuntime();
 

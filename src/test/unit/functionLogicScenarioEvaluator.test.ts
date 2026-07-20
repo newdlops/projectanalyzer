@@ -208,11 +208,12 @@ test("reads JSON members and dynamic indexes without invoking prototype access",
   assert.match(inherited.reason ?? "", /unavailable/u);
 });
 
-/** Loads generated helpers with only the local preview reader in scope. */
+/** Loads generated helpers with the Scenario editor's two public read interfaces. */
 function loadScenarioEvaluator(previews: ReadonlyMap<string, string>): ScenarioEvaluator {
   const source = getFunctionLogicScenarioEvaluatorBrowserSource();
   const factory = new Function(
     "readFunctionLogicValuePreview",
+    "readFunctionLogicScenarioEditableBindings",
     `${source}\nreturn {
       calculate: calculateFunctionLogicScenario,
       createContext: createFunctionLogicScenarioContext,
@@ -221,8 +222,14 @@ function loadScenarioEvaluator(previews: ReadonlyMap<string, string>): ScenarioE
       known: createFunctionLogicScenarioKnown,
       parse: parseFunctionLogicScenarioInput
     };`
-  ) as (reader: (bindingId: string) => string) => ScenarioEvaluator;
-  return factory((bindingId) => previews.get(bindingId) ?? "");
+  ) as (
+    reader: (bindingId: string) => string,
+    readBindings: (bindings: Array<Record<string, unknown>>) => Array<Record<string, unknown>>
+  ) => ScenarioEvaluator;
+  return factory(
+    (bindingId) => previews.get(bindingId) ?? "",
+    (bindings) => bindings
+  );
 }
 
 /** Creates a chain that exercises transitive arithmetic and nested ternaries. */

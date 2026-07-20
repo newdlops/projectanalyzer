@@ -304,6 +304,7 @@ test("Function Logic keeps a large graph surface and modular adjacent inspector 
 
   assert.match(renderer, /getFunctionLogicInspectorBrowserSource/u);
   assert.match(renderer, /inspector\.attachViewport\(viewport\)/u);
+  assert.match(renderer, /inspector\.prependSections\(/u);
   assert.match(renderer, /inspector\.appendSections\(/u);
   assert.match(renderer, /valueFlowRendering\?\.valuePreviewEditor/u);
   assert.match(renderer, /valueFlowRendering\?\.scenarioTrace/u);
@@ -312,12 +313,17 @@ test("Function Logic keeps a large graph surface and modular adjacent inspector 
   assert.match(inspector, /drawer\.inert = !functionLogicInspectorOpen/u);
   assert.match(inspector, /event\.key !== "Escape"/u);
   assert.match(inspector, /aria-expanded/u);
-  assert.match(inspector, /functionLogicInspectorOpen = Boolean\(defaultOpen\)/u);
+  assert.match(inspector, /functionLogicInspectorOpen = true/u);
+  assert.match(
+    inspector,
+    /scroll\.replaceChildren\(\.\.\.available, \.\.\.scroll\.children\)/u
+  );
   assert.match(inspectorStyles, /display: grid/u);
   assert.match(inspectorStyles, /grid-template-columns: minmax\(0, 1fr\) 0/u);
   assert.match(inspectorStyles, /--logic-workspace-height: clamp\(340px, 70vh, 780px\)/u);
   assert.match(inspectorStyles, /height: var\(--logic-workspace-height\)/u);
   assert.match(inspectorStyles, /overflow-y: auto/u);
+  assert.match(inspectorStyles, /grid-auto-rows: max-content/u);
   assert.match(inspectorStyles, /scrollbar-gutter: stable/u);
   assert.match(inspectorStyles, /clamp\(280px, 32vw, 390px\)/u);
   assert.match(inspectorStyles, /\.logic-graph-workspace\.inspector-open/u);
@@ -401,6 +407,9 @@ test("Scenario values stay bounded, calculated, traceable, session-scoped, and b
   const preview = readSource(
     "src/webview/codeFlow/valuePreview/functionLogicValuePreviewBrowserSource.ts"
   );
+  const previewStyles = readSource(
+    "src/webview/codeFlow/valuePreview/functionLogicValuePreviewStyles.ts"
+  );
   const trace = readSource(
     "src/webview/codeFlow/valuePreview/functionLogicScenarioTraceBrowserSource.ts"
   );
@@ -416,13 +425,23 @@ test("Scenario values stay bounded, calculated, traceable, session-scoped, and b
   assert.match(renderer, /getFunctionLogicScenarioTraceBrowserSource/u);
   assert.match(dataFlow, /createFunctionLogicValuePreviewEditor/u);
   assert.match(dataFlow, /createFunctionLogicValuePreviewLabel/u);
+  assert.match(dataFlow, /readFunctionLogicScenarioEditableBindings/u);
   assert.match(preview, /MAX_LOGIC_VALUE_PREVIEW_LENGTH = 240/u);
   assert.match(preview, /MAX_LOGIC_VALUE_PREVIEW_ROWS = 120/u);
+  assert.match(preview, /MAX_LOGIC_MANUAL_SCENARIO_ROWS = 32/u);
+  assert.match(preview, /MAX_LOGIC_MANUAL_SCENARIO_NAME_LENGTH = 80/u);
+  assert.match(preview, /FUNCTION_LOGIC_MANUAL_SCENARIO_PREFIX = "scenario-manual:"/u);
   assert.match(preview, /functionLogicValuePreviewSessionKey/u);
+  assert.match(preview, /functionLogicManualScenarioValueByName/u);
+  assert.match(preview, /readFunctionLogicScenarioEditableBindings/u);
   assert.match(preview, /readFunctionLogicValuePreview/u);
   assert.match(preview, /addEventListener\("input"/u);
   assert.match(preview, /onBindingSelect\(binding\.id\)/u);
   assert.match(preview, /aria-pressed/u);
+  assert.match(
+    previewStyles,
+    /\.logic-value-preview-rows \{[\s\S]*max-height: clamp\(160px, 26vh, 260px\)[\s\S]*overflow-y: auto/u
+  );
   assert.match(dataFlow, /selectBinding\(bindingId, false\)/u);
   assert.match(dataFlow, /valuePreviewRendering\.setSelectedBinding/u);
   assert.match(dataFlow, /scenarioTraceRendering\.setSelectedBinding/u);
@@ -435,6 +454,7 @@ test("Scenario values stay bounded, calculated, traceable, session-scoped, and b
   assert.match(evaluator, /MAX_LOGIC_SCENARIO_WORK_ITEMS = 1200/u);
   assert.match(evaluator, /JSON\.parse/u);
   assert.match(evaluator, /getFunctionLogicScenarioExpressionBrowserSource/u);
+  assert.match(evaluator, /binding\.kind === "parameter" \|\| binding\.manual/u);
   assert.match(expression, /createFunctionLogicScenarioRpn/u);
   assert.match(expression, /applyFunctionLogicScenarioTernary/u);
   assert.match(evaluator, /mergeFunctionLogicScenarioEnvironments/u);
@@ -446,6 +466,25 @@ test("Scenario values stay bounded, calculated, traceable, session-scoped, and b
   assert.doesNotMatch(
     [preview, evaluator, expression, trace].join("\n"),
     /from ".*(?:analyzer|application|protocol|vscode|extension)/u
+  );
+});
+
+test("Scenario Variables and its Inspector are invariant even without analyzer bindings", () => {
+  const renderer = readSource("src/webview/codeFlow/functionLogicBrowserSource.ts");
+  const inspector = readSource(
+    "src/webview/codeFlow/inspector/functionLogicInspectorBrowserSource.ts"
+  );
+  const dataFlow = readSource(
+    "src/webview/codeFlow/dataFlow/functionLogicDataFlowBrowserSource.ts"
+  );
+
+  assert.match(renderer, /createFunctionLogicInspector\(choiceSessionKey\)/u);
+  assert.match(inspector, /functionLogicInspectorOpen = true/u);
+  assert.match(dataFlow, /valuePreviewEditor: valuePreviewRendering\.element/u);
+  assert.match(dataFlow, /scenarioTrace: scenarioTraceRendering\.element/u);
+  assert.doesNotMatch(
+    dataFlow,
+    /if \(bindings\.length === 0\) return undefined/u
   );
 });
 
