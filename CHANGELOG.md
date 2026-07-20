@@ -4,6 +4,190 @@ All notable user-visible changes to Project Analyzer: Code Flow are recorded in
 this file. The changelog starts with the first distribution-documented build;
 earlier local development builds were not tracked here.
 
+## 0.0.1046 - 2026-07-20
+
+### Added
+
+- TypeScript/JavaScript Function Logic now parses statically complete code text
+  passed to direct `eval`, `Function`, string timers, and Node `vm` execution APIs.
+  Explicit `js`/`ts` code tags and strongly code-shaped stored literals are also
+  represented without executing their contents.
+- One literal may contain multiple function declarations, arrows, methods,
+  accessors, or nested functions. Each definition receives an independent
+  callable body CFG, including its branches, nested ternaries, JSX, calls,
+  parameters, locals, constants, value changes, consumes, and sinks.
+- New `TEXT` and `FN` nodes plus `defines` and `deferred` edges distinguish an
+  embedded program boundary, a callable definition, and a separately scheduled
+  timer body from immediate host control flow.
+
+### Changed
+
+- Immediate static code text is inserted before its consuming host statement and
+  resumes afterward. Stored programs and `Function` bodies are marked not invoked;
+  timer strings are marked deferred with no immediate return edge.
+- Scenario calculation follows immediate embedded code only. It never enters a
+  stored/function-definition or timer branch merely because that source is visible.
+- Embedded callsites retain their exact virtual owner even though source navigation
+  maps every internal node back to the containing host literal.
+
+### Analysis boundaries
+
+- Embedded text is parsed as syntax only; it is never evaluated, imported, required,
+  type-checked, or persisted. Ordinary strings, interpolated templates, identifiers,
+  and runtime-built concatenations are not treated as executable programs.
+- Discovery is bounded to 24,000 decoded characters, 64 literal-only concatenation
+  pieces, 16 embedded regions, and the shared Function Logic block budget. Parser
+  recovery, dynamic code consumers, and bounded omissions remain explicit gaps.
+
+## 0.0.1045 - 2026-07-20
+
+### Added
+
+- **Scenario calculation** now parses session-only JSON/scalar inputs and calculates
+  source-backed lexical initializers, assignments, compound assignments, increments,
+  arithmetic, comparisons, complex booleans, own-data member reads, and nested
+  JavaScript/Java ternaries. Calculated rows show the expression and `before → after`.
+- Derived assignments retain input provenance, so selecting a parameter also reveals
+  downstream local/constant calculations that depend on it.
+
+### Changed
+
+- Scenario values propagate over the visible control-flow graph with a bounded
+  iterative worklist. Selected `true`/`false`/`case` edges are followed exactly;
+  differing unselected branch values merge to an explicit `multiple reachable values`
+  unknown state.
+- Local and constant Scenario inputs act as definition-point overrides. The Inspector
+  labels the column `Scenario input` and reports parse/calculation failures inline.
+
+### Evaluation boundaries
+
+- Scenario evaluation is a side-effect-free static preview, not source execution or a
+  debugger. Calls, constructors, getters, inferred receiver mutations, heap writes, and
+  iteration counts remain explicit unknown states. Inputs never leave the Webview,
+  modify source, persist to storage, or automatically select a branch.
+- Expressions are limited to 420 characters and 180 tokens; CFG propagation stops at
+  1,200 work items. Cycles and unsupported syntax cannot trigger unbounded evaluation.
+
+## 0.0.1044 - 2026-07-20
+
+### Added
+
+- Function Logic now distinguishes an internal value `CONSUME` from a lexical
+  `SINK` at returns/throws/yields, call arguments, JSX delivery, aggregate
+  storage, and external property/element assignments. Graph rows, selected
+  nodes, overlays, legends, and accessible text retain that distinction.
+- **Scenario progression** follows the selected preview token through bounded
+  `DEFINED`, `CONSUME`, `SINK`, and `UPDATED` steps. Branch choices dim excluded
+  steps, and writes turn later display into `<unknown after write>`.
+
+### Changed
+
+- A new function graph with lexical values opens its adjacent Inspector by
+  default so Scenario values remain visible. An explicit close choice is still
+  preserved while the same root graph is relaid out.
+- Scenario input remains session-scoped and now refreshes the graph annotations
+  and progression together, including possible reaching definitions at merges.
+
+### Analysis boundaries
+
+- `SINK` means direct lexical tracking ends at source syntax; it is not a
+  security finding and does not claim that a callee, render, or runtime transfer
+  executed. Scenario text is never parsed, evaluated, persisted, sent to the
+  Extension Host, or used to select a branch.
+- A source write invalidates the entered token instead of evaluating the right
+  side. Heap aliases, property flows, closures, and interprocedural values remain
+  unknown.
+
+## 0.0.1043 - 2026-07-20
+
+### Added
+
+- Function Logic now provides **Center** and **Fit** beside its live zoom
+  percentage. `C` and `F` activate the same actions while the graph viewport is
+  focused.
+- The graph supports background or middle-button drag, two-axis trackpad pan,
+  and cursor-centered Ctrl/Command-wheel zoom.
+
+### Changed
+
+- Function Logic uses one `translate + scale` viewport transform instead of
+  native scroll bounds, allowing the canvas to move freely past every side like
+  an infinite workspace. The dotted grid follows the same pan and zoom state.
+- Zoom now spans 1%–300%, preserves the viewport focal point, and keeps the
+  selected callsite fixed when child-function attachment rebuilds the layout.
+  Inspector/editor resizing preserves the visible world center.
+
+### Interaction boundaries
+
+- Free pan is numerically guarded at ±10,000,000 screen pixels to prevent
+  non-finite browser transforms; this guard does not expose an ordinary visible
+  canvas edge. **Fit** never enlarges a graph beyond 100%.
+
+## 0.0.1042 - 2026-07-20
+
+### Added
+
+- TypeScript/JavaScript Function Logic now treats JSX elements as first-class
+  static component values. JSX arrays are expanded into their individual render
+  and drill targets, while direct collection-to-local-to-return transport keeps
+  a visible `COMPONENT` definition-to-use flow.
+- Scenario-value `Name` labels are buttons that select the same value-flow lens
+  as the binding chips, highlighting the label, related graph nodes, and
+  definition-to-use arrows together.
+
+### Changed
+
+- The graph and adjacent Inspector now use a bounded fixed-height workspace. The
+  Inspector occupies its own column or narrow-screen row and scrolls internally,
+  so long evidence never covers or vertically displaces the graph canvas.
+
+### Analysis boundaries
+
+- A first-class JSX component value represents source-backed element creation
+  and its custom-component render relation; it does not claim that framework
+  scheduling executes the component implementation at that JavaScript point.
+  Direct JSX syntax and transparent local/indexed transport are retained, while
+  dynamic mutations, call results, property aliases, and runtime reconciliation
+  remain unknown.
+- Clicking a scenario-value label changes only the static value-flow highlight.
+  Preview text still does not execute code or select a control-flow branch.
+
+## 0.0.1041 - 2026-07-20
+
+### Added
+
+- The Function Inspector now includes a Debug Variables-style `Name` / `Preview
+  value` editor for parameters, locals, and constants. Entered text appears next
+  to the corresponding graph and selected-block value rows and survives relayouts
+  of the same root graph.
+
+### Changed
+
+- Function Logic UI text now scales from the VS Code UI font settings, while
+  source-shaped labels and preview inputs scale from the VS Code editor font
+  settings.
+- Opening the Inspector now allocates a separate right-side layout column and
+  shrinks the graph viewport instead of covering it. At narrow widths the drawer
+  occupies a separate row below the graph.
+
+### Analysis boundaries
+
+- Preview values are session-only literal annotations capped at 240 characters
+  and 120 visible bindings. They are not parsed or executed, do not modify source,
+  do not select a control-flow branch, and are not sent to the Extension Host.
+
+## 0.0.1040 - 2026-07-20
+
+### Changed
+
+- Function Visualizer now gives the graph the full editor width and a viewport
+  up to 76% of the editor height. Signature, reading guide, value selector,
+  direct callees, and selected-block evidence now live in a non-modal right-side
+  Inspector drawer.
+- Selecting a graph node opens the drawer without taking graph focus. The drawer
+  supports explicit toggle/close actions, `Escape`, narrow-screen backdrop,
+  accessible expanded/hidden state, and remains open across child-function relayouts.
+
 ## 0.0.1039 - 2026-07-20
 
 ### Added

@@ -55,7 +55,7 @@ Supported source-first function visualization currently covers:
 
 | Language family | Function Logic coverage |
 | --- | --- |
-| TypeScript / JavaScript / JSX / TSX | Statements, branches, loops, effects, JSX render choices, listener registrations, detached event handlers, receiver chains, and component drill targets |
+| TypeScript / JavaScript / JSX / TSX | Statements, branches, loops, effects, JSX render choices, listener registrations, detached event handlers, static embedded-code programs, receiver chains, and component drill targets |
 | Python | Statements, `with`, comprehensions, generator arguments, receiver chains, mutations, and exits |
 | Java | Methods, constructors, branches, loops, switches, structured regions, mutations, and exits |
 | F# / OCaml | Named functions and `|>` stages with final-argument insertion |
@@ -111,17 +111,39 @@ Entrypoint flows show a compact inter-function ribbon with:
 Every concrete function step has an **Inspect logic** action. It opens the same
 dedicated Function Visualizer tab with a bounded control-flow graph:
 
-- a four-pass reading frame: Start, Choose, Do, Finish
-- the current function signature
+- a graph-first, bounded-height workspace that uses the available editor width
+  and up to 76% of the editor height
+- an infinite-style `translate + scale` canvas with background/middle-button
+  drag and two-axis trackpad pan beyond every side of the graph
+- `−` / live percentage / `+` zoom from 1% to 300%, cursor-centered
+  Ctrl/Cmd-wheel zoom, and explicit **Center** and whole-graph **Fit** actions
+- viewport-focused `+`/`-`/`0`/`C`/`F` shortcuts plus resize-stable world-center
+  and child-attachment callsite preservation
+- a right-side **Inspector** drawer that consumes its own layout column instead
+  of covering the graph, and moves to a separate row below it at narrow widths
+- the current signature, Start/Choose/Do/Finish guide, selected-block evidence,
+  value tools, and callees inside the fixed-height, independently scrollable Inspector
 - statement nodes arranged in top-to-bottom execution ranks
 - content-sized node boxes that preserve complete source labels, values, and
   child-function names by wrapping instead of adding ellipses
 - subtle depth tints that distinguish nested blocks without replacing semantic kind colors
 - inline `VAR`, `FIELD`, and `RECEIVER` rows showing which value changes at each block
-- inline `PARAM`, `LOCAL`, and `CONST` rows showing lexical definitions, reads,
-  writes, and read/write operations at each block
+- inline `PARAM`, `LOCAL`, and `CONST` rows showing lexical definitions, writes,
+  and whether a read is internally `CONSUME`d or reaches a lexical `SINK`
 - a per-binding value selector that overlays possible definition-to-use arrows,
-  including branch-merge and loop-carried definitions without hiding control edges
+  including branch-merge and loop-carried definitions without hiding control edges;
+  dotted consume paths and double/striped sink cues remain distinguishable without color
+- a Debug Variables-style `Name` / `Scenario input` table for entering session-only
+  JSON/scalar parameter values or local/constant definition overrides
+- a bounded **Scenario calculation** directly below that table, showing selected and
+  transitively derived values through `DEFINED`, `CALCULATED`, `UPDATED`, `CONSUME`,
+  and `SINK` steps, including `before → after` results
+- clickable scenario-value names that select the shared value-flow lens and
+  highlight the matching label, definition/use graph nodes, and arrows
+- automatic Inspector opening for a new function graph with lexical values, while
+  an explicit close choice remains preserved through relayouts of that root graph
+- Function Logic UI text linked to the VS Code UI font settings and source/value
+  text linked to the configured VS Code editor font settings
 - exact assignment/update/delete evidence and visibly dashed inferred receiver mutations
 - loop-binding changes such as `item ← each items` on the loop decision itself
 - eager Python list/set/dictionary comprehensions expanded into nested iterable,
@@ -147,7 +169,10 @@ dedicated Function Visualizer tab with a bounded control-flow graph:
 - solid exact edges and dashed inferred, exception, and back edges
 - exact syntax evidence for conditions, mutations, calls, and exits
 - conservative, visibly `inferred` effect candidates
-- a selected-node panel with complete detail and outgoing targets
+- node selection that opens the adjacent Inspector drawer with complete detail and
+  outgoing targets while reducing, never covering, the graph viewport
+- keyboard-accessible Inspector toggle/close controls, `Escape` dismissal, and drawer state
+  preserved while attached functions relayout the graph
 - direct concrete callees matched to their source call blocks
 - parser-backed callsite recovery for calls nested in conditions, loops, and
   switch/match expressions
@@ -155,7 +180,7 @@ dedicated Function Visualizer tab with a bounded control-flow graph:
 - click-to-attach child function blocks to the original graph canvas
 - named JSX handlers plus `addEventListener`, EventEmitter-style, subscription,
   and `onmessage = handler` registrations shown as event boundaries
-- callsite-anchored scroll restoration and reduced-motion-aware child entry animation
+- callsite-anchored viewport restoration and reduced-motion-aware child entry animation
 - `callsite → child flow → resume → caller branch` attachment on one compound canvas
 - `event binding → handler flow` attachment as a separate dashed dispatch branch,
   with the registration's normal continuation preserved and no handler-to-caller return edge
@@ -164,7 +189,7 @@ dedicated Function Visualizer tab with a bounded control-flow graph:
 - lazy one-function-at-a-time analysis instead of eager recursive loading
 - breadcrumb and parent navigation through already-read function details
 - visible cycle guards that reuse an attached ancestor or an existing breadcrumb
-- bounded 50%–160% graph zoom with a scrollable canvas
+- pan and zoom presentation updates that do not rerun graph analysis or layout
 - one-click navigation to the exact statement rather than only the declaration
 - known HTTP/GraphQL entrypoints that reach the selected function
 
@@ -232,10 +257,11 @@ Workspace Module Flow
   -> Function Visualizer
 ```
 
-Cross-statement def-use slicing, runtime instrumentation, collaboration, and a
-raw unbounded whole-project graph remain outside the flow-first experience. The
-bounded Module Flow is part of the current product. The repository's `SPEC.MD`
-contains the product contract, semantics, UX states, and milestones.
+Runtime value evaluation, heap/alias taint propagation, runtime instrumentation,
+collaboration, and a raw unbounded whole-project graph remain outside the
+flow-first experience. The bounded lexical def-use view and Module Flow are part
+of the current product. The repository's `SPEC.MD` contains the product contract,
+semantics, UX states, and milestones.
 
 ## Current Analysis Coverage
 
@@ -278,14 +304,37 @@ supported lambda or other cursor-selected callable.
 
 TypeScript/JavaScript, Python, and Java also project unambiguous lexical bindings
 onto that control-flow graph. Function parameters begin at `Enter`, local and
-constant declarations begin at their source block, and later `READ`, `WRITE`, or
-`READ/WRITE` rows retain the binding identity. Selecting one `PARAM`, `LOCAL`, or
-`CONST` chip draws only that binding's possible definition-to-use arrows so the
-control graph stays readable. Reassignments kill earlier definitions on the same
-path; branch merges may therefore show more than one reaching definition, and
-loops may show a loop-carried relation. The projection uses bounded iterative CFG
-walks and follows the currently selected `true`/`false`/`case` scenario by dimming
-value arrows whose endpoints are outside that choice.
+constant declarations begin at their source block, and later reads/writes retain
+the binding identity. A read used by a calculation, condition, or call receiver is
+`CONSUME`; an explicit return/throw/yield, call argument, JSX delivery, aggregate
+field, or external property/element assignment is a lexical `SINK`. `SINK` means
+direct tracking stops at that source boundary—not that the destination is unsafe
+or that runtime execution was observed. Selecting one `PARAM`, `LOCAL`, or `CONST`
+chip draws only that binding's possible definition-to-use arrows so the control
+graph stays readable. Reassignments kill earlier definitions on the same path;
+branch merges may therefore show more than one reaching definition, and loops may
+show a loop-carried relation. The projection uses bounded iterative CFG walks and
+follows the currently selected `true`/`false`/`case` scenario by dimming value
+arrows whose endpoints are outside that choice.
+
+The Scenario value editor parses entered JSON or scalar literals in the Webview and
+feeds a bounded, side-effect-free evaluator. It calculates source-backed lexical
+initializers, assignments, compound assignments, increments/decrements, arithmetic,
+comparisons, complex boolean expressions, own-data member reads, and JavaScript/Java
+`?:` expressions including nested ternaries. The selected binding's calculation also
+shows downstream assignments whose provenance includes that binding.
+
+Scenario states propagate over the visible CFG with an iterative worklist. A selected
+`true`/`false`/`case` choice removes its dimmed nodes and edges from the calculation;
+without a choice, differing values at a reachable merge become `<unknown: multiple
+reachable values>` instead of choosing a path. Calls, constructors, getters, inferred
+receiver mutations, dynamic heap writes, and iteration counts are never executed.
+Stored code programs, generated `Function` bodies, and timer strings are also excluded
+from immediate Scenario propagation; a direct static `eval`/`vm` program participates
+only because its consuming source statement is an immediate code boundary.
+Unsupported operations remain explicit `<unknown: …>` states. Inputs stay in the
+browser session, are not sent to the Extension Host, do not modify source, and do not
+automatically change a branch choice.
 
 `const` declarations and Java `final` locals are exact constants. A single-write
 uppercase Python local is shown as an inferred constant because that is a naming
@@ -303,7 +352,12 @@ bind are not relabeled as pipe chains; higher-order callback execution remains a
 visible runtime limitation.
 
 JSX and TSX returns expand into a source-ordered render flow alongside normal
-statement control flow. Intrinsic elements, custom components, prop/child call
+statement control flow. JSX initializers, direct assignments, consumed values,
+and returns place the same render flow immediately before their lexical consumer.
+An array such as `[<Badge />, <ReadyState />, <EmptyState />]` is represented as a
+first-class component-value collection: every element keeps its own render/drill
+target, and direct indexed/local transport to a later return retains a `COMPONENT`
+definition-to-use flow. Intrinsic elements, custom components, prop/child call
 expressions, ternary and logical render choices, and event bindings receive
 separate graph nodes. Nested JSX ternaries retain an independent condition and
 branch region at every level. Uppercase or member-style tags such as `<Badge />` and
@@ -315,6 +369,11 @@ selectable. Stable references such as `onClick={handleClick}` expose an `event`
 drill target; attaching it creates a no-return dispatch branch instead of
 placing the handler body in the render continuation. `memo`/`forwardRef`
 components retain their binding names.
+
+The component-value role is source-backed static evidence, not a claim that React
+or another framework invokes the component implementation when the array or local
+is evaluated. Dynamic collection mutation, component values returned by calls,
+property aliases, and reconciliation/scheduling remain runtime boundaries.
 
 TypeScript and JavaScript listener calls such as
 `target.addEventListener("click", handleClick)`, `emitter.on("data", handleData)`,
@@ -336,6 +395,22 @@ arrow bodies merge the selected value back into their containing operation.
 Optional chaining and branch expressions embedded inside a larger call argument
 remain inside that containing statement so the graph does not claim an unsafe
 evaluation order.
+
+Static TypeScript/JavaScript code text has its own Function Logic boundary. Direct
+`eval("…")`, `new Function("…")`, `setTimeout("…")`/`setInterval("…")`, and Node
+`vm.runIn*`/`compileFunction` consumers accept only a statically complete string literal,
+no-substitution template, explicit `js`/`ts` code tag, or bounded literal-only `+`
+concatenation. A stored literal is recognized conservatively only when parsing proves
+function/control/multi-statement code shape; ordinary text such as `"hello"` is not
+reclassified as code.
+
+The decoded text is parsed but never executed. Its top-level program and every contained
+function declaration, function-valued binding, method, accessor, arrow, and nested
+function receive separate `TEXT`/`FN` scopes. Definition edges explicitly say that a body
+is not invoked. Immediate eval/vm text resumes the host statement after its embedded exit;
+timer text is deferred with no immediate return; stored and `Function` text remain
+definition-only until a real invocation can be proven. Interpolated templates, identifier
+arguments, runtime-built strings, and parser recovery stay visible analysis gaps.
 
 Select a `true`, `false`, or `case` edge label—or the matching choice in the
 selected-node panel—to preview that static scenario. Nested selections compose,
@@ -404,6 +479,9 @@ Key reusable modules:
   and bounded iterative reaching-definition projection
 - `src/analyzer/functionLogic/events/` — TypeScript/JavaScript JSX, listener API,
   and event-property registration boundaries
+- `src/analyzer/functionLogic/embeddedCode/` — literal-only code discovery,
+  iterative program/callable-scope planning, host CFG integration, and virtual
+  evidence remapping
 - `src/analyzer/functionLogic/languages/` — Python/Java Lezer adapters and the
   F#/OCaml/Elixir pipe-forward Function Logic adapter
 - `src/analyzer/languages/python/`, `src/analyzer/languages/java/`, and
@@ -425,6 +503,10 @@ Key reusable modules:
 - `src/protocol/functionVisualizer.ts` — editor-tab navigation session contract
 - `src/webview/codeFlow/` — flow-first Activity Bar launcher and shared graph
   renderer
+- `src/webview/codeFlow/viewport/` — pure Function Logic transform geometry and
+  browser-only free-pan, focal zoom, Center, and Fit controls
+- `src/webview/codeFlow/valuePreview/` — session-only literal Scenario editor and
+  bounded definition/consume/sink progression
 - `src/webview/functionVisualizer/` — editor-tab lifecycle, reading UX, and
   cycle-safe lazy function navigation
 - `src/webview/moduleVisualizer/` — dedicated Module Flow tab, detail/evidence,
@@ -440,7 +522,21 @@ use `projectAnalyzer.codeFlow.maxLogicBlocks` (default `120`, maximum `300`).
 Lexical value flow retains at most 80 unambiguous bindings, 700 access facts, and
 900 definition-to-use relations per function; any bounded omission is surfaced as
 an analysis gap. Graph nodes render at most eight access rows while the binding
-selector still exposes every retained binding.
+selector still exposes every retained binding. The scenario-value editor shows at
+most 120 retained bindings and accepts up to 240 literal characters per binding;
+its selected trace renders at most 80 access steps. Those browser-session
+annotations are never evaluated, persisted to source, sent to the Extension Host,
+or used to choose a branch. Clicking a `Name` label only selects the existing
+static definition-to-use overlay.
+
+Embedded-code discovery accepts at most 24,000 decoded characters and 64 literal-only
+concatenation pieces per candidate, retains at most 16 regions, and shares the configured
+Function Logic block budget. Multiple functions are queued iteratively; omitted regions,
+callable scopes, parser diagnostics, and dynamic text consumers are reported as gaps.
+
+Function Logic viewport movement is presentation-only. Pan uses a numerically
+guarded screen transform rather than analyzer coordinates, zoom is bounded to
+1%–300%, and **Fit** never enlarges a small graph above 100%.
 
 Direct callee navigation is capped at 24 unique concrete definitions per
 function and expands only after a user action. The editor tab attaches at most 32
