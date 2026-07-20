@@ -27,7 +27,7 @@ export type FunctionLogicSourceTokenFactory = (
   nodeId: string
 ) => SourceNodeToken | undefined;
 
-/** Called/rendered targets plus their best matching function-local syntax blocks. */
+/** Called/rendered/event targets plus their best matching function-local syntax blocks. */
 export type FunctionLogicDrillProjection = {
   callees: FunctionLogicDrillTargetPayload[];
   omittedCalleeCount: number;
@@ -40,13 +40,13 @@ type CalleeGroup = {
   confidence: EdgeConfidence;
 };
 
-/** One graph- or syntax-backed direct call retained for block attachment. */
+/** One graph- or syntax-backed relation retained for block attachment. */
 type MatchedCallsite = {
   key: string;
   filePath: string;
   range?: SourceRange;
   confidence: EdgeConfidence;
-  relation: "call" | "render";
+  relation: "call" | "render" | "event";
 };
 
 /** Concrete target resolution synthesized only when no graph edge covers the callsite. */
@@ -78,6 +78,9 @@ export function createFunctionLogicDrillTargets(
   // syntax fallback; parser-proven receiver-chain stages get the narrow,
   // inferred recovery path documented below.
   for (const callsite of analysis.callsites) {
+    if (callsite.relation === "event") {
+      suppressEventRegistrationEdges(callsite, directEdges, nodesById, usedEdgeIds);
+    }
     const matchingEdge = findMatchingDirectEdge(
       callsite,
       directEdges,
@@ -91,7 +94,7 @@ export function createFunctionLogicDrillTargets(
         // Primary lightweight analyzers often preserve fluent receiver calls as
         // unresolved. A parser-proven chain stage may still recover one unique
         // callable conservatively so its function flow remains expandable.
-        const chainResolution = callsite.callChain
+        const chainResolution = callsite.callChain || callsite.relation === "event"
           ? resolveSyntaxTarget(
               graph,
               functionNode,
@@ -171,27 +174,27 @@ export function createFunctionLogicDrillTargets(
       omittedWithoutToken += 1;
       continue;
     }
-    const target = createTarget(group, sourceToken, sourceDisplay.location(
+    const sourceLocation = sourceDisplay.location(
       group.node.filePath,
       group.node.selectionRange
-    ));
+    );
+    const target = createTarget(group, sourceToken, sourceLocation);
     callees.push(target);
 
-    const callsiteCountByBlockId = new Map<string, number>();
+    const callsitesByBlockId = new Map<string, MatchedCallsite[]>();
     for (const callsite of group.callsites) {
       const block = callsite.range
         ? findCallsiteBlock(analysis.blocks, callsite.filePath, callsite.range)
         : undefined;
       if (block) {
-        callsiteCountByBlockId.set(
-          block.id,
-          (callsiteCountByBlockId.get(block.id) ?? 0) + 1
-        );
+        const values = callsitesByBlockId.get(block.id) ?? [];
+        values.push(callsite);
+        callsitesByBlockId.set(block.id, values);
       }
     }
-    for (const [blockId, callsiteCount] of callsiteCountByBlockId) {
+    for (const [blockId, blockCallsites] of callsitesByBlockId) {
       const values = targetsByBlockId.get(blockId) ?? [];
-      values.push({ ...target, callsiteCount });
+      values.push(createTarget(group, sourceToken, sourceLocation, blockCallsites));
       targetsByBlockId.set(blockId, values);
     }
   }
@@ -207,19 +210,72 @@ export function createFunctionLogicDrillTargets(
 function createTarget(
   group: CalleeGroup,
   sourceToken: SourceNodeToken,
-  sourceLocation: string | undefined
+  sourceLocation: string | undefined,
+  callsites: MatchedCallsite[] = group.callsites
 ): FunctionLogicDrillTargetPayload {
+  const relation = uniformNonCallRelation(callsites);
   return {
     sourceToken,
     name: group.node.name || "Anonymous callable",
     qualifiedName: group.node.qualifiedName || group.node.name || "Anonymous callable",
     sourceLocation,
-    confidence: group.confidence,
-    callsiteCount: group.callsites.length,
-    ...(group.callsites.every((callsite) => callsite.relation === "render")
-      ? { relation: "render" as const }
-      : {})
+    confidence: callsites === group.callsites
+      ? group.confidence
+      : aggregateCallsiteConfidence(callsites),
+    callsiteCount: callsites.length,
+    ...(relation ? { relation } : {})
   };
+}
+
+/** Preserves a special relation only when every represented source site agrees. */
+function uniformNonCallRelation(
+  callsites: readonly MatchedCallsite[]
+): "render" | "event" | undefined {
+  if (callsites.length > 0 && callsites.every((callsite) => callsite.relation === "render")) {
+    return "render";
+  }
+  if (callsites.length > 0 && callsites.every((callsite) => callsite.relation === "event")) {
+    return "event";
+  }
+  return undefined;
+}
+
+/** Derives the strongest confidence for one block-local subset of a callee group. */
+function aggregateCallsiteConfidence(callsites: readonly MatchedCallsite[]): EdgeConfidence {
+  return callsites.reduce(
+    (confidence, callsite) => strongerConfidence(confidence, callsite.confidence),
+    "unresolved" as EdgeConfidence
+  );
+}
+
+/**
+ * Consumes the listener API edge (`on`, `addEventListener`, and peers) without
+ * consuming unrelated nested calls such as a dynamic event-name factory.
+ */
+function suppressEventRegistrationEdges(
+  callsite: FunctionLogicCallsite,
+  edges: readonly GraphEdge[],
+  nodesById: ReadonlyMap<string, SymbolNode>,
+  usedEdgeIds: Set<string>
+): void {
+  const registrationName = callsite.eventRegistrationName;
+  if (!registrationName) {
+    return;
+  }
+  for (const edge of edges) {
+    const target = nodesById.get(edge.targetId);
+    if (usedEdgeIds.has(edge.id)
+      || !edge.range
+      || !sameFilePath(edge.filePath, callsite.filePath)
+      || !rangesOverlap(edge.range, callsite.range)
+      || !target) {
+      continue;
+    }
+    const targetName = target.qualifiedName.split(".").at(-1) || target.name;
+    if (target.name === registrationName || targetName === registrationName) {
+      usedEdgeIds.add(edge.id);
+    }
+  }
 }
 
 /** Matches an AST call to the nearest same-name graph edge at that source range. */

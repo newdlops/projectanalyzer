@@ -71,7 +71,7 @@ export type FunctionLogicValueChangePayload = {
 /** Opaque reference to one Host-approved source range in the active snapshot. */
 export type CodeFlowEvidenceToken = `code-evidence:${string}`;
 
-/** One concrete called or rendered definition available as another function flow. */
+/** One concrete called, rendered, or event-handler definition available as another flow. */
 export type FunctionLogicDrillTargetPayload = {
   sourceToken: SourceNodeToken;
   name: string;
@@ -79,8 +79,8 @@ export type FunctionLogicDrillTargetPayload = {
   sourceLocation?: string;
   confidence: EdgeConfidence;
   callsiteCount: number;
-  /** Render distinguishes JSX composition from an immediate JavaScript call. */
-  relation?: "call" | "render";
+  /** Render and event distinguish composition/dispatch from an immediate call. */
+  relation?: "call" | "render" | "event";
 };
 
 /** One syntax-backed step inside the selected function body. */
