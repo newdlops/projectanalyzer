@@ -112,7 +112,7 @@ export function getFunctionLogicScenarioEvaluatorBrowserSource(): string {
 
     /** Runs immutable state propagation over only the branch-enabled visible CFG. */
     function calculateFunctionLogicScenario(logic, nodeButtonsById, edgeElementsById) {
-      const bindings = logic.valueBindings || [];
+      const bindings = readFunctionLogicScenarioEditableBindings(logic.valueBindings || []);
       const context = createFunctionLogicScenarioContext(bindings);
       const blockById = new Map(logic.blocks.map((block) => [block.id, block]));
       const presentationEnabledBlockIds = new Set(logic.blocks.filter((block) =>
@@ -145,9 +145,9 @@ export function getFunctionLogicScenarioEvaluatorBrowserSource(): string {
         inputStateByBindingId.set(binding.id, parsed);
         seedEnvironment.set(
           binding.id,
-          binding.kind === "parameter"
+          binding.kind === "parameter" || binding.manual
             ? (rawInput ? parsed : createFunctionLogicScenarioUnknown(
-                "parameter input is not set",
+                binding.manual ? "custom variable input is not set" : "parameter input is not set",
                 [binding.id]
               ))
             : createFunctionLogicScenarioUnset("definition has not been reached", [binding.id])

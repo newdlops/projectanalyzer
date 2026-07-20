@@ -86,6 +86,15 @@ export function getFunctionLogicValuePreviewStyles(): string {
       border-top: 1px solid color-mix(in srgb, var(--vscode-panel-border) 60%, transparent);
     }
 
+    .logic-value-preview-rows {
+      min-height: 0;
+      max-height: clamp(160px, 26vh, 260px);
+      overflow-x: hidden;
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      scrollbar-gutter: stable;
+    }
+
     .logic-value-preview-row.selected {
       background: color-mix(in srgb, var(--vscode-list-activeSelectionBackground) 38%, transparent);
       box-shadow: inset 3px 0 0 var(--vscode-focusBorder);
@@ -129,6 +138,7 @@ export function getFunctionLogicValuePreviewStyles(): string {
     .logic-value-preview-kind.local { color: var(--vscode-charts-green, var(--vscode-foreground)); }
     .logic-value-preview-kind.constant { color: var(--vscode-charts-purple, var(--vscode-textLink-foreground)); }
     .logic-value-preview-kind.component { color: var(--vscode-charts-yellow, var(--vscode-textLink-foreground)); }
+    .logic-value-preview-kind.manual { color: var(--vscode-debugTokenExpression-value, var(--vscode-charts-yellow)); }
 
     .logic-value-preview-identity code,
     .logic-value-preview-input {
@@ -183,6 +193,65 @@ export function getFunctionLogicValuePreviewStyles(): string {
       line-height: 1;
     }
 
+    .logic-value-preview-tracked-rows:not(:empty)
+      + .logic-value-preview-manual-rows:not(:empty) {
+      border-top: 1px solid var(--vscode-panel-border);
+    }
+
+    .logic-value-preview-empty {
+      margin: 0;
+      padding: 8px;
+      color: var(--vscode-descriptionForeground);
+      font-size: var(--logic-font-small);
+      line-height: 1.4;
+    }
+
+    .logic-value-preview-add {
+      display: grid;
+      grid-template-columns: minmax(90px, 0.8fr) minmax(120px, 1.2fr) auto;
+      align-items: center;
+      gap: 5px;
+      min-width: 0;
+      padding: 7px;
+      background: color-mix(in srgb, var(--vscode-debugTokenExpression-value) 5%, transparent);
+      border-top: 1px solid var(--vscode-panel-border);
+    }
+
+    .logic-value-preview-add-button {
+      min-height: 24px;
+      padding: 3px 7px;
+      color: var(--vscode-button-secondaryForeground);
+      background: var(--vscode-button-secondaryBackground);
+      border: 1px solid var(--vscode-button-border, var(--vscode-panel-border));
+      border-radius: 3px;
+      font-size: var(--logic-font-small);
+      cursor: pointer;
+      white-space: nowrap;
+    }
+
+    .logic-value-preview-add-button:hover {
+      background: var(--vscode-list-hoverBackground);
+      border-color: var(--vscode-focusBorder);
+    }
+
+    .logic-value-preview-add-button:focus-visible {
+      border-color: var(--vscode-focusBorder);
+      outline: 1px solid var(--vscode-focusBorder);
+      outline-offset: 1px;
+    }
+
+    .logic-value-preview-add-status {
+      grid-column: 1 / -1;
+      min-width: 0;
+      color: var(--vscode-descriptionForeground);
+      font-size: var(--logic-font-tiny);
+      overflow-wrap: anywhere;
+    }
+
+    .logic-value-preview-add-status.error {
+      color: var(--vscode-errorForeground);
+    }
+
     .logic-value-preview-omitted {
       margin: 0;
       padding: 6px 8px;
@@ -211,13 +280,17 @@ export function getFunctionLogicValuePreviewStyles(): string {
         border-left: 0;
         border-top: 1px solid var(--vscode-panel-border);
       }
+
+      .logic-value-preview-add { grid-template-columns: 1fr; }
+      .logic-value-preview-add-status { grid-column: 1; }
     }
 
     @media (forced-colors: active) {
       .logic-value-preview-editor,
       .logic-value-preview-input,
       .logic-value-preview-clear-all,
-      .logic-value-preview-clear {
+      .logic-value-preview-clear,
+      .logic-value-preview-add-button {
         border-color: CanvasText;
       }
     }

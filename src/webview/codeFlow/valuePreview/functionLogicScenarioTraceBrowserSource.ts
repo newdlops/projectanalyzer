@@ -40,7 +40,9 @@ export function getFunctionLogicScenarioTraceBrowserSource(): string {
 
       /** Recalculates the selected branch after input, selection, or choice changes. */
       function refresh() {
-        const binding = (logic.valueBindings || []).find((candidate) =>
+        const binding = readFunctionLogicScenarioEditableBindings(
+          logic.valueBindings || []
+        ).find((candidate) =>
           candidate.id === selectedBindingId
         );
         rows.replaceChildren();
@@ -70,7 +72,9 @@ export function getFunctionLogicScenarioTraceBrowserSource(): string {
         );
         const inputText = rawInput
           ? "input " + formatFunctionLogicScenarioState(inputState)
-          : binding.kind === "parameter" ? "input <not set>" : "source-derived";
+          : binding.kind === "parameter" || binding.manual
+            ? "input <not set>"
+            : "source-derived";
         selection.textContent = formatFunctionLogicBindingKind(binding.kind, binding.valueRole)
           + " " + binding.name + " · " + inputText
           + " · current " + formatFunctionLogicScenarioState(latestState)

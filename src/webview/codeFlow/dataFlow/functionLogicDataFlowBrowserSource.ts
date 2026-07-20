@@ -41,7 +41,8 @@ export function getFunctionLogicDataFlowBrowserSource(): string {
     ) {
       const bindings = logic.valueBindings || [];
       const flows = logic.valueFlows || [];
-      if (bindings.length === 0) return undefined;
+      prepareFunctionLogicValuePreviewSession(sessionKey, bindings);
+      const editableBindings = readFunctionLogicScenarioEditableBindings(bindings);
       const bindingById = new Map(bindings.map((binding) => [binding.id, binding]));
       const blockById = new Map(logic.blocks.map((block) => [block.id, block]));
       const svg = createLogicSvgElement("svg");
@@ -55,7 +56,7 @@ export function getFunctionLogicDataFlowBrowserSource(): string {
       const buttonByBindingId = new Map();
       let selectedBindingId = readFunctionLogicValueFlowSelection(
         sessionKey,
-        bindings,
+        editableBindings,
         flows
       );
       let scenarioTraceRendering;
@@ -190,8 +191,8 @@ export function getFunctionLogicDataFlowBrowserSource(): string {
       }
 
       return {
-        svg,
-        toolbar,
+        svg: flows.length > 0 ? svg : undefined,
+        toolbar: bindings.length > 0 ? toolbar : undefined,
         valuePreviewEditor: valuePreviewRendering.element,
         scenarioTrace: scenarioTraceRendering.element,
         refresh
@@ -297,6 +298,7 @@ export function getFunctionLogicDataFlowBrowserSource(): string {
     /** Produces concise non-color binding kind labels. */
     function formatFunctionLogicBindingKind(kind, valueRole) {
       if (valueRole === "component") return "COMPONENT";
+      if (kind === "manual") return "CUSTOM";
       if (kind === "parameter") return "PARAM";
       if (kind === "constant") return "CONST";
       return "LOCAL";
