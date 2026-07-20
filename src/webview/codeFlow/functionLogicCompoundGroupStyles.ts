@@ -60,7 +60,7 @@ export function getFunctionLogicCompoundGroupStyles(): string {
         var(--vscode-foreground)
       );
       font-family: var(--vscode-font-family);
-      font-size: 7px;
+      font-size: var(--logic-font-tiny);
       font-weight: 800;
       letter-spacing: 0.08em;
       line-height: 10px;

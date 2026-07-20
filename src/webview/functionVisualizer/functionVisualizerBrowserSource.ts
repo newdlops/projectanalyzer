@@ -25,10 +25,12 @@ export function getFunctionVisualizerBrowserSource(): string {
       enteringAttachedFunctionIds: new Set(),
       nextAttachedFunctionId: 0,
       activeLogicGraphSurface: undefined,
+      activeLogicViewportController: undefined,
       loading: false,
       error: undefined,
       selectedLogicBlockId: undefined,
-      logicGraphScale: 1
+      logicGraphScale: 1,
+      logicGraphViewportTransform: undefined
     };
 
     const elements = {
@@ -85,6 +87,7 @@ export function getFunctionVisualizerBrowserSource(): string {
       state.error = undefined;
       state.selectedLogicBlockId = undefined;
       state.logicGraphScale = 1;
+      state.logicGraphViewportTransform = undefined;
       render();
     }
 
@@ -117,6 +120,7 @@ export function getFunctionVisualizerBrowserSource(): string {
       state.error = undefined;
       state.selectedLogicBlockId = undefined;
       state.logicGraphScale = 1;
+      state.logicGraphViewportTransform = undefined;
       render();
     }
 
@@ -206,6 +210,7 @@ export function getFunctionVisualizerBrowserSource(): string {
       state.error = undefined;
       state.selectedLogicBlockId = undefined;
       state.logicGraphScale = 1;
+      state.logicGraphViewportTransform = undefined;
       render();
     }
 
@@ -217,6 +222,7 @@ export function getFunctionVisualizerBrowserSource(): string {
         ? createRootScopeId(entry.target.sourceToken)
         : undefined;
       const graphViewportSnapshot = captureLogicGraphViewport(rootScopeId);
+      disposeActiveFunctionLogicViewport();
       state.activeLogicGraphSurface = undefined;
       clearElement(elements.flowSteps);
       clearElement(elements.flowGaps);
@@ -349,9 +355,10 @@ export function getFunctionVisualizerBrowserSource(): string {
         onSelectionChanged: (blockId) => {
           state.selectedLogicBlockId = blockId;
         },
-        readScale: () => state.logicGraphScale,
-        writeScale: (scale) => {
-          state.logicGraphScale = scale;
+        readViewportTransform: () => state.logicGraphViewportTransform,
+        writeViewportTransform: (transform) => {
+          state.logicGraphViewportTransform = transform;
+          state.logicGraphScale = transform.scale;
         },
         isBlockEntering: isEnteringBlock,
         isEdgeEntering: (edge) =>
@@ -360,6 +367,7 @@ export function getFunctionVisualizerBrowserSource(): string {
           const surface = {
             rootScopeId,
             viewport: graphRendering.viewport,
+            viewportController: graphRendering.viewportController,
             nodeLayoutsByBlockId: graphRendering.nodeLayoutsByBlockId
           };
           restoreLogicGraphViewport(graphViewportSnapshot, surface);
@@ -400,41 +408,41 @@ export function getFunctionVisualizerBrowserSource(): string {
       };
     }
 
-    /** Captures one selected callsite's viewport-relative position before rebuilding the graph. */
+    /** Captures one selected callsite's screen position before rebuilding the graph. */
     function captureLogicGraphViewport(rootScopeId) {
       const surface = state.activeLogicGraphSurface;
       if (!rootScopeId || !surface || surface.rootScopeId !== rootScopeId) return undefined;
-      const scrollLeft = Number(surface.viewport.scrollLeft) || 0;
-      const scrollTop = Number(surface.viewport.scrollTop) || 0;
+      const transform = surface.viewportController.getTransform();
+      if (!transform) return undefined;
       const blockId = state.selectedLogicBlockId;
       const nodeLayout = blockId
         ? surface.nodeLayoutsByBlockId.get(blockId)
         : undefined;
-      const scale = Number(state.logicGraphScale) || 1;
       return {
         blockId: nodeLayout ? blockId : undefined,
-        relativeX: nodeLayout ? nodeLayout.x * scale - scrollLeft : undefined,
-        relativeY: nodeLayout ? nodeLayout.y * scale - scrollTop : undefined,
-        scrollLeft,
-        scrollTop
+        relativeX: nodeLayout ? transform.x + nodeLayout.x * transform.scale : undefined,
+        relativeY: nodeLayout ? transform.y + nodeLayout.y * transform.scale : undefined,
+        transform
       };
     }
 
-    /** Restores raw scroll or compensates for layout movement around the selected callsite. */
+    /** Restores free-pan state or compensates for movement around the selected callsite. */
     function restoreLogicGraphViewport(snapshot, surface) {
       if (!snapshot || !surface) return;
       const nodeLayout = snapshot.blockId
         ? surface.nodeLayoutsByBlockId.get(snapshot.blockId)
         : undefined;
-      const scale = Number(state.logicGraphScale) || 1;
-      const nextLeft = nodeLayout && Number.isFinite(snapshot.relativeX)
-        ? nodeLayout.x * scale - snapshot.relativeX
-        : snapshot.scrollLeft;
-      const nextTop = nodeLayout && Number.isFinite(snapshot.relativeY)
-        ? nodeLayout.y * scale - snapshot.relativeY
-        : snapshot.scrollTop;
-      surface.viewport.scrollLeft = Math.max(0, nextLeft);
-      surface.viewport.scrollTop = Math.max(0, nextTop);
+      const current = surface.viewportController.getTransform() || snapshot.transform;
+      if (!current) return;
+      surface.viewportController.setTransform({
+        scale: current.scale,
+        x: nodeLayout && Number.isFinite(snapshot.relativeX)
+          ? snapshot.relativeX - nodeLayout.x * current.scale
+          : snapshot.transform.x,
+        y: nodeLayout && Number.isFinite(snapshot.relativeY)
+          ? snapshot.relativeY - nodeLayout.y * current.scale
+          : snapshot.transform.y
+      }, false);
     }
 
     /** Stops marking terminal child scopes after their entry frame has been mounted once. */

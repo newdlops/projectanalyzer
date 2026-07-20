@@ -76,7 +76,7 @@ export function getFunctionLogicBranchChoiceStyles(): string {
       background: color-mix(in srgb, var(--vscode-focusBorder) 10%, transparent);
       border: 1px solid color-mix(in srgb, var(--vscode-focusBorder) 55%, transparent);
       border-radius: 5px;
-      font-size: 8px;
+      font-size: var(--logic-font-small);
     }
 
     .logic-choice-reset {

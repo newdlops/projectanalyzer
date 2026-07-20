@@ -3,11 +3,20 @@
 import { getFunctionLogicCompoundGroupStyles } from "./functionLogicCompoundGroupStyles";
 import { getFunctionLogicBranchChoiceStyles } from "./branchChoices";
 import { getFunctionLogicDataFlowStyles } from "./dataFlow";
+import { getFunctionLogicInspectorStyles } from "./inspector";
+import { getFunctionLogicTypographyStyles } from "./typography";
+import {
+  getFunctionLogicScenarioTraceStyles,
+  getFunctionLogicValuePreviewStyles
+} from "./valuePreview";
+import { getFunctionLogicViewportStyles } from "./viewport";
 
 /** Returns CSS for graph nodes, routed edges, lanes, and selection evidence. */
 export function getFunctionLogicGraphStyles(): string {
   return /* css */ `
+    ${getFunctionLogicTypographyStyles()}
     ${getFunctionLogicCompoundGroupStyles()}
+    ${getFunctionLogicViewportStyles()}
 
     .logic-signature {
       display: grid;
@@ -21,7 +30,7 @@ export function getFunctionLogicGraphStyles(): string {
 
     .logic-signature > span {
       color: var(--vscode-descriptionForeground);
-      font-size: 8px;
+      font-size: var(--logic-font-small);
       font-weight: 700;
       letter-spacing: 0.08em;
     }
@@ -30,7 +39,7 @@ export function getFunctionLogicGraphStyles(): string {
       min-width: 0;
       color: var(--vscode-textPreformat-foreground, var(--vscode-foreground));
       font-family: var(--vscode-editor-font-family);
-      font-size: 9px;
+      font-size: var(--logic-code-body);
       line-height: 1.45;
       overflow-wrap: anywhere;
       white-space: normal;
@@ -53,13 +62,13 @@ export function getFunctionLogicGraphStyles(): string {
 
     .logic-understanding-header > span {
       color: var(--vscode-textLink-foreground);
-      font-size: 8px;
+      font-size: var(--logic-font-small);
       font-weight: 800;
       letter-spacing: 0.08em;
     }
 
     .logic-understanding-header > strong {
-      font-size: 11px;
+      font-size: var(--logic-font-large);
     }
 
     .logic-understanding-cards {
@@ -88,18 +97,18 @@ export function getFunctionLogicGraphStyles(): string {
       color: var(--vscode-button-foreground);
       background: var(--vscode-button-background);
       border-radius: 50%;
-      font-size: 8px;
+      font-size: var(--logic-font-small);
       font-weight: 800;
     }
 
     .logic-understanding-card strong {
-      font-size: 9px;
+      font-size: var(--logic-font-body);
     }
 
     .logic-understanding-card p {
       margin: 2px 0 0;
       color: var(--vscode-descriptionForeground);
-      font-size: 8px;
+      font-size: var(--logic-font-small);
       line-height: 1.4;
       overflow-wrap: anywhere;
     }
@@ -122,12 +131,12 @@ export function getFunctionLogicGraphStyles(): string {
       gap: 8px;
     }
 
-    .logic-callees-header strong { font-size: 10px; }
+    .logic-callees-header strong { font-size: var(--logic-font-body); }
 
     .logic-callees-header p {
       margin: 2px 0 0;
       color: var(--vscode-descriptionForeground);
-      font-size: 8px;
+      font-size: var(--logic-font-small);
       line-height: 1.4;
     }
 
@@ -159,7 +168,7 @@ export function getFunctionLogicGraphStyles(): string {
     .logic-callee-button strong {
       min-width: 0;
       font-family: var(--vscode-editor-font-family);
-      font-size: 9px;
+      font-size: var(--logic-code-small);
       overflow-wrap: anywhere;
       white-space: normal;
     }
@@ -168,7 +177,7 @@ export function getFunctionLogicGraphStyles(): string {
     .logic-callee-omitted {
       min-width: 0;
       color: var(--vscode-descriptionForeground);
-      font-size: 7px;
+      font-size: var(--logic-font-tiny);
       overflow-wrap: anywhere;
       white-space: normal;
     }
@@ -179,12 +188,12 @@ export function getFunctionLogicGraphStyles(): string {
     }
 
     .logic-selection-callees > strong {
-      font-size: 8px;
+      font-size: var(--logic-font-small);
     }
 
     .flow-badge.logic-node-callee {
       color: var(--vscode-charts-green, var(--vscode-textLink-foreground));
-      font-size: 7px;
+      font-size: var(--logic-font-tiny);
       text-transform: none;
     }
 
@@ -192,7 +201,7 @@ export function getFunctionLogicGraphStyles(): string {
       max-width: 100%;
       color: var(--vscode-textLink-foreground);
       border-color: color-mix(in srgb, var(--vscode-textLink-foreground) 55%, var(--vscode-panel-border));
-      font-size: 7px;
+      font-size: var(--logic-font-tiny);
       overflow-wrap: anywhere;
       text-transform: none;
       white-space: normal;
@@ -212,7 +221,7 @@ export function getFunctionLogicGraphStyles(): string {
     }
 
     .logic-graph-header > strong {
-      font-size: 10px;
+      font-size: var(--logic-font-body);
     }
 
     .logic-graph-legend {
@@ -223,31 +232,8 @@ export function getFunctionLogicGraphStyles(): string {
       gap: 3px;
     }
 
-    .logic-graph-controls {
-      display: inline-flex;
-      gap: 2px;
-    }
-
-    .logic-zoom-button {
-      min-width: 24px;
-      min-height: 20px;
-      padding: 1px 5px;
-      color: var(--vscode-button-secondaryForeground);
-      background: var(--vscode-button-secondaryBackground);
-      border: 1px solid var(--vscode-button-border, var(--vscode-panel-border));
-      border-radius: 3px;
-      font-size: 8px;
-      cursor: pointer;
-    }
-
-    .logic-zoom-button:focus-visible {
-      border-color: var(--vscode-focusBorder);
-      outline: 1px solid var(--vscode-focusBorder);
-      outline-offset: 1px;
-    }
-
     .flow-badge.logic-legend {
-      font-size: 7px;
+      font-size: var(--logic-font-tiny);
       text-transform: none;
     }
 
@@ -264,50 +250,15 @@ export function getFunctionLogicGraphStyles(): string {
       border-style: dashed;
     }
 
+    .flow-badge.logic-legend.embedded,
+    .flow-badge.logic-legend.callable {
+      border-color: color-mix(in srgb, var(--vscode-charts-blue) 55%, var(--vscode-panel-border));
+      color: var(--vscode-charts-blue, var(--vscode-textLink-foreground));
+    }
+
     .flow-badge.logic-legend.value-change {
       color: var(--vscode-charts-orange, var(--vscode-textLink-foreground));
       border-color: color-mix(in srgb, var(--vscode-charts-orange) 55%, var(--vscode-panel-border));
-    }
-
-    .logic-graph-viewport {
-      position: relative;
-      min-height: 260px;
-      max-height: min(58vh, 620px);
-      overflow: auto;
-      background-color: color-mix(in srgb, var(--vscode-editor-background) 88%, transparent);
-      background-image:
-        linear-gradient(
-          color-mix(in srgb, var(--vscode-panel-border) 28%, transparent) 1px,
-          transparent 1px
-        ),
-        linear-gradient(
-          90deg,
-          color-mix(in srgb, var(--vscode-panel-border) 28%, transparent) 1px,
-          transparent 1px
-        );
-      background-size: 18px 18px;
-      border: 1px solid var(--vscode-panel-border);
-      border-radius: 6px;
-      outline: none;
-      overscroll-behavior: contain;
-    }
-
-    .logic-graph-viewport:focus-visible {
-      border-color: var(--vscode-focusBorder);
-      box-shadow: inset 0 0 0 1px var(--vscode-focusBorder);
-    }
-
-    .logic-graph-stage,
-    .logic-graph-canvas {
-      position: relative;
-    }
-
-    .logic-graph-stage {
-      min-width: 100%;
-    }
-
-    .logic-graph-canvas {
-      transform-origin: top left;
     }
 
     .logic-edge-layer {
@@ -378,6 +329,17 @@ export function getFunctionLogicGraphStyles(): string {
       stroke-width: 2;
     }
 
+    .logic-edge-defines,
+    .logic-edge-deferred {
+      stroke: var(--vscode-charts-blue, var(--vscode-textLink-foreground));
+      stroke-dasharray: 6 4;
+      stroke-width: 1.8;
+    }
+
+    .logic-edge-deferred {
+      stroke: var(--vscode-charts-yellow, var(--vscode-charts-orange));
+    }
+
     .logic-edge-call-return {
       stroke: var(--vscode-charts-green, var(--vscode-textLink-foreground));
       stroke-dasharray: 3 3;
@@ -391,7 +353,7 @@ export function getFunctionLogicGraphStyles(): string {
     .logic-edge-label {
       fill: var(--vscode-descriptionForeground);
       font-family: var(--vscode-editor-font-family);
-      font-size: 8px;
+      font-size: var(--logic-code-small);
       paint-order: stroke;
       stroke: var(--vscode-editor-background);
       stroke-linejoin: round;
@@ -422,6 +384,16 @@ export function getFunctionLogicGraphStyles(): string {
     .logic-edge-label-event {
       fill: var(--vscode-charts-yellow, var(--vscode-charts-orange));
       font-weight: 700;
+    }
+
+    .logic-edge-label-defines,
+    .logic-edge-label-deferred {
+      fill: var(--vscode-charts-blue, var(--vscode-textLink-foreground));
+      font-weight: 700;
+    }
+
+    .logic-edge-label-deferred {
+      fill: var(--vscode-charts-yellow, var(--vscode-charts-orange));
     }
 
     .logic-edge-label-call-return {
@@ -519,6 +491,18 @@ export function getFunctionLogicGraphStyles(): string {
       border-style: dashed;
     }
 
+    .logic-node-embedded {
+      --logic-node-surface: color-mix(in srgb, var(--vscode-charts-blue) 10%, var(--vscode-editor-background));
+      border-left-color: var(--vscode-charts-blue, var(--vscode-textLink-foreground));
+      border-style: double;
+    }
+
+    .logic-node-callable {
+      --logic-node-surface: color-mix(in srgb, var(--vscode-charts-purple) 7%, var(--vscode-editor-background));
+      border-left-color: var(--vscode-charts-purple, var(--vscode-charts-blue));
+      border-style: dashed;
+    }
+
     .logic-node-effect,
     .logic-node-mutation {
       --logic-node-surface: color-mix(in srgb, var(--vscode-charts-orange) 8%, var(--vscode-editor-background));
@@ -563,7 +547,7 @@ export function getFunctionLogicGraphStyles(): string {
     .logic-node-branch {
       min-width: 0;
       color: var(--vscode-textLink-foreground);
-      font-size: 7px;
+      font-size: var(--logic-font-tiny);
       font-weight: 700;
       overflow-wrap: anywhere;
       text-transform: uppercase;
@@ -574,7 +558,7 @@ export function getFunctionLogicGraphStyles(): string {
       display: block;
       min-width: 0;
       font-family: var(--vscode-editor-font-family);
-      font-size: 9px;
+      font-size: var(--logic-code-small);
       line-height: 1.3;
       overflow-wrap: anywhere;
       white-space: normal;
@@ -607,7 +591,7 @@ export function getFunctionLogicGraphStyles(): string {
     .logic-value-target-kind {
       flex: 0 0 auto;
       color: var(--vscode-charts-orange, var(--vscode-textLink-foreground));
-      font-size: 6px;
+      font-size: var(--logic-font-tiny);
       font-weight: 800;
       letter-spacing: 0.04em;
       white-space: nowrap;
@@ -616,7 +600,7 @@ export function getFunctionLogicGraphStyles(): string {
     .logic-value-change code {
       min-width: 0;
       font-family: var(--vscode-editor-font-family);
-      font-size: 7px;
+      font-size: var(--logic-code-tiny);
       line-height: 1.3;
       overflow-wrap: anywhere;
       white-space: normal;
@@ -626,7 +610,7 @@ export function getFunctionLogicGraphStyles(): string {
       min-width: 0;
       color: var(--vscode-descriptionForeground);
       font-family: var(--vscode-editor-font-family);
-      font-size: 7px;
+      font-size: var(--logic-code-tiny);
       line-height: 1.35;
       overflow-wrap: anywhere;
       white-space: normal;
@@ -653,7 +637,7 @@ export function getFunctionLogicGraphStyles(): string {
       min-width: 0;
       flex: 1;
       font-family: var(--vscode-editor-font-family);
-      font-size: 10px;
+      font-size: var(--logic-code-body);
       overflow-wrap: anywhere;
     }
 
@@ -661,7 +645,7 @@ export function getFunctionLogicGraphStyles(): string {
     .logic-selection-meta {
       margin: 0;
       color: var(--vscode-descriptionForeground);
-      font-size: 8px;
+      font-size: var(--logic-font-small);
       line-height: 1.45;
       overflow-wrap: anywhere;
     }
@@ -678,7 +662,7 @@ export function getFunctionLogicGraphStyles(): string {
     }
 
     .logic-selection-value-section > strong {
-      font-size: 8px;
+      font-size: var(--logic-font-small);
     }
 
     .logic-selection-transfers {
@@ -767,6 +751,9 @@ export function getFunctionLogicGraphStyles(): string {
     }
 
     ${getFunctionLogicDataFlowStyles()}
+    ${getFunctionLogicInspectorStyles()}
+    ${getFunctionLogicValuePreviewStyles()}
+    ${getFunctionLogicScenarioTraceStyles()}
     ${getFunctionLogicBranchChoiceStyles()}
   `;
 }

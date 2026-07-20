@@ -15,7 +15,7 @@ export function getFunctionLogicSelectionBrowserSource(): string {
       outgoingBySourceId,
       connectedEdgeIdsByBlockId,
       edgeElementsById,
-      detailPanel,
+      inspector,
       moveFocus,
       graphContext,
       onBranchChoice,
@@ -45,12 +45,16 @@ export function getFunctionLogicSelectionBrowserSource(): string {
         selected,
         outgoingBySourceId.get(blockId) || [],
         blocksById,
-        detailPanel,
+        inspector.selectionPanel,
         graphContext,
         onBranchChoice,
         branchChoices
       );
-      if (moveFocus) nodeButtonsById.get(blockId)?.focus();
+      inspector.setSelection(selected);
+      if (moveFocus) {
+        inspector.open();
+        nodeButtonsById.get(blockId)?.focus();
+      }
     }
 
     /** Shows complete source meaning and transfers for the selected graph node. */

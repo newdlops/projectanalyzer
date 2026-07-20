@@ -7,7 +7,8 @@ export function getFunctionVisualizerStyles(): string {
   return /* css */ `
     :root {
       color-scheme: light dark;
-      font-family: var(--vscode-font-family);
+      font-family: var(--vscode-font-family, sans-serif);
+      font-size: var(--vscode-font-size, 13px);
       color: var(--vscode-foreground);
       background: var(--vscode-editor-background);
     }
@@ -23,9 +24,10 @@ export function getFunctionVisualizerStyles(): string {
     button { font: inherit; }
 
     .visualizer-shell {
-      width: min(1320px, 100%);
+      width: 100%;
+      min-height: 100vh;
       margin: 0 auto;
-      padding: 22px clamp(16px, 3vw, 42px) 48px;
+      padding: 16px clamp(12px, 1.8vw, 28px) 32px;
     }
 
     .visualizer-topbar {
@@ -36,8 +38,8 @@ export function getFunctionVisualizerStyles(): string {
       grid-template-columns: auto minmax(0, 1fr);
       align-items: center;
       gap: 12px;
-      margin: -22px calc(-1 * clamp(16px, 3vw, 42px)) 24px;
-      padding: 12px clamp(16px, 3vw, 42px);
+      margin: -16px calc(-1 * clamp(12px, 1.8vw, 28px)) 14px;
+      padding: 10px clamp(12px, 1.8vw, 28px);
       background: color-mix(in srgb, var(--vscode-editor-background) 94%, transparent);
       border-bottom: 1px solid var(--vscode-panel-border);
       backdrop-filter: blur(10px);
@@ -97,19 +99,19 @@ export function getFunctionVisualizerStyles(): string {
     .visualizer-header {
       display: grid;
       gap: 7px;
-      margin-bottom: 18px;
+      margin-bottom: 10px;
     }
 
     .visualizer-eyebrow {
       color: var(--vscode-textLink-foreground);
-      font-size: 10px;
+      font-size: 0.78rem;
       font-weight: 800;
       letter-spacing: 0.12em;
     }
 
     .visualizer-header h1 {
       margin: 0;
-      font-size: clamp(22px, 3vw, 34px);
+      font-size: clamp(1.7rem, 3vw, 2.6rem);
       line-height: 1.15;
       overflow-wrap: anywhere;
     }
@@ -132,14 +134,14 @@ export function getFunctionVisualizerStyles(): string {
     }
 
     .status {
-      min-height: 22px;
-      margin: 10px 0 18px;
-      font-size: 12px;
+      min-height: 20px;
+      margin: 6px 0 10px;
+      font-size: 0.92rem;
     }
 
     .flow-steps {
       display: grid;
-      gap: 16px;
+      gap: 10px;
       min-width: 0;
     }
 
@@ -151,7 +153,7 @@ export function getFunctionVisualizerStyles(): string {
 
     .function-origins h2 {
       margin: 0;
-      font-size: 12px;
+      font-size: 0.92rem;
     }
 
     #function-origins {
@@ -166,7 +168,7 @@ export function getFunctionVisualizerStyles(): string {
       background: color-mix(in srgb, var(--vscode-textLink-foreground) 7%, transparent);
       border: 1px solid color-mix(in srgb, var(--vscode-textLink-foreground) 30%, var(--vscode-panel-border));
       border-radius: 999px;
-      font-size: 10px;
+      font-size: 0.78rem;
     }
 
     .visualizer-empty {
@@ -189,7 +191,7 @@ export function getFunctionVisualizerStyles(): string {
       color: var(--vscode-descriptionForeground);
       border: 1px solid var(--vscode-panel-border);
       border-radius: 999px;
-      font-size: 9px;
+      font-size: 0.72rem;
       font-weight: 700;
       letter-spacing: 0.03em;
       text-transform: uppercase;
@@ -217,7 +219,7 @@ export function getFunctionVisualizerStyles(): string {
       border-top: 1px solid var(--vscode-panel-border);
     }
 
-    .flow-gaps h2 { margin: 0 0 10px; font-size: 15px; }
+    .flow-gaps h2 { margin: 0 0 10px; font-size: 1.15rem; }
     #flow-gaps { display: grid; gap: 8px; }
 
     .gap-card {
@@ -251,25 +253,41 @@ export function getFunctionVisualizerStyles(): string {
       background: color-mix(in srgb, var(--vscode-textLink-foreground) 10%, transparent);
     }
 
-    .logic-signature { padding: 12px 14px; }
-    .logic-signature > span { font-size: 10px; }
-    .logic-signature code { font-size: 13px; }
-    .logic-graph-header > strong { font-size: 14px; }
+    .logic-signature { padding: 10px 11px; }
+    .logic-signature > span { font-size: var(--logic-font-small); }
+    .logic-signature code { font-size: var(--logic-code-font-size); }
+    .logic-graph-header > strong { font-size: var(--logic-font-large); }
     .logic-graph-legend { grid-column: auto; justify-content: flex-start; }
-    .logic-graph-viewport { max-height: min(68vh, 760px); border-radius: 9px; }
-    .logic-node-label { font-size: 10px; }
-    .logic-node-meta { font-size: 8px; }
-    .logic-value-target-kind { font-size: 7px; }
-    .logic-value-change code { font-size: 9px; }
+    .visualizer-shell .logic-graph-workspace {
+      --logic-workspace-height: clamp(460px, 76vh, 1080px);
+    }
+
+    .logic-graph-viewport {
+      width: 100%;
+      border-radius: 9px;
+    }
+    .logic-node-label { font-size: var(--logic-code-small); }
+    .logic-node-meta { font-size: var(--logic-code-tiny); }
+    .logic-value-target-kind { font-size: var(--logic-font-tiny); }
+    .logic-value-change code { font-size: var(--logic-code-small); }
     .logic-selection { padding: 13px 14px; }
-    .logic-selection-header > strong { font-size: 13px; }
+    .logic-selection-header > strong { font-size: var(--logic-code-body); }
     .logic-selection-detail,
-    .logic-selection-meta { font-size: 11px; }
+    .logic-selection-meta { font-size: var(--logic-font-body); }
+
+    @media (min-width: 721px) {
+      .visualizer-shell .logic-graph-workspace.inspector-open {
+        grid-template-columns: minmax(0, 1fr) clamp(300px, 31vw, 430px);
+      }
+    }
 
     @media (max-width: 640px) {
       .visualizer-topbar { grid-template-columns: 1fr; }
       .logic-graph-header { grid-template-columns: 1fr; }
       .logic-graph-legend { grid-column: 1; }
+      .visualizer-shell .logic-graph-workspace {
+        --logic-workspace-height: clamp(380px, 70vh, 760px);
+      }
     }
   `;
 }

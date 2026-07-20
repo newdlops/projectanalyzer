@@ -32,6 +32,275 @@ type TestValueChange = {
   confidence: "exact" | "inferred";
 };
 
+test("keeps the graph primary and moves supporting inspectors into an adjacent drawer", () => {
+  const runtime = installSidebarWebviewRuntime();
+  const openTitle = "Open function inspector · return true;";
+  const closeTitle = "Close function inspector · return true;";
+
+  try {
+    new Function(requireFunctionVisualizerScript())();
+    runtime.dispatchMessage(createSessionMessage());
+    runtime.dispatchMessage(createFunctionDetail(
+      "Root.run",
+      rootToken,
+      undefined,
+      "call",
+      [],
+      true
+    ));
+
+    assert.equal(runtime.countRenderedByClass("flow-steps", "logic-graph-workspace"), 1);
+    assert.equal(runtime.countRenderedByClass("flow-steps", "logic-inspector-drawer"), 1);
+    assert.equal(runtime.getRenderedAttributeByClass(
+      "flow-steps",
+      "logic-inspector-drawer",
+      "aria-hidden"
+    ), "false");
+    assert.equal(runtime.getRenderedAttributeByTitle(
+      "flow-steps",
+      closeTitle,
+      "aria-expanded"
+    ), "true");
+    for (const inspectorClass of [
+      "logic-selection",
+      "logic-value-preview-editor",
+      "logic-scenario-trace",
+      "logic-data-flow-toolbar",
+      "logic-signature",
+      "logic-understanding"
+    ]) {
+      assert.equal(runtime.countRenderedByClassWithinClass(
+        "flow-steps",
+        "logic-inspector-drawer",
+        inspectorClass
+      ), 1, `${inspectorClass} should live inside the drawer`);
+    }
+
+    runtime.clickByTitle("Close function inspector");
+    assert.equal(runtime.getRenderedAttributeByTitle(
+      "flow-steps",
+      openTitle,
+      "aria-expanded"
+    ), "false");
+    assert.equal(runtime.getRenderedAttributeByClass(
+      "flow-steps",
+      "logic-inspector-drawer",
+      "aria-hidden"
+    ), "true");
+    runtime.clickByTitle(openTitle);
+    runtime.keydownByClass("flow-steps", "logic-graph-workspace", "Escape");
+    assert.equal(runtime.getRenderedAttributeByClass(
+      "flow-steps",
+      "logic-inspector-drawer",
+      "aria-hidden"
+    ), "true");
+    runtime.clickByTitle(openTitle);
+    runtime.clickByTitle("Close function inspector");
+    runtime.clickByTitle("Select logic · return true;");
+    assert.equal(runtime.getRenderedAttributeByClass(
+      "flow-steps",
+      "logic-inspector-drawer",
+      "aria-hidden"
+    ), "false");
+  } finally {
+    runtime.restore();
+  }
+});
+
+test("pans the graph freely and provides Center, Fit, and focal zoom controls", () => {
+  const runtime = installSidebarWebviewRuntime();
+
+  try {
+    new Function(requireFunctionVisualizerScript())();
+    runtime.dispatchMessage(createSessionMessage());
+    runtime.dispatchMessage(createFunctionDetail("Root.run", rootToken));
+
+    assert.equal(runtime.getRenderedAttributeByTitle(
+      "flow-steps",
+      "Center function graph (C)",
+      "aria-keyshortcuts"
+    ), "C");
+    assert.equal(runtime.getRenderedAttributeByTitle(
+      "flow-steps",
+      "Fit complete function graph (F)",
+      "aria-keyshortcuts"
+    ), "F");
+    const initial = readRenderedViewportTransform(runtime);
+    assert.equal(initial.scale, 1);
+    assert.ok(initial.x > 0);
+    assert.ok(initial.y > 0);
+
+    const beforeMessages = runtime.messages.length;
+    assert.equal(runtime.dispatchRenderedEventByClass(
+      "flow-steps",
+      "logic-graph-viewport",
+      "pointerdown",
+      { button: 0, pointerId: 7, clientX: 200, clientY: 120 }
+    ), true);
+    runtime.dispatchRenderedEventByClass(
+      "flow-steps",
+      "logic-graph-viewport",
+      "pointermove",
+      { pointerId: 7, clientX: -420, clientY: -260 }
+    );
+    runtime.dispatchRenderedEventByClass(
+      "flow-steps",
+      "logic-graph-viewport",
+      "pointerup",
+      { pointerId: 7, clientX: -420, clientY: -260 }
+    );
+    assert.deepEqual(readRenderedViewportTransform(runtime), {
+      scale: 1,
+      x: initial.x - 620,
+      y: initial.y - 380
+    });
+
+    assert.equal(runtime.dispatchRenderedEventByClass(
+      "flow-steps",
+      "logic-graph-viewport",
+      "wheel",
+      { deltaMode: 0, deltaX: 35, deltaY: -20, shiftKey: false }
+    ), true);
+    assert.deepEqual(readRenderedViewportTransform(runtime), {
+      scale: 1,
+      x: initial.x - 655,
+      y: initial.y - 360
+    });
+
+    runtime.clickByTitle("Center function graph (C)");
+    assert.deepEqual(readRenderedViewportTransform(runtime), initial);
+    runtime.clickByTitle("Zoom in function graph");
+    assert.equal(readRenderedViewportTransform(runtime).scale, 1.25);
+    assert.ok(runtime.getRenderedText("flow-steps").includes("125%"));
+    runtime.clickByTitle("Fit complete function graph (F)");
+    assert.deepEqual(readRenderedViewportTransform(runtime), initial);
+    assert.equal(runtime.messages.length, beforeMessages);
+  } finally {
+    runtime.restore();
+  }
+});
+
+test("accepts Scenario inputs without executing source or messaging the Host", () => {
+  const runtime = installSidebarWebviewRuntime();
+  const inputTitle = "Scenario input for parameter input";
+  const highlightTitle = "Highlight parameter input value flow";
+  const preview = "{\"id\":42,\"ready\":true}";
+
+  try {
+    new Function(requireFunctionVisualizerScript())();
+    runtime.dispatchMessage(createSessionMessage());
+    runtime.dispatchMessage(createFunctionDetail(
+      "Root.run",
+      rootToken,
+      undefined,
+      "call",
+      [],
+      true
+    ));
+
+    const beforeInputMessages = runtime.messages.length;
+    const initialText = runtime.getRenderedText("flow-steps");
+    assert.ok(initialText.includes("Scenario values"));
+    assert.ok(initialText.includes("Scenario calculation"));
+    assert.ok(initialText.includes("Name"));
+    assert.ok(initialText.includes("Scenario input"));
+    assert.ok(initialText.includes("DEFINED"));
+    assert.ok(initialText.includes("SINK · UPDATE"));
+    assert.ok(initialText.includes("◎ SINK"));
+    assert.ok(initialText.some((text) => text.includes("Source calls are never executed")));
+    assert.equal(runtime.getRenderedAttributeByClass(
+      "flow-steps",
+      "logic-inspector-drawer",
+      "aria-hidden"
+    ), "false");
+    assert.equal(runtime.countRenderedByClass("flow-steps", "logic-scenario-step"), 2);
+
+    assert.equal(runtime.getRenderedAttributeByTitle(
+      "flow-steps",
+      highlightTitle,
+      "aria-pressed"
+    ), "true");
+    runtime.clickByTitle("Trace parameter input");
+    assert.equal(runtime.getRenderedAttributeByTitle(
+      "flow-steps",
+      highlightTitle,
+      "aria-pressed"
+    ), "false");
+    assert.equal(runtime.hasRenderedClassByTitle(
+      "flow-steps",
+      "Select logic · return true;",
+      "data-flow-related"
+    ), false);
+    const beforeHighlightMessages = runtime.messages.length;
+    runtime.clickByTitle(highlightTitle);
+    assert.equal(runtime.getRenderedAttributeByTitle(
+      "flow-steps",
+      "Trace parameter input",
+      "aria-pressed"
+    ), "true");
+    assert.equal(runtime.hasRenderedClassByTitle(
+      "flow-steps",
+      "Select logic · return true;",
+      "data-flow-related"
+    ), true);
+    assert.equal(runtime.hasRenderedClassByTitle(
+      "flow-steps",
+      "Select logic · return true;",
+      "data-flow-sink"
+    ), true);
+    assert.equal(runtime.messages.length, beforeHighlightMessages);
+
+    runtime.inputByTitle(inputTitle, preview);
+    assert.equal(runtime.messages.length, beforeInputMessages);
+    assert.ok(runtime.getRenderedText("flow-steps").includes("= " + preview));
+    assert.ok(runtime.getRenderedText("flow-steps").includes(
+      preview + " → <unknown: write has no supported source expression>"
+    ));
+
+    runtime.dispatchMessage(createFunctionDetail(
+      "Root.run",
+      rootToken,
+      undefined,
+      "call",
+      [],
+      true
+    ));
+    assert.ok(runtime.getRenderedText("flow-steps").includes("= " + preview));
+
+    runtime.clickByTitle("Clear scenario input for input");
+    assert.ok(!runtime.getRenderedText("flow-steps").includes("= " + preview));
+  } finally {
+    runtime.restore();
+  }
+});
+
+test("calculates entered values through nested ternaries and subsequent assignments", () => {
+  const runtime = installSidebarWebviewRuntime();
+
+  try {
+    new Function(requireFunctionVisualizerScript())();
+    runtime.dispatchMessage(createSessionMessage());
+    runtime.dispatchMessage(createCalculatedScenarioDetail());
+    const beforeInputMessages = runtime.messages.length;
+
+    runtime.inputByTitle("Scenario input for parameter input", "4");
+    runtime.inputByTitle("Scenario input for parameter ready", "true");
+
+    const rendered = runtime.getRenderedText("flow-steps");
+    assert.ok(rendered.includes(
+      "adjusted = ready ? input > 3 ? input * 2 : input + 2 : 0"
+    ));
+    assert.ok(rendered.includes("total = adjusted + 3"));
+    assert.ok(rendered.includes("total += 2"));
+    assert.ok(rendered.includes("11 → 13"));
+    assert.ok(rendered.includes("CALCULATED"));
+    assert.ok(rendered.includes("UPDATED"));
+    assert.equal(runtime.messages.length, beforeInputMessages);
+  } finally {
+    runtime.restore();
+  }
+});
+
 test("requests a child attachment when the function call belongs to an if box", () => {
   const runtime = installSidebarWebviewRuntime();
 
@@ -73,20 +342,43 @@ test("keeps the callsite fixed in the viewport while attached child nodes animat
       confidence: "resolved",
       callsiteCount: 1
     }));
-    runtime.setRenderedScrollByClass(
+    runtime.dispatchRenderedEventByClass(
       "flow-steps",
       "logic-graph-viewport",
-      { left: 18, top: 24 }
+      "pointerdown",
+      { button: 0, pointerId: 9, clientX: 180, clientY: 110 }
+    );
+    runtime.dispatchRenderedEventByClass(
+      "flow-steps",
+      "logic-graph-viewport",
+      "pointermove",
+      { pointerId: 9, clientX: 110, clientY: 75 }
+    );
+    runtime.dispatchRenderedEventByClass(
+      "flow-steps",
+      "logic-graph-viewport",
+      "pointerup",
+      { pointerId: 9, clientX: 110, clientY: 75 }
     );
     const before = renderedViewportPosition(runtime, expandTitle);
 
     runtime.clickByTitle(expandTitle);
+    assert.equal(runtime.getRenderedAttributeByClass(
+      "flow-steps",
+      "logic-inspector-drawer",
+      "aria-hidden"
+    ), "false");
     assert.deepEqual(renderedViewportPosition(runtime, collapseTitle), before);
     assert.equal(runtime.countRenderedByClass("flow-steps", "logic-node-entering"), 1);
     assert.equal(runtime.countRenderedByClass("flow-steps", "logic-edge-entering"), 1);
 
     const loadingPosition = renderedViewportPosition(runtime, collapseTitle);
     runtime.dispatchMessage(createFunctionDetail("Child.load", childToken));
+    assert.equal(runtime.getRenderedAttributeByClass(
+      "flow-steps",
+      "logic-inspector-drawer",
+      "aria-hidden"
+    ), "false");
     assert.deepEqual(renderedViewportPosition(runtime, collapseTitle), loadingPosition);
     assert.equal(runtime.countRenderedByClass("flow-steps", "logic-node-entering"), 1);
     assert.equal(runtime.countRenderedByClass("flow-steps", "logic-edge-entering"), 1);
@@ -663,7 +955,8 @@ function createFunctionDetail(
             bindingId,
             name: "input",
             bindingKind: "parameter",
-            access: "read",
+            access: "readwrite",
+            usage: "sink",
             confidence: "exact"
           }] : undefined
         }],
@@ -680,7 +973,8 @@ function createFunctionDetail(
           bindingId,
           sourceBlockId: blockId,
           targetBlockId: blockId,
-          targetAccess: "read",
+          targetAccess: "readwrite",
+          targetUsage: "sink",
           confidence: "exact"
         }] : undefined,
         layout: {
@@ -724,6 +1018,203 @@ function createFunctionDetail(
   };
 }
 
+/** Creates a multi-block Scenario whose values are fully source-calculable. */
+function createCalculatedScenarioDetail(): unknown {
+  const bindings = [{
+    id: "scenario-input",
+    name: "input",
+    kind: "parameter",
+    definitionBlockId: "scenario-entry",
+    confidence: "exact"
+  }, {
+    id: "scenario-ready",
+    name: "ready",
+    kind: "parameter",
+    definitionBlockId: "scenario-entry",
+    confidence: "exact"
+  }, {
+    id: "scenario-adjusted",
+    name: "adjusted",
+    kind: "local",
+    definitionBlockId: "scenario-choose",
+    confidence: "exact"
+  }, {
+    id: "scenario-total",
+    name: "total",
+    kind: "local",
+    definitionBlockId: "scenario-derive",
+    confidence: "exact"
+  }];
+  const blocks = [{
+    id: "scenario-entry",
+    kind: "entry",
+    label: "run(input, ready)",
+    detail: "Function entry.",
+    depth: 0,
+    confidence: "exact",
+    sourceLocation: "src/root.ts:1",
+    evidenceToken,
+    valueAccesses: [scenarioAccess("scenario-input", "input", "parameter", "define"),
+      scenarioAccess("scenario-ready", "ready", "parameter", "define")]
+  }, {
+    id: "scenario-choose",
+    kind: "operation",
+    label: "const adjusted = ready ? input > 3 ? input * 2 : input + 2 : 0;",
+    detail: "Calculates an adjusted value.",
+    depth: 0,
+    confidence: "exact",
+    sourceLocation: "src/root.ts:2",
+    evidenceToken,
+    valueAccesses: [scenarioAccess("scenario-adjusted", "adjusted", "local", "define"),
+      scenarioAccess("scenario-ready", "ready", "parameter", "read", "consume"),
+      scenarioAccess("scenario-input", "input", "parameter", "read", "consume")],
+    valueChanges: [{
+      target: "adjusted",
+      targetKind: "variable",
+      operation: "initialize",
+      operator: "=",
+      value: "ready ? input > 3 ? input * 2 : input + 2 : 0",
+      confidence: "exact"
+    }]
+  }, {
+    id: "scenario-derive",
+    kind: "operation",
+    label: "let total = adjusted + 3;",
+    detail: "Derives a total.",
+    depth: 0,
+    confidence: "exact",
+    sourceLocation: "src/root.ts:3",
+    evidenceToken,
+    valueAccesses: [scenarioAccess("scenario-total", "total", "local", "define"),
+      scenarioAccess("scenario-adjusted", "adjusted", "local", "read", "consume")],
+    valueChanges: [{
+      target: "total",
+      targetKind: "variable",
+      operation: "initialize",
+      operator: "=",
+      value: "adjusted + 3",
+      confidence: "exact"
+    }]
+  }, {
+    id: "scenario-update",
+    kind: "mutation",
+    label: "total += 2;",
+    detail: "Updates and returns the total.",
+    depth: 0,
+    confidence: "exact",
+    sourceLocation: "src/root.ts:4",
+    evidenceToken,
+    valueAccesses: [scenarioAccess(
+      "scenario-total",
+      "total",
+      "local",
+      "readwrite",
+      "sink"
+    )],
+    valueChanges: [{
+      target: "total",
+      targetKind: "variable",
+      operation: "update",
+      operator: "+=",
+      value: "2",
+      confidence: "exact"
+    }]
+  }];
+  const edges = [{
+    id: "scenario-edge-1", sourceId: "scenario-entry", targetId: "scenario-choose",
+    kind: "next", confidence: "exact"
+  }, {
+    id: "scenario-edge-2", sourceId: "scenario-choose", targetId: "scenario-derive",
+    kind: "next", confidence: "exact"
+  }, {
+    id: "scenario-edge-3", sourceId: "scenario-derive", targetId: "scenario-update",
+    kind: "next", confidence: "exact"
+  }];
+  return {
+    type: "codeFlow/detailLoaded",
+    payload: {
+      graphVersion,
+      id: "code-flow:0123456789abcdef0123456789abcdef",
+      kind: "functionLogic",
+      title: "Root.run",
+      subtitle: "Function logic · src/root.ts:1",
+      semantics: "static",
+      focusStepId: "scenario-entry",
+      steps: [],
+      logic: {
+        language: "typescript",
+        signature: "function run(input, ready)",
+        blocks,
+        edges,
+        valueBindings: bindings,
+        valueFlows: [{
+          id: "scenario-flow-input",
+          bindingId: "scenario-input",
+          sourceBlockId: "scenario-entry",
+          targetBlockId: "scenario-choose",
+          targetAccess: "read",
+          targetUsage: "consume",
+          confidence: "exact"
+        }],
+        layout: {
+          width: 360,
+          height: 430,
+          nodes: blocks.map((block, index) => ({
+            blockId: block.id,
+            x: 70,
+            y: 20 + index * 100,
+            width: 220,
+            height: 76,
+            rank: index,
+            lane: 0
+          })),
+          edges: []
+        },
+        summary: {
+          blockCount: blocks.length,
+          branchCount: 0,
+          loopCount: 0,
+          callCount: 0,
+          effectCount: 0,
+          mutationCount: 1,
+          valueChangeCount: 3,
+          exitCount: 1
+        },
+        callees: [],
+        omittedCalleeCount: 0
+      },
+      origins: [],
+      gaps: [],
+      summary: {
+        stepCount: blocks.length,
+        concreteStepCount: blocks.length,
+        decisionStepCount: 0,
+        effectStepCount: 1,
+        unknownStepCount: 0,
+        gapCount: 0
+      }
+    }
+  };
+}
+
+/** Creates one projected lexical access for the calculated Scenario fixture. */
+function scenarioAccess(
+  bindingId: string,
+  name: string,
+  bindingKind: "parameter" | "local",
+  access: "define" | "read" | "readwrite",
+  usage?: "consume" | "sink"
+): Record<string, unknown> {
+  return {
+    bindingId,
+    name,
+    bindingKind,
+    access,
+    ...(usage ? { usage } : {}),
+    confidence: "exact"
+  };
+}
+
 /** Returns the most recent payload emitted under one request discriminator. */
 function latestPayload(
   messages: Array<{ type: string; payload: unknown }>,
@@ -734,16 +1225,34 @@ function latestPayload(
   return message.payload;
 }
 
-/** Measures one rendered node relative to the current graph viewport scroll. */
+/** Measures one rendered node after the shared free-pan canvas transform. */
 function renderedViewportPosition(
   runtime: ReturnType<typeof installSidebarWebviewRuntime>,
   title: string
 ): { left: number; top: number } {
   const position = runtime.getRenderedPositionByTitle("flow-steps", title);
-  const scroll = runtime.getRenderedScrollByClass("flow-steps", "logic-graph-viewport");
+  const transform = readRenderedViewportTransform(runtime);
   return {
-    left: position.left - scroll.left,
-    top: position.top - scroll.top
+    left: transform.x + position.left * transform.scale,
+    top: transform.y + position.top * transform.scale
+  };
+}
+
+/** Parses the controller's sole translate + scale transform from the fake DOM. */
+function readRenderedViewportTransform(
+  runtime: ReturnType<typeof installSidebarWebviewRuntime>
+): { scale: number; x: number; y: number } {
+  const value = runtime.getRenderedStyleByClass(
+    "flow-steps",
+    "logic-graph-canvas",
+    "transform"
+  );
+  const match = /^translate3d\((-?[\d.]+)px, (-?[\d.]+)px, 0\) scale\(([\d.]+)\)$/u.exec(value);
+  assert.ok(match, `unexpected Function Logic viewport transform: ${value}`);
+  return {
+    x: Number(match[1]),
+    y: Number(match[2]),
+    scale: Number(match[3])
   };
 }
 

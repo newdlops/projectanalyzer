@@ -32,8 +32,9 @@ export function getCompoundFunctionLogicDimensionsSource(): string {
           + (change.value ? " " + String(change.value) : "")
       );
       const allValueAccessTexts = (block.valueAccesses || []).map((access) =>
-        String(access.bindingKind || "value") + " "
+        String(access.valueRole || access.bindingKind || "value") + " "
           + String(access.access || "read") + " "
+          + String(access.usage || "") + " "
           + String(access.name || "")
       );
       const valueAccessTexts = allValueAccessTexts.slice(0, 8);

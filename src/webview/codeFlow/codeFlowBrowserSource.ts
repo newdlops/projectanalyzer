@@ -36,6 +36,8 @@ export function getCodeFlowBrowserSource(): string {
       detailError: undefined,
       selectedLogicBlockId: undefined,
       logicGraphScale: 1,
+      logicGraphViewportTransform: undefined,
+      activeLogicViewportController: undefined,
       moduleFlowOpening: false,
       searchTimer: undefined
     };
@@ -200,6 +202,7 @@ export function getCodeFlowBrowserSource(): string {
         if (state.detail?.id !== message.payload.id) {
           state.selectedLogicBlockId = undefined;
           state.logicGraphScale = 1;
+          state.logicGraphViewportTransform = undefined;
         }
         state.detail = message.payload;
         state.detailLoading = false;
@@ -276,6 +279,7 @@ export function getCodeFlowBrowserSource(): string {
       state.detailError = undefined;
       state.selectedLogicBlockId = undefined;
       state.logicGraphScale = 1;
+      state.logicGraphViewportTransform = undefined;
     }
 
     /** Changes the question type while keeping entrypoint and function search separate. */
@@ -567,6 +571,7 @@ export function getCodeFlowBrowserSource(): string {
 
     /** Renders the selected flow, its origins, evidence, and explicit gaps. */
     function renderDetail() {
+      disposeActiveFunctionLogicViewport();
       const active = Boolean(state.detail || state.detailLoading || state.detailError);
       elements.flowReader.hidden = !active;
       if (!active) {

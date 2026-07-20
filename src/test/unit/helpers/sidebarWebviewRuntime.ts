@@ -11,8 +11,29 @@ export type SidebarWebviewRuntime = {
   click(elementId: string): void;
   clickByTitle(title: string): void;
   countRenderedByClass(elementId: string, className: string): number;
+  countRenderedByClassWithinClass(
+    elementId: string,
+    ancestorClassName: string,
+    className: string
+  ): number;
+  dispatchRenderedEventByClass(
+    elementId: string,
+    className: string,
+    type: string,
+    event?: Record<string, unknown>
+  ): boolean;
   dispatchMessage(message: unknown): void;
   getAttribute(elementId: string, name: string): string | undefined;
+  getRenderedAttributeByClass(
+    elementId: string,
+    className: string,
+    name: string
+  ): string | undefined;
+  getRenderedAttributeByTitle(
+    elementId: string,
+    title: string,
+    name: string
+  ): string | undefined;
   getFocusedElementId(): string | undefined;
   getPersistedState(): unknown;
   getRenderedPositionByTitle(
@@ -21,9 +42,13 @@ export type SidebarWebviewRuntime = {
   ): { left: number; top: number };
   getRenderedText(elementId: string): string[];
   getRenderedScrollByClass(elementId: string, className: string): { left: number; top: number };
+  getRenderedStyleByClass(elementId: string, className: string, name: string): string;
+  hasRenderedClassByTitle(elementId: string, title: string, className: string): boolean;
   isDisabled(elementId: string): boolean;
   isHidden(elementId: string): boolean;
+  inputByTitle(title: string, value: string): void;
   keydown(elementId: string, key: string): void;
+  keydownByClass(elementId: string, className: string, key: string): void;
   keydownByTitle(title: string, key: string): void;
   messages: Array<{ type: string; payload: unknown }>;
   restore(): void;
@@ -64,6 +89,7 @@ export function installSidebarWebviewRuntime(initialWebviewState?: unknown): Sid
     const classes = new Set<string>();
     const children: SidebarFakeElement[] = [];
     const styles = new Map<string, string>();
+    const capturedPointers = new Set<number>();
     let textContent = "";
     const element: SidebarFakeElement = {
       id,
@@ -102,6 +128,7 @@ export function installSidebarWebviewRuntime(initialWebviewState?: unknown): Sid
       title: "",
       type: "",
       value: "",
+      clientWidth: 640,
       clientHeight: 220,
       scrollLeft: 0,
       scrollTop: 0,
@@ -126,6 +153,21 @@ export function installSidebarWebviewRuntime(initialWebviewState?: unknown): Sid
       },
       focus() {
         focusedElementId = id;
+      },
+      closest() {
+        return undefined;
+      },
+      getBoundingClientRect() {
+        return { left: 0, top: 0, width: element.clientWidth, height: element.clientHeight };
+      },
+      setPointerCapture(pointerId) {
+        capturedPointers.add(pointerId);
+      },
+      hasPointerCapture(pointerId) {
+        return capturedPointers.has(pointerId);
+      },
+      releasePointerCapture(pointerId) {
+        capturedPointers.delete(pointerId);
       },
       querySelectorAll(selector) {
         if (selector !== ".explorer-tree") {
@@ -233,15 +275,31 @@ export function installSidebarWebviewRuntime(initialWebviewState?: unknown): Sid
       }
     },
     countRenderedByClass(elementId, className) {
-      let count = 0;
-      const pending = [getOrCreateElement(elementId)];
-      while (pending.length > 0) {
-        const current = pending.pop();
-        if (!current) continue;
-        if (current.className.split(/\s+/u).includes(className)) count += 1;
-        for (const child of current.children) pending.push(child);
-      }
-      return count;
+      return countDescendantsByClass(getOrCreateElement(elementId), className);
+    },
+    countRenderedByClassWithinClass(elementId, ancestorClassName, className) {
+      const ancestor = findRenderedByClass(
+        getOrCreateElement(elementId),
+        ancestorClassName
+      );
+      assert.ok(ancestor, `missing rendered .${ancestorClassName} below ${elementId}`);
+      return countDescendantsByClass(ancestor, className);
+    },
+    dispatchRenderedEventByClass(elementId, className, type, event = {}) {
+      const element = findRenderedByClass(getOrCreateElement(elementId), className);
+      assert.ok(element, `missing rendered .${className} below ${elementId}`);
+      const handlers = elementListeners.get(element.id)?.get(type) ?? [];
+      assert.ok(handlers.length > 0, `missing ${type} handler for .${className}`);
+      let prevented = false;
+      const payload = {
+        target: element,
+        ...event,
+        preventDefault() {
+          prevented = true;
+        }
+      };
+      for (const handler of handlers) handler(payload);
+      return prevented;
     },
     dispatchMessage(message) {
       const handler = windowListeners.get("message");
@@ -251,6 +309,16 @@ export function installSidebarWebviewRuntime(initialWebviewState?: unknown): Sid
     getAttribute(elementId, name) {
       getOrCreateElement(elementId);
       return elements.get(elementId)?.attributes.get(name);
+    },
+    getRenderedAttributeByClass(elementId, className, name) {
+      const element = findRenderedByClass(getOrCreateElement(elementId), className);
+      assert.ok(element, `missing rendered .${className} below ${elementId}`);
+      return element.attributes.get(name);
+    },
+    getRenderedAttributeByTitle(elementId, title, name) {
+      const element = findRenderedByTitle(getOrCreateElement(elementId), title);
+      assert.ok(element, `missing rendered element titled ${title} below ${elementId}`);
+      return element.attributes.get(name);
     },
     getFocusedElementId() {
       return focusedElementId;
@@ -274,15 +342,44 @@ export function installSidebarWebviewRuntime(initialWebviewState?: unknown): Sid
       assert.ok(element, `missing rendered .${className} below ${elementId}`);
       return { left: element.scrollLeft, top: element.scrollTop };
     },
+    getRenderedStyleByClass(elementId, className, name) {
+      const element = findRenderedByClass(getOrCreateElement(elementId), className);
+      assert.ok(element, `missing rendered .${className} below ${elementId}`);
+      return element.style.getPropertyValue(name);
+    },
+    hasRenderedClassByTitle(elementId, title, className) {
+      const element = findRenderedByTitle(getOrCreateElement(elementId), title);
+      assert.ok(element, `missing rendered element titled ${title} below ${elementId}`);
+      return element.classList.contains(className);
+    },
     isDisabled(elementId) {
       return getOrCreateElement(elementId).disabled;
     },
     isHidden(elementId) {
       return getOrCreateElement(elementId).hidden;
     },
+    inputByTitle(title, value) {
+      const element = [...elements.values()].find((candidate) => candidate.title === title);
+      assert.ok(element, `missing element titled ${title}`);
+      element.value = value;
+      const handlers = elementListeners.get(element.id)?.get("input") ?? [];
+      assert.ok(handlers.length > 0, `missing input handler for ${title}`);
+      for (const handler of handlers) {
+        handler({ preventDefault() {} });
+      }
+    },
     keydown(elementId, key) {
       const handlers = elementListeners.get(elementId)?.get("keydown") ?? [];
       assert.ok(handlers.length > 0, `missing keydown handler for ${elementId}`);
+      for (const handler of handlers) {
+        handler({ key, preventDefault() {} });
+      }
+    },
+    keydownByClass(elementId, className, key) {
+      const element = findRenderedByClass(getOrCreateElement(elementId), className);
+      assert.ok(element, `missing rendered .${className} below ${elementId}`);
+      const handlers = elementListeners.get(element.id)?.get("keydown") ?? [];
+      assert.ok(handlers.length > 0, `missing keydown handler for .${className}`);
       for (const handler of handlers) {
         handler({ key, preventDefault() {} });
       }
@@ -321,6 +418,19 @@ export function installSidebarWebviewRuntime(initialWebviewState?: unknown): Sid
     },
     textValues
   };
+}
+
+/** Counts one concrete class beneath a currently attached fake DOM root. */
+function countDescendantsByClass(root: SidebarFakeElement, className: string): number {
+  let count = 0;
+  const pending = [root];
+  while (pending.length > 0) {
+    const current = pending.pop();
+    if (!current) continue;
+    if (current.className.split(/\s+/u).includes(className)) count += 1;
+    for (const child of current.children) pending.push(child);
+  }
+  return count;
 }
 
 /** Finds the first currently attached descendant carrying one concrete class. */
@@ -384,7 +494,10 @@ function restoreGlobal(name: string, value: unknown): void {
   Reflect.set(globalThis, name, value);
 }
 
-type SidebarEventHandler = (event: { preventDefault: () => void; key?: string }) => void;
+type SidebarEventHandler = (event: Record<string, unknown> & {
+  preventDefault: () => void;
+  key?: string;
+}) => void;
 
 type SidebarFakeElement = {
   attributes: Map<string, string>;
@@ -409,6 +522,7 @@ type SidebarFakeElement = {
   title: string;
   type: string;
   value: string;
+  clientWidth: number;
   clientHeight: number;
   scrollLeft: number;
   scrollTop: number;
@@ -417,6 +531,16 @@ type SidebarFakeElement = {
   append: (...children: SidebarFakeElement[]) => void;
   removeChild: (child: SidebarFakeElement) => SidebarFakeElement;
   focus: () => void;
+  closest: (selector: string) => SidebarFakeElement | undefined;
+  getBoundingClientRect: () => {
+    left: number;
+    top: number;
+    width: number;
+    height: number;
+  };
+  setPointerCapture: (pointerId: number) => void;
+  hasPointerCapture: (pointerId: number) => boolean;
+  releasePointerCapture: (pointerId: number) => void;
   querySelectorAll: (selector: string) => SidebarFakeElement[];
   replaceChildren: (...children: SidebarFakeElement[]) => void;
   setAttribute: (name: string, value: string) => void;

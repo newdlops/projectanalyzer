@@ -1,7 +1,7 @@
 /**
  * Browser rendering fragment for the bounded Function Logic graph. It draws
  * Host-positioned nodes and routed control edges, then keeps full statement
- * evidence in a keyboard-accessible selection panel. Optional graph contexts
+ * evidence in a keyboard-accessible inspector drawer. Optional graph contexts
  * let the editor tab attach multiple function fragments to one graph canvas.
  */
 
@@ -9,7 +9,14 @@ import { getFunctionLogicCompoundGroupBrowserSource } from "./functionLogicCompo
 import { getFunctionLogicDrillBrowserSource } from "./functionLogicDrillBrowserSource";
 import { getFunctionLogicBranchChoicesBrowserSource } from "./branchChoices";
 import { getFunctionLogicDataFlowBrowserSource } from "./dataFlow";
+import { getFunctionLogicInspectorBrowserSource } from "./inspector";
 import { getFunctionLogicSelectionBrowserSource } from "./functionLogicSelectionBrowserSource";
+import {
+  getFunctionLogicScenarioEvaluatorBrowserSource,
+  getFunctionLogicScenarioTraceBrowserSource,
+  getFunctionLogicValuePreviewBrowserSource
+} from "./valuePreview";
+import { getFunctionLogicViewportBrowserSource } from "./viewport";
 
 /** Returns browser functions for rendering the function-local control graph. */
 export function getFunctionLogicBrowserSource(): string {
@@ -19,20 +26,24 @@ export function getFunctionLogicBrowserSource(): string {
     ${getFunctionLogicCompoundGroupBrowserSource()}
     ${getFunctionLogicDrillBrowserSource()}
     ${getFunctionLogicBranchChoicesBrowserSource()}
+    ${getFunctionLogicValuePreviewBrowserSource()}
+    ${getFunctionLogicScenarioEvaluatorBrowserSource()}
+    ${getFunctionLogicScenarioTraceBrowserSource()}
     ${getFunctionLogicDataFlowBrowserSource()}
+    ${getFunctionLogicInspectorBrowserSource()}
     ${getFunctionLogicSelectionBrowserSource()}
+    ${getFunctionLogicViewportBrowserSource()}
 
-    /** Renders the function signature, graph canvas, legend, and node details. */
+    /** Disposes the active viewport controller before its graph DOM is removed. */
+    function disposeActiveFunctionLogicViewport() {
+      if (!state.activeLogicViewportController) return;
+      state.activeLogicViewportController.dispose();
+      state.activeLogicViewportController = undefined;
+    }
+
+    /** Renders one graph-first surface with supporting UI inside its drawer. */
     function renderFunctionLogic(logic, graphContext) {
-      elements.flowSteps.append(createFunctionUnderstanding(logic));
-      const signature = createLogicSignature(logic.signature);
-      elements.flowSteps.append(signature);
-      const callees = createLogicCalleeExplorer(
-        logic.callees || [],
-        logic.omittedCalleeCount || 0
-      );
-      if (callees) elements.flowSteps.append(callees);
-
+      disposeActiveFunctionLogicViewport();
       if (logic.blocks.length === 0 || logic.layout.nodes.length === 0) {
         const empty = document.createElement("div");
         empty.className = "flow-empty";
@@ -43,6 +54,8 @@ export function getFunctionLogicBrowserSource(): string {
 
       const graphRendering = createFunctionLogicGraph(logic, graphContext);
       elements.flowSteps.append(graphRendering.element);
+      graphRendering.activateViewport();
+      state.activeLogicViewportController = graphRendering.viewportController;
       if (graphContext && graphContext.onGraphRendered) {
         graphContext.onGraphRendered(graphRendering);
       }
@@ -68,10 +81,11 @@ export function getFunctionLogicBrowserSource(): string {
       const viewport = document.createElement("div");
       const stage = document.createElement("div");
       const canvas = document.createElement("div");
-      const detailPanel = document.createElement("section");
       const nodeButtonsById = new Map();
       const rootBlock = logic.blocks.find((block) => block.kind === "entry") || logic.blocks[0];
       const choiceSessionKey = (state.graph?.version || "graph") + "::" + rootBlock.id;
+      const hasValueFlow = (logic.valueBindings || []).length > 0;
+      const inspector = createFunctionLogicInspector(choiceSessionKey, hasValueFlow);
       let branchChoices = readFunctionLogicBranchChoices(choiceSessionKey, logic.edges);
       let edgeRendering;
       let valueFlowRendering;
@@ -95,7 +109,7 @@ export function getFunctionLogicBrowserSource(): string {
           outgoingBySourceId,
           connectedEdgeIdsByBlockId,
           edgeRendering.elementsById,
-          detailPanel,
+          inspector,
           false,
           graphContext,
           applyBranchChoice,
@@ -112,35 +126,39 @@ export function getFunctionLogicBrowserSource(): string {
         logic,
         nodeLayoutsByBlockId,
         nodeButtonsById,
+        edgeRendering.elementsById,
         choiceSessionKey
       );
       const compoundGroupLayer = createLogicCompoundGroupLayer(
         compoundGroups,
         blocksById
       );
-      const readScale = graphContext && graphContext.readScale
-        ? graphContext.readScale
-        : () => state.logicGraphScale;
-      const writeScale = graphContext && graphContext.writeScale
-        ? graphContext.writeScale
-        : (value) => { state.logicGraphScale = value; };
-      const applyScale = () => applyLogicGraphScale(
+      const readTransform = graphContext && graphContext.readViewportTransform
+        ? graphContext.readViewportTransform
+        : () => state.logicGraphViewportTransform;
+      const writeTransform = graphContext && graphContext.writeViewportTransform
+        ? graphContext.writeViewportTransform
+        : (value) => {
+            state.logicGraphViewportTransform = value;
+            state.logicGraphScale = value.scale;
+          };
+      const viewportController = createFunctionLogicViewportController({
+        viewport,
         stage,
         canvas,
-        logic.layout,
-        readScale()
-      );
+        layout: logic.layout,
+        readTransform,
+        writeTransform
+      });
       const hasJsxFlow = logic.blocks.some((block) => block.kind === "render");
       const hasEventFlow = logic.blocks.some((block) => block.kind === "event");
       const hasRenderFlow = hasJsxFlow || hasEventFlow;
       const hasValueChanges = logic.blocks.some((block) =>
         block.valueChanges && block.valueChanges.length > 0
       );
-      const hasValueFlow = (logic.valueBindings || []).length > 0;
       const graphHeader = createLogicGraphHeader(
-        applyScale,
-        readScale,
-        writeScale,
+        viewportController,
+        inspector.toggle,
         graphContext?.graphTitle || (hasRenderFlow
           ? (hasValueFlow || hasValueChanges
               ? "Control, render, event & value flow"
@@ -156,15 +174,15 @@ export function getFunctionLogicBrowserSource(): string {
       const graphSemantics = ["Function control"];
       if (hasJsxFlow) graphSemantics.push("JSX render");
       if (hasEventFlow) graphSemantics.push("event boundaries");
-      if (hasValueFlow) graphSemantics.push("lexical value flow");
+      if (hasValueFlow) graphSemantics.push("lexical value consume and sink flow");
       viewport.setAttribute("aria-label", graphSemantics.join(", ") + " graph");
+      viewport.setAttribute("aria-keyshortcuts", "+ - 0 C F");
+      viewport.title = "Drag empty space or use a trackpad to pan; use Ctrl/Command + wheel to zoom";
       viewport.tabIndex = 0;
       stage.className = "logic-graph-stage";
       canvas.className = "logic-graph-canvas";
       canvas.style.setProperty("width", logic.layout.width + "px");
       canvas.style.setProperty("height", logic.layout.height + "px");
-      detailPanel.className = "logic-selection";
-      detailPanel.setAttribute("aria-live", "polite");
       canvas.append(compoundGroupLayer, edgeRendering.svg);
       if (valueFlowRendering) canvas.append(valueFlowRendering.svg);
 
@@ -187,7 +205,7 @@ export function getFunctionLogicBrowserSource(): string {
             outgoingBySourceId,
             connectedEdgeIdsByBlockId,
             edgeRendering.elementsById,
-            detailPanel,
+            inspector,
             true,
             graphContext,
             applyBranchChoice,
@@ -211,12 +229,19 @@ export function getFunctionLogicBrowserSource(): string {
       );
       if (valueFlowRendering) valueFlowRendering.refresh();
 
-      applyScale();
       stage.append(canvas);
       viewport.append(stage);
+      inspector.attachViewport(viewport);
+      inspector.appendSections(
+        valueFlowRendering?.valuePreviewEditor,
+        valueFlowRendering?.scenarioTrace,
+        valueFlowRendering?.toolbar,
+        createLogicCalleeExplorer(logic.callees || [], logic.omittedCalleeCount || 0),
+        createLogicSignature(logic.signature),
+        createFunctionUnderstanding(logic)
+      );
       graph.append(graphHeader);
-      if (valueFlowRendering) graph.append(valueFlowRendering.toolbar);
-      graph.append(viewport, detailPanel);
+      graph.append(inspector.workspace);
 
       const preferredBlock = blocksById.get(
         graphContext ? graphContext.selectedBlockId : state.selectedLogicBlockId
@@ -230,7 +255,7 @@ export function getFunctionLogicBrowserSource(): string {
         outgoingBySourceId,
         connectedEdgeIdsByBlockId,
         edgeRendering.elementsById,
-        detailPanel,
+        inspector,
         false,
         graphContext,
         applyBranchChoice,
@@ -239,6 +264,8 @@ export function getFunctionLogicBrowserSource(): string {
       return {
         element: graph,
         viewport,
+        viewportController,
+        activateViewport: viewportController.initialize,
         nodeButtonsById,
         nodeLayoutsByBlockId
       };
@@ -322,8 +349,12 @@ export function getFunctionLogicBrowserSource(): string {
       const parts = [];
       const renderCount = blocks.filter((block) => block.kind === "render").length;
       const eventCount = blocks.filter((block) => block.kind === "event").length;
+      const embeddedCount = blocks.filter((block) => block.kind === "embedded").length;
+      const callableCount = blocks.filter((block) => block.kind === "callable").length;
       if (renderCount) parts.push(renderCount + " JSX render step" + plural(renderCount));
       if (eventCount) parts.push(eventCount + " event binding" + plural(eventCount));
+      if (embeddedCount) parts.push(embeddedCount + " static code-text region" + plural(embeddedCount));
+      if (callableCount) parts.push(callableCount + " embedded callable definition" + plural(callableCount));
       if (summary.callCount) parts.push(summary.callCount + " call site" + plural(summary.callCount));
       if (summary.effectCount) parts.push(summary.effectCount + " possible effect" + plural(summary.effectCount));
       if (summary.valueChangeCount) parts.push(
@@ -342,20 +373,16 @@ export function getFunctionLogicBrowserSource(): string {
     }
 
     /** Creates graph semantics and confidence legend without color-only meaning. */
-    function createLogicGraphHeader(applyScale, readScale, writeScale, graphTitle) {
+    function createLogicGraphHeader(
+      viewportController,
+      inspectorToggle,
+      graphTitle
+    ) {
       const header = document.createElement("div");
       const title = document.createElement("strong");
       const controls = document.createElement("div");
       const legend = document.createElement("div");
-      const zoomOut = createLogicZoomButton(
-        "−", "Zoom out function graph", -0.2, applyScale, readScale, writeScale
-      );
-      const zoomReset = createLogicZoomButton(
-        "100%", "Reset function graph zoom", 0, applyScale, readScale, writeScale
-      );
-      const zoomIn = createLogicZoomButton(
-        "+", "Zoom in function graph", 0.2, applyScale, readScale, writeScale
-      );
+      const viewportControls = createFunctionLogicViewportControls(viewportController);
       header.className = "logic-graph-header";
       title.textContent = graphTitle || "Control paths";
       controls.className = "logic-graph-controls";
@@ -364,38 +391,16 @@ export function getFunctionLogicBrowserSource(): string {
         createBadge("solid · exact", "logic-legend exact"),
         createBadge("dashed · inferred", "logic-legend inferred"),
         createBadge("⚡ event · no return", "logic-legend event"),
+        createBadge("⌁ static code text", "logic-legend embedded"),
+        createBadge("ƒ body · not invoked", "logic-legend callable"),
         createBadge("Δ value", "logic-legend value-change"),
         createBadge("⇢ param/local/const", "logic-legend value-flow"),
         createBadge("◇ selectable choice", "logic-legend choice"),
         createBadge("↶ repeat", "logic-legend repeat")
       );
-      controls.append(zoomOut, zoomReset, zoomIn);
+      controls.append(viewportControls, inspectorToggle);
       header.append(title, controls, legend);
       return header;
-    }
-
-    /** Creates one bounded graph zoom action without changing analyzer data. */
-    function createLogicZoomButton(label, title, delta, applyScale, readScale, writeScale) {
-      const button = document.createElement("button");
-      button.type = "button";
-      button.className = "logic-zoom-button";
-      button.textContent = label;
-      button.title = title;
-      button.addEventListener("click", () => {
-        const nextScale = delta === 0
-          ? 1
-          : Math.min(1.6, Math.max(0.5, readScale() + delta));
-        writeScale(nextScale);
-        applyScale();
-      });
-      return button;
-    }
-
-    /** Scales presentation while preserving the canvas's scrollable dimensions. */
-    function applyLogicGraphScale(stage, canvas, layout, scale) {
-      stage.style.setProperty("width", Math.round(layout.width * scale) + "px");
-      stage.style.setProperty("height", Math.round(layout.height * scale) + "px");
-      canvas.style.setProperty("transform", "scale(" + scale + ")");
     }
 
     /** Indexes outgoing edges for node accessibility and the detail panel. */
@@ -530,8 +535,8 @@ export function getFunctionLogicBrowserSource(): string {
         formatLogicValueChange(change) + " (" + change.confidence + ")"
       ).join(", ");
       const valueAccessText = (block.valueAccesses || []).map((access) =>
-        formatFunctionLogicBindingKind(access.bindingKind) + " "
-          + access.name + " " + formatFunctionLogicValueAccess(access.access)
+        formatFunctionLogicBindingKind(access.bindingKind, access.valueRole) + " "
+          + access.name + " " + formatFunctionLogicValueUsage(access)
       ).join(", ");
       const outgoingText = outgoing.map((edge) => {
         const target = blocksById.get(edge.targetId);
@@ -651,6 +656,8 @@ export function getFunctionLogicBrowserSource(): string {
       if (kind === "entry") return "START";
       if (kind === "exit") return "END";
       if (kind === "condition") return "IF";
+      if (kind === "embedded") return "TEXT";
+      if (kind === "callable") return "FN";
       if (kind === "render") return "JSX";
       if (kind === "event") return "EVENT";
       if (kind === "mutation") return "STATE";
@@ -704,6 +711,8 @@ export function getFunctionLogicBrowserSource(): string {
     function formatLogicEdge(edge) {
       if (edge.label) return edge.label;
       if (edge.kind === "next") return "then";
+      if (edge.kind === "defines") return "defined body; not invoked";
+      if (edge.kind === "deferred") return "scheduled separately";
       if (edge.kind === "iterate") return "enter loop";
       if (edge.kind === "exit") return "leave";
       return edge.kind;

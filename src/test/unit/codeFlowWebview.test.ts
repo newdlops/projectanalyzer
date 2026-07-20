@@ -158,7 +158,7 @@ test("function detail renders internal branches and opens exact statement eviden
     assert.ok(runtime.getRenderedText("flow-steps").includes("Selected false → END"));
     runtime.clickByTitle("Clear all selected branch choices");
     runtime.clickByTitle("Zoom out function graph");
-    runtime.clickByTitle("Reset function graph zoom");
+    runtime.clickByTitle("Reset function graph zoom to 100%; current zoom 80%");
     runtime.clickByTitle("Zoom in function graph");
     assert.ok(runtime.getRenderedText("flow-steps").includes("Control paths"));
     runtime.clickByTitle("Select logic · repository.save(order);");
@@ -248,6 +248,7 @@ test("function graph traces parameter, local, and constant definition-use flow",
       name: "order",
       bindingKind: "parameter",
       access: "read",
+      usage: "consume",
       confidence: "exact"
     }];
     message.payload.logic.valueBindings = [{
@@ -263,6 +264,7 @@ test("function graph traces parameter, local, and constant definition-use flow",
       sourceBlockId: sourceId,
       targetBlockId: targetId,
       targetAccess: "read",
+      targetUsage: "consume",
       confidence: "exact"
     }];
 
@@ -273,9 +275,12 @@ test("function graph traces parameter, local, and constant definition-use flow",
     assert.ok(rendered.includes("Values in this function"));
     assert.ok(rendered.includes("PARAM order · 1 access"));
     assert.ok(rendered.includes("PARAM · DEFINE"));
-    assert.ok(rendered.includes("PARAM · READ"));
+    assert.ok(rendered.includes("PARAM · CONSUME"));
+    assert.ok(rendered.includes("○ CONSUME"));
+    assert.ok(rendered.includes("◎ SINK"));
     assert.equal(runtime.countRenderedByClass("flow-steps", "logic-data-flow-edge"), 1);
     assert.equal(runtime.countRenderedByClass("flow-steps", "logic-value-access"), 3);
+    assert.equal(runtime.countRenderedByClass("flow-steps", "logic-scenario-trace"), 1);
     runtime.clickByTitle("Trace parameter order");
     runtime.clickByTitle("Trace parameter order");
   } finally {
