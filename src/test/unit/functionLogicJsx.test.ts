@@ -1,6 +1,7 @@
 /**
  * JSX/TSX Function Logic regression tests. They cover custom component drill
- * targets, nested callback boundaries, React wrappers, and React language IDs.
+ * targets, render-flow blocks, callback boundaries, React wrappers, and React
+ * language IDs.
  */
 
 import assert from "node:assert/strict";
@@ -17,6 +18,10 @@ import { createFunctionLogicDrillTargets } from "../../application/codeFlow";
 import type { SourceNodeToken } from "../../protocol/sourceNavigation";
 import { createContentHash } from "../../shared/hash";
 import type { ProjectGraph, SourceFile, SymbolNode } from "../../shared/types";
+import {
+  getCodeFlowBrowserSource,
+  getFunctionLogicGraphStyles
+} from "../../webview/codeFlow";
 
 const projectRoot = path.resolve(__dirname, "../../..");
 const fixturePath = path.join(
@@ -43,6 +48,37 @@ test("collects custom JSX components for drill without intrinsic or callback lea
   assert.equal(analysis.callsites.some((callsite) =>
     callsite.calleeText === "trackSelection"
   ), false);
+  assert.equal(analysis.summary.callCount, 1, "component render sites are not JS calls");
+  assert.deepEqual(analysis.blocks.map((block) => block.kind), [
+    "entry",
+    "render",
+    "call",
+    "render",
+    "render",
+    "condition",
+    "render",
+    "render",
+    "render",
+    "event",
+    "return",
+    "exit"
+  ]);
+  assert.deepEqual(
+    analysis.blocks.filter((block) => block.kind === "render").map((block) => block.label),
+    [
+      "render <section>",
+      "render <Badge>",
+      "render <UI.Panel>",
+      "render <ReadyState>",
+      "render <EmptyState>",
+      "render <button>"
+    ]
+  );
+  const renderCondition = analysis.blocks.find((block) => block.label === "render if ready");
+  const eventBinding = analysis.blocks.find((block) => block.label === "bind onClick");
+  assert.ok(renderCondition && eventBinding);
+  assertEdgeKindsFrom(analysis, renderCondition.id, ["true", "false"]);
+  assert.match(eventBinding.detail, /not during render/u);
 
   const projection = createFunctionLogicDrillTargets(
     createFixtureGraph(symbols),
@@ -57,9 +93,89 @@ test("collects custom JSX components for drill without intrinsic or callback lea
     "ReadyState",
     "EmptyState"
   ]));
+  assert.equal(
+    projection.callees.find((callee) => callee.name === "formatLabel")?.relation,
+    undefined
+  );
+  assert.ok(projection.callees.filter((callee) => callee.name !== "formatLabel")
+    .every((callee) => callee.relation === "render"));
   const returnBlock = analysis.blocks.find((block) => block.kind === "return");
   assert.ok(returnBlock);
-  assert.equal(projection.targetsByBlockId.get(returnBlock.id)?.length, 5);
+  assert.equal(projection.targetsByBlockId.has(returnBlock.id), false);
+  for (const [blockLabel, targetName] of [
+    ["evaluate formatLabel(item.label)", "formatLabel"],
+    ["render <Badge>", "Badge"],
+    ["render <UI.Panel>", "Panel"],
+    ["render <ReadyState>", "ReadyState"],
+    ["render <EmptyState>", "EmptyState"]
+  ] as const) {
+    const block = analysis.blocks.find((candidate) => candidate.label === blockLabel);
+    assert.ok(block, `missing JSX block: ${blockLabel}`);
+    assert.equal(projection.targetsByBlockId.get(block.id)?.[0]?.name, targetName);
+  }
+});
+
+test("models concise JSX map callbacks as inferred repeated render flow", async () => {
+  const symbols = await extractFixtureSymbols();
+  const cardList = findSymbol(symbols, "CardList");
+  const analysis = analyzeFunctionLogic({ functionNode: cardList, sourceText: fixtureSource });
+  const loop = analysis.blocks.find((block) => block.kind === "loop");
+  const renderedCard = analysis.blocks.find((block) => block.label === "render <RenderCard>");
+
+  assert.ok(loop && renderedCard);
+  assert.equal(loop.label, "render each item from items");
+  assert.equal(loop.confidence, "inferred");
+  assertEdgeKindsFrom(analysis, loop.id, ["iterate", "exit"]);
+  assertEdgeKindsFrom(analysis, renderedCard.id, ["repeat"]);
+  const renderCallsite = analysis.callsites.find((callsite) =>
+    callsite.calleeText === "RenderCard"
+  );
+  assert.ok(renderCallsite);
+  assert.equal(renderCallsite.relation, "render");
+  assert.equal(renderCallsite.confidence, "inferred");
+
+  const projection = createFunctionLogicDrillTargets(
+    createFixtureGraph(symbols),
+    cardList,
+    analysis,
+    createSourceToken
+  );
+  const target = projection.callees.find((callee) => callee.name === "RenderCard");
+  assert.ok(target);
+  assert.equal(target.relation, "render");
+  assert.equal(target.confidence, "inferred");
+  assert.equal(projection.targetsByBlockId.get(renderedCard.id)?.[0]?.name, "RenderCard");
+});
+
+test("shares the configured block budget between statements and JSX render regions", async () => {
+  const symbols = await extractFixtureSymbols();
+  const renderCard = findSymbol(symbols, "RenderCard");
+  const analysis = analyzeFunctionLogic({
+    functionNode: renderCard,
+    sourceText: fixtureSource,
+    maxBlocks: 4
+  });
+
+  assert.equal(analysis.blocks.length, 6, "entry and exit stay outside the shared budget");
+  assert.equal(
+    analysis.blocks.filter((block) => block.kind !== "entry" && block.kind !== "exit").length,
+    4
+  );
+  assert.ok(analysis.gaps.some((gap) =>
+    gap.code === "parseLimited" && gap.message.includes("JSX render region")
+  ));
+});
+
+test("renders JSX and event semantics with distinct accessible graph cues", () => {
+  const browserSource = getCodeFlowBrowserSource();
+  const styles = getFunctionLogicGraphStyles();
+
+  assert.match(browserSource, /kind === "render"\) return "JSX"/u);
+  assert.match(browserSource, /kind === "event"\) return "EVENT"/u);
+  assert.match(browserSource, /Control & JSX render flow/u);
+  assert.match(browserSource, /Attach rendered component/u);
+  assert.match(styles, /\.logic-node-render\s*\{/u);
+  assert.match(styles, /\.logic-node-event\s*\{/u);
 });
 
 test("keeps inline JSX handlers independently selectable and analyzable", () => {
@@ -220,4 +336,16 @@ function createFixtureGraph(nodes: SymbolNode[]): ProjectGraph {
 /** Creates a deterministic opaque token for every fixture symbol. */
 function createSourceToken(nodeId: string): SourceNodeToken {
   return `source-node:${nodeId}` as SourceNodeToken;
+}
+
+/** Asserts the exact outgoing relation vocabulary for one JSX logic block. */
+function assertEdgeKindsFrom(
+  analysis: FunctionLogicAnalysis,
+  sourceId: string,
+  expectedKinds: string[]
+): void {
+  assert.deepEqual(
+    analysis.edges.filter((edge) => edge.sourceId === sourceId).map((edge) => edge.kind).sort(),
+    [...expectedKinds].sort()
+  );
 }

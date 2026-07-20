@@ -37,3 +37,13 @@ export const ForwardCard = React.forwardRef<HTMLDivElement, CardProps>(
     return <MemoCard ref={ref} item={props.item} ready={props.ready} />;
   }
 );
+
+export function CardList({ items }: { items: Array<CardProps["item"] & { ready: boolean }> }) {
+  return (
+    <div className="card-list">
+      {items.map((item) => (
+        <RenderCard item={item} ready={item.ready} />
+      ))}
+    </div>
+  );
+}
