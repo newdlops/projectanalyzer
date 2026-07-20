@@ -4,6 +4,36 @@ All notable user-visible changes to Project Analyzer: Code Flow are recorded in
 this file. The changelog starts with the first distribution-documented build;
 earlier local development builds were not tracked here.
 
+## 0.0.1050 - 2026-07-20
+
+### Fixed
+
+- **Scenario values** now occupies a visible, non-shrinking Inspector row. Large
+  selected-block evidence can no longer compress the editor to a two-pixel strip.
+- Scenario controls are placed at the top of the Inspector, before variable-height
+  block evidence, so they are immediately visible when a Function Logic graph opens.
+- Long tracked-variable lists scroll inside the Debug Variables-style table while
+  the add-variable controls and the rest of the Inspector keep their usable height.
+
+## 0.0.1048 - 2026-07-20
+
+### Fixed
+
+- **Scenario Variables** no longer disappears when an analyzer reports zero lexical
+  bindings. Every new Function Logic graph opens an Inspector containing the same
+  editable `Name` / `Scenario input` surface.
+- A missing binding can now be added as a session-only `CUSTOM` variable with an
+  initial value. Changing that value immediately recalculates source-backed
+  assignments and keeps the selected Scenario row highlighted.
+- When a later relayout reports one unambiguous analyzer binding with the same name,
+  the manually entered value moves to that tracked binding instead of being lost.
+
+### Evaluation boundaries
+
+- User-added names are lexical identifiers limited to 80 characters and 32 rows;
+  values remain limited to 240 characters. They stay inside the current Webview
+  session and never execute source, send Host messages, or modify workspace files.
+
 ## 0.0.1047 - 2026-07-20
 
 ### Changed

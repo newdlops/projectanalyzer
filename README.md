@@ -134,15 +134,19 @@ dedicated Function Visualizer tab with a bounded control-flow graph:
 - a per-binding value selector that overlays possible definition-to-use arrows,
   including branch-merge and loop-carried definitions without hiding control edges;
   dotted consume paths and double/striped sink cues remain distinguishable without color
-- a Debug Variables-style `Name` / `Scenario input` table for entering session-only
-  JSON/scalar parameter values or local/constant definition overrides
+- an always-present Debug Variables-style `Name` / `Scenario input` table for
+  entering session-only JSON/scalar parameter values or local/constant definition
+  overrides; it stays at the top of the Inspector, and a long variable list scrolls
+  inside the table instead of collapsing it; if analysis misses a binding, add a
+  `CUSTOM` variable by name and value
 - a bounded **Scenario calculation** directly below that table, showing selected and
   transitively derived values through `DEFINED`, `CALCULATED`, `UPDATED`, `CONSUME`,
   and `SINK` steps, including `before → after` results
 - clickable scenario-value names that select the shared value-flow lens and
   highlight the matching label, definition/use graph nodes, and arrows
-- automatic Inspector opening for a new function graph with lexical values, while
-  an explicit close choice remains preserved through relayouts of that root graph
+- automatic Inspector opening for every new function graph, including graphs with
+  no analyzer-reported bindings, while an explicit close choice remains preserved
+  through relayouts of that root graph
 - Function Logic UI text linked to the VS Code UI font settings and source/value
   text linked to the configured VS Code editor font settings
 - exact assignment/update/delete evidence and visibly dashed inferred receiver mutations
@@ -320,9 +324,17 @@ show a loop-carried relation. The projection uses bounded iterative CFG walks an
 follows the currently selected `true`/`false`/`case` scenario by dimming value
 arrows whose endpoints are outside that choice.
 
-The Scenario value editor parses entered JSON or scalar literals in the Webview and
-feeds a bounded, side-effect-free evaluator. It calculates source-backed lexical
-initializers, assignments, compound assignments, increments/decrements, arithmetic,
+The Scenario value editor is always available at the top of the Inspector. Its rows
+retain their intrinsic height, and the variable list uses a bounded inner scroll so
+selected-block evidence cannot collapse or push the editor out of view.
+Analyzer-backed parameters, locals, and constants appear automatically; when a
+binding is missing, the user can add a `CUSTOM` variable name and initial value
+without modifying source.
+If a later relayout reports one unambiguous binding with the same name, that session
+value is promoted to the analyzer-backed row. The editor parses entered JSON or
+scalar literals in the Webview and feeds a bounded, side-effect-free evaluator. It
+calculates source-backed lexical initializers, assignments, compound assignments,
+increments/decrements, arithmetic,
 comparisons, complex boolean expressions, own-data member reads, and JavaScript/Java
 `?:` expressions including nested ternaries. The selected binding's calculation also
 shows downstream assignments whose provenance includes that binding.
