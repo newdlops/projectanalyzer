@@ -18,11 +18,11 @@ export function getFunctionLogicDataFlowStyles(): string {
       gap: 2px;
     }
 
-    .logic-data-flow-header strong { font-size: 9px; }
+    .logic-data-flow-header strong { font-size: var(--logic-font-body); }
 
     .logic-data-flow-header span {
       color: var(--vscode-descriptionForeground);
-      font-size: 7px;
+      font-size: var(--logic-font-tiny);
       line-height: 1.35;
     }
 
@@ -30,6 +30,22 @@ export function getFunctionLogicDataFlowStyles(): string {
       display: flex;
       flex-wrap: wrap;
       gap: 4px;
+    }
+
+    .logic-data-flow-legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+    }
+
+    .flow-badge.logic-legend.value-consume {
+      color: var(--vscode-charts-blue, var(--vscode-textLink-foreground));
+      border-style: dotted;
+    }
+
+    .flow-badge.logic-legend.value-sink {
+      color: var(--vscode-charts-yellow, var(--vscode-textLink-foreground));
+      border-style: double;
     }
 
     .logic-data-binding {
@@ -40,7 +56,7 @@ export function getFunctionLogicDataFlowStyles(): string {
       border: 1px solid var(--vscode-panel-border);
       border-radius: 10px;
       font-family: var(--vscode-editor-font-family);
-      font-size: 7px;
+      font-size: var(--logic-code-tiny);
       line-height: 1.25;
       overflow-wrap: anywhere;
       cursor: pointer;
@@ -49,6 +65,7 @@ export function getFunctionLogicDataFlowStyles(): string {
     .logic-data-binding.parameter { color: var(--vscode-charts-blue, var(--vscode-textLink-foreground)); }
     .logic-data-binding.local { color: var(--vscode-charts-green, var(--vscode-foreground)); }
     .logic-data-binding.constant { color: var(--vscode-charts-purple, var(--vscode-textLink-foreground)); }
+    .logic-data-binding.component { color: var(--vscode-charts-yellow, var(--vscode-textLink-foreground)); }
     .logic-data-binding.inferred { border-style: dashed; }
 
     .logic-data-binding.selected,
@@ -78,11 +95,21 @@ export function getFunctionLogicDataFlowStyles(): string {
     }
 
     .logic-data-flow-edge.selected { display: block; }
+    .logic-data-flow-edge.consume { stroke-dasharray: 2 4; }
+    .logic-data-flow-edge.sink {
+      stroke: var(--vscode-charts-yellow, var(--vscode-textLink-foreground));
+      stroke-dasharray: 9 3;
+      stroke-width: 2.8;
+    }
     .logic-data-flow-edge.inferred { stroke-dasharray: 7 4; }
     .logic-data-flow-edge.choice-dimmed { opacity: 0.16; }
 
     .logic-data-flow-arrow-head {
       fill: var(--vscode-charts-blue, var(--vscode-textLink-foreground));
+    }
+
+    .logic-data-flow-arrow-head.sink {
+      fill: var(--vscode-charts-yellow, var(--vscode-textLink-foreground));
     }
 
     .logic-graph-node.data-flow-related {
@@ -94,6 +121,13 @@ export function getFunctionLogicDataFlowStyles(): string {
       border-left-width: 5px;
     }
 
+    .logic-graph-node.data-flow-consume { border-left-style: dotted; }
+
+    .logic-graph-node.data-flow-sink {
+      border-right: 5px double var(--vscode-charts-yellow, var(--vscode-focusBorder));
+      box-shadow: 0 0 0 2px color-mix(in srgb, var(--vscode-charts-yellow) 38%, transparent);
+    }
+
     .logic-node-value-accesses,
     .logic-selection-value-accesses {
       display: grid;
@@ -103,6 +137,7 @@ export function getFunctionLogicDataFlowStyles(): string {
 
     .logic-value-access {
       display: flex;
+      flex-wrap: wrap;
       min-width: 0;
       align-items: baseline;
       gap: 4px;
@@ -114,10 +149,18 @@ export function getFunctionLogicDataFlowStyles(): string {
 
     .logic-value-access.inferred { border-style: dashed; }
 
+    .logic-value-access.consume { border-left-style: dotted; }
+
+    .logic-value-access.sink {
+      background: color-mix(in srgb, var(--vscode-charts-yellow) 9%, transparent);
+      border-color: color-mix(in srgb, var(--vscode-charts-yellow) 58%, var(--vscode-panel-border));
+      border-right-style: double;
+    }
+
     .logic-value-access-role {
       flex: 0 0 auto;
       color: var(--vscode-charts-blue, var(--vscode-textLink-foreground));
-      font-size: 6px;
+      font-size: var(--logic-font-tiny);
       font-weight: 800;
       letter-spacing: 0.035em;
       white-space: nowrap;
@@ -131,10 +174,18 @@ export function getFunctionLogicDataFlowStyles(): string {
       color: var(--vscode-charts-purple, var(--vscode-textLink-foreground));
     }
 
+    .logic-value-access.component .logic-value-access-role {
+      color: var(--vscode-charts-yellow, var(--vscode-textLink-foreground));
+    }
+
+    .logic-value-access.sink .logic-value-access-role {
+      color: var(--vscode-charts-yellow, var(--vscode-textLink-foreground));
+    }
+
     .logic-value-access code {
       min-width: 0;
       font-family: var(--vscode-editor-font-family);
-      font-size: 7px;
+      font-size: var(--logic-code-tiny);
       line-height: 1.3;
       overflow-wrap: anywhere;
       white-space: normal;
@@ -147,7 +198,7 @@ export function getFunctionLogicDataFlowStyles(): string {
       border-top: 1px solid color-mix(in srgb, var(--vscode-panel-border) 60%, transparent);
     }
 
-    .logic-selection-access-section > strong { font-size: 8px; }
+    .logic-selection-access-section > strong { font-size: var(--logic-font-small); }
 
     .flow-badge.logic-legend.value-flow {
       color: var(--vscode-charts-blue, var(--vscode-textLink-foreground));

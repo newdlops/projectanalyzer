@@ -36,6 +36,7 @@ export function getFunctionLogicDataFlowBrowserSource(): string {
       logic,
       nodeLayoutsByBlockId,
       nodeButtonsById,
+      controlEdgeElementsById,
       sessionKey
     ) {
       const bindings = logic.valueBindings || [];
@@ -49,6 +50,7 @@ export function getFunctionLogicDataFlowBrowserSource(): string {
       const title = document.createElement("strong");
       const hint = document.createElement("span");
       const buttons = document.createElement("div");
+      const legend = document.createElement("div");
       const paths = [];
       const buttonByBindingId = new Map();
       let selectedBindingId = readFunctionLogicValueFlowSelection(
@@ -56,6 +58,29 @@ export function getFunctionLogicDataFlowBrowserSource(): string {
         bindings,
         flows
       );
+      let scenarioTraceRendering;
+      const valuePreviewRendering = createFunctionLogicValuePreviewEditor(
+        bindings,
+        logic.blocks,
+        sessionKey,
+        (bindingId) => selectBinding(bindingId, false),
+        () => scenarioTraceRendering?.refresh()
+      );
+      scenarioTraceRendering = createFunctionLogicScenarioTrace(
+        logic,
+        nodeButtonsById,
+        controlEdgeElementsById
+      );
+
+      /** Updates the shared value-flow lens from either selector surface. */
+      function selectBinding(bindingId, toggleSelected) {
+        selectedBindingId = toggleSelected && selectedBindingId === bindingId
+          ? ""
+          : bindingId;
+        functionLogicValueFlowSessionKey = sessionKey;
+        functionLogicSelectedValueBindingId = selectedBindingId;
+        refresh();
+      }
 
       svg.setAttribute("class", "logic-data-flow-layer");
       svg.setAttribute("width", String(logic.layout.width));
@@ -71,10 +96,17 @@ export function getFunctionLogicDataFlowBrowserSource(): string {
         const path = createLogicSvgElement("path");
         path.setAttribute(
           "class",
-          "logic-data-flow-edge" + (flow.confidence === "inferred" ? " inferred" : "")
+          "logic-data-flow-edge"
+            + (flow.targetUsage ? " " + flow.targetUsage : "")
+            + (flow.confidence === "inferred" ? " inferred" : "")
         );
         path.setAttribute("d", createFunctionLogicValueFlowPath(source, target, index));
-        path.setAttribute("marker-end", "url(#logic-data-flow-arrow)");
+        path.setAttribute(
+          "marker-end",
+          flow.targetUsage === "sink"
+            ? "url(#logic-data-flow-sink-arrow)"
+            : "url(#logic-data-flow-arrow)"
+        );
         svg.append(path);
         paths.push({ flow, path });
       }
@@ -83,8 +115,13 @@ export function getFunctionLogicDataFlowBrowserSource(): string {
       toolbar.setAttribute("aria-label", "Function parameter, local, and constant flows");
       header.className = "logic-data-flow-header";
       title.textContent = "Values in this function";
-      hint.textContent = "Choose one binding to trace possible definition → use flow.";
+      hint.textContent = "Choose one binding to trace possible definition → consume / sink flow.";
       buttons.className = "logic-data-flow-bindings";
+      legend.className = "logic-data-flow-legend";
+      legend.append(
+        createBadge("○ CONSUME", "flow-badge logic-legend value-consume"),
+        createBadge("◎ SINK", "flow-badge logic-legend value-sink")
+      );
       header.append(title, hint);
       for (const binding of bindings) {
         const button = document.createElement("button");
@@ -94,25 +131,23 @@ export function getFunctionLogicDataFlowBrowserSource(): string {
           ).length, 0);
         button.type = "button";
         button.className = "logic-data-binding " + binding.kind
+          + (binding.valueRole ? " " + binding.valueRole : "")
           + (binding.confidence === "inferred" ? " inferred" : "");
-        button.textContent = formatFunctionLogicBindingKind(binding.kind)
+        button.textContent = formatFunctionLogicBindingKind(binding.kind, binding.valueRole)
           + " " + binding.name + " · " + accessCount
           + " access" + (accessCount === 1 ? "" : "es");
         button.title = "Trace " + binding.kind + " " + binding.name;
         button.setAttribute("aria-pressed", binding.id === selectedBindingId ? "true" : "false");
-        button.addEventListener("click", () => {
-          selectedBindingId = selectedBindingId === binding.id ? "" : binding.id;
-          functionLogicValueFlowSessionKey = sessionKey;
-          functionLogicSelectedValueBindingId = selectedBindingId;
-          refresh();
-        });
+        button.addEventListener("click", () => selectBinding(binding.id, true));
         buttons.append(button);
         buttonByBindingId.set(binding.id, button);
       }
-      toolbar.append(header, buttons);
+      toolbar.append(header, legend, buttons);
 
       /** Synchronizes selected binding, branch reachability, and node emphasis. */
       function refresh() {
+        valuePreviewRendering.setSelectedBinding(selectedBindingId);
+        scenarioTraceRendering.setSelectedBinding(selectedBindingId);
         for (const [bindingId, button] of buttonByBindingId) {
           const selected = bindingId === selectedBindingId;
           button.classList.toggle("selected", selected);
@@ -120,13 +155,24 @@ export function getFunctionLogicDataFlowBrowserSource(): string {
         }
         for (const [blockId, node] of nodeButtonsById) {
           const block = blockById.get(blockId);
-          const related = Boolean(selectedBindingId && (block?.valueAccesses || []).some(
-            (access) => access.bindingId === selectedBindingId
-          ));
+          const selectedAccesses = selectedBindingId
+            ? (block?.valueAccesses || []).filter((access) =>
+                access.bindingId === selectedBindingId
+              )
+            : [];
+          const related = selectedAccesses.length > 0;
           node.classList.toggle("data-flow-related", related);
           node.classList.toggle(
             "data-flow-definition",
             related && bindingById.get(selectedBindingId)?.definitionBlockId === blockId
+          );
+          node.classList.toggle(
+            "data-flow-consume",
+            selectedAccesses.some((access) => access.usage === "consume")
+          );
+          node.classList.toggle(
+            "data-flow-sink",
+            selectedAccesses.some((access) => access.usage === "sink")
           );
         }
         for (const record of paths) {
@@ -143,25 +189,39 @@ export function getFunctionLogicDataFlowBrowserSource(): string {
         }
       }
 
-      return { svg, toolbar, refresh };
+      return {
+        svg,
+        toolbar,
+        valuePreviewEditor: valuePreviewRendering.element,
+        scenarioTrace: scenarioTraceRendering.element,
+        refresh
+      };
     }
 
     /** Creates a distinct arrowhead for the optional value-flow overlay. */
     function createFunctionLogicValueFlowArrowMarker() {
       const defs = createLogicSvgElement("defs");
-      const marker = createLogicSvgElement("marker");
-      const arrow = createLogicSvgElement("path");
-      marker.setAttribute("id", "logic-data-flow-arrow");
-      marker.setAttribute("viewBox", "0 0 10 10");
-      marker.setAttribute("refX", "9");
-      marker.setAttribute("refY", "5");
-      marker.setAttribute("markerWidth", "7");
-      marker.setAttribute("markerHeight", "7");
-      marker.setAttribute("orient", "auto-start-reverse");
-      arrow.setAttribute("d", "M 0 0 L 10 5 L 0 10 z");
-      arrow.setAttribute("class", "logic-data-flow-arrow-head");
-      marker.append(arrow);
-      defs.append(marker);
+      for (const descriptor of [{
+        id: "logic-data-flow-arrow",
+        className: "logic-data-flow-arrow-head"
+      }, {
+        id: "logic-data-flow-sink-arrow",
+        className: "logic-data-flow-arrow-head sink"
+      }]) {
+        const marker = createLogicSvgElement("marker");
+        const arrow = createLogicSvgElement("path");
+        marker.setAttribute("id", descriptor.id);
+        marker.setAttribute("viewBox", "0 0 10 10");
+        marker.setAttribute("refX", "9");
+        marker.setAttribute("refY", "5");
+        marker.setAttribute("markerWidth", "7");
+        marker.setAttribute("markerHeight", "7");
+        marker.setAttribute("orient", "auto-start-reverse");
+        arrow.setAttribute("d", "M 0 0 L 10 5 L 0 10 z");
+        arrow.setAttribute("class", descriptor.className);
+        marker.append(arrow);
+        defs.append(marker);
+      }
       return defs;
     }
 
@@ -207,15 +267,21 @@ export function getFunctionLogicDataFlowBrowserSource(): string {
         const role = document.createElement("span");
         const name = document.createElement("code");
         row.className = "logic-value-access " + access.bindingKind
+          + (access.usage ? " " + access.usage : "")
+          + (access.valueRole ? " " + access.valueRole : "")
           + (access.confidence === "inferred" ? " inferred" : "");
         row.title = access.confidence === "inferred"
           ? "Static naming convention; verify this binding in source"
-          : "Source syntax proves this lexical binding access";
+          : access.usage === "sink"
+            ? "Source syntax passes this value beyond direct lexical tracking"
+            : access.usage === "consume"
+              ? "Source syntax consumes this value inside the function computation"
+              : "Source syntax proves this lexical binding access";
         role.className = "logic-value-access-role";
-        role.textContent = formatFunctionLogicBindingKind(access.bindingKind)
-          + " · " + formatFunctionLogicValueAccess(access.access);
+        role.textContent = formatFunctionLogicBindingKind(access.bindingKind, access.valueRole)
+          + " · " + formatFunctionLogicValueUsage(access);
         name.textContent = access.name;
-        row.append(role, name);
+        row.append(role, name, createFunctionLogicValuePreviewLabel(access.bindingId));
         list.append(row);
       }
       if (accesses.length > MAX_LOGIC_VALUE_ACCESS_ROWS) {
@@ -229,7 +295,8 @@ export function getFunctionLogicDataFlowBrowserSource(): string {
     }
 
     /** Produces concise non-color binding kind labels. */
-    function formatFunctionLogicBindingKind(kind) {
+    function formatFunctionLogicBindingKind(kind, valueRole) {
+      if (valueRole === "component") return "COMPONENT";
       if (kind === "parameter") return "PARAM";
       if (kind === "constant") return "CONST";
       return "LOCAL";
@@ -239,6 +306,13 @@ export function getFunctionLogicDataFlowBrowserSource(): string {
     function formatFunctionLogicValueAccess(access) {
       if (access === "readwrite") return "READ/WRITE";
       return String(access || "read").toUpperCase();
+    }
+
+    /** Keeps consume/sink semantics explicit while retaining update behavior. */
+    function formatFunctionLogicValueUsage(access) {
+      const usage = access.usage ? String(access.usage).toUpperCase() : "";
+      if (!usage) return formatFunctionLogicValueAccess(access.access);
+      return access.access === "readwrite" ? usage + " / WRITE" : usage;
     }
   `;
 }
