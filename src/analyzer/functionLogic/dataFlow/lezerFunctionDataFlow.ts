@@ -285,13 +285,16 @@ function createLezerValueFacts(
       return;
     }
     const target = targetAccessByNodeKey.get(nodeKey(node));
+    const access = target?.access ?? "read";
+    const usage = classifyLezerValueUsage(node, access);
     if (accesses.length >= MAX_VALUE_ACCESSES) {
       omittedAccessCount += 1;
       return;
     }
     accesses.push({
       bindingId: binding.id,
-      access: target?.access ?? "read",
+      access,
+      ...(usage ? { usage } : {}),
       range: lezerNodeRange(source, node),
       confidence: "exact"
     });
@@ -304,6 +307,94 @@ function createLezerValueFacts(
     omittedAccessCount
   };
 }
+
+/**
+ * Classifies reads from both Lezer grammars without evaluating expressions.
+ * Argument lists, returns/throws/yields, aggregates, and external assignment
+ * targets are lexical sinks; ordinary computations remain consumes.
+ */
+function classifyLezerValueUsage(
+  node: SyntaxNode,
+  access: FunctionLogicValueAccessFact["access"]
+): FunctionLogicValueAccessFact["usage"] {
+  if (access === "write") return undefined;
+  let current = node;
+  while (current.parent) {
+    const parent = current.parent;
+    if (LEZER_SINK_OWNER_NAMES.has(parent.name)) return "sink";
+    if (LEZER_AGGREGATE_NAMES.has(parent.name)) return "sink";
+    const assignmentUsage = classifyLezerAssignmentUsage(parent, current);
+    if (assignmentUsage) return assignmentUsage;
+    if (LEZER_CALL_NAMES.has(parent.name)) {
+      // Arguments encounter ArgList/ArgumentList first. Reaching the call node
+      // here means this binding supplies only the callee or receiver.
+      return "consume";
+    }
+    if (parent.name.endsWith("Statement") || isPythonNestedScope(parent)
+      || isJavaNestedScope(parent)) {
+      break;
+    }
+    current = parent;
+  }
+  return "consume";
+}
+
+const LEZER_SINK_OWNER_NAMES = new Set([
+  "ArgList",
+  "ArgumentList",
+  "ReturnStatement",
+  "ThrowStatement",
+  "RaiseStatement",
+  "YieldExpression",
+  "YieldStatement"
+]);
+
+const LEZER_AGGREGATE_NAMES = new Set([
+  "ArrayExpression",
+  "DictionaryExpression",
+  "SetExpression",
+  "TupleExpression",
+  "ArrayInitializer"
+]);
+
+const LEZER_CALL_NAMES = new Set([
+  "CallExpression",
+  "MethodInvocation",
+  "ClassInstanceCreationExpression",
+  "ExplicitConstructorInvocation",
+  "ConstructorInvocation",
+  "SuperConstructorInvocation"
+]);
+
+/** Distinguishes an assignment RHS sink from receiver/index reads on its LHS. */
+function classifyLezerAssignmentUsage(
+  parent: SyntaxNode,
+  child: SyntaxNode
+): FunctionLogicValueAccessFact["usage"] {
+  if (parent.name !== "AssignStatement" && parent.name !== "UpdateStatement"
+    && parent.name !== "NamedExpression" && parent.name !== "AssignmentExpression") {
+    return undefined;
+  }
+  const children = getLezerChildren(parent);
+  const markerIndex = children.findIndex((candidate) =>
+    candidate.name === "AssignOp" || candidate.name === "UpdateOp"
+  );
+  const childIndex = children.findIndex((candidate) => nodeKey(candidate) === nodeKey(child));
+  if (markerIndex < 0 || childIndex < 0) return undefined;
+  if (childIndex < markerIndex) return "consume";
+  const target = children.slice(0, markerIndex).find((candidate) =>
+    !candidate.type.isAnonymous
+  );
+  return target && LEZER_EXTERNAL_TARGET_NAMES.has(target.name)
+    ? "sink"
+    : "consume";
+}
+
+const LEZER_EXTERNAL_TARGET_NAMES = new Set([
+  "MemberExpression",
+  "FieldAccess",
+  "ArrayAccess"
+]);
 
 /** Creates one stable parser-independent binding fact. */
 function createBindingFact(

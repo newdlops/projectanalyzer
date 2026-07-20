@@ -20,5 +20,6 @@ export type {
   FunctionLogicValueBindingFact,
   FunctionLogicValueBindingKind,
   FunctionLogicValueFacts,
-  FunctionLogicValueFlow
+  FunctionLogicValueFlow,
+  FunctionLogicValueUsageKind
 } from "./types";

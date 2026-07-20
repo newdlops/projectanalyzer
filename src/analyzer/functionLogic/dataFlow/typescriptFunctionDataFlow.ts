@@ -25,6 +25,8 @@ type TypeScriptBindingCandidate = {
   kind: FunctionLogicValueBindingKind;
   definitionPlacement: "entry" | "source";
   confidence: "exact" | "inferred";
+  valueRole?: "component";
+  initializer?: ts.Expression;
 };
 
 /** Collects bounded source facts without resolving values or runtime aliases. */
@@ -37,6 +39,7 @@ export function collectTypeScriptFunctionValueFacts(
   const uniqueCandidates = candidates.filter((candidate) =>
     candidatesByName.get(candidate.name)?.length === 1
   );
+  propagateComponentValueRoles(uniqueCandidates);
   const retainedCandidates = uniqueCandidates.slice(0, MAX_VALUE_BINDINGS);
   const omittedBindingCount = Math.max(0, uniqueCandidates.length - retainedCandidates.length)
     + Math.max(0, candidates.length - MAX_BINDING_CANDIDATES);
@@ -66,10 +69,12 @@ export function collectTypeScriptFunctionValueFacts(
       const binding = bindingByName.get(node.text);
       if (binding && !declarationKeys.has(nodeKey(node)) && isValueIdentifier(node)) {
         const access = classifyIdentifierAccess(node);
+        const usage = classifyIdentifierUsage(node, access);
         if (accesses.length < MAX_VALUE_ACCESSES) {
           accesses.push({
             bindingId: binding.id,
             access,
+            ...(usage ? { usage } : {}),
             range: toSourceRange(sourceFile, node),
             confidence: "exact"
           });
@@ -122,7 +127,15 @@ function collectBindingCandidates(
         && (declarationList.flags & ts.NodeFlags.Const) !== 0
         ? "constant"
         : "local";
-      appendBindingNameCandidates(candidates, node.name, kind, "source", "exact");
+      appendBindingNameCandidates(
+        candidates,
+        node.name,
+        kind,
+        "source",
+        "exact",
+        node.initializer && containsJsxSyntax(node.initializer) ? "component" : undefined,
+        node.initializer
+      );
     }
     const children = getImmediateChildren(node);
     for (let index = children.length - 1; index >= 0; index -= 1) {
@@ -154,7 +167,9 @@ function appendBindingNameCandidates(
   name: ts.BindingName,
   kind: FunctionLogicValueBindingKind,
   definitionPlacement: "entry" | "source",
-  confidence: "exact" | "inferred"
+  confidence: "exact" | "inferred",
+  valueRole?: "component",
+  initializer?: ts.Expression
 ): void {
   const pending: ts.BindingName[] = [name];
   while (pending.length > 0 && candidates.length < MAX_BINDING_CANDIDATES) {
@@ -163,7 +178,15 @@ function appendBindingNameCandidates(
       continue;
     }
     if (ts.isIdentifier(current)) {
-      candidates.push({ name: current.text, node: current, kind, definitionPlacement, confidence });
+      candidates.push({
+        name: current.text,
+        node: current,
+        kind,
+        definitionPlacement,
+        confidence,
+        ...(valueRole ? { valueRole } : {}),
+        ...(initializer ? { initializer } : {})
+      });
       continue;
     }
     for (let index = current.elements.length - 1; index >= 0; index -= 1) {
@@ -173,6 +196,71 @@ function appendBindingNameCandidates(
       }
     }
   }
+}
+
+/**
+ * Propagates the component role through direct first-class value transport such
+ * as `const selected = views[index]`; calls and property reads remain unknown.
+ */
+function propagateComponentValueRoles(
+  candidates: TypeScriptBindingCandidate[]
+): void {
+  const componentNames = new Set(candidates
+    .filter((candidate) => candidate.valueRole === "component")
+    .map((candidate) => candidate.name));
+  let remainingPasses = candidates.length;
+  let changed = true;
+
+  while (changed && remainingPasses > 0) {
+    remainingPasses -= 1;
+    changed = false;
+    for (const candidate of candidates) {
+      if (candidate.valueRole || !candidate.initializer) continue;
+      if (!readsTransportedComponentValue(candidate.initializer, componentNames)) continue;
+      candidate.valueRole = "component";
+      componentNames.add(candidate.name);
+      changed = true;
+    }
+  }
+}
+
+/** Recognizes only transparent containers and indexed component-value reads. */
+function readsTransportedComponentValue(
+  expression: ts.Expression,
+  componentNames: ReadonlySet<string>
+): boolean {
+  const pending: ts.Expression[] = [expression];
+  while (pending.length > 0) {
+    const current = pending.pop();
+    if (!current) continue;
+    if (ts.isIdentifier(current)) {
+      if (componentNames.has(current.text)) return true;
+      continue;
+    }
+    if (ts.isParenthesizedExpression(current)
+      || ts.isAsExpression(current)
+      || ts.isTypeAssertionExpression(current)
+      || ts.isNonNullExpression(current)
+      || ts.isSatisfiesExpression(current)) {
+      pending.push(current.expression);
+      continue;
+    }
+    if (ts.isElementAccessExpression(current)) {
+      pending.push(current.expression);
+      continue;
+    }
+    if (ts.isConditionalExpression(current)) {
+      pending.push(current.whenFalse, current.whenTrue);
+      continue;
+    }
+    if (ts.isArrayLiteralExpression(current)) {
+      for (let index = current.elements.length - 1; index >= 0; index -= 1) {
+        const element = current.elements[index];
+        if (ts.isExpression(element)) pending.push(element);
+      }
+    }
+  }
+  return false;
 }
 
 /** Uses one stable source identity per lexical binding. */
@@ -185,6 +273,7 @@ function createBindingFact(
     sourceFile.fileName,
     candidate.kind,
     candidate.name,
+    candidate.valueRole ?? "value",
     range.startLine,
     range.startCharacter
   ].join("\0");
@@ -194,7 +283,8 @@ function createBindingFact(
     kind: candidate.kind,
     declarationRange: range,
     definitionPlacement: candidate.definitionPlacement,
-    confidence: candidate.confidence
+    confidence: candidate.confidence,
+    ...(candidate.valueRole ? { valueRole: candidate.valueRole } : {})
   };
 }
 
@@ -242,6 +332,77 @@ function classifyIdentifierAccess(
     return "readwrite";
   }
   return write.operator === ts.SyntaxKind.EqualsToken ? "write" : "readwrite";
+}
+
+/**
+ * Distinguishes internal computation from syntax that lets a read escape the
+ * tracked lexical binding flow. The iterative parent walk stops at the first
+ * statement/callable boundary and never claims that the sink actually ran.
+ */
+function classifyIdentifierUsage(
+  node: ts.Identifier,
+  access: FunctionLogicValueAccessFact["access"]
+): FunctionLogicValueAccessFact["usage"] {
+  if (access === "write") return undefined;
+  let current: ts.Node = node;
+  while (current.parent) {
+    const parent = current.parent;
+    if (ts.isReturnStatement(parent) || ts.isThrowStatement(parent)
+      || ts.isYieldExpression(parent)) {
+      return "sink";
+    }
+    if (ts.isCallExpression(parent) || ts.isNewExpression(parent)) {
+      if (parent.arguments?.includes(current as ts.Expression)) return "sink";
+      // A callee/receiver is consumed to dispatch the call; only arguments
+      // cross the explicit call boundary represented by this collector.
+      return "consume";
+    }
+    if (ts.isTaggedTemplateExpression(parent)) {
+      return parent.template === current ? "sink" : "consume";
+    }
+    if (isJsxValueBoundary(parent)) {
+      return "sink";
+    }
+    if (isAggregateStorageBoundary(parent, current)
+      || isExternalAssignmentBoundary(parent, current)) {
+      return "sink";
+    }
+    if (ts.isStatement(parent) || isNestedCallable(parent)) {
+      break;
+    }
+    current = parent;
+  }
+  return "consume";
+}
+
+/** JSX props, children, spreads, and component tags pass values to render output. */
+function isJsxValueBoundary(node: ts.Node): boolean {
+  return ts.isJsxExpression(node)
+    || ts.isJsxElement(node)
+    || ts.isJsxSelfClosingElement(node)
+    || ts.isJsxOpeningElement(node)
+    || ts.isJsxAttribute(node)
+    || ts.isJsxSpreadAttribute(node)
+    || ts.isJsxFragment(node);
+}
+
+/** Object/array fields end direct lexical tracking even when the container stays local. */
+function isAggregateStorageBoundary(parent: ts.Node, child: ts.Node): boolean {
+  return (ts.isArrayLiteralExpression(parent)
+      && parent.elements.includes(child as ts.Expression))
+    || (ts.isPropertyAssignment(parent) && parent.initializer === child)
+    || (ts.isShorthandPropertyAssignment(parent) && parent.name === child)
+    || (ts.isSpreadAssignment(parent) && parent.expression === child)
+    || (ts.isSpreadElement(parent) && parent.expression === child);
+}
+
+/** RHS values assigned into an untracked property/element are explicit sinks. */
+function isExternalAssignmentBoundary(parent: ts.Node, child: ts.Node): boolean {
+  return ts.isBinaryExpression(parent)
+    && parent.right === child
+    && isAssignmentOperator(parent.operatorToken.kind)
+    && (ts.isPropertyAccessExpression(parent.left)
+      || ts.isElementAccessExpression(parent.left));
 }
 
 /** Finds a direct or destructuring assignment target without treating receivers as writes. */

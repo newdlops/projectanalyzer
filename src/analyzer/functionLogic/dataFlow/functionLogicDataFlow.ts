@@ -68,14 +68,16 @@ export function createFunctionLogicDataFlowProjection(
       name: binding.name,
       kind: binding.kind,
       definitionBlockId,
-      confidence: binding.confidence
+      confidence: binding.confidence,
+      ...(binding.valueRole ? { valueRole: binding.valueRole } : {})
     });
     appendValueAccess(accessesByBlockId, definitionBlockId, {
       bindingId: binding.id,
       name: binding.name,
       bindingKind: binding.kind,
       access: "define",
-      confidence: binding.confidence
+      confidence: binding.confidence,
+      ...(binding.valueRole ? { valueRole: binding.valueRole } : {})
     });
   }
 
@@ -94,7 +96,9 @@ export function createFunctionLogicDataFlowProjection(
       name: binding.name,
       bindingKind: binding.kind,
       access: fact.access,
-      confidence: combineConfidence(binding.confidence, fact.confidence)
+      ...(fact.usage ? { usage: fact.usage } : {}),
+      confidence: combineConfidence(binding.confidence, fact.confidence),
+      ...(binding.valueRole ? { valueRole: binding.valueRole } : {})
     });
   }
 
@@ -129,7 +133,13 @@ export function createFunctionLogicDataFlowProjection(
         boundedDepth
       );
       for (const sourceBlockId of sources) {
-        const key = `${access.bindingId}\0${sourceBlockId}\0${targetBlockId}\0${access.access}`;
+        const key = [
+          access.bindingId,
+          sourceBlockId,
+          targetBlockId,
+          access.access,
+          access.usage ?? "use"
+        ].join("\0");
         if (seenFlowKeys.has(key)) {
           continue;
         }
@@ -144,6 +154,7 @@ export function createFunctionLogicDataFlowProjection(
           sourceBlockId,
           targetBlockId,
           targetAccess: access.access,
+          ...(access.usage ? { targetUsage: access.usage } : {}),
           confidence: combineConfidence(
             access.confidence,
             definitionsByBindingId.get(access.bindingId)?.get(sourceBlockId) ?? "exact"
@@ -172,6 +183,7 @@ function appendValueAccess(
   if (!values.some((candidate) =>
     candidate.bindingId === access.bindingId
       && candidate.access === access.access
+      && candidate.usage === access.usage
       && candidate.confidence === access.confidence
   )) {
     values.push(access);

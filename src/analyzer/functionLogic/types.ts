@@ -21,12 +21,16 @@ export type {
   FunctionLogicValueAccessKind,
   FunctionLogicValueBinding,
   FunctionLogicValueBindingKind,
-  FunctionLogicValueFlow
+  FunctionLogicValueRole,
+  FunctionLogicValueFlow,
+  FunctionLogicValueUsageKind
 } from "./dataFlow/types";
 
 /** Statement roles visible in the Function Logic Reader. */
 export type FunctionLogicBlockKind =
   | "entry"
+  | "embedded"
+  | "callable"
   | "condition"
   | "loop"
   | "switch"
@@ -44,9 +48,11 @@ export type FunctionLogicBlockKind =
   | "exit"
   | "unknown";
 
-/** Directed control transfer between two visible logic blocks. */
+/** Directed control transfer or explicit non-runtime callable/deferred relation. */
 export type FunctionLogicEdgeKind =
   | "next"
+  | "defines"
+  | "deferred"
   | "true"
   | "false"
   | "iterate"
@@ -74,7 +80,7 @@ export type FunctionLogicLanguage =
   | "elixir"
   | "unsupported";
 
-/** One statement or synthetic entry/exit block inside the selected function. */
+/** One statement, embedded/callable boundary, or synthetic scope marker. */
 export type FunctionLogicBlock = {
   id: string;
   kind: FunctionLogicBlockKind;
@@ -107,9 +113,11 @@ export type FunctionLogicCallsite = {
   eventRegistrationName?: string;
   /** Parser-proven receiver or pipeline stage retained for conservative drill recovery. */
   callChain?: "start" | "continuation" | "pipeline";
+  /** Exact owning block for virtual or embedded source whose ranges share one host literal. */
+  blockId?: string;
 };
 
-/** One syntax-backed or conservative control transfer. */
+/** One syntax-backed control, definition, or deferred-dispatch relationship. */
 export type FunctionLogicEdge = {
   id: string;
   sourceId: string;

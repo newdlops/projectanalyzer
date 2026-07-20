@@ -1,7 +1,7 @@
 /**
  * Function Logic data-flow tests cover parameter/local/constant discovery,
- * definition/use projection across branch merges, Python/Java language
- * semantics, and bounded cycle-safe reaching-definition traversal.
+ * definition/use projection across branch merges, consume/sink semantics,
+ * Python/Java behavior, and bounded cycle-safe reaching-definition traversal.
  */
 
 import assert from "node:assert/strict";
@@ -38,15 +38,66 @@ test("tracks TypeScript parameters, locals, constants, and branch-reaching defin
   assertBinding(analysis, "factor", "parameter", "exact");
   assertBinding(analysis, "LIMIT", "constant", "exact");
   const total = assertBinding(analysis, "total", "local", "exact");
-  assertBlockAccess(analysis, "let total", "user", "read");
-  assertBlockAccess(analysis, "if total", "LIMIT", "read");
-  assertBlockAccess(analysis, "total += factor", "total", "readwrite");
+  assertBlockAccess(analysis, "let total", "user", "read", "consume");
+  assertBlockAccess(analysis, "if total", "LIMIT", "read", "consume");
+  assertBlockAccess(analysis, "total += factor", "total", "readwrite", "consume");
+  assertBlockAccess(analysis, "return total", "total", "read", "sink");
 
   const returnBlock = findBlock(analysis, "return total");
   const sourceLabels = new Set((analysis.valueFlows ?? [])
     .filter((flow) => flow.bindingId === total.id && flow.targetBlockId === returnBlock.id)
     .map((flow) => analysis.blocks.find((block) => block.id === flow.sourceBlockId)?.label));
   assert.deepEqual(sourceLabels, new Set(["let total = user.count;", "total += factor;"]));
+  assert.ok((analysis.valueFlows ?? []).some((flow) =>
+    flow.bindingId === total.id
+      && flow.targetBlockId === returnBlock.id
+      && flow.targetUsage === "sink"
+  ));
+});
+
+test("distinguishes internal TypeScript consumes from call, storage, and return sinks", () => {
+  const analysis = analyzeSource(
+    "typescript",
+    "/workspace/src/publish.ts",
+    "publishValue",
+    [
+      "function publishValue(input: number, target: Target) {",
+      "  const adjusted = input + 1;",
+      "  target.value = adjusted;",
+      "  publish(adjusted);",
+      "  return adjusted;",
+      "}"
+    ].join("\n")
+  );
+
+  assertBlockAccess(analysis, "const adjusted", "input", "read", "consume");
+  assertBlockAccess(analysis, "target.value", "adjusted", "read", "sink");
+  assertBlockAccess(analysis, "publish(adjusted)", "adjusted", "read", "sink");
+  assertBlockAccess(analysis, "return adjusted", "adjusted", "read", "sink");
+  assertBlockAccess(analysis, "target.value", "target", "read", "consume");
+});
+
+test("treats JSX props and children as render sinks without changing lexical roles", () => {
+  const analysis = analyzeSource(
+    "typescriptreact",
+    "/workspace/src/Panel.tsx",
+    "Panel",
+    [
+      "function Panel(title: string) {",
+      "  const label = title.trim();",
+      "  return <Card title={label}>{title}</Card>;",
+      "}"
+    ].join("\n")
+  );
+
+  assert.ok(analysis.blocks.some((block) => block.valueAccesses?.some((candidate) =>
+    candidate.name === "title" && candidate.usage === "consume"
+  )), "the trim receiver should consume title internally");
+  for (const name of ["label", "title"]) {
+    assert.ok(analysis.blocks.some((block) => block.valueAccesses?.some((candidate) =>
+      candidate.name === name && candidate.usage === "sink"
+    )), `missing JSX sink for ${name}`);
+  }
 });
 
 test("uses language-specific constant semantics for Python and Java", () => {
@@ -59,6 +110,8 @@ test("uses language-specific constant semantics for Python and Java", () => {
       "    LIMIT = 3",
       "    total = user.count",
       "    total += factor",
+      "    user.total = total",
+      "    publish(total)",
       "    return total"
     ].join("\n"),
     4
@@ -73,6 +126,8 @@ test("uses language-specific constant semantics for Python and Java", () => {
       "    final int LIMIT = 3;",
       "    int total = user.count();",
       "    total += factor;",
+      "    user.total = total;",
+      "    publish(total);",
       "    return total;",
       "  }",
       "}"
@@ -84,9 +139,15 @@ test("uses language-specific constant semantics for Python and Java", () => {
   assertBinding(python, "LIMIT", "constant", "inferred");
   assertBinding(python, "total", "local", "exact");
   assertBlockAccess(python, "total += factor", "factor", "read");
+  assertBlockAccess(python, "user.total", "total", "read", "sink");
+  assertBlockAccess(python, "publish(total)", "total", "read", "sink");
+  assertBlockAccess(python, "return total", "total", "read", "sink");
   assertBinding(java, "LIMIT", "constant", "exact");
   assertBinding(java, "user", "parameter", "exact");
   assertBlockAccess(java, "int total", "user", "read");
+  assertBlockAccess(java, "user.total", "total", "read", "sink");
+  assertBlockAccess(java, "publish(total)", "total", "read", "sink");
+  assertBlockAccess(java, "return total", "total", "read", "sink");
 });
 
 test("omits ambiguous shadowed TypeScript names instead of inventing binding identity", () => {
@@ -150,6 +211,42 @@ test("bounds iterative reaching-definition traversal and deduplicates cyclic edg
     flow.sourceBlockId,
     flow.targetBlockId
   ]), [["define", "read"]]);
+});
+
+test("preserves consume and sink reads that share one visible block", () => {
+  const blocks = [block("entry", "entry", 0), block("use", "operation", 1)];
+  const facts: FunctionLogicValueFacts = {
+    bindings: [{
+      id: "binding:value",
+      name: "value",
+      kind: "parameter",
+      declarationRange: range(0),
+      definitionPlacement: "entry",
+      confidence: "exact"
+    }],
+    accesses: [{
+      bindingId: "binding:value",
+      access: "read",
+      usage: "consume",
+      range: range(1),
+      confidence: "exact"
+    }, {
+      bindingId: "binding:value",
+      access: "read",
+      usage: "sink",
+      range: range(1),
+      confidence: "exact"
+    }]
+  };
+  const projection = createFunctionLogicDataFlowProjection(
+    blocks,
+    [edge("next", "entry", "use")],
+    facts
+  );
+  const use = projection.blocks.find((candidate) => candidate.id === "use");
+
+  assert.deepEqual(use?.valueAccesses?.map((access) => access.usage), ["consume", "sink"]);
+  assert.deepEqual(projection.valueFlows.map((flow) => flow.targetUsage), ["consume", "sink"]);
 });
 
 /** Runs one selected callable against its source snapshot. */
@@ -222,12 +319,14 @@ function assertBlockAccess(
   analysis: FunctionLogicAnalysis,
   labelPrefix: string,
   name: string,
-  access: "define" | "read" | "write" | "readwrite"
+  access: "define" | "read" | "write" | "readwrite",
+  usage?: "consume" | "sink"
 ): void {
   const block = findBlock(analysis, labelPrefix);
   assert.ok(block.valueAccesses?.some((candidate) =>
     candidate.name === name && candidate.access === access
-  ), `missing ${access} ${name} on ${block.label}`);
+      && (usage === undefined || candidate.usage === usage)
+  ), `missing ${usage ? `${usage} ` : ""}${access} ${name} on ${block.label}`);
 }
 
 /** Finds one visible block by complete source-label prefix. */
