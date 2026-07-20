@@ -1,6 +1,6 @@
 /**
- * Parser-independent helpers shared by Python and Java Function Logic adapters.
- * They own bounded identities, summary counts, synthetic blocks, and effect cues.
+ * Parser-independent helpers shared by Function Logic language adapters. They
+ * own bounded identities, summary counts, synthetic blocks, and effect cues.
  */
 
 import { createContentHash } from "../../../shared/hash";
@@ -9,6 +9,9 @@ import type {
   FunctionLogicAnalysis,
   FunctionLogicBlock,
   FunctionLogicBlockKind,
+  FunctionLogicConfidence,
+  FunctionLogicEdge,
+  FunctionLogicEdgeKind,
   FunctionLogicGap,
   FunctionLogicLanguage,
   FunctionLogicSummary
@@ -42,6 +45,25 @@ export function createFunctionLogicBlockId(
     label
   ].join("\0");
   return `logic-block:${createContentHash(key).slice(0, 32)}`;
+}
+
+/** Creates one stable, de-duplicatable function-local relationship record. */
+export function createFunctionLogicEdge(
+  sourceId: string,
+  targetId: string,
+  kind: FunctionLogicEdgeKind,
+  label: string | undefined,
+  confidence: FunctionLogicConfidence
+): FunctionLogicEdge {
+  const key = `${sourceId}\0${targetId}\0${kind}\0${label ?? ""}`;
+  return {
+    id: `logic-edge:${createContentHash(key).slice(0, 32)}`,
+    sourceId,
+    targetId,
+    kind,
+    label,
+    confidence
+  };
 }
 
 /** Creates an exact synthetic entry or exit anchored to source evidence. */

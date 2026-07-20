@@ -9,6 +9,9 @@ import * as ts from "typescript";
 /** Callable expression accepted as the implementation of a wrapped component. */
 export type TypeScriptLikeComponentFunction = ts.ArrowFunction | ts.FunctionExpression;
 
+/** Concise `.map` callback whose expression contributes JSX list output. */
+export type TypeScriptLikeJsxMapCallback = ts.ArrowFunction & { body: ts.Expression };
+
 /** One custom JSX tag that can conservatively participate in callee drilling. */
 export type TypeScriptLikeJsxComponentReference = {
   name: string;
@@ -58,6 +61,30 @@ export function findTypeScriptLikeWrappedComponentFunction(
     current = implementation ? unwrapTransparentExpression(implementation) : undefined;
   }
   return undefined;
+}
+
+/**
+ * Finds the narrow JSX-producing callback supported as an inferred list-render
+ * boundary. Block callbacks stay opaque because their internal control flow
+ * belongs to the nested function rather than the outer component.
+ */
+export function findTypeScriptLikeJsxMapCallback(
+  call: ts.CallExpression
+): TypeScriptLikeJsxMapCallback | undefined {
+  const callee = unwrapTransparentExpression(call.expression);
+  if (!ts.isPropertyAccessExpression(callee) || callee.name.text !== "map") {
+    return undefined;
+  }
+  const callbackExpression = call.arguments[0]
+    ? unwrapTransparentExpression(call.arguments[0])
+    : undefined;
+  if (!callbackExpression
+    || !ts.isArrowFunction(callbackExpression)
+    || ts.isBlock(callbackExpression.body)
+    || !containsDirectJsx(callbackExpression.body)) {
+    return undefined;
+  }
+  return callbackExpression as TypeScriptLikeJsxMapCallback;
 }
 
 /**
@@ -138,4 +165,30 @@ function isTransparentParentOf(parent: ts.Node, child: ts.Expression): parent is
       || ts.isNonNullExpression(parent)
       || ts.isSatisfiesExpression(parent))
     && parent.expression === child;
+}
+
+/** Finds JSX output iteratively while preserving nested callable boundaries. */
+function containsDirectJsx(root: ts.Node): boolean {
+  const pending: ts.Node[] = [root];
+  while (pending.length > 0) {
+    const node = pending.pop();
+    if (!node) {
+      continue;
+    }
+    if (ts.isJsxElement(node) || ts.isJsxSelfClosingElement(node) || ts.isJsxFragment(node)) {
+      return true;
+    }
+    if (node !== root && (ts.isArrowFunction(node) || ts.isFunctionExpression(node))) {
+      continue;
+    }
+    const children: ts.Node[] = [];
+    ts.forEachChild(node, (child) => {
+      children.push(child);
+      return undefined;
+    });
+    for (let index = children.length - 1; index >= 0; index -= 1) {
+      pending.push(children[index]);
+    }
+  }
+  return false;
 }

@@ -8,6 +8,7 @@ import * as ts from "typescript";
 import { createContentHash } from "../../shared/hash";
 import type { SourceRange, SymbolNode } from "../../shared/types";
 import {
+  findTypeScriptLikeJsxMapCallback,
   findTypeScriptLikeWrappedComponentBinding,
   readTypeScriptLikeJsxComponentReference
 } from "../languages/typescriptLike/typescriptLikeJsxSyntax";
@@ -178,7 +179,10 @@ export function getImmediateChildren(node: ts.Node): ts.Node[] {
   return children;
 }
 
-/** Collects stable callsite names and exact ranges from this function body only. */
+/**
+ * Collects stable calls and JSX render references in this callable. Concise
+ * JSX `.map` callbacks are the sole inferred nested boundary admitted here.
+ */
 export function collectFunctionCallsites(
   sourceFile: ts.SourceFile,
   filePath: string,
@@ -187,13 +191,17 @@ export function collectFunctionCallsites(
   const callsites: FunctionLogicCallsite[] = [];
   const seen = new Set<string>();
   const root = functionNode.body;
-  const pending: ts.Node[] = [root];
+  const pending: Array<{
+    node: ts.Node;
+    confidence: FunctionLogicConfidence;
+  }> = [{ node: root, confidence: "exact" }];
 
   while (pending.length > 0) {
-    const node = pending.pop();
-    if (!node) {
+    const task = pending.pop();
+    if (!task) {
       continue;
     }
+    const node = task.node;
     if (node !== root && isFunctionLikeWithBody(node)) {
       continue;
     }
@@ -206,7 +214,9 @@ export function collectFunctionCallsites(
           filePath,
           toSourceRange(sourceFile, node),
           callee.name,
-          callee.text
+          callee.text,
+          "call",
+          task.confidence
         );
       }
     }
@@ -219,13 +229,21 @@ export function collectFunctionCallsites(
           filePath,
           toSourceRange(sourceFile, component.node),
           component.name,
-          component.text
+          component.text,
+          "render",
+          task.confidence
         );
       }
     }
-    const children = getImmediateChildren(node);
+    const mapCallback = ts.isCallExpression(node)
+      ? findTypeScriptLikeJsxMapCallback(node)
+      : undefined;
+    const children = getImmediateChildren(node).filter((child) => child !== mapCallback);
     for (let index = children.length - 1; index >= 0; index -= 1) {
-      pending.push(children[index]);
+      pending.push({ node: children[index], confidence: task.confidence });
+    }
+    if (mapCallback) {
+      pending.push({ node: mapCallback.body, confidence: "inferred" });
     }
   }
 
@@ -238,14 +256,16 @@ export function collectFunctionCallsites(
   );
 }
 
-/** Adds one exact source callsite without duplicating a previously seen node. */
+/** Adds one source relation without duplicating a previously seen syntax node. */
 function appendFunctionCallsite(
   callsites: FunctionLogicCallsite[],
   seen: Set<string>,
   filePath: string,
   range: SourceRange,
   calleeName: string,
-  calleeText: string
+  calleeText: string,
+  relation: "call" | "render",
+  confidence: FunctionLogicConfidence
 ): void {
   const key = `${filePath}\0${range.startLine}\0${range.startCharacter}`
     + `\0${range.endLine}\0${range.endCharacter}\0${calleeName}`;
@@ -253,7 +273,14 @@ function appendFunctionCallsite(
     return;
   }
   seen.add(key);
-  callsites.push({ filePath, range, calleeName, calleeText });
+  callsites.push({
+    filePath,
+    range,
+    calleeName,
+    calleeText,
+    relation,
+    ...(confidence === "inferred" ? { confidence } : {})
+  });
 }
 
 /** Reads only identifier, property, or literal-element callees suitable for matching. */

@@ -19,6 +19,8 @@ export type FunctionLogicBlockKind =
   | "loop"
   | "switch"
   | "try"
+  | "render"
+  | "event"
   | "call"
   | "effect"
   | "mutation"
@@ -77,12 +79,16 @@ export type FunctionLogicBlock = {
   range: SourceRange;
 };
 
-/** One direct call expression found inside the selected callable's own AST body. */
+/** One direct call or JSX component-render reference found in the selected callable. */
 export type FunctionLogicCallsite = {
   filePath: string;
   range: SourceRange;
   calleeName: string;
   calleeText: string;
+  /** JSX component references remain render relations rather than direct JS calls. */
+  relation?: "call" | "render";
+  /** Nested synchronous-looking render callbacks never exceed inferred confidence. */
+  confidence?: FunctionLogicConfidence;
   /** Parser-proven receiver or pipeline stage retained for conservative drill recovery. */
   callChain?: "start" | "continuation" | "pipeline";
 };
@@ -108,7 +114,7 @@ export type FunctionLogicGap = {
   message: string;
 };
 
-/** Counts derived from visible blocks and exact call expressions in this analysis. */
+/** Counts derived from visible blocks and direct call expressions in this analysis. */
 export type FunctionLogicSummary = {
   blockCount: number;
   branchCount: number;

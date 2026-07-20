@@ -4,13 +4,13 @@
  * continuation, loop control, finally routing, and deterministic edge identity.
  */
 
-import { createContentHash } from "../../../shared/hash";
 import type {
   FunctionLogicBlock,
   FunctionLogicConfidence,
   FunctionLogicEdge,
   FunctionLogicEdgeKind
 } from "../types";
+import { createFunctionLogicEdge } from "./functionLogicSupport";
 
 /** Structural role of a statement container owned by a control block. */
 export type ContainerRole =
@@ -288,12 +288,5 @@ function addEdge(
     return;
   }
   keys.add(key);
-  edges.push({
-    id: `logic-edge:${createContentHash(key).slice(0, 32)}`,
-    sourceId,
-    targetId,
-    kind,
-    label,
-    confidence
-  });
+  edges.push(createFunctionLogicEdge(sourceId, targetId, kind, label, confidence));
 }

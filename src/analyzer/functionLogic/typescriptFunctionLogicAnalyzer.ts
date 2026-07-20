@@ -5,12 +5,12 @@
  */
 
 import * as ts from "typescript";
-import { createContentHash } from "../../shared/hash";
 import type { SourceRange, SymbolNode } from "../../shared/types";
 import type {
   FunctionLogicAnalysis,
   FunctionLogicAnalysisInput,
   FunctionLogicBlock,
+  FunctionLogicEdge,
   FunctionLogicGap,
   FunctionLogicSummary
 } from "./types";
@@ -18,6 +18,11 @@ import {
   appendDirectBlock,
   createStructuredControlEdges
 } from "./core/structuredControlFlow";
+import { createFunctionLogicEdge } from "./core/functionLogicSupport";
+import {
+  analyzeTypeScriptJsxLogic,
+  hasTypeScriptJsxLogic
+} from "./jsx";
 import {
   scheduleControlChildren
 } from "./typescriptFunctionLogicControlFlow";
@@ -102,6 +107,7 @@ function buildFunctionLogic(
   const blocksById = new Map<string, InternalBlock>();
   const controlsByBlockId = new Map<string, ControlRecord>();
   const visibleBlocks: InternalBlock[] = [];
+  const jsxReturnExpressions = new Map<string, ts.Expression>();
   const gaps = createDefaultGaps();
   const callsites = collectFunctionCallsites(sourceFile, graphNode.filePath, functionNode);
   const bodyRange = toSourceRange(sourceFile, functionNode.body);
@@ -130,7 +136,8 @@ function buildFunctionLogic(
       expressionBlock,
       exitBlock,
       gaps,
-      callsites
+      callsites,
+      maxBlocks
     );
   }
 
@@ -152,7 +159,15 @@ function buildFunctionLogic(
       continue;
     }
 
-    const classified = classifyStatement(sourceFile, graphNode.filePath, task);
+    const jsxExpression = ts.isReturnStatement(task.node)
+      && task.node.expression
+      && hasTypeScriptJsxLogic(task.node.expression)
+      ? task.node.expression
+      : undefined;
+    const statementBlock = classifyStatement(sourceFile, graphNode.filePath, task);
+    const classified = jsxExpression
+      ? specializeJsxReturnBlock(statementBlock, graphNode.filePath)
+      : statementBlock;
     const block: InternalBlock = {
       ...classified,
       parentBlockId: containers.get(task.containerId)?.ownerBlockId,
@@ -160,6 +175,9 @@ function buildFunctionLogic(
     };
     visibleBlocks.push(block);
     blocksById.set(block.id, block);
+    if (jsxExpression) {
+      jsxReturnExpressions.set(block.id, jsxExpression);
+    }
     appendDirectBlock(directBlockIdsByContainer, task.containerId, block.id);
     scheduleControlChildren(
       sourceFile,
@@ -196,17 +214,28 @@ function buildFunctionLogic(
     directBlockIdsByContainer,
     rootContainerId
   });
-  const blocks = [entryBlock, ...visibleBlocks, exitBlock];
+  const baseBlocks = [entryBlock, ...visibleBlocks, exitBlock];
+  const jsxExpansion = expandTypeScriptJsxReturns({
+    sourceFile,
+    filePath: graphNode.filePath,
+    blocks: baseBlocks,
+    edges,
+    returnExpressions: jsxReturnExpressions,
+    remainingBlockBudget: Math.max(0, maxBlocks - visibleBlocks.length)
+  });
+  if (jsxExpansion.omittedBlockCount > 0) {
+    gaps.push(createJsxLimitGap(jsxExpansion.omittedBlockCount, maxBlocks));
+  }
 
   return {
     functionNode: graphNode,
     language: getSupportedLanguage(graphNode),
     signature: createFunctionSignature(sourceFile, functionNode),
-    blocks,
-    edges,
+    blocks: jsxExpansion.blocks,
+    edges: jsxExpansion.edges,
     callsites,
     gaps,
-    summary: createSummary(blocks, callsites.length)
+    summary: createSummary(jsxExpansion.blocks, countDirectCallsites(callsites))
   };
 }
 
@@ -251,12 +280,22 @@ function createExpressionBodyBlock(
 ): FunctionLogicBlock {
   const range = toSourceRange(sourceFile, expression);
   const expressionText = expression.getText(sourceFile);
+  const jsxLogic = hasTypeScriptJsxLogic(expression);
   const valueChanges = collectTypeScriptExpressionValueChanges(sourceFile, expression);
   return {
-    id: createBlockId(node.filePath, "return", range, expressionText),
+    id: createBlockId(
+      node.filePath,
+      "return",
+      range,
+      jsxLogic ? "return JSX output" : expressionText
+    ),
     kind: "return",
-    label: `return ${completeSourceText(expressionText, "expression")}`,
-    detail: "Concise arrow body implicitly returns this expression.",
+    label: jsxLogic
+      ? "return JSX output"
+      : `return ${completeSourceText(expressionText, "expression")}`,
+    detail: jsxLogic
+      ? "Returns the JSX output assembled by the preceding render steps."
+      : "Concise arrow body implicitly returns this expression.",
     depth: 1,
     confidence: "exact",
     valueChanges: valueChanges.length > 0 ? valueChanges : undefined,
@@ -274,36 +313,138 @@ function finalizeSimpleExpressionAnalysis(
   expression: FunctionLogicBlock,
   exit: FunctionLogicBlock,
   gaps: FunctionLogicGap[],
-  callsites: FunctionLogicAnalysis["callsites"]
+  callsites: FunctionLogicAnalysis["callsites"],
+  maxBlocks: number
 ): FunctionLogicAnalysis {
-  const firstKey = `${entry.id}\0${expression.id}\0next`;
-  const secondKey = `${expression.id}\0${exit.id}\0return`;
+  const jsxExpression = !ts.isBlock(functionNode.body)
+    && hasTypeScriptJsxLogic(functionNode.body)
+    ? functionNode.body
+    : undefined;
+  const expansion = expandTypeScriptJsxReturns({
+    sourceFile,
+    filePath: graphNode.filePath,
+    blocks: [entry, expression, exit],
+    edges: [
+      createFunctionLogicEdge(entry.id, expression.id, "next", undefined, "exact"),
+      createFunctionLogicEdge(expression.id, exit.id, "return", "return", "exact")
+    ],
+    returnExpressions: jsxExpression
+      ? new Map([[expression.id, jsxExpression]])
+      : new Map(),
+    remainingBlockBudget: Math.max(0, maxBlocks - 1)
+  });
+  if (expansion.omittedBlockCount > 0) {
+    gaps.push(createJsxLimitGap(expansion.omittedBlockCount, maxBlocks));
+  }
   return {
     functionNode: graphNode,
     language: getSupportedLanguage(graphNode),
     signature: createFunctionSignature(sourceFile, functionNode),
-    blocks: [entry, expression, exit],
-    edges: [
-      {
-        id: `logic-edge:${createContentHash(firstKey).slice(0, 32)}`,
-        sourceId: entry.id,
-        targetId: expression.id,
-        kind: "next",
-        confidence: "exact"
-      },
-      {
-        id: `logic-edge:${createContentHash(secondKey).slice(0, 32)}`,
-        sourceId: expression.id,
-        targetId: exit.id,
-        kind: "return",
-        label: "return",
-        confidence: "exact"
-      }
-    ],
+    blocks: expansion.blocks,
+    edges: expansion.edges,
     callsites,
     gaps,
-    summary: createSummary([entry, expression, exit], callsites.length)
+    summary: createSummary(expansion.blocks, countDirectCallsites(callsites))
   };
+}
+
+/** Gives an expanded JSX return a compact terminal node instead of duplicate markup. */
+function specializeJsxReturnBlock(
+  block: FunctionLogicBlock,
+  filePath: string
+): FunctionLogicBlock {
+  const label = "return JSX output";
+  return {
+    ...block,
+    id: createBlockId(filePath, "return", block.range, label),
+    label,
+    detail: "Returns the JSX output assembled by the preceding render steps."
+  };
+}
+
+type JsxReturnExpansionInput = {
+  sourceFile: ts.SourceFile;
+  filePath: string;
+  blocks: FunctionLogicBlock[];
+  edges: FunctionLogicEdge[];
+  returnExpressions: ReadonlyMap<string, ts.Expression>;
+  remainingBlockBudget: number;
+};
+
+/** Splices bounded JSX fragments before their existing terminal return blocks. */
+function expandTypeScriptJsxReturns(input: JsxReturnExpansionInput): {
+  blocks: FunctionLogicBlock[];
+  edges: FunctionLogicEdge[];
+  omittedBlockCount: number;
+} {
+  const blocks: FunctionLogicBlock[] = [];
+  let edges = [...input.edges];
+  let remainingBlockBudget = input.remainingBlockBudget;
+  let omittedBlockCount = 0;
+
+  for (const returnBlock of input.blocks) {
+    const expression = input.returnExpressions.get(returnBlock.id);
+    if (!expression) {
+      blocks.push(returnBlock);
+      continue;
+    }
+    const expansion = analyzeTypeScriptJsxLogic({
+      sourceFile: input.sourceFile,
+      filePath: input.filePath,
+      expression,
+      baseDepth: returnBlock.depth,
+      maxBlocks: remainingBlockBudget
+    });
+    omittedBlockCount += expansion.omittedBlockCount;
+    remainingBlockBudget = Math.max(0, remainingBlockBudget - expansion.blocks.length);
+    const entryBlockId = expansion.entryBlockId;
+    if (!entryBlockId) {
+      blocks.push(returnBlock);
+      continue;
+    }
+
+    edges = edges.map((edge) => edge.targetId === returnBlock.id
+      ? createFunctionLogicEdge(
+          edge.sourceId,
+          entryBlockId,
+          edge.kind,
+          edge.label,
+          edge.confidence
+        )
+      : edge
+    );
+    edges.push(...expansion.edges);
+    for (const exit of expansion.exits) {
+      edges.push(createFunctionLogicEdge(
+        exit.sourceId,
+        returnBlock.id,
+        exit.kind,
+        exit.label ?? (exit.kind === "next" ? "return JSX" : undefined),
+        exit.confidence
+      ));
+    }
+    blocks.push(...expansion.blocks.map((block) => ({
+      ...block,
+      parentBlockId: block.parentBlockId ?? returnBlock.parentBlockId,
+      branchLabel: block.branchLabel ?? returnBlock.branchLabel
+    })));
+    blocks.push(returnBlock);
+  }
+
+  return { blocks, edges, omittedBlockCount };
+}
+
+/** Reports shared statement/render truncation without implying an exact total. */
+function createJsxLimitGap(omittedBlockCount: number, maxBlocks: number): FunctionLogicGap {
+  return {
+    code: "parseLimited",
+    message: `${omittedBlockCount} additional JSX render region(s) were omitted after the shared ${maxBlocks}-block reading limit.`
+  };
+}
+
+/** Keeps JSX composition out of the summary's JavaScript call-expression count. */
+function countDirectCallsites(callsites: FunctionLogicAnalysis["callsites"]): number {
+  return callsites.filter((callsite) => callsite.relation !== "render").length;
 }
 
 /** Creates a truthful unavailable result instead of falling back to call edges. */
@@ -329,11 +470,11 @@ function createDefaultGaps(): FunctionLogicGap[] {
   return [
     {
       code: "parseLimited",
-      message: "Short-circuit expressions, optional chaining, and expression-level ternaries stay inside their containing statement."
+      message: "Non-JSX short-circuit expressions, optional chaining, and expression-level ternaries stay inside their containing statement."
     },
     {
       code: "dynamicBehavior",
-      message: "Exceptions thrown by callees, callback scheduling, dynamic dispatch, and runtime data values are not observed."
+      message: "Exceptions, component scheduling, event dispatch, dynamic calls, and runtime data values are not observed."
     }
   ];
 }
