@@ -490,6 +490,17 @@ export function getFunctionLogicGraphStyles(): string {
       border-radius: 14px;
     }
 
+    .logic-node-render {
+      --logic-node-surface: color-mix(in srgb, var(--vscode-charts-blue) 9%, var(--vscode-editor-background));
+      border-left-color: var(--vscode-charts-blue, var(--vscode-textLink-foreground));
+    }
+
+    .logic-node-event {
+      --logic-node-surface: color-mix(in srgb, var(--vscode-charts-yellow) 9%, var(--vscode-editor-background));
+      border-left-color: var(--vscode-charts-yellow, var(--vscode-charts-orange));
+      border-style: dashed;
+    }
+
     .logic-node-effect,
     .logic-node-mutation {
       --logic-node-surface: color-mix(in srgb, var(--vscode-charts-orange) 8%, var(--vscode-editor-background));

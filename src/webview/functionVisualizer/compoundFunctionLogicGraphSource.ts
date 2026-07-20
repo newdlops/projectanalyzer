@@ -231,7 +231,9 @@ export function getCompoundFunctionLogicGraphSource(): string {
               ? sourceBlock.kind
               : "operation",
             label: "Resume · " + completeAttachedContinuationLabel(sourceBlock.label),
-            detail: "Called code returns here before the caller continues.",
+            detail: firstExpansion.target.relation === "render"
+              ? "The rendered component flow rejoins the parent render path here."
+              : "Called code returns here before the caller continues.",
             depth: sourceBlock.depth,
             branchLabel: "after child",
             confidence: sourceBlock.confidence,
@@ -261,7 +263,8 @@ export function getCompoundFunctionLogicGraphSource(): string {
             sourceId,
             targetId,
             kind: "next",
-            label: "calls " + attachedFunctionTargetLabel(expansion),
+            label: (expansion.target.relation === "render" ? "renders " : "calls ")
+              + attachedFunctionTargetLabel(expansion),
             confidence: expansion.target.confidence === "inferred" ? "inferred" : "exact",
             relation: "call"
           });
@@ -276,7 +279,9 @@ export function getCompoundFunctionLogicGraphSource(): string {
               sourceId: terminalIds[terminalIndex],
               targetId: continuationId,
               kind: "next",
-              label: "returns to caller",
+              label: expansion.target.relation === "render"
+                ? "returns to render path"
+                : "returns to caller",
               confidence: expansion.target.confidence === "inferred" ? "inferred" : "exact",
               relation: "callReturn"
             });

@@ -79,19 +79,27 @@ export function getFunctionLogicBrowserSource(): string {
         logic.layout,
         readScale()
       );
+      const hasRenderFlow = logic.blocks.some((block) =>
+        block.kind === "render" || block.kind === "event"
+      );
+      const hasValueFlow = logic.blocks.some((block) =>
+        block.valueChanges && block.valueChanges.length > 0
+      );
       const graphHeader = createLogicGraphHeader(
         applyScale,
         readScale,
         writeScale,
-        graphContext?.graphTitle || (logic.blocks.some((block) =>
-          block.valueChanges && block.valueChanges.length > 0
-        ) ? "Control & value flow" : "Control paths")
+        graphContext?.graphTitle || (hasRenderFlow
+          ? (hasValueFlow ? "Control, render & value flow" : "Control & JSX render flow")
+          : (hasValueFlow ? "Control & value flow" : "Control paths"))
       );
 
       graph.className = "logic-graph";
       viewport.className = "logic-graph-viewport";
       viewport.setAttribute("role", "region");
-      viewport.setAttribute("aria-label", "Function control-flow graph");
+      viewport.setAttribute("aria-label", hasRenderFlow
+        ? "Function control and JSX render-flow graph"
+        : "Function control-flow graph");
       viewport.tabIndex = 0;
       stage.className = "logic-graph-stage";
       canvas.className = "logic-graph-canvas";
@@ -191,7 +199,7 @@ export function getFunctionLogicBrowserSource(): string {
       cards.append(
         createUnderstandingCard("1", "Start", "Read the signature, then find the first source-backed block."),
         createUnderstandingCard("2", "Choose", createDecisionUnderstanding(summary)),
-        createUnderstandingCard("3", "Do", createActionUnderstanding(summary)),
+        createUnderstandingCard("3", "Do", createActionUnderstanding(summary, logic.blocks)),
         createUnderstandingCard("4", "Finish", summary.exitCount
           ? summary.exitCount + " explicit finish point" + plural(summary.exitCount)
             + (summary.exitCount === 1 ? " is visible." : " are visible.")
@@ -231,8 +239,12 @@ export function getFunctionLogicBrowserSource(): string {
     }
 
     /** Describes visible work without guessing business purpose or runtime values. */
-    function createActionUnderstanding(summary) {
+    function createActionUnderstanding(summary, blocks) {
       const parts = [];
+      const renderCount = blocks.filter((block) => block.kind === "render").length;
+      const eventCount = blocks.filter((block) => block.kind === "event").length;
+      if (renderCount) parts.push(renderCount + " JSX render step" + plural(renderCount));
+      if (eventCount) parts.push(eventCount + " event binding" + plural(eventCount));
       if (summary.callCount) parts.push(summary.callCount + " call site" + plural(summary.callCount));
       if (summary.effectCount) parts.push(summary.effectCount + " possible effect" + plural(summary.effectCount));
       if (summary.valueChangeCount) parts.push(
@@ -243,7 +255,7 @@ export function getFunctionLogicBrowserSource(): string {
       );
       return parts.length
         ? "Inspect " + parts.join(", ") + "."
-        : "The visible blocks contain no classified call, effect, or mutation.";
+        : "The visible blocks contain no classified render, call, effect, or mutation.";
     }
 
     /** Lists concrete direct callees so readers can expand only when useful. */
@@ -255,21 +267,24 @@ export function getFunctionLogicBrowserSource(): string {
       const title = document.createElement("strong");
       const detail = document.createElement("p");
       const list = document.createElement("div");
+      const renderTargetCount = targets.filter((target) => target.relation === "render").length;
       section.className = "logic-callees";
       header.className = "logic-callees-header";
-      title.textContent = "Go deeper into called functions";
+      title.textContent = renderTargetCount > 0
+        ? "Go deeper into called or rendered code"
+        : "Go deeper into called functions";
       detail.textContent = "Open a statically resolved definition, then use the breadcrumb to return.";
       list.className = "logic-callee-list";
       text.append(title, detail);
       header.append(text, createBadge(
-        targets.length + " direct callee" + plural(targets.length),
+        targets.length + " child target" + plural(targets.length),
         "logic-callee-count"
       ));
       for (const target of targets) list.append(createDrillTargetButton(target));
       if (omittedCount > 0) {
         const omitted = document.createElement("small");
         omitted.className = "logic-callee-omitted";
-        omitted.textContent = omittedCount + " additional concrete callee" + plural(omittedCount)
+        omitted.textContent = omittedCount + " additional concrete child target" + plural(omittedCount)
           + " omitted by the display limit.";
         list.append(omitted);
       }
@@ -289,20 +304,22 @@ export function getFunctionLogicBrowserSource(): string {
         expandsInline && graphContext.isTargetExpanded
         && graphContext.isTargetExpanded(block.id, target)
       );
+      const renderedComponent = target.relation === "render";
       button.type = "button";
       button.className = "logic-callee-button";
       button.classList.toggle("expanded", expandedInline);
       button.title = (expandedInline
-        ? "Collapse attached function · "
+        ? (renderedComponent ? "Collapse rendered component · " : "Collapse attached function · ")
         : expandsInline
-          ? "Attach child function · "
-          : "Open child function · ")
+          ? (renderedComponent ? "Attach rendered component · " : "Attach child function · ")
+          : (renderedComponent ? "Open rendered component · " : "Open child function · "))
         + target.qualifiedName;
       name.textContent = target.qualifiedName || target.name;
       meta.textContent = [
         target.sourceLocation,
         target.confidence,
-        target.callsiteCount + " callsite" + plural(target.callsiteCount)
+        target.callsiteCount + (renderedComponent ? " render site" : " callsite")
+          + plural(target.callsiteCount)
       ].filter(Boolean).join(" · ");
       button.append(name, meta);
       button.addEventListener("click", () => {
@@ -485,6 +502,9 @@ export function getFunctionLogicBrowserSource(): string {
         return formatLogicEdge(edge) + (target ? " to " + completeTargetLabel(target) : "");
       }).join(", ");
       const expandable = Boolean(block.drillTargets && block.drillTargets.length > 0);
+      const rendersOnly = expandable && block.drillTargets.every((target) =>
+        target.relation === "render"
+      );
       const expanded = Boolean(
         expandable && graphContext && graphContext.isBlockExpanded
         && graphContext.isBlockExpanded(block.id)
@@ -503,7 +523,9 @@ export function getFunctionLogicBrowserSource(): string {
       node.classList.toggle("expandable", expandable);
       node.classList.toggle("expanded", expanded);
       node.title = expandable && graphContext && graphContext.onExpandableBlockClick
-        ? (expanded ? "Collapse called function · " : "Expand called function · ")
+        ? (rendersOnly
+            ? (expanded ? "Collapse rendered component · " : "Expand rendered component · ")
+            : (expanded ? "Collapse called function · " : "Expand called function · "))
           + block.drillTargets.map((target) => target.qualifiedName || target.name).join(", ")
         : "Select logic · " + block.label;
       node.style.setProperty("left", layout.x + "px");
@@ -520,7 +542,13 @@ export function getFunctionLogicBrowserSource(): string {
         + (valueChangeText ? ". Value changes: " + valueChangeText : "")
         + (outgoingText ? ". Paths: " + outgoingText : "")
         + (expandable && graphContext && graphContext.onExpandableBlockClick
-          ? (expanded ? ". Activate to collapse called functions." : ". Activate to attach called functions.")
+          ? (expanded
+              ? (rendersOnly
+                  ? ". Activate to collapse rendered components."
+                  : ". Activate to collapse called functions.")
+              : (rendersOnly
+                  ? ". Activate to attach rendered components."
+                  : ". Activate to attach called functions."))
           : ""));
       node.setAttribute("aria-pressed", "false");
       if (expandable && graphContext && graphContext.onExpandableBlockClick) {
@@ -643,7 +671,9 @@ export function getFunctionLogicBrowserSource(): string {
         const callees = document.createElement("div");
         const title = document.createElement("strong");
         callees.className = "logic-selection-callees";
-        title.textContent = "Continue into called code";
+        title.textContent = block.drillTargets.some((target) => target.relation === "render")
+          ? "Continue into rendered or called code"
+          : "Continue into called code";
         callees.append(title);
         for (const target of block.drillTargets) {
           callees.append(createDrillTargetButton(target, block, graphContext));
@@ -682,6 +712,8 @@ export function getFunctionLogicBrowserSource(): string {
       if (kind === "entry") return "START";
       if (kind === "exit") return "END";
       if (kind === "condition") return "IF";
+      if (kind === "render") return "JSX";
+      if (kind === "event") return "EVENT";
       if (kind === "mutation") return "STATE";
       return kind;
     }
@@ -751,6 +783,10 @@ export function getFunctionLogicBrowserSource(): string {
       const parts = [summary.blockCount + " logic block" + plural(summary.blockCount)];
       if (summary.branchCount) parts.push(summary.branchCount + " branch" + plural(summary.branchCount));
       if (summary.loopCount) parts.push(summary.loopCount + " loop" + plural(summary.loopCount));
+      const renderCount = logic.blocks.filter((block) => block.kind === "render").length;
+      const eventCount = logic.blocks.filter((block) => block.kind === "event").length;
+      if (renderCount) parts.push(renderCount + " JSX step" + plural(renderCount));
+      if (eventCount) parts.push(eventCount + " event binding" + plural(eventCount));
       if (summary.effectCount) parts.push(summary.effectCount + " possible effect" + plural(summary.effectCount));
       if (summary.valueChangeCount) parts.push(
         summary.valueChangeCount + " value change" + plural(summary.valueChangeCount)

@@ -27,7 +27,7 @@ export type FunctionLogicSourceTokenFactory = (
   nodeId: string
 ) => SourceNodeToken | undefined;
 
-/** Direct callees plus their best matching function-local syntax blocks. */
+/** Called/rendered targets plus their best matching function-local syntax blocks. */
 export type FunctionLogicDrillProjection = {
   callees: FunctionLogicDrillTargetPayload[];
   omittedCalleeCount: number;
@@ -46,6 +46,7 @@ type MatchedCallsite = {
   filePath: string;
   range?: SourceRange;
   confidence: EdgeConfidence;
+  relation: "call" | "render";
 };
 
 /** Concrete target resolution synthesized only when no graph edge covers the callsite. */
@@ -54,7 +55,7 @@ type SyntaxTargetResolution = {
   confidence: EdgeConfidence;
 };
 
-/** Projects only concrete, non-self direct callees; traversal happens on demand. */
+/** Projects concrete non-self child targets; traversal still happens on demand. */
 export function createFunctionLogicDrillTargets(
   graph: ProjectGraph,
   functionNode: SymbolNode,
@@ -103,7 +104,8 @@ export function createFunctionLogicDrillTargets(
             key: createSyntaxCallsiteKey(callsite),
             filePath: callsite.filePath,
             range: callsite.range,
-            confidence: chainResolution.confidence
+            confidence: constrainCallsiteConfidence(chainResolution.confidence, callsite),
+            relation: callsite.relation ?? "call"
           });
         }
       } else if (target && isConcreteCallable(target)) {
@@ -111,7 +113,8 @@ export function createFunctionLogicDrillTargets(
           key: createSyntaxCallsiteKey(callsite),
           filePath: callsite.filePath,
           range: callsite.range,
-          confidence: matchingEdge.confidence
+          confidence: constrainCallsiteConfidence(matchingEdge.confidence, callsite),
+          relation: callsite.relation ?? "call"
         });
       }
       continue;
@@ -128,7 +131,8 @@ export function createFunctionLogicDrillTargets(
         key: createSyntaxCallsiteKey(callsite),
         filePath: callsite.filePath,
         range: callsite.range,
-        confidence: syntaxResolution.confidence
+        confidence: constrainCallsiteConfidence(syntaxResolution.confidence, callsite),
+        relation: callsite.relation ?? "call"
       });
     }
   }
@@ -147,7 +151,8 @@ export function createFunctionLogicDrillTargets(
       key: `edge:${edge.id}`,
       filePath: edge.filePath,
       range: edge.range,
-      confidence: edge.confidence
+      confidence: edge.confidence,
+      relation: "call"
     });
   }
 
@@ -210,7 +215,10 @@ function createTarget(
     qualifiedName: group.node.qualifiedName || group.node.name || "Anonymous callable",
     sourceLocation,
     confidence: group.confidence,
-    callsiteCount: group.callsites.length
+    callsiteCount: group.callsites.length,
+    ...(group.callsites.every((callsite) => callsite.relation === "render")
+      ? { relation: "render" as const }
+      : {})
   };
 }
 
@@ -360,8 +368,19 @@ function createSyntaxCallsiteKey(callsite: FunctionLogicCallsite): string {
     callsite.range.startCharacter,
     callsite.range.endLine,
     callsite.range.endCharacter,
-    callsite.calleeText
+    callsite.calleeText,
+    callsite.relation ?? "call"
   ].join(":");
+}
+
+/** Inferred callback traversal caps otherwise stronger graph resolution. */
+function constrainCallsiteConfidence(
+  confidence: EdgeConfidence,
+  callsite: FunctionLogicCallsite
+): EdgeConfidence {
+  return callsite.confidence === "inferred" && confidence !== "unresolved"
+    ? "inferred"
+    : confidence;
 }
 
 /** Scores graph edges by start position against a containing AST call range. */

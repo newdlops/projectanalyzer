@@ -14,6 +14,8 @@ export type FunctionLogicBlockPayloadKind =
   | "loop"
   | "switch"
   | "try"
+  | "render"
+  | "event"
   | "call"
   | "effect"
   | "mutation"
@@ -69,7 +71,7 @@ export type FunctionLogicValueChangePayload = {
 /** Opaque reference to one Host-approved source range in the active snapshot. */
 export type CodeFlowEvidenceToken = `code-evidence:${string}`;
 
-/** One concrete direct callee that the reader may open as another function flow. */
+/** One concrete called or rendered definition available as another function flow. */
 export type FunctionLogicDrillTargetPayload = {
   sourceToken: SourceNodeToken;
   name: string;
@@ -77,6 +79,8 @@ export type FunctionLogicDrillTargetPayload = {
   sourceLocation?: string;
   confidence: EdgeConfidence;
   callsiteCount: number;
+  /** Render distinguishes JSX composition from an immediate JavaScript call. */
+  relation?: "call" | "render";
 };
 
 /** One syntax-backed step inside the selected function body. */
