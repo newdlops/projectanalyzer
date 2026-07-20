@@ -2,7 +2,7 @@
   "name": "project-analyzer",
   "displayName": "Project Analyzer: Code Flow",
   "description": "Understand unfamiliar codebases through bounded, source-backed code flows.",
-  "version": "0.0.1036",
+  "version": "0.0.1037",
   "publisher": "newdlops",
   "private": true,
   "license": "MIT",
@@ -171,7 +171,7 @@
           "default": 120,
           "minimum": 1,
           "maximum": 300,
-          "description": "Maximum syntax-backed statement blocks in a selected Function Logic flow."
+          "description": "Maximum syntax-backed statement and expression blocks in a selected Function Logic flow."
         },
         "projectAnalyzer.includeExternalDependencies": {
           "type": "boolean",
