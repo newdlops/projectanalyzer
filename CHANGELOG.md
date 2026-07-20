@@ -4,6 +4,23 @@ All notable user-visible changes to Project Analyzer: Code Flow are recorded in
 this file. The changelog starts with the first distribution-documented build;
 earlier local development builds were not tracked here.
 
+## 0.0.1039 - 2026-07-20
+
+### Added
+
+- Function Logic now identifies parameters, local variables, and constants in
+  TypeScript/JavaScript, Python, and Java, annotates each graph block with
+  `DEFINE`, `READ`, `WRITE`, or `READ/WRITE`, and lets users select one binding
+  to trace possible definition-to-use arrows across branches and loops.
+- Concise JSX `.map` callback parameters participate in the inferred render-loop
+  flow, while attached child functions keep their value identities isolated.
+
+### Analysis boundaries
+
+- Value flow is bounded lexical static analysis, not runtime value propagation.
+  Ambiguous shadowed names, aliases, fields, closures, and interprocedural data
+  flow are not guessed; Python uppercase constants remain visibly inferred.
+
 ## 0.0.1038 - 2026-07-20
 
 ### Added

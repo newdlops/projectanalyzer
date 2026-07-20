@@ -118,6 +118,10 @@ dedicated Function Visualizer tab with a bounded control-flow graph:
   child-function names by wrapping instead of adding ellipses
 - subtle depth tints that distinguish nested blocks without replacing semantic kind colors
 - inline `VAR`, `FIELD`, and `RECEIVER` rows showing which value changes at each block
+- inline `PARAM`, `LOCAL`, and `CONST` rows showing lexical definitions, reads,
+  writes, and read/write operations at each block
+- a per-binding value selector that overlays possible definition-to-use arrows,
+  including branch-merge and loop-carried definitions without hiding control edges
 - exact assignment/update/delete evidence and visibly dashed inferred receiver mutations
 - loop-binding changes such as `item ← each items` on the loop decision itself
 - eager Python list/set/dictionary comprehensions expanded into nested iterable,
@@ -272,6 +276,25 @@ mutations, calls, constructors, and exits. Editor-context selection can add an
 exact snapshot-local callable node when the project analyzer did not model a
 supported lambda or other cursor-selected callable.
 
+TypeScript/JavaScript, Python, and Java also project unambiguous lexical bindings
+onto that control-flow graph. Function parameters begin at `Enter`, local and
+constant declarations begin at their source block, and later `READ`, `WRITE`, or
+`READ/WRITE` rows retain the binding identity. Selecting one `PARAM`, `LOCAL`, or
+`CONST` chip draws only that binding's possible definition-to-use arrows so the
+control graph stays readable. Reassignments kill earlier definitions on the same
+path; branch merges may therefore show more than one reaching definition, and
+loops may show a loop-carried relation. The projection uses bounded iterative CFG
+walks and follows the currently selected `true`/`false`/`case` scenario by dimming
+value arrows whose endpoints are outside that choice.
+
+`const` declarations and Java `final` locals are exact constants. A single-write
+uppercase Python local is shown as an inferred constant because that is a naming
+convention, not a language guarantee. Concise JSX `.map(item => <Item />)` callback
+parameters are tied to the inferred render-loop block; event callback bodies remain
+separate event-handler flows. Ambiguous shadowed names are omitted instead of being
+joined by spelling alone. This is lexical static flow only: it does not evaluate
+runtime values or infer aliases, object fields, closures, or interprocedural data flow.
+
 F#/OCaml/Elixir model `|>` as exact sequential evaluation, preserving complete
 input and stage text plus each language's argument-insertion direction. Named
 local stages can attach their Function Logic on the same canvas. Function
@@ -377,6 +400,8 @@ Key reusable modules:
   orchestration, and iterative structured CFG construction
 - `src/analyzer/functionLogic/` — public language dispatcher and the
   TypeScript/JavaScript compiler-AST adapter
+- `src/analyzer/functionLogic/dataFlow/` — language-owned lexical binding facts
+  and bounded iterative reaching-definition projection
 - `src/analyzer/functionLogic/events/` — TypeScript/JavaScript JSX, listener API,
   and event-property registration boundaries
 - `src/analyzer/functionLogic/languages/` — Python/Java Lezer adapters and the
@@ -412,6 +437,11 @@ Entrypoint flows are intentionally finite. Configure their reading budget with
 `projectAnalyzer.codeFlow.maxDepth` (default `3`) and
 `projectAnalyzer.codeFlow.maxSteps` (default `30`). Function-internal projections
 use `projectAnalyzer.codeFlow.maxLogicBlocks` (default `120`, maximum `300`).
+Lexical value flow retains at most 80 unambiguous bindings, 700 access facts, and
+900 definition-to-use relations per function; any bounded omission is surfaced as
+an analysis gap. Graph nodes render at most eight access rows while the binding
+selector still exposes every retained binding.
+
 Direct callee navigation is capped at 24 unique concrete definitions per
 function and expands only after a user action. The editor tab attaches at most 32
 child functions across six nested levels to one compound graph canvas; clicking an
