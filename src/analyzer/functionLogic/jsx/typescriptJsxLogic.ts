@@ -15,6 +15,11 @@ import {
   createFunctionLogicBlockId
 } from "../core/functionLogicSupport";
 import {
+  createTypeScriptEventBindingDetail,
+  createTypeScriptEventBindingLabel,
+  readTypeScriptEventBinding
+} from "../events";
+import {
   appendDirectBlock,
   createStructuredControlEdges,
   type ControlBranch,
@@ -166,13 +171,16 @@ export function analyzeTypeScriptJsxLogic(
     }
     if (task.role === "event" && ts.isJsxAttribute(task.node)) {
       const eventName = task.node.name.getText(input.sourceFile);
+      const binding = readTypeScriptEventBinding(input.sourceFile, task.node);
       appendBlock(
         task,
         task.node,
         "event",
-        `bind ${eventName}`,
-        createEventDetail(input.sourceFile, task.node, eventName),
-        "exact"
+        binding ? createTypeScriptEventBindingLabel(binding) : `bind ${eventName}`,
+        binding
+          ? createTypeScriptEventBindingDetail(binding)
+          : `Binds ${eventName}. Handler execution is outside the render path.`,
+        binding?.confidence ?? "exact"
       );
       continue;
     }
@@ -549,25 +557,6 @@ function createRenderDetail(
     : "";
   const ownerDetail = ownerTag ? ` Nested under <${ownerTag}> in source.` : "";
   return `${relation}${attributeDetail}${ownerDetail}`;
-}
-
-/** Explains event binding while keeping handler execution off the render path. */
-function createEventDetail(
-  sourceFile: ts.SourceFile,
-  attribute: ts.JsxAttribute,
-  eventName: string
-): string {
-  const expression = readAttributeExpression(attribute);
-  if (expression && (ts.isArrowFunction(expression) || ts.isFunctionExpression(expression))) {
-    return `Binds an inline ${eventName} callback. Its body runs only after framework event dispatch, not during render.`;
-  }
-  const value = expression ? normalizeSourceText(expression.getText(sourceFile)) : undefined;
-  if (expression && ts.isCallExpression(expression)) {
-    return `Evaluates ${value || "a handler factory"} during render, then binds its result to ${eventName}. Later handler execution is event-driven.`;
-  }
-  return value
-    ? `Binds ${value} to ${eventName}. Handler execution is outside the render path.`
-    : `Binds ${eventName}. Handler execution is outside the render path.`;
 }
 
 /** Reads a bounded attribute-name list for graph detail. */

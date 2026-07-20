@@ -442,9 +442,11 @@ function createJsxLimitGap(omittedBlockCount: number, maxBlocks: number): Functi
   };
 }
 
-/** Keeps JSX composition out of the summary's JavaScript call-expression count. */
+/** Counts only immediate calls; render and event-handler relations are separate. */
 function countDirectCallsites(callsites: FunctionLogicAnalysis["callsites"]): number {
-  return callsites.filter((callsite) => callsite.relation !== "render").length;
+  return callsites.filter((callsite) =>
+    callsite.relation === undefined || callsite.relation === "call"
+  ).length;
 }
 
 /** Creates a truthful unavailable result instead of falling back to call edges. */

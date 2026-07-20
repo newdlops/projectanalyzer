@@ -47,3 +47,11 @@ export function CardList({ items }: { items: Array<CardProps["item"] & { ready: 
     </div>
   );
 }
+
+export function handleNamedClick(): void {
+  trackSelection("named");
+}
+
+export const NamedHandlerCard = () => (
+  <button onClick={handleNamedClick}>Named</button>
+);

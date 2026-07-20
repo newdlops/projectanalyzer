@@ -75,10 +75,10 @@ test("collects custom JSX components for drill without intrinsic or callback lea
     ]
   );
   const renderCondition = analysis.blocks.find((block) => block.label === "render if ready");
-  const eventBinding = analysis.blocks.find((block) => block.label === "bind onClick");
+  const eventBinding = analysis.blocks.find((block) => block.label.startsWith("bind onClick"));
   assert.ok(renderCondition && eventBinding);
   assertEdgeKindsFrom(analysis, renderCondition.id, ["true", "false"]);
-  assert.match(eventBinding.detail, /not during render/u);
+  assert.match(eventBinding.detail, /only after event dispatch/u);
 
   const projection = createFunctionLogicDrillTargets(
     createFixtureGraph(symbols),
@@ -173,9 +173,12 @@ test("renders JSX and event semantics with distinct accessible graph cues", () =
   assert.match(browserSource, /kind === "render"\) return "JSX"/u);
   assert.match(browserSource, /kind === "event"\) return "EVENT"/u);
   assert.match(browserSource, /Control & JSX render flow/u);
-  assert.match(browserSource, /Attach rendered component/u);
+  assert.match(browserSource, /"rendered component"/u);
+  assert.match(browserSource, /"event handler"/u);
+  assert.match(browserSource, /Event handlers open as dispatch branches/u);
   assert.match(styles, /\.logic-node-render\s*\{/u);
   assert.match(styles, /\.logic-node-event\s*\{/u);
+  assert.match(styles, /\.logic-edge-event\s*\{/u);
 });
 
 test("keeps inline JSX handlers independently selectable and analyzable", () => {
@@ -200,6 +203,32 @@ test("keeps inline JSX handlers independently selectable and analyzable", () => 
   assert.deepEqual(callback.callsites.map((callsite) => callsite.calleeText), [
     "trackSelection"
   ]);
+});
+
+test("attaches named JSX handlers as separately dispatched event targets", async () => {
+  const symbols = await extractFixtureSymbols();
+  const component = findSymbol(symbols, "NamedHandlerCard");
+  const analysis = analyzeFunctionLogic({ functionNode: component, sourceText: fixtureSource });
+  const eventBlock = analysis.blocks.find((block) => block.kind === "event");
+
+  assert.deepEqual(analysis.callsites.map((callsite) => ({
+    name: callsite.calleeText,
+    relation: callsite.relation
+  })), [{ name: "handleNamedClick", relation: "event" }]);
+  assert.equal(analysis.summary.callCount, 0);
+  assert.ok(eventBlock);
+  assert.equal(eventBlock.label, "bind onClick → handleNamedClick");
+
+  const projection = createFunctionLogicDrillTargets(
+    createFixtureGraph(symbols),
+    component,
+    analysis,
+    createSourceToken
+  );
+  const handler = projection.callees.find((target) => target.name === "handleNamedClick");
+  assert.ok(handler);
+  assert.equal(handler.relation, "event");
+  assert.equal(projection.targetsByBlockId.get(eventBlock.id)?.[0]?.relation, "event");
 });
 
 test("recognizes memo and forwardRef component bindings as functions", async () => {

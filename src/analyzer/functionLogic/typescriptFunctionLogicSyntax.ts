@@ -12,6 +12,12 @@ import {
   findTypeScriptLikeWrappedComponentBinding,
   readTypeScriptLikeJsxComponentReference
 } from "../languages/typescriptLike/typescriptLikeJsxSyntax";
+import {
+  collectTypeScriptEventBindings,
+  createTypeScriptEventBindingDetail,
+  createTypeScriptEventBindingLabel,
+  readTypeScriptEventBinding
+} from "./events";
 import type {
   FunctionLogicAnalysis,
   FunctionLogicBlock,
@@ -81,8 +87,22 @@ export function classifyStatement(
     label = "continue";
     detail = "Starts the next iteration of the nearest loop.";
   } else {
+    const eventBindings = collectTypeScriptEventBindings(sourceFile, node);
     const calls = collectCallNames(sourceFile, node);
-    if (valueChanges.length > 0) {
+    const firstEventBinding = eventBindings[0];
+    if (firstEventBinding) {
+      kind = "event";
+      label = createTypeScriptEventBindingLabel(firstEventBinding)
+        + (eventBindings.length > 1 ? ` + ${eventBindings.length - 1} more` : "");
+      detail = createTypeScriptEventBindingDetail(firstEventBinding)
+        + (eventBindings.length > 1
+          ? ` This statement contains ${eventBindings.length} event registrations.`
+          : "");
+      confidence = eventBindings.every((binding) => binding.confidence === "exact")
+        ? "exact"
+        : "inferred";
+      evidenceNode = firstEventBinding.node;
+    } else if (valueChanges.length > 0) {
       kind = "mutation";
       confidence = valueChanges.some((change) => change.confidence === "exact")
         ? "exact"
@@ -180,8 +200,9 @@ export function getImmediateChildren(node: ts.Node): ts.Node[] {
 }
 
 /**
- * Collects stable calls and JSX render references in this callable. Concise
- * JSX `.map` callbacks are the sole inferred nested boundary admitted here.
+ * Collects stable calls, JSX renders, and named event handlers in this
+ * callable. Concise JSX `.map` callbacks are the sole inferred nested
+ * boundary admitted here.
  */
 export function collectFunctionCallsites(
   sourceFile: ts.SourceFile,
@@ -205,7 +226,21 @@ export function collectFunctionCallsites(
     if (node !== root && isFunctionLikeWithBody(node)) {
       continue;
     }
-    if (ts.isCallExpression(node) || ts.isNewExpression(node)) {
+    const eventBinding = readTypeScriptEventBinding(sourceFile, node);
+    if (eventBinding?.handler) {
+      appendFunctionCallsite(
+        callsites,
+        seen,
+        filePath,
+        toSourceRange(sourceFile, eventBinding.node),
+        eventBinding.handler.name,
+        eventBinding.handler.text,
+        "event",
+        eventBinding.confidence === "inferred" ? "inferred" : task.confidence,
+        eventBinding.registrationName
+      );
+    }
+    if ((ts.isCallExpression(node) || ts.isNewExpression(node)) && !eventBinding) {
       const callee = readStableCallee(sourceFile, node.expression);
       if (callee) {
         appendFunctionCallsite(
@@ -238,7 +273,10 @@ export function collectFunctionCallsites(
     const mapCallback = ts.isCallExpression(node)
       ? findTypeScriptLikeJsxMapCallback(node)
       : undefined;
-    const children = getImmediateChildren(node).filter((child) => child !== mapCallback);
+    const children = getImmediateChildren(node).filter((child) =>
+      child !== mapCallback
+      && !shouldSkipEventHandlerChild(node, child, eventBinding)
+    );
     for (let index = children.length - 1; index >= 0; index -= 1) {
       pending.push({ node: children[index], confidence: task.confidence });
     }
@@ -264,11 +302,12 @@ function appendFunctionCallsite(
   range: SourceRange,
   calleeName: string,
   calleeText: string,
-  relation: "call" | "render",
-  confidence: FunctionLogicConfidence
+  relation: "call" | "render" | "event",
+  confidence: FunctionLogicConfidence,
+  eventRegistrationName?: string
 ): void {
   const key = `${filePath}\0${range.startLine}\0${range.startCharacter}`
-    + `\0${range.endLine}\0${range.endCharacter}\0${calleeName}`;
+    + `\0${range.endLine}\0${range.endCharacter}\0${calleeName}\0${relation}`;
   if (seen.has(key)) {
     return;
   }
@@ -279,8 +318,24 @@ function appendFunctionCallsite(
     calleeName,
     calleeText,
     relation,
+    ...(eventRegistrationName ? { eventRegistrationName } : {}),
     ...(confidence === "inferred" ? { confidence } : {})
   });
+}
+
+/** Keeps separately dispatched handler bodies and `.bind` wrappers off the caller walk. */
+function shouldSkipEventHandlerChild(
+  node: ts.Node,
+  child: ts.Node,
+  binding: ReturnType<typeof readTypeScriptEventBinding>
+): boolean {
+  if (!binding || binding.handlerKind === "factory") {
+    return false;
+  }
+  if (ts.isJsxAttribute(node)) {
+    return true;
+  }
+  return child === binding.handlerNode;
 }
 
 /** Reads only identifier, property, or literal-element callees suitable for matching. */

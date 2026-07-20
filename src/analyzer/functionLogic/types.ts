@@ -79,16 +79,18 @@ export type FunctionLogicBlock = {
   range: SourceRange;
 };
 
-/** One direct call or JSX component-render reference found in the selected callable. */
+/** One call, JSX render, or separately dispatched handler reference in the callable. */
 export type FunctionLogicCallsite = {
   filePath: string;
   range: SourceRange;
   calleeName: string;
   calleeText: string;
-  /** JSX component references remain render relations rather than direct JS calls. */
-  relation?: "call" | "render";
-  /** Nested synchronous-looking render callbacks never exceed inferred confidence. */
+  /** Render and event references remain distinct from immediate JavaScript calls. */
+  relation?: "call" | "render" | "event";
+  /** Nested render callbacks and name-only event APIs never exceed inferred confidence. */
   confidence?: FunctionLogicConfidence;
+  /** Registration method/property retained to avoid exposing it as the handler call. */
+  eventRegistrationName?: string;
   /** Parser-proven receiver or pipeline stage retained for conservative drill recovery. */
   callChain?: "start" | "continuation" | "pipeline";
 };
