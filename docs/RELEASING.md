@@ -1,6 +1,6 @@
 # Releasing Project Analyzer
 
-Project Analyzer is published as `newdlops.project-analyzer`. Its Rust analyzer
+Project Analyzer is published as `newdlops.function-analysis`. Its Rust analyzer
 is a native executable, so one release consists of six target-specific VSIX
 packages rather than one universal archive.
 

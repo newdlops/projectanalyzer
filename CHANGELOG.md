@@ -4,6 +4,29 @@ All notable user-visible changes to Project Analyzer: Code Flow are recorded in
 this file. The changelog starts with the first distribution-documented build;
 earlier local development builds were not tracked here.
 
+## 0.0.1047 - 2026-07-20
+
+### Changed
+
+- Nested Function Logic body frames are now projected dynamically. The initial
+  graph shows only the outermost frame in each body hierarchy instead of stacking
+  every nested dashed box over the same nodes and routes.
+- Every body-forming owner has a `BODY` affordance. Selecting an internal owner
+  promotes exactly its body to the visible outer frame; ancestor breadcrumbs,
+  `Parent body`, and `Outermost` restore broader context without relayout.
+- Body focus is retained across child-function attachment relayouts for the same
+  root graph, and safely falls back to the outer projection when its owner leaves
+  the scene.
+- Distribution metadata now consistently uses the Marketplace extension identity
+  `newdlops.function-analysis`; artifact names follow
+  `function-analysis-<version>-<target>.vsix` across local and CI packaging.
+
+### Reliability
+
+- Body ancestry and focus paths use iterative parent walks with visited guards.
+  Malformed parent cycles are cut deterministically so they cannot hide every
+  frame or cause recursive traversal.
+
 ## 0.0.1046 - 2026-07-20
 
 ### Added

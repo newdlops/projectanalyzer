@@ -14,7 +14,7 @@ const packageJson = JSON.parse(await readFile(path.join(projectRoot, "package.js
 const target = getVsceTarget(process.platform, process.arch);
 const outputPath = path.resolve(
   projectRoot,
-  process.argv[2] ?? `project-analyzer-${packageJson.version}-${target}.vsix`
+  process.argv[2] ?? `${packageJson.name}-${packageJson.version}-${target}.vsix`
 );
 
 run(process.platform === "win32" ? "vsce.cmd" : "vsce", [

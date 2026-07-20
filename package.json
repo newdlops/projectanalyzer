@@ -1,8 +1,8 @@
 {
-  "name": "project-analyzer",
+  "name": "function-analysis",
   "displayName": "Project Analyzer: Code Flow",
   "description": "Understand unfamiliar codebases through bounded, source-backed code flows.",
-  "version": "0.0.1046",
+  "version": "0.0.1048",
   "publisher": "newdlops",
   "private": true,
   "license": "MIT",

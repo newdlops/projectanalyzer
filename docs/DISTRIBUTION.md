@@ -18,20 +18,18 @@ Marketplace 아이콘은 작은 크기에서도 읽히도록 텍스트를 쓰지
 `package.json.galleryBanner.color`와 같은 계열을 유지한다. PNG를 변경할 때에는 SVG 원본을
 먼저 변경한 뒤 256×256로 다시 렌더링하고 패키지 테스트를 실행한다.
 
-## 공개 배포 전에 소유자가 결정해야 하는 값
+## 공개 배포 identity
 
-다음 값은 프로젝트 소유권과 법적 정책에 해당하므로 placeholder를 배포하지 않는다.
+현재 owner-controlled release identity는 다음과 같이 확정되어 있다.
 
-1. `package.json.publisher`의 `local`을 실제 Marketplace publisher ID로 변경한다.
-2. 배포 라이선스를 결정하고 `LICENSE` 파일과 `package.json.license`를 일치시킨다.
-   현재 `UNLICENSED`는 라이선스가 아직 결정되지 않았다는 뜻이다.
-3. 공개 HTTPS 저장소가 준비되면 `repository`, `homepage`, `bugs`를 실제 주소로 추가한다.
-4. `SUPPORT.md`의 임시 배포 채널을 지속 가능한 issue/security 연락처로 교체한다.
-5. 지원할 OS/CPU 조합과 각 조합을 빌드할 신뢰된 runner를 결정한다.
+- Marketplace extension: `newdlops.function-analysis`
+- source repository: `https://github.com/newdlops/projectanalyzer`
+- license: repository와 VSIX에 함께 포함되는 MIT License
+- release set: macOS/Linux/Windows의 arm64와 x64, 총 6개 native target
 
-이 값들이 정해지기 전에는 개인 또는 팀 내부 VSIX 배포만 수행한다. README에 상대 링크나
-이미지를 추가하려면 먼저 실제 repository URL을 선언해야 한다. 그렇지 않으면 `vsce`가
-Marketplace에서 깨질 링크로 판단할 수 있다.
+Marketplace contributor 권한, Entra/OIDC 또는 PAT credential, production environment reviewer는
+repository에 기록하지 않고 provider 설정으로 관리한다. 세부 설정과 retry 절차는
+`docs/RELEASING.md`를 따른다.
 
 ## 릴리스 전 점검
 
@@ -45,7 +43,7 @@ npm run package:vsix
 binary를 제거한 뒤, 다음 이름으로 VSIX를 만든다.
 
 ```text
-project-analyzer-<version>-<target>.vsix
+function-analysis-<version>-<target>.vsix
 ```
 
 패키징이 끝나면 내장 검사기가 다음 조건을 확인한다.

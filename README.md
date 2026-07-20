@@ -18,22 +18,23 @@ system and CPU architecture running the VS Code Extension Host.
 
 1. Open the **Extensions** view in VS Code.
 2. Choose **Views and More Actions...** -> **Install from VSIX...**.
-3. Select the matching `project-analyzer-<version>-<target>.vsix` file.
+3. Select the matching `function-analysis-<version>-<target>.vsix` file.
 4. Reload the window when VS Code asks.
 
 Command-line installation is also supported:
 
 ```sh
-code --install-extension project-analyzer-<version>-<target>.vsix
+code --install-extension function-analysis-<version>-<target>.vsix
 ```
 
-Builds before the `newdlops` publisher migration used the extension ID
-`local.project-analyzer`. If that legacy build is still installed, uninstall it
-before installing the current VSIX; otherwise both manifests contribute the
-same editor context-menu command:
+Builds before the current Marketplace identity used `local.project-analyzer` or
+`newdlops.project-analyzer`. If either legacy build is still installed, uninstall
+it before installing the current VSIX; otherwise multiple manifests contribute
+the same editor context-menu command:
 
 ```sh
 code --uninstall-extension local.project-analyzer
+code --uninstall-extension newdlops.project-analyzer
 ```
 
 The extension requires VS Code 1.92 or newer and runs in the desktop Extension
@@ -158,8 +159,10 @@ dedicated Function Visualizer tab with a bounded control-flow graph:
   source-ordered stages; F#/OCaml retain final-argument insertion while Elixir
   retains first-argument insertion, and named local stages remain drillable
 - sibling lanes for `true`/`false`, loop-body/exit, and switch branches
-- compound body frames that enclose each `if`, loop, switch, try, and context-manager
-  owner with only its nested statements, excluding the following continuation
+- dynamic compound body frames that initially show only each outermost `if`, loop,
+  switch, try, or context-manager body; selecting a nested `BODY` owner promotes
+  its body to the sole outer frame, with parent/breadcrumb/outermost navigation,
+  while the following continuation remains outside the calculated rectangle
 - labeled edges for `true`, `false`, `iterate`, `repeat`, `return`, and `throw`
 - keyboard-accessible `true`, `false`, and `case` choices that dim the alternatives
   and keep the selected branch's shared merge and later continuation highlighted
@@ -637,7 +640,7 @@ npm run package:vsix
 Packaging builds one target-specific native engine, excludes Cargo build
 artifacts, and checks the VSIX size budget.
 
-Marketplace releases use the publisher identity `newdlops.project-analyzer`.
+Marketplace releases use the publisher identity `newdlops.function-analysis`.
 Pushing a matching `v<major>.<minor>.<patch>` tag runs the guarded six-platform
 release workflow. Maintainer credentials, OIDC setup, version checks, supported
 targets, and retry behavior are documented in [Releasing Project Analyzer](docs/RELEASING.md).

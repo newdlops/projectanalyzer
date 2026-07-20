@@ -4,6 +4,7 @@
  */
 
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 import {
   getExpectedArtifactNames,
@@ -80,4 +81,15 @@ test("rejects partial and unexpected VSIX artifact sets", () => {
 
   assert.match(errors, new RegExp(`release artifact is missing: ${expected[0]}`));
   assert.match(errors, /unexpected release artifact: project-analyzer-1\.2\.3-web\.vsix/);
+});
+
+test("local packaging and release upload follow the current manifest identity", () => {
+  const manifest = JSON.parse(readFileSync("package.json", "utf8"));
+  const packageScript = readFileSync("scripts/package-extension.mjs", "utf8");
+  const workflow = readFileSync(".github/workflows/release.yml", "utf8");
+
+  assert.equal(`${manifest.publisher}.${manifest.name}`, "newdlops.function-analysis");
+  assert.match(packageScript, /`\$\{packageJson\.name\}-\$\{packageJson\.version\}-\$\{target\}\.vsix`/u);
+  assert.match(workflow, /path: "\*-\$\{\{ matrix\.target \}\}\.vsix"/u);
+  assert.match(workflow, /itemName=newdlops\.function-analysis/u);
 });

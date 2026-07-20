@@ -41,6 +41,6 @@ contact is published, use the distributor's private channel for vulnerabilities.
 ## Current distribution status
 
 This build is marked Preview. Its Marketplace identity is
-`newdlops.project-analyzer`, and public issue tracking lives at
+`newdlops.function-analysis`, and public issue tracking lives at
 https://github.com/newdlops/projectanalyzer/issues. Project Analyzer is
 distributed under the MIT License included in the repository and VSIX package.
