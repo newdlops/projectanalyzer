@@ -39,6 +39,8 @@ type TestEdge = {
   sourceId: string;
   targetId: string;
   kind: string;
+  label?: string;
+  relation?: "call" | "callReturn" | "event";
   confidence: string;
 };
 
@@ -162,6 +164,54 @@ test("namespaces structural parents independently in attached function scopes", 
   const groups = runtime.createLogicCompoundGroups(scene.logic.blocks, layouts);
   assert.ok(groups.some((group) => group.ownerBlockId === rootOwner.id));
   assert.ok(groups.some((group) => group.ownerBlockId === childOwner.id));
+});
+
+test("attaches event handlers without rerouting or returning into registration flow", () => {
+  const runtime = loadCompoundRuntime();
+  const rootLogic = createOwnedBodyLogic();
+  const handlerLogic = createOwnedBodyLogic();
+  const scene = runtime.createAttachedFunctionGraphScene(
+    rootLogic,
+    "root-scope",
+    "setupEventHandlers",
+    [{
+      id: "attached:event-handler",
+      parentScopeId: "root-scope",
+      anchorBlockId: "body",
+      target: {
+        sourceToken: "source-node:event-handler",
+        name: "handleClick",
+        qualifiedName: "handleClick",
+        confidence: "resolved",
+        callsiteCount: 1,
+        relation: "event"
+      },
+      depth: 1,
+      status: "loaded",
+      detail: { title: "handleClick", logic: handlerLogic }
+    }]
+  );
+  const rootBinding = scene.logic.blocks.find((candidate) =>
+    candidate.sourceBlockId === "body" && !candidate.functionLabel
+  );
+  const rootContinuation = scene.logic.blocks.find((candidate) =>
+    candidate.sourceBlockId === "after" && !candidate.functionLabel
+  );
+  assert.ok(rootBinding && rootContinuation);
+
+  const dispatchEdge = scene.logic.edges.find((edge) => edge.relation === "event");
+  const originalContinuation = scene.logic.edges.find((edge) =>
+    edge.id.includes("leave-body")
+  );
+  assert.ok(dispatchEdge && originalContinuation);
+  assert.equal(dispatchEdge.sourceId, rootBinding.id);
+  assert.match(dispatchEdge.label ?? "", /event handler handleClick/u);
+  assert.equal(originalContinuation.sourceId, rootBinding.id);
+  assert.equal(originalContinuation.targetId, rootContinuation.id);
+  assert.equal(scene.logic.edges.some((edge) => edge.relation === "callReturn"), false);
+  assert.equal(scene.logic.blocks.some((candidate) =>
+    candidate.id.startsWith("compound-resume:")
+  ), false);
 });
 
 test("renders compound frames behind routes and keeps them pointer-transparent", () => {

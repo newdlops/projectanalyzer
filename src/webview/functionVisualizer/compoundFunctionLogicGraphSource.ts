@@ -189,9 +189,9 @@ export function getCompoundFunctionLogicGraphSource(): string {
     }
 
     /**
-     * Inserts each child flow between its callsite and the caller continuation.
-     * A resume gateway owns the caller's original outgoing control edges, so a
-     * call edge never competes with true/false/next edges at the same node port.
+     * Inserts synchronous children before a caller continuation and attaches
+     * event handlers as terminal dispatch branches. Event handlers deliberately
+     * receive no return edge because dispatch does not resume registration code.
      */
     function attachFunctionScopesToCallsites(scene) {
       const scopesById = new Map(scene.orderedScopes.map((scope) => [scope.id, scope]));
@@ -216,12 +216,16 @@ export function getCompoundFunctionLogicGraphSource(): string {
         const sourceBlock = sourceId ? blocksById.get(sourceId) : undefined;
         if (!sourceId || !sourceBlock) continue;
         const callerScope = scopesById.get(firstExpansion.parentScopeId);
+        const synchronousExpansions = expansions.filter((expansion) =>
+          expansion.target.relation !== "event"
+        );
+        const firstSynchronousExpansion = synchronousExpansions[0];
         const callerOutgoing = scene.edges.filter((edge) =>
           edge.sourceId === sourceId && !edge.relation
         );
         let continuationId;
 
-        if (callerOutgoing.length > 0) {
+        if (firstSynchronousExpansion && callerOutgoing.length > 0) {
           continuationId = "compound-resume:" + anchorKey;
           const sourceDimensions = scene.dimensionsByBlockId.get(sourceId)
             || { width: 184, height: 72 };
@@ -231,7 +235,7 @@ export function getCompoundFunctionLogicGraphSource(): string {
               ? sourceBlock.kind
               : "operation",
             label: "Resume · " + completeAttachedContinuationLabel(sourceBlock.label),
-            detail: firstExpansion.target.relation === "render"
+            detail: firstSynchronousExpansion.target.relation === "render"
               ? "The rendered component flow rejoins the parent render path here."
               : "Called code returns here before the caller continues.",
             depth: sourceBlock.depth,
@@ -257,20 +261,24 @@ export function getCompoundFunctionLogicGraphSource(): string {
         for (const expansion of expansions) {
           const targetId = scene.firstBlockIdByScopeId.get(expansion.id);
           if (!targetId) continue;
-          const callEdgeId = "attached-call:" + expansion.id;
+          const eventHandler = expansion.target.relation === "event";
+          const callEdgeId = (eventHandler ? "attached-event:" : "attached-call:")
+            + expansion.id;
           scene.edges.push({
             id: callEdgeId,
             sourceId,
             targetId,
             kind: "next",
-            label: (expansion.target.relation === "render" ? "renders " : "calls ")
+            label: (eventHandler
+              ? "event handler "
+              : expansion.target.relation === "render" ? "renders " : "calls ")
               + attachedFunctionTargetLabel(expansion),
             confidence: expansion.target.confidence === "inferred" ? "inferred" : "exact",
-            relation: "call"
+            relation: eventHandler ? "event" : "call"
           });
           scene.routeHintByEdgeId.set(callEdgeId, "forward");
 
-          if (!continuationId) continue;
+          if (eventHandler || !continuationId) continue;
           const terminalIds = scene.terminalBlockIdsByScopeId.get(expansion.id) || [];
           for (let terminalIndex = 0; terminalIndex < terminalIds.length; terminalIndex += 1) {
             const returnEdgeId = "attached-return:" + expansion.id + ":" + terminalIndex;
@@ -366,12 +374,12 @@ export function getCompoundFunctionLogicGraphSource(): string {
       if (status === "failed") {
         return {
           label: targetLabel + " unavailable",
-          detail: error || "This called function flow is unavailable."
+          detail: error || "This related function flow is unavailable."
         };
       }
       return {
         label: "Loading · " + targetLabel,
-        detail: "Reading the called function body into this graph."
+        detail: "Reading the related function body into this graph."
       };
     }
 

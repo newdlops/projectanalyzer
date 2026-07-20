@@ -159,7 +159,7 @@ export function getFunctionVisualizerBrowserSource(): string {
       );
       if (expansion) {
         expansion.status = "failed";
-        expansion.error = message || "This called function flow is unavailable.";
+        expansion.error = message || "This related function flow is unavailable.";
       }
       state.pendingExpansionId = undefined;
       state.loading = false;
@@ -241,7 +241,7 @@ export function getFunctionVisualizerBrowserSource(): string {
       elements.title.textContent = detail.title;
       elements.subtitle.textContent = detail.subtitle;
       elements.summary.textContent = createFunctionLogicSummaryText(detail.logic);
-      elements.semantics.textContent = "Blocks come from source syntax. Value rows show exact writes and dashed inferred receiver changes; called code can attach inside this graph.";
+      elements.semantics.textContent = "Blocks come from source syntax. Value rows show exact writes and dashed inferred receiver changes; calls and renders may return, while event handlers attach as no-return dispatch branches.";
       const pendingExpansion = state.attachedFunctions.find((candidate) =>
         candidate.id === state.pendingExpansionId
       );
@@ -250,7 +250,7 @@ export function getFunctionVisualizerBrowserSource(): string {
           ? "Attaching " + expansionTargetLabel(pendingExpansion) + "…"
           : state.loading && state.pendingTarget
             ? "Building " + state.pendingTarget.label + "…"
-            : "Select a block to inspect control and value changes; called functions attach to this canvas.");
+            : "Select a block to inspect control and value changes; related functions attach to this canvas.");
       renderOrigins(detail.origins || []);
       const attachedScene = createAttachedFunctionGraphScene(
         detail.logic,

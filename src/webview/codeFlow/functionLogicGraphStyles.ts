@@ -257,6 +257,11 @@ export function getFunctionLogicGraphStyles(): string {
       color: var(--vscode-charts-purple, var(--vscode-textLink-foreground));
     }
 
+    .flow-badge.logic-legend.event {
+      color: var(--vscode-charts-yellow, var(--vscode-charts-orange));
+      border-style: dashed;
+    }
+
     .flow-badge.logic-legend.value-change {
       color: var(--vscode-charts-orange, var(--vscode-textLink-foreground));
       border-color: color-mix(in srgb, var(--vscode-charts-orange) 55%, var(--vscode-panel-border));
@@ -365,6 +370,12 @@ export function getFunctionLogicGraphStyles(): string {
       stroke-width: 2;
     }
 
+    .logic-edge-event {
+      stroke: var(--vscode-charts-yellow, var(--vscode-charts-orange));
+      stroke-dasharray: 7 4;
+      stroke-width: 2;
+    }
+
     .logic-edge-call-return {
       stroke: var(--vscode-charts-green, var(--vscode-textLink-foreground));
       stroke-dasharray: 3 3;
@@ -403,6 +414,11 @@ export function getFunctionLogicGraphStyles(): string {
 
     .logic-edge-label-call {
       fill: var(--vscode-textLink-foreground);
+      font-weight: 700;
+    }
+
+    .logic-edge-label-event {
+      fill: var(--vscode-charts-yellow, var(--vscode-charts-orange));
       font-weight: 700;
     }
 
@@ -702,6 +718,11 @@ export function getFunctionLogicGraphStyles(): string {
 
     .flow-badge.logic-transfer.callReturn {
       color: var(--vscode-charts-green, var(--vscode-textLink-foreground));
+      border-style: dashed;
+    }
+
+    .flow-badge.logic-transfer.event {
+      color: var(--vscode-charts-yellow, var(--vscode-charts-orange));
       border-style: dashed;
     }
 

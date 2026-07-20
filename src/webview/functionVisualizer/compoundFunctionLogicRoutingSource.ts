@@ -73,11 +73,12 @@ export function getCompoundFunctionLogicRoutingSource(): string {
       return total / incoming.length;
     }
 
-    /** Keeps true/call/false siblings in a readable left-to-right order. */
+    /** Keeps control, synchronous call, and detached event siblings in order. */
     function compoundEdgeLaneBias(edge) {
       if (edge.kind === "true" || edge.kind === "iterate") return -0.3;
       if (edge.relation === "call" || edge.relation === "callReturn") return 0;
       if (edge.kind === "false" || edge.kind === "exit") return 0.3;
+      if (edge.relation === "event") return 0.45;
       return 0.05;
     }
 
