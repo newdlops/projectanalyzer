@@ -34,14 +34,13 @@ memory use remains elevated.
 ## Sensitive source and security reports
 
 Do not attach proprietary source, credentials, access tokens, private paths, or
-complete workspace logs. Redact diagnostic material before sharing it. Until a
-public repository and dedicated security contact are configured, use the same
-private channel through which the VSIX was distributed for security-sensitive
-reports.
+complete workspace logs. Redact diagnostic material before sharing it. Use the
+public issue tracker only for non-sensitive reports; until a dedicated security
+contact is published, use the distributor's private channel for vulnerabilities.
 
 ## Current distribution status
 
-This build is marked Preview. Public Marketplace publisher, repository, license,
-and durable support metadata are intentionally not fabricated by the package;
-the distributor must configure those owner-controlled values before public
-publication.
+This build is marked Preview. Its Marketplace identity is
+`newdlops.project-analyzer`, and public issue tracking lives at
+https://github.com/newdlops/projectanalyzer/issues. Project Analyzer is
+distributed under the MIT License included in the repository and VSIX package.
