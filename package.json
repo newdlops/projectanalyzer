@@ -2,10 +2,18 @@
   "name": "project-analyzer",
   "displayName": "Project Analyzer: Code Flow",
   "description": "Understand unfamiliar codebases through bounded, source-backed code flows.",
-  "version": "0.0.1034",
-  "publisher": "local",
+  "version": "0.0.1035",
+  "publisher": "newdlops",
   "private": true,
-  "license": "UNLICENSED",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/newdlops/projectanalyzer.git"
+  },
+  "homepage": "https://github.com/newdlops/projectanalyzer#readme",
+  "bugs": {
+    "url": "https://github.com/newdlops/projectanalyzer/issues"
+  },
   "icon": "media/project-analyzer-icon.png",
   "preview": true,
   "engines": {
@@ -203,13 +211,15 @@
     "compile": "node scripts/clean-output.mjs && tsc -p ./tsconfig.json",
     "watch": "tsc -watch -p ./tsconfig.json",
     "check": "tsc -p ./tsconfig.json --noEmit",
-    "test:package": "node --test scripts/check-vsix-package.test.mjs",
+    "test:package": "node --test scripts/*.test.mjs",
     "test": "npm run engine:test && npm run compile && node --test out/test/unit/*.test.js && npm run test:package",
     "package:check": "node scripts/check-vsix-package.mjs",
     "package:vsix": "node scripts/package-extension.mjs",
+    "release:check": "node scripts/check-release-metadata.mjs",
     "vscode:prepublish": "npm run engine:build:release && npm run engine:stage && npm run compile"
   },
   "devDependencies": {
+    "@vscode/vsce": "^3.9.2",
     "@types/node": "^22.15.30",
     "@types/vscode": "^1.92.0"
   }

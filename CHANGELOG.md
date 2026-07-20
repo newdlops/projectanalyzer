@@ -4,6 +4,12 @@ All notable user-visible changes to Project Analyzer: Code Flow are recorded in
 this file. The changelog starts with the first distribution-documented build;
 earlier local development builds were not tracked here.
 
+## 0.0.1035 - 2026-07-20
+
+### Added
+
+- An MIT License covering the extension source and bundled Rust analyzer.
+
 ## 0.0.1034 - 2026-07-20
 
 ### Added
@@ -14,8 +20,12 @@ earlier local development builds were not tracked here.
   Flow action, native tooltip, keyboard focus treatment, and opening status.
 - F#, OCaml, and Elixir `|>` pipeline visualization with language-correct
   argument insertion, exact stage ranges, and same-canvas child-function drill.
+- JSX/TSX render-flow nodes for intrinsic and custom elements, prop evaluation,
+  conditional output, event bindings, and inferred concise `.map` repetition.
 - A first-run installation path, supported-language summary, local-data policy,
   troubleshooting guidance, support template, and maintainer release checklist.
+- Guarded GitHub Actions deployment for six native VSIX targets under the
+  `newdlops` Marketplace publisher, with Entra OIDC and temporary PAT auth paths.
 
 ### Changed
 
@@ -23,10 +33,14 @@ earlier local development builds were not tracked here.
   context selection, Function Logic visualization, and project graph expansion.
 - Release packaging now treats the icon, README, changelog, and support document
   as required distribution artifacts.
+- Release tags must match the manifest, lockfile, and changelog before packages
+  can be published to Marketplace or attached to a GitHub release.
 
 ### Analysis boundaries
 
 - Haskell composition, monadic bind, computation expressions, macros, and
   higher-order callback execution are not presented as exact pipe-forward flow.
+- JSX component scheduling and event dispatch remain framework/runtime
+  boundaries; concise `.map` render callbacks are explicitly inferred.
 - Static graph confidence remains visible as `exact`, `resolved`, `inferred`, or
   `unresolved`; the visualizer does not claim to show an observed runtime trace.
