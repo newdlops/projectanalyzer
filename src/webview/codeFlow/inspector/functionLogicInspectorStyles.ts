@@ -130,6 +130,9 @@ export function getFunctionLogicInspectorStyles(): string {
 
     .logic-inspector-scroll {
       display: grid;
+      /* Intrinsic-height rows prevent overflow-capable sections from collapsing
+         to a few pixels when selected-block evidence is taller than the drawer. */
+      grid-auto-rows: max-content;
       align-content: start;
       gap: 10px;
       min-height: 0;

@@ -94,7 +94,9 @@ export function getFunctionLogicBrowserSource(): string {
         nodeButtonsById
       });
       const hasValueFlow = (logic.valueBindings || []).length > 0;
-      const inspector = createFunctionLogicInspector(choiceSessionKey, hasValueFlow);
+      // Scenario Variables are an invariant Inspector surface. It must remain
+      // discoverable even when analyzer-backed value bindings are incomplete.
+      const inspector = createFunctionLogicInspector(choiceSessionKey);
       let branchChoices = readFunctionLogicBranchChoices(choiceSessionKey, logic.edges);
       let edgeRendering;
       let valueFlowRendering;
@@ -189,7 +191,7 @@ export function getFunctionLogicBrowserSource(): string {
       canvas.style.setProperty("width", logic.layout.width + "px");
       canvas.style.setProperty("height", logic.layout.height + "px");
       canvas.append(bodyFocusController.layer, edgeRendering.svg);
-      if (valueFlowRendering) canvas.append(valueFlowRendering.svg);
+      if (valueFlowRendering?.svg) canvas.append(valueFlowRendering.svg);
 
       for (const nodeLayout of logic.layout.nodes) {
         const block = blocksById.get(nodeLayout.blockId);
@@ -241,9 +243,11 @@ export function getFunctionLogicBrowserSource(): string {
       stage.append(canvas);
       viewport.append(stage);
       inspector.attachViewport(viewport);
-      inspector.appendSections(
+      inspector.prependSections(
         valueFlowRendering?.valuePreviewEditor,
-        valueFlowRendering?.scenarioTrace,
+        valueFlowRendering?.scenarioTrace
+      );
+      inspector.appendSections(
         valueFlowRendering?.toolbar,
         createLogicCalleeExplorer(logic.callees || [], logic.omittedCalleeCount || 0),
         createLogicSignature(logic.signature),

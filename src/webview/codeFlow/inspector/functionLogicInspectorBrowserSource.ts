@@ -9,22 +9,15 @@ export function getFunctionLogicInspectorBrowserSource(): string {
   return /* js */ `
     let functionLogicInspectorSessionKey = "";
     let functionLogicInspectorOpen = false;
-    let functionLogicInspectorAutoOpened = false;
     let functionLogicInspectorSequence = 0;
 
     /** Builds one right-side drawer whose open state survives graph relayouts. */
-    function createFunctionLogicInspector(sessionKey, defaultOpen) {
+    function createFunctionLogicInspector(sessionKey) {
       if (functionLogicInspectorSessionKey !== sessionKey) {
         functionLogicInspectorSessionKey = sessionKey;
-        // Scenario controls remain immediately discoverable for a new graph
-        // with lexical values; a user's close choice survives later relayouts.
-        functionLogicInspectorOpen = Boolean(defaultOpen);
-        functionLogicInspectorAutoOpened = Boolean(defaultOpen);
-      } else if (defaultOpen && !functionLogicInspectorAutoOpened) {
-        // A child attachment can introduce the first retained binding without
-        // changing the root session. Reveal Scenario tools once in that case.
+        // Scenario Variables are part of every graph's stable Inspector
+        // contract. A user's later close choice survives same-root relayouts.
         functionLogicInspectorOpen = true;
-        functionLogicInspectorAutoOpened = true;
       }
       functionLogicInspectorSequence += 1;
       const inspectorId = "logic-inspector-" + functionLogicInspectorSequence;
@@ -116,6 +109,13 @@ export function getFunctionLogicInspectorBrowserSource(): string {
           currentSelectionLabel = block?.label || "selected block";
           selectedLabel.textContent = currentSelectionLabel;
           updateToggleTitle();
+        },
+        /** Keeps invariant Scenario controls above variable-height block evidence. */
+        prependSections(...sections) {
+          const available = sections.filter(Boolean);
+          if (available.length > 0) {
+            scroll.replaceChildren(...available, ...scroll.children);
+          }
         },
         /** Adds graph-level tools below the selected-block inspector. */
         appendSections(...sections) {
