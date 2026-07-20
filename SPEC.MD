@@ -297,6 +297,14 @@ control edge는 그대로 두고 `event binding -> handler entry`를 별도의 d
 붙인다. handler terminal에서 registration continuation으로 돌아오는 call-return edge나 resume
 gateway를 만들지 않는다. 이는 event 발생 시점과 횟수를 관측했다는 뜻이 아니라, source에
 보이는 handler 등록 관계만 보존한 것이다.
+
+`true`, `false`, `case` edge label과 선택 block의 동일 transfer는 keyboard로 선택할 수 있다.
+한 decision source에서는 한 edge만 활성 choice로 유지하며, nested decision의 choice는 서로
+합성한다. 선택된 edge에서 시작한 후속 흐름은 shared merge와 그 뒤의 reachable continuation까지
+강조하고 sibling alternative는 흐리게 표시한다. 재선택은 해당 choice를 해제하고 `Reset choices`는
+전체 choice를 해제한다. 이 projection은 runtime trace가 아닌 static hypothetical scenario다.
+projection traversal은 root에서 시작해 명시적인 queue, visited/minimum-depth map, 호출 인자의
+maximum depth를 사용하며 재귀하지 않는다. 따라서 repeat/cycle edge가 있어도 bounded하게 종료한다.
 별도의 child graph viewport나 card는 만들지 않는다. 같은 block을 다시 클릭하면 그
 block에서 시작한 하위 expansion branch 전체를 접는다.
 
@@ -567,6 +575,8 @@ control-flow graph를 기본 표현으로 사용한다. 전체 Project Graph가 
 - exact write는 실선, method-name 기반 receiver mutation은 inferred 점선으로 구분
 - condition/loop/call/mutation/effect/exit kind
 - `true`, `false`, `iterate`, `exit`, `return`, `throw` labeled edge
+- keyboard-accessible `true`, `false`, `case` choice와 선택 경로의 merge/후속 흐름 강조,
+  전체 choice reset
 - `repeat`와 `continue`를 위한 외곽 back-edge channel
 - loop body terminal에서 exit continuation으로 layout-only 순서 제약을 추가해 루프 종료 후
   statement를 전체 back-edge 고리 아래에 배치
@@ -688,6 +698,7 @@ step 또는 edge를 선택하면 다음을 보여준다.
 - TypeScript/JavaScript/Python/Java statement-level control flow와
   F#/OCaml/Elixir pipe-forward function flow
 - TypeScript/JavaScript root/arm-nested ternary와 `&&`/`||`/`??` short-circuit expression flow
+- `true`/`false`/`case` 선택을 합성하는 bounded, cycle-safe 후속 흐름 projection
 - condition, branch, loop, switch, try, mutation, call, return/throw block
 - 변수/프로퍼티 exact write와 receiver mutation 후보의 block-local value-change annotation
 - 함수 내부 exact statement evidence navigation
@@ -1154,6 +1165,7 @@ message route는 제거한다. semantic-flow, architecture evidence처럼 새 Co
 - structured true/false/iterate/repeat/return/throw transfer
 - exact statement evidence token과 source navigation
 - bounded layered graph layout과 labeled control edge
+- true/false/case edge 및 detail transfer 선택, shared merge 이후 continuation projection
 - known entrypoint context와 parser/runtime gap
 - 전용 Function Visualizer editor tab과 Start/Choose/Do/Finish 이해 프레임
 - callsite와 resume gateway 사이에서 동일 canvas로 연결되는 lazy child function,

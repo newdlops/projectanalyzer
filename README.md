@@ -135,6 +135,8 @@ dedicated Function Visualizer tab with a bounded control-flow graph:
 - compound body frames that enclose each `if`, loop, switch, try, and context-manager
   owner with only its nested statements, excluding the following continuation
 - labeled edges for `true`, `false`, `iterate`, `repeat`, `return`, and `throw`
+- keyboard-accessible `true`, `false`, and `case` choices that dim the alternatives
+  and keep the selected branch's shared merge and later continuation highlighted
 - outer channels for loop-back and long exit edges so they do not cross nodes
 - post-loop statements placed below the complete loop-back ring, never beside its body
 - rank-gap routing that prevents every unrelated edge segment from crossing a box
@@ -311,6 +313,13 @@ arrow bodies merge the selected value back into their containing operation.
 Optional chaining and branch expressions embedded inside a larger call argument
 remain inside that containing statement so the graph does not claim an unsafe
 evaluation order.
+
+Select a `true`, `false`, or `case` edge label—or the matching choice in the
+selected-node panel—to preview that static scenario. Nested selections compose,
+and the highlighted flow continues through shared merge blocks and every later
+reachable statement. Select the same choice again to clear it, or use **Reset
+choices** to restore every possible path. This is a source-backed hypothetical
+path, not a claim about a captured runtime execution.
 
 Standalone Python generator expressions remain a visible lazy-analysis gap because their
 bodies run when advanced rather than when created. A generator passed directly

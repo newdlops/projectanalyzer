@@ -4,6 +4,21 @@ All notable user-visible changes to Project Analyzer: Code Flow are recorded in
 this file. The changelog starts with the first distribution-documented build;
 earlier local development builds were not tracked here.
 
+## 0.0.1038 - 2026-07-20
+
+### Added
+
+- Function Logic `true`, `false`, and `case` edge labels and selected-block
+  transfers are now keyboard-accessible path choices. Nested choices compose,
+  inactive alternatives dim, and the selected scenario remains highlighted
+  through shared merges and later reachable statements.
+
+### Analysis boundaries
+
+- A selected path is a bounded, cycle-safe projection of static source flow,
+  not a captured runtime execution. Selecting the same outcome again or using
+  **Reset choices** restores the corresponding alternatives.
+
 ## 0.0.1037 - 2026-07-20
 
 ### Added
