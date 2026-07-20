@@ -118,6 +118,12 @@ test("language logic adapters keep parser-specific semantics behind pure boundar
   const events = readSource(
     "src/analyzer/functionLogic/events/typescriptEventBindings.ts"
   );
+  const expressionPlanner = readSource(
+    "src/analyzer/functionLogic/expressions/typescriptExpressionPlanner.ts"
+  );
+  const expressionExpansion = readSource(
+    "src/analyzer/functionLogic/expressions/typescriptExpressionExpansion.ts"
+  );
   const rustSupplement = readSource("src/analyzer/rust/rustAnalyzerBackend.ts");
   const services = readSource("src/extension/extensionServices.ts");
 
@@ -134,11 +140,24 @@ test("language logic adapters keep parser-specific semantics behind pure boundar
   assert.match(functional, /for \(let index = 1; index < blocks\.length; index \+= 1\)/u);
   assert.match(events, /while \(pending\.length > 0\)/u);
   assert.match(events, /readTypeScriptEventBinding/u);
+  assert.match(expressionPlanner, /while \(pending\.length > 0/u);
+  assert.match(expressionPlanner, /QuestionQuestionToken/u);
+  assert.match(expressionExpansion, /replaceBooleanControlAnchor/u);
+  assert.match(expressionExpansion, /remainingBlockBudget/u);
   assert.match(rustSupplement, /addSupplementalLanguages/u);
   assert.match(rustSupplement, /"fsharp"[\s\S]*"ocaml"[\s\S]*"elixir"/u);
   assert.match(services, /new FunctionalLanguageAnalyzer\(\)/u);
   assert.doesNotMatch(
-    [lezerAnalyzer, structuredControl, python, java, functional, events].join("\n"),
+    [
+      lezerAnalyzer,
+      structuredControl,
+      python,
+      java,
+      functional,
+      events,
+      expressionPlanner,
+      expressionExpansion
+    ].join("\n"),
     /from ".*(?:vscode|webview|protocol|extension)/u
   );
 });

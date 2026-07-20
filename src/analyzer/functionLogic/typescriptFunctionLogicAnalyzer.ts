@@ -20,6 +20,12 @@ import {
 } from "./core/structuredControlFlow";
 import { createFunctionLogicEdge } from "./core/functionLogicSupport";
 import {
+  expandTypeScriptExpressionFlows,
+  readTypeScriptExpressionBodyFlowTarget,
+  readTypeScriptStatementExpressionFlowTarget,
+  type TypeScriptExpressionFlowRequest
+} from "./expressions";
+import {
   analyzeTypeScriptJsxLogic,
   hasTypeScriptJsxLogic
 } from "./jsx";
@@ -108,6 +114,7 @@ function buildFunctionLogic(
   const controlsByBlockId = new Map<string, ControlRecord>();
   const visibleBlocks: InternalBlock[] = [];
   const jsxReturnExpressions = new Map<string, ts.Expression>();
+  const expressionFlowRequests: TypeScriptExpressionFlowRequest[] = [];
   const gaps = createDefaultGaps();
   const callsites = collectFunctionCallsites(sourceFile, graphNode.filePath, functionNode);
   const bodyRange = toSourceRange(sourceFile, functionNode.body);
@@ -178,6 +185,15 @@ function buildFunctionLogic(
     if (jsxExpression) {
       jsxReturnExpressions.set(block.id, jsxExpression);
     }
+    const expressionTarget = !jsxExpression && block.kind !== "event"
+      ? readTypeScriptStatementExpressionFlowTarget(task.node)
+      : undefined;
+    if (expressionTarget && !hasTypeScriptJsxLogic(expressionTarget.expression)) {
+      expressionFlowRequests.push({
+        anchorBlockId: block.id,
+        ...expressionTarget
+      });
+    }
     appendDirectBlock(directBlockIdsByContainer, task.containerId, block.id);
     scheduleControlChildren(
       sourceFile,
@@ -215,13 +231,27 @@ function buildFunctionLogic(
     rootContainerId
   });
   const baseBlocks = [entryBlock, ...visibleBlocks, exitBlock];
-  const jsxExpansion = expandTypeScriptJsxReturns({
+  const expressionExpansion = expandTypeScriptExpressionFlows({
     sourceFile,
     filePath: graphNode.filePath,
     blocks: baseBlocks,
     edges,
-    returnExpressions: jsxReturnExpressions,
+    requests: expressionFlowRequests,
     remainingBlockBudget: Math.max(0, maxBlocks - visibleBlocks.length)
+  });
+  if (expressionExpansion.omittedRegionCount > 0) {
+    gaps.push(createExpressionLimitGap(expressionExpansion.omittedRegionCount, maxBlocks));
+  }
+  const jsxExpansion = expandTypeScriptJsxReturns({
+    sourceFile,
+    filePath: graphNode.filePath,
+    blocks: expressionExpansion.blocks,
+    edges: expressionExpansion.edges,
+    returnExpressions: jsxReturnExpressions,
+    remainingBlockBudget: Math.max(
+      0,
+      maxBlocks - visibleBlocks.length - expressionExpansion.addedBlockCount
+    )
   });
   if (jsxExpansion.omittedBlockCount > 0) {
     gaps.push(createJsxLimitGap(jsxExpansion.omittedBlockCount, maxBlocks));
@@ -320,18 +350,38 @@ function finalizeSimpleExpressionAnalysis(
     && hasTypeScriptJsxLogic(functionNode.body)
     ? functionNode.body
     : undefined;
-  const expansion = expandTypeScriptJsxReturns({
+  const expressionTarget = !ts.isBlock(functionNode.body) && !jsxExpression
+    ? readTypeScriptExpressionBodyFlowTarget(functionNode.body)
+    : undefined;
+  const baseEdges = [
+    createFunctionLogicEdge(entry.id, expression.id, "next", undefined, "exact"),
+    createFunctionLogicEdge(expression.id, exit.id, "return", "return", "exact")
+  ];
+  const expressionExpansion = expandTypeScriptExpressionFlows({
     sourceFile,
     filePath: graphNode.filePath,
     blocks: [entry, expression, exit],
-    edges: [
-      createFunctionLogicEdge(entry.id, expression.id, "next", undefined, "exact"),
-      createFunctionLogicEdge(expression.id, exit.id, "return", "return", "exact")
-    ],
+    edges: baseEdges,
+    requests: expressionTarget
+      ? [{ anchorBlockId: expression.id, ...expressionTarget }]
+      : [],
+    remainingBlockBudget: Math.max(0, maxBlocks - 1)
+  });
+  if (expressionExpansion.omittedRegionCount > 0) {
+    gaps.push(createExpressionLimitGap(expressionExpansion.omittedRegionCount, maxBlocks));
+  }
+  const expansion = expandTypeScriptJsxReturns({
+    sourceFile,
+    filePath: graphNode.filePath,
+    blocks: expressionExpansion.blocks,
+    edges: expressionExpansion.edges,
     returnExpressions: jsxExpression
       ? new Map([[expression.id, jsxExpression]])
       : new Map(),
-    remainingBlockBudget: Math.max(0, maxBlocks - 1)
+    remainingBlockBudget: Math.max(
+      0,
+      maxBlocks - 1 - expressionExpansion.addedBlockCount
+    )
   });
   if (expansion.omittedBlockCount > 0) {
     gaps.push(createJsxLimitGap(expansion.omittedBlockCount, maxBlocks));
@@ -442,6 +492,17 @@ function createJsxLimitGap(omittedBlockCount: number, maxBlocks: number): Functi
   };
 }
 
+/** Reports whole omitted expression regions rather than emitting partial branches. */
+function createExpressionLimitGap(
+  omittedRegionCount: number,
+  maxBlocks: number
+): FunctionLogicGap {
+  return {
+    code: "parseLimited",
+    message: `${omittedRegionCount} ternary/short-circuit expression region(s) were omitted after the shared ${maxBlocks}-block reading limit.`
+  };
+}
+
 /** Counts only immediate calls; render and event-handler relations are separate. */
 function countDirectCallsites(callsites: FunctionLogicAnalysis["callsites"]): number {
   return callsites.filter((callsite) =>
@@ -472,7 +533,7 @@ function createDefaultGaps(): FunctionLogicGap[] {
   return [
     {
       code: "parseLimited",
-      message: "Non-JSX short-circuit expressions, optional chaining, and expression-level ternaries stay inside their containing statement."
+      message: "Optional chaining and nested branch expressions that are not the outer initializer, assignment, return, switch, or control condition stay inside their containing statement."
     },
     {
       code: "dynamicBehavior",
