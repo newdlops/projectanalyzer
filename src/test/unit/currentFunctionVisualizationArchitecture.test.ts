@@ -239,6 +239,7 @@ test("lexical value flow stays parser-adapted, bounded, iterative, and protocol-
   const projection = readSource(
     "src/analyzer/functionLogic/dataFlow/functionLogicDataFlow.ts"
   );
+  const valueTypes = readSource("src/analyzer/functionLogic/dataFlow/types.ts");
   const typescript = readSource(
     "src/analyzer/functionLogic/dataFlow/typescriptFunctionDataFlow.ts"
   );
@@ -262,10 +263,15 @@ test("lexical value flow stays parser-adapted, bounded, iterative, and protocol-
   assert.match(projection, /while \(cursor < pending\.length\)/u);
   assert.match(projection, /const bestDepthByBlockId = new Map/u);
   assert.match(projection, /findReachingDefinitionBlocks/u);
+  assert.match(projection, /targetUsage/u);
+  assert.match(valueTypes, /FunctionLogicValueUsageKind = "consume" \| "sink"/u);
   assert.match(typescript, /while \(pending\.length > 0\)/u);
   assert.match(typescript, /NodeFlags\.Const/u);
+  assert.match(typescript, /classifyIdentifierUsage/u);
+  assert.match(typescript, /isExternalAssignmentBoundary/u);
   assert.match(lezer, /collectPythonFunctionValueFacts/u);
   assert.match(lezer, /collectJavaFunctionValueFacts/u);
+  assert.match(lezer, /classifyLezerValueUsage/u);
   assert.match(lezer, /\bfinal\b/u);
   assert.match(sharedLezerPipeline, /collectValueFacts/u);
   assert.doesNotMatch(
@@ -274,11 +280,208 @@ test("lexical value flow stays parser-adapted, bounded, iterative, and protocol-
   );
   assert.match(protocol, /FunctionLogicValueBindingPayload/u);
   assert.match(protocol, /FunctionLogicValueFlowPayload/u);
+  assert.match(protocol, /FunctionLogicValueUsagePayloadKind/u);
   assert.match(renderer, /getFunctionLogicDataFlowBrowserSource/u);
   assert.match(browser, /createFunctionLogicValueFlowPath/u);
   assert.match(browser, /formatFunctionLogicBindingKind/u);
+  assert.match(browser, /formatFunctionLogicValueUsage/u);
+  assert.match(browser, /logic-data-flow-sink-arrow/u);
   assert.match(compound, /createCompoundBindingId/u);
   assert.match(compound, /createCompoundValueFlowId/u);
+});
+
+test("Function Logic keeps a large graph surface and modular adjacent inspector drawer", () => {
+  const renderer = readSource("src/webview/codeFlow/functionLogicBrowserSource.ts");
+  const inspector = readSource(
+    "src/webview/codeFlow/inspector/functionLogicInspectorBrowserSource.ts"
+  );
+  const inspectorStyles = readSource(
+    "src/webview/codeFlow/inspector/functionLogicInspectorStyles.ts"
+  );
+  const visualizerStyles = readSource(
+    "src/webview/functionVisualizer/functionVisualizerStyles.ts"
+  );
+
+  assert.match(renderer, /getFunctionLogicInspectorBrowserSource/u);
+  assert.match(renderer, /inspector\.attachViewport\(viewport\)/u);
+  assert.match(renderer, /inspector\.appendSections\(/u);
+  assert.match(renderer, /valueFlowRendering\?\.valuePreviewEditor/u);
+  assert.match(renderer, /valueFlowRendering\?\.scenarioTrace/u);
+  assert.match(renderer, /valueFlowRendering\?\.toolbar/u);
+  assert.match(inspector, /functionLogicInspectorSessionKey/u);
+  assert.match(inspector, /drawer\.inert = !functionLogicInspectorOpen/u);
+  assert.match(inspector, /event\.key !== "Escape"/u);
+  assert.match(inspector, /aria-expanded/u);
+  assert.match(inspector, /functionLogicInspectorOpen = Boolean\(defaultOpen\)/u);
+  assert.match(inspectorStyles, /display: grid/u);
+  assert.match(inspectorStyles, /grid-template-columns: minmax\(0, 1fr\) 0/u);
+  assert.match(inspectorStyles, /--logic-workspace-height: clamp\(340px, 70vh, 780px\)/u);
+  assert.match(inspectorStyles, /height: var\(--logic-workspace-height\)/u);
+  assert.match(inspectorStyles, /overflow-y: auto/u);
+  assert.match(inspectorStyles, /scrollbar-gutter: stable/u);
+  assert.match(inspectorStyles, /clamp\(280px, 32vw, 390px\)/u);
+  assert.match(inspectorStyles, /\.logic-graph-workspace\.inspector-open/u);
+  assert.doesNotMatch(inspectorStyles, /position: absolute|logic-inspector-backdrop/u);
+  assert.doesNotMatch(inspector, /backdrop/u);
+  assert.match(visualizerStyles, /\.visualizer-shell \{[\s\S]*?width: 100%/u);
+  assert.match(visualizerStyles, /clamp\(300px, 31vw, 430px\)/u);
+  assert.match(visualizerStyles, /--logic-workspace-height: clamp\(460px, 76vh, 1080px\)/u);
+  assert.doesNotMatch(
+    [inspector, inspectorStyles].join("\n"),
+    /from ".*(?:analyzer|application|protocol|vscode|extension)/u
+  );
+});
+
+test("Function Logic viewport owns free pan, focal zoom, Center, and Fit", () => {
+  const geometry = readSource(
+    "src/webview/codeFlow/viewport/functionLogicViewportGeometry.ts"
+  );
+  const browser = readSource(
+    "src/webview/codeFlow/viewport/functionLogicViewportBrowserSource.ts"
+  );
+  const styles = readSource(
+    "src/webview/codeFlow/viewport/functionLogicViewportStyles.ts"
+  );
+  const renderer = readSource("src/webview/codeFlow/functionLogicBrowserSource.ts");
+  const visualizer = readSource(
+    "src/webview/functionVisualizer/functionVisualizerBrowserSource.ts"
+  );
+
+  assert.match(geometry, /FUNCTION_LOGIC_MAX_PAN = 10_000_000/u);
+  assert.match(geometry, /createFunctionLogicFocalZoom/u);
+  assert.match(geometry, /createFitFunctionLogicViewportTransform/u);
+  assert.match(geometry, /resizeFunctionLogicViewportTransform/u);
+  assert.match(browser, /addEventListener\("pointerdown", handlePointerDown\)/u);
+  assert.match(browser, /addEventListener\("wheel", handleWheel, \{ passive: false \}\)/u);
+  assert.match(browser, /translate3d\(/u);
+  assert.match(browser, /"Center", "Center function graph \(C\)"/u);
+  assert.match(browser, /"Fit", "Fit complete function graph \(F\)"/u);
+  assert.match(browser, /aria-keyshortcuts/u);
+  assert.match(styles, /overflow: hidden/u);
+  assert.match(styles, /touch-action: none/u);
+  assert.match(styles, /cursor: grab/u);
+  assert.match(renderer, /createFunctionLogicViewportController/u);
+  assert.match(renderer, /graphRendering\.activateViewport\(\)/u);
+  assert.match(visualizer, /viewportController\.getTransform\(\)/u);
+  assert.match(visualizer, /viewportController\.setTransform/u);
+  assert.doesNotMatch(
+    [geometry, browser, styles].join("\n"),
+    /from ".*(?:analyzer|application|protocol|vscode|extension)/u
+  );
+});
+
+test("Function Logic typography follows VS Code UI and editor settings", () => {
+  const typography = readSource(
+    "src/webview/codeFlow/typography/functionLogicTypographyStyles.ts"
+  );
+  const styles = [
+    "src/webview/codeFlow/functionLogicGraphStyles.ts",
+    "src/webview/codeFlow/dataFlow/functionLogicDataFlowStyles.ts",
+    "src/webview/codeFlow/branchChoices/functionLogicBranchChoiceStyles.ts",
+    "src/webview/codeFlow/functionLogicCompoundGroupStyles.ts",
+    "src/webview/codeFlow/inspector/functionLogicInspectorStyles.ts",
+    "src/webview/codeFlow/valuePreview/functionLogicValuePreviewStyles.ts",
+    "src/webview/codeFlow/valuePreview/functionLogicScenarioTraceStyles.ts",
+    "src/webview/codeFlow/viewport/functionLogicViewportStyles.ts",
+    "src/webview/functionVisualizer/functionVisualizerStyles.ts"
+  ].map(readSource).join("\n");
+
+  assert.match(typography, /--vscode-font-size/u);
+  assert.match(typography, /--vscode-editor-font-size/u);
+  assert.match(typography, /--vscode-font-family/u);
+  assert.match(typography, /--vscode-editor-font-family/u);
+  assert.doesNotMatch(styles, /font-size:\s*\d+px/u);
+});
+
+test("Scenario values stay bounded, calculated, traceable, session-scoped, and browser-only", () => {
+  const renderer = readSource("src/webview/codeFlow/functionLogicBrowserSource.ts");
+  const dataFlow = readSource(
+    "src/webview/codeFlow/dataFlow/functionLogicDataFlowBrowserSource.ts"
+  );
+  const preview = readSource(
+    "src/webview/codeFlow/valuePreview/functionLogicValuePreviewBrowserSource.ts"
+  );
+  const trace = readSource(
+    "src/webview/codeFlow/valuePreview/functionLogicScenarioTraceBrowserSource.ts"
+  );
+  const evaluator = readSource(
+    "src/webview/codeFlow/valuePreview/functionLogicScenarioEvaluatorBrowserSource.ts"
+  );
+  const expression = readSource(
+    "src/webview/codeFlow/valuePreview/functionLogicScenarioExpressionBrowserSource.ts"
+  );
+
+  assert.match(renderer, /getFunctionLogicValuePreviewBrowserSource/u);
+  assert.match(renderer, /getFunctionLogicScenarioEvaluatorBrowserSource/u);
+  assert.match(renderer, /getFunctionLogicScenarioTraceBrowserSource/u);
+  assert.match(dataFlow, /createFunctionLogicValuePreviewEditor/u);
+  assert.match(dataFlow, /createFunctionLogicValuePreviewLabel/u);
+  assert.match(preview, /MAX_LOGIC_VALUE_PREVIEW_LENGTH = 240/u);
+  assert.match(preview, /MAX_LOGIC_VALUE_PREVIEW_ROWS = 120/u);
+  assert.match(preview, /functionLogicValuePreviewSessionKey/u);
+  assert.match(preview, /readFunctionLogicValuePreview/u);
+  assert.match(preview, /addEventListener\("input"/u);
+  assert.match(preview, /onBindingSelect\(binding\.id\)/u);
+  assert.match(preview, /aria-pressed/u);
+  assert.match(dataFlow, /selectBinding\(bindingId, false\)/u);
+  assert.match(dataFlow, /valuePreviewRendering\.setSelectedBinding/u);
+  assert.match(dataFlow, /scenarioTraceRendering\.setSelectedBinding/u);
+  assert.match(preview, /label\.textContent = value/u);
+  assert.match(trace, /MAX_LOGIC_SCENARIO_TRACE_STEPS = 80/u);
+  assert.match(trace, /formatFunctionLogicScenarioRole/u);
+  assert.match(trace, /calculateFunctionLogicScenario/u);
+  assert.match(trace, /formatFunctionLogicScenarioCalculationRole/u);
+  assert.match(trace, /rows\.replaceChildren\(\)/u);
+  assert.match(evaluator, /MAX_LOGIC_SCENARIO_WORK_ITEMS = 1200/u);
+  assert.match(evaluator, /JSON\.parse/u);
+  assert.match(evaluator, /getFunctionLogicScenarioExpressionBrowserSource/u);
+  assert.match(expression, /createFunctionLogicScenarioRpn/u);
+  assert.match(expression, /applyFunctionLogicScenarioTernary/u);
+  assert.match(evaluator, /mergeFunctionLogicScenarioEnvironments/u);
+  assert.match(evaluator, /choice-dimmed/u);
+  assert.doesNotMatch(
+    [preview, evaluator, expression, trace].join("\n"),
+    /vscode\.postMessage|\beval\(|new Function/u
+  );
+  assert.doesNotMatch(
+    [preview, evaluator, expression, trace].join("\n"),
+    /from ".*(?:analyzer|application|protocol|vscode|extension)/u
+  );
+});
+
+test("JSX component values stay parser-owned, bounded, and visible through value flow", () => {
+  const jsxValueFlow = readSource(
+    "src/analyzer/functionLogic/jsx/typescriptJsxValueFlow.ts"
+  );
+  const analyzer = readSource(
+    "src/analyzer/functionLogic/typescriptFunctionLogicAnalyzer.ts"
+  );
+  const collector = readSource(
+    "src/analyzer/functionLogic/dataFlow/typescriptFunctionDataFlow.ts"
+  );
+  const protocol = readSource("src/protocol/functionLogic.ts");
+  const projector = readSource(
+    "src/application/codeFlow/codeFlowFunctionLogicProjection.ts"
+  );
+  const browser = readSource(
+    "src/webview/codeFlow/dataFlow/functionLogicDataFlowBrowserSource.ts"
+  );
+
+  assert.match(jsxValueFlow, /planTypeScriptJsxStatementValueFlow/u);
+  assert.match(jsxValueFlow, /expandTypeScriptJsxValueFlows/u);
+  assert.match(jsxValueFlow, /"JSX component collection"/u);
+  assert.match(jsxValueFlow, /for \(const anchor of input\.blocks\)/u);
+  assert.match(analyzer, /jsxValueRequests/u);
+  assert.match(collector, /propagateComponentValueRoles/u);
+  assert.match(collector, /remainingPasses = candidates\.length/u);
+  assert.match(protocol, /FunctionLogicValuePayloadRole = "component"/u);
+  assert.match(projector, /access\.valueRole/u);
+  assert.match(projector, /binding\.valueRole/u);
+  assert.match(browser, /valueRole === "component"/u);
+  assert.doesNotMatch(
+    jsxValueFlow,
+    /from ".*(?:application|protocol|webview|vscode|extension)/u
+  );
 });
 
 test("child functions use bounded iterative attachment on one shared graph canvas", () => {

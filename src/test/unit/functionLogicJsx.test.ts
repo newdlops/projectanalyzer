@@ -1,7 +1,7 @@
 /**
  * JSX/TSX Function Logic regression tests. They cover custom component drill
- * targets, nested render choices, callback boundaries, React wrappers, and
- * React language IDs.
+ * targets, first-class component values, nested render choices, callback
+ * boundaries, React wrappers, and React language IDs.
  */
 
 import assert from "node:assert/strict";
@@ -165,6 +165,77 @@ test("models concise JSX map callbacks as inferred repeated render flow", async 
       && flow.targetBlockId === renderedCard.id
       && flow.confidence === "inferred"
   ));
+});
+
+test("tracks JSX collections and selected elements as first-class component values", async () => {
+  const symbols = await extractFixtureSymbols();
+  const component = findSymbol(symbols, "ComponentValueShelf");
+  const analysis = analyzeFunctionLogic({ functionNode: component, sourceText: fixtureSource });
+  const renderedComponents = analysis.blocks.filter((block) =>
+    ["render <Badge>", "render <ReadyState>", "render <EmptyState>"].includes(block.label)
+  );
+  const componentValues = analysis.valueBindings?.find((binding) =>
+    binding.name === "componentValues"
+  );
+  const selectedComponent = analysis.valueBindings?.find((binding) =>
+    binding.name === "selectedComponent"
+  );
+
+  assert.equal(renderedComponents.length, 3);
+  assert.deepEqual(renderedComponents.map((block) => block.label), [
+    "render <Badge>",
+    "render <ReadyState>",
+    "render <EmptyState>"
+  ]);
+  assert.ok(componentValues && selectedComponent);
+  assert.deepEqual(
+    [componentValues.kind, componentValues.valueRole, selectedComponent.valueRole],
+    ["constant", "component", "component"]
+  );
+  const collectionStore = analysis.blocks.find((block) =>
+    block.id === componentValues.definitionBlockId
+  );
+  const selectedStore = analysis.blocks.find((block) =>
+    block.id === selectedComponent.definitionBlockId
+  );
+  const returnedSelection = analysis.blocks.find((block) =>
+    block.valueAccesses?.some((access) =>
+      access.bindingId === selectedComponent.id && access.access === "read"
+    )
+  );
+  assert.ok(collectionStore && selectedStore && returnedSelection);
+  assert.equal(collectionStore.label, "store JSX component collection in componentValues");
+  assert.match(collectionStore.detail, /first-class jsx component collection/u);
+  assert.ok(selectedStore.valueAccesses?.some((access) =>
+    access.bindingId === componentValues.id
+      && access.access === "read"
+      && access.valueRole === "component"
+  ));
+  assert.ok(analysis.valueFlows?.some((flow) =>
+    flow.bindingId === componentValues.id
+      && flow.sourceBlockId === collectionStore.id
+      && flow.targetBlockId === selectedStore.id
+  ));
+  assert.ok(analysis.valueFlows?.some((flow) =>
+    flow.bindingId === selectedComponent.id
+      && flow.sourceBlockId === selectedStore.id
+      && flow.targetBlockId === returnedSelection.id
+  ));
+  assert.deepEqual(
+    analysis.callsites.filter((callsite) => callsite.relation === "render")
+      .map((callsite) => callsite.calleeText),
+    ["Badge", "ReadyState", "EmptyState"]
+  );
+
+  const projection = createFunctionLogicDrillTargets(
+    createFixtureGraph(symbols),
+    component,
+    analysis,
+    createSourceToken
+  );
+  assert.deepEqual(renderedComponents.map((block) =>
+    projection.targetsByBlockId.get(block.id)?.[0]?.name
+  ), ["Badge", "ReadyState", "EmptyState"]);
 });
 
 test("preserves nested ternary ownership inside JSX render flow", async () => {

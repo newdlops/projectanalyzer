@@ -48,6 +48,16 @@ export function CardList({ items }: { items: Array<CardProps["item"] & { ready: 
   );
 }
 
+export function ComponentValueShelf({ item, ready }: CardProps) {
+  const componentValues = [
+    <Badge key="badge" label={item.label} />,
+    <ReadyState key="ready" />,
+    <EmptyState key="empty" />
+  ];
+  const selectedComponent = componentValues[ready ? 0 : 2];
+  return selectedComponent;
+}
+
 export function handleNamedClick(): void {
   trackSelection("named");
 }

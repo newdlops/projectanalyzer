@@ -26,8 +26,11 @@ import {
   type TypeScriptExpressionFlowRequest
 } from "./expressions";
 import {
-  analyzeTypeScriptJsxLogic,
-  hasTypeScriptJsxLogic
+  createTypeScriptJsxValueFlowRequest,
+  expandTypeScriptJsxValueFlows,
+  hasTypeScriptJsxLogic,
+  planTypeScriptJsxStatementValueFlow,
+  type TypeScriptJsxValueFlowRequest
 } from "./jsx";
 import {
   scheduleControlChildren
@@ -59,6 +62,11 @@ import {
   createFunctionLogicDataFlowProjection,
   type FunctionLogicDataFlowProjection
 } from "./dataFlow";
+import {
+  discoverTypeScriptEmbeddedCode,
+  expandTypeScriptEmbeddedCode,
+  type TypeScriptEmbeddedCodeRequest
+} from "./embeddedCode";
 
 /** Analyzes one selected callable against its current source snapshot. */
 export function analyzeFunctionLogic(input: FunctionLogicAnalysisInput): FunctionLogicAnalysis {
@@ -118,8 +126,10 @@ function buildFunctionLogic(
   const blocksById = new Map<string, InternalBlock>();
   const controlsByBlockId = new Map<string, ControlRecord>();
   const visibleBlocks: InternalBlock[] = [];
-  const jsxReturnExpressions = new Map<string, ts.Expression>();
+  const jsxValueRequests: TypeScriptJsxValueFlowRequest[] = [];
   const expressionFlowRequests: TypeScriptExpressionFlowRequest[] = [];
+  const embeddedCodeRequests: TypeScriptEmbeddedCodeRequest[] = [];
+  let dynamicEmbeddedConsumerCount = 0;
   const gaps = createDefaultGaps();
   const callsites = collectFunctionCallsites(sourceFile, graphNode.filePath, functionNode);
   const bodyRange = toSourceRange(sourceFile, functionNode.body);
@@ -171,26 +181,32 @@ function buildFunctionLogic(
       continue;
     }
 
-    const jsxExpression = ts.isReturnStatement(task.node)
-      && task.node.expression
-      && hasTypeScriptJsxLogic(task.node.expression)
-      ? task.node.expression
-      : undefined;
     const statementBlock = classifyStatement(sourceFile, graphNode.filePath, task);
-    const classified = jsxExpression
-      ? specializeJsxReturnBlock(statementBlock, graphNode.filePath)
-      : statementBlock;
+    const jsxValuePlan = planTypeScriptJsxStatementValueFlow(
+      sourceFile,
+      graphNode.filePath,
+      task.node,
+      statementBlock
+    );
     const block: InternalBlock = {
-      ...classified,
+      ...jsxValuePlan.block,
       parentBlockId: containers.get(task.containerId)?.ownerBlockId,
       containerId: task.containerId
     };
     visibleBlocks.push(block);
     blocksById.set(block.id, block);
-    if (jsxExpression) {
-      jsxReturnExpressions.set(block.id, jsxExpression);
+    if (jsxValuePlan.request) {
+      jsxValueRequests.push(jsxValuePlan.request);
     }
-    const expressionTarget = !jsxExpression && block.kind !== "event"
+    const embeddedDiscovery = discoverTypeScriptEmbeddedCode({
+      sourceFile,
+      scriptKind: getScriptKind(graphNode.filePath, graphNode.language),
+      anchorBlockId: block.id,
+      root: task.node
+    });
+    embeddedCodeRequests.push(...embeddedDiscovery.requests);
+    dynamicEmbeddedConsumerCount += embeddedDiscovery.dynamicConsumerCount;
+    const expressionTarget = !jsxValuePlan.request && block.kind !== "event"
       ? readTypeScriptStatementExpressionFlowTarget(task.node)
       : undefined;
     if (expressionTarget && !hasTypeScriptJsxLogic(expressionTarget.expression)) {
@@ -247,12 +263,12 @@ function buildFunctionLogic(
   if (expressionExpansion.omittedRegionCount > 0) {
     gaps.push(createExpressionLimitGap(expressionExpansion.omittedRegionCount, maxBlocks));
   }
-  const jsxExpansion = expandTypeScriptJsxReturns({
+  const jsxExpansion = expandTypeScriptJsxValueFlows({
     sourceFile,
     filePath: graphNode.filePath,
     blocks: expressionExpansion.blocks,
     edges: expressionExpansion.edges,
-    returnExpressions: jsxReturnExpressions,
+    requests: jsxValueRequests,
     remainingBlockBudget: Math.max(
       0,
       maxBlocks - visibleBlocks.length - expressionExpansion.addedBlockCount
@@ -261,25 +277,40 @@ function buildFunctionLogic(
   if (jsxExpansion.omittedBlockCount > 0) {
     gaps.push(createJsxLimitGap(jsxExpansion.omittedBlockCount, maxBlocks));
   }
+  const embeddedExpansion = expandTypeScriptEmbeddedCode({
+    sourceFile,
+    scriptKind: getScriptKind(graphNode.filePath, graphNode.language),
+    filePath: graphNode.filePath,
+    blocks: jsxExpansion.blocks,
+    edges: jsxExpansion.edges,
+    requests: embeddedCodeRequests,
+    dynamicConsumerCount: dynamicEmbeddedConsumerCount,
+    remainingBlockBudget: Math.max(
+      0,
+      maxBlocks - Math.max(0, jsxExpansion.blocks.length - 2)
+    )
+  });
+  gaps.push(...embeddedExpansion.gaps);
   const dataFlow = createTypeScriptDataFlow(
     sourceFile,
     functionNode,
-    jsxExpansion.blocks,
-    jsxExpansion.edges,
+    embeddedExpansion.blocks,
+    embeddedExpansion.edges,
     gaps
   );
+  const combinedCallsites = [...callsites, ...embeddedExpansion.callsites];
 
   return {
     functionNode: graphNode,
     language: getSupportedLanguage(graphNode),
     signature: createFunctionSignature(sourceFile, functionNode),
     blocks: dataFlow.blocks,
-    edges: jsxExpansion.edges,
-    callsites,
-    valueBindings: dataFlow.valueBindings,
-    valueFlows: dataFlow.valueFlows,
+    edges: embeddedExpansion.edges,
+    callsites: combinedCallsites,
+    valueBindings: [...dataFlow.valueBindings, ...embeddedExpansion.valueBindings],
+    valueFlows: [...dataFlow.valueFlows, ...embeddedExpansion.valueFlows],
     gaps,
-    summary: createSummary(dataFlow.blocks, countDirectCallsites(callsites))
+    summary: createSummary(dataFlow.blocks, countDirectCallsites(combinedCallsites))
   };
 }
 
@@ -384,14 +415,14 @@ function finalizeSimpleExpressionAnalysis(
   if (expressionExpansion.omittedRegionCount > 0) {
     gaps.push(createExpressionLimitGap(expressionExpansion.omittedRegionCount, maxBlocks));
   }
-  const expansion = expandTypeScriptJsxReturns({
+  const expansion = expandTypeScriptJsxValueFlows({
     sourceFile,
     filePath: graphNode.filePath,
     blocks: expressionExpansion.blocks,
     edges: expressionExpansion.edges,
-    returnExpressions: jsxExpression
-      ? new Map([[expression.id, jsxExpression]])
-      : new Map(),
+    requests: jsxExpression
+      ? [createTypeScriptJsxValueFlowRequest(expression.id, jsxExpression)]
+      : [],
     remainingBlockBudget: Math.max(
       0,
       maxBlocks - 1 - expressionExpansion.addedBlockCount
@@ -400,24 +431,45 @@ function finalizeSimpleExpressionAnalysis(
   if (expansion.omittedBlockCount > 0) {
     gaps.push(createJsxLimitGap(expansion.omittedBlockCount, maxBlocks));
   }
+  const embeddedDiscovery = discoverTypeScriptEmbeddedCode({
+    sourceFile,
+    scriptKind: getScriptKind(graphNode.filePath, graphNode.language),
+    anchorBlockId: expression.id,
+    root: functionNode.body
+  });
+  const embeddedExpansion = expandTypeScriptEmbeddedCode({
+    sourceFile,
+    scriptKind: getScriptKind(graphNode.filePath, graphNode.language),
+    filePath: graphNode.filePath,
+    blocks: expansion.blocks,
+    edges: expansion.edges,
+    requests: embeddedDiscovery.requests,
+    dynamicConsumerCount: embeddedDiscovery.dynamicConsumerCount,
+    remainingBlockBudget: Math.max(
+      0,
+      maxBlocks - Math.max(0, expansion.blocks.length - 2)
+    )
+  });
+  gaps.push(...embeddedExpansion.gaps);
   const dataFlow = createTypeScriptDataFlow(
     sourceFile,
     functionNode,
-    expansion.blocks,
-    expansion.edges,
+    embeddedExpansion.blocks,
+    embeddedExpansion.edges,
     gaps
   );
+  const combinedCallsites = [...callsites, ...embeddedExpansion.callsites];
   return {
     functionNode: graphNode,
     language: getSupportedLanguage(graphNode),
     signature: createFunctionSignature(sourceFile, functionNode),
     blocks: dataFlow.blocks,
-    edges: expansion.edges,
-    callsites,
-    valueBindings: dataFlow.valueBindings,
-    valueFlows: dataFlow.valueFlows,
+    edges: embeddedExpansion.edges,
+    callsites: combinedCallsites,
+    valueBindings: [...dataFlow.valueBindings, ...embeddedExpansion.valueBindings],
+    valueFlows: [...dataFlow.valueFlows, ...embeddedExpansion.valueFlows],
     gaps,
-    summary: createSummary(dataFlow.blocks, countDirectCallsites(callsites))
+    summary: createSummary(dataFlow.blocks, countDirectCallsites(combinedCallsites))
   };
 }
 
@@ -442,92 +494,6 @@ function createTypeScriptDataFlow(
     });
   }
   return projection;
-}
-
-/** Gives an expanded JSX return a compact terminal node instead of duplicate markup. */
-function specializeJsxReturnBlock(
-  block: FunctionLogicBlock,
-  filePath: string
-): FunctionLogicBlock {
-  const label = "return JSX output";
-  return {
-    ...block,
-    id: createBlockId(filePath, "return", block.range, label),
-    label,
-    detail: "Returns the JSX output assembled by the preceding render steps."
-  };
-}
-
-type JsxReturnExpansionInput = {
-  sourceFile: ts.SourceFile;
-  filePath: string;
-  blocks: FunctionLogicBlock[];
-  edges: FunctionLogicEdge[];
-  returnExpressions: ReadonlyMap<string, ts.Expression>;
-  remainingBlockBudget: number;
-};
-
-/** Splices bounded JSX fragments before their existing terminal return blocks. */
-function expandTypeScriptJsxReturns(input: JsxReturnExpansionInput): {
-  blocks: FunctionLogicBlock[];
-  edges: FunctionLogicEdge[];
-  omittedBlockCount: number;
-} {
-  const blocks: FunctionLogicBlock[] = [];
-  let edges = [...input.edges];
-  let remainingBlockBudget = input.remainingBlockBudget;
-  let omittedBlockCount = 0;
-
-  for (const returnBlock of input.blocks) {
-    const expression = input.returnExpressions.get(returnBlock.id);
-    if (!expression) {
-      blocks.push(returnBlock);
-      continue;
-    }
-    const expansion = analyzeTypeScriptJsxLogic({
-      sourceFile: input.sourceFile,
-      filePath: input.filePath,
-      expression,
-      baseDepth: returnBlock.depth,
-      maxBlocks: remainingBlockBudget
-    });
-    omittedBlockCount += expansion.omittedBlockCount;
-    remainingBlockBudget = Math.max(0, remainingBlockBudget - expansion.blocks.length);
-    const entryBlockId = expansion.entryBlockId;
-    if (!entryBlockId) {
-      blocks.push(returnBlock);
-      continue;
-    }
-
-    edges = edges.map((edge) => edge.targetId === returnBlock.id
-      ? createFunctionLogicEdge(
-          edge.sourceId,
-          entryBlockId,
-          edge.kind,
-          edge.label,
-          edge.confidence
-        )
-      : edge
-    );
-    edges.push(...expansion.edges);
-    for (const exit of expansion.exits) {
-      edges.push(createFunctionLogicEdge(
-        exit.sourceId,
-        returnBlock.id,
-        exit.kind,
-        exit.label ?? (exit.kind === "next" ? "return JSX" : undefined),
-        exit.confidence
-      ));
-    }
-    blocks.push(...expansion.blocks.map((block) => ({
-      ...block,
-      parentBlockId: block.parentBlockId ?? returnBlock.parentBlockId,
-      branchLabel: block.branchLabel ?? returnBlock.branchLabel
-    })));
-    blocks.push(returnBlock);
-  }
-
-  return { blocks, edges, omittedBlockCount };
 }
 
 /** Reports shared statement/render truncation without implying an exact total. */
@@ -583,7 +549,7 @@ function createDefaultGaps(): FunctionLogicGap[] {
     },
     {
       code: "dynamicBehavior",
-      message: "Exceptions, component scheduling, event dispatch, dynamic calls, and runtime data values are not observed."
+      message: "Exceptions, component scheduling, event dispatch, dynamic calls, runtime-built code text, and runtime data values are not observed. Statically complete code literals are parsed without execution."
     }
   ];
 }

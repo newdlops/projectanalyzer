@@ -9,3 +9,12 @@ export type {
   TypeScriptJsxLogicExpansion,
   TypeScriptJsxLogicInput
 } from "./typescriptJsxLogic";
+export {
+  createTypeScriptJsxValueFlowRequest,
+  expandTypeScriptJsxValueFlows,
+  planTypeScriptJsxStatementValueFlow
+} from "./typescriptJsxValueFlow";
+export type {
+  TypeScriptJsxStatementValuePlan,
+  TypeScriptJsxValueFlowRequest
+} from "./typescriptJsxValueFlow";
