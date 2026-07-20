@@ -142,7 +142,9 @@ test("language logic adapters keep parser-specific semantics behind pure boundar
   assert.match(events, /readTypeScriptEventBinding/u);
   assert.match(expressionPlanner, /while \(pending\.length > 0/u);
   assert.match(expressionPlanner, /QuestionQuestionToken/u);
+  assert.match(expressionPlanner, /nestConditionalBranch/u);
   assert.match(expressionExpansion, /replaceBooleanControlAnchor/u);
+  assert.match(expressionExpansion, /parentBlockId: block\.parentBlockId/u);
   assert.match(expressionExpansion, /remainingBlockBudget/u);
   assert.match(rustSupplement, /addSupplementalLanguages/u);
   assert.match(rustSupplement, /"fsharp"[\s\S]*"ocaml"[\s\S]*"elixir"/u);

@@ -55,3 +55,23 @@ export function handleNamedClick(): void {
 export const NamedHandlerCard = () => (
   <button onClick={handleNamedClick}>Named</button>
 );
+
+export const NestedTernaryCard = ({
+  primary,
+  secondary,
+  cached
+}: {
+  primary: boolean;
+  secondary: boolean;
+  cached: boolean;
+}) => (
+  <section>
+    {primary
+      ? secondary
+        ? <strong>Primary</strong>
+        : <em>Secondary</em>
+      : cached
+        ? <small>Cached</small>
+        : <mark>Fallback</mark>}
+  </section>
+);

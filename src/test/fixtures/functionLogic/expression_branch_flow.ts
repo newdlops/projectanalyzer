@@ -4,6 +4,8 @@
  */
 
 declare function loadPrimary(): string;
+declare function loadSecondary(): string;
+declare function loadCached(): string;
 declare function loadFallback(): string;
 declare function accept(value: string): string;
 declare function reject(): string;
@@ -20,6 +22,20 @@ declare function consume(value: string): void;
 export function chooseDelivery(ready: boolean, cached?: string): string {
   const selected = ready ? loadPrimary() : cached ?? loadFallback();
   return selected && selected.length > 2 ? accept(selected) : reject();
+}
+
+export function chooseNestedDelivery(
+  primary: boolean,
+  secondary: boolean,
+  cached: boolean
+): string {
+  return primary
+    ? secondary
+      ? loadPrimary()
+      : loadSecondary()
+    : cached
+      ? loadCached()
+      : loadFallback();
 }
 
 export function authorizeWorkspace(

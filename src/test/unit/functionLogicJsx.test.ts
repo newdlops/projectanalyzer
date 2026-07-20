@@ -1,7 +1,7 @@
 /**
  * JSX/TSX Function Logic regression tests. They cover custom component drill
- * targets, render-flow blocks, callback boundaries, React wrappers, and React
- * language IDs.
+ * targets, nested render choices, callback boundaries, React wrappers, and
+ * React language IDs.
  */
 
 import assert from "node:assert/strict";
@@ -145,6 +145,38 @@ test("models concise JSX map callbacks as inferred repeated render flow", async 
   assert.equal(target.relation, "render");
   assert.equal(target.confidence, "inferred");
   assert.equal(projection.targetsByBlockId.get(renderedCard.id)?.[0]?.name, "RenderCard");
+});
+
+test("preserves nested ternary ownership inside JSX render flow", async () => {
+  const symbols = await extractFixtureSymbols();
+  const component = findSymbol(symbols, "NestedTernaryCard");
+  const analysis = analyzeFunctionLogic({ functionNode: component, sourceText: fixtureSource });
+  const primary = findLogicBlock(analysis, "render if primary");
+  const secondary = findLogicBlock(analysis, "render if secondary");
+  const cached = findLogicBlock(analysis, "render if cached");
+  const primaryView = findLogicBlock(analysis, "render <strong>");
+  const secondaryView = findLogicBlock(analysis, "render <em>");
+  const cachedView = findLogicBlock(analysis, "render <small>");
+  const fallbackView = findLogicBlock(analysis, "render <mark>");
+
+  assertJsxEdge(analysis, primary.id, secondary.id, "true");
+  assertJsxEdge(analysis, primary.id, cached.id, "false");
+  assertJsxEdge(analysis, secondary.id, primaryView.id, "true");
+  assertJsxEdge(analysis, secondary.id, secondaryView.id, "false");
+  assertJsxEdge(analysis, cached.id, cachedView.id, "true");
+  assertJsxEdge(analysis, cached.id, fallbackView.id, "false");
+
+  assert.equal(secondary.parentBlockId, primary.id);
+  assert.equal(secondary.branchLabel, "true");
+  assert.equal(cached.parentBlockId, primary.id);
+  assert.equal(cached.branchLabel, "false");
+  assert.equal(primaryView.parentBlockId, secondary.id);
+  assert.equal(secondaryView.parentBlockId, secondary.id);
+  assert.equal(cachedView.parentBlockId, cached.id);
+  assert.equal(fallbackView.parentBlockId, cached.id);
+  assert.equal(secondary.depth, primary.depth + 1);
+  assert.equal(primaryView.depth, secondary.depth + 1);
+  assert.equal(analysis.summary.branchCount, 3);
 });
 
 test("shares the configured block budget between statements and JSX render regions", async () => {
@@ -344,6 +376,13 @@ function findSymbol(symbols: SymbolNode[], name: string): SymbolNode {
   return symbol;
 }
 
+/** Finds one unique JSX flow block by its complete presentation label. */
+function findLogicBlock(analysis: FunctionLogicAnalysis, label: string) {
+  const block = analysis.blocks.find((candidate) => candidate.label === label);
+  assert.ok(block, `missing JSX logic block: ${label}`);
+  return block;
+}
+
 /** Creates the smallest project graph needed for syntax-backed drill fallback. */
 function createFixtureGraph(nodes: SymbolNode[]): ProjectGraph {
   return {
@@ -377,4 +416,18 @@ function assertEdgeKindsFrom(
     analysis.edges.filter((edge) => edge.sourceId === sourceId).map((edge) => edge.kind).sort(),
     [...expectedKinds].sort()
   );
+}
+
+/** Asserts one exact nested JSX branch transfer. */
+function assertJsxEdge(
+  analysis: FunctionLogicAnalysis,
+  sourceId: string,
+  targetId: string,
+  kind: string
+): void {
+  assert.ok(analysis.edges.some((edge) =>
+    edge.sourceId === sourceId
+      && edge.targetId === targetId
+      && edge.kind === kind
+  ), `missing JSX ${kind} edge ${sourceId} -> ${targetId}`);
 }

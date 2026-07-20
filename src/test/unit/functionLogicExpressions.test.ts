@@ -1,7 +1,7 @@
 /**
  * TypeScript/JavaScript expression-flow regression tests. They verify ternary
- * merge paths, boolean short-circuit routing, nullish fallback, loop identity,
- * concise arrows, source evidence, and bounded whole-region omission.
+ * merge paths and nested ownership, boolean short-circuit routing, nullish
+ * fallback, loop identity, source evidence, and bounded whole-region omission.
  */
 
 import assert from "node:assert/strict";
@@ -61,6 +61,56 @@ test("expands ternary and nullish value choices before assignment and return", (
     "accept",
     "reject"
   ]);
+});
+
+test("retains then/else ownership through ternaries nested in both arms", () => {
+  const analysis = analyzeFixtureFunction("chooseNestedDelivery");
+  const bounded = analyzeFixtureFunction("chooseNestedDelivery", 4);
+  const primary = findBlock(analysis, "check primary");
+  const secondary = findBlock(analysis, "check secondary");
+  const cached = findBlock(analysis, "check cached");
+  const primaryValue = findBlock(analysis, "evaluate loadPrimary()");
+  const secondaryValue = findBlock(analysis, "evaluate loadSecondary()");
+  const cachedValue = findBlock(analysis, "evaluate loadCached()");
+  const fallbackValue = findBlock(analysis, "evaluate loadFallback()");
+  const terminalReturn = analysis.blocks.find((block) =>
+    block.kind === "return" && block.label.includes("return primary")
+  );
+
+  assert.ok(terminalReturn);
+  assertEdge(analysis, primary.id, secondary.id, "true", /choose then/u);
+  assertEdge(analysis, primary.id, cached.id, "false", /choose else/u);
+  assertEdge(analysis, secondary.id, primaryValue.id, "true", /choose then/u);
+  assertEdge(analysis, secondary.id, secondaryValue.id, "false", /choose else/u);
+  assertEdge(analysis, cached.id, cachedValue.id, "true", /choose then/u);
+  assertEdge(analysis, cached.id, fallbackValue.id, "false", /choose else/u);
+  for (const value of [primaryValue, secondaryValue, cachedValue, fallbackValue]) {
+    assertEdge(analysis, value.id, terminalReturn.id, "next");
+  }
+
+  assert.equal(secondary.parentBlockId, primary.id);
+  assert.equal(secondary.branchLabel, "then");
+  assert.equal(cached.parentBlockId, primary.id);
+  assert.equal(cached.branchLabel, "else");
+  assert.equal(primaryValue.parentBlockId, secondary.id);
+  assert.equal(primaryValue.branchLabel, "then");
+  assert.equal(secondaryValue.parentBlockId, secondary.id);
+  assert.equal(secondaryValue.branchLabel, "else");
+  assert.equal(cachedValue.parentBlockId, cached.id);
+  assert.equal(cachedValue.branchLabel, "then");
+  assert.equal(fallbackValue.parentBlockId, cached.id);
+  assert.equal(fallbackValue.branchLabel, "else");
+  assert.equal(secondary.depth, primary.depth + 1);
+  assert.equal(primaryValue.depth, secondary.depth + 1);
+  assert.equal(analysis.summary.branchCount, 3);
+
+  const layout = createFunctionLogicGraphLayout(analysis.blocks, analysis.edges);
+  assert.equal(layout.nodes.length, analysis.blocks.length);
+  assert.equal(layout.edges.length, analysis.edges.length);
+  assert.deepEqual(bounded.blocks.map((block) => block.kind), ["entry", "return", "exit"]);
+  assert.ok(bounded.gaps.some((gap) =>
+    gap.code === "parseLimited" && gap.message.includes("ternary/short-circuit")
+  ));
 });
 
 test("routes complex boolean operands in real short-circuit order", () => {
@@ -186,6 +236,43 @@ test("uses the same expression CFG for JavaScript source", () => {
   assertEdge(analysis, cached.id, no.id, "false");
 });
 
+test("plans a deep right-associated ternary chain iteratively", () => {
+  const decisionCount = 48;
+  const flags = Array.from(
+    { length: decisionCount },
+    (_, index) => `flag${index}`
+  );
+  const expression = flags
+    .map((flag, index) => `${flag} ? ${index} : `)
+    .join("") + String(decisionCount);
+  const source = `function chooseDeep(${flags.map((flag) =>
+    `${flag}: boolean`
+  ).join(", ")}): number { return ${expression}; }`;
+  const filePath = "/workspace/chooseDeep.ts";
+  const analysis = analyzeFunctionLogic({
+    functionNode: {
+      id: "function:choose-deep",
+      kind: "function",
+      name: "chooseDeep",
+      qualifiedName: "chooseDeep",
+      filePath,
+      range: createInlineSelectionRange(source, "chooseDeep"),
+      selectionRange: createInlineSelectionRange(source, "chooseDeep"),
+      language: "typescript"
+    },
+    sourceText: source,
+    maxBlocks: 160
+  });
+
+  assert.equal(analysis.summary.branchCount, decisionCount);
+  assert.equal(Math.max(...analysis.blocks.map((block) => block.depth)), decisionCount + 1);
+  assert.equal(analysis.blocks.length, (decisionCount * 2) + 4);
+  assert.equal(analysis.gaps.some((gap) => gap.message.includes("were omitted")), false);
+  const layout = createFunctionLogicGraphLayout(analysis.blocks, analysis.edges);
+  assert.equal(layout.nodes.length, analysis.blocks.length);
+  assert.ok(Number.isFinite(layout.width) && Number.isFinite(layout.height));
+});
+
 /** Runs one named fixture callable with its source-backed declaration line. */
 function analyzeFixtureFunction(name: string, maxBlocks?: number): FunctionLogicAnalysis {
   const declarationOffset = Math.max(
@@ -218,6 +305,18 @@ function createFunctionNode(name: string, line: number): SymbolNode {
     range: selectionRange,
     selectionRange,
     language: "typescript"
+  };
+}
+
+/** Creates an exact one-line selection for generated parser stress fixtures. */
+function createInlineSelectionRange(source: string, name: string) {
+  const startCharacter = source.indexOf(name);
+  assert.ok(startCharacter >= 0, `missing inline function ${name}`);
+  return {
+    startLine: 0,
+    startCharacter,
+    endLine: 0,
+    endCharacter: startCharacter + name.length
   };
 }
 
