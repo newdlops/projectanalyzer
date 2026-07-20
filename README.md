@@ -280,7 +280,8 @@ visible runtime limitation.
 JSX and TSX returns expand into a source-ordered render flow alongside normal
 statement control flow. Intrinsic elements, custom components, prop/child call
 expressions, ternary and logical render choices, and event bindings receive
-separate graph nodes. Uppercase or member-style tags such as `<Badge />` and
+separate graph nodes. Nested JSX ternaries retain an independent condition and
+branch region at every level. Uppercase or member-style tags such as `<Badge />` and
 `<UI.Panel />` expose exact render relations that can attach the component's
 Function Logic without pretending JSX is an immediate JavaScript call. Concise
 `.map(item => <Item />)` output is shown as an inferred repeated render path.
@@ -301,13 +302,15 @@ Python `with` and `async with` keep only the context-manager header in their
 structural node. Each indented body statement remains a separate flow node and
 continues to the first statement after context exit.
 
-TypeScript and JavaScript expand outer ternary expressions plus `&&`, `||`, and
-`??` into source-backed Function Logic branches. Control conditions preserve
-truthy/falsy short-circuit order, while initializers, direct `=` assignments,
-returns, switch values, and concise arrow bodies merge the selected value back
-into their containing operation. Optional chaining and branch expressions
-nested inside a larger call argument remain inside that containing statement so
-the graph does not claim an unsafe evaluation order.
+TypeScript and JavaScript expand root ternary expressions plus `&&`, `||`, and
+`??` into source-backed Function Logic branches. Ternaries nested in either the
+`then` or `else` arm retain their own condition, branch labels, visual depth,
+and merge paths. Control conditions preserve truthy/falsy short-circuit order,
+while initializers, direct `=` assignments, returns, switch values, and concise
+arrow bodies merge the selected value back into their containing operation.
+Optional chaining and branch expressions embedded inside a larger call argument
+remain inside that containing statement so the graph does not claim an unsafe
+evaluation order.
 
 Standalone Python generator expressions remain a visible lazy-analysis gap because their
 bodies run when advanced rather than when created. A generator passed directly

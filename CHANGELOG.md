@@ -4,6 +4,21 @@ All notable user-visible changes to Project Analyzer: Code Flow are recorded in
 this file. The changelog starts with the first distribution-documented build;
 earlier local development builds were not tracked here.
 
+## 0.0.1037 - 2026-07-20
+
+### Added
+
+- TypeScript/JavaScript Function Logic now expands ternaries nested in either
+  arm of a selected root ternary, preserving each decision's `then`/`else`
+  ownership, visual depth, source evidence, and final value merge. Nested JSX
+  render ternaries retain the same per-level ownership.
+
+### Analysis boundaries
+
+- Branch expressions embedded inside larger call arguments or non-branch
+  operations remain in their containing statement to avoid inventing an unsafe
+  evaluation order.
+
 ## 0.0.1036 - 2026-07-20
 
 ### Added
