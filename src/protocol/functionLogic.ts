@@ -10,6 +10,8 @@ import type { SourceNodeToken } from "./sourceNavigation";
 /** Browser-visible function-local block kinds mirrored by the application projector. */
 export type FunctionLogicBlockPayloadKind =
   | "entry"
+  | "embedded"
+  | "callable"
   | "condition"
   | "loop"
   | "switch"
@@ -27,9 +29,11 @@ export type FunctionLogicBlockPayloadKind =
   | "exit"
   | "unknown";
 
-/** Browser-visible transfer labels for structured function-local control flow. */
+/** Browser-visible control plus non-runtime definition/deferred relationships. */
 export type FunctionLogicEdgePayloadKind =
   | "next"
+  | "defines"
+  | "deferred"
   | "true"
   | "false"
   | "iterate"
@@ -71,8 +75,14 @@ export type FunctionLogicValueChangePayload = {
 /** Browser-visible lexical binding categories for static value flow. */
 export type FunctionLogicValueBindingPayloadKind = "parameter" | "local" | "constant";
 
+/** Optional first-class semantic carried in addition to lexical declaration kind. */
+export type FunctionLogicValuePayloadRole = "component";
+
 /** Browser-visible definition/use roles attached to one control block. */
 export type FunctionLogicValueAccessPayloadKind = "define" | "read" | "write" | "readwrite";
+
+/** Browser-visible meaning of a lexical read inside or beyond the callable. */
+export type FunctionLogicValueUsagePayloadKind = "consume" | "sink";
 
 /** One opaque function-local binding available in the value-flow selector. */
 export type FunctionLogicValueBindingPayload = {
@@ -81,6 +91,7 @@ export type FunctionLogicValueBindingPayload = {
   kind: FunctionLogicValueBindingPayloadKind;
   definitionBlockId: string;
   confidence: FunctionLogicPayloadConfidence;
+  valueRole?: FunctionLogicValuePayloadRole;
 };
 
 /** One parameter/local/constant interaction rendered inside its control block. */
@@ -89,7 +100,9 @@ export type FunctionLogicValueAccessPayload = {
   name: string;
   bindingKind: FunctionLogicValueBindingPayloadKind;
   access: FunctionLogicValueAccessPayloadKind;
+  usage?: FunctionLogicValueUsagePayloadKind;
   confidence: FunctionLogicPayloadConfidence;
+  valueRole?: FunctionLogicValuePayloadRole;
 };
 
 /** One possible static definition-to-use relation with opaque graph identities. */
@@ -99,6 +112,7 @@ export type FunctionLogicValueFlowPayload = {
   sourceBlockId: string;
   targetBlockId: string;
   targetAccess: "read" | "readwrite";
+  targetUsage?: FunctionLogicValueUsagePayloadKind;
   confidence: FunctionLogicPayloadConfidence;
 };
 
@@ -117,7 +131,7 @@ export type FunctionLogicDrillTargetPayload = {
   relation?: "call" | "render" | "event";
 };
 
-/** One syntax-backed step inside the selected function body. */
+/** One syntax-backed step or embedded/callable boundary in the selected graph. */
 export type FunctionLogicBlockPayload = {
   id: string;
   kind: FunctionLogicBlockPayloadKind;
@@ -135,7 +149,7 @@ export type FunctionLogicBlockPayload = {
   valueAccesses?: FunctionLogicValueAccessPayload[];
 };
 
-/** One possible transfer between function-local logic blocks. */
+/** One possible control, definition, or deferred relation between logic blocks. */
 export type FunctionLogicEdgePayload = {
   id: string;
   sourceId: string;

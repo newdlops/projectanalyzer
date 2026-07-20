@@ -326,7 +326,7 @@ function measureNodeDimensions(block: FunctionLogicBlockPayload): NodeDimensions
 function formatValueAccessText(
   access: NonNullable<FunctionLogicBlockPayload["valueAccesses"]>[number]
 ): string {
-  return `${access.bindingKind} ${access.access} ${access.name} ${access.confidence}`;
+  return `${access.bindingKind} ${access.access} ${access.usage ?? ""} ${access.name} ${access.confidence}`;
 }
 
 /** Mirrors the compact value-change text rendered inside a graph node. */

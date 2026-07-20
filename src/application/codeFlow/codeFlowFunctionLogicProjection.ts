@@ -109,7 +109,9 @@ export function createFunctionLogicCodeFlowDetail(
               name: completeGraphText(access.name, "value"),
               bindingKind: access.bindingKind,
               access: access.access,
-              confidence: access.confidence
+              ...(access.usage ? { usage: access.usage } : {}),
+              confidence: access.confidence,
+              ...(access.valueRole ? { valueRole: access.valueRole } : {})
             }]
           : [];
       })
@@ -152,7 +154,8 @@ export function createFunctionLogicCodeFlowDetail(
             name: completeGraphText(binding.name, "value"),
             kind: binding.kind,
             definitionBlockId,
-            confidence: binding.confidence
+            confidence: binding.confidence,
+            ...(binding.valueRole ? { valueRole: binding.valueRole } : {})
           }]
         : [];
     }) ?? [];
@@ -168,6 +171,7 @@ export function createFunctionLogicCodeFlowDetail(
             sourceBlockId,
             targetBlockId,
             targetAccess: valueFlow.targetAccess,
+            ...(valueFlow.targetUsage ? { targetUsage: valueFlow.targetUsage } : {}),
             confidence: valueFlow.confidence
           }]
         : [];

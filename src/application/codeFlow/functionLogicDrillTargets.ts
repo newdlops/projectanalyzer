@@ -45,6 +45,8 @@ type MatchedCallsite = {
   key: string;
   filePath: string;
   range?: SourceRange;
+  /** Exact virtual owner for embedded source that shares one host range. */
+  blockId?: string;
   confidence: EdgeConfidence;
   relation: "call" | "render" | "event";
 };
@@ -107,6 +109,7 @@ export function createFunctionLogicDrillTargets(
             key: createSyntaxCallsiteKey(callsite),
             filePath: callsite.filePath,
             range: callsite.range,
+            ...(callsite.blockId ? { blockId: callsite.blockId } : {}),
             confidence: constrainCallsiteConfidence(chainResolution.confidence, callsite),
             relation: callsite.relation ?? "call"
           });
@@ -116,6 +119,7 @@ export function createFunctionLogicDrillTargets(
           key: createSyntaxCallsiteKey(callsite),
           filePath: callsite.filePath,
           range: callsite.range,
+          ...(callsite.blockId ? { blockId: callsite.blockId } : {}),
           confidence: constrainCallsiteConfidence(matchingEdge.confidence, callsite),
           relation: callsite.relation ?? "call"
         });
@@ -134,6 +138,7 @@ export function createFunctionLogicDrillTargets(
         key: createSyntaxCallsiteKey(callsite),
         filePath: callsite.filePath,
         range: callsite.range,
+        ...(callsite.blockId ? { blockId: callsite.blockId } : {}),
         confidence: constrainCallsiteConfidence(syntaxResolution.confidence, callsite),
         relation: callsite.relation ?? "call"
       });
@@ -183,9 +188,13 @@ export function createFunctionLogicDrillTargets(
 
     const callsitesByBlockId = new Map<string, MatchedCallsite[]>();
     for (const callsite of group.callsites) {
-      const block = callsite.range
-        ? findCallsiteBlock(analysis.blocks, callsite.filePath, callsite.range)
-        : undefined;
+      // Embedded programs share one host-literal range, so the analyzer may
+      // retain an exact virtual owner instead of forcing ambiguous containment.
+      const block = callsite.blockId
+        ? analysis.blocks.find((candidate) => candidate.id === callsite.blockId)
+        : callsite.range
+          ? findCallsiteBlock(analysis.blocks, callsite.filePath, callsite.range)
+          : undefined;
       if (block) {
         const values = callsitesByBlockId.get(block.id) ?? [];
         values.push(callsite);

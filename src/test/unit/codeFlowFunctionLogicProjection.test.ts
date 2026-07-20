@@ -75,6 +75,12 @@ test("projects internal logic with opaque evidence and known entrypoint origins"
       && detail.logic?.blocks.some((block) => block.id === valueFlow.sourceBlockId)
       && detail.logic?.blocks.some((block) => block.id === valueFlow.targetBlockId)
   ));
+  assert.ok(detail.logic?.blocks.some((block) => block.valueAccesses?.some((access) =>
+    access.bindingId === orderBinding.id && access.usage === "sink"
+  )));
+  assert.ok(detail.logic?.valueFlows?.some((valueFlow) =>
+    valueFlow.bindingId === orderBinding.id && valueFlow.targetUsage === "sink"
+  ));
   assert.equal(JSON.stringify(detail).includes(analysis.valueBindings?.[0]?.id ?? "missing"), false);
   assert.ok(detail.logic?.edges.some((edge) => edge.kind === "true"));
   assert.equal(detail.logic?.layout.nodes.length, detail.logic?.blocks.length);
@@ -126,6 +132,50 @@ test("projects complete graph-box text and sizes its node for wrapped content", 
   assert.equal(mutation.valueChanges?.[0]?.value, literal);
   assert.doesNotMatch(JSON.stringify(mutation), /…/u);
   assert.ok(mutationLayout.height > entryLayout.height);
+});
+
+test("preserves first-class JSX component roles through opaque value-flow projection", () => {
+  const filePath = "/workspace/src/views.tsx";
+  const node = { ...createHandlerNode(filePath), language: "typescriptreact" };
+  const graph = createGraph({ files: [filePath], callables: [node] });
+  const analysis = analyzeFunctionLogic({
+    functionNode: node,
+    sourceText: [
+      "export function handler() {",
+      "  const views = [<Ready />, <Empty />];",
+      "  const selected = views[0];",
+      "  return selected;",
+      "}"
+    ].join("\n")
+  });
+  const detail = createFunctionLogicCodeFlowDetail(
+    graph,
+    createFlowIndex(graph.version, []),
+    node,
+    analysis,
+    "sidebar-snapshot:logic:jsx-values",
+    (path, range) => `code-evidence:${createContentHash(`${path}:${range.startLine}`)}` as CodeFlowEvidenceToken,
+    (nodeId) => `source-node:${createContentHash(nodeId)}` as SourceNodeToken
+  );
+  const views = detail.logic?.valueBindings?.find((binding) => binding.name === "views");
+  const selected = detail.logic?.valueBindings?.find((binding) => binding.name === "selected");
+
+  assert.ok(views && selected);
+  assert.equal(views.valueRole, "component");
+  assert.equal(selected.valueRole, "component");
+  assert.ok(detail.logic?.blocks.some((block) =>
+    block.valueAccesses?.some((access) =>
+      access.bindingId === views.id && access.valueRole === "component"
+    )
+  ));
+  assert.ok(detail.logic?.blocks.some((block) =>
+    block.valueAccesses?.some((access) =>
+      access.bindingId === selected.id
+        && access.valueRole === "component"
+        && access.usage === "sink"
+    )
+  ));
+  assert.equal(JSON.stringify(detail).includes(analysis.valueBindings?.[0]?.id ?? "missing"), false);
 });
 
 test("projects an inferred drill target onto an if block without a graph call edge", () => {
