@@ -80,6 +80,14 @@ export function getFunctionLogicCompoundGroupBrowserSource(): string {
       layer.className = "logic-compound-group-layer";
       layer.setAttribute("aria-hidden", "true");
 
+      renderLogicCompoundGroupLayer(layer, groups, blocksById);
+      return layer;
+    }
+
+    /** Replaces decorative frames while preserving the stable graph layer. */
+    function renderLogicCompoundGroupLayer(layer, groups, blocksById) {
+      layer.replaceChildren();
+
       for (const group of groups) {
         const owner = blocksById.get(group.ownerBlockId);
         if (!owner) continue;
@@ -93,11 +101,10 @@ export function getFunctionLogicCompoundGroupBrowserSource(): string {
         frame.style.setProperty("width", group.width + "px");
         frame.style.setProperty("height", group.height + "px");
         caption.className = "logic-compound-caption";
-        caption.textContent = formatLogicKind(owner.kind) + " BODY";
+        caption.textContent = formatLogicKind(owner.kind).toUpperCase() + " BODY";
         frame.append(caption);
         layer.append(frame);
       }
-      return layer;
     }
   `;
 }

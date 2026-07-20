@@ -5,6 +5,10 @@
 
 import assert from "node:assert/strict";
 import test from "node:test";
+import {
+  createFunctionLogicBodyFocusProjection,
+  createFunctionLogicBodyHierarchy
+} from "../../webview/codeFlow/bodyFocus";
 import { getFunctionLogicBrowserSource } from "../../webview/codeFlow/functionLogicBrowserSource";
 import { getFunctionLogicCompoundGroupBrowserSource } from "../../webview/codeFlow/functionLogicCompoundGroupBrowserSource";
 import { getFunctionLogicGraphStyles } from "../../webview/codeFlow/functionLogicGraphStyles";
@@ -22,6 +26,14 @@ type TestBlock = {
   confidence: string;
   sourceBlockId?: string;
   functionLabel?: string;
+  drillTargets?: Array<{
+    sourceToken: string;
+    name: string;
+    qualifiedName: string;
+    confidence: string;
+    callsiteCount: number;
+    relation: "call";
+  }>;
 };
 
 type TestNodeLayout = {
@@ -115,6 +127,48 @@ test("wraps each body owner and descendants without swallowing its continuation"
   assert.ok(nested.x + nested.width <= outer.x + outer.width);
   assert.ok(nested.y + nested.height <= outer.y + outer.height);
   assert.ok(outer.y + outer.height < (layouts.get("after")?.y ?? 0));
+});
+
+test("shows outer body frames first and promotes one nested body at a time", () => {
+  const runtime = loadCompoundRuntime();
+  const blocks = [
+    block("if", "condition", 1),
+    block("if-work", "operation", 2, "if"),
+    block("loop", "loop", 2, "if"),
+    block("loop-work", "operation", 3, "loop"),
+    block("after", "operation", 1)
+  ];
+  const layouts = new Map<string, TestNodeLayout>([
+    ["if", node("if", 180, 24, 0)],
+    ["if-work", node("if-work", 70, 150, 1)],
+    ["loop", node("loop", 290, 150, 1)],
+    ["loop-work", node("loop-work", 290, 276, 2)],
+    ["after", node("after", 180, 430, 3)]
+  ]);
+  const groups = runtime.createLogicCompoundGroups(blocks, layouts);
+  const hierarchy = createFunctionLogicBodyHierarchy(blocks, groups);
+  const initial = createFunctionLogicBodyFocusProjection(hierarchy);
+  const nested = createFunctionLogicBodyFocusProjection(hierarchy, "loop");
+
+  assert.deepEqual(initial.visibleGroups.map((group) => group.ownerBlockId), ["if"]);
+  assert.equal(initial.focusedOwnerBlockId, undefined);
+  assert.deepEqual(nested.visibleGroups.map((group) => group.ownerBlockId), ["loop"]);
+  assert.equal(nested.focusedOwnerBlockId, "loop");
+  assert.deepEqual(nested.pathOwnerBlockIds, ["if", "loop"]);
+  assert.equal(hierarchy.parentOwnerBlockIdByOwnerBlockId.get("loop"), "if");
+});
+
+test("cuts malformed body-parent cycles without recursive traversal", () => {
+  const groups = [{ ownerBlockId: "alpha" }, { ownerBlockId: "beta" }];
+  const hierarchy = createFunctionLogicBodyHierarchy([
+    { id: "alpha", parentBlockId: "beta" },
+    { id: "beta", parentBlockId: "alpha" }
+  ], groups);
+  const focused = createFunctionLogicBodyFocusProjection(hierarchy, "beta");
+
+  assert.deepEqual(hierarchy.outerOwnerBlockIds, ["alpha"]);
+  assert.deepEqual(focused.pathOwnerBlockIds, ["alpha", "beta"]);
+  assert.deepEqual(focused.visibleGroups, [{ ownerBlockId: "beta" }]);
 });
 
 test("namespaces structural parents independently in attached function scopes", () => {
@@ -219,10 +273,13 @@ test("renders compound frames behind routes and keeps them pointer-transparent",
   const styles = getFunctionLogicGraphStyles();
 
   assert.match(program, /createLogicCompoundGroups\(\s*logic\.blocks/u);
-  assert.match(program, /canvas\.append\(compoundGroupLayer, edgeRendering\.svg\)/u);
+  assert.match(program, /createFunctionLogicBodyFocusController/u);
+  assert.match(program, /canvas\.append\(bodyFocusController\.layer, edgeRendering\.svg\)/u);
   assert.match(program, /logic-node-body-owner/u);
+  assert.match(program, /bodyFocusController\.focus\(block\.id\)/u);
   assert.match(styles, /\.logic-compound-group-layer[\s\S]*?z-index: 0/u);
   assert.match(styles, /\.logic-compound-group-layer[\s\S]*?pointer-events: none/u);
+  assert.match(styles, /\.logic-body-focus-navigation/u);
   assert.match(styles, /\.logic-edge-layer[\s\S]*?z-index: 1/u);
   assert.match(styles, /\.logic-graph-node[\s\S]*?z-index: 2/u);
 });
@@ -252,6 +309,69 @@ test("renders one interactive owner inside a decorative compound body frame", ()
   }
 });
 
+test("replaces a nested frame on owner click and navigates back to its parent", () => {
+  const runtime = installSidebarWebviewRuntime();
+  const graphVersion = "dynamic-body-runtime";
+  const sourceToken = "source-node:dynamic-body";
+
+  try {
+    new Function(requireFunctionVisualizerScript())();
+    runtime.dispatchMessage({
+      type: "functionVisualizer/sessionLoaded",
+      payload: {
+        graphVersion,
+        root: { sourceToken, label: "Root.render" }
+      }
+    });
+    runtime.dispatchMessage(createCompoundDetailMessage(
+      graphVersion,
+      createNestedOwnedBodyLogic()
+    ));
+
+    assert.equal(runtime.countRenderedByClass("flow-steps", "logic-compound-group"), 1);
+    assert.ok(runtime.getRenderedText("flow-steps").includes("IF BODY"));
+    assert.equal(runtime.getRenderedText("flow-steps").includes("LOOP BODY"), false);
+    assert.ok(runtime.getRenderedText("flow-steps").includes("BODY VIEW · OUTERMOST"));
+
+    runtime.clickByTitle("Select logic · loop · Show this body as the outer frame");
+
+    assert.equal(runtime.countRenderedByClass("flow-steps", "logic-compound-group"), 1);
+    assert.ok(runtime.getRenderedText("flow-steps").includes("LOOP BODY"));
+    assert.equal(runtime.getRenderedText("flow-steps").includes("IF BODY"), false);
+    assert.equal(runtime.hasRenderedClassByTitle(
+      "flow-steps",
+      "Select logic · loop · Current outer body frame",
+      "logic-node-body-focused"
+    ), true);
+    assert.ok(runtime.getRenderedText("flow-steps").includes("BODY VIEW · LOOP BODY"));
+
+    runtime.clickByTitle("Show parent body as outer frame");
+
+    assert.ok(runtime.getRenderedText("flow-steps").includes("IF BODY"));
+    assert.equal(runtime.getRenderedText("flow-steps").includes("LOOP BODY"), false);
+    runtime.clickByTitle("Show all outermost body frames");
+    assert.equal(runtime.hasRenderedClassByTitle(
+      "flow-steps",
+      "Select logic · loop · Show this body as the outer frame",
+      "logic-node-body-focused"
+    ), false);
+    assert.ok(runtime.getRenderedText("flow-steps").includes("BODY VIEW · OUTERMOST"));
+
+    runtime.clickByTitle("Select logic · loop · Show this body as the outer frame");
+    runtime.clickByTitle("Expand called function · Child.run");
+
+    assert.ok(runtime.getRenderedText("flow-steps").includes("LOOP BODY"));
+    assert.equal(runtime.getRenderedText("flow-steps").includes("IF BODY"), false);
+    assert.equal(runtime.hasRenderedClassByTitle(
+      "flow-steps",
+      "Select logic · loop · Current outer body frame",
+      "logic-node-body-focused"
+    ), true);
+  } finally {
+    runtime.restore();
+  }
+});
+
 /** Loads only pure browser helpers; no DOM is needed for geometry assertions. */
 function loadCompoundRuntime(): CompoundRuntime {
   return new Function(
@@ -273,8 +393,10 @@ function requireFunctionVisualizerScript(): string {
 }
 
 /** Creates a projected control owner, owned body statement, and continuation. */
-function createCompoundDetailMessage(graphVersion: string): unknown {
-  const logic = createOwnedBodyLogic();
+function createCompoundDetailMessage(
+  graphVersion: string,
+  logic: TestLogic = createOwnedBodyLogic()
+): unknown {
   return {
     type: "codeFlow/detailLoaded",
     payload: {
@@ -370,6 +492,66 @@ function createOwnedBodyLogic(): TestLogic {
         node("owner", 120, 24, 0),
         node("body", 120, 146, 1),
         node("after", 120, 268, 2)
+      ],
+      edges: edges.map((edge) => ({
+        edgeId: edge.id,
+        points: [],
+        labelX: 0,
+        labelY: 0,
+        route: "forward"
+      }))
+    }
+  };
+}
+
+/** Builds a nested if/loop body used to verify dynamic frame replacement. */
+function createNestedOwnedBodyLogic(): TestLogic {
+  const blocks = [
+    block("if", "condition", 1),
+    block("loop", "loop", 2, "if"),
+    {
+      ...block("loop-work", "call", 3, "loop"),
+      drillTargets: [{
+        sourceToken: "source-node:child-run",
+        name: "run",
+        qualifiedName: "Child.run",
+        confidence: "resolved",
+        callsiteCount: 1,
+        relation: "call" as const
+      }]
+    },
+    block("after", "exit", 0)
+  ];
+  const edges: TestEdge[] = [{
+    id: "enter-if",
+    sourceId: "if",
+    targetId: "loop",
+    kind: "true",
+    confidence: "exact"
+  }, {
+    id: "iterate-loop",
+    sourceId: "loop",
+    targetId: "loop-work",
+    kind: "iterate",
+    confidence: "exact"
+  }, {
+    id: "leave-loop",
+    sourceId: "loop",
+    targetId: "after",
+    kind: "exit",
+    confidence: "exact"
+  }];
+  return {
+    blocks,
+    edges,
+    layout: {
+      width: 480,
+      height: 500,
+      nodes: [
+        node("if", 150, 24, 0),
+        node("loop", 150, 146, 1),
+        node("loop-work", 150, 268, 2),
+        node("after", 150, 390, 3)
       ],
       edges: edges.map((edge) => ({
         edgeId: edge.id,

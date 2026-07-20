@@ -2,6 +2,7 @@
 
 import { getFunctionLogicCompoundGroupStyles } from "./functionLogicCompoundGroupStyles";
 import { getFunctionLogicBranchChoiceStyles } from "./branchChoices";
+import { getFunctionLogicBodyFocusStyles } from "./bodyFocus";
 import { getFunctionLogicDataFlowStyles } from "./dataFlow";
 import { getFunctionLogicInspectorStyles } from "./inspector";
 import { getFunctionLogicTypographyStyles } from "./typography";
@@ -16,6 +17,7 @@ export function getFunctionLogicGraphStyles(): string {
   return /* css */ `
     ${getFunctionLogicTypographyStyles()}
     ${getFunctionLogicCompoundGroupStyles()}
+    ${getFunctionLogicBodyFocusStyles()}
     ${getFunctionLogicViewportStyles()}
 
     .logic-signature {

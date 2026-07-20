@@ -8,6 +8,7 @@
 import { getFunctionLogicCompoundGroupBrowserSource } from "./functionLogicCompoundGroupBrowserSource";
 import { getFunctionLogicDrillBrowserSource } from "./functionLogicDrillBrowserSource";
 import { getFunctionLogicBranchChoicesBrowserSource } from "./branchChoices";
+import { getFunctionLogicBodyFocusBrowserSource } from "./bodyFocus";
 import { getFunctionLogicDataFlowBrowserSource } from "./dataFlow";
 import { getFunctionLogicInspectorBrowserSource } from "./inspector";
 import { getFunctionLogicSelectionBrowserSource } from "./functionLogicSelectionBrowserSource";
@@ -24,6 +25,7 @@ export function getFunctionLogicBrowserSource(): string {
     const LOGIC_SVG_NAMESPACE = "http://www.w3.org/2000/svg";
 
     ${getFunctionLogicCompoundGroupBrowserSource()}
+    ${getFunctionLogicBodyFocusBrowserSource()}
     ${getFunctionLogicDrillBrowserSource()}
     ${getFunctionLogicBranchChoicesBrowserSource()}
     ${getFunctionLogicValuePreviewBrowserSource()}
@@ -84,6 +86,13 @@ export function getFunctionLogicBrowserSource(): string {
       const nodeButtonsById = new Map();
       const rootBlock = logic.blocks.find((block) => block.kind === "entry") || logic.blocks[0];
       const choiceSessionKey = (state.graph?.version || "graph") + "::" + rootBlock.id;
+      const bodyFocusController = createFunctionLogicBodyFocusController({
+        sessionKey: choiceSessionKey,
+        blocks: logic.blocks,
+        groups: compoundGroups,
+        blocksById,
+        nodeButtonsById
+      });
       const hasValueFlow = (logic.valueBindings || []).length > 0;
       const inspector = createFunctionLogicInspector(choiceSessionKey, hasValueFlow);
       let branchChoices = readFunctionLogicBranchChoices(choiceSessionKey, logic.edges);
@@ -128,10 +137,6 @@ export function getFunctionLogicBrowserSource(): string {
         nodeButtonsById,
         edgeRendering.elementsById,
         choiceSessionKey
-      );
-      const compoundGroupLayer = createLogicCompoundGroupLayer(
-        compoundGroups,
-        blocksById
       );
       const readTransform = graphContext && graphContext.readViewportTransform
         ? graphContext.readViewportTransform
@@ -183,7 +188,7 @@ export function getFunctionLogicBrowserSource(): string {
       canvas.className = "logic-graph-canvas";
       canvas.style.setProperty("width", logic.layout.width + "px");
       canvas.style.setProperty("height", logic.layout.height + "px");
-      canvas.append(compoundGroupLayer, edgeRendering.svg);
+      canvas.append(bodyFocusController.layer, edgeRendering.svg);
       if (valueFlowRendering) canvas.append(valueFlowRendering.svg);
 
       for (const nodeLayout of logic.layout.nodes) {
@@ -211,6 +216,9 @@ export function getFunctionLogicBrowserSource(): string {
             applyBranchChoice,
             branchChoices
           );
+          if (compoundOwnerIds.has(block.id)) {
+            bodyFocusController.focus(block.id);
+          }
           if (block.drillTargets && block.drillTargets.length > 0
             && graphContext && graphContext.onExpandableBlockClick) {
             graphContext.onExpandableBlockClick(block);
@@ -219,6 +227,7 @@ export function getFunctionLogicBrowserSource(): string {
         nodeButtonsById.set(block.id, node);
         canvas.append(node);
       }
+      bodyFocusController.refresh();
 
       applyFunctionLogicBranchChoicePresentation(
         logic.blocks,
@@ -241,6 +250,7 @@ export function getFunctionLogicBrowserSource(): string {
         createFunctionUnderstanding(logic)
       );
       graph.append(graphHeader);
+      graph.append(bodyFocusController.navigation);
       graph.append(inspector.workspace);
 
       const preferredBlock = blocksById.get(
@@ -569,10 +579,13 @@ export function getFunctionLogicBrowserSource(): string {
         + (entering ? " logic-node-entering" : "");
       node.classList.toggle("expandable", expandable);
       node.classList.toggle("expanded", expanded);
-      node.title = expandable && graphContext && graphContext.onExpandableBlockClick
+      const baseNodeTitle = expandable && graphContext && graphContext.onExpandableBlockClick
         ? (expanded ? "Collapse " : "Expand ") + expandableRole + " · "
           + block.drillTargets.map((target) => target.qualifiedName || target.name).join(", ")
         : "Select logic · " + block.label;
+      node.dataset.logicBaseTitle = baseNodeTitle;
+      node.title = baseNodeTitle
+        + (ownsCompoundBody ? " · Show this body as the outer frame" : "");
       node.style.setProperty("left", layout.x + "px");
       node.style.setProperty("top", layout.y + "px");
       node.style.setProperty("width", layout.width + "px");
@@ -599,6 +612,9 @@ export function getFunctionLogicBrowserSource(): string {
                   : eventHandlersOnly
                     ? ". Activate to attach separately dispatched event handlers."
                     : ". Activate to attach called functions."))
+          : "")
+        + (ownsCompoundBody
+          ? ". Activate to show this component body as the outer body frame."
           : ""));
       node.setAttribute("aria-pressed", "false");
       if (expandable && graphContext && graphContext.onExpandableBlockClick) {
@@ -612,6 +628,9 @@ export function getFunctionLogicBrowserSource(): string {
       meta.className = "logic-node-meta";
       meta.textContent = block.sourceLocation || block.detail;
       top.append(kind);
+      if (ownsCompoundBody) {
+        top.append(createBadge("BODY", "logic-node-body-focus"));
+      }
       if (block.functionLabel) {
         top.append(createBadge(block.functionLabel, "logic-node-function"));
       }
