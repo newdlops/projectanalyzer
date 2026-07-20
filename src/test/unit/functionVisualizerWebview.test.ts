@@ -419,6 +419,40 @@ test("serializes every concrete function attached to the same call box", () => {
   }
 });
 
+test("namespaces value bindings and def-use overlays across attached functions", () => {
+  const runtime = installSidebarWebviewRuntime();
+
+  try {
+    new Function(requireFunctionVisualizerScript())();
+    runtime.dispatchMessage(createSessionMessage());
+    runtime.dispatchMessage(createFunctionDetail("Root.run", rootToken, {
+      sourceToken: childToken,
+      name: "load",
+      qualifiedName: "Child.load",
+      sourceLocation: "src/child.ts:4",
+      confidence: "resolved",
+      callsiteCount: 1
+    }, "call", [], true));
+
+    assert.equal(runtime.countRenderedByClass("flow-steps", "logic-data-binding"), 1);
+    assert.equal(runtime.countRenderedByClass("flow-steps", "logic-data-flow-edge"), 1);
+    runtime.clickByTitle("Expand called function · Child.load");
+    runtime.dispatchMessage(createFunctionDetail(
+      "Child.load",
+      childToken,
+      undefined,
+      "call",
+      [],
+      true
+    ));
+
+    assert.equal(runtime.countRenderedByClass("flow-steps", "logic-data-binding"), 2);
+    assert.equal(runtime.countRenderedByClass("flow-steps", "logic-data-flow-edge"), 2);
+  } finally {
+    runtime.restore();
+  }
+});
+
 test("drills into a child and reuses history when a call cycle returns to root", () => {
   const runtime = installSidebarWebviewRuntime();
 
@@ -577,13 +611,16 @@ function createFunctionDetail(
   _currentToken: string,
   callee?: TestCallee | TestCallee[],
   blockKind: "call" | "condition" | "mutation" = "call",
-  valueChanges: TestValueChange[] = []
+  valueChanges: TestValueChange[] = [],
+  withValueFlow = false
 ): unknown {
   const callees = callee ? (Array.isArray(callee) ? callee : [callee]) : [];
   const blockId = title === "Root.run"
     ? "function-logic-block:11111111111111111111111111111111"
     : "function-logic-block:22222222222222222222222222222222";
   const location = title === "Root.run" ? "src/root.ts:2" : "src/child.ts:4";
+  const bindingId = "function-logic-binding:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+  const valueFlowId = "function-logic-value-flow:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
   return {
     type: "codeFlow/detailLoaded",
     payload: {
@@ -615,9 +652,37 @@ function createFunctionDetail(
           sourceLocation: location,
           evidenceToken,
           drillTargets: callees.length > 0 ? callees : undefined,
-          valueChanges: valueChanges.length > 0 ? valueChanges : undefined
+          valueChanges: valueChanges.length > 0 ? valueChanges : undefined,
+          valueAccesses: withValueFlow ? [{
+            bindingId,
+            name: "input",
+            bindingKind: "parameter",
+            access: "define",
+            confidence: "exact"
+          }, {
+            bindingId,
+            name: "input",
+            bindingKind: "parameter",
+            access: "read",
+            confidence: "exact"
+          }] : undefined
         }],
         edges: [],
+        valueBindings: withValueFlow ? [{
+          id: bindingId,
+          name: "input",
+          kind: "parameter",
+          definitionBlockId: blockId,
+          confidence: "exact"
+        }] : undefined,
+        valueFlows: withValueFlow ? [{
+          id: valueFlowId,
+          bindingId,
+          sourceBlockId: blockId,
+          targetBlockId: blockId,
+          targetAccess: "read",
+          confidence: "exact"
+        }] : undefined,
         layout: {
           width: 300,
           height: valueChanges.length > 0 ? 176 : 130,

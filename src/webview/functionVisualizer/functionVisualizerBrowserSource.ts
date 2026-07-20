@@ -332,7 +332,9 @@ export function getFunctionVisualizerBrowserSource(): string {
     function createAttachedGraphContext(scene, rootScopeId, graphViewportSnapshot) {
       const graphKind = scene.logic.blocks.some((block) =>
         block.valueChanges && block.valueChanges.length > 0
-      ) ? "Control & value flow" : "Control paths";
+      ) || (scene.logic.valueBindings || []).length > 0
+        ? "Control & value flow"
+        : "Control paths";
       const isEnteringBlock = (blockId) => {
         const identity = scene.blockIdentityById.get(blockId);
         return Boolean(

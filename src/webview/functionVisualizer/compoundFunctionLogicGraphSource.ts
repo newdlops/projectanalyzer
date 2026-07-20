@@ -61,9 +61,12 @@ export function getCompoundFunctionLogicGraphSource(): string {
 
       const blocks = [];
       const edges = [];
+      const valueBindings = [];
+      const valueFlows = [];
       const dimensionsByBlockId = new Map();
       const routeHintByEdgeId = new Map();
       const compoundBlockIdByScopeBlock = new Map();
+      const compoundBindingIdByScopeBinding = new Map();
       const blockIdentityById = new Map();
       const firstBlockIdByScopeId = new Map();
       const terminalBlockIdsByScopeId = new Map();
@@ -75,6 +78,12 @@ export function getCompoundFunctionLogicGraphSource(): string {
           compoundBlockIdByScopeBlock.set(
             createScopeBlockKey(scope.id, block.id),
             createCompoundBlockId(scope.id, block.id)
+          );
+        }
+        for (const binding of scope.logic.valueBindings || []) {
+          compoundBindingIdByScopeBinding.set(
+            createScopeBindingKey(scope.id, binding.id),
+            createCompoundBindingId(scope.id, binding.id)
           );
         }
       }
@@ -101,6 +110,12 @@ export function getCompoundFunctionLogicGraphSource(): string {
                   createScopeBlockKey(scope.id, block.parentBlockId)
                 )
               : undefined,
+            valueAccesses: (block.valueAccesses || []).flatMap((access) => {
+              const bindingId = compoundBindingIdByScopeBinding.get(
+                createScopeBindingKey(scope.id, access.bindingId)
+              );
+              return bindingId ? [{ ...access, bindingId }] : [];
+            }),
             functionLabel,
             functionScopeId: scope.id,
             sourceBlockId: block.id
@@ -141,6 +156,38 @@ export function getCompoundFunctionLogicGraphSource(): string {
           );
         }
 
+        for (const binding of scope.logic.valueBindings || []) {
+          const id = compoundBindingIdByScopeBinding.get(
+            createScopeBindingKey(scope.id, binding.id)
+          );
+          const definitionBlockId = compoundBlockIdByScopeBlock.get(
+            createScopeBlockKey(scope.id, binding.definitionBlockId)
+          );
+          if (id && definitionBlockId) {
+            valueBindings.push({ ...binding, id, definitionBlockId });
+          }
+        }
+        for (const valueFlow of scope.logic.valueFlows || []) {
+          const bindingId = compoundBindingIdByScopeBinding.get(
+            createScopeBindingKey(scope.id, valueFlow.bindingId)
+          );
+          const sourceBlockId = compoundBlockIdByScopeBlock.get(
+            createScopeBlockKey(scope.id, valueFlow.sourceBlockId)
+          );
+          const targetBlockId = compoundBlockIdByScopeBlock.get(
+            createScopeBlockKey(scope.id, valueFlow.targetBlockId)
+          );
+          if (bindingId && sourceBlockId && targetBlockId) {
+            valueFlows.push({
+              ...valueFlow,
+              id: createCompoundValueFlowId(scope.id, valueFlow.id),
+              bindingId,
+              sourceBlockId,
+              targetBlockId
+            });
+          }
+        }
+
         const explicitExitIds = scope.logic.blocks
           .filter((block) => block.kind === "exit")
           .map((block) => compoundBlockIdByScopeBlock.get(
@@ -176,6 +223,8 @@ export function getCompoundFunctionLogicGraphSource(): string {
           ...rootLogic,
           blocks,
           edges,
+          valueBindings,
+          valueFlows,
           layout: createCompoundFunctionGraphLayout(
             blocks,
             edges,
@@ -734,9 +783,24 @@ export function getCompoundFunctionLogicGraphSource(): string {
       return "compound-edge:" + scopeId + ":" + edgeId;
     }
 
+    /** Namespaces one value binding inside its attached function scope. */
+    function createCompoundBindingId(scopeId, bindingId) {
+      return "compound-binding:" + scopeId + ":" + bindingId;
+    }
+
+    /** Namespaces one value-flow relation inside its attached function scope. */
+    function createCompoundValueFlowId(scopeId, valueFlowId) {
+      return "compound-value-flow:" + scopeId + ":" + valueFlowId;
+    }
+
     /** Indexes an original block within its function scope. */
     function createScopeBlockKey(scopeId, blockId) {
       return scopeId + "::" + blockId;
+    }
+
+    /** Joins scope and binding identities without relying on display labels. */
+    function createScopeBindingKey(scopeId, bindingId) {
+      return scopeId + "\u0000" + bindingId;
     }
 
     /** Returns the safest visible label for an attached function target. */

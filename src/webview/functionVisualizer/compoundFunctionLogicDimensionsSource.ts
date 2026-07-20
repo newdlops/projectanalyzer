@@ -31,12 +31,22 @@ export function getCompoundFunctionLogicDimensionsSource(): string {
           + String(change.operator || "")
           + (change.value ? " " + String(change.value) : "")
       );
+      const allValueAccessTexts = (block.valueAccesses || []).map((access) =>
+        String(access.bindingKind || "value") + " "
+          + String(access.access || "read") + " "
+          + String(access.name || "")
+      );
+      const valueAccessTexts = allValueAccessTexts.slice(0, 8);
+      if (allValueAccessTexts.length > 8) {
+        valueAccessTexts.push("+" + (allValueAccessTexts.length - 8) + " more bindings");
+      }
       const visibleTexts = [
         block.label,
         block.sourceLocation || block.detail,
         block.branchLabel,
         block.functionLabel,
-        ...valueChangeTexts
+        ...valueChangeTexts,
+        ...valueAccessTexts
       ];
       const longestTextUnits = Math.max(
         1,
@@ -81,7 +91,8 @@ export function getCompoundFunctionLogicDimensionsSource(): string {
         innerWidth,
         COMPOUND_META_CHARACTER_WIDTH
       );
-      const valueLines = valueChangeTexts.reduce((total, text) =>
+      const valueRowTexts = [...valueChangeTexts, ...valueAccessTexts];
+      const valueLines = valueRowTexts.reduce((total, text) =>
         total + estimateCompoundWrappedLines(
           text,
           innerWidth,
@@ -93,7 +104,7 @@ export function getCompoundFunctionLogicDimensionsSource(): string {
         + labelLines * COMPOUND_LABEL_LINE_HEIGHT
         + metaLines * COMPOUND_META_LINE_HEIGHT
         + valueLines * COMPOUND_LABEL_LINE_HEIGHT
-        + Math.max(0, valueChangeTexts.length - 1) * 3
+        + Math.max(0, valueRowTexts.length - 1) * 3
         + 16;
       const functionLabelAllowance = functionLabelLines > 0
         ? functionLabelLines * COMPOUND_BADGE_LINE_HEIGHT + 4
