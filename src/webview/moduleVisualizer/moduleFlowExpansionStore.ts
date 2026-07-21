@@ -49,6 +49,11 @@ export class ModuleFlowExpansionStore<T extends ModuleFlowExpansionScene> {
     return this.entries.values();
   }
 
+  /** Iterates stable keys with payloads for dependency-aware branch cleanup. */
+  public entryPairs(): IterableIterator<[string, T]> {
+    return this.entries.entries();
+  }
+
   /** Iterates stable expansion identities for compact layout cache keys. */
   public keys(): IterableIterator<string> {
     return this.entries.keys();
@@ -73,20 +78,32 @@ export class ModuleFlowExpansionStore<T extends ModuleFlowExpansionScene> {
     key: string,
     value: T,
     baseNodeIds: Iterable<string>,
-    baseEdgeIds: Iterable<string>
+    baseEdgeIds: Iterable<string>,
+    protectedKeys: Iterable<string> = []
   ): ModuleFlowExpansionRetention {
+    // Retention is transactional: an expansion that still cannot fit after
+    // eligible eviction must not destroy branches that were visible beforehand.
+    const previousEntries = new Map(this.entries);
     // Map.keys() is a single-use iterator in the browser; materialize the base
     // identities once because eviction can require several exact measurements.
     const stableBaseNodeIds = new Set(baseNodeIds);
     const stableBaseEdgeIds = new Set(baseEdgeIds);
+    // A child function graph must never evict the branch containing its anchor.
+    const protectedKeySet = new Set(protectedKeys);
     this.entries.delete(key);
     this.entries.set(key, value);
     const evictedKeys: string[] = [];
     let measurement = this.measure(stableBaseNodeIds, stableBaseEdgeIds);
 
     while (!this.fits(measurement) && this.entries.size > 1) {
-      const oldestKey = this.entries.keys().next().value as string | undefined;
-      if (oldestKey === undefined || oldestKey === key) {
+      let oldestKey: string | undefined;
+      for (const candidateKey of this.entries.keys()) {
+        if (candidateKey !== key && !protectedKeySet.has(candidateKey)) {
+          oldestKey = candidateKey;
+          break;
+        }
+      }
+      if (oldestKey === undefined) {
         break;
       }
       this.entries.delete(oldestKey);
@@ -95,9 +112,12 @@ export class ModuleFlowExpansionStore<T extends ModuleFlowExpansionScene> {
     }
 
     if (!this.fits(measurement)) {
-      this.entries.delete(key);
+      this.entries.clear();
+      for (const [previousKey, previousValue] of previousEntries) {
+        this.entries.set(previousKey, previousValue);
+      }
       measurement = this.measure(stableBaseNodeIds, stableBaseEdgeIds);
-      return { accepted: false, evictedKeys, ...measurement };
+      return { accepted: false, evictedKeys: [], ...measurement };
     }
 
     return { accepted: true, evictedKeys, ...measurement };

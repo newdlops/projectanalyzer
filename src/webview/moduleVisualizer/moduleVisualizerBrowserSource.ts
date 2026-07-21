@@ -10,6 +10,8 @@ import { getModuleFlowGraphLayoutBrowserSource } from "../../application/moduleF
 import { getModuleFlowViewportBrowserSource } from "../../application/moduleFlow/moduleFlowViewport";
 import { getModuleFlowExpansionStoreBrowserSource } from "./moduleFlowExpansionStore";
 import { getModuleFlowFrameSchedulerBrowserSource } from "./moduleFlowFrameScheduler";
+import { getModuleFlowFunctionLogicBrowserSource } from "./moduleFlowFunctionLogicBrowserSource";
+import { getModuleFlowFunctionLogicSceneBrowserSource } from "./moduleFlowFunctionLogicScene";
 import { getModuleFlowLayoutCacheBrowserSource } from "./moduleFlowLayoutCache";
 import { getModuleVisualizerGraphRendererSource } from "./moduleVisualizerGraphRendererSource";
 import { getModuleVisualizerViewportBrowserSource } from "./moduleVisualizerViewportBrowserSource";
@@ -22,6 +24,8 @@ export function getModuleVisualizerBrowserSource(): string {
     ${getModuleFlowViewportBrowserSource()}
     ${getModuleFlowExpansionStoreBrowserSource()}
     ${getModuleFlowFrameSchedulerBrowserSource()}
+    ${getModuleFlowFunctionLogicSceneBrowserSource()}
+    ${getModuleFlowFunctionLogicBrowserSource()}
     ${getModuleFlowLayoutCacheBrowserSource()}
     ${getModuleVisualizerGraphRendererSource()}
     ${getModuleVisualizerViewportBrowserSource()}
@@ -57,7 +61,9 @@ export function getModuleVisualizerBrowserSource(): string {
       // This store enforces the complete canvas budget across all expansions.
       expansions: new ModuleFlowExpansionStore(500, 1000),
       pending: new Map(),
-      pendingModules: new Set(),
+      // Modules and functions share one loading registry because both are
+      // stable anchors for an attached same-canvas branch.
+      pendingNodeIds: new Set(),
       nextRequestId: 0,
       latestListRequestId: 0,
       selectedNodeId: undefined,
@@ -160,15 +166,16 @@ export function getModuleVisualizerBrowserSource(): string {
       const anchor = captureViewportAnchor(module.id);
       if (state.expansions.has(key)) {
         state.expansions.delete(key);
-        state.pendingModules.delete(module.id);
+        pruneOrphanFunctionLogicExpansions();
+        state.pendingNodeIds.delete(module.id);
         state.enteringNodeIds.clear();
         state.enteringEdgeIds.clear();
         renderGraph(anchor, true);
         setStatus("Collapsed " + module.label);
         return;
       }
-      if (state.pendingModules.has(module.id)) return;
-      state.pendingModules.add(module.id);
+      if (state.pendingNodeIds.has(module.id)) return;
+      state.pendingNodeIds.add(module.id);
       setStatus("Attaching " + (expansion === "boundaryFunctions" ? "boundary functions" : "child modules"));
       post("moduleFlow/expand", {
         graphVersion: state.graphVersion,
@@ -197,6 +204,8 @@ export function getModuleVisualizerBrowserSource(): string {
       if (!state.graphVersion || payload.graphVersion !== state.graphVersion) return;
       if (message.type === "moduleFlow/expanded") {
         acceptExpansion(payload);
+      } else if (message.type === "moduleFlow/functionLogicLoaded") {
+        acceptFunctionLogic(payload);
       } else if (message.type === "moduleFlow/detailLoaded") {
         if (state.pending.has(payload.requestId)) {
           state.pending.delete(payload.requestId);
@@ -234,7 +243,7 @@ export function getModuleVisualizerBrowserSource(): string {
         state.detailRequestTimer = undefined;
       }
       state.pendingDetailTarget = undefined;
-      state.pendingModules.clear();
+      state.pendingNodeIds.clear();
       state.selectedNodeId = undefined;
       state.selectedEdgeId = undefined;
       state.enteringNodeIds.clear();
@@ -257,7 +266,7 @@ export function getModuleVisualizerBrowserSource(): string {
       const pending = state.pending.get(payload.requestId);
       if (!pending || pending.operation !== "expand") return;
       state.pending.delete(payload.requestId);
-      state.pendingModules.delete(pending.moduleId);
+      state.pendingNodeIds.delete(pending.moduleId);
       const currentAnchor = captureViewportAnchor(pending.moduleId) || pending.anchor;
       const retention = state.expansions.retain(
         pending.key,
@@ -265,6 +274,7 @@ export function getModuleVisualizerBrowserSource(): string {
         state.baseNodes.keys(),
         state.baseEdges.keys()
       );
+      const pruned = pruneOrphanFunctionLogicExpansions();
       if (!retention.accepted) {
         state.enteringNodeIds.clear();
         state.enteringEdgeIds.clear();
@@ -275,8 +285,9 @@ export function getModuleVisualizerBrowserSource(): string {
       state.enteringNodeIds = new Set((payload.nodes || []).map(function (node) { return node.id; }));
       state.enteringEdgeIds = new Set((payload.edges || []).map(function (edge) { return edge.id; }));
       renderGraph(currentAnchor, true);
-      const released = retention.evictedKeys.length > 0
-        ? " · " + retention.evictedKeys.length + " oldest branch(es) released"
+      const releasedCount = retention.evictedKeys.length + pruned;
+      const released = releasedCount > 0
+        ? " · " + releasedCount + " oldest branch(es) released"
         : "";
       setStatus(payload.summary.visibleNodeCount + " nodes attached · "
         + payload.summary.omittedNodeCount + " additional nodes outside this expansion budget"
@@ -286,9 +297,11 @@ export function getModuleVisualizerBrowserSource(): string {
     /** Clears request-local loading state and exposes a display-safe failure. */
     function acceptFailure(payload) {
       const pending = state.pending.get(payload.requestId);
+      if (!pending && payload.operation !== "openSource") return;
       if (pending) {
         state.pending.delete(payload.requestId);
-        if (pending.moduleId) state.pendingModules.delete(pending.moduleId);
+        if (pending.anchorNodeId) state.pendingNodeIds.delete(pending.anchorNodeId);
+        if (pending.moduleId) state.pendingNodeIds.delete(pending.moduleId);
       }
       setStatus(payload.message || "Module Flow request failed");
       renderGraph(undefined, false);
@@ -312,6 +325,23 @@ export function getModuleVisualizerBrowserSource(): string {
 
     /** Projects all browser-visible strings into the layout measurement contract. */
     function toLayoutNode(node) {
+      if (node.kind === "logicBlock") {
+        const detailLines = [];
+        if (node.branchLabel) detailLines.push("Branch · " + node.branchLabel);
+        if (node.locationLabel) detailLines.push(node.locationLabel);
+        return {
+          id: node.id,
+          kind: "function",
+          title: node.label,
+          subtitle: node.detail,
+          badges: [node.blockKind, node.confidence],
+          metricLines: [
+            (node.valueChanges || []).length + " value changes · "
+              + (node.valueAccesses || []).length + " value accesses"
+          ],
+          detailLines: detailLines
+        };
+      }
       if (node.kind === "function") {
         return {
           id: node.id,
@@ -323,7 +353,9 @@ export function getModuleVisualizerBrowserSource(): string {
             node.incomingBoundaryCount + " incoming boundary calls",
             node.outgoingBoundaryCount + " outgoing boundary calls"
           ],
-          detailLines: node.locationLabel ? [node.locationLabel, "Open in Function Visualizer"] : ["Open in Function Visualizer"]
+          detailLines: node.locationLabel
+            ? [node.locationLabel, "Click to attach its function graph"]
+            : ["Click to attach its function graph"]
         };
       }
       const badges = [node.basis, node.confidence].concat(node.frameworks || [], node.ecosystems || []);
@@ -365,12 +397,18 @@ export function getModuleVisualizerBrowserSource(): string {
       return result;
     }
 
-    /** Selects a module/function; module clicks toggle their preferred expansion. */
+    /** Selects a module, function anchor, or attached function-local block. */
     function selectNode(node) {
       state.selectedNodeId = node.id;
       state.selectedEdgeId = undefined;
       if (node.kind === "function") {
-        if (node.sourceToken) requestOpenSource({ kind: "node", sourceToken: node.sourceToken });
+        renderFunctionDetail(node);
+        toggleFunctionLogic(node);
+        return;
+      }
+      if (node.kind === "logicBlock") {
+        renderLogicBlockDetail(node);
+        renderGraph(undefined, false);
         return;
       }
       requestDetail({ kind: "module", id: node.id });
@@ -467,13 +505,18 @@ export function getModuleVisualizerBrowserSource(): string {
       dom.detail.appendChild(section);
     }
 
-    /** Displays synthetic containment/concrete-call information locally. */
+    /** Displays synthetic containment, calls, and function control locally. */
     function renderLocalEdgeDetail(edge) {
       dom.detail.replaceChildren();
       appendText(dom.detail, "h2", "detail-title", edgeLabel(edge) || "Structural relationship");
-      appendText(dom.detail, "div", "detail-row", edge.presentationKind === "contains"
+      const detail = edge.presentationKind === "contains"
         ? "This card belongs to the source module boundary."
-        : edge.evidenceCount + " concrete boundary calls");
+        : edge.presentationKind === "functionEntry"
+          ? "This route enters the attached function-local graph."
+          : edge.presentationKind === "controlFlow"
+            ? "Static function control flow · " + edge.controlKind
+            : edge.evidenceCount + " concrete boundary calls";
+      appendText(dom.detail, "div", "detail-row", detail);
     }
 
     function renderEmptyDetail() {
@@ -533,6 +576,10 @@ export function getModuleVisualizerBrowserSource(): string {
     function edgeLabel(edge) {
       if (!edge) return "";
       if (edge.presentationKind === "contains") return "contains";
+      if (edge.presentationKind === "functionEntry") return edge.controlLabel || "enters";
+      if (edge.presentationKind === "controlFlow") {
+        return edge.controlLabel || edge.controlKind || "next";
+      }
       const values = (edge.relations || []).map(function (relation) {
         return relation.kind + " " + relation.count;
       });
@@ -576,7 +623,7 @@ export function getModuleVisualizerBrowserSource(): string {
       state.baseEdges.clear();
       state.expansions.clear();
       state.pending.clear();
-      state.pendingModules.clear();
+      state.pendingNodeIds.clear();
       state.nodesById.clear();
       state.edgesById.clear();
       state.enteringNodeIds.clear();

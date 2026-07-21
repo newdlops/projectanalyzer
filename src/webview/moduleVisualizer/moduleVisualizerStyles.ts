@@ -246,6 +246,11 @@ export function getModuleVisualizerStyles(): string {
       border-color: color-mix(in srgb, var(--vscode-symbolIcon-functionForeground) 55%, var(--vscode-panel-border));
     }
 
+    .module-card.logic-block {
+      background: color-mix(in srgb, var(--vscode-symbolIcon-operatorForeground) 9%, var(--vscode-editorWidget-background));
+      border-color: color-mix(in srgb, var(--vscode-symbolIcon-operatorForeground) 55%, var(--vscode-panel-border));
+    }
+
     .module-card.external {
       border-style: dashed;
       background: color-mix(in srgb, var(--vscode-descriptionForeground) 7%, var(--vscode-editorWidget-background));
@@ -260,6 +265,7 @@ export function getModuleVisualizerStyles(): string {
 
     .module-card.entering {
       animation: module-node-enter 260ms cubic-bezier(.2, .85, .25, 1) both;
+      animation-delay: calc(var(--entry-order, 0) * 16ms);
     }
 
     .module-card-kind {
@@ -324,9 +330,14 @@ export function getModuleVisualizerStyles(): string {
 
     .module-edge.aggregate { stroke: var(--vscode-textLink-foreground); stroke-width: 1.8; }
     .module-edge.concreteCall { stroke: var(--vscode-symbolIcon-functionForeground); }
+    .module-edge.functionEntry { stroke: var(--vscode-symbolIcon-functionForeground); stroke-width: 2; }
+    .module-edge.controlFlow { stroke: var(--vscode-symbolIcon-operatorForeground); }
     .module-edge.contains { stroke-dasharray: 4 4; opacity: 0.62; }
     .module-edge.selected { stroke: var(--vscode-focusBorder); stroke-width: 3; }
-    .module-edge.entering { animation: module-edge-enter 260ms ease-out both; }
+    .module-edge.entering {
+      animation: module-edge-enter 260ms ease-out both;
+      animation-delay: calc(var(--entry-order, 0) * 16ms);
+    }
 
     .module-edge-direction {
       fill: color-mix(in srgb, var(--vscode-descriptionForeground) 84%, transparent);
@@ -340,9 +351,14 @@ export function getModuleVisualizerStyles(): string {
 
     .module-edge-direction.aggregate { fill: var(--vscode-textLink-foreground); }
     .module-edge-direction.concreteCall { fill: var(--vscode-symbolIcon-functionForeground); }
+    .module-edge-direction.functionEntry { fill: var(--vscode-symbolIcon-functionForeground); }
+    .module-edge-direction.controlFlow { fill: var(--vscode-symbolIcon-operatorForeground); }
     .module-edge-direction.contains { opacity: 0.68; }
     .module-edge-direction.selected { fill: var(--vscode-focusBorder); stroke-width: 2; }
-    .module-edge-direction.entering { animation: module-edge-enter 260ms ease-out both; }
+    .module-edge-direction.entering {
+      animation: module-edge-enter 260ms ease-out both;
+      animation-delay: calc(var(--entry-order, 0) * 16ms);
+    }
 
     .module-edge-hit {
       fill: none;

@@ -73,8 +73,14 @@ export function getModuleVisualizerGraphRendererSource(): string {
       // The Host snapshot and expansion identities already define structure.
       // Keeping serialized node/edge payloads as cache keys duplicated the
       // complete scene up to four times and made every rebuild stringify it.
+      const expansionLayoutKeys = Array.from(state.expansions.entryPairs()).map(function (pair) {
+        const payloadRevision = pair[1] && Number.isInteger(pair[1].requestId)
+          ? pair[1].requestId
+          : 0;
+        return pair[0] + ":" + payloadRevision;
+      });
       const layoutKey = state.baseSceneKey + "\\n"
-        + Array.from(state.expansions.keys()).sort(compareModuleFlowIdentity).join("\\n");
+        + expansionLayoutKeys.sort(compareModuleFlowIdentity).join("\\n");
       let layout = state.layoutCache.get(layoutKey);
       if (!layout) {
         layout = createModuleFlowGraphLayout(layoutNodes, layoutEdges);
@@ -241,6 +247,11 @@ export function getModuleVisualizerGraphRendererSource(): string {
           return count + (bridge.crossingCount || 1);
         }, 0);
         const labelValue = edgeLabel(edge);
+        const entryOrder = String(edge.entryOrder || 0);
+        if (record.group.dataset.entryOrder !== entryOrder) {
+          record.group.dataset.entryOrder = entryOrder;
+          record.group.style.setProperty("--entry-order", entryOrder);
+        }
         const geometryKey = pathData + "\\n" + directionData + "\\n" + edgeLayout.labelX + ":" + edgeLayout.labelY + "\\n" + labelValue + "\\n" + edge.presentationKind;
         if (record.group.dataset.geometryKey !== geometryKey) {
           record.group.dataset.geometryKey = geometryKey;
@@ -301,8 +312,16 @@ export function getModuleVisualizerGraphRendererSource(): string {
           additions.appendChild(card);
           created.add(node.id);
         }
-        card.className = "module-card " + (node.kind === "function" ? "function" : "module")
+        const cardKindClass = node.kind === "logicBlock"
+          ? "logic-block"
+          : node.kind === "function" ? "function" : "module";
+        card.className = "module-card " + cardKindClass
           + (node.external ? " external" : "");
+        const entryOrder = String(node.entryOrder || 0);
+        if (card.dataset.entryOrder !== entryOrder) {
+          card.dataset.entryOrder = entryOrder;
+          card.style.setProperty("--entry-order", entryOrder);
+        }
         const depth = depthByModuleId.get(node.id) || 0;
         const geometryKey = [nodeLayout.x, nodeLayout.y, nodeLayout.width, nodeLayout.height, depth].join(":");
         if (card.dataset.geometryKey !== geometryKey) {
@@ -329,27 +348,39 @@ export function getModuleVisualizerGraphRendererSource(): string {
       return JSON.stringify([
         node.kind, node.label, node.detail, node.locationLabel, node.external,
         node.basis, node.confidence, node.frameworks, node.ecosystems, node.metrics,
-        node.incomingBoundaryCount, node.outgoingBoundaryCount, node.expandable
+        node.incomingBoundaryCount, node.outgoingBoundaryCount, node.expandable,
+        node.blockKind, node.branchLabel, node.valueChanges, node.valueAccesses,
+        node.drillTargets
       ]);
     }
 
     /** Mounts complete text through textContent when a card payload actually changes. */
     function updateModuleFlowNodeContent(card, node) {
       card.replaceChildren();
-      appendText(card, "div", "module-card-kind", node.kind === "function" ? "Boundary function" : node.detail);
+      const kindLabel = node.kind === "logicBlock"
+        ? "Function · " + node.blockKind
+        : node.kind === "function" ? "Entry / boundary function" : node.detail;
+      appendText(card, "div", "module-card-kind", kindLabel);
       appendText(card, "div", "module-card-title", node.label);
       appendText(card, "div", "module-card-detail", node.detail);
       if (node.locationLabel) appendText(card, "div", "module-card-location", node.locationLabel);
       const badges = document.createElement("div");
       badges.className = "module-card-badges";
-      const badgeValues = node.kind === "function"
+      const badgeValues = node.kind === "logicBlock"
+        ? [node.blockKind, node.confidence]
+        : node.kind === "function"
         ? [node.confidence || "static"]
         : [node.basis, node.confidence].concat(node.frameworks || [], node.ecosystems || []);
       for (const value of badgeValues) appendText(badges, "span", "module-badge", value);
       card.appendChild(badges);
-      if (node.kind === "function") {
+      if (node.kind === "logicBlock") {
+        appendText(card, "div", "module-card-metric",
+          (node.valueChanges || []).length + " value changes · "
+            + (node.valueAccesses || []).length + " value accesses");
+        if (node.branchLabel) appendText(card, "div", "module-card-hint", "Branch · " + node.branchLabel);
+      } else if (node.kind === "function") {
         appendText(card, "div", "module-card-metric", node.incomingBoundaryCount + " incoming · " + node.outgoingBoundaryCount + " outgoing boundary calls");
-        appendText(card, "div", "module-card-hint", "Open in Function Visualizer");
+        appendText(card, "div", "module-card-hint", "Click to attach function graph");
       } else if (!node.external) {
         const metrics = node.metrics || {};
         appendText(card, "div", "module-card-metric", (metrics.callableCount || 0) + " direct functions · " + (metrics.entrypointCount || 0) + " entrypoints");
@@ -370,9 +401,9 @@ export function getModuleVisualizerGraphRendererSource(): string {
     function applyModuleFlowPresentationState() {
       for (const [nodeId, card] of state.nodeElementsById) {
         card.classList.toggle("selected", state.selectedNodeId === nodeId);
-        card.classList.toggle("loading", state.pendingModules.has(nodeId));
+        card.classList.toggle("loading", state.pendingNodeIds.has(nodeId));
         card.classList.toggle("entering", state.enteringNodeIds.has(nodeId));
-        card.setAttribute("aria-busy", state.pendingModules.has(nodeId) ? "true" : "false");
+        card.setAttribute("aria-busy", state.pendingNodeIds.has(nodeId) ? "true" : "false");
       }
       for (const [edgeId, record] of state.edgeElementsById) {
         record.path.classList.toggle("selected", state.selectedEdgeId === edgeId);
@@ -391,7 +422,7 @@ export function getModuleVisualizerGraphRendererSource(): string {
         state.enteringEdgeIds.clear();
         state.enteringTimer = undefined;
         renderGraph(undefined, false);
-      }, 280);
+      }, 480);
     }
 
     /** Creates the shared arrow marker and delegated activation listeners once. */
