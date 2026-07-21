@@ -130,6 +130,9 @@ dedicated Function Visualizer tab with a bounded control-flow graph:
 - statement nodes arranged in top-to-bottom execution ranks
 - content-sized node boxes that preserve complete source labels, values, and
   child-function names by wrapping instead of adding ellipses
+- source-authored line breaks plus lightweight VS Code theme syntax colors for
+  keywords, literals, strings, numbers, comments, operators, types, and calls;
+  snippets remain inert `textContent` and are never parsed as HTML or executed
 - subtle depth tints that distinguish nested blocks without replacing semantic kind colors
 - inline `VAR`, `FIELD`, and `RECEIVER` rows showing which value changes at each block
 - inline `PARAM`, `LOCAL`, and `CONST` rows showing lexical definitions, writes,
@@ -234,6 +237,8 @@ omitted counts. It provides:
 - click an attached entry/boundary function to continue from that card into its
   bounded statement-level control-flow graph on the same Module Flow canvas;
   click it again to collapse only that function branch
+- attached statement cards use the same source-line preservation and safe,
+  theme-aware syntax highlighting as the dedicated Function Visualizer
 - a complete-canvas budget of 500 nodes and 1,000 edges; attaching beyond it
   releases the oldest expansion branches instead of retaining unbounded DOM/layout state
 - short staggered entry animation for only newly attached function blocks and
@@ -533,6 +538,8 @@ Key reusable modules:
 - `src/protocol/functionVisualizer.ts` — editor-tab navigation session contract
 - `src/webview/codeFlow/` — flow-first Activity Bar launcher and shared graph
   renderer
+- `src/webview/codePresentation/` — reusable, non-executing source-snippet
+  tokenizer, textContent renderer, and VS Code theme token styles
 - `src/webview/codeFlow/viewport/` — pure Function Logic transform geometry and
   browser-only free-pan, focal zoom, Center, and Fit controls
 - `src/webview/codeFlow/valuePreview/` — session-only literal Scenario editor and

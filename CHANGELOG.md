@@ -4,6 +4,18 @@ All notable user-visible changes to Project Analyzer: Code Flow are recorded in
 this file. The changelog starts with the first distribution-documented build;
 earlier local development builds were not tracked here.
 
+## 0.0.1055 - 2026-07-21
+
+### Changed
+
+- Function Logic statement labels and value-change expressions now preserve
+  source-authored line breaks and indentation instead of flattening code into a
+  single visual line. Content-based layout accounts for every explicit line.
+- Function Visualizer nodes, selected-block code, and same-canvas Module Flow
+  statement cards now share lightweight VS Code theme syntax highlighting for
+  supported language families. Rendering uses only inert `textContent` spans;
+  analyzer source is neither interpreted as HTML nor executed.
+
 ## 0.0.1054 - 2026-07-21
 
 ### Added
