@@ -4,6 +4,26 @@ All notable user-visible changes to Project Analyzer: Code Flow are recorded in
 this file. The changelog starts with the first distribution-documented build;
 earlier local development builds were not tracked here.
 
+## 0.0.1057 - 2026-07-21
+
+### Added
+
+- Function Logic now expands explicit nested keys from TypeScript/JavaScript
+  object literals and Python dictionaries into individual `FIELD` changes.
+  Spread/unpack sources, `Object.assign`, Python `dict.update`, and Java
+  map-style literal keys remain visibly inferred when runtime types or key sets
+  cannot be proven.
+- Scenario calculation now applies exact own-data property assignments,
+  compound updates, increments, dynamic known indexes, and deletes to JSON
+  inputs. Each calculation row names the changed field and shows its leaf-level
+  before/after value.
+
+### Security
+
+- Scenario object writes use bounded copy-on-write paths, reject accessors and
+  non-plain prototypes, and block `__proto__`, `prototype`, and `constructor`
+  segments without executing source or getters.
+
 ## 0.0.1055 - 2026-07-21
 
 ### Changed

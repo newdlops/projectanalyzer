@@ -134,7 +134,9 @@ dedicated Function Visualizer tab with a bounded control-flow graph:
   keywords, literals, strings, numbers, comments, operators, types, and calls;
   snippets remain inert `textContent` and are never parsed as HTML or executed
 - subtle depth tints that distinguish nested blocks without replacing semantic kind colors
-- inline `VAR`, `FIELD`, and `RECEIVER` rows showing which value changes at each block
+- inline `VAR`, `FIELD`, and `RECEIVER` rows showing which value changes at each block;
+  JavaScript/TypeScript object literals and Python dictionaries expand explicit nested keys,
+  while spread/unpack, `Object.assign`, and map-style method keys retain inferred styling
 - inline `PARAM`, `LOCAL`, and `CONST` rows showing lexical definitions, writes,
   and whether a read is internally `CONSUME`d or reaches a lexical `SINK`
 - a per-binding value selector that overlays possible definition-to-use arrows,
@@ -355,15 +357,19 @@ value is promoted to the analyzer-backed row. The editor parses entered JSON or
 scalar literals in the Webview and feeds a bounded, side-effect-free evaluator. It
 calculates source-backed lexical initializers, assignments, compound assignments,
 increments/decrements, arithmetic,
-comparisons, complex boolean expressions, own-data member reads, and JavaScript/Java
-`?:` expressions including nested ternaries. The selected binding's calculation also
-shows downstream assignments whose provenance includes that binding.
+comparisons, complex boolean expressions, own-data member reads and writes (including
+nested fields, literal/dynamic indexes, and deletes), and JavaScript/Java `?:`
+expressions including nested ternaries. Field calculations clone only the JSON-shaped
+containers on the selected path, so the entered Scenario value remains unchanged. The
+selected binding's calculation also shows downstream assignments whose provenance
+includes that binding.
 
 Scenario states propagate over the visible CFG with an iterative worklist. A selected
 `true`/`false`/`case` choice removes its dimmed nodes and edges from the calculation;
 without a choice, differing values at a reachable merge become `<unknown: multiple
 reachable values>` instead of choosing a path. Calls, constructors, getters, inferred
-receiver mutations, dynamic heap writes, and iteration counts are never executed.
+receiver mutations, unknown-key heap mutations, prototype-sensitive fields, accessors,
+and iteration counts are never executed.
 Stored code programs, generated `Function` bodies, and timer strings are also excluded
 from immediate Scenario propagation; a direct static `eval`/`vm` program participates
 only because its consuming source statement is an immediate code boundary.
@@ -376,8 +382,9 @@ uppercase Python local is shown as an inferred constant because that is a naming
 convention, not a language guarantee. Concise JSX `.map(item => <Item />)` callback
 parameters are tied to the inferred render-loop block; event callback bodies remain
 separate event-handler flows. Ambiguous shadowed names are omitted instead of being
-joined by spelling alone. This is lexical static flow only: it does not evaluate
-runtime values or infer aliases, object fields, closures, or interprocedural data flow.
+joined by spelling alone. This is lexical static flow plus source-proven object-field
+evidence: it does not evaluate runtime values or infer aliases, keys hidden behind
+arbitrary spreads/calls, closures, or interprocedural data flow.
 
 F#/OCaml/Elixir model `|>` as exact sequential evaluation, preserving complete
 input and stage text plus each language's argument-insertion direction. Named
@@ -525,6 +532,8 @@ Key reusable modules:
 - `src/analyzer/rust/supplementalLanguageGraph.ts` — selected-language graph
   merge used to add Java and functional-language evidence without replacing
   primary Rust results
+- `src/analyzer/functionLogic/valueChanges/objectFields/` — parser-specific
+  object/dictionary literal expansion and shared stable field-target formatting
 - `src/extension/currentFunctionVisualization/` — editor command and exact
   cursor-target graph adaptation
 - `src/extension/workspaceAnalysis/` — exact-fingerprint workspace graph
@@ -542,8 +551,8 @@ Key reusable modules:
   tokenizer, textContent renderer, and VS Code theme token styles
 - `src/webview/codeFlow/viewport/` — pure Function Logic transform geometry and
   browser-only free-pan, focal zoom, Center, and Fit controls
-- `src/webview/codeFlow/valuePreview/` — session-only literal Scenario editor and
-  bounded definition/consume/sink progression
+- `src/webview/codeFlow/valuePreview/` — session-only literal Scenario editor,
+  bounded definition/consume/sink progression, and safe JSON field copy-on-write
 - `src/webview/functionVisualizer/` — editor-tab lifecycle, reading UX, and
   cycle-safe lazy function navigation
 - `src/webview/moduleVisualizer/` — dedicated Module Flow tab, detail/evidence,
