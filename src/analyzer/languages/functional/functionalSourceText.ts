@@ -88,7 +88,7 @@ export function findFunctionalLine(
     ?? { index: 0, from: 0, to: 0, text: "", indent: 0 };
 }
 
-/** Trims source-owned whitespace while preserving the exact remaining offsets. */
+/** Trims outer whitespace while preserving internal source lines and offsets. */
 export function trimFunctionalSpan(
   text: string,
   from: number,
@@ -105,7 +105,7 @@ export function trimFunctionalSpan(
   return {
     from: trimmedFrom,
     to: trimmedTo,
-    text: text.slice(trimmedFrom, trimmedTo).replace(/\s+/gu, " ").trim()
+    text: text.slice(trimmedFrom, trimmedTo).replace(/\r\n?/gu, "\n")
   };
 }
 

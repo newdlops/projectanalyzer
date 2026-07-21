@@ -275,7 +275,7 @@ function safeText(value: string, fallback: string): string {
     : `${normalized.slice(0, DISPLAY_TEXT_LIMIT - 1)}…`;
 }
 
-/** Preserves complete graph semantics while normalizing source whitespace. */
+/** Preserves complete graph semantics and source-authored physical line breaks. */
 function completeGraphText(value: string, fallback: string): string {
-  return value.replace(/\s+/gu, " ").trim() || fallback;
+  return value.replace(/\r\n?/gu, "\n").trim() || fallback;
 }

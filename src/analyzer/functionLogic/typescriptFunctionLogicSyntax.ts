@@ -614,9 +614,9 @@ function normalizeSourceText(value: string): string {
   return value.replace(/\s+/gu, " ").trim();
 }
 
-/** Preserves complete graph-box source text while normalizing visual whitespace. */
+/** Preserves complete graph-box source text and its physical line structure. */
 export function completeSourceText(value: string, fallback: string): string {
-  return normalizeSourceText(value) || fallback;
+  return value.replace(/\r\n?/gu, "\n").trim() || fallback;
 }
 
 /** Bounds analyzer-owned text that is not rendered as graph-box source. */

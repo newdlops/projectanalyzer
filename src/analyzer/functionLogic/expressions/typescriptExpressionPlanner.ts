@@ -728,7 +728,7 @@ function toSourceRange(sourceFile: ts.SourceFile, node: ts.Node): SourceRange {
   };
 }
 
-/** Normalizes display whitespace while retaining complete source evidence. */
+/** Retains complete expression text and source-authored physical line breaks. */
 function normalizeExpressionText(value: string, fallback: string): string {
-  return value.replace(/\s+/gu, " ").trim() || fallback;
+  return value.replace(/\r\n?/gu, "\n").trim() || fallback;
 }

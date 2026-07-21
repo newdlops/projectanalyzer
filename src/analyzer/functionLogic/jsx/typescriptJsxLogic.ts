@@ -676,7 +676,7 @@ function createBoundaryBlock(
   };
 }
 
-/** Normalizes source labels while preserving their complete semantic text. */
+/** Normalizes line endings while preserving complete JSX expression layout. */
 function normalizeSourceText(value: string): string {
-  return value.replace(/\s+/gu, " ").trim();
+  return value.replace(/\r\n?/gu, "\n").trim();
 }

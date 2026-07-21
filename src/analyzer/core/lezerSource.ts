@@ -155,12 +155,12 @@ export function hasLezerError(root: SyntaxNode): boolean {
   return false;
 }
 
-/** Normalizes multiline syntax without discarding source-owned graph text. */
+/** Normalizes line endings without discarding source-owned graph formatting. */
 export function normalizeLezerText(
   value: string,
   fallback: string
 ): string {
-  return value.replace(/\s+/gu, " ").trim() || fallback;
+  return value.replace(/\r\n?/gu, "\n").trim() || fallback;
 }
 
 /** Normalizes multiline syntax into a bounded non-graph display label. */
@@ -169,7 +169,7 @@ export function compactLezerText(
   fallback: string,
   limit = 180
 ): string {
-  const normalized = normalizeLezerText(value, fallback);
+  const normalized = normalizeLezerText(value, fallback).replace(/\s+/gu, " ").trim();
   return normalized.length <= limit
     ? normalized
     : `${normalized.slice(0, Math.max(0, limit - 1))}…`;
