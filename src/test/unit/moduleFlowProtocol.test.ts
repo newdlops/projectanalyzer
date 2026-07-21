@@ -11,6 +11,7 @@ import type {
   ModuleFlowDetailPayload,
   ModuleFlowEdgePayload,
   ModuleFlowExpandPayload,
+  ModuleFlowFunctionLogicPayload,
   ModuleFlowListPayload,
   ModuleFlowModuleNodePayload
 } from "../../protocol/moduleFlow";
@@ -23,15 +24,19 @@ const SOURCE_TOKEN =
   "source-node:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef" as const;
 const EVIDENCE_TOKEN =
   "module-flow-evidence:abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789" as const;
+const LOGIC_EVIDENCE_TOKEN =
+  "code-evidence:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef" as const;
 
 test("Module Flow responses remain bounded JSON projections", () => {
   const list = createListPayload();
   const detail = createDetailPayload();
   const expansion = createExpandPayload();
+  const functionLogic = createFunctionLogicPayload();
   const responses = [
     { type: "moduleFlow/listLoaded", payload: list },
     { type: "moduleFlow/detailLoaded", payload: detail },
     { type: "moduleFlow/expanded", payload: expansion },
+    { type: "moduleFlow/functionLogicLoaded", payload: functionLogic },
     {
       type: "moduleFlow/requestFailed",
       payload: {
@@ -47,6 +52,7 @@ test("Module Flow responses remain bounded JSON projections", () => {
   assert.equal(list.summary.omittedModuleCount, 3);
   assert.equal(detail.detail.kind, "edge");
   assert.equal(expansion.anchorModuleId, MODULE_ID);
+  assert.equal(functionLogic.anchorFunctionId, FUNCTION_ID);
   assertJsonProtocolValue(responses);
   assertHostIdentitiesAreAbsent(responses);
 });
@@ -96,6 +102,24 @@ test("Module Flow requests compile as correlated bounded Webview variants", () =
       }
     },
     {
+      type: "moduleFlow/functionLogic",
+      payload: {
+        graphVersion: "sidebar-snapshot:test:1",
+        requestId: 6,
+        functionId: FUNCTION_ID,
+        blockLimit: 48,
+        edgeLimit: 96
+      }
+    },
+    {
+      type: "moduleFlow/openSource",
+      payload: {
+        graphVersion: "sidebar-snapshot:test:1",
+        requestId: 7,
+        target: { kind: "logicEvidence", evidenceToken: LOGIC_EVIDENCE_TOKEN }
+      }
+    },
+    {
       type: "moduleFlow/openSource",
       payload: {
         graphVersion: "sidebar-snapshot:test:1",
@@ -111,6 +135,8 @@ test("Module Flow requests compile as correlated bounded Webview variants", () =
       "moduleFlow/list",
       "moduleFlow/detail",
       "moduleFlow/expand",
+      "moduleFlow/openSource",
+      "moduleFlow/functionLogic",
       "moduleFlow/openSource",
       "moduleFlow/openSource"
     ]
@@ -144,6 +170,60 @@ function createModuleNode(): ModuleFlowModuleNodePayload {
     expandable: {
       childModules: false,
       boundaryFunctions: true
+    }
+  };
+}
+
+/** Creates the bounded function-local response attached after a function click. */
+function createFunctionLogicPayload(): ModuleFlowFunctionLogicPayload {
+  const blockId = "function-logic-block:0123456789abcdef0123456789abcdef";
+  return {
+    graphVersion: "sidebar-snapshot:test:1",
+    requestId: 6,
+    anchorFunctionId: FUNCTION_ID,
+    title: "OrdersController.create",
+    subtitle: "Function logic · orders/controller.ts:18",
+    logic: {
+      language: "typescript",
+      signature: "create(order)",
+      blocks: [{
+        id: blockId,
+        kind: "entry",
+        label: "Enter create",
+        detail: "Function entry",
+        depth: 0,
+        confidence: "exact",
+        sourceLocation: "orders/controller.ts:18",
+        evidenceToken: LOGIC_EVIDENCE_TOKEN
+      }],
+      edges: [],
+      valueBindings: [],
+      valueFlows: [],
+      layout: {
+        width: 280,
+        height: 120,
+        nodes: [{ blockId, x: 20, y: 20, width: 240, height: 80, rank: 0, lane: 0 }],
+        edges: []
+      },
+      summary: {
+        blockCount: 1,
+        branchCount: 0,
+        loopCount: 0,
+        callCount: 0,
+        effectCount: 0,
+        mutationCount: 0,
+        valueChangeCount: 0,
+        exitCount: 0
+      },
+      callees: [],
+      omittedCalleeCount: 0
+    },
+    gaps: [],
+    summary: {
+      visibleBlockCount: 1,
+      visibleEdgeCount: 0,
+      omittedEdgeCount: 0,
+      gapCount: 0
     }
   };
 }
@@ -227,7 +307,8 @@ function createExpandPayload(): ModuleFlowExpandPayload {
       architectureLayer: "interface",
       confidence: "resolved",
       incomingBoundaryCount: 0,
-      outgoingBoundaryCount: 2
+      outgoingBoundaryCount: 2,
+      expandable: { functionLogic: true }
     }],
     edges: [{
       id: "module-flow-edge:abcdef0123456789abcdef0123456789",

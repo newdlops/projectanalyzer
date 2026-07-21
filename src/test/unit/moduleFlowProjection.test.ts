@@ -317,6 +317,30 @@ test("expands only direct child modules with containment edges", () => {
   assertBrowserSafePayload(expansion);
 });
 
+test("resolves function logic only for cards issued into the active module scene", () => {
+  const service = createService(createTokenRecorder());
+  service.activate(SNAPSHOT, createFixtureGraph());
+  const scene = service.projectList(createListRequest("execution"));
+  const api = findModuleNode(scene, "apps/api");
+  const expansion = service.projectExpansion({
+    graphVersion: SNAPSHOT,
+    requestId: 31,
+    moduleId: api.id,
+    expansion: "boundaryFunctions",
+    direction: "both",
+    nodeLimit: 1,
+    edgeLimit: 3
+  });
+  assert.ok(expansion);
+  const functionNode = expansion.nodes.find((node) => node.kind === "function");
+  assert.ok(functionNode && functionNode.kind === "function");
+  assert.equal(functionNode.expandable.functionLogic, true);
+  assert.equal(service.resolveFunctionNode(functionNode.id)?.name, "handleOrder0");
+
+  service.projectList({ ...createListRequest("dependency"), requestId: 32 });
+  assert.equal(service.resolveFunctionNode(functionNode.id), undefined);
+});
+
 test("rejects stale or unavailable projection snapshots", () => {
   const service = createService(createTokenRecorder());
   const listRequest = createListRequest("execution");

@@ -12,6 +12,8 @@ import {
   MODULE_FLOW_DETAIL_MAX_RELATIONS,
   MODULE_FLOW_EXPAND_MAX_EDGES,
   MODULE_FLOW_EXPAND_MAX_NODES,
+  MODULE_FLOW_FUNCTION_LOGIC_MAX_BLOCKS,
+  MODULE_FLOW_FUNCTION_LOGIC_MAX_EDGES,
   MODULE_FLOW_LIST_MAX_EDGES,
   MODULE_FLOW_LIST_MAX_MODULES
 } from "../../protocol/moduleFlow";
@@ -53,6 +55,7 @@ test("accepts every current WebviewRequest variant", () => {
       "moduleFlow/list",
       "moduleFlow/detail",
       "moduleFlow/expand",
+      "moduleFlow/functionLogic",
       "moduleFlow/openSource",
       "function/index",
       "function/sectionRows",
@@ -309,6 +312,8 @@ test("accepts bounded Module Flow requests with strict opaque identities", () =>
   const edgeId = `module-flow-edge:${"b".repeat(32)}`;
   const sourceToken = `source-node:${"c".repeat(64)}`;
   const evidenceToken = `module-flow-evidence:${"d".repeat(64)}`;
+  const functionId = `module-flow-function:${"e".repeat(32)}`;
+  const logicEvidenceToken = `code-evidence:${"f".repeat(64)}`;
   const requests: unknown[] = [
     {
       type: "moduleFlow/list",
@@ -355,11 +360,13 @@ test("accepts bounded Module Flow requests with strict opaque identities", () =>
       }
     },
     {
-      type: "moduleFlow/openSource",
+      type: "moduleFlow/functionLogic",
       payload: {
         graphVersion,
         requestId: 5,
-        target: { kind: "node", sourceToken }
+        functionId,
+        blockLimit: MODULE_FLOW_FUNCTION_LOGIC_MAX_BLOCKS,
+        edgeLimit: MODULE_FLOW_FUNCTION_LOGIC_MAX_EDGES
       }
     },
     {
@@ -367,7 +374,23 @@ test("accepts bounded Module Flow requests with strict opaque identities", () =>
       payload: {
         graphVersion,
         requestId: 6,
+        target: { kind: "node", sourceToken }
+      }
+    },
+    {
+      type: "moduleFlow/openSource",
+      payload: {
+        graphVersion,
+        requestId: 7,
         target: { kind: "evidence", evidenceToken }
+      }
+    },
+    {
+      type: "moduleFlow/openSource",
+      payload: {
+        graphVersion,
+        requestId: 8,
+        target: { kind: "logicEvidence", evidenceToken: logicEvidenceToken }
       }
     }
   ];
@@ -382,6 +405,7 @@ test("rejects unbounded or path-bearing Module Flow requests", () => {
   const moduleId = `module-flow-module:${"a".repeat(32)}`;
   const edgeId = `module-flow-edge:${"b".repeat(32)}`;
   const sourceToken = `source-node:${"c".repeat(64)}`;
+  const functionId = `module-flow-function:${"e".repeat(32)}`;
   const malformed: unknown[] = [
     {
       type: "moduleFlow/list",
@@ -506,6 +530,26 @@ test("rejects unbounded or path-bearing Module Flow requests", () => {
         direction: "downstream",
         nodeLimit: MODULE_FLOW_EXPAND_MAX_NODES + 1,
         edgeLimit: MODULE_FLOW_EXPAND_MAX_EDGES + 1
+      }
+    },
+    {
+      type: "moduleFlow/functionLogic",
+      payload: {
+        graphVersion,
+        requestId: 4,
+        functionId,
+        blockLimit: MODULE_FLOW_FUNCTION_LOGIC_MAX_BLOCKS + 1,
+        edgeLimit: MODULE_FLOW_FUNCTION_LOGIC_MAX_EDGES + 1
+      }
+    },
+    {
+      type: "moduleFlow/functionLogic",
+      payload: {
+        graphVersion,
+        requestId: 4,
+        functionId: "function:/workspace/src/index.ts",
+        blockLimit: 1,
+        edgeLimit: 1
       }
     },
     {
@@ -700,6 +744,16 @@ function createValidRequests(): WebviewRequest[] {
         expansion: "boundaryFunctions",
         direction: "both",
         nodeLimit: 24,
+        edgeLimit: 48
+      }
+    },
+    {
+      type: "moduleFlow/functionLogic",
+      payload: {
+        graphVersion: "v1",
+        requestId: 4,
+        functionId: "module-flow-function:0123456789abcdef0123456789abcdef",
+        blockLimit: 24,
         edgeLimit: 48
       }
     },
