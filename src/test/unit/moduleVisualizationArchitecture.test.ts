@@ -147,6 +147,31 @@ test("edge crossing bridges stay inside the pure iterative Module Flow layer", (
   );
 });
 
+test("same-canvas Function Logic uses isolated delivery and browser adapters", () => {
+  const provider = readSource(
+    "src/webview/moduleVisualizer/moduleVisualizerPanelProvider.ts"
+  );
+  const delivery = readSource(
+    "src/webview/moduleVisualizer/moduleFlowFunctionLogicDelivery.ts"
+  );
+  const scene = readSource(
+    "src/webview/moduleVisualizer/moduleFlowFunctionLogicScene.ts"
+  );
+  const browser = readSource(
+    "src/webview/moduleVisualizer/moduleVisualizerBrowserSource.ts"
+  );
+
+  assert.match(provider, /new ModuleFlowFunctionLogicDelivery\(/u);
+  assert.doesNotMatch(provider, /openFunction/u);
+  assert.match(delivery, /analyzeFunctionLogic\(/u);
+  assert.match(delivery, /createFunctionLogicCodeFlowDetail\(/u);
+  assert.match(delivery, /resolveFunctionNode\(request\.functionId\)/u);
+  assert.match(scene, /export function createModuleFlowFunctionLogicScene/u);
+  assert.doesNotMatch(scene, /(?:vscode|node:fs|readFile)/u);
+  assert.match(browser, /getModuleFlowFunctionLogicBrowserSource\(\)/u);
+  assert.match(browser, /getModuleFlowFunctionLogicSceneBrowserSource\(\)/u);
+});
+
 /** Reads a repository source file without assuming the compiled output location. */
 function readSource(relativePath: string): string {
   return fs.readFileSync(path.join(process.cwd(), relativePath), "utf8");

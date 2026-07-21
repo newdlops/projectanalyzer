@@ -76,6 +76,29 @@ test("rejects an incoming branch that cannot fit with the base scene alone", () 
   assert.equal(result.edgeCount, 1);
 });
 
+test("rejects a child branch instead of evicting its protected anchor branch", () => {
+  const store = new ModuleFlowExpansionStore<ModuleFlowExpansionScene>(4, 4);
+  store.retain("function-owner", expansion(["function"], ["owns"]), ["module"], ["base"]);
+  store.retain("sibling", expansion(["sibling"], ["sibling-edge"]), ["module"], ["base"]);
+
+  const result = store.retain(
+    "function-logic",
+    expansion(["entry", "condition", "return"], ["enter", "branch", "next"]),
+    ["module"],
+    ["base"],
+    ["function-owner"]
+  );
+
+  assert.equal(result.accepted, false);
+  assert.equal(store.has("function-owner"), true);
+  assert.equal(store.has("sibling"), true);
+  assert.equal(store.has("function-logic"), false);
+  assert.deepEqual(
+    [...store.entryPairs()].map(([key]) => key),
+    ["function-owner", "sibling"]
+  );
+});
+
 test("deleting and clearing branches releases their payload references", () => {
   const store = new ModuleFlowExpansionStore<ModuleFlowExpansionScene>(10, 10);
   store.retain("one", expansion(["a"], ["ea"]), [], []);

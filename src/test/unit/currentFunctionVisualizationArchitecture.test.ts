@@ -330,6 +330,13 @@ test("Function Logic keeps a large graph surface and modular adjacent inspector 
   assert.doesNotMatch(inspectorStyles, /position: absolute|logic-inspector-backdrop/u);
   assert.doesNotMatch(inspector, /backdrop/u);
   assert.match(visualizerStyles, /\.visualizer-shell \{[\s\S]*?width: 100%/u);
+  assert.match(visualizerStyles, /grid-template-columns: minmax\(0, 1fr\) auto/u);
+  assert.match(visualizerStyles, /\.status\[hidden\] \{ display: none; \}/u);
+  assert.match(visualizerStyles, /\.function-origins \{[\s\S]*?display: flex/u);
+  assert.match(
+    visualizerStyles,
+    /\.function-origins\[hidden\] \{ display: none; \}/u
+  );
   assert.match(visualizerStyles, /clamp\(300px, 31vw, 430px\)/u);
   assert.match(visualizerStyles, /--logic-workspace-height: clamp\(460px, 76vh, 1080px\)/u);
   assert.doesNotMatch(

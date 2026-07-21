@@ -32,6 +32,22 @@ type TestValueChange = {
   confidence: "exact" | "inferred";
 };
 
+test("keeps root navigation and idle status from consuming graph height", () => {
+  const runtime = installSidebarWebviewRuntime();
+
+  try {
+    new Function(requireFunctionVisualizerScript())();
+    runtime.dispatchMessage(createSessionMessage());
+    assert.equal(runtime.isHidden("status"), false);
+
+    runtime.dispatchMessage(createFunctionDetail("Root.run", rootToken));
+    assert.equal(runtime.isHidden("function-navigation"), true);
+    assert.equal(runtime.isHidden("status"), true);
+  } finally {
+    runtime.restore();
+  }
+});
+
 test("keeps the graph primary and moves supporting inspectors into an adjacent drawer", () => {
   const runtime = installSidebarWebviewRuntime();
   const openTitle = "Open function inspector · return true;";
@@ -840,6 +856,7 @@ test("drills into a child and reuses history when a call cycle returns to root",
     assert.ok(rootText.includes("Child.load"));
 
     runtime.clickByTitle("Open child function · Child.load");
+    assert.equal(runtime.isHidden("status"), false);
     assert.deepEqual(latestPayload(runtime.messages, "codeFlow/selectSource"), {
       graphVersion,
       sourceToken: childToken
@@ -855,6 +872,8 @@ test("drills into a child and reuses history when a call cycle returns to root",
 
     assert.ok(runtime.getRenderedText("function-breadcrumbs").includes("Root.run"));
     assert.ok(runtime.getRenderedText("function-breadcrumbs").includes("Child.load"));
+    assert.equal(runtime.isHidden("function-navigation"), false);
+    assert.equal(runtime.isHidden("status"), true);
     assert.equal(runtime.isDisabled("function-back"), false);
 
     const requestCount = runtime.messages.filter((message) =>

@@ -85,7 +85,7 @@ test("embeds the shared layout, SCC, and orthogonal routing runtime", () => {
   assert.match(program, /state\.layoutCache\.get\(layoutKey\)/u);
 });
 
-test("attaches boundary functions to the existing scene and hands functions off", () => {
+test("attaches entry function logic to the existing Module Flow scene", () => {
   const program = requireBrowserProgram(createDocument());
   const panelSource = readSource(
     "src/webview/moduleVisualizer/moduleVisualizerPanelProvider.ts"
@@ -103,9 +103,17 @@ test("attaches boundary functions to the existing scene and hands functions off"
   );
   assert.match(
     program,
-    /if \(node\.kind === "function"\)[\s\S]*requestOpenSource\(\{ kind: "node", sourceToken: node\.sourceToken \}\)/u
+    /if \(node\.kind === "function"\)[\s\S]*renderFunctionDetail\(node\);[\s\S]*toggleFunctionLogic\(node\)/u
   );
-  assert.match(panelSource, /await this\.dependencies\.openFunction\(graph, node\.id\)/u);
+  assert.match(program, /post\("moduleFlow\/functionLogic"/u);
+  assert.match(program, /createModuleFlowFunctionLogicScene\(payload\)/u);
+  assert.match(
+    program,
+    /state\.expansions\.retain\([\s\S]*pending\.key,[\s\S]*expansion,[\s\S]*\[ownerExpansionKey\]/u
+  );
+  assert.match(panelSource, /new ModuleFlowFunctionLogicDelivery\(/u);
+  assert.match(panelSource, /type: "moduleFlow\/functionLogicLoaded"/u);
+  assert.doesNotMatch(panelSource, /openFunction/u);
   assert.doesNotMatch(program, /window\.open|createWebviewPanel/u);
 });
 
@@ -129,6 +137,7 @@ test("preserves the clicked anchor and honors enter-motion preferences", () => {
     styles,
     /\.module-edge\.entering\s*\{\s*animation: module-edge-enter 260ms/u
   );
+  assert.match(styles, /animation-delay: calc\(var\(--entry-order, 0\) \* 16ms\)/u);
   assert.match(
     styles,
     /@media \(prefers-reduced-motion: reduce\)[\s\S]*\.module-card\.entering,[\s\S]*\.module-edge\.entering,[\s\S]*\.module-edge-direction\.entering\s*\{ animation: none; \}/u
@@ -253,12 +262,12 @@ test("guards stale graph requests and clears every panel snapshot authority", ()
     /this\.graphDelivery\.matches\(request\.graphVersion\)[\s\S]*this\.projection\.matches\(request\.graphVersion\)/u
   );
   assert.match(panelSource, /"staleGraph"/u);
-  assert.match(
-    panelSource,
-    /this\.graphDelivery\.clear\(\);\s*const activation = this\.graphDelivery\.activate\(graph\);\s*this\.sourceNodeTokens\.activate\(activation\.snapshot\.version, graph\);\s*this\.evidenceTokens\.activate\(activation\.snapshot\.version, graph\);\s*this\.projection\.activate\(activation\.snapshot\.version, graph\);/u
-  );
+  assert.match(panelSource, /this\.logicEvidenceTokens\.activate\(activation\.snapshot\.version, graph\)/u);
+  assert.match(panelSource, /this\.projection\.activate\(activation\.snapshot\.version, graph\)/u);
   assert.match(
     panelSource,
     /private disposePanelState\(\): void \{[\s\S]*this\.pendingGraph = undefined;[\s\S]*this\.graphDelivery\.clear\(\);[\s\S]*this\.projection\.clear\(\);[\s\S]*this\.sourceNodeTokens\.clear\(\);[\s\S]*this\.evidenceTokens\.clear\(\);/u
   );
+  assert.match(panelSource, /this\.functionLogicDelivery\.clear\(\)/u);
+  assert.match(panelSource, /this\.logicEvidenceTokens\.clear\(\)/u);
 });
