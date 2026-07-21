@@ -25,7 +25,7 @@ export function getFunctionVisualizerHtml(
 </head>
 <body>
   <main class="visualizer-shell">
-    <nav class="visualizer-topbar" aria-label="Function navigation">
+    <nav id="function-navigation" class="visualizer-topbar" aria-label="Function navigation" hidden>
       <button id="function-back" class="back-button" type="button" disabled>← Parent function</button>
       <div id="function-breadcrumbs" class="breadcrumbs"></div>
     </nav>
@@ -42,7 +42,7 @@ export function getFunctionVisualizerHtml(
 
     <div id="status" class="status" role="status" aria-live="polite">Connecting to the analyzer…</div>
     <section id="function-origins-section" class="function-origins" aria-labelledby="function-origins-title" hidden>
-      <h2 id="function-origins-title">Known entrypoints reaching this function</h2>
+      <h2 id="function-origins-title">Reached from</h2>
       <div id="function-origins"></div>
     </section>
     <section id="flow-steps" class="flow-steps" aria-label="Function control-flow graph"></section>

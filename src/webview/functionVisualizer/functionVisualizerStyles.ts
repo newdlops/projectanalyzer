@@ -27,7 +27,7 @@ export function getFunctionVisualizerStyles(): string {
       width: 100%;
       min-height: 100vh;
       margin: 0 auto;
-      padding: 16px clamp(12px, 1.8vw, 28px) 32px;
+      padding: 8px clamp(12px, 1.8vw, 28px) 24px;
     }
 
     .visualizer-topbar {
@@ -38,12 +38,14 @@ export function getFunctionVisualizerStyles(): string {
       grid-template-columns: auto minmax(0, 1fr);
       align-items: center;
       gap: 12px;
-      margin: -16px calc(-1 * clamp(12px, 1.8vw, 28px)) 14px;
-      padding: 10px clamp(12px, 1.8vw, 28px);
+      margin: -8px calc(-1 * clamp(12px, 1.8vw, 28px)) 8px;
+      padding: 6px clamp(12px, 1.8vw, 28px);
       background: color-mix(in srgb, var(--vscode-editor-background) 94%, transparent);
       border-bottom: 1px solid var(--vscode-panel-border);
       backdrop-filter: blur(10px);
     }
+
+    .visualizer-topbar[hidden] { display: none; }
 
     .back-button,
     .breadcrumb-button {
@@ -98,21 +100,28 @@ export function getFunctionVisualizerStyles(): string {
 
     .visualizer-header {
       display: grid;
-      gap: 7px;
-      margin-bottom: 10px;
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: end;
+      gap: 3px 16px;
+      margin-bottom: 5px;
     }
 
     .visualizer-eyebrow {
       color: var(--vscode-textLink-foreground);
-      font-size: 0.78rem;
+      grid-column: 1 / -1;
+      grid-row: 1;
+      font-size: 0.72rem;
       font-weight: 800;
       letter-spacing: 0.12em;
     }
 
     .visualizer-header h1 {
+      grid-column: 1;
+      grid-row: 2;
       margin: 0;
-      font-size: clamp(1.7rem, 3vw, 2.6rem);
-      line-height: 1.15;
+      min-width: 0;
+      font-size: clamp(1.4rem, 2.1vw, 2rem);
+      line-height: 1.08;
       overflow-wrap: anywhere;
     }
 
@@ -121,23 +130,43 @@ export function getFunctionVisualizerStyles(): string {
     .semantics-note,
     .status {
       color: var(--vscode-descriptionForeground);
-      line-height: 1.5;
+      line-height: 1.35;
     }
 
-    .visualizer-summary { font-weight: 600; }
+    .visualizer-subtitle {
+      grid-column: 1 / -1;
+      grid-row: 3;
+      min-width: 0;
+      font-size: 0.88rem;
+      overflow-wrap: anywhere;
+    }
+
+    .visualizer-summary {
+      grid-column: 2;
+      grid-row: 2;
+      max-width: min(54vw, 780px);
+      font-size: 0.86rem;
+      font-weight: 600;
+      text-align: right;
+    }
 
     .semantics-note {
-      padding: 10px 12px;
+      grid-column: 1 / -1;
+      grid-row: 4;
+      margin-top: 2px;
+      padding: 5px 8px;
       background: color-mix(in srgb, var(--vscode-textLink-foreground) 6%, transparent);
-      border-left: 3px solid var(--vscode-textLink-foreground);
-      border-radius: 4px;
+      border-left: 2px solid var(--vscode-textLink-foreground);
+      border-radius: 3px;
+      font-size: 0.82rem;
     }
 
     .status {
-      min-height: 20px;
-      margin: 6px 0 10px;
-      font-size: 0.92rem;
+      margin: 4px 0 6px;
+      font-size: 0.86rem;
     }
+
+    .status[hidden] { display: none; }
 
     .flow-steps {
       display: grid;
@@ -146,14 +175,20 @@ export function getFunctionVisualizerStyles(): string {
     }
 
     .function-origins {
-      display: grid;
-      gap: 7px;
-      margin: 0 0 16px;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 5px 8px;
+      margin: 4px 0 6px;
     }
+
+    .function-origins[hidden] { display: none; }
 
     .function-origins h2 {
       margin: 0;
-      font-size: 0.92rem;
+      color: var(--vscode-descriptionForeground);
+      font-size: 0.78rem;
+      white-space: nowrap;
     }
 
     #function-origins {
@@ -274,6 +309,17 @@ export function getFunctionVisualizerStyles(): string {
     .logic-selection-header > strong { font-size: var(--logic-code-body); }
     .logic-selection-detail,
     .logic-selection-meta { font-size: var(--logic-font-body); }
+
+    @media (max-width: 900px) {
+      .visualizer-header { grid-template-columns: minmax(0, 1fr); }
+      .visualizer-summary {
+        grid-column: 1;
+        grid-row: 4;
+        max-width: none;
+        text-align: left;
+      }
+      .semantics-note { grid-row: 5; }
+    }
 
     @media (min-width: 721px) {
       .visualizer-shell .logic-graph-workspace.inspector-open {

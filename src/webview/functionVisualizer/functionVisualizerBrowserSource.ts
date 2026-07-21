@@ -34,6 +34,7 @@ export function getFunctionVisualizerBrowserSource(): string {
     };
 
     const elements = {
+      topbar: document.getElementById("function-navigation"),
       back: document.getElementById("function-back"),
       breadcrumbs: document.getElementById("function-breadcrumbs"),
       title: document.getElementById("function-title"),
@@ -188,7 +189,7 @@ export function getFunctionVisualizerBrowserSource(): string {
       };
       state.loading = true;
       state.error = undefined;
-      elements.status.textContent = "Building " + state.pendingTarget.label + "…";
+      setVisualizerStatus("Building " + state.pendingTarget.label + "…", true);
       renderNavigation();
       vscode.postMessage({
         type: "codeFlow/selectSource",
@@ -232,13 +233,13 @@ export function getFunctionVisualizerBrowserSource(): string {
         elements.title.textContent = state.pendingTarget?.label || "Function Visualizer";
         elements.subtitle.textContent = "Building a source-backed control-flow graph";
         elements.summary.textContent = "";
-        elements.semantics.textContent = "Possible static paths, not observed runtime execution.";
+        elements.semantics.textContent = "Static analysis; runtime execution is not observed.";
         elements.flowGapsSection.hidden = true;
         elements.originsSection.hidden = true;
         elements.flowSteps.append(createEmptyState(
           state.error || "Reading the function body and matching direct calls…"
         ));
-        elements.status.textContent = state.error || "Analyzing function logic";
+        setVisualizerStatus(state.error || "Analyzing function logic", true);
         return;
       }
 
@@ -247,16 +248,17 @@ export function getFunctionVisualizerBrowserSource(): string {
       elements.title.textContent = detail.title;
       elements.subtitle.textContent = detail.subtitle;
       elements.summary.textContent = createFunctionLogicSummaryText(detail.logic);
-      elements.semantics.textContent = "Blocks come from source syntax. Value rows show exact writes and dashed inferred receiver changes; calls and renders may return, while event handlers attach as no-return dispatch branches.";
+      elements.semantics.textContent = "Source-backed static flow · solid exact · dashed inferred · events dispatch without return.";
       const pendingExpansion = state.attachedFunctions.find((candidate) =>
         candidate.id === state.pendingExpansionId
       );
-      elements.status.textContent = state.error
+      const activeStatus = state.error
         || (pendingExpansion
           ? "Attaching " + expansionTargetLabel(pendingExpansion) + "…"
           : state.loading && state.pendingTarget
             ? "Building " + state.pendingTarget.label + "…"
-            : "Select a block to inspect control and value changes; related functions attach to this canvas.");
+            : "");
+      setVisualizerStatus(activeStatus, Boolean(activeStatus));
       renderOrigins(detail.origins || []);
       const attachedScene = createAttachedFunctionGraphScene(
         detail.logic,
@@ -285,6 +287,9 @@ export function getFunctionVisualizerBrowserSource(): string {
     /** Rebuilds bounded breadcrumbs and the single-step back action. */
     function renderNavigation() {
       clearElement(elements.breadcrumbs);
+      // A single root breadcrumb repeats the title and costs a full sticky row.
+      // Navigation chrome appears only after a real parent/child trail exists.
+      elements.topbar.hidden = state.history.length <= 1;
       elements.back.disabled = state.historyIndex <= 0;
       for (let index = 0; index < state.history.length; index += 1) {
         const entry = state.history[index];
@@ -304,6 +309,12 @@ export function getFunctionVisualizerBrowserSource(): string {
         }
         elements.breadcrumbs.append(button);
       }
+    }
+
+    /** Reserves vertical status space only for active work or an actionable error. */
+    function setVisualizerStatus(message, visible) {
+      elements.status.textContent = message || "";
+      elements.status.hidden = !visible;
     }
 
     /** Renders analyzer limitations as visible static-analysis boundaries. */
