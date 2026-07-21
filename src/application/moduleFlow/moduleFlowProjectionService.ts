@@ -22,6 +22,7 @@ import type {
   ModuleFlowEvidenceToken,
   ModuleFlowExpandPayload,
   ModuleFlowExpandRequest,
+  ModuleFlowFunctionId,
   ModuleFlowFunctionNodePayload,
   ModuleFlowListPayload,
   ModuleFlowListRequest,
@@ -96,6 +97,12 @@ export class ModuleFlowProjectionService {
 
   private visibleDomainModuleIds = new Set<string>();
 
+  /** Only function cards issued into the active scene may request local logic. */
+  private functionNodeIdsByCanvasId = new Map<ModuleFlowFunctionId, string>();
+
+  /** Avoids repeated full-graph scans when an issued function card is expanded. */
+  private graphNodesById = new Map<string, SymbolNode>();
+
   /** Avoids scanning every module for every projected card. */
   private moduleIdsWithChildren = new Set<string>();
 
@@ -108,6 +115,7 @@ export class ModuleFlowProjectionService {
     this.clear();
     this.graphVersion = graphVersion;
     this.graph = graph;
+    this.graphNodesById = new Map(graph.nodes.map((node) => [node.id, node]));
     this.index = createProjectModuleIndex(graph);
     for (const module of this.index.modules) {
       const id = createModuleFlowModuleId(graphVersion, module.id);
@@ -129,6 +137,8 @@ export class ModuleFlowProjectionService {
     this.sceneEdgeBackingById.clear();
     this.detailEdgeBackingById.clear();
     this.visibleDomainModuleIds.clear();
+    this.functionNodeIdsByCanvasId.clear();
+    this.graphNodesById.clear();
     this.moduleIdsWithChildren.clear();
   }
 
@@ -144,6 +154,7 @@ export class ModuleFlowProjectionService {
     // every old base/detail edge backing immediately.
     this.sceneEdgeBackingById.clear();
     this.detailEdgeBackingById.clear();
+    this.functionNodeIdsByCanvasId.clear();
     const modules = state.index.modules.filter((module) =>
       request.includeExternal !== false || !isExternalModule(module)
     );
@@ -266,6 +277,13 @@ export class ModuleFlowProjectionService {
     return request.expansion === "childModules"
       ? this.projectChildModules(request, module)
       : this.projectBoundaryFunctions(request, module);
+  }
+
+  /** Resolves only a function identity previously issued by the active scene. */
+  public resolveFunctionNode(functionId: ModuleFlowFunctionId): SymbolNode | undefined {
+    const nodeId = this.functionNodeIdsByCanvasId.get(functionId);
+    const node = nodeId ? this.graphNodesById.get(nodeId) : undefined;
+    return node && isCallable(node) ? node : undefined;
   }
 
   /** Creates one browser-safe module card with exact direct metrics. */
@@ -566,13 +584,15 @@ export class ModuleFlowProjectionService {
   /** Projects one callable while retaining its full label and safe location. */
   private projectBoundaryFunction(candidate: BoundaryFunction): ModuleFlowFunctionNodePayload {
     const graphVersion = this.graphVersion ?? "";
+    const id = createModuleFlowFunctionId(graphVersion, candidate.node.id);
+    this.functionNodeIdsByCanvasId.set(id, candidate.node.id);
     const sourceDisplay = createSourceDisplayFormatter(this.graph?.workspaceRoot ?? ".", {
       preserveFullText: true
     });
     const incoming = candidate.incoming.length;
     const outgoing = candidate.outgoing.length;
     return {
-      id: createModuleFlowFunctionId(graphVersion, candidate.node.id),
+      id,
       kind: "function",
       label: safeLabel(candidate.node.qualifiedName || candidate.node.name, "Anonymous callable"),
       detail: formatBoundaryFunctionDetail(incoming, outgoing),
@@ -580,7 +600,10 @@ export class ModuleFlowProjectionService {
       sourceToken: this.tokenFactories.createSourceToken(candidate.node.id),
       confidence: strongestConfidence([...candidate.incoming, ...candidate.outgoing]),
       incomingBoundaryCount: incoming,
-      outgoingBoundaryCount: outgoing
+      outgoingBoundaryCount: outgoing,
+      expandable: {
+        functionLogic: true
+      }
     };
   }
 

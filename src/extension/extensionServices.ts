@@ -82,9 +82,7 @@ export function createExtensionServices(context: vscode.ExtensionContext): Exten
     getWorkspaceRoot: () => vscode.workspace.workspaceFolders?.[0]?.uri.fsPath
   });
   const moduleVisualizerPanelProvider = new ModuleVisualizerPanelProvider({
-    logger,
-    openFunction: (graph, nodeId) =>
-      functionVisualizerPanelProvider.openFunction(graph, nodeId)
+    logger
   });
   context.subscriptions.push(moduleVisualizerPanelProvider);
   const explorerViewProvider = new ExplorerViewProvider({

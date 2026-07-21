@@ -12,6 +12,7 @@ import type {
   ModuleFlowDetailRequest,
   ModuleFlowExpandRequest,
   ModuleFlowFailurePayload,
+  ModuleFlowFunctionLogicRequest,
   ModuleFlowListRequest,
   ModuleFlowOpenSourceRequest
 } from "../../protocol/moduleFlow";
@@ -24,15 +25,17 @@ import { SourceNodeTokenRegistry } from "../sourceNavigation";
 import {
   createNonce,
   openNodeInEditor,
-  openSourceLocationInEditor
+  openSourceLocationInEditor,
+  readSourceText
 } from "../webviewHostActions";
+import { CodeFlowEvidenceTokenRegistry } from "../codeFlow";
 import { ModuleFlowEvidenceTokenRegistry } from "./moduleFlowEvidenceTokenRegistry";
+import { ModuleFlowFunctionLogicDelivery } from "./moduleFlowFunctionLogicDelivery";
 import { getModuleVisualizerHtml } from "./moduleVisualizerHtml";
 
 /** Host actions injected by the extension composition root. */
 export type ModuleVisualizerPanelProviderDependencies = {
   logger: ProjectAnalyzerLogger;
-  openFunction(graph: ProjectGraph, nodeId: string): Promise<void>;
 };
 
 /** Creates and synchronizes one reusable project Module Flow editor tab. */
@@ -60,6 +63,9 @@ export class ModuleVisualizerPanelProvider implements vscode.Disposable {
   /** Raw paths and ranges remain in this snapshot-scoped Host registry. */
   private readonly evidenceTokens = new ModuleFlowEvidenceTokenRegistry();
 
+  /** Function-statement ranges use their existing opaque evidence authority. */
+  private readonly logicEvidenceTokens = new CodeFlowEvidenceTokenRegistry();
+
   /** Complete module index is retained only by this bounded projector. */
   private readonly projection = new ModuleFlowProjectionService({
     createSourceToken: (nodeId) => this.sourceNodeTokens.createToken(nodeId),
@@ -67,9 +73,20 @@ export class ModuleVisualizerPanelProvider implements vscode.Disposable {
       this.evidenceTokens.createToken(filePath, range)
   });
 
+  /** Source-backed function graphs are projected only after a card is clicked. */
+  private readonly functionLogicDelivery: ModuleFlowFunctionLogicDelivery;
+
   public constructor(
     private readonly dependencies: ModuleVisualizerPanelProviderDependencies
-  ) {}
+  ) {
+    this.functionLogicDelivery = new ModuleFlowFunctionLogicDelivery({
+      graphDelivery: this.graphDelivery,
+      projection: this.projection,
+      sourceNodeTokens: this.sourceNodeTokens,
+      evidenceTokens: this.logicEvidenceTokens,
+      readSourceText
+    });
+  }
 
   /** Opens or reveals Module Flow for an exact workspace graph object. */
   public async openGraph(graph: ProjectGraph): Promise<void> {
@@ -144,6 +161,9 @@ export class ModuleVisualizerPanelProvider implements vscode.Disposable {
       case "moduleFlow/expand":
         await this.publishExpansion(message.payload);
         break;
+      case "moduleFlow/functionLogic":
+        await this.publishFunctionLogic(message.payload);
+        break;
       case "moduleFlow/openSource":
         await this.openSource(message.payload);
         break;
@@ -181,6 +201,7 @@ export class ModuleVisualizerPanelProvider implements vscode.Disposable {
     const activation = this.graphDelivery.activate(graph);
     this.sourceNodeTokens.activate(activation.snapshot.version, graph);
     this.evidenceTokens.activate(activation.snapshot.version, graph);
+    this.logicEvidenceTokens.activate(activation.snapshot.version, graph);
     this.projection.activate(activation.snapshot.version, graph);
     await this.postMessage({
       type: "moduleFlow/listLoaded",
@@ -255,12 +276,55 @@ export class ModuleVisualizerPanelProvider implements vscode.Disposable {
     }
   }
 
+  /** Publishes one bounded function-local graph for same-canvas attachment. */
+  private async publishFunctionLogic(
+    request: ModuleFlowFunctionLogicRequest
+  ): Promise<void> {
+    if (!(await this.ensureCurrentRequest(request, "functionLogic"))) {
+      return;
+    }
+    try {
+      const payload = await this.functionLogicDelivery.project(request);
+      if (!payload) {
+        await this.publishFailure(
+          request,
+          "functionLogic",
+          "functionNotFound",
+          "This function is no longer attached to the active Module Flow."
+        );
+        return;
+      }
+      await this.postMessage({ type: "moduleFlow/functionLogicLoaded", payload });
+    } catch (error) {
+      await this.publishFailure(
+        request,
+        "functionLogic",
+        "projectionFailed",
+        formatError(error)
+      );
+    }
+  }
+
   /** Resolves a Host-issued source token and opens its appropriate destination. */
   private async openSource(request: ModuleFlowOpenSourceRequest): Promise<void> {
     if (!(await this.ensureCurrentRequest(request, "openSource"))) {
       return;
     }
     try {
+      if (request.target.kind === "logicEvidence") {
+        const location = this.logicEvidenceTokens.resolve(request.target.evidenceToken);
+        if (!location) {
+          await this.publishFailure(
+            request,
+            "openSource",
+            "evidenceNotFound",
+            "This function statement evidence has expired."
+          );
+          return;
+        }
+        await openSourceLocationInEditor(location.filePath, location.range);
+        return;
+      }
       if (request.target.kind === "evidence") {
         const location = this.evidenceTokens.resolve(request.target.evidenceToken);
         if (!location) {
@@ -287,11 +351,7 @@ export class ModuleVisualizerPanelProvider implements vscode.Disposable {
         );
         return;
       }
-      if (isCallable(node.kind)) {
-        await this.dependencies.openFunction(graph, node.id);
-      } else {
-        await openNodeInEditor(node);
-      }
+      await openNodeInEditor(node);
     } catch (error) {
       await this.publishFailure(request, "openSource", "projectionFailed", formatError(error));
     }
@@ -359,8 +419,10 @@ export class ModuleVisualizerPanelProvider implements vscode.Disposable {
     this.deliveryQueue = Promise.resolve();
     this.graphDelivery.clear();
     this.projection.clear();
+    this.functionLogicDelivery.clear();
     this.sourceNodeTokens.clear();
     this.evidenceTokens.clear();
+    this.logicEvidenceTokens.clear();
   }
 }
 
@@ -375,11 +437,6 @@ function createInitialListRequest(graphVersion: string): ModuleFlowListRequest {
     includeExternal: true,
     includeInferred: true
   };
-}
-
-/** Function nodes hand off to the existing dedicated Function Visualizer tab. */
-function isCallable(kind: string): boolean {
-  return kind === "function" || kind === "method" || kind === "constructor";
 }
 
 /** Produces concise user-safe errors for status and failure messages. */
