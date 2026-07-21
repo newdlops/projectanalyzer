@@ -205,7 +205,7 @@ test("function graph nodes render complete wrapped labels and value changes", ()
 
     runtime.dispatchMessage(createGraphMessage(graphVersion));
     runtime.dispatchMessage(message);
-    const rendered = runtime.getRenderedText("flow-steps").join("\n");
+    const rendered = runtime.getRenderedText("flow-steps").join("");
 
     assert.equal(runtime.countRenderedByClass("flow-steps", "logic-depth-5"), 1);
     assert.ok(rendered.includes(completeLabel));

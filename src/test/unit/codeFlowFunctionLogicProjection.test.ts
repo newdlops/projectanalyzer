@@ -134,6 +134,52 @@ test("projects complete graph-box text and sizes its node for wrapped content", 
   assert.ok(mutationLayout.height > entryLayout.height);
 });
 
+test("preserves source-authored code lines through projection and layout", () => {
+  const filePath = "/workspace/src/orders.ts";
+  const node = createHandlerNode(filePath);
+  const graph = createGraph({ files: [filePath], callables: [node] });
+  const sourceText = [
+    "export function handler(order: Order) {",
+    "  order.snapshot = buildSnapshot(",
+    "    order,",
+    "    { includeHistory: true }",
+    "  );",
+    "}"
+  ].join("\n");
+  const analysis = analyzeFunctionLogic({ functionNode: node, sourceText });
+  const detail = createFunctionLogicCodeFlowDetail(
+    graph,
+    createFlowIndex(graph.version, []),
+    node,
+    analysis,
+    "sidebar-snapshot:logic:source-lines",
+    (path, range) => `code-evidence:${createContentHash(`${path}:${range.startLine}`)}` as CodeFlowEvidenceToken,
+    (nodeId) => `source-node:${createContentHash(nodeId)}` as SourceNodeToken
+  );
+  const mutation = detail.logic?.blocks.find((block) =>
+    block.label.startsWith("order.snapshot =")
+  );
+  const mutationLayout = detail.logic?.layout.nodes.find((layout) =>
+    layout.blockId === mutation?.id
+  );
+  const entry = detail.logic?.blocks.find((block) => block.kind === "entry");
+  const entryLayout = detail.logic?.layout.nodes.find((layout) =>
+    layout.blockId === entry?.id
+  );
+
+  assert.ok(mutation && mutationLayout && entryLayout);
+  assert.equal(
+    mutation.label,
+    [
+      "order.snapshot = buildSnapshot(",
+      "    order,",
+      "    { includeHistory: true }",
+      "  );"
+    ].join("\n")
+  );
+  assert.ok(mutationLayout.height > entryLayout.height);
+});
+
 test("preserves first-class JSX component roles through opaque value-flow projection", () => {
   const filePath = "/workspace/src/views.tsx";
   const node = { ...createHandlerNode(filePath), language: "typescriptreact" };
