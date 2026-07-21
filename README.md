@@ -224,6 +224,13 @@ omitted counts. It provides:
 - curved line bridges plus local direction triangles where perpendicular edges cross
 - click-to-attach boundary functions to the same canvas while preserving the
   clicked module's scroll anchor
+- only the currently clicked module keeps its attached entry/boundary functions
+  and statement graphs; selecting another module releases the previous component
+  branch while retaining child-module cards as navigation context
+- selecting a module lays out only its directed ancestors and descendants from
+  the current bounded graph; unrelated nodes and sibling branches are hidden
+- click empty canvas space or press `Escape` to clear focus, discard lazy
+  branches, and restore the initial 80-module/160-edge scene
 - click an attached entry/boundary function to continue from that card into its
   bounded statement-level control-flow graph on the same Module Flow canvas;
   click it again to collapse only that function branch
@@ -533,7 +540,8 @@ Key reusable modules:
 - `src/webview/functionVisualizer/` — editor-tab lifecycle, reading UX, and
   cycle-safe lazy function navigation
 - `src/webview/moduleVisualizer/` — dedicated Module Flow tab, detail/evidence,
-  lazy same-canvas module/function expansion, and bounded Function Logic delivery
+  lazy same-canvas module/function expansion, directional lineage focus, initial
+  scene restoration, and bounded Function Logic delivery
 - `src/webview/sourceNavigation/` — snapshot-local source tokens
 
 ## Flow Bounds
@@ -581,7 +589,10 @@ branch cannot evict the parent branch that owns its anchor card. The full module
 index remains Host-side. Module, edge, function,
 source, and evidence identities are snapshot-local opaque tokens, and mismatched
 graph versions or late request IDs are rejected instead of being merged into the
-current tab.
+current tab. Changing the selected module also invalidates pending component
+requests owned by the previous module. The browser computes selected-module
+lineage iteratively over the already bounded scene with explicit visited and
+depth guards; it never requests an unbounded graph merely to focus the layout.
 
 ## Privacy and Local Data
 

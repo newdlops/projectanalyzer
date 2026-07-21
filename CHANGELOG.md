@@ -4,6 +4,30 @@ All notable user-visible changes to Project Analyzer: Code Flow are recorded in
 this file. The changelog starts with the first distribution-documented build;
 earlier local development builds were not tracked here.
 
+## 0.0.1054 - 2026-07-21
+
+### Added
+
+- Selecting a module in **Module Flow** now filters the bounded canvas to that
+  module's directed ancestors and descendants. Unrelated and sibling branches
+  are removed from layout instead of remaining as visual noise.
+- Clicking empty canvas space or pressing `Escape` clears module focus, lazy
+  expansions, and correlated pending requests, then restores the exact initial
+  module scene. The focused module remains visibly marked while inspecting one
+  of its attached functions or statement blocks.
+
+## 0.0.1053 - 2026-07-21
+
+### Changed
+
+- Selecting a module in **Module Flow** now keeps entry/boundary function cards
+  and their attached statement graphs only for that module. Selecting another
+  module releases the previous module's component branch instead of accumulating
+  unrelated function graphs on the shared canvas.
+- Child-module expansions remain as navigation context, while superseded
+  boundary-function and Function Logic requests are invalidated so late Host
+  responses cannot reattach components from the previously selected module.
+
 ## 0.0.1052 - 2026-07-21
 
 ### Added
