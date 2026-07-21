@@ -17,6 +17,8 @@ import {
   MODULE_FLOW_DETAIL_MAX_RELATIONS,
   MODULE_FLOW_EXPAND_MAX_EDGES,
   MODULE_FLOW_EXPAND_MAX_NODES,
+  MODULE_FLOW_FUNCTION_LOGIC_MAX_BLOCKS,
+  MODULE_FLOW_FUNCTION_LOGIC_MAX_EDGES,
   MODULE_FLOW_LIST_MAX_EDGES,
   MODULE_FLOW_LIST_MAX_MODULES
 } from "./moduleFlow";
@@ -178,6 +180,9 @@ function validateReadableWebviewRequest(value: unknown): WebviewRequestValidatio
     case "moduleFlow/expand":
       payloadIsValid = isModuleFlowExpandPayload(payload);
       break;
+    case "moduleFlow/functionLogic":
+      payloadIsValid = isModuleFlowFunctionLogicPayload(payload);
+      break;
     case "moduleFlow/openSource":
       payloadIsValid = isModuleFlowOpenSourcePayload(payload);
       break;
@@ -326,6 +331,25 @@ function isModuleFlowExpandPayload(value: unknown): boolean {
   );
 }
 
+/** Accepts one bounded function graph around an issued opaque canvas identity. */
+function isModuleFlowFunctionLogicPayload(value: unknown): boolean {
+  return (
+    isRecord(value) &&
+    hasOnlyKeys(value, [
+      "graphVersion",
+      "requestId",
+      "functionId",
+      "blockLimit",
+      "edgeLimit"
+    ]) &&
+    isModuleFlowGraphVersion(value.graphVersion) &&
+    isNonNegativeInteger(value.requestId) &&
+    isModuleFlowFunctionId(value.functionId) &&
+    isPositiveBoundedInteger(value.blockLimit, MODULE_FLOW_FUNCTION_LOGIC_MAX_BLOCKS) &&
+    isPositiveBoundedInteger(value.edgeLimit, MODULE_FLOW_FUNCTION_LOGIC_MAX_EDGES)
+  );
+}
+
 /** Allows source reveal only through a current-snapshot node or evidence token. */
 function isModuleFlowOpenSourcePayload(value: unknown): boolean {
   return (
@@ -365,6 +389,12 @@ function isModuleFlowOpenSourceTarget(value: unknown): boolean {
       && isModuleFlowEvidenceToken(value.evidenceToken)
     );
   }
+  if (value.kind === "logicEvidence") {
+    return (
+      hasOnlyKeys(value, ["kind", "evidenceToken"])
+      && isCodeFlowEvidenceToken(value.evidenceToken)
+    );
+  }
   return false;
 }
 
@@ -386,9 +416,19 @@ function isModuleFlowEdgeId(value: unknown): boolean {
   return typeof value === "string" && /^module-flow-edge:[0-9a-f]{32}$/u.test(value);
 }
 
+/** Opaque canvas function identities have a fixed 128-bit digest. */
+function isModuleFlowFunctionId(value: unknown): boolean {
+  return typeof value === "string" && /^module-flow-function:[0-9a-f]{32}$/u.test(value);
+}
+
 /** Source-range authority uses a longer digest than browser-visible canvas IDs. */
 function isModuleFlowEvidenceToken(value: unknown): boolean {
   return typeof value === "string" && /^module-flow-evidence:[0-9a-f]{64}$/u.test(value);
+}
+
+/** Function-local statement authority is shared with the Function Logic reader. */
+function isCodeFlowEvidenceToken(value: unknown): boolean {
+  return typeof value === "string" && /^code-evidence:[0-9a-f]{64}$/u.test(value);
 }
 
 /** Accepts only opaque source references issued by the active Host registry. */

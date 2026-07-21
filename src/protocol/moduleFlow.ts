@@ -9,6 +9,10 @@
 
 import type { EdgeConfidence } from "../shared/types";
 import type { ArchitecturalLayerPayload } from "./functionArchitecture";
+import type {
+  CodeFlowEvidenceToken,
+  FunctionLogicPayload
+} from "./functionLogic";
 import type { SourceNodeToken } from "./sourceNavigation";
 
 /** Hard request budget for one initial module scene. */
@@ -28,6 +32,12 @@ export const MODULE_FLOW_EXPAND_MAX_NODES = 48;
 
 /** Expansion edges are capped separately because call boundaries may be dense. */
 export const MODULE_FLOW_EXPAND_MAX_EDGES = 96;
+
+/** Function-local graphs share the per-branch node budget of module expansion. */
+export const MODULE_FLOW_FUNCTION_LOGIC_MAX_BLOCKS = 48;
+
+/** Dense function control flow receives an independent same-canvas edge cap. */
+export const MODULE_FLOW_FUNCTION_LOGIC_MAX_EDGES = 96;
 
 /** Opaque snapshot-local identity for one project responsibility boundary. */
 export type ModuleFlowModuleId = `module-flow-module:${string}`;
@@ -121,6 +131,9 @@ export type ModuleFlowFunctionNodePayload = {
   confidence?: EdgeConfidence;
   incomingBoundaryCount: number;
   outgoingBoundaryCount: number;
+  expandable: {
+    functionLogic: boolean;
+  };
 };
 
 /** Every node shape that may appear in a complete scene or expansion delta. */
@@ -291,10 +304,40 @@ export type ModuleFlowExpandPayload = {
   summary: ModuleFlowExpandSummaryPayload;
 };
 
+/** Correlated request for one function-local graph attached to its canvas card. */
+export type ModuleFlowFunctionLogicRequest = {
+  graphVersion: string;
+  requestId: number;
+  functionId: ModuleFlowFunctionId;
+  blockLimit: number;
+  edgeLimit: number;
+};
+
+/** Coverage for the bounded function-local delta before browser scene adaptation. */
+export type ModuleFlowFunctionLogicSummaryPayload = {
+  visibleBlockCount: number;
+  visibleEdgeCount: number;
+  omittedEdgeCount: number;
+  gapCount: number;
+};
+
+/** Function Logic response correlated to the opaque function card that requested it. */
+export type ModuleFlowFunctionLogicPayload = {
+  graphVersion: string;
+  requestId: number;
+  anchorFunctionId: ModuleFlowFunctionId;
+  title: string;
+  subtitle: string;
+  logic: FunctionLogicPayload;
+  gaps: string[];
+  summary: ModuleFlowFunctionLogicSummaryPayload;
+};
+
 /** Source definitions and exact evidence ranges use separate opaque authorities. */
 export type ModuleFlowOpenSourceTarget =
   | { kind: "node"; sourceToken: SourceNodeToken }
-  | { kind: "evidence"; evidenceToken: ModuleFlowEvidenceToken };
+  | { kind: "evidence"; evidenceToken: ModuleFlowEvidenceToken }
+  | { kind: "logicEvidence"; evidenceToken: CodeFlowEvidenceToken };
 
 /** Request to reveal source previously authorized for the active snapshot. */
 export type ModuleFlowOpenSourceRequest = {
@@ -320,16 +363,18 @@ export type ModuleFlowRequest =
   | { type: "moduleFlow/list"; payload: ModuleFlowListRequest }
   | { type: "moduleFlow/detail"; payload: ModuleFlowDetailRequest }
   | { type: "moduleFlow/expand"; payload: ModuleFlowExpandRequest }
+  | { type: "moduleFlow/functionLogic"; payload: ModuleFlowFunctionLogicRequest }
   | { type: "moduleFlow/openSource"; payload: ModuleFlowOpenSourceRequest };
 
 /** Correlated display-safe failure for an accepted Module Flow request. */
 export type ModuleFlowFailurePayload = {
   graphVersion: string;
   requestId: number;
-  operation: "list" | "detail" | "expand" | "openSource";
+  operation: "list" | "detail" | "expand" | "functionLogic" | "openSource";
   code:
     | "staleGraph"
     | "moduleNotFound"
+    | "functionNotFound"
     | "edgeNotFound"
     | "sourceNotFound"
     | "evidenceNotFound"

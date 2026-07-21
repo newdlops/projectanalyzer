@@ -21,6 +21,7 @@ import type {
   ModuleFlowDetailPayload,
   ModuleFlowExpandPayload,
   ModuleFlowFailurePayload,
+  ModuleFlowFunctionLogicPayload,
   ModuleFlowLaunchRequest,
   ModuleFlowLaunchResultPayload,
   ModuleFlowListPayload,
@@ -136,6 +137,7 @@ export type ExtensionResponse =
   | { type: "moduleFlow/listLoaded"; payload: ModuleFlowListPayload }
   | { type: "moduleFlow/detailLoaded"; payload: ModuleFlowDetailPayload }
   | { type: "moduleFlow/expanded"; payload: ModuleFlowExpandPayload }
+  | { type: "moduleFlow/functionLogicLoaded"; payload: ModuleFlowFunctionLogicPayload }
   | { type: "moduleFlow/requestFailed"; payload: ModuleFlowFailurePayload }
   | { type: "view/modeChanged"; payload: { mode: GraphViewMode } }
   | { type: "search/results"; payload: SearchResult[] }
