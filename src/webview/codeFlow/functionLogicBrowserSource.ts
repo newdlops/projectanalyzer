@@ -12,6 +12,7 @@ import { getFunctionLogicBodyFocusBrowserSource } from "./bodyFocus";
 import { getFunctionLogicDataFlowBrowserSource } from "./dataFlow";
 import { getFunctionLogicInspectorBrowserSource } from "./inspector";
 import { getFunctionLogicSelectionBrowserSource } from "./functionLogicSelectionBrowserSource";
+import { getCodeSnippetBrowserSource } from "../codePresentation";
 import {
   getFunctionLogicScenarioEvaluatorBrowserSource,
   getFunctionLogicScenarioTraceBrowserSource,
@@ -24,6 +25,7 @@ export function getFunctionLogicBrowserSource(): string {
   return /* js */ `
     const LOGIC_SVG_NAMESPACE = "http://www.w3.org/2000/svg";
 
+    ${getCodeSnippetBrowserSource()}
     ${getFunctionLogicCompoundGroupBrowserSource()}
     ${getFunctionLogicBodyFocusBrowserSource()}
     ${getFunctionLogicDrillBrowserSource()}
@@ -628,7 +630,7 @@ export function getFunctionLogicBrowserSource(): string {
       branch.className = "logic-node-branch";
       branch.textContent = block.branchLabel || "";
       label.className = "logic-node-label";
-      label.textContent = block.label;
+      mountCodeSnippet(label, block.label);
       meta.className = "logic-node-meta";
       meta.textContent = block.sourceLocation || block.detail;
       top.append(kind);
@@ -702,7 +704,7 @@ export function getFunctionLogicBrowserSource(): string {
         kind.className = "logic-value-target-kind";
         kind.textContent = formatLogicValueTargetKind(change.targetKind)
           + (change.confidence === "inferred" ? " · MAY CHANGE" : " · CHANGES");
-        value.textContent = formatLogicValueChange(change);
+        mountCodeSnippet(value, formatLogicValueChange(change));
         row.append(kind, value);
         list.append(row);
       }

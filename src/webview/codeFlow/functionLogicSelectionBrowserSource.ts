@@ -74,7 +74,7 @@ export function getFunctionLogicSelectionBrowserSource(): string {
       const detail = document.createElement("p");
       const meta = document.createElement("div");
       header.className = "logic-selection-header";
-      name.textContent = block.label;
+      mountCodeSnippet(name, block.label);
       detail.className = "logic-selection-detail";
       detail.textContent = block.detail;
       meta.className = "logic-selection-meta";

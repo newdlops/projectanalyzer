@@ -8,6 +8,7 @@
 
 import { getModuleFlowGraphLayoutBrowserSource } from "../../application/moduleFlow/moduleFlowGraphLayout";
 import { getModuleFlowViewportBrowserSource } from "../../application/moduleFlow/moduleFlowViewport";
+import { getCodeSnippetBrowserSource } from "../codePresentation";
 import { getModuleFlowExpansionStoreBrowserSource } from "./moduleFlowExpansionStore";
 import { getModuleFlowFrameSchedulerBrowserSource } from "./moduleFlowFrameScheduler";
 import { getModuleFlowFunctionLogicBrowserSource } from "./moduleFlowFunctionLogicBrowserSource";
@@ -22,6 +23,7 @@ import { getModuleVisualizerViewportBrowserSource } from "./moduleVisualizerView
 export function getModuleVisualizerBrowserSource(): string {
   return /* javascript */ `(function () {
     "use strict";
+    ${getCodeSnippetBrowserSource()}
     ${getModuleFlowGraphLayoutBrowserSource()}
     ${getModuleFlowViewportBrowserSource()}
     ${getModuleFlowExpansionStoreBrowserSource()}

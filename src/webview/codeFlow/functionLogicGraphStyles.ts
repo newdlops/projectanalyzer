@@ -11,6 +11,7 @@ import {
   getFunctionLogicValuePreviewStyles
 } from "./valuePreview";
 import { getFunctionLogicViewportStyles } from "./viewport";
+import { getCodeSnippetStyles } from "../codePresentation";
 
 /** Returns CSS for graph nodes, routed edges, lanes, and selection evidence. */
 export function getFunctionLogicGraphStyles(): string {
@@ -563,7 +564,7 @@ export function getFunctionLogicGraphStyles(): string {
       font-size: var(--logic-code-small);
       line-height: 1.3;
       overflow-wrap: anywhere;
-      white-space: normal;
+      white-space: pre-wrap;
     }
 
     .logic-node-value-changes,
@@ -605,7 +606,7 @@ export function getFunctionLogicGraphStyles(): string {
       font-size: var(--logic-code-tiny);
       line-height: 1.3;
       overflow-wrap: anywhere;
-      white-space: normal;
+      white-space: pre-wrap;
     }
 
     .logic-node-meta {
@@ -641,6 +642,7 @@ export function getFunctionLogicGraphStyles(): string {
       font-family: var(--vscode-editor-font-family);
       font-size: var(--logic-code-body);
       overflow-wrap: anywhere;
+      white-space: pre-wrap;
     }
 
     .logic-selection-detail,
@@ -757,5 +759,6 @@ export function getFunctionLogicGraphStyles(): string {
     ${getFunctionLogicValuePreviewStyles()}
     ${getFunctionLogicScenarioTraceStyles()}
     ${getFunctionLogicBranchChoiceStyles()}
+    ${getCodeSnippetStyles()}
   `;
 }

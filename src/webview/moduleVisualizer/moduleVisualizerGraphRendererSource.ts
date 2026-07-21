@@ -362,7 +362,8 @@ export function getModuleVisualizerGraphRendererSource(): string {
         ? "Function · " + node.blockKind
         : node.kind === "function" ? "Entry / boundary function" : node.detail;
       appendText(card, "div", "module-card-kind", kindLabel);
-      appendText(card, "div", "module-card-title", node.label);
+      const title = appendText(card, "div", "module-card-title", node.label);
+      if (node.kind === "logicBlock") mountCodeSnippet(title, node.label);
       appendText(card, "div", "module-card-detail", node.detail);
       if (node.locationLabel) appendText(card, "div", "module-card-location", node.locationLabel);
       const badges = document.createElement("div");

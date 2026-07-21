@@ -1,5 +1,7 @@
 /** Theme-aware styles for the single-canvas project Module Flow editor. */
 
+import { getCodeSnippetStyles } from "../codePresentation";
+
 /** Returns graph chrome, variable-size cards, detail rail, and motion rules. */
 export function getModuleVisualizerStyles(): string {
   return /* css */ `
@@ -289,6 +291,11 @@ export function getModuleVisualizerStyles(): string {
       overflow-wrap: anywhere;
     }
 
+    .module-card.logic-block .module-card-title {
+      font-family: var(--vscode-editor-font-family);
+      white-space: pre-wrap;
+    }
+
     .module-card-detail,
     .module-card-location,
     .module-card-metric {
@@ -477,5 +484,7 @@ export function getModuleVisualizerStyles(): string {
       .module-edge.entering,
       .module-edge-direction.entering { animation: none; }
     }
+
+    ${getCodeSnippetStyles()}
   `;
 }
