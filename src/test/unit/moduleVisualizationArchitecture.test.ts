@@ -160,6 +160,12 @@ test("same-canvas Function Logic uses isolated delivery and browser adapters", (
   const browser = readSource(
     "src/webview/moduleVisualizer/moduleVisualizerBrowserSource.ts"
   );
+  const componentFocus = readSource(
+    "src/webview/moduleVisualizer/moduleFlowModuleComponentFocus.ts"
+  );
+  const lineageFocus = readSource(
+    "src/webview/moduleVisualizer/moduleFlowLineageFocus.ts"
+  );
 
   assert.match(provider, /new ModuleFlowFunctionLogicDelivery\(/u);
   assert.doesNotMatch(provider, /openFunction/u);
@@ -170,6 +176,13 @@ test("same-canvas Function Logic uses isolated delivery and browser adapters", (
   assert.doesNotMatch(scene, /(?:vscode|node:fs|readFile)/u);
   assert.match(browser, /getModuleFlowFunctionLogicBrowserSource\(\)/u);
   assert.match(browser, /getModuleFlowFunctionLogicSceneBrowserSource\(\)/u);
+  assert.match(browser, /getModuleFlowModuleComponentFocusBrowserSource\(\)/u);
+  assert.match(componentFocus, /export function selectModuleFlowComponentFocus/u);
+  assert.doesNotMatch(componentFocus, /(?:vscode|node:fs|readFile)/u);
+  assert.match(browser, /getModuleFlowLineageFocusBrowserSource\(\)/u);
+  assert.match(lineageFocus, /export function createModuleFlowLineageScene/u);
+  assert.match(lineageFocus, /while \(cursor < queue\.length\)/u);
+  assert.doesNotMatch(lineageFocus, /(?:vscode|node:fs|readFile)/u);
 });
 
 /** Reads a repository source file without assuming the compiled output location. */

@@ -80,6 +80,7 @@ export function getModuleVisualizerGraphRendererSource(): string {
         return pair[0] + ":" + payloadRevision;
       });
       const layoutKey = state.baseSceneKey + "\\n"
+        + "focus:" + (state.focusedModuleId || "initial") + "\\n"
         + expansionLayoutKeys.sort(compareModuleFlowIdentity).join("\\n");
       let layout = state.layoutCache.get(layoutKey);
       if (!layout) {
@@ -400,10 +401,19 @@ export function getModuleVisualizerGraphRendererSource(): string {
     /** Patches classes and ARIA without changing geometry, listeners, or focus. */
     function applyModuleFlowPresentationState() {
       for (const [nodeId, card] of state.nodeElementsById) {
+        const node = state.nodesById.get(nodeId);
+        const focusedModule = Boolean(node && node.kind === "module"
+          && state.focusedModuleId === nodeId);
         card.classList.toggle("selected", state.selectedNodeId === nodeId);
+        card.classList.toggle("focused-module", focusedModule);
         card.classList.toggle("loading", state.pendingNodeIds.has(nodeId));
         card.classList.toggle("entering", state.enteringNodeIds.has(nodeId));
         card.setAttribute("aria-busy", state.pendingNodeIds.has(nodeId) ? "true" : "false");
+        if (node && node.kind === "module") {
+          card.setAttribute("aria-pressed", focusedModule ? "true" : "false");
+        } else {
+          card.removeAttribute("aria-pressed");
+        }
       }
       for (const [edgeId, record] of state.edgeElementsById) {
         record.path.classList.toggle("selected", state.selectedEdgeId === edgeId);

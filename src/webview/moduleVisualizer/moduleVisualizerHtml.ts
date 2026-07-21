@@ -50,7 +50,7 @@ export function getModuleVisualizerHtml(
     </nav>
 
     <section class="module-flow-workspace">
-      <p id="module-viewport-help" class="visually-hidden">Use plus, minus, zero, or F while this graph is focused. Hold Control or Command while scrolling to zoom. Drag empty canvas space to pan.</p>
+      <p id="module-viewport-help" class="visually-hidden">Use plus, minus, zero, or F while this graph is focused. Hold Control or Command while scrolling to zoom. Drag empty canvas space to pan. Click empty canvas space or press Escape to clear module focus and restore the initial scene.</p>
       <div id="module-viewport" class="module-flow-viewport" role="region" tabindex="0" aria-label="Project module flow graph" aria-describedby="module-viewport-help">
         <div id="module-status" class="module-flow-status" role="status" aria-live="polite">Connecting to the analyzer</div>
         <div id="module-stage" class="module-flow-stage">

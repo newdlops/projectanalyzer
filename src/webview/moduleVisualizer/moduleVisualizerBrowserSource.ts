@@ -13,6 +13,8 @@ import { getModuleFlowFrameSchedulerBrowserSource } from "./moduleFlowFrameSched
 import { getModuleFlowFunctionLogicBrowserSource } from "./moduleFlowFunctionLogicBrowserSource";
 import { getModuleFlowFunctionLogicSceneBrowserSource } from "./moduleFlowFunctionLogicScene";
 import { getModuleFlowLayoutCacheBrowserSource } from "./moduleFlowLayoutCache";
+import { getModuleFlowLineageFocusBrowserSource } from "./moduleFlowLineageFocus";
+import { getModuleFlowModuleComponentFocusBrowserSource } from "./moduleFlowModuleComponentFocus";
 import { getModuleVisualizerGraphRendererSource } from "./moduleVisualizerGraphRendererSource";
 import { getModuleVisualizerViewportBrowserSource } from "./moduleVisualizerViewportBrowserSource";
 
@@ -24,6 +26,8 @@ export function getModuleVisualizerBrowserSource(): string {
     ${getModuleFlowViewportBrowserSource()}
     ${getModuleFlowExpansionStoreBrowserSource()}
     ${getModuleFlowFrameSchedulerBrowserSource()}
+    ${getModuleFlowLineageFocusBrowserSource()}
+    ${getModuleFlowModuleComponentFocusBrowserSource()}
     ${getModuleFlowFunctionLogicSceneBrowserSource()}
     ${getModuleFlowFunctionLogicBrowserSource()}
     ${getModuleFlowLayoutCacheBrowserSource()}
@@ -68,6 +72,10 @@ export function getModuleVisualizerBrowserSource(): string {
       latestListRequestId: 0,
       selectedNodeId: undefined,
       selectedEdgeId: undefined,
+      // Module focus is independent from function/block detail selection and
+      // limits layout to the selected module's directional graph lineage.
+      focusedModuleId: undefined,
+      focusedModuleNode: undefined,
       enteringNodeIds: new Set(),
       enteringEdgeIds: new Set(),
       scale: 1,
@@ -164,6 +172,7 @@ export function getModuleVisualizerBrowserSource(): string {
       if (!state.graphVersion || !module || module.kind !== "module") return;
       const key = module.id + "\u0000" + expansion;
       const anchor = captureViewportAnchor(module.id);
+      const focus = focusModuleComponents(module.id, module);
       if (state.expansions.has(key)) {
         state.expansions.delete(key);
         pruneOrphanFunctionLogicExpansions();
@@ -174,7 +183,10 @@ export function getModuleVisualizerBrowserSource(): string {
         setStatus("Collapsed " + module.label);
         return;
       }
-      if (state.pendingNodeIds.has(module.id)) return;
+      if (state.pendingNodeIds.has(module.id)) {
+        renderGraph(anchor, focus.focusChanged || focus.removedBranchCount > 0);
+        return;
+      }
       state.pendingNodeIds.add(module.id);
       setStatus("Attaching " + (expansion === "boundaryFunctions" ? "boundary functions" : "child modules"));
       post("moduleFlow/expand", {
@@ -184,8 +196,14 @@ export function getModuleVisualizerBrowserSource(): string {
         direction: "both",
         nodeLimit: 48,
         edgeLimit: 96
-      }, { operation: "expand", key: key, anchor: anchor, moduleId: module.id });
-      renderGraph(anchor, false);
+      }, {
+        operation: "expand",
+        expansion: expansion,
+        key: key,
+        anchor: anchor,
+        moduleId: module.id
+      });
+      renderGraph(anchor, focus.focusChanged || focus.removedBranchCount > 0);
     }
 
     /** Handles typed Extension Host responses with stale correlation guards. */
@@ -246,6 +264,8 @@ export function getModuleVisualizerBrowserSource(): string {
       state.pendingNodeIds.clear();
       state.selectedNodeId = undefined;
       state.selectedEdgeId = undefined;
+      state.focusedModuleId = undefined;
+      state.focusedModuleNode = undefined;
       state.enteringNodeIds.clear();
       state.enteringEdgeIds.clear();
       state.latestListRequestId = payload.requestId;
@@ -307,7 +327,7 @@ export function getModuleVisualizerBrowserSource(): string {
       renderGraph(undefined, false);
     }
 
-    /** Merges the base scene and every currently expanded same-canvas branch. */
+    /** Merges the scene, then retains only the selected module's directed lineage. */
     function collectScene() {
       const nodes = new Map(state.baseNodes);
       const edges = new Map(state.baseEdges);
@@ -320,7 +340,16 @@ export function getModuleVisualizerBrowserSource(): string {
         for (const node of expansion.nodes || []) nodes.set(node.id, node);
         for (const edge of expansion.edges || []) edges.set(edge.id, edge);
       }
-      return { nodes: nodes, edges: edges };
+      if (!state.focusedModuleId) return { nodes: nodes, edges: edges };
+      if (!nodes.has(state.focusedModuleId) && state.focusedModuleNode) {
+        nodes.set(state.focusedModuleId, state.focusedModuleNode);
+      }
+      return createModuleFlowLineageScene(
+        nodes,
+        edges,
+        state.focusedModuleId,
+        Math.max(0, nodes.size - 1)
+      );
     }
 
     /** Projects all browser-visible strings into the layout measurement contract. */
@@ -413,7 +442,9 @@ export function getModuleVisualizerBrowserSource(): string {
       }
       requestDetail({ kind: "module", id: node.id });
       if (node.external) {
-        renderGraph(undefined, false);
+        const anchor = captureViewportAnchor(node.id);
+        const focus = focusModuleComponents(node.id, node);
+        renderGraph(anchor, focus.focusChanged || focus.removedBranchCount > 0);
         return;
       }
       const expansion = node.expandable && node.expandable.boundaryFunctions
@@ -422,7 +453,43 @@ export function getModuleVisualizerBrowserSource(): string {
           ? "childModules"
           : undefined;
       if (expansion) toggleExpansion(node, expansion);
-      else renderGraph(undefined, false);
+      else {
+        const anchor = captureViewportAnchor(node.id);
+        const focus = focusModuleComponents(node.id, node);
+        renderGraph(anchor, focus.focusChanged || focus.removedBranchCount > 0);
+      }
+    }
+
+    /** Clears every lazy branch and restores the exact bounded initial scene. */
+    function clearModuleFlowSelection() {
+      const hadSceneFocus = Boolean(state.focusedModuleId) || state.expansions.size > 0;
+      const hadSelection = Boolean(state.selectedNodeId) || Boolean(state.selectedEdgeId);
+      if (!hadSceneFocus && !hadSelection) return;
+      state.selectedNodeId = undefined;
+      state.selectedEdgeId = undefined;
+      state.focusedModuleId = undefined;
+      state.focusedModuleNode = undefined;
+      state.expansions.clear();
+      for (const pair of Array.from(state.pending.entries())) {
+        const operation = pair[1].operation;
+        if (operation === "detail" || operation === "expand" || operation === "functionLogic") {
+          state.pending.delete(pair[0]);
+        }
+      }
+      if (state.detailRequestTimer !== undefined) {
+        window.clearTimeout(state.detailRequestTimer);
+        state.detailRequestTimer = undefined;
+      }
+      state.pendingDetailTarget = undefined;
+      state.pendingNodeIds.clear();
+      state.enteringNodeIds.clear();
+      state.enteringEdgeIds.clear();
+      state.pendingAnchor = undefined;
+      dom.viewport.scrollLeft = 0;
+      dom.viewport.scrollTop = 0;
+      renderEmptyDetail();
+      renderGraph(undefined, hadSceneFocus);
+      setStatus("Module focus cleared · initial scene restored");
     }
 
     /** Selects an evidence-backed aggregate route for its detail rows. */
@@ -624,6 +691,8 @@ export function getModuleVisualizerBrowserSource(): string {
       state.expansions.clear();
       state.pending.clear();
       state.pendingNodeIds.clear();
+      state.focusedModuleId = undefined;
+      state.focusedModuleNode = undefined;
       state.nodesById.clear();
       state.edgesById.clear();
       state.enteringNodeIds.clear();

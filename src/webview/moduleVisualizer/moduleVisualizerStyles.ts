@@ -261,6 +261,11 @@ export function getModuleVisualizerStyles(): string {
       box-shadow: 0 0 0 1px var(--vscode-focusBorder), 0 8px 24px color-mix(in srgb, #000 18%, transparent);
     }
 
+    .module-card.focused-module:not(.selected) {
+      border-color: var(--vscode-focusBorder);
+      box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--vscode-focusBorder) 70%, transparent);
+    }
+
     .module-card.loading { cursor: wait; }
 
     .module-card.entering {

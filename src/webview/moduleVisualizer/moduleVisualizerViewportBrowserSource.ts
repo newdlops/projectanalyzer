@@ -114,6 +114,12 @@ export function getModuleVisualizerViewportBrowserSource(): string {
 
     /** Provides graph-local shortcuts without stealing VS Code browser zoom keys. */
     function handleModuleFlowViewportKeydown(event) {
+      if (event.key === "Escape" && !event.ctrlKey && !event.metaKey && !event.altKey) {
+        event.preventDefault();
+        clearModuleFlowSelection();
+        dom.viewport.focus();
+        return;
+      }
       if (event.target !== dom.viewport || event.ctrlKey || event.metaKey || event.altKey) return;
       if (event.key === "+" || event.key === "=") {
         event.preventDefault();
@@ -137,10 +143,12 @@ export function getModuleVisualizerViewportBrowserSource(): string {
       if (event.button !== 1 && (event.button !== 0 || interactive)) return;
       state.pan = {
         pointerId: event.pointerId,
+        button: event.button,
         startX: event.clientX,
         startY: event.clientY,
         scrollLeft: dom.viewport.scrollLeft,
-        scrollTop: dom.viewport.scrollTop
+        scrollTop: dom.viewport.scrollTop,
+        moved: false
       };
       dom.viewport.classList.add("panning");
       if (dom.viewport.setPointerCapture) dom.viewport.setPointerCapture(event.pointerId);
@@ -150,6 +158,10 @@ export function getModuleVisualizerViewportBrowserSource(): string {
     /** Changes native scroll offsets directly; panning never schedules layout. */
     function handleModuleFlowPointerMove(event) {
       if (!state.pan || state.pan.pointerId !== event.pointerId) return;
+      if (Math.abs(event.clientX - state.pan.startX) > 4
+        || Math.abs(event.clientY - state.pan.startY) > 4) {
+        state.pan.moved = true;
+      }
       dom.viewport.scrollLeft = state.pan.scrollLeft - (event.clientX - state.pan.startX);
       dom.viewport.scrollTop = state.pan.scrollTop - (event.clientY - state.pan.startY);
       event.preventDefault();
@@ -158,12 +170,19 @@ export function getModuleVisualizerViewportBrowserSource(): string {
     /** Ends a captured pan without changing selection or graph state. */
     function finishModuleFlowPan(event) {
       if (!state.pan || state.pan.pointerId !== event.pointerId) return;
+      const clearSelection = event.type === "pointerup"
+        && state.pan.button === 0
+        && !state.pan.moved;
       if (dom.viewport.releasePointerCapture && dom.viewport.hasPointerCapture
         && dom.viewport.hasPointerCapture(event.pointerId)) {
         dom.viewport.releasePointerCapture(event.pointerId);
       }
       state.pan = undefined;
       dom.viewport.classList.remove("panning");
+      if (clearSelection) {
+        clearModuleFlowSelection();
+        dom.viewport.focus();
+      }
     }
 
     /** Preserves the old world center when the detail rail or editor is resized. */

@@ -117,13 +117,53 @@ test("attaches entry function logic to the existing Module Flow scene", () => {
   assert.doesNotMatch(program, /window\.open|createWebviewPanel/u);
 });
 
+test("keeps attached component graphs scoped to the clicked module", () => {
+  const program = requireBrowserProgram(createDocument());
+
+  assert.match(program, /function selectModuleFlowComponentFocus\(/u);
+  assert.match(program, /function focusModuleComponents\(moduleId, moduleNode\)/u);
+  assert.match(
+    program,
+    /const focus = focusModuleComponents\(module\.id, module\);[\s\S]*post\("moduleFlow\/expand"/u
+  );
+  assert.match(
+    program,
+    /pending\.operation === "expand"[\s\S]*pending\.expansion === "boundaryFunctions"[\s\S]*pending\.moduleId !== moduleId/u
+  );
+  assert.match(program, /state\.pending\.delete\(requestId\)/u);
+  assert.match(program, /renderGraph\(anchor, focus\.focusChanged \|\| focus\.removedBranchCount > 0\)/u);
+});
+
+test("shows only the selected module lineage and restores the initial scene", () => {
+  const document = createDocument();
+  const program = requireBrowserProgram(document);
+
+  assert.match(program, /function createModuleFlowLineageScene\(/u);
+  assert.match(
+    program,
+    /return createModuleFlowLineageScene\([\s\S]*state\.focusedModuleId,[\s\S]*Math\.max\(0, nodes\.size - 1\)/u
+  );
+  assert.match(program, /"focus:" \+ \(state\.focusedModuleId \|\| "initial"\)/u);
+  assert.match(program, /function clearModuleFlowSelection\(\)/u);
+  assert.match(
+    program,
+    /state\.focusedModuleId = undefined;[\s\S]*state\.expansions\.clear\(\);[\s\S]*renderEmptyDetail\(\);[\s\S]*renderGraph\(undefined, hadSceneFocus\)/u
+  );
+  assert.match(program, /event\.key === "Escape"[\s\S]*clearModuleFlowSelection\(\)/u);
+  assert.match(program, /state\.pan\.button === 0[\s\S]*!state\.pan\.moved/u);
+  assert.match(document, /Click empty canvas space or press Escape to clear module focus/u);
+});
+
 test("preserves the clicked anchor and honors enter-motion preferences", () => {
   const document = createDocument();
   const program = requireBrowserProgram(document);
   const styles = requireStyles(document);
 
   assert.match(program, /const anchor = captureViewportAnchor\(module\.id\)/u);
-  assert.match(program, /\{ operation: "expand", key: key, anchor: anchor, moduleId: module\.id \}/u);
+  assert.match(
+    program,
+    /operation: "expand",[\s\S]*expansion: expansion,[\s\S]*key: key,[\s\S]*anchor: anchor,[\s\S]*moduleId: module\.id/u
+  );
   assert.match(program, /const currentAnchor = captureViewportAnchor\(pending\.moduleId\) \|\| pending\.anchor/u);
   assert.match(program, /renderGraph\(currentAnchor, true\)/u);
   assert.match(program, /function restoreViewportAnchor\(anchor, layout\)/u);
@@ -174,6 +214,7 @@ test("offers focal zoom, fit, keyboard controls, resize preservation, and drag p
   assert.match(program, /event\.key === "f" \|\| event\.key === "F"/u);
   assert.match(program, /new ResizeObserver\(handleModuleFlowResize\)/u);
   assert.match(program, /handleModuleFlowPointerMove/u);
+  assert.match(program, /Math\.abs\(event\.clientX - state\.pan\.startX\) > 4/u);
   assert.match(program, /dom\.scene\.style\.transform = "translate3d\("/u);
 });
 
