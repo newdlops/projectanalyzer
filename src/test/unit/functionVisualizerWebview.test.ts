@@ -703,7 +703,7 @@ test("attaches a called function to the original graph canvas and collapses its 
     ).length, requestCount);
     assert.equal(runtime.countRenderedByClass("flow-steps", "logic-graph"), 1);
     assert.equal(runtime.countRenderedByClass("flow-steps", "logic-graph-node"), 3);
-    assert.ok(runtime.getRenderedText("flow-steps").includes("Call cycle · Root.run"));
+    assert.ok(runtime.getRenderedText("flow-steps").join("").includes("Call cycle · Root.run"));
 
     runtime.clickByTitle("Collapse called function · Child.load");
     assert.equal(runtime.countRenderedByClass("flow-steps", "logic-graph-node"), 1);
@@ -947,9 +947,9 @@ test("renders variable and receiver changes inside the graph node and selection"
     );
     assert.ok(rendered.includes("VAR · CHANGES"));
     assert.ok(rendered.includes("Control & value flow"));
-    assert.ok(rendered.includes("total += item.price"));
+    assert.ok(rendered.join("").includes("total += item.price"));
     assert.ok(rendered.includes("RECEIVER · MAY CHANGE"));
-    assert.ok(rendered.includes("items push() item"));
+    assert.ok(rendered.join("").includes("items push() item"));
     assert.ok(rendered.includes("Values changed here"));
     assert.equal(runtime.countRenderedByClass("flow-steps", "logic-value-change"), 4);
   } finally {

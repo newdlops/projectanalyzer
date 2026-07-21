@@ -406,6 +406,38 @@ test("Function Logic typography follows VS Code UI and editor settings", () => {
   assert.doesNotMatch(styles, /font-size:\s*\d+px/u);
 });
 
+test("code-snippet presentation is shared, inert, and Webview-only", () => {
+  const tokenizer = readSource(
+    "src/webview/codePresentation/codeSnippetTokenizer.ts"
+  );
+  const styles = readSource(
+    "src/webview/codePresentation/codeSnippetStyles.ts"
+  );
+  const logicRenderer = readSource(
+    "src/webview/codeFlow/functionLogicBrowserSource.ts"
+  );
+  const moduleBrowser = readSource(
+    "src/webview/moduleVisualizer/moduleVisualizerBrowserSource.ts"
+  );
+  const moduleRenderer = readSource(
+    "src/webview/moduleVisualizer/moduleVisualizerGraphRendererSource.ts"
+  );
+
+  assert.match(tokenizer, /while \(cursor < value\.length\)/u);
+  assert.match(tokenizer, /span\.textContent = token\.text/u);
+  assert.match(tokenizer, /element\.replaceChildren\(content\)/u);
+  assert.doesNotMatch(tokenizer, /innerHTML|outerHTML|insertAdjacentHTML|\beval\s*\(/u);
+  assert.match(styles, /white-space: pre-wrap/u);
+  assert.match(logicRenderer, /getCodeSnippetBrowserSource/u);
+  assert.match(logicRenderer, /mountCodeSnippet\(label, block\.label\)/u);
+  assert.match(moduleBrowser, /getCodeSnippetBrowserSource/u);
+  assert.match(moduleRenderer, /mountCodeSnippet\(title, node\.label\)/u);
+  assert.doesNotMatch(
+    tokenizer,
+    /from ".*(?:analyzer|application|protocol|vscode|extension)/u
+  );
+});
+
 test("Scenario values stay bounded, calculated, traceable, session-scoped, and browser-only", () => {
   const renderer = readSource("src/webview/codeFlow/functionLogicBrowserSource.ts");
   const dataFlow = readSource(

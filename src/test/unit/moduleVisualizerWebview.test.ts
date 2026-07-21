@@ -275,12 +275,18 @@ test("keeps complete labels and mounts all Host text through textContent", () =>
   );
   assert.match(
     styles,
+    /\.module-card\.logic-block \.module-card-title\s*\{[^}]*font-family: var\(--vscode-editor-font-family\);[^}]*white-space: pre-wrap;/u
+  );
+  assert.match(styles, /\.code-snippet-keyword/u);
+  assert.match(
+    styles,
     /\.module-card-detail,[\s\S]*?\.module-card-metric\s*\{[^}]*white-space: normal;[^}]*overflow-wrap: anywhere;/u
   );
   assert.doesNotMatch(styles, /\btext-overflow\s*:/u);
   assert.doesNotMatch(styles, /(?:-webkit-)?line-clamp\s*:/u);
   assert.doesNotMatch(document, /…/u);
   assert.match(program, /element\.textContent = value == null \? "" : String\(value\)/u);
+  assert.match(program, /node\.kind === "logicBlock"\) mountCodeSnippet\(title, node\.label\)/u);
   assert.match(program, /label\.textContent = labelValue/u);
   assert.match(program, /dom\.status\.textContent = value \|\| ""/u);
   assert.doesNotMatch(program, /\b(?:innerHTML|outerHTML|insertAdjacentHTML)\b/u);

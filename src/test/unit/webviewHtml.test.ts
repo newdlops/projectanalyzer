@@ -31,7 +31,9 @@ test("sidebar exposes the Code Flow reading mindset and one start question", () 
   assert.match(html, /statically discoverable call relationships, not observed runtime order/u);
   assert.match(html, /What remains unknown/u);
   assert.match(html, /Export Evidence JSON/u);
-  assert.match(html, /\.logic-node-label[\s\S]*white-space: normal/u);
+  assert.match(html, /\.logic-node-label[\s\S]*white-space: pre-wrap/u);
+  assert.match(html, /code-snippet-keyword/u);
+  assert.match(script, /mountCodeSnippet\(label, block\.label\)/u);
   assert.match(html, /\.logic-node-meta[\s\S]*white-space: normal/u);
   assert.doesNotMatch(html, /-webkit-line-clamp/u);
 
