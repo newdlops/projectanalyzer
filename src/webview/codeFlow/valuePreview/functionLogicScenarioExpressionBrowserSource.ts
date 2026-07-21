@@ -57,6 +57,15 @@ export function getFunctionLogicScenarioExpressionBrowserSource(): string {
 
     /** Evaluates a bounded source expression through token and operator stacks. */
     function evaluateFunctionLogicScenarioExpression(expression, environment, context) {
+      const sourceExpression = String(expression || "").trim();
+      if (sourceExpression.length <= MAX_LOGIC_SCENARIO_EXPRESSION_LENGTH
+        && ((sourceExpression.startsWith("{") && sourceExpression.endsWith("}"))
+          || (sourceExpression.startsWith("[") && sourceExpression.endsWith("]")))) {
+        const composite = parseFunctionLogicScenarioInput(sourceExpression, "");
+        if (composite.kind === "known" && typeof composite.value === "object") {
+          return composite;
+        }
+      }
       const tokenization = tokenizeFunctionLogicScenarioExpression(expression);
       const dependencyOrigins = collectFunctionLogicScenarioDependencyOrigins(
         tokenization.error

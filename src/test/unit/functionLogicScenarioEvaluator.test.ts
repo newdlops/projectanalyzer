@@ -21,7 +21,11 @@ type ScenarioCalculation = {
   recordsByBlockId: Map<string, {
     before: Map<string, ScenarioState>;
     after: Map<string, ScenarioState>;
-    transitions: Array<{ after: ScenarioState }>;
+    transitions: Array<{
+      targetName: string;
+      before: ScenarioState;
+      after: ScenarioState;
+    }>;
   }>;
   inputStateByBindingId: Map<string, ScenarioState>;
   truncated: boolean;
@@ -208,6 +212,60 @@ test("reads JSON members and dynamic indexes without invoking prototype access",
   assert.match(inherited.reason ?? "", /unavailable/u);
 });
 
+test("calculates nested JSON field writes, dynamic indexes, and deletes immutably", () => {
+  const previews = new Map([
+    ["payload", '{"profile":{"score":3},"status":"new","items":[4,6],"stale":true}'],
+    ["index", "1"]
+  ]);
+  const evaluator = loadScenarioEvaluator(previews);
+  const logic = createObjectFieldCalculationLogic();
+  const calculation = evaluator.calculate(logic, createEnabledNodes(logic), new Map());
+  assert.deepEqual(readKnown(calculation, "delete", "payload"), {
+    profile: { score: 5 },
+    status: "ready",
+    items: [4, 7]
+  });
+
+  const statusTransition = calculation.recordsByBlockId.get("status")?.transitions[0];
+  assert.equal(statusTransition?.targetName, 'payload["status"]');
+  assert.equal(statusTransition?.before.value, "new");
+  assert.equal(statusTransition?.after.value, "ready");
+  const deleteTransition = calculation.recordsByBlockId.get("delete")?.transitions[0];
+  assert.equal(deleteTransition?.targetName, "payload.stale");
+  assert.equal(deleteTransition?.before.value, true);
+  assert.equal(deleteTransition?.after.kind, "unset");
+  assert.deepEqual(evaluator.parse(previews.get("payload") ?? "", "payload").value, {
+    profile: { score: 3 },
+    status: "new",
+    items: [4, 6],
+    stale: true
+  });
+});
+
+test("evaluates JSON source literals but blocks prototype-sensitive field writes", () => {
+  const evaluator = loadScenarioEvaluator(new Map([["key", '"__proto__"']]));
+  const literalLogic = createJsonLiteralCalculationLogic();
+  const literal = evaluator.calculate(
+    literalLogic,
+    createEnabledNodes(literalLogic),
+    new Map()
+  );
+  assert.deepEqual(readKnown(literal, "increment", "payload"), {
+    nested: { count: 3 }
+  });
+
+  const blockedLogic = createBlockedObjectFieldLogic();
+  const blocked = evaluator.calculate(
+    blockedLogic,
+    createEnabledNodes(blockedLogic),
+    new Map()
+  );
+  const state = blocked.recordsByBlockId.get("blocked")?.after.get("payload");
+  assert.equal(state?.kind, "unknown");
+  assert.match(state?.reason ?? "", /prototype-sensitive/u);
+  assert.equal(Object.prototype.hasOwnProperty.call(Object.prototype, "polluted"), false);
+});
+
 /** Loads generated helpers with the Scenario editor's two public read interfaces. */
 function loadScenarioEvaluator(previews: ReadonlyMap<string, string>): ScenarioEvaluator {
   const source = getFunctionLogicScenarioEvaluatorBrowserSource();
@@ -345,6 +403,110 @@ function createBranchCalculationLogic(): Record<string, unknown> {
       ...edge("false-edge", "entry", "when-false"), kind: "false"
     }, edge("true-join", "when-true", "join"), edge("false-join", "when-false", "join")]
   };
+}
+
+/** Creates sequential exact writes against a parameter-supplied JSON object. */
+function createObjectFieldCalculationLogic(): Record<string, unknown> {
+  return {
+    language: "typescript",
+    valueBindings: [{
+      id: "payload", name: "payload", kind: "parameter", definitionBlockId: "entry",
+      confidence: "exact"
+    }, {
+      id: "index", name: "index", kind: "parameter", definitionBlockId: "entry",
+      confidence: "exact"
+    }],
+    blocks: [{
+      id: "entry",
+      kind: "entry",
+      valueAccesses: [definition("payload", "parameter"), definition("index", "parameter")]
+    }, {
+      id: "score",
+      kind: "mutation",
+      valueChanges: [propertyChange("payload.profile.score", "update", "+=", "2")]
+    }, {
+      id: "status",
+      kind: "mutation",
+      valueChanges: [propertyChange('payload["status"]', "assign", "=", '"ready"')]
+    }, {
+      id: "item",
+      kind: "mutation",
+      valueChanges: [propertyChange("payload.items[index]", "update", "++")]
+    }, {
+      id: "delete",
+      kind: "mutation",
+      valueChanges: [propertyChange("payload.stale", "delete", "delete")]
+    }],
+    edges: [
+      edge("entry-score", "entry", "score"),
+      edge("score-status", "score", "status"),
+      edge("status-item", "status", "item"),
+      edge("item-delete", "item", "delete")
+    ]
+  };
+}
+
+/** Proves JSON-compatible source initializers feed later field calculations. */
+function createJsonLiteralCalculationLogic(): Record<string, unknown> {
+  return {
+    language: "typescript",
+    valueBindings: [{
+      id: "payload", name: "payload", kind: "local", definitionBlockId: "initialize",
+      confidence: "exact"
+    }],
+    blocks: [{
+      id: "initialize",
+      kind: "operation",
+      valueAccesses: [definition("payload", "local")],
+      valueChanges: [{
+        target: "payload", targetKind: "variable", operation: "initialize", operator: "=",
+        value: '{"nested":{"count":1}}', confidence: "exact"
+      }]
+    }, {
+      id: "increment",
+      kind: "mutation",
+      valueChanges: [propertyChange("payload.nested.count", "update", "+=", "2")]
+    }],
+    edges: [edge("initialize-increment", "initialize", "increment")]
+  };
+}
+
+/** Uses a dynamic key to verify blocked paths never reach Object prototypes. */
+function createBlockedObjectFieldLogic(): Record<string, unknown> {
+  return {
+    language: "typescript",
+    valueBindings: [{
+      id: "payload", name: "payload", kind: "local", definitionBlockId: "entry",
+      confidence: "exact"
+    }, {
+      id: "key", name: "key", kind: "parameter", definitionBlockId: "entry",
+      confidence: "exact"
+    }],
+    blocks: [{
+      id: "entry",
+      kind: "entry",
+      valueAccesses: [definition("payload", "local"), definition("key", "parameter")],
+      valueChanges: [{
+        target: "payload", targetKind: "variable", operation: "initialize", operator: "=",
+        value: "{}", confidence: "exact"
+      }]
+    }, {
+      id: "blocked",
+      kind: "mutation",
+      valueChanges: [propertyChange("payload[key]", "assign", "=", "true")]
+    }],
+    edges: [edge("entry-blocked", "entry", "blocked")]
+  };
+}
+
+/** Creates one protocol-shaped exact property mutation for Scenario fixtures. */
+function propertyChange(
+  target: string,
+  operation: "assign" | "update" | "delete",
+  operator: string,
+  value?: string
+): Record<string, unknown> {
+  return { target, targetKind: "property", operation, operator, value, confidence: "exact" };
 }
 
 function definition(bindingId: string, bindingKind: "parameter" | "local"): Record<string, unknown> {

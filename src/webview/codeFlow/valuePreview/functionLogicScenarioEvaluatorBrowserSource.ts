@@ -7,11 +7,15 @@
 import {
   getFunctionLogicScenarioExpressionBrowserSource
 } from "./functionLogicScenarioExpressionBrowserSource";
+import {
+  getFunctionLogicScenarioObjectWriteBrowserSource
+} from "./functionLogicScenarioObjectWriteBrowserSource";
 
 /** Returns the public Scenario calculation browser-source composition. */
 export function getFunctionLogicScenarioEvaluatorBrowserSource(): string {
   return /* js */ `
     ${getFunctionLogicScenarioExpressionBrowserSource()}
+    ${getFunctionLogicScenarioObjectWriteBrowserSource()}
 
     const MAX_LOGIC_SCENARIO_WORK_ITEMS = 1200;
     const MAX_LOGIC_SCENARIO_DISPLAY_LENGTH = 180;
@@ -296,17 +300,35 @@ export function getFunctionLogicScenarioEvaluatorBrowserSource(): string {
           if (change.operation === "initialize" && overriddenBindingIds.has(binding.id)) continue;
           const previous = after.get(binding.id)
             || createFunctionLogicScenarioUnset("value is not assigned", [binding.id]);
+          const transitionBefore = change.targetKind === "property"
+            ? readFunctionLogicScenarioPropertyTransitionState(
+                change,
+                previous,
+                after,
+                context
+              )
+            : previous;
           const calculated = applyFunctionLogicScenarioChange(change, previous, after, context);
           const next = addFunctionLogicScenarioOrigins(calculated, [binding.id]);
           after.set(binding.id, next);
+          const transitionAfter = change.targetKind === "property"
+            ? change.operation === "delete" && next.kind === "known"
+              ? createFunctionLogicScenarioUnset("object field is deleted", next.origins)
+              : readFunctionLogicScenarioPropertyTransitionState(
+                  change,
+                  next,
+                  after,
+                  context
+                )
+            : next;
           transitions.push({
             kind: next.kind === "known" ? "calculation" : "unknown",
             targetBindingId: binding.id,
-            targetName: binding.name,
+            targetName: change.targetKind === "property" ? change.target : binding.name,
             operator: change.operator,
             expression: change.value || "",
-            before: previous,
-            after: next,
+            before: transitionBefore,
+            after: transitionAfter,
             dependencyBindingIds: normalizeFunctionLogicScenarioOrigins(next.origins),
             confidence: change.confidence
           });
@@ -361,6 +383,14 @@ export function getFunctionLogicScenarioEvaluatorBrowserSource(): string {
 
     /** Evaluates one exact lexical write or invalidates unsupported heap semantics. */
     function applyFunctionLogicScenarioChange(change, previous, environment, context) {
+      if (change.targetKind === "property") {
+        return applyFunctionLogicScenarioPropertyChange(
+          change,
+          previous,
+          environment,
+          context
+        );
+      }
       if (change.targetKind !== "variable") {
         return createFunctionLogicScenarioUnknown(
           change.targetKind + " changes are not modeled as lexical assignments",
