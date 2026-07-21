@@ -7,6 +7,10 @@
 import * as ts from "typescript";
 import type { FunctionLogicValueChange } from "./types";
 import {
+  collectTypeScriptObjectAssignFieldChanges,
+  collectTypeScriptObjectLiteralFieldChanges
+} from "./objectFields";
+import {
   classifyFunctionLogicValueTarget,
   createFunctionLogicValueChange,
   finalizeFunctionLogicValueChanges,
@@ -64,14 +68,26 @@ export function collectTypeScriptExpressionValueChanges(
       continue;
     }
     if (ts.isBinaryExpression(node) && isAssignmentOperator(node.operatorToken.kind)) {
+      const target = sourceText(sourceFile, node.left);
+      const operation = node.operatorToken.kind === ts.SyntaxKind.EqualsToken
+        ? "assign"
+        : "update";
       values.push(createFunctionLogicValueChange({
-        target: sourceText(sourceFile, node.left),
-        targetKind: classifyFunctionLogicValueTarget(sourceText(sourceFile, node.left)),
-        operation: node.operatorToken.kind === ts.SyntaxKind.EqualsToken ? "assign" : "update",
+        target,
+        targetKind: classifyFunctionLogicValueTarget(target),
+        operation,
         operator: sourceText(sourceFile, node.operatorToken),
         value: sourceText(sourceFile, node.right),
         confidence: "exact"
       }));
+      if (operation === "assign") {
+        values.push(...collectTypeScriptObjectLiteralFieldChanges(
+          sourceFile,
+          target,
+          node.right,
+          { operation, operator: "=", confidence: "exact" }
+        ));
+      }
     } else if (isUpdateExpression(node)) {
       values.push(createFunctionLogicValueChange({
         target: sourceText(sourceFile, node.operand),
@@ -90,6 +106,7 @@ export function collectTypeScriptExpressionValueChanges(
       }));
     } else if (ts.isCallExpression(node)) {
       values.push(createReceiverCallChange(sourceFile, node));
+      values.push(...collectTypeScriptObjectAssignFieldChanges(sourceFile, node));
     }
 
     const children = getImmediateChildren(node);
@@ -111,14 +128,23 @@ function collectVariableDeclarationChanges(
     if (!declaration.initializer) {
       continue;
     }
+    const target = sourceText(sourceFile, declaration.name);
     values.push(createFunctionLogicValueChange({
-      target: sourceText(sourceFile, declaration.name),
+      target,
       targetKind: "variable",
       operation: "initialize",
       operator: "=",
       value: sourceText(sourceFile, declaration.initializer),
       confidence: "exact"
     }));
+    if (ts.isIdentifier(declaration.name)) {
+      values.push(...collectTypeScriptObjectLiteralFieldChanges(
+        sourceFile,
+        target,
+        declaration.initializer,
+        { operation: "initialize", operator: "=", confidence: "exact" }
+      ));
+    }
     expressions.push(declaration.initializer);
   }
 }

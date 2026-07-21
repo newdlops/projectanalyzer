@@ -57,6 +57,53 @@ test("reuses the value-change contract for JavaScript", () => {
   assert.equal(analysis.summary.valueChangeCount, 2);
 });
 
+test("expands JavaScript object literals and Object.assign into field paths", () => {
+  const analysis = analyzeValueChanges(
+    "typescript",
+    "/workspace/src/object-fields.ts",
+    "createPayload",
+    0,
+    [
+      "function createPayload(defaults: object) {",
+      "  const payload = {",
+      "    status: \"new\",",
+      "    \"display-name\": \"Ada\",",
+      "    meta: { count: 1 },",
+      "    ...defaults",
+      "  };",
+      "  Object.assign(payload, { status: \"ready\", flags: { active: true } });",
+      "  return payload;",
+      "}"
+    ].join("\n")
+  );
+
+  assertExactWrite(requireChange(analysis, "payload.status", "initialize"), "=", "\"new\"");
+  assertExactWrite(
+    requireChange(analysis, 'payload["display-name"]', "initialize"),
+    "=",
+    "\"Ada\""
+  );
+  assertExactWrite(requireChange(analysis, "payload.meta.count", "initialize"), "=", "1");
+  const changes = analysis.blocks.flatMap((block) => block.valueChanges ?? []);
+  assert.ok(changes.some((change) =>
+    change.target === "payload"
+      && change.operator === "... spread"
+      && change.confidence === "inferred"
+  ));
+  assert.ok(changes.some((change) =>
+    change.target === "payload.status"
+      && change.operator === "Object.assign()"
+      && change.value === "\"ready\""
+      && change.targetKind === "property"
+      && change.confidence === "inferred"
+  ));
+  assert.ok(changes.some((change) =>
+    change.target === "payload.flags.active"
+      && change.operator === "Object.assign()"
+      && change.value === "true"
+  ));
+});
+
 test("exposes variable, property, and receiver changes in Python", () => {
   const analysis = analyzeValueChanges(
     "python",
@@ -79,6 +126,37 @@ test("exposes variable, property, and receiver changes in Python", () => {
   assertReceiverChange(requireChange(analysis, "items", "mutate"), "append()", "item");
   assertReceiverChange(requireChange(analysis, "queue", "mutate"), "pop()", undefined);
   assert.equal(analysis.summary.valueChangeCount, 5);
+});
+
+test("expands Python dictionaries and update keys without claiming runtime types", () => {
+  const analysis = analyzeValueChanges(
+    "python",
+    "/workspace/src/object_fields.py",
+    "create_payload",
+    0,
+    [
+      "def create_payload(defaults):",
+      "    payload = {\"status\": \"new\", \"meta\": {\"count\": 1}, **defaults}",
+      "    payload.update({\"status\": \"ready\", \"meta\": {\"count\": 2}})",
+      "    return payload"
+    ].join("\n")
+  );
+
+  assertExactWrite(requireChange(analysis, 'payload["status"]', "assign"), "=", "\"new\"");
+  assertExactWrite(requireChange(analysis, 'payload["meta"]["count"]', "assign"), "=", "1");
+  const changes = analysis.blocks.flatMap((block) => block.valueChanges ?? []);
+  assert.ok(changes.some((change) =>
+    change.target === "payload"
+      && change.operator === "** unpack"
+      && change.confidence === "inferred"
+  ));
+  assert.ok(changes.some((change) =>
+    change.target === 'payload["status"]'
+      && change.operation === "mutate"
+      && change.operator === "update()"
+      && change.value === "\"ready\""
+      && change.confidence === "inferred"
+  ));
 });
 
 test("exposes variable, field, and receiver changes in Java", () => {
@@ -107,6 +185,38 @@ test("exposes variable, field, and receiver changes in Java", () => {
   assertReceiverChange(requireChange(analysis, "items", "mutate"), "add()", "item");
   assertReceiverChange(requireChange(analysis, "queue", "mutate"), "poll()", undefined);
   assert.equal(analysis.summary.valueChangeCount, 5);
+});
+
+test("keeps literal Java map keys as inferred field-level mutation evidence", () => {
+  const analysis = analyzeValueChanges(
+    "java",
+    "/workspace/src/ObjectFields.java",
+    "update",
+    1,
+    [
+      "class ObjectFields {",
+      "  void update(Map<String, Object> payload, Object state) {",
+      "    payload.put(\"status\", state);",
+      "    payload.remove(\"stale\");",
+      "  }",
+      "}"
+    ].join("\n"),
+    "ObjectFields.update"
+  );
+  const changes = analysis.blocks.flatMap((block) => block.valueChanges ?? []);
+
+  assert.ok(changes.some((change) =>
+    change.target === 'payload["status"]'
+      && change.operator === "put()"
+      && change.value === "state"
+      && change.targetKind === "property"
+      && change.confidence === "inferred"
+  ));
+  assert.ok(changes.some((change) =>
+    change.target === 'payload["stale"]'
+      && change.operator === "remove()"
+      && change.confidence === "inferred"
+  ));
 });
 
 test("shows loop bindings on the loop block without absorbing body changes", () => {

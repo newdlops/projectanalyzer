@@ -10,6 +10,7 @@ import {
   type LezerSource
 } from "../../core/lezerSource";
 import type { FunctionLogicValueChange } from "./types";
+import { collectPythonDictionaryFieldChanges } from "./objectFields";
 import {
   classifyFunctionLogicValueTarget,
   createFunctionLogicValueChange,
@@ -54,6 +55,9 @@ function collectPythonAssignmentChanges(
   const assignedValue = normalizeValueChangeText(
     source.text.slice(lastOperator.to, statement.to)
   );
+  const dictionary = getLezerChildren(statement).find((child) =>
+    child.name === "DictionaryExpression" && child.from >= lastOperator.to
+  );
   let targetStart = statement.from;
   for (const operator of operators) {
     const target = normalizeValueChangeText(source.text.slice(targetStart, operator.from));
@@ -65,6 +69,14 @@ function collectPythonAssignmentChanges(
       value: assignedValue,
       confidence: "exact"
     }));
+    if (operator.name === "AssignOp" && dictionary) {
+      values.push(...collectPythonDictionaryFieldChanges(
+        source,
+        target,
+        dictionary,
+        { operation: "assign", operator: "=", confidence: "exact" }
+      ));
+    }
     targetStart = operator.to;
   }
 }
@@ -129,7 +141,7 @@ function collectPythonReceiverChanges(
       continue;
     }
     if (node.name === "CallExpression") {
-      values.push(createPythonReceiverCallChange(source, node));
+      values.push(...createPythonReceiverCallChanges(source, node));
     }
     const children = getLezerChildren(node);
     for (let index = children.length - 1; index >= 0; index -= 1) {
@@ -139,16 +151,16 @@ function collectPythonReceiverChanges(
   return finalizeFunctionLogicValueChanges(values);
 }
 
-/** Converts one `receiver.method(args)` call into an inferred state hint. */
-function createPythonReceiverCallChange(
+/** Converts one receiver call into a root hint plus literal-key field hints. */
+function createPythonReceiverCallChanges(
   source: LezerSource,
   call: SyntaxNode
-): FunctionLogicValueChange | undefined {
+): Array<FunctionLogicValueChange | undefined> {
   const children = getLezerChildren(call);
   const member = children.find((child) => child.name === "MemberExpression");
   const argumentsNode = children.find((child) => child.name === "ArgList");
   if (!member) {
-    return undefined;
+    return [];
   }
   const memberChildren = getLezerChildren(member);
   const receiverNode = memberChildren[0];
@@ -156,26 +168,40 @@ function createPythonReceiverCallChange(
     child.name === "PropertyName"
   );
   if (!receiverNode || !methodNode) {
-    return undefined;
+    return [];
   }
   const methodName = source.text.slice(methodNode.from, methodNode.to);
   if (!isPotentialReceiverMutationMethod(methodName)) {
-    return undefined;
+    return [];
   }
   const receiver = normalizeValueChangeText(
     source.text.slice(receiverNode.from, receiverNode.to)
   );
   if (looksLikeStaticTypeReceiver(receiver)) {
-    return undefined;
+    return [];
   }
-  return createFunctionLogicValueChange({
+  const values: Array<FunctionLogicValueChange | undefined> = [createFunctionLogicValueChange({
     target: receiver,
     targetKind: "receiver",
     operation: "mutate",
     operator: `${methodName}()`,
     value: argumentsNode ? readDelimitedValue(source, argumentsNode) : undefined,
     confidence: "inferred"
-  });
+  })];
+  if (methodName === "update" && argumentsNode) {
+    const dictionary = getLezerChildren(argumentsNode).find((child) =>
+      child.name === "DictionaryExpression"
+    );
+    if (dictionary) {
+      values.push(...collectPythonDictionaryFieldChanges(
+        source,
+        receiver,
+        dictionary,
+        { operation: "mutate", operator: "update()", confidence: "inferred" }
+      ));
+    }
+  }
+  return values;
 }
 
 /** Keeps control-suite and nested-scope statements out of their owner's annotation. */

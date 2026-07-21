@@ -11,6 +11,10 @@ import {
 } from "../../core/lezerSource";
 import type { FunctionLogicValueChange } from "./types";
 import {
+  appendObjectFieldLiteralTarget,
+  isStaticObjectFieldKeyLiteral
+} from "./objectFields";
+import {
   classifyFunctionLogicValueTarget,
   createFunctionLogicValueChange,
   finalizeFunctionLogicValueChanges,
@@ -47,7 +51,7 @@ export function collectJavaValueChanges(
     } else if (node.name === "UpdateExpression") {
       values.push(createJavaUpdateChange(source, node));
     } else if (node.name === "MethodInvocation") {
-      values.push(createJavaReceiverCallChange(source, node));
+      values.push(...createJavaReceiverCallChanges(source, node));
     }
 
     const children = getLezerChildren(node);
@@ -154,11 +158,11 @@ function createJavaIterationChange(
   });
 }
 
-/** Converts one dotted method invocation into an inferred receiver change. */
-function createJavaReceiverCallChange(
+/** Converts one dotted invocation into receiver and literal-key field hints. */
+function createJavaReceiverCallChanges(
   source: LezerSource,
   invocation: SyntaxNode
-): FunctionLogicValueChange | undefined {
+): Array<FunctionLogicValueChange | undefined> {
   const children = getLezerChildren(invocation);
   const method = children.find((child) => child.name === "MethodName");
   const dot = method
@@ -166,22 +170,58 @@ function createJavaReceiverCallChange(
     : undefined;
   const argumentsNode = children.find((child) => child.name === "ArgumentList");
   if (!method || !dot) {
-    return undefined;
+    return [];
   }
   const methodName = normalizeValueChangeText(source.text.slice(method.from, method.to));
   if (!isPotentialReceiverMutationMethod(methodName)) {
-    return undefined;
+    return [];
   }
   const receiver = normalizeValueChangeText(source.text.slice(invocation.from, dot.from));
   if (!receiver || looksLikeStaticTypeReceiver(receiver)) {
-    return undefined;
+    return [];
   }
-  return createFunctionLogicValueChange({
+  const values: Array<FunctionLogicValueChange | undefined> = [createFunctionLogicValueChange({
     target: receiver,
     targetKind: "receiver",
     operation: "mutate",
     operator: `${methodName}()`,
     value: argumentsNode ? readDelimitedValue(source, argumentsNode) : undefined,
+    confidence: "inferred"
+  })];
+  const field = argumentsNode
+    ? createJavaKeyedReceiverFieldChange(source, receiver, methodName, argumentsNode)
+    : undefined;
+  if (field) values.push(field);
+  return values;
+}
+
+/** Adds an inferred map/list key when a mutator's first argument is literal. */
+function createJavaKeyedReceiverFieldChange(
+  source: LezerSource,
+  receiver: string,
+  methodName: string,
+  argumentsNode: SyntaxNode
+): FunctionLogicValueChange | undefined {
+  if (!JAVA_KEYED_MUTATION_METHODS.has(methodName.toLowerCase())) {
+    return undefined;
+  }
+  const argumentsList = getLezerChildren(argumentsNode).filter((child) =>
+    child.name !== "(" && child.name !== ")" && child.name !== ","
+  );
+  const key = argumentsList[0]
+    ? normalizeValueChangeText(source.text.slice(argumentsList[0].from, argumentsList[0].to))
+    : "";
+  if (!isStaticObjectFieldKeyLiteral(key)) {
+    return undefined;
+  }
+  return createFunctionLogicValueChange({
+    target: appendObjectFieldLiteralTarget(receiver, key),
+    targetKind: "property",
+    operation: "mutate",
+    operator: `${methodName}()`,
+    value: argumentsList[1]
+      ? source.text.slice(argumentsList[1].from, argumentsList[1].to)
+      : undefined,
     confidence: "inferred"
   });
 }
@@ -224,4 +264,16 @@ const JAVA_CONTROL_STATEMENTS = new Set([
   "SwitchStatement",
   "SynchronizedStatement",
   "WhileStatement"
+]);
+
+/** Receiver methods whose first literal argument denotes a key or index. */
+const JAVA_KEYED_MUTATION_METHODS = new Set([
+  "compute",
+  "computeifabsent",
+  "computeifpresent",
+  "merge",
+  "put",
+  "remove",
+  "replace",
+  "set"
 ]);

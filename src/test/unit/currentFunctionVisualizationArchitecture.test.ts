@@ -222,7 +222,18 @@ test("value-change evidence stays language-adapted, complete, and UI-independent
   const java = readSource(
     "src/analyzer/functionLogic/valueChanges/javaValueChanges.ts"
   );
-  const combined = [support, typescript, python, java].join("\n");
+  const objectTargets = readSource(
+    "src/analyzer/functionLogic/valueChanges/objectFields/objectFieldTarget.ts"
+  );
+  const typescriptObjects = readSource(
+    "src/analyzer/functionLogic/valueChanges/objectFields/typescriptObjectFieldChanges.ts"
+  );
+  const pythonObjects = readSource(
+    "src/analyzer/functionLogic/valueChanges/objectFields/pythonDictionaryFieldChanges.ts"
+  );
+  const combined = [
+    support, typescript, python, java, objectTargets, typescriptObjects, pythonObjects
+  ].join("\n");
 
   assert.match(support, /normalizeValueChangeText/u);
   assert.match(support, /const seen = new Set<string>\(\)/u);
@@ -231,6 +242,11 @@ test("value-change evidence stays language-adapted, complete, and UI-independent
   assert.match(typescript, /while \(pending\.length > 0\)/u);
   assert.match(python, /while \(pending\.length > 0\)/u);
   assert.match(java, /while \(pending\.length > 0\)/u);
+  assert.match(typescriptObjects, /while \(pending\.length > 0\)/u);
+  assert.match(pythonObjects, /while \(pending\.length > 0\)/u);
+  assert.match(objectTargets, /appendObjectFieldTarget/u);
+  assert.match(typescriptObjects, /Object\.assign\(\)/u);
+  assert.match(pythonObjects, /\*\* unpack/u);
   assert.match(combined, /confidence: "inferred"/u);
   assert.doesNotMatch(combined, /from ".*(?:webview|protocol|vscode|extension)/u);
 });
@@ -458,6 +474,9 @@ test("Scenario values stay bounded, calculated, traceable, session-scoped, and b
   const expression = readSource(
     "src/webview/codeFlow/valuePreview/functionLogicScenarioExpressionBrowserSource.ts"
   );
+  const objectWrite = readSource(
+    "src/webview/codeFlow/valuePreview/functionLogicScenarioObjectWriteBrowserSource.ts"
+  );
 
   assert.match(renderer, /getFunctionLogicValuePreviewBrowserSource/u);
   assert.match(renderer, /getFunctionLogicScenarioEvaluatorBrowserSource/u);
@@ -493,17 +512,22 @@ test("Scenario values stay bounded, calculated, traceable, session-scoped, and b
   assert.match(evaluator, /MAX_LOGIC_SCENARIO_WORK_ITEMS = 1200/u);
   assert.match(evaluator, /JSON\.parse/u);
   assert.match(evaluator, /getFunctionLogicScenarioExpressionBrowserSource/u);
+  assert.match(evaluator, /getFunctionLogicScenarioObjectWriteBrowserSource/u);
   assert.match(evaluator, /binding\.kind === "parameter" \|\| binding\.manual/u);
   assert.match(expression, /createFunctionLogicScenarioRpn/u);
   assert.match(expression, /applyFunctionLogicScenarioTernary/u);
+  assert.match(objectWrite, /MAX_LOGIC_SCENARIO_MEMBER_WRITE_DEPTH = 24/u);
+  assert.match(objectWrite, /for \(let index = 0; index < resolved\.keys\.length - 1/u);
+  assert.match(objectWrite, /Object\.getOwnPropertyDescriptor/u);
+  assert.match(objectWrite, /prototype-sensitive field is not writable/u);
   assert.match(evaluator, /mergeFunctionLogicScenarioEnvironments/u);
   assert.match(evaluator, /choice-dimmed/u);
   assert.doesNotMatch(
-    [preview, evaluator, expression, trace].join("\n"),
+    [preview, evaluator, expression, objectWrite, trace].join("\n"),
     /vscode\.postMessage|\beval\(|new Function/u
   );
   assert.doesNotMatch(
-    [preview, evaluator, expression, trace].join("\n"),
+    [preview, evaluator, expression, objectWrite, trace].join("\n"),
     /from ".*(?:analyzer|application|protocol|vscode|extension)/u
   );
 });
