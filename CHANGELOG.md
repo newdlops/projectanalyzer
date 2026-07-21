@@ -4,6 +4,40 @@ All notable user-visible changes to Project Analyzer: Code Flow are recorded in
 this file. The changelog starts with the first distribution-documented build;
 earlier local development builds were not tracked here.
 
+## 0.0.1052 - 2026-07-21
+
+### Added
+
+- Selecting an attached entry/boundary function in **Module Flow** now continues
+  into its statement-level control-flow graph on the same canvas. A visible
+  function-to-entry edge keeps the project-to-function reading path continuous.
+- Function-local cards retain branch labels, confidence, value changes/accesses,
+  related-function evidence, and exact-statement source actions in the Module
+  Flow detail rail.
+
+### Changed
+
+- Newly attached function blocks and control edges use a short bounded staggered
+  animation while preserving the clicked function card's viewport position;
+  reduced-motion preferences still disable animation.
+- Function Logic requests are correlated and capped at 48 blocks/96 edges. The
+  complete canvas remains capped at 500 nodes/1,000 edges, and a child function
+  graph cannot evict the boundary-function branch that owns its anchor.
+- Function-card clicks no longer replace Module Flow with a separate Function
+  Visualizer tab. Opening the function definition remains an explicit detail action.
+
+## 0.0.1051 - 2026-07-21
+
+### Changed
+
+- Function Visualizer title and graph metrics now share a compact header row,
+  with smaller source and static-analysis context beneath them.
+- A single root breadcrumb and the normal idle status no longer reserve vertical
+  space. Navigation reappears for real parent/child history, while analysis,
+  attachment, and error statuses remain visible.
+- Empty upstream-entrypoint sections are now reliably hidden; populated origins
+  use one inline `Reached from` strip instead of a separate heading block.
+
 ## 0.0.1050 - 2026-07-20
 
 ### Fixed

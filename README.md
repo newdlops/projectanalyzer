@@ -114,6 +114,9 @@ dedicated Function Visualizer tab with a bounded control-flow graph:
 
 - a graph-first, bounded-height workspace that uses the available editor width
   and up to 76% of the editor height
+- a compact root header where the function title and graph metrics share one row;
+  idle status and single-root navigation consume no height, while active analysis,
+  errors, real breadcrumb history, and non-empty upstream origins remain visible
 - an infinite-style `translate + scale` canvas with background/middle-button
   drag and two-axis trackpad pan beyond every side of the graph
 - `−` / live percentage / `+` zoom from 1% to 300%, cursor-centered
@@ -221,9 +224,13 @@ omitted counts. It provides:
 - curved line bridges plus local direction triangles where perpendicular edges cross
 - click-to-attach boundary functions to the same canvas while preserving the
   clicked module's scroll anchor
+- click an attached entry/boundary function to continue from that card into its
+  bounded statement-level control-flow graph on the same Module Flow canvas;
+  click it again to collapse only that function branch
 - a complete-canvas budget of 500 nodes and 1,000 edges; attaching beyond it
   releases the oldest expansion branches instead of retaining unbounded DOM/layout state
-- reduced-motion-aware entry animation for only the newly attached nodes and edges
+- short staggered entry animation for only newly attached function blocks and
+  edges, with animation disabled when reduced motion is preferred
 - focal zoom with `−`/percentage/`+`, whole-graph **Fit**, `+`/`-`/`0`/`F`
   graph shortcuts, and Ctrl/Cmd-wheel zoom around the cursor
 - background drag panning, centered small graphs, and resize-stable reading position
@@ -232,7 +239,8 @@ omitted counts. It provides:
 - hidden editor tabs release their Webview DOM and restore from the existing Host
   projection when revealed, without rerunning workspace analysis
 - bounded module/edge detail, representative evidence, and source actions
-- one-action handoff from a concrete function to its statement-level Function Visualizer
+- exact function-definition and statement source actions remain in the adjacent
+  detail rail without replacing the Module Flow graph
 
 The complete module index stays in the Extension Host. The browser receives only
 the current bounded scene, a selected detail, or one lazy expansion layer. Saved
@@ -261,7 +269,7 @@ Workspace Module Flow
   -> Project responsibility boundary
   -> Static execution/dependency relation
   -> Boundary function
-  -> Function Visualizer
+  -> Same-canvas statement control flow
 ```
 
 Runtime value evaluation, heap/alias taint propagation, runtime instrumentation,
@@ -464,8 +472,8 @@ Current Source -> Function Logic Analyzer -> Logic Projection -> Function Visual
 
 Workspace Graph -> Project Module Index -> Bounded Module Flow -> Module Visualizer
                          |                        |              |- Detail / Evidence
-                         |                        |              `- Function Visualizer handoff
-                         `-> Host-only index      `-> Lazy same-canvas boundary functions
+                         |                        |              `- Same-canvas Function Logic
+                         `-> Host-only index      `-> Lazy module/function branches
 ```
 
 Key reusable modules:
@@ -525,7 +533,7 @@ Key reusable modules:
 - `src/webview/functionVisualizer/` — editor-tab lifecycle, reading UX, and
   cycle-safe lazy function navigation
 - `src/webview/moduleVisualizer/` — dedicated Module Flow tab, detail/evidence,
-  lazy same-canvas expansion, and Function Visualizer handoff
+  lazy same-canvas module/function expansion, and bounded Function Logic delivery
 - `src/webview/sourceNavigation/` — snapshot-local source tokens
 
 ## Flow Bounds
@@ -567,8 +575,10 @@ their boxes grow vertically as they wrap.
 
 Module Flow uses independent hard budgets: 80 modules/160 edges for the initial
 scene, 40 relations/5 evidence rows for detail, and 48 nodes/96 edges for one
-expansion delta. The merged browser scene is capped at 500 nodes/1,000 edges and
-evicts oldest expansion branches first. The full module index remains Host-side. Module, edge, function,
+module or function-logic expansion delta. The merged browser scene is capped at
+500 nodes/1,000 edges and evicts oldest expansion branches first; a function-logic
+branch cannot evict the parent branch that owns its anchor card. The full module
+index remains Host-side. Module, edge, function,
 source, and evidence identities are snapshot-local opaque tokens, and mismatched
 graph versions or late request IDs are rejected instead of being merged into the
 current tab.
