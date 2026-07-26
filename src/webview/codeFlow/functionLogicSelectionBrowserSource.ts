@@ -85,6 +85,30 @@ export function getFunctionLogicSelectionBrowserSource(): string {
       header.append(createBadge(formatLogicKind(block.kind), "logic-kind " + block.kind), name, confidence);
       panel.append(header, detail);
       if (meta.textContent) panel.append(meta);
+      if (graphContext?.isBodyOwner?.(block.id) && graphContext.focusBody) {
+        const focusBody = document.createElement("button");
+        focusBody.type = "button";
+        focusBody.className = "logic-button logic-focus-body";
+        focusBody.textContent = "Focus this body";
+        focusBody.title = "Show this body as the outer frame";
+        focusBody.addEventListener("click", () => graphContext.focusBody(block.id));
+        panel.append(focusBody);
+      }
+      const embeddedBoundaryId = block.kind === "embedded" ? block.id : block.embeddedBoundaryId;
+      if (embeddedBoundaryId && graphContext?.focusEmbedded) {
+        const focusEmbedded = document.createElement("button");
+        focusEmbedded.type = "button";
+        focusEmbedded.className = "logic-button logic-focus-embedded";
+        const focused = Boolean(graphContext.isEmbeddedFocused?.(embeddedBoundaryId));
+        focusEmbedded.textContent = focused ? "Show full function graph" : "Focus embedded code";
+        focusEmbedded.title = focused
+          ? "Show the full function graph"
+          : "Focus this static embedded program";
+        focusEmbedded.addEventListener("click", () => graphContext.focusEmbedded(
+          focused ? undefined : embeddedBoundaryId
+        ));
+        panel.append(focusEmbedded);
+      }
       const choiceSummary = createFunctionLogicBranchChoiceSummary(
         branchChoices,
         () => onBranchChoice(undefined)

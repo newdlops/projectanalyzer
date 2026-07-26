@@ -82,8 +82,7 @@ test("keeps the graph primary and moves supporting inspectors into an adjacent d
       "logic-value-preview-editor",
       "logic-scenario-trace",
       "logic-data-flow-toolbar",
-      "logic-signature",
-      "logic-understanding"
+      "logic-signature"
     ]) {
       assert.equal(runtime.countRenderedByClassWithinClass(
         "flow-steps",
@@ -118,6 +117,173 @@ test("keeps the graph primary and moves supporting inspectors into an adjacent d
       "logic-inspector-drawer",
       "aria-hidden"
     ), "false");
+  } finally {
+    runtime.restore();
+  }
+});
+
+test("switches reader lenses without replacing the graph and publishes attention state", () => {
+  const runtime = installSidebarWebviewRuntime();
+
+  try {
+    new Function(requireFunctionVisualizerScript())();
+    runtime.dispatchMessage(createSessionMessage());
+    runtime.dispatchMessage(createFunctionDetail("Root.run", rootToken));
+
+    assert.equal(runtime.getRenderedAttributeByTitle(
+      "flow-steps",
+      "Control structure and possible paths",
+      "aria-pressed"
+    ), "true");
+    assert.equal(runtime.getRenderedAttributeByTitle(
+      "flow-steps",
+      "Declared values and changes",
+      "aria-pressed"
+    ), "false");
+    assert.equal(runtime.getRenderedAttributeByTitle(
+      "flow-steps",
+      "Select logic · return true;",
+      "data-attention"
+    ), "active");
+    assert.ok(runtime.getRenderedText("flow-steps").includes("◇ choose path"));
+
+    runtime.clickByTitle("Declared values and changes");
+
+    assert.equal(runtime.getRenderedAttributeByTitle(
+      "flow-steps",
+      "Control structure and possible paths",
+      "aria-pressed"
+    ), "false");
+    assert.equal(runtime.getRenderedAttributeByTitle(
+      "flow-steps",
+      "Declared values and changes",
+      "aria-pressed"
+    ), "true");
+    assert.equal(runtime.countRenderedByClass("flow-steps", "logic-graph-workspace"), 1);
+    assert.ok(runtime.getRenderedText("flow-steps").includes("Δ changed"));
+    assert.ok(!runtime.getRenderedText("flow-steps").includes("◇ choose path"));
+  } finally {
+    runtime.restore();
+  }
+});
+
+test("selecting a source-backed node does not open the editor without an explicit action", () => {
+  const runtime = installSidebarWebviewRuntime();
+
+  try {
+    new Function(requireFunctionVisualizerScript())();
+    runtime.dispatchMessage(createSessionMessage());
+    runtime.dispatchMessage(createFunctionDetail("Root.run", rootToken));
+    const beforeSelectionMessages = runtime.messages.length;
+
+    runtime.clickByTitle("Select logic · return true;");
+
+    assert.equal(runtime.messages.length, beforeSelectionMessages);
+    runtime.clickByTitle("Open statement · src/root.ts:2");
+    assert.deepEqual(latestPayload(runtime.messages, "codeFlow/openEvidence"), {
+      graphVersion,
+      evidenceToken
+    });
+  } finally {
+    runtime.restore();
+  }
+});
+
+test("keeps one roving graph-node tab stop as selection changes", () => {
+  const runtime = installSidebarWebviewRuntime();
+
+  try {
+    new Function(requireFunctionVisualizerScript())();
+    runtime.dispatchMessage(createSessionMessage());
+    runtime.dispatchMessage(createCalculatedScenarioDetail());
+
+    assert.equal(runtime.getRenderedAttributeByTitle(
+      "flow-steps",
+      "Select logic · run(input, ready)",
+      "tabindex"
+    ), "0");
+    assert.equal(runtime.getRenderedAttributeByTitle(
+      "flow-steps",
+      "Select logic · total += 2;",
+      "tabindex"
+    ), "-1");
+
+    runtime.clickByTitle("Select logic · total += 2;");
+
+    assert.equal(runtime.getRenderedAttributeByTitle(
+      "flow-steps",
+      "Select logic · run(input, ready)",
+      "tabindex"
+    ), "-1");
+    assert.equal(runtime.getRenderedAttributeByTitle(
+      "flow-steps",
+      "Select logic · total += 2;",
+      "tabindex"
+    ), "0");
+  } finally {
+    runtime.restore();
+  }
+});
+
+test("moves graph selection with structural keyboard navigation", () => {
+  const runtime = installSidebarWebviewRuntime();
+
+  try {
+    new Function(requireFunctionVisualizerScript())();
+    runtime.dispatchMessage(createSessionMessage());
+    runtime.dispatchMessage(createCalculatedScenarioDetail());
+
+    runtime.keydownByTitle("Select logic · run(input, ready)", "ArrowDown");
+    assert.equal(runtime.getRenderedAttributeByTitle(
+      "flow-steps",
+      "Select logic · const adjusted = ready ? input > 3 ? input * 2 : input + 2 : 0;",
+      "tabindex"
+    ), "0");
+
+    runtime.keydownByTitle(
+      "Select logic · const adjusted = ready ? input > 3 ? input * 2 : input + 2 : 0;",
+      "End"
+    );
+    assert.equal(runtime.getRenderedAttributeByTitle(
+      "flow-steps",
+      "Select logic · total += 2;",
+      "tabindex"
+    ), "0");
+
+    runtime.keydownByTitle("Select logic · total += 2;", "Home");
+    assert.equal(runtime.getRenderedAttributeByTitle(
+      "flow-steps",
+      "Select logic · run(input, ready)",
+      "tabindex"
+    ), "0");
+  } finally {
+    runtime.restore();
+  }
+});
+
+test("keeps the Static Flow Ledger synchronized with graph selection", () => {
+  const runtime = installSidebarWebviewRuntime();
+
+  try {
+    new Function(requireFunctionVisualizerScript())();
+    runtime.dispatchMessage(createSessionMessage());
+    runtime.dispatchMessage(createCalculatedScenarioDetail());
+
+    assert.equal(runtime.countRenderedByClass("flow-steps", "logic-static-ledger"), 1);
+    assert.ok(runtime.getRenderedText("flow-steps").includes(
+      "Possible static reading order, not an execution trace."
+    ));
+    runtime.clickByTitle("Select static step · total += 2;");
+    assert.equal(runtime.getRenderedAttributeByTitle(
+      "flow-steps",
+      "Select static step · total += 2;",
+      "aria-current"
+    ), "step");
+    assert.equal(runtime.getRenderedAttributeByTitle(
+      "flow-steps",
+      "Select logic · total += 2;",
+      "tabindex"
+    ), "0");
   } finally {
     runtime.restore();
   }
@@ -220,8 +386,6 @@ test("accepts Scenario inputs without executing source or messaging the Host", (
     assert.ok(initialText.includes("Scenario calculation"));
     assert.ok(initialText.includes("Name"));
     assert.ok(initialText.includes("Scenario input"));
-    assert.ok(initialText.includes("DEFINED"));
-    assert.ok(initialText.includes("SINK · UPDATE"));
     assert.ok(initialText.includes("◎ SINK"));
     assert.ok(initialText.some((text) => text.includes("Source calls are never executed")));
     assert.equal(runtime.getRenderedAttributeByClass(
@@ -229,14 +393,8 @@ test("accepts Scenario inputs without executing source or messaging the Host", (
       "logic-inspector-drawer",
       "aria-hidden"
     ), "false");
-    assert.equal(runtime.countRenderedByClass("flow-steps", "logic-scenario-step"), 2);
+    assert.equal(runtime.countRenderedByClass("flow-steps", "logic-scenario-step"), 0);
 
-    assert.equal(runtime.getRenderedAttributeByTitle(
-      "flow-steps",
-      highlightTitle,
-      "aria-pressed"
-    ), "true");
-    runtime.clickByTitle("Trace parameter input");
     assert.equal(runtime.getRenderedAttributeByTitle(
       "flow-steps",
       highlightTitle,
@@ -247,11 +405,18 @@ test("accepts Scenario inputs without executing source or messaging the Host", (
       "Select logic · return true;",
       "data-flow-related"
     ), false);
-    const beforeHighlightMessages = runtime.messages.length;
-    runtime.clickByTitle(highlightTitle);
+    runtime.clickByTitle("Trace parameter input");
+    assert.equal(runtime.countRenderedByClass("flow-steps", "logic-scenario-step"), 2);
     assert.equal(runtime.getRenderedAttributeByTitle(
       "flow-steps",
-      "Trace parameter input",
+      "Declared values and changes",
+      "aria-pressed"
+    ), "true");
+    assert.ok(runtime.getRenderedText("flow-steps").includes("DEFINED"));
+    assert.ok(runtime.getRenderedText("flow-steps").includes("SINK · UPDATE"));
+    assert.equal(runtime.getRenderedAttributeByTitle(
+      "flow-steps",
+      highlightTitle,
       "aria-pressed"
     ), "true");
     assert.equal(runtime.hasRenderedClassByTitle(
@@ -264,6 +429,7 @@ test("accepts Scenario inputs without executing source or messaging the Host", (
       "Select logic · return true;",
       "data-flow-sink"
     ), true);
+    const beforeHighlightMessages = runtime.messages.length;
     assert.equal(runtime.messages.length, beforeHighlightMessages);
 
     runtime.inputByTitle(inputTitle, preview);
@@ -285,6 +451,37 @@ test("accepts Scenario inputs without executing source or messaging the Host", (
 
     runtime.clickByTitle("Clear scenario input for input");
     assert.ok(!runtime.getRenderedText("flow-steps").includes("= " + preview));
+  } finally {
+    runtime.restore();
+  }
+});
+
+test("plays a user-selected value flow without messaging the Host", () => {
+  const runtime = installSidebarWebviewRuntime();
+
+  try {
+    new Function(requireFunctionVisualizerScript())();
+    runtime.dispatchMessage(createSessionMessage());
+    runtime.dispatchMessage(createFunctionDetail(
+      "Root.run",
+      rootToken,
+      undefined,
+      "call",
+      [],
+      true
+    ));
+
+    const beforePlaybackMessages = runtime.messages.length;
+    assert.ok(runtime.getRenderedText("flow-steps").includes("Flow playback"));
+    runtime.clickByTitle("Trace parameter input");
+
+    assert.ok(runtime.getRenderedText("flow-steps").includes("Hop 1 of 1 · sink"));
+    assert.equal(runtime.hasRenderedClassByTitle(
+      "flow-steps",
+      "Select logic · return true;",
+      "data-flow-playback-target"
+    ), true);
+    assert.equal(runtime.messages.length, beforePlaybackMessages);
   } finally {
     runtime.restore();
   }
@@ -364,6 +561,7 @@ test("calculates entered values through nested ternaries and subsequent assignme
     runtime.dispatchMessage(createCalculatedScenarioDetail());
     const beforeInputMessages = runtime.messages.length;
 
+    runtime.clickByTitle("Trace parameter input");
     runtime.inputByTitle("Scenario input for parameter input", "4");
     runtime.inputByTitle("Scenario input for parameter ready", "true");
 
@@ -397,7 +595,7 @@ test("requests a child attachment when the function call belongs to an if box", 
       callsiteCount: 1
     }, "condition"));
 
-    runtime.clickByTitle("Expand called function · Guard.isReady");
+    runtime.clickByTitle("Attach child function · Guard.isReady");
     assert.deepEqual(latestPayload(runtime.messages, "codeFlow/selectSource"), {
       graphVersion,
       sourceToken: childToken
@@ -409,8 +607,8 @@ test("requests a child attachment when the function call belongs to an if box", 
 
 test("keeps the callsite fixed in the viewport while attached child nodes animate in", () => {
   const runtime = installSidebarWebviewRuntime();
-  const expandTitle = "Expand called function · Child.load";
-  const collapseTitle = "Collapse called function · Child.load";
+  const callsiteTitle = "Select logic · Child.load();";
+  const attachTitle = "Attach child function · Child.load";
 
   try {
     new Function(requireFunctionVisualizerScript())();
@@ -441,26 +639,26 @@ test("keeps the callsite fixed in the viewport while attached child nodes animat
       "pointerup",
       { pointerId: 9, clientX: 110, clientY: 75 }
     );
-    const before = renderedViewportPosition(runtime, expandTitle);
+    const before = renderedViewportPosition(runtime, callsiteTitle);
 
-    runtime.clickByTitle(expandTitle);
+    runtime.clickByTitle(attachTitle);
     assert.equal(runtime.getRenderedAttributeByClass(
       "flow-steps",
       "logic-inspector-drawer",
       "aria-hidden"
     ), "false");
-    assert.deepEqual(renderedViewportPosition(runtime, collapseTitle), before);
+    assert.deepEqual(renderedViewportPosition(runtime, callsiteTitle), before);
     assert.equal(runtime.countRenderedByClass("flow-steps", "logic-node-entering"), 1);
     assert.equal(runtime.countRenderedByClass("flow-steps", "logic-edge-entering"), 1);
 
-    const loadingPosition = renderedViewportPosition(runtime, collapseTitle);
+    const loadingPosition = renderedViewportPosition(runtime, callsiteTitle);
     runtime.dispatchMessage(createFunctionDetail("Child.load", childToken));
     assert.equal(runtime.getRenderedAttributeByClass(
       "flow-steps",
       "logic-inspector-drawer",
       "aria-hidden"
     ), "false");
-    assert.deepEqual(renderedViewportPosition(runtime, collapseTitle), loadingPosition);
+    assert.deepEqual(renderedViewportPosition(runtime, callsiteTitle), loadingPosition);
     assert.equal(runtime.countRenderedByClass("flow-steps", "logic-node-entering"), 1);
     assert.equal(runtime.countRenderedByClass("flow-steps", "logic-edge-entering"), 1);
   } finally {
@@ -670,7 +868,7 @@ test("attaches a called function to the original graph canvas and collapses its 
       callsiteCount: 1
     }));
 
-    runtime.clickByTitle("Expand called function · Child.load");
+    runtime.clickByTitle("Attach child function · Child.load");
     assert.deepEqual(latestPayload(runtime.messages, "codeFlow/selectSource"), {
       graphVersion,
       sourceToken: childToken
@@ -697,7 +895,8 @@ test("attaches a called function to the original graph canvas and collapses its 
     const requestCount = runtime.messages.filter((message) =>
       message.type === "codeFlow/selectSource"
     ).length;
-    runtime.clickByTitle("Expand called function · Root.run");
+    runtime.clickByTitle("Select logic · Root.run();");
+    runtime.clickByTitle("Attach child function · Root.run");
     assert.equal(runtime.messages.filter((message) =>
       message.type === "codeFlow/selectSource"
     ).length, requestCount);
@@ -705,7 +904,7 @@ test("attaches a called function to the original graph canvas and collapses its 
     assert.equal(runtime.countRenderedByClass("flow-steps", "logic-graph-node"), 3);
     assert.ok(runtime.getRenderedText("flow-steps").join("").includes("Call cycle · Root.run"));
 
-    runtime.clickByTitle("Collapse called function · Child.load");
+    runtime.clickByTitle("Collapse child function · Child.load");
     assert.equal(runtime.countRenderedByClass("flow-steps", "logic-graph-node"), 1);
     assert.equal(runtime.countRenderedByClass("flow-steps", "logic-node-function"), 0);
   } finally {
@@ -728,7 +927,7 @@ test("keeps the parent canvas visible when an attached child analysis fails", ()
       callsiteCount: 1
     }));
 
-    runtime.clickByTitle("Expand called function · Child.load");
+    runtime.clickByTitle("Attach child function · Child.load");
     runtime.dispatchMessage({
       type: "codeFlow/detailFailed",
       payload: {
@@ -772,7 +971,8 @@ test("serializes every concrete function attached to the same call box", () => {
       callsiteCount: 1
     }, sibling]));
 
-    runtime.clickByTitle("Expand called function · Child.load, Sibling.save");
+    runtime.clickByTitle("Attach child function · Child.load");
+    runtime.clickByTitle("Attach child function · Sibling.save");
     runtime.dispatchMessage(createFunctionDetail("Child.load", childToken));
     const requests = runtime.messages.filter((message) =>
       message.type === "codeFlow/selectSource"
@@ -809,7 +1009,7 @@ test("namespaces value bindings and def-use overlays across attached functions",
 
     assert.equal(runtime.countRenderedByClass("flow-steps", "logic-data-binding"), 1);
     assert.equal(runtime.countRenderedByClass("flow-steps", "logic-data-flow-edge"), 1);
-    runtime.clickByTitle("Expand called function · Child.load");
+    runtime.clickByTitle("Attach child function · Child.load");
     runtime.dispatchMessage(createFunctionDetail(
       "Child.load",
       childToken,
@@ -844,14 +1044,6 @@ test("drills into a child and reuses history when a call cycle returns to root",
     }));
 
     const rootText = runtime.getRenderedText("flow-steps");
-    assert.ok(rootText.includes("Understand this function in four passes"));
-    assert.ok(
-      rootText.includes(
-        "2 branch decisions can change the path. "
-          + "Select a true, false, or case label to follow one scenario."
-      ),
-      `missing decision guidance in: ${rootText}`
-    );
     assert.ok(rootText.includes("Go deeper into called functions"));
     assert.ok(rootText.includes("Child.load"));
 

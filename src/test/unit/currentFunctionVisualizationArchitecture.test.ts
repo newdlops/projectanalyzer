@@ -202,7 +202,9 @@ test("branch choices use a pure iterative reachability module and shared rendere
   assert.doesNotMatch(choices, /from ".*(?:analyzer|application|protocol|vscode|extension)/u);
   assert.match(renderer, /getFunctionLogicBranchChoicesBrowserSource/u);
   assert.match(renderer, /applyFunctionLogicBranchChoicePresentation/u);
-  assert.match(renderer, /label\.addEventListener\("keydown"/u);
+  assert.match(renderer, /createLogicEdgeChoiceLayer/u);
+  assert.match(renderer, /button\.addEventListener\("click", \(\) => onBranchChoice\(edge\)\)/u);
+  assert.doesNotMatch(renderer, /label\.addEventListener\("keydown"/u);
   assert.match(selection, /createFunctionLogicBranchChoiceButton/u);
   assert.match(selection, /createFunctionLogicBranchChoiceSummary/u);
   assert.match(styles, /\.logic-edge\.choice-selected/u);
@@ -327,7 +329,6 @@ test("Function Logic keeps a large graph surface and modular adjacent inspector 
 
   assert.match(renderer, /getFunctionLogicInspectorBrowserSource/u);
   assert.match(renderer, /inspector\.attachViewport\(viewport\)/u);
-  assert.match(renderer, /inspector\.prependSections\(/u);
   assert.match(renderer, /inspector\.appendSections\(/u);
   assert.match(renderer, /valueFlowRendering\?\.valuePreviewEditor/u);
   assert.match(renderer, /valueFlowRendering\?\.scenarioTrace/u);
@@ -336,7 +337,8 @@ test("Function Logic keeps a large graph surface and modular adjacent inspector 
   assert.match(inspector, /drawer\.inert = !functionLogicInspectorOpen/u);
   assert.match(inspector, /event\.key !== "Escape"/u);
   assert.match(inspector, /aria-expanded/u);
-  assert.match(inspector, /functionLogicInspectorOpen = true/u);
+  assert.match(inspector, /window\.matchMedia\("\(min-width: 1040px\)"\)/u);
+  assert.match(inspector, /functionLogicInspectorOpen = wideQuery \? wideQuery\.matches : true/u);
   assert.match(
     inspector,
     /scroll\.replaceChildren\(\.\.\.available, \.\.\.scroll\.children\)/u
@@ -549,7 +551,7 @@ test("Scenario Variables and its Inspector are invariant even without analyzer b
   );
 
   assert.match(renderer, /createFunctionLogicInspector\(choiceSessionKey\)/u);
-  assert.match(inspector, /functionLogicInspectorOpen = true/u);
+  assert.match(inspector, /functionLogicInspectorOpen = wideQuery \? wideQuery\.matches : true/u);
   assert.match(dataFlow, /valuePreviewEditor: valuePreviewRendering\.element/u);
   assert.match(dataFlow, /scenarioTrace: scenarioTraceRendering\.element/u);
   assert.doesNotMatch(
@@ -649,7 +651,8 @@ test("child functions use bounded iterative attachment on one shared graph canva
   assert.doesNotMatch(compoundRouting, /from ".*application/u);
   assert.doesNotMatch(compoundDimensions, /from ".*application/u);
   assert.match(sharedRenderer, /createFunctionLogicGraph\(logic, graphContext\)/u);
-  assert.match(sharedRenderer, /graphContext\.onExpandableBlockClick\(block\)/u);
+  assert.doesNotMatch(sharedRenderer, /graphContext\.onExpandableBlockClick\(block\)/u);
+  assert.match(sharedRenderer, /Child attachment is intentionally available only from the/u);
   assert.match(sharedRenderer, /graphContext\.onGraphRendered/u);
   assert.match(sharedRenderer, /logic-node-entering/u);
   assert.match(sharedRenderer, /logic-edge-entering/u);

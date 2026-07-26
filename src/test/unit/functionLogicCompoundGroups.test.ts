@@ -276,7 +276,7 @@ test("renders compound frames behind routes and keeps them pointer-transparent",
   assert.match(program, /createFunctionLogicBodyFocusController/u);
   assert.match(program, /canvas\.append\(bodyFocusController\.layer, edgeRendering\.svg\)/u);
   assert.match(program, /logic-node-body-owner/u);
-  assert.match(program, /bodyFocusController\.focus\(block\.id\)/u);
+  assert.match(program, /focusBody: \(blockId\) => bodyFocusController\.focus\(blockId\)/u);
   assert.match(styles, /\.logic-compound-group-layer[\s\S]*?z-index: 0/u);
   assert.match(styles, /\.logic-compound-group-layer[\s\S]*?pointer-events: none/u);
   assert.match(styles, /\.logic-body-focus-navigation/u);
@@ -309,7 +309,7 @@ test("renders one interactive owner inside a decorative compound body frame", ()
   }
 });
 
-test("replaces a nested frame on owner click and navigates back to its parent", () => {
+test("keeps the current body frame stable when a nested owner is selected", () => {
   const runtime = installSidebarWebviewRuntime();
   const graphVersion = "dynamic-body-runtime";
   const sourceToken = "source-node:dynamic-body";
@@ -335,38 +335,9 @@ test("replaces a nested frame on owner click and navigates back to its parent", 
 
     runtime.clickByTitle("Select logic · loop · Show this body as the outer frame");
 
-    assert.equal(runtime.countRenderedByClass("flow-steps", "logic-compound-group"), 1);
-    assert.ok(runtime.getRenderedText("flow-steps").includes("LOOP BODY"));
-    assert.equal(runtime.getRenderedText("flow-steps").includes("IF BODY"), false);
-    assert.equal(runtime.hasRenderedClassByTitle(
-      "flow-steps",
-      "Select logic · loop · Current outer body frame",
-      "logic-node-body-focused"
-    ), true);
-    assert.ok(runtime.getRenderedText("flow-steps").includes("BODY VIEW · LOOP BODY"));
-
-    runtime.clickByTitle("Show parent body as outer frame");
-
     assert.ok(runtime.getRenderedText("flow-steps").includes("IF BODY"));
     assert.equal(runtime.getRenderedText("flow-steps").includes("LOOP BODY"), false);
-    runtime.clickByTitle("Show all outermost body frames");
-    assert.equal(runtime.hasRenderedClassByTitle(
-      "flow-steps",
-      "Select logic · loop · Show this body as the outer frame",
-      "logic-node-body-focused"
-    ), false);
     assert.ok(runtime.getRenderedText("flow-steps").includes("BODY VIEW · OUTERMOST"));
-
-    runtime.clickByTitle("Select logic · loop · Show this body as the outer frame");
-    runtime.clickByTitle("Expand called function · Child.run");
-
-    assert.ok(runtime.getRenderedText("flow-steps").includes("LOOP BODY"));
-    assert.equal(runtime.getRenderedText("flow-steps").includes("IF BODY"), false);
-    assert.equal(runtime.hasRenderedClassByTitle(
-      "flow-steps",
-      "Select logic · loop · Current outer body frame",
-      "logic-node-body-focused"
-    ), true);
   } finally {
     runtime.restore();
   }

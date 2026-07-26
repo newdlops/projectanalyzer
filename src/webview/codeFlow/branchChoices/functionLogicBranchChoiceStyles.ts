@@ -16,6 +16,44 @@ export function getFunctionLogicBranchChoiceStyles(): string {
       text-underline-offset: 2px;
     }
 
+    .logic-edge-choice-layer {
+      position: absolute;
+      inset: 0;
+      z-index: 40;
+      pointer-events: none;
+    }
+
+    .logic-edge-choice-button {
+      position: absolute;
+      z-index: 1;
+      min-width: 32px;
+      min-height: 28px;
+      padding: 2px 5px;
+      color: var(--vscode-foreground);
+      background: var(--vscode-editor-background);
+      border: 1px solid var(--vscode-panel-border);
+      border-radius: 3px;
+      cursor: pointer;
+      font-family: var(--vscode-editor-font-family);
+      font-size: var(--logic-code-small);
+      pointer-events: auto;
+      transform: translate(-50%, -50%);
+    }
+
+    .logic-edge-choice-button:hover,
+    .logic-edge-choice-button:focus-visible {
+      border-color: var(--vscode-focusBorder);
+      outline: none;
+    }
+
+    .logic-edge-choice-button.choice-selected {
+      color: var(--vscode-button-foreground);
+      background: var(--vscode-button-background);
+      border-color: var(--vscode-button-background);
+    }
+
+    .logic-edge-choice-button.choice-dimmed { opacity: 0.42; }
+
     .logic-edge.choice-dimmed,
     .logic-edge-label.choice-dimmed,
     .logic-graph-node.choice-dimmed {

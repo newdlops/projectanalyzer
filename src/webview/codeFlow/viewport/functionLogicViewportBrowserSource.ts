@@ -191,6 +191,39 @@ export function getFunctionLogicViewportBrowserSource(): string {
         commit(createFitFunctionLogicViewportTransform(geometry()), true);
       }
 
+      /** Reveals explicit Guide evidence without changing graph focus or lens state. */
+      function revealBlocks(blockIds, options) {
+        if (!transform || !Array.isArray(blockIds) || blockIds.length === 0) return;
+        const requested = new Set(blockIds);
+        const nodes = (layout.nodes || []).filter((node) => requested.has(node.blockId));
+        if (nodes.length === 0) return;
+        const left = Math.min(...nodes.map((node) => node.x));
+        const top = Math.min(...nodes.map((node) => node.y));
+        const right = Math.max(...nodes.map((node) => node.x + node.width));
+        const bottom = Math.max(...nodes.map((node) => node.y + node.height));
+        const size = readViewportSize();
+        const visibleLeft = -transform.x / transform.scale;
+        const visibleTop = -transform.y / transform.scale;
+        const visibleRight = visibleLeft + size.width / transform.scale;
+        const visibleBottom = visibleTop + size.height / transform.scale;
+        if (left >= visibleLeft && top >= visibleTop && right <= visibleRight && bottom <= visibleBottom) return;
+        const padding = Math.max(12, Number(options?.padding) || FUNCTION_LOGIC_VIEW_PADDING);
+        const boundsWidth = Math.max(1, right - left);
+        const boundsHeight = Math.max(1, bottom - top);
+        let scale = transform.scale;
+        if (boundsWidth * scale + padding * 2 > size.width || boundsHeight * scale + padding * 2 > size.height) {
+          scale = Math.min(0.9, Math.max(FUNCTION_LOGIC_MIN_SCALE, Math.min(
+            (size.width - padding * 2) / boundsWidth,
+            (size.height - padding * 2) / boundsHeight
+          )));
+        }
+        commit({
+          scale,
+          x: (size.width - boundsWidth * scale) / 2 - left * scale,
+          y: (size.height - boundsHeight * scale) / 2 - top * scale
+        }, Boolean(options?.announce));
+      }
+
       /** Converts trackpad units into pan or cursor-centered pinch zoom. */
       function handleWheel(event) {
         if (!transform) return;
@@ -315,6 +348,7 @@ export function getFunctionLogicViewportBrowserSource(): string {
         panBy,
         center,
         fit,
+        revealBlocks,
         attachControls
       };
     }

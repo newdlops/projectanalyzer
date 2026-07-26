@@ -11,9 +11,14 @@ import {
   createCodeFlowCatalogPayload,
   createCodeFlowIdentity,
   createEntrypointCodeFlowDetail,
-  createFunctionLogicCodeFlowDetail
+  createFunctionLogicCodeFlowDetail,
+  buildFunctionTutorModel
 } from "../../application/codeFlow";
 import { analyzeFunctionLogic } from "../../analyzer/functionLogic";
+import {
+  analyzeFunctionTutorDeclaration,
+  createUnavailableFunctionTutorDeclaration
+} from "../../analyzer/functionTutor";
 import type {
   CodeFlowCatalogRequest,
   CodeFlowFailurePayload,
@@ -181,6 +186,43 @@ export class CodeFlowHostDelivery {
       sourceText,
       maxBlocks: this.dependencies.projectionOptions?.maxLogicBlocks
     });
+    let tutorModel;
+    try {
+      const declaration = analyzeFunctionTutorDeclaration({
+        functionNode: node,
+        sourceText,
+        functionLogic: analysis
+      });
+      tutorModel = await buildFunctionTutorModel({
+        graph: active.graph,
+        declaration,
+        functionLogic: analysis,
+        architectureIndex: insights.functionArchitecture,
+        semanticFlows: insights.semanticFlows,
+        functionIndex: insights.functionIndex,
+        readSourceText: this.dependencies.readSourceText
+      });
+    } catch (error) {
+      // A parser edge case must not suppress the Guide. Reuse Function Logic's
+      // source blocks and surface the unavailable analysis as an honest gap.
+      this.dependencies.logger.debug("codeFlow.detail.functionTutor.failed", {
+        message: error instanceof Error ? error.message : "unknown Tutor failure"
+      });
+      const declaration = createUnavailableFunctionTutorDeclaration(
+        node,
+        analysis,
+        "Function Guide could not parse the selected declaration; source-backed graph facts remain available."
+      );
+      tutorModel = await buildFunctionTutorModel({
+        graph: active.graph,
+        declaration,
+        functionLogic: analysis,
+        architectureIndex: insights.functionArchitecture,
+        semanticFlows: insights.semanticFlows,
+        functionIndex: insights.functionIndex,
+        readSourceText: this.dependencies.readSourceText
+      });
+    }
     const payload = createFunctionLogicCodeFlowDetail(
       active.graph,
       insights.semanticFlows,
@@ -189,7 +231,8 @@ export class CodeFlowHostDelivery {
       active.version,
       (filePath, range) => this.dependencies.evidenceTokens.createToken(filePath, range),
       (nodeId) => this.dependencies.sourceNodeTokens.createToken(nodeId),
-      this.dependencies.projectionOptions?.originLimit
+      this.dependencies.projectionOptions?.originLimit,
+      tutorModel
     );
     this.dependencies.logger.debug("codeFlow.detail.functionLogic", {
       blocks: analysis.blocks.length,

@@ -144,7 +144,7 @@ test("starting-point controls expose their selected mode as pressed buttons", ()
   }
 });
 
-test("function detail renders internal branches and opens exact statement evidence", () => {
+test("function detail renders internal branches and opens exact statement evidence explicitly", () => {
   const runtime = installSidebarWebviewRuntime();
 
   try {
@@ -188,11 +188,9 @@ test("function detail renders internal branches and opens exact statement eviden
     runtime.clickByTitle("Reset function graph zoom to 100%; current zoom 80%");
     runtime.clickByTitle("Zoom in function graph");
     assert.ok(runtime.getRenderedText("flow-steps").includes("Control paths"));
+    const messagesBeforeSelection = runtime.messages.length;
     runtime.clickByTitle("Select logic · repository.save(order);");
-    assert.deepEqual(latestPayload(runtime.messages, "codeFlow/openEvidence"), {
-      graphVersion,
-      evidenceToken
-    });
+    assert.equal(runtime.messages.length, messagesBeforeSelection);
     assert.ok(runtime.getRenderedText("flow-steps").includes("return → END"));
     assert.ok(runtime.getRenderedText("flow-reader-kicker").includes("FUNCTION LOGIC · POSSIBLE CONTROL PATHS"));
     assert.ok(runtime.getRenderedText("flow-semantics-note").some((text) => text.includes("current source syntax")));
@@ -242,6 +240,25 @@ test("function graph nodes render complete wrapped labels and value changes", ()
     assert.ok(rendered.includes(completeLabel));
     assert.ok(rendered.includes("order.snapshot.with.complete.path"));
     assert.ok(rendered.includes(completeValue));
+  } finally {
+    runtime.restore();
+  }
+});
+
+test("Function Guide explains codebase context through an accessible disclosure control", () => {
+  const runtime = installSidebarWebviewRuntime();
+  try {
+    new Function(requireSidebarScript())();
+    const message = createFunctionLogicDetailMessage(graphVersion) as { payload: { logic: Record<string, unknown> } };
+    message.payload.logic.tutor = createTutorFixture();
+    runtime.dispatchMessage(createGraphMessage(graphVersion));
+    runtime.dispatchMessage(message);
+    runtime.clickByTitle("Open a source-backed guide to this function and its codebase context");
+    const rendered = runtime.getRenderedText("flow-steps").join("\n");
+    assert.ok(rendered.includes("Understand This Function"));
+    assert.ok(rendered.includes("Where Does It Fit?"));
+    assert.ok(rendered.includes("Static Input Cases"));
+    assert.equal(runtime.getRenderedAttributeByTitle("flow-steps", "Open a source-backed guide to this function and its codebase context", "aria-expanded"), "true");
   } finally {
     runtime.restore();
   }
@@ -617,6 +634,42 @@ function createFunctionLogicDetailMessage(version: string): unknown {
         gapCount: 0
       }
     }
+  };
+}
+
+/** Supplies opaque-only Tutor data for the generated Webview integration test. */
+function createTutorFixture(): Record<string, unknown> {
+  const conditionId = "function-logic-block:11111111111111111111111111111111";
+  const effectId = "function-logic-block:22222222222222222222222222222222";
+  const exitId = "function-logic-block:33333333333333333333333333333333";
+  const amountId = "function-tutor-parameter:11111111111111111111111111111111";
+  const amountBinding = "function-logic-binding:11111111111111111111111111111111";
+  return {
+    version: 2, fingerprint: "tutor-fingerprint", functionId: flowId, executionKind: "sync", availability: "ready",
+    context: {
+      documentation: { kind: "jsdoc", summary: "Calculates a bounded amount.", tags: [], truncated: false, evidenceTokens: [] },
+      owners: [], architecture: { layer: "application", confidence: "medium", businessLogic: "applicationWorkflowCandidate", conflicted: false, alternatives: [], evidence: [] },
+      entrypoints: [], callers: [], callees: [], counts: { totalEntrypointCount: 0, omittedEntrypointCount: 0, totalCallerCount: 0, omittedCallerCount: 0, totalLocalCalleeCount: 0, totalExternalCalleeCount: 0, totalUnresolvedCalleeCount: 0, omittedCalleeCount: 0 }
+    },
+    guide: {
+      initialChapterId: "function-tutor-chapter:place", summary: { readyChapterCount: 5, partialChapterCount: 0, unavailableChapterCount: 0 },
+      chapters: [
+        { id: "function-tutor-chapter:place", ordinal: 1, kind: "place", question: "Where Does It Fit?", status: "ready", answer: { text: "The current graph provides source-backed placement facts.", counts: { factCount: 1 } }, facts: [{ id: "function-tutor-fact:place", kind: "documentation", label: "Source documentation", detail: "Calculates a bounded amount.", certainty: "exact", blockIds: [], edgeIds: [], evidenceTokens: [] }], preferredLens: "calls", attentionBlockIds: [], attentionEdgeIds: [], gapIds: [] },
+        { id: "function-tutor-chapter:inputs", ordinal: 2, kind: "inputs", question: "What Comes In?", status: "ready", answer: { text: "One input is declared.", counts: { factCount: 1 } }, facts: [], preferredLens: "values", primaryBlockId: conditionId, attentionBlockIds: [conditionId], attentionEdgeIds: [], gapIds: [] },
+        { id: "function-tutor-chapter:decisions", ordinal: 3, kind: "decisions", question: "What Changes the Path?", status: "ready", answer: { text: "One decision is visible.", counts: { factCount: 1 } }, facts: [], preferredLens: "flow", primaryBlockId: conditionId, attentionBlockIds: [conditionId], attentionEdgeIds: [], gapIds: [] },
+        { id: "function-tutor-chapter:work", ordinal: 4, kind: "work", question: "What Does It Change or Call?", status: "ready", answer: { text: "One value change is visible.", counts: { factCount: 1 } }, facts: [], preferredLens: "values", primaryBlockId: effectId, attentionBlockIds: [effectId], attentionEdgeIds: [], gapIds: [] },
+        { id: "function-tutor-chapter:outcomes", ordinal: 5, kind: "outcomes", question: "How Can It Finish?", status: "ready", answer: { text: "One return is visible.", counts: { factCount: 1 } }, facts: [], preferredLens: "effects", primaryBlockId: effectId, attentionBlockIds: [effectId], attentionEdgeIds: [], gapIds: [] }
+      ]
+    },
+    parameters: [{ id: amountId, bindingId: amountBinding, name: "amount", index: 0, typeKind: "number", optional: false, rest: false }],
+    seeds: [{ id: "function-tutor-seed:11111111111111111111111111111111", ordinal: 1, title: "Default amount", source: "default", certainty: "exact", inputs: [{ parameterId: amountId, value: { kind: "number", value: 10 }, omitted: false, certainty: "exact", evidenceTokens: [] }], objectiveIds: [], evidenceTokens: [], gapIds: [] }],
+    program: {
+      entryBlockId: conditionId,
+      blocks: [{ blockId: conditionId, kind: "condition", label: "if amount", operations: [], decision: { expression: { kind: "literal", value: { kind: "boolean", value: true } }, outcomes: [{ edgeId: "function-logic-edge:11111111111111111111111111111111", label: "true", matches: "true" }] } }, { blockId: effectId, kind: "effect", label: "add", operations: [{ kind: "define", bindingId: "function-logic-binding:22222222222222222222222222222222", value: { kind: "binary", operator: "add", left: { kind: "binding", bindingId: amountBinding }, right: { kind: "literal", value: { kind: "number", value: 5 } } } }], terminal: { kind: "return", value: { kind: "binding", bindingId: "function-logic-binding:22222222222222222222222222222222" } } }, { blockId: exitId, kind: "exit", label: "exit", operations: [] }],
+      edges: [{ edgeId: "function-logic-edge:11111111111111111111111111111111", sourceBlockId: conditionId, targetBlockId: effectId, kind: "true", certainty: "exact" }],
+      bindings: [{ bindingId: amountBinding, parameterId: amountId, name: "amount", kind: "parameter", certainty: "exact" }, { bindingId: "function-logic-binding:22222222222222222222222222222222", name: "total", kind: "local", certainty: "exact" }]
+    },
+    evidence: [], gaps: [], summary: { inferredScenarioCount: 1, exactCallsiteTupleCount: 0, plannedCoverageCount: 0, totalObjectiveCount: 0, limited: false }
   };
 }
 

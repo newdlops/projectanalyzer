@@ -11,6 +11,8 @@ import {
   getFunctionLogicValuePreviewStyles
 } from "./valuePreview";
 import { getFunctionLogicViewportStyles } from "./viewport";
+import { getFunctionLogicComprehensionStyles } from "./comprehension";
+import { getFunctionTutorStyles } from "./tutor";
 import { getCodeSnippetStyles } from "../codePresentation";
 
 /** Returns CSS for graph nodes, routed edges, lanes, and selection evidence. */
@@ -20,6 +22,9 @@ export function getFunctionLogicGraphStyles(): string {
     ${getFunctionLogicCompoundGroupStyles()}
     ${getFunctionLogicBodyFocusStyles()}
     ${getFunctionLogicViewportStyles()}
+    ${getFunctionLogicComprehensionStyles()}
+    ${getFunctionTutorStyles()}
+
 
     .logic-signature {
       display: grid;
@@ -46,74 +51,6 @@ export function getFunctionLogicGraphStyles(): string {
       line-height: 1.45;
       overflow-wrap: anywhere;
       white-space: normal;
-    }
-
-    .logic-understanding {
-      display: grid;
-      gap: 8px;
-      min-width: 0;
-      padding: 10px;
-      background: color-mix(in srgb, var(--vscode-textLink-foreground) 5%, var(--vscode-editor-background));
-      border: 1px solid color-mix(in srgb, var(--vscode-textLink-foreground) 26%, var(--vscode-panel-border));
-      border-radius: 7px;
-    }
-
-    .logic-understanding-header {
-      display: grid;
-      gap: 2px;
-    }
-
-    .logic-understanding-header > span {
-      color: var(--vscode-textLink-foreground);
-      font-size: var(--logic-font-small);
-      font-weight: 800;
-      letter-spacing: 0.08em;
-    }
-
-    .logic-understanding-header > strong {
-      font-size: var(--logic-font-large);
-    }
-
-    .logic-understanding-cards {
-      display: grid;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
-      gap: 5px;
-    }
-
-    .logic-understanding-card {
-      display: grid;
-      grid-template-columns: auto minmax(0, 1fr);
-      align-items: start;
-      gap: 6px;
-      min-width: 0;
-      padding: 7px;
-      background: color-mix(in srgb, var(--vscode-editor-background) 92%, transparent);
-      border: 1px solid var(--vscode-panel-border);
-      border-radius: 5px;
-    }
-
-    .logic-understanding-number {
-      display: grid;
-      width: 19px;
-      height: 19px;
-      place-items: center;
-      color: var(--vscode-button-foreground);
-      background: var(--vscode-button-background);
-      border-radius: 50%;
-      font-size: var(--logic-font-small);
-      font-weight: 800;
-    }
-
-    .logic-understanding-card strong {
-      font-size: var(--logic-font-body);
-    }
-
-    .logic-understanding-card p {
-      margin: 2px 0 0;
-      color: var(--vscode-descriptionForeground);
-      font-size: var(--logic-font-small);
-      line-height: 1.4;
-      overflow-wrap: anywhere;
     }
 
     .logic-callees {
@@ -500,6 +437,14 @@ export function getFunctionLogicGraphStyles(): string {
       border-style: double;
     }
 
+    .flow-badge.logic-node-embedded-timing {
+      max-width: 100%;
+      color: var(--vscode-charts-blue, var(--vscode-textLink-foreground));
+      border-color: color-mix(in srgb, var(--vscode-charts-blue) 55%, var(--vscode-panel-border));
+      font-size: var(--logic-font-tiny);
+      white-space: normal;
+    }
+
     .logic-node-callable {
       --logic-node-surface: color-mix(in srgb, var(--vscode-charts-purple) 7%, var(--vscode-editor-background));
       border-left-color: var(--vscode-charts-purple, var(--vscode-charts-blue));
@@ -739,18 +684,6 @@ export function getFunctionLogicGraphStyles(): string {
       .logic-arrow-head {
         stroke: CanvasText;
         fill: CanvasText;
-      }
-    }
-
-    @media (max-width: 760px) {
-      .logic-understanding-cards {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-      }
-    }
-
-    @media (max-width: 430px) {
-      .logic-understanding-cards {
-        grid-template-columns: 1fr;
       }
     }
 

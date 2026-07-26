@@ -4,7 +4,6 @@
  * evidence in a keyboard-accessible inspector drawer. Optional graph contexts
  * let the editor tab attach multiple function fragments to one graph canvas.
  */
-
 import { getFunctionLogicCompoundGroupBrowserSource } from "./functionLogicCompoundGroupBrowserSource";
 import { getFunctionLogicDrillBrowserSource } from "./functionLogicDrillBrowserSource";
 import { getFunctionLogicBranchChoicesBrowserSource } from "./branchChoices";
@@ -12,6 +11,8 @@ import { getFunctionLogicBodyFocusBrowserSource } from "./bodyFocus";
 import { getFunctionLogicDataFlowBrowserSource } from "./dataFlow";
 import { getFunctionLogicInspectorBrowserSource } from "./inspector";
 import { getFunctionLogicSelectionBrowserSource } from "./functionLogicSelectionBrowserSource";
+import { getFunctionLogicComprehensionBrowserSource } from "./comprehension";
+import { getFunctionLogicGraphHeaderBrowserSource } from "./presentation";
 import { getCodeSnippetBrowserSource } from "../codePresentation";
 import {
   getFunctionLogicScenarioEvaluatorBrowserSource,
@@ -19,7 +20,7 @@ import {
   getFunctionLogicValuePreviewBrowserSource
 } from "./valuePreview";
 import { getFunctionLogicViewportBrowserSource } from "./viewport";
-
+import { getFunctionTutorBrowserSource, getFunctionTutorIntegrationBrowserSource } from "./tutor";
 /** Returns browser functions for rendering the function-local control graph. */
 export function getFunctionLogicBrowserSource(): string {
   return /* js */ `
@@ -36,15 +37,17 @@ export function getFunctionLogicBrowserSource(): string {
     ${getFunctionLogicDataFlowBrowserSource()}
     ${getFunctionLogicInspectorBrowserSource()}
     ${getFunctionLogicSelectionBrowserSource()}
+    ${getFunctionLogicComprehensionBrowserSource()}
+    ${getFunctionLogicGraphHeaderBrowserSource()}
     ${getFunctionLogicViewportBrowserSource()}
-
+    ${getFunctionTutorBrowserSource()}
+    ${getFunctionTutorIntegrationBrowserSource()}
     /** Disposes the active viewport controller before its graph DOM is removed. */
     function disposeActiveFunctionLogicViewport() {
       if (!state.activeLogicViewportController) return;
       state.activeLogicViewportController.dispose();
       state.activeLogicViewportController = undefined;
     }
-
     /** Renders one graph-first surface with supporting UI inside its drawer. */
     function renderFunctionLogic(logic, graphContext) {
       disposeActiveFunctionLogicViewport();
@@ -64,7 +67,6 @@ export function getFunctionLogicBrowserSource(): string {
         graphContext.onGraphRendered(graphRendering);
       }
     }
-
     /** Builds one independently selectable and zoomable function graph surface. */
     function createFunctionLogicGraph(logic, graphContext) {
       const blocksById = new Map(logic.blocks.map((block) => [block.id, block]));
@@ -95,6 +97,11 @@ export function getFunctionLogicBrowserSource(): string {
         blocksById,
         nodeButtonsById
       });
+      let selectionGraphContext = {
+        ...(graphContext || {}),
+        isBodyOwner: (blockId) => compoundOwnerIds.has(blockId),
+        focusBody: (blockId) => bodyFocusController.focus(blockId)
+      };
       const hasValueFlow = (logic.valueBindings || []).length > 0;
       // Scenario Variables are an invariant Inspector surface. It must remain
       // discoverable even when analyzer-backed value bindings are incomplete.
@@ -113,7 +120,7 @@ export function getFunctionLogicBrowserSource(): string {
           nodeButtonsById,
           edgeRendering.elementsById
         );
-        if (valueFlowRendering) valueFlowRendering.refresh();
+        if (valueFlowRendering) valueFlowRendering.resetPlayback();
         const selectedBlockId = edge?.sourceId || state.selectedLogicBlockId || rootBlock.id;
         selectLogicGraphNode(
           selectedBlockId,
@@ -124,7 +131,7 @@ export function getFunctionLogicBrowserSource(): string {
           edgeRendering.elementsById,
           inspector,
           false,
-          graphContext,
+          selectionGraphContext,
           applyBranchChoice,
           applyConditionCase,
           branchChoices
@@ -144,7 +151,7 @@ export function getFunctionLogicBrowserSource(): string {
           nodeButtonsById,
           edgeRendering.elementsById
         );
-        if (valueFlowRendering) valueFlowRendering.refresh();
+        if (valueFlowRendering) valueFlowRendering.resetPlayback();
         selectLogicGraphNode(
           sourceBlockId || row.targetBlockId,
           nodeButtonsById,
@@ -154,7 +161,7 @@ export function getFunctionLogicBrowserSource(): string {
           edgeRendering.elementsById,
           inspector,
           false,
-          graphContext,
+          selectionGraphContext,
           applyBranchChoice,
           applyConditionCase,
           branchChoices
@@ -166,12 +173,49 @@ export function getFunctionLogicBrowserSource(): string {
         graphContext,
         applyBranchChoice
       );
+      const edgeChoiceLayer = createLogicEdgeChoiceLayer(
+        logic.layout,
+        edgesById,
+        edgeRendering.elementsById,
+        applyBranchChoice
+      );
+      const comprehension = createFunctionLogicComprehensionController(
+        choiceSessionKey, logic, nodeButtonsById, edgeRendering.elementsById);
+      selectionGraphContext = {
+        ...selectionGraphContext,
+        focusEmbedded: (boundaryId) => comprehension.setEmbeddedFocus(boundaryId),
+        isEmbeddedFocused: (boundaryId) =>
+          comprehension.getState().embeddedFocusBoundaryId === boundaryId
+      };
+      /** Keeps mouse and keyboard graph activation on the same selection path. */
+      const activateLogicBlock = (blockId, moveFocus) => {
+        selectLogicGraphNode(
+          blockId,
+          nodeButtonsById,
+          blocksById,
+          outgoingBySourceId,
+          connectedEdgeIdsByBlockId,
+          edgeRendering.elementsById,
+          inspector,
+          moveFocus,
+          selectionGraphContext,
+          applyBranchChoice,
+          applyConditionCase,
+          branchChoices
+        );
+      };
+      comprehension.setNodeActivation(activateLogicBlock);
+      comprehension.subscribe((readerState) => inspector.setLens(readerState.lens)); inspector.setLens(comprehension.getState().lens);
       valueFlowRendering = createFunctionLogicValueFlowRendering(
         logic,
         nodeLayoutsByBlockId,
         nodeButtonsById,
         edgeRendering.elementsById,
-        choiceSessionKey
+        choiceSessionKey,
+        (bindingId) => {
+          comprehension.setLens("values");
+          comprehension.selectBinding(bindingId || undefined);
+        }
       );
       const readTransform = graphContext && graphContext.readViewportTransform
         ? graphContext.readViewportTransform
@@ -190,6 +234,8 @@ export function getFunctionLogicBrowserSource(): string {
         readTransform,
         writeTransform
       });
+      const tutorRendering = createFunctionTutorIntegration(
+        logic, comprehension, valueFlowRendering, viewportController);
       const hasJsxFlow = logic.blocks.some((block) => block.kind === "render");
       const hasEventFlow = logic.blocks.some((block) => block.kind === "event");
       const hasRenderFlow = hasJsxFlow || hasEventFlow;
@@ -199,15 +245,17 @@ export function getFunctionLogicBrowserSource(): string {
       const graphHeader = createLogicGraphHeader(
         viewportController,
         inspector.toggle,
+        createFunctionLogicLensToolbar(comprehension),
+        createFunctionLogicLensLegend(comprehension),
         graphContext?.graphTitle || (hasRenderFlow
           ? (hasValueFlow || hasValueChanges
               ? "Control, render, event & value flow"
               : hasJsxFlow && hasEventFlow
                 ? "Control, JSX & event boundaries"
                 : hasJsxFlow ? "Control & JSX render flow" : "Control & event boundaries")
-          : (hasValueFlow || hasValueChanges ? "Control & value flow" : "Control paths"))
+          : (hasValueFlow || hasValueChanges ? "Control & value flow" : "Control paths")),
+        tutorRendering?.toggle
       );
-
       graph.className = "logic-graph";
       viewport.className = "logic-graph-viewport";
       viewport.setAttribute("role", "region");
@@ -225,7 +273,6 @@ export function getFunctionLogicBrowserSource(): string {
       canvas.style.setProperty("height", logic.layout.height + "px");
       canvas.append(bodyFocusController.layer, edgeRendering.svg);
       if (valueFlowRendering?.svg) canvas.append(valueFlowRendering.svg);
-
       for (const nodeLayout of logic.layout.nodes) {
         const block = blocksById.get(nodeLayout.blockId);
         if (!block) continue;
@@ -238,36 +285,20 @@ export function getFunctionLogicBrowserSource(): string {
           compoundOwnerIds.has(block.id)
         );
         node.addEventListener("click", () => {
-          selectLogicGraphNode(
-            block.id,
-            nodeButtonsById,
-            blocksById,
-            outgoingBySourceId,
-            connectedEdgeIdsByBlockId,
-            edgeRendering.elementsById,
-            inspector,
-            true,
-            graphContext,
-            applyBranchChoice,
-            applyConditionCase,
-            branchChoices
-          );
-          if (compoundOwnerIds.has(block.id)) {
-            bodyFocusController.focus(block.id);
-          }
-          if (block.evidenceToken) {
-            openLogicEvidence(block.evidenceToken);
-          }
-          if (block.drillTargets && block.drillTargets.length > 0
-            && graphContext && graphContext.onExpandableBlockClick) {
-            graphContext.onExpandableBlockClick(block);
-          }
+          comprehension.activateBlock(block.id, true);
+          // Opening source is deliberately an Inspector-only action. Selecting
+          // a graph node must preserve the reader's current editor and canvas.
+          // Child attachment is intentionally available only from the
+          // Inspector's named Attach/Collapse actions. A primary node click
+          // remains a predictable selection operation.
         });
         nodeButtonsById.set(block.id, node);
+        comprehension.registerNode(block.id, node);
         canvas.append(node);
       }
+      canvas.append(edgeChoiceLayer);
       bodyFocusController.refresh();
-
+      comprehension.refresh();
       applyFunctionLogicBranchChoicePresentation(
         logic.blocks,
         logic.edges,
@@ -276,19 +307,18 @@ export function getFunctionLogicBrowserSource(): string {
         edgeRendering.elementsById
       );
       if (valueFlowRendering) valueFlowRendering.refresh();
-
       stage.append(canvas);
       viewport.append(stage);
       inspector.attachViewport(viewport);
-      inspector.prependSections(
-        valueFlowRendering?.valuePreviewEditor,
-        valueFlowRendering?.scenarioTrace
-      );
       inspector.appendSections(
+        tutorRendering?.section,
+        valueFlowRendering?.valuePreviewEditor,
+        valueFlowRendering?.scenarioTrace,
+        valueFlowRendering?.playback,
         valueFlowRendering?.toolbar,
+        createFunctionLogicStaticFlowLedger(logic, comprehension),
         createLogicCalleeExplorer(logic.callees || [], logic.omittedCalleeCount || 0),
-        createLogicSignature(logic.signature),
-        createFunctionUnderstanding(logic)
+        createLogicSignature(logic.signature)
       );
       graph.append(graphHeader);
       graph.append(bodyFocusController.navigation);
@@ -308,11 +338,12 @@ export function getFunctionLogicBrowserSource(): string {
         edgeRendering.elementsById,
         inspector,
         false,
-        graphContext,
+        selectionGraphContext,
         applyBranchChoice,
         applyConditionCase,
         branchChoices
       );
+      comprehension.selectBlock(preferredBlock.id);
       return {
         element: graph,
         viewport,
@@ -322,7 +353,6 @@ export function getFunctionLogicBrowserSource(): string {
         nodeLayoutsByBlockId
       };
     }
-
     /** Creates the compact current-function header above the graph. */
     function createLogicSignature(signatureText) {
       const signature = document.createElement("div");
@@ -335,150 +365,6 @@ export function getFunctionLogicBrowserSource(): string {
       return signature;
     }
 
-    /** Turns raw counters into a repeatable four-pass function reading frame. */
-    function createFunctionUnderstanding(logic) {
-      const summary = logic.summary;
-      const section = document.createElement("section");
-      const header = document.createElement("div");
-      const kicker = document.createElement("span");
-      const title = document.createElement("strong");
-      const cards = document.createElement("div");
-      section.className = "logic-understanding";
-      header.className = "logic-understanding-header";
-      kicker.textContent = "HOW TO READ IT";
-      title.textContent = "Understand this function in four passes";
-      cards.className = "logic-understanding-cards";
-      header.append(kicker, title);
-      cards.append(
-        createUnderstandingCard("1", "Start", "Read the signature, then find the first source-backed block."),
-        createUnderstandingCard("2", "Choose", createDecisionUnderstanding(summary)),
-        createUnderstandingCard(
-          "3",
-          "Do",
-          createActionUnderstanding(summary, logic.blocks, logic.valueBindings || [])
-        ),
-        createUnderstandingCard("4", "Finish", summary.exitCount
-          ? summary.exitCount + " explicit finish point" + plural(summary.exitCount)
-            + (summary.exitCount === 1 ? " is visible." : " are visible.")
-          : "Follow the final transfer to see how control leaves the function.")
-      );
-      section.append(header, cards);
-      return section;
-    }
-
-    /** Creates one numbered reading cue backed by function-logic counters. */
-    function createUnderstandingCard(number, label, detailText) {
-      const card = document.createElement("article");
-      const numberBadge = document.createElement("span");
-      const content = document.createElement("div");
-      const title = document.createElement("strong");
-      const detail = document.createElement("p");
-      card.className = "logic-understanding-card";
-      numberBadge.className = "logic-understanding-number";
-      numberBadge.textContent = number;
-      title.textContent = label;
-      detail.textContent = detailText;
-      content.append(title, detail);
-      card.append(numberBadge, content);
-      return card;
-    }
-
-    /** Describes only decision structures visible in the bounded syntax graph. */
-    function createDecisionUnderstanding(summary) {
-      const parts = [];
-      if (summary.branchCount) parts.push(
-        summary.branchCount + " branch decision" + plural(summary.branchCount)
-      );
-      if (summary.loopCount) parts.push(summary.loopCount + " loop" + plural(summary.loopCount));
-      return parts.length
-        ? parts.join(" and ") + " can change the path."
-          + (summary.branchCount ? " Select a true, false, or case label to follow one scenario." : "")
-        : "No branch or loop is visible; read the main path from top to bottom.";
-    }
-
-    /** Describes visible work without guessing business purpose or runtime values. */
-    function createActionUnderstanding(summary, blocks, valueBindings) {
-      const parts = [];
-      const renderCount = blocks.filter((block) => block.kind === "render").length;
-      const eventCount = blocks.filter((block) => block.kind === "event").length;
-      const embeddedCount = blocks.filter((block) => block.kind === "embedded").length;
-      const callableCount = blocks.filter((block) => block.kind === "callable").length;
-      if (renderCount) parts.push(renderCount + " JSX render step" + plural(renderCount));
-      if (eventCount) parts.push(eventCount + " event binding" + plural(eventCount));
-      if (embeddedCount) parts.push(embeddedCount + " static code-text region" + plural(embeddedCount));
-      if (callableCount) parts.push(callableCount + " embedded callable definition" + plural(callableCount));
-      if (summary.callCount) parts.push(summary.callCount + " call site" + plural(summary.callCount));
-      if (summary.effectCount) parts.push(summary.effectCount + " possible effect" + plural(summary.effectCount));
-      if (summary.valueChangeCount) parts.push(
-        summary.valueChangeCount + " visible value change" + plural(summary.valueChangeCount)
-      );
-      else if (summary.mutationCount) parts.push(
-        summary.mutationCount + " mutation" + plural(summary.mutationCount)
-      );
-      if (valueBindings.length) parts.push(
-        valueBindings.length + " parameter/local/constant binding"
-          + plural(valueBindings.length)
-      );
-      return parts.length
-        ? "Inspect " + parts.join(", ") + "."
-        : "The visible blocks contain no classified render, call, effect, or mutation.";
-    }
-
-    /** Creates graph semantics and confidence legend without color-only meaning. */
-    function createLogicGraphHeader(
-      viewportController,
-      inspectorToggle,
-      graphTitle
-    ) {
-      const header = document.createElement("div");
-      const title = document.createElement("strong");
-      const controls = document.createElement("div");
-      const legend = document.createElement("div");
-      const viewportControls = createFunctionLogicViewportControls(viewportController);
-      header.className = "logic-graph-header";
-      title.textContent = graphTitle || "Control paths";
-      controls.className = "logic-graph-controls";
-      legend.className = "logic-graph-legend";
-      legend.append(
-        createBadge("solid · exact", "logic-legend exact"),
-        createBadge("dashed · inferred", "logic-legend inferred"),
-        createBadge("⚡ event · no return", "logic-legend event"),
-        createBadge("⌁ static code text", "logic-legend embedded"),
-        createBadge("ƒ body · not invoked", "logic-legend callable"),
-        createBadge("Δ value", "logic-legend value-change"),
-        createBadge("⇢ param/local/const", "logic-legend value-flow"),
-        createBadge("◇ selectable choice", "logic-legend choice"),
-        createBadge("↶ repeat", "logic-legend repeat")
-      );
-      controls.append(viewportControls, inspectorToggle);
-      header.append(title, controls, legend);
-      return header;
-    }
-
-    /** Indexes outgoing edges for node accessibility and the detail panel. */
-    function createOutgoingLogicEdgeIndex(edges) {
-      const result = new Map();
-      for (const edge of edges) {
-        const values = result.get(edge.sourceId) || [];
-        values.push(edge);
-        result.set(edge.sourceId, values);
-      }
-      return result;
-    }
-
-    /** Indexes incoming and outgoing edges for selected-node graph emphasis. */
-    function createConnectedLogicEdgeIndex(edges) {
-      const result = new Map();
-      for (const edge of edges) {
-        for (const blockId of [edge.sourceId, edge.targetId]) {
-          const values = result.get(blockId) || [];
-          values.push(edge.id);
-          result.set(blockId, values);
-        }
-      }
-      return result;
-    }
-
     /** Draws every routed edge and label behind the interactive HTML nodes. */
     function createLogicEdgeSvg(layout, edgesById, graphContext, onBranchChoice) {
       const svg = createLogicSvgElement("svg");
@@ -488,7 +374,7 @@ export function getFunctionLogicBrowserSource(): string {
       svg.setAttribute("height", String(layout.height));
       svg.setAttribute("viewBox", "0 0 " + layout.width + " " + layout.height);
       svg.setAttribute("role", "group");
-      svg.setAttribute("aria-label", "Control paths; true, false, and case labels are selectable");
+      svg.setAttribute("aria-label", "Control paths");
       svg.append(createLogicArrowMarker());
 
       for (const edgeLayout of layout.edges) {
@@ -522,24 +408,35 @@ export function getFunctionLogicBrowserSource(): string {
         if (edgeLayout.route !== "forward") label.setAttribute("text-anchor", "end");
         label.textContent = formatLogicEdge(edge);
         path.setAttribute("aria-hidden", "true");
-        if (choice) {
-          label.setAttribute("role", "button");
-          label.setAttribute("tabindex", "0");
-          label.setAttribute("aria-label", "Choose path: " + formatLogicEdge(edge));
-          label.setAttribute("aria-pressed", "false");
-          label.addEventListener("click", () => onBranchChoice(edge));
-          label.addEventListener("keydown", (event) => {
-            if (event.key !== "Enter" && event.key !== " ") return;
-            event.preventDefault();
-            onBranchChoice(edge);
-          });
-        } else {
-          label.setAttribute("aria-hidden", "true");
-        }
+        label.setAttribute("aria-hidden", "true");
         svg.append(path, label);
         elementsById.set(edge.id, { path, label, choice });
       }
       return { svg, elementsById };
+    }
+
+    /** Places native branch buttons above SVG routes without making SVG text interactive. */
+    function createLogicEdgeChoiceLayer(layout, edgesById, elementsById, onBranchChoice) {
+      const layer = document.createElement("div");
+      layer.className = "logic-edge-choice-layer";
+      layer.setAttribute("aria-label", "Branch choices");
+      for (const edgeLayout of layout.edges) {
+        const edge = edgesById.get(edgeLayout.edgeId);
+        const elements = elementsById.get(edgeLayout.edgeId);
+        if (!edge || !elements || !isFunctionLogicBranchChoiceEdge(edge)) continue;
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "logic-edge-choice-button logic-edge-choice-" + edge.kind;
+        button.textContent = formatLogicEdge(edge);
+        button.title = "Choose path: " + formatLogicEdge(edge);
+        button.setAttribute("aria-pressed", "false");
+        button.style.setProperty("left", edgeLayout.labelX + "px");
+        button.style.setProperty("top", edgeLayout.labelY + "px");
+        button.addEventListener("click", () => onBranchChoice(edge));
+        elements.choiceButton = button;
+        layer.append(button);
+      }
+      return layer;
     }
 
     /** Creates one reusable arrow marker whose color follows each edge stroke. */
@@ -621,10 +518,7 @@ export function getFunctionLogicBrowserSource(): string {
         + (entering ? " logic-node-entering" : "");
       node.classList.toggle("expandable", expandable);
       node.classList.toggle("expanded", expanded);
-      const baseNodeTitle = expandable && graphContext && graphContext.onExpandableBlockClick
-        ? (expanded ? "Collapse " : "Expand ") + expandableRole + " · "
-          + block.drillTargets.map((target) => target.qualifiedName || target.name).join(", ")
-        : "Select logic · " + block.label;
+      const baseNodeTitle = "Select logic · " + block.label;
       node.dataset.logicBaseTitle = baseNodeTitle;
       node.title = baseNodeTitle
         + (ownsCompoundBody ? " · Show this body as the outer frame" : "");
@@ -642,26 +536,13 @@ export function getFunctionLogicBrowserSource(): string {
         + (valueChangeText ? ". Value changes: " + valueChangeText : "")
         + (valueAccessText ? ". Value flow: " + valueAccessText : "")
         + (outgoingText ? ". Paths: " + outgoingText : "")
-        + (expandable && graphContext && graphContext.onExpandableBlockClick
-          ? (expanded
-              ? (rendersOnly
-                  ? ". Activate to collapse rendered components."
-                  : eventHandlersOnly
-                    ? ". Activate to collapse separately dispatched event handlers."
-                    : ". Activate to collapse called functions.")
-              : (rendersOnly
-                  ? ". Activate to attach rendered components."
-                  : eventHandlersOnly
-                    ? ". Activate to attach separately dispatched event handlers."
-                    : ". Activate to attach called functions."))
+        + (expandable
+          ? ". Child flows are available through the Inspector."
           : "")
         + (ownsCompoundBody
           ? ". Activate to show this component body as the outer body frame."
           : ""));
       node.setAttribute("aria-pressed", "false");
-      if (expandable && graphContext && graphContext.onExpandableBlockClick) {
-        node.setAttribute("aria-expanded", expanded ? "true" : "false");
-      }
       top.className = "logic-node-top";
       branch.className = "logic-node-branch";
       branch.textContent = block.branchLabel || "";
@@ -670,6 +551,12 @@ export function getFunctionLogicBrowserSource(): string {
       meta.className = "logic-node-meta";
       meta.textContent = block.sourceLocation || block.detail;
       top.append(kind);
+      if (block.kind === "embedded") {
+        top.append(createBadge(
+          describeEmbeddedBoundaryTiming(block),
+          "logic-node-embedded-timing"
+        ));
+      }
       if (ownsCompoundBody) {
         top.append(createBadge("BODY", "logic-node-body-focus"));
       }
@@ -697,11 +584,6 @@ export function getFunctionLogicBrowserSource(): string {
       return node;
     }
 
-    /** Creates SVG nodes without interpolating Host text into markup. */
-    function createLogicSvgElement(name) {
-      return document.createElementNS(LOGIC_SVG_NAMESPACE, name);
-    }
-
     /** Reveals one Host-approved source range without sending paths or offsets. */
     function openLogicEvidence(evidenceToken) {
       if (!state.graph) return;
@@ -723,6 +605,20 @@ export function getFunctionLogicBrowserSource(): string {
       if (kind === "event") return "EVENT";
       if (kind === "mutation") return "STATE";
       return kind;
+    }
+
+    /**
+     * Names the parser-proven embedded-code timing from the boundary's stable
+     * analyzer label. It never evaluates source text or claims an observed run.
+     */
+    function describeEmbeddedBoundaryTiming(block) {
+      const label = String(block.label || "");
+      if (label.startsWith("execute code text · eval")) return "DIRECT EVAL · STATIC";
+      if (label.startsWith("execute code text · globalThis.eval")
+        || label.startsWith("execute code text · window.eval")) return "GLOBAL EVAL · STATIC";
+      if (label.startsWith("schedule code text")) return "DEFERRED · STATIC";
+      if (label.startsWith("create callable from")) return "CREATED · NOT INVOKED";
+      return "STATIC PROGRAM";
     }
 
     /** Builds exact/inferred value rows shared by graph nodes and selection details. */

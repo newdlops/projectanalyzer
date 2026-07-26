@@ -139,14 +139,16 @@ export function getFunctionLogicValuePreviewBrowserSource(): string {
       addName.type = "text";
       addName.className = "logic-value-preview-input logic-value-preview-variable-name";
       addName.maxLength = MAX_LOGIC_MANUAL_SCENARIO_NAME_LENGTH;
-      addName.placeholder = "variable name";
+      addName.placeholder = "variable name…";
+      addName.autocomplete = "off";
       addName.spellcheck = false;
       addName.title = "Scenario variable name";
       addName.setAttribute("aria-label", addName.title);
       addValue.type = "text";
       addValue.className = "logic-value-preview-input logic-value-preview-variable-value";
       addValue.maxLength = MAX_LOGIC_VALUE_PREVIEW_LENGTH;
-      addValue.placeholder = "JSON / scalar value";
+      addValue.placeholder = "JSON / scalar value…";
+      addValue.autocomplete = "off";
       addValue.spellcheck = false;
       addValue.title = "Initial Scenario value";
       addValue.setAttribute("aria-label", addValue.title);
@@ -192,7 +194,8 @@ export function getFunctionLogicValuePreviewBrowserSource(): string {
         input.className = "logic-value-preview-input";
         input.value = rawValue || "";
         input.maxLength = MAX_LOGIC_VALUE_PREVIEW_LENGTH;
-        input.placeholder = "JSON / scalar";
+        input.placeholder = "JSON / scalar…";
+        input.autocomplete = "off";
         input.spellcheck = false;
         input.title = inputLabel;
         input.setAttribute("aria-label", inputLabel);

@@ -254,7 +254,10 @@ export function getFunctionLogicBranchChoicesBrowserSource(): string {
         elements.label.classList.toggle("choice-reachable", constrained && reachable);
         elements.label.classList.toggle("choice-selected", selected);
         if (elements.choice) {
-          elements.label.setAttribute("aria-pressed", selected ? "true" : "false");
+          elements.choiceButton?.classList.toggle("choice-dimmed", !reachable);
+          elements.choiceButton?.classList.toggle("choice-reachable", constrained && reachable);
+          elements.choiceButton?.classList.toggle("choice-selected", selected);
+          elements.choiceButton?.setAttribute("aria-pressed", selected ? "true" : "false");
         }
       }
       return projection;

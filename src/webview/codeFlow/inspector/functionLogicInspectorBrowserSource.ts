@@ -15,9 +15,11 @@ export function getFunctionLogicInspectorBrowserSource(): string {
     function createFunctionLogicInspector(sessionKey) {
       if (functionLogicInspectorSessionKey !== sessionKey) {
         functionLogicInspectorSessionKey = sessionKey;
-        // Scenario Variables are part of every graph's stable Inspector
-        // contract. A user's later close choice survives same-root relayouts.
-        functionLogicInspectorOpen = true;
+        // A wide Webview opens the parallel reading column by default. Narrow
+        // contexts preserve a reader's later choice but begin graph-first.
+        const wideQuery = typeof window.matchMedia === "function"
+          ? window.matchMedia("(min-width: 1040px)") : undefined;
+        functionLogicInspectorOpen = wideQuery ? wideQuery.matches : true;
       }
       functionLogicInspectorSequence += 1;
       const inspectorId = "logic-inspector-" + functionLogicInspectorSequence;
@@ -109,6 +111,10 @@ export function getFunctionLogicInspectorBrowserSource(): string {
           currentSelectionLabel = block?.label || "selected block";
           selectedLabel.textContent = currentSelectionLabel;
           updateToggleTitle();
+        },
+        /** Lets CSS disclose only the tools relevant to the reader question. */
+        setLens(lens) {
+          drawer.dataset.logicLens = lens;
         },
         /** Keeps invariant Scenario controls above variable-height block evidence. */
         prependSections(...sections) {

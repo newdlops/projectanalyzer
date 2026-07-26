@@ -216,7 +216,6 @@ export function getFunctionLogicInspectorStyles(): string {
     }
 
     .logic-inspector-scroll > .logic-signature,
-    .logic-inspector-scroll > .logic-understanding,
     .logic-inspector-scroll > .logic-callees,
     .logic-inspector-scroll > .logic-data-flow-toolbar,
     .logic-inspector-scroll > .logic-value-preview-editor,
@@ -224,11 +223,24 @@ export function getFunctionLogicInspectorStyles(): string {
       border-radius: 5px;
     }
 
-    .logic-inspector-scroll .logic-understanding-cards {
-      grid-template-columns: 1fr;
+    /* Lens-specific tools stay mounted to preserve scenario input and playback
+       state; only their visual disclosure changes with the reader question. */
+    .logic-inspector-drawer:not([data-logic-lens="values"]) .logic-data-flow-toolbar,
+    .logic-inspector-drawer:not([data-logic-lens="values"]) .logic-value-preview-editor,
+    .logic-inspector-drawer:not([data-logic-lens="values"]) .logic-scenario-trace,
+    .logic-inspector-drawer:not([data-logic-lens="values"]) .logic-value-flow-playback {
+      display: none;
     }
 
-    @media (max-width: 720px) {
+    .logic-inspector-drawer:not([data-logic-lens="calls"]) .logic-callees { display: none; }
+
+    @media (pointer: coarse) {
+      .logic-inspector-toggle,
+      .logic-inspector-close { min-height: 36px; }
+      .logic-inspector-close { width: 36px; }
+    }
+
+    @media (max-width: 839px) {
       .logic-graph-workspace,
       .logic-graph-workspace.inspector-open {
         grid-template-columns: minmax(0, 1fr);
