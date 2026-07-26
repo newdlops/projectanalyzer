@@ -139,8 +139,9 @@ dedicated Function Visualizer tab with a bounded control-flow graph:
   while spread/unpack, `Object.assign`, and map-style method keys retain inferred styling
 - inline `PARAM`, `LOCAL`, and `CONST` rows showing lexical definitions, writes,
   and whether a read is internally `CONSUME`d or reaches a lexical `SINK`
-- a per-binding value selector that overlays possible definition-to-use arrows,
-  including branch-merge and loop-carried definitions without hiding control edges;
+- a per-binding value selector that turns possible definition-to-use relations into
+  short quadratic declaration → use → use → sink hops, including independent branch
+  arms, branch joins, and loop-carried definitions without hiding control edges;
   dotted consume paths and double/striped sink cues remain distinguishable without color
 - an always-present Debug Variables-style `Name` / `Scenario input` table for
   entering session-only JSON/scalar parameter values or local/constant definition
@@ -339,10 +340,12 @@ the binding identity. A read used by a calculation, condition, or call receiver 
 field, or external property/element assignment is a lexical `SINK`. `SINK` means
 direct tracking stops at that source boundary—not that the destination is unsafe
 or that runtime execution was observed. Selecting one `PARAM`, `LOCAL`, or `CONST`
-chip draws only that binding's possible definition-to-use arrows so the control
-graph stays readable. Reassignments kill earlier definitions on the same path;
-branch merges may therefore show more than one reaching definition, and loops may
-show a loop-carried relation. The projection uses bounded iterative CFG walks and
+chip draws only that binding's curved nearest-use hops. A declaration connects to
+the first use, each use connects to the next reachable use, and the last hop enters
+the sink, avoiding the centered channels used by control edges. Reassignments kill
+earlier definitions on the same path; branch arms are not chained to each other,
+while a merge may receive a hop from each branch and loops may show a loop-carried
+relation. The projection and visual routing use bounded iterative CFG walks and
 follows the currently selected `true`/`false`/`case` scenario by dimming value
 arrows whose endpoints are outside that choice.
 
@@ -532,6 +535,8 @@ Key reusable modules:
 - `src/analyzer/rust/supplementalLanguageGraph.ts` — selected-language graph
   merge used to add Java and functional-language evidence without replacing
   primary Rust results
+- `src/analyzer/rust/processOutputCollector.ts` — complete analyzer stdout with
+  aggregate stream metrics and a bounded stderr preview
 - `src/analyzer/functionLogic/valueChanges/objectFields/` — parser-specific
   object/dictionary literal expansion and shared stable field-target formatting
 - `src/extension/currentFunctionVisualization/` — editor command and exact
@@ -547,6 +552,8 @@ Key reusable modules:
 - `src/protocol/functionVisualizer.ts` — editor-tab navigation session contract
 - `src/webview/codeFlow/` — flow-first Activity Bar launcher and shared graph
   renderer
+- `src/webview/graphPanel/` — pure bounded-payload delivery state for the retained
+  compatibility graph canvas
 - `src/webview/codePresentation/` — reusable, non-executing source-snippet
   tokenizer, textContent renderer, and VS Code theme token styles
 - `src/webview/codeFlow/viewport/` — pure Function Logic transform geometry and
@@ -555,6 +562,8 @@ Key reusable modules:
   bounded definition/consume/sink progression, and safe JSON field copy-on-write
 - `src/webview/functionVisualizer/` — editor-tab lifecycle, reading UX, and
   cycle-safe lazy function navigation
+- `src/webview/codeFlow/dataFlow/` — binding selector, nearest-use hop planning,
+  quadratic value routing, and consume/sink presentation
 - `src/webview/moduleVisualizer/` — dedicated Module Flow tab, detail/evidence,
   lazy same-canvas module/function expansion, directional lineage focus, initial
   scene restoration, and bounded Function Logic delivery
@@ -568,13 +577,14 @@ Entrypoint flows are intentionally finite. Configure their reading budget with
 use `projectAnalyzer.codeFlow.maxLogicBlocks` (default `120`, maximum `300`).
 Lexical value flow retains at most 80 unambiguous bindings, 700 access facts, and
 900 definition-to-use relations per function; any bounded omission is surfaced as
-an analysis gap. Graph nodes render at most eight access rows while the binding
+an analysis gap. The Webview derives at most 1,500 cycle-safe nearest-use hops from
+those semantic relations. Graph nodes render at most eight access rows while the binding
 selector still exposes every retained binding. The scenario-value editor shows at
 most 120 retained bindings and accepts up to 240 literal characters per binding;
 its selected trace renders at most 80 access steps. Those browser-session
 annotations are never evaluated, persisted to source, sent to the Extension Host,
 or used to choose a branch. Clicking a `Name` label only selects the existing
-static definition-to-use overlay.
+static curved value-hop overlay.
 
 Embedded-code discovery accepts at most 24,000 decoded characters and 64 literal-only
 concatenation pieces per candidate, retains at most 16 regions, and shares the configured
@@ -609,6 +619,14 @@ current tab. Changing the selected module also invalidates pending component
 requests owned by the previous module. The browser computes selected-module
 lineage iteratively over the already bounded scene with explicit visited and
 depth guards; it never requests an unbounded graph merely to focus the layout.
+
+Native-analyzer process logs are aggregated per process rather than per stdout
+chunk. Complete JSON output remains available to the Host parser, while stderr
+retains only an 8 KiB diagnostic preview plus exact byte/chunk counts. The
+compatibility Graph Panel also projects at most `projectAnalyzer.maxRenderedNodes`
+before crossing into its Webview (hard maximum 2,000), reports omitted counts,
+and suppresses duplicate same-snapshot/mode delivery. A focus outside the current
+slice creates one new bounded neighborhood instead of retransmitting the full graph.
 
 ## Privacy and Local Data
 

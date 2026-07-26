@@ -327,6 +327,15 @@ predecessor를 역방향 queue로 탐색해 각 path에서 가장 가까운 defi
 definition이 생길 수 있다. 탐색은 recursion 없이 visited/best-depth map, 최대 depth,
 binding/access/flow hard limit를 적용하며 누락 수는 `parseLimited` gap으로 노출한다.
 
+Webview는 이 semantic definition-to-use relation을 그대로 긴 직선으로 겹쳐 그리지 않는다.
+선택 binding의 definition/write/use/sink block을 value-related node로 두고 control predecessor를
+visited set과 명시적 queue로 역추적하여 각 path에서 가장 가까운 이전 value-related node까지만
+하나의 visual hop으로 만든다. 따라서 `declaration -> use -> use -> sink`가 짧은 quadratic SVG
+`Q` 포물선들로 이어진다. branch arm 사이를 source/layout 순서만으로 연결하지 않으며 join은
+각 branch의 가장 가까운 use에서 별도 hop을 받는다. cycle은 target-seeded visited set과 최대 depth로
+종료하고, BODY focus/deferred 관계로 control path가 잘린 경우 analyzer가 준 reaching definition을
+fallback endpoint로 사용한다. visual hop은 최대 1,500개이며 semantic payload는 변경하지 않는다.
+
 read semantics는 access 종류와 독립적인 `usage`로 보존한다. condition, arithmetic/boolean
 expression, local initializer, call receiver처럼 함수 내부 계산에 참여하는 read는 `consume`다.
 return/throw/yield, call/new argument, JSX prop/child/component 전달, object/array aggregate 저장,
@@ -689,9 +698,10 @@ scroll하고 긴 evidence가 graph canvas의 크기나 위치를 밀어내지 �
 - `PARAM`/`LOCAL`/`CONST` binding selector와 block-local `DEFINE`/`WRITE` 및
   `CONSUME`/`SINK` read semantics; read/write는 `CONSUME / WRITE` 또는 `SINK / WRITE`로
   함께 표시하고 node에서는 최대 8개 row와 정확한 추가 개수를 표시
-- 선택한 binding 하나의 possible definition-to-use overlay를 별도 arrow/style로 표시하고,
-  consume은 dotted cue, sink는 double/striped cue와 텍스트로 구분하며 branch choice 밖 endpoint를
-  가진 value edge는 control choice와 함께 흐리게 처리
+- 선택한 binding 하나의 possible definition-to-use relation을 nearest-use quadratic hop overlay로
+  표시한다. declaration/use/sink를 짧게 이어 control edge의 중앙 channel과 구분하고, consume은
+  dotted cue, sink는 double/striped cue와 텍스트로 구분하며 branch choice 밖 endpoint를 가진
+  value hop은 control choice와 함께 흐리게 처리
 - 모든 Function Logic Inspector에 항상 존재하는 Debug Variables 유사
   `Name`/`Scenario input` editor에서 parameter별 JSON/scalar 입력 또는 local/constant
   definition override를 입력하고 같은 binding의 graph/selection access row에 즉시 표시
@@ -1244,6 +1254,13 @@ Webview는 Project Graph, 파일 시스템, VS Code API에 직접 접근하지 �
 
 - graph load 시 전체 graph는 Extension Host에 유지하고 Webview에는 shell과 bounded
   catalog만 전송
+- native analyzer stdout은 JSON parse를 위해 완전하게 보존하되 chunk마다 로그를 남기지 않고,
+  process close에서 byte/chunk 수를 한 번만 기록한다. stderr는 전체 byte/chunk 수와 최대 8KiB
+  preview만 유지하여 반복 경고와 무제한 진단 buffer를 만들지 않는다.
+- compatibility Graph Panel을 사용하는 경로도 mode별 projection을 Host에서 먼저 수행하고
+  `projectAnalyzer.maxRenderedNodes`(절대 최대 2,000)까지만 Webview로 보낸다. source/delivered/omitted
+  count를 payload metadata로 보존하고, 동일 immutable graph object와 mode는 재전송하지 않는다.
+  focus target이 직전 slice에 없을 때만 그 target을 seed로 새 bounded projection을 만든다.
 - catalog 기본 노출 수는 최대 24개, 검색 응답은 최대 50개
 - flow detail은 기본 depth 3, 최대 30 step
 - function logic은 기본 120, 최대 300 statement block
@@ -1251,6 +1268,8 @@ Webview는 Project Graph, 파일 시스템, VS Code API에 직접 접근하지 �
   propagation은 수행하지 않음
 - lexical value flow는 함수당 최대 80개 unambiguous binding, 700 access fact,
   900 definition-to-use relation을 유지하고 추가 fact/relation은 gap count로 보고
+- 선택 binding의 visual value routing은 최대 1,500 nearest-use quadratic hop을 유지하며
+  predecessor 탐색에 visited set과 최대 depth를 적용
 - graph node의 lexical access row는 최대 8개만 렌더링하고 정확한 추가 row 수와 전체 retained
   binding selector를 별도로 제공
 - scenario value editor는 최대 120 binding/값당 240자, 선택 progression은 최대 80 access step으로 제한
@@ -1343,6 +1362,8 @@ Webview는 Project Graph, 파일 시스템, VS Code API에 직접 접근하지 �
 - TypeScript/JavaScript/Python/Java binding 종류와 access, branch merge의 multiple reaching
   definition, consume/sink 분류와 target projection, loop cycle/duplicate edge/depth limit,
   shadowed-name omission 검증
+- semantic definition-to-use relation의 declaration/use/sink hop 변환, branch arm 분리와 join,
+  cycle/depth/hop limit, pruned-control fallback, quadratic SVG path 검증
 - concise JSX `.map` callback parameter의 inferred loop definition과 render-use flow 검증
 - embedded fixture로 ordinary/dynamic string 오탐 방지, literal concatenation, direct eval,
   timer, Function constructor, stored/tagged program, 다중·nested callable CFG, virtual callsite,

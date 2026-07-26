@@ -4,6 +4,32 @@ All notable user-visible changes to Project Analyzer: Code Flow are recorded in
 this file. The changelog starts with the first distribution-documented build;
 earlier local development builds were not tracked here.
 
+## 0.0.1059 - 2026-07-22
+
+### Changed
+
+- Selecting a Function Logic binding now renders its value path as short
+  quadratic declaration-to-use-to-sink hops instead of long definition-to-use
+  rays that can be confused with control-flow edges.
+- The iterative hop planner stops at the nearest value-related node on each
+  control-flow path. Separate branches remain separate, joins retain incoming
+  hops from each branch, loops are cycle-guarded, and pruned control paths fall
+  back to their analyzer-provided reaching definition.
+
+## 0.0.1058 - 2026-07-21
+
+### Performance
+
+- Large native-analyzer stdout is now logged once with aggregate byte/chunk
+  counts instead of producing one DEBUG line per 64 KiB callback. Stderr keeps
+  an 8 KiB preview with exact omitted-byte accounting.
+- The compatibility Graph Panel now receives a Host-projected payload capped by
+  the configured render budget and an absolute 2,000-node guard. Projection
+  metadata exposes omitted nodes/edges, and focused nodes seed a bounded local
+  neighborhood.
+- Repeated focus or open actions no longer resend an unchanged graph/mode
+  payload when the requested node is already available in the Webview.
+
 ## 0.0.1057 - 2026-07-21
 
 ### Added
