@@ -14,6 +14,7 @@ import type {
 import type {
   CodeFlowEvidenceToken,
   FunctionLogicBlockPayload,
+  FunctionLogicConditionTablePayload,
   FunctionLogicEdgePayload,
   FunctionLogicValueBindingPayload,
   FunctionLogicValueFlowPayload
@@ -27,6 +28,7 @@ import {
 } from "./codeFlowCatalog";
 import { createCodeFlowIdentity } from "./codeFlowIdentity";
 import { createFunctionLogicGraphLayout } from "./functionLogicGraphLayout";
+import { createFunctionLogicConditionCaseProjection } from "./conditionCases";
 import {
   createFunctionLogicDrillTargets,
   type FunctionLogicSourceTokenFactory
@@ -55,6 +57,7 @@ export function createFunctionLogicCodeFlowDetail(
   const flowId = createCodeFlowIdentity(deliveryVersion, `function-logic\0${node.id}`);
   const sourceDisplay = createSourceDisplayFormatter(graph.workspaceRoot);
   const protocolBlockIds = new Map<string, string>();
+  const protocolEdgeIds = new Map<string, string>();
   const protocolBindingIds = new Map<string, string>();
   const drillProjection = createFunctionLogicDrillTargets(
     graph,
@@ -68,12 +71,23 @@ export function createFunctionLogicCodeFlowDetail(
     const block = analysis.blocks[index];
     protocolBlockIds.set(block.id, createLogicBlockId(flowId, block.id, index));
   }
+  // Allocate edge identities before case-table projection so all browser
+  // references stay opaque even when an analyzer edge cannot be delivered.
+  for (let index = 0; index < analysis.edges.length; index += 1) {
+    const edge = analysis.edges[index];
+    protocolEdgeIds.set(edge.id, createLogicEdgeId(flowId, edge.id, index));
+  }
   for (let index = 0; index < (analysis.valueBindings?.length ?? 0); index += 1) {
     const binding = analysis.valueBindings?.[index];
     if (binding) {
       protocolBindingIds.set(binding.id, createLogicBindingId(flowId, binding.id, index));
     }
   }
+  const conditionTablesByRootId = createConditionTables(
+    analysis,
+    protocolBlockIds,
+    protocolEdgeIds
+  );
   const blocks: FunctionLogicBlockPayload[] = analysis.blocks.map((block, index) => {
     const id = protocolBlockIds.get(block.id)
       ?? createLogicBlockId(flowId, block.id, index);
@@ -92,6 +106,7 @@ export function createFunctionLogicCodeFlowDetail(
       confidence: block.confidence,
       sourceLocation: sourceDisplay.location(block.filePath, block.range),
       evidenceToken: createEvidenceToken(block.filePath, block.range),
+      conditionTable: conditionTablesByRootId.get(block.id),
       drillTargets: drillProjection.targetsByBlockId.get(block.id),
       valueChanges: block.valueChanges?.map((change) => ({
         target: completeGraphText(change.target, "value"),
@@ -122,7 +137,7 @@ export function createFunctionLogicCodeFlowDetail(
     const targetId = protocolBlockIds.get(edge.targetId);
     return sourceId && targetId
       ? [{
-          id: createLogicEdgeId(flowId, edge.id, index),
+          id: protocolEdgeIds.get(edge.id) ?? createLogicEdgeId(flowId, edge.id, index),
           sourceId,
           targetId,
           kind: edge.kind,
@@ -210,6 +225,76 @@ export function createFunctionLogicCodeFlowDetail(
       gapCount: gaps.length
     }
   };
+}
+
+/**
+ * Converts parser-owned short-circuit paths into browser-safe condition tables.
+ * Raw analyzer identities are resolved only through the maps created for this
+ * snapshot, so table selection cannot address a different source graph.
+ */
+function createConditionTables(
+  analysis: FunctionLogicAnalysis,
+  protocolBlockIds: ReadonlyMap<string, string>,
+  protocolEdgeIds: ReadonlyMap<string, string>
+): ReadonlyMap<string, FunctionLogicConditionTablePayload> {
+  const tablesByRootId = new Map<string, FunctionLogicConditionTablePayload>();
+  const blocksById = new Map(analysis.blocks.map((block) => [block.id, block]));
+  for (const root of analysis.blocks) {
+    if (!root.condition?.root) {
+      continue;
+    }
+    const projected = createFunctionLogicConditionCaseProjection(
+      analysis.blocks,
+      analysis.edges,
+      root.id
+    );
+    if (!projected) {
+      continue;
+    }
+    const columns = projected.columns.flatMap((column) => {
+      const blockId = protocolBlockIds.get(column.blockId);
+      return blockId ? [{
+        blockId,
+        expression: completeGraphText(column.expression, "condition")
+      }] : [];
+    });
+    // Do not publish a partially addressable table. A missing projected member
+    // means that the corresponding analyzer case cannot be selected safely.
+    if (columns.length !== projected.columns.length) {
+      continue;
+    }
+    const rows = projected.rows.flatMap((row) => {
+      const targetBlockId = protocolBlockIds.get(row.targetBlockId);
+      const target = blocksById.get(row.targetBlockId);
+      const choiceEdgeIds = row.choiceEdgeIds.flatMap((edgeId) => {
+        const projectedEdgeId = protocolEdgeIds.get(edgeId);
+        return projectedEdgeId ? [projectedEdgeId] : [];
+      });
+      return targetBlockId && target && choiceEdgeIds.length === row.choiceEdgeIds.length
+        ? [{
+            id: `function-logic-condition-case:${createContentHash(`${root.id}\0${row.id}`).slice(0, 32)}`,
+            values: row.values,
+            result: row.result,
+            choiceEdgeIds,
+            targetBlockId,
+            targetLabel: completeGraphText(target.label, "Next block")
+          }]
+        : [];
+    });
+    if (rows.length !== projected.rows.length) {
+      continue;
+    }
+    tablesByRootId.set(root.id, {
+      expression: completeGraphText(
+        root.condition.groupExpression ?? root.condition.expression,
+        "condition"
+      ),
+      columns,
+      rows,
+      omittedCaseCount: projected.omittedCaseCount
+    });
+  }
+  return tablesByRootId;
 }
 
 /** Maps analyzer gap codes onto stable browser-facing reasons. */

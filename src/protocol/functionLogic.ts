@@ -119,6 +119,29 @@ export type FunctionLogicValueFlowPayload = {
 /** Opaque reference to one Host-approved source range in the active snapshot. */
 export type CodeFlowEvidenceToken = `code-evidence:${string}`;
 
+/** One displayed predicate outcome in a bounded short-circuit condition case. */
+export type FunctionLogicConditionCaseValuePayload = "true" | "false" | "skipped";
+
+/** One complete, selectable short-circuit evaluation path for a condition. */
+export type FunctionLogicConditionCaseRowPayload = {
+  id: string;
+  values: FunctionLogicConditionCaseValuePayload[];
+  result: "true" | "false";
+  /** Opaque decision-edge IDs that jointly describe this evaluation path. */
+  choiceEdgeIds: string[];
+  /** Opaque first non-condition target reached by this evaluation path. */
+  targetBlockId: string;
+  targetLabel: string;
+};
+
+/** Bounded truth-table-style view of a parser-proven short-circuit condition group. */
+export type FunctionLogicConditionTablePayload = {
+  expression: string;
+  columns: Array<{ blockId: string; expression: string }>;
+  rows: FunctionLogicConditionCaseRowPayload[];
+  omittedCaseCount: number;
+};
+
 /** One concrete called, rendered, or event-handler definition available as another flow. */
 export type FunctionLogicDrillTargetPayload = {
   sourceToken: SourceNodeToken;
@@ -144,6 +167,8 @@ export type FunctionLogicBlockPayload = {
   confidence: FunctionLogicPayloadConfidence;
   sourceLocation?: string;
   evidenceToken?: CodeFlowEvidenceToken;
+  /** Present only on the root block of a bounded grouped boolean condition. */
+  conditionTable?: FunctionLogicConditionTablePayload;
   drillTargets?: FunctionLogicDrillTargetPayload[];
   valueChanges?: FunctionLogicValueChangePayload[];
   valueAccesses?: FunctionLogicValueAccessPayload[];

@@ -134,6 +134,47 @@ test("projects complete graph-box text and sizes its node for wrapped content", 
   assert.ok(mutationLayout.height > entryLayout.height);
 });
 
+test("projects grouped short-circuit cases with opaque selectable graph identities", () => {
+  const filePath = "/workspace/src/guards.ts";
+  const node = createHandlerNode(filePath);
+  const graph = createGraph({ files: [filePath], callables: [node] });
+  const analysis = analyzeFunctionLogic({
+    functionNode: node,
+    sourceText: [
+      "export function handler(a: boolean, b: boolean, c: boolean) {",
+      "  if (a && (b || c)) return true;",
+      "  return false;",
+      "}"
+    ].join("\n")
+  });
+  const detail = createFunctionLogicCodeFlowDetail(
+    graph,
+    createFlowIndex(graph.version, []),
+    node,
+    analysis,
+    "sidebar-snapshot:logic:condition-cases",
+    (path, range) => `code-evidence:${createContentHash(`${path}:${range.startLine}`)}` as CodeFlowEvidenceToken,
+    (nodeId) => `source-node:${createContentHash(nodeId)}` as SourceNodeToken
+  );
+  const condition = detail.logic?.blocks.find((block) => block.conditionTable);
+  const table = condition?.conditionTable;
+
+  assert.ok(table);
+  assert.equal(table.expression, "a && (b || c)");
+  assert.deepEqual(table.columns.map((column) => column.expression), ["a", "b", "c"]);
+  assert.equal(table.rows.length, 4);
+  assert.ok(table.rows.some((row) =>
+    row.values.join(",") === "false,skipped,skipped" && row.result === "false"
+  ));
+  assert.ok(table.rows.every((row) =>
+    /^function-logic-condition-case:[0-9a-f]{32}$/u.test(row.id)
+      && /^function-logic-block:[0-9a-f]{32}$/u.test(row.targetBlockId)
+      && row.choiceEdgeIds.every((id) => /^function-logic-edge:[0-9a-f]{32}$/u.test(id))
+      && row.targetLabel.length > 0
+  ));
+  assert.equal(JSON.stringify(table).includes(analysis.blocks[0]?.id ?? "missing"), false);
+});
+
 test("preserves source-authored code lines through projection and layout", () => {
   const filePath = "/workspace/src/orders.ts";
   const node = createHandlerNode(filePath);

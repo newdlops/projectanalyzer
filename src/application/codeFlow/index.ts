@@ -12,6 +12,18 @@ export {
 } from "./codeFlowFunctionLogicProjection";
 export { createFunctionLogicGraphLayout } from "./functionLogicGraphLayout";
 export {
+  createFunctionLogicConditionCaseProjection
+} from "./conditionCases";
+export type {
+  FunctionLogicConditionCaseBlock,
+  FunctionLogicConditionCaseColumn,
+  FunctionLogicConditionCaseEdge,
+  FunctionLogicConditionCaseProjection,
+  FunctionLogicConditionCaseProjectionOptions,
+  FunctionLogicConditionCaseRow,
+  FunctionLogicConditionCaseValue
+} from "./conditionCases";
+export {
   FUNCTION_LOGIC_DEFAULT_CALLEE_LIMIT,
   createFunctionLogicDrillTargets,
   type FunctionLogicDrillProjection,
