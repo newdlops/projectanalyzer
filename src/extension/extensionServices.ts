@@ -16,6 +16,7 @@ import { RustAnalyzerBackend } from "../analyzer/rust/rustAnalyzerBackend";
 import { createProjectAnalyzerLogger } from "../observability/logger";
 import { FileAnalysisCacheStore, MemoryAnalysisCacheStore, type AnalysisCacheStore } from "../storage/cacheStore";
 import { readProjectAnalyzerConfig } from "../vscode/configuration";
+import { SourceHighlightService } from "../vscode/sourceHighlightService";
 import { createWorkspaceAnalysisCacheKey } from "../vscode/workspaceFingerprint";
 import { VsCodeWorkspaceFileSystem } from "../vscode/workspaceFileSystem";
 import { ExplorerGraphPanelProvider } from "../webview/explorerGraphPanelProvider";
@@ -33,6 +34,7 @@ export type ExtensionServices = {
   explorerViewProvider: ExplorerViewProvider;
   functionVisualizerPanelProvider: FunctionVisualizerPanelProvider;
   moduleVisualizerPanelProvider: ModuleVisualizerPanelProvider;
+  sourceHighlighter: SourceHighlightService;
   workspaceGraphCoordinator: WorkspaceGraphCoordinator;
 };
 
@@ -42,6 +44,8 @@ export type ExtensionServices = {
 export function createExtensionServices(context: vscode.ExtensionContext): ExtensionServices {
   const logger = createProjectAnalyzerLogger(context);
   const config = readProjectAnalyzerConfig();
+  const sourceHighlighter = new SourceHighlightService();
+  context.subscriptions.push(sourceHighlighter);
   const fileSystem = new VsCodeWorkspaceFileSystem(config);
   const storageDirectory = context.storageUri?.fsPath ?? context.globalStorageUri.fsPath;
   const cacheStore = config.cache.enabled
@@ -67,11 +71,13 @@ export function createExtensionServices(context: vscode.ExtensionContext): Exten
     context,
     cacheStore,
     config,
-    logger
+    logger,
+    sourceHighlighter
   });
   const functionVisualizerPanelProvider = new FunctionVisualizerPanelProvider({
     config,
-    logger
+    logger,
+    sourceHighlighter
   });
   const workspaceGraphCoordinator = new WorkspaceGraphCoordinator({
     analyzer,
@@ -82,7 +88,8 @@ export function createExtensionServices(context: vscode.ExtensionContext): Exten
     getWorkspaceRoot: () => vscode.workspace.workspaceFolders?.[0]?.uri.fsPath
   });
   const moduleVisualizerPanelProvider = new ModuleVisualizerPanelProvider({
-    logger
+    logger,
+    sourceHighlighter
   });
   context.subscriptions.push(moduleVisualizerPanelProvider);
   const explorerViewProvider = new ExplorerViewProvider({
@@ -97,6 +104,7 @@ export function createExtensionServices(context: vscode.ExtensionContext): Exten
       moduleVisualizerPanelProvider,
       workspaceGraphCoordinator
     }),
+    sourceHighlighter,
     workspaceGraphCoordinator
   });
 
@@ -107,6 +115,7 @@ export function createExtensionServices(context: vscode.ExtensionContext): Exten
     explorerViewProvider,
     functionVisualizerPanelProvider,
     moduleVisualizerPanelProvider,
+    sourceHighlighter,
     workspaceGraphCoordinator
   };
 }

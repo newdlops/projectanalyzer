@@ -24,6 +24,7 @@ import { createContentHash } from "../shared/hash";
 import type { ProjectGraph } from "../shared/types";
 import type { AnalysisCacheScope, AnalysisCacheStore } from "../storage/cacheStore";
 import type { ProjectAnalyzerConfig } from "../vscode/configuration";
+import type { SourceHighlighter } from "../vscode/sourceHighlightService";
 import {
   createCurrentFileAnalysisCacheKey
 } from "../vscode/workspaceFingerprint";
@@ -43,8 +44,6 @@ import { SourceNodeTokenRegistry } from "./sourceNavigation";
 import {
   createNonce,
   exportGraphToJson,
-  openNodeInEditor,
-  openSourceLocationInEditor,
   readSourceText
 } from "./webviewHostActions";
 import {
@@ -62,6 +61,7 @@ export type ExplorerViewProviderDependencies = {
   graphPanelProvider: ExplorerGraphPanelProvider;
   logger: ProjectAnalyzerLogger;
   openModuleFlow: () => Promise<ModuleFlowLaunchResultPayload>;
+  sourceHighlighter: SourceHighlighter;
   workspaceGraphCoordinator: WorkspaceGraphCoordinator;
 };
 
@@ -105,7 +105,8 @@ export class ExplorerViewProvider implements vscode.WebviewViewProvider {
       logger: dependencies.logger,
       projectionOptions: dependencies.config.codeFlow,
       readSourceText,
-      openEvidenceLocation: ({ filePath, range }) => openSourceLocationInEditor(filePath, range),
+      openEvidenceLocation: ({ filePath, range }) =>
+        dependencies.sourceHighlighter.revealRange(filePath, range),
       postMessage: (message) => this.postMessage(message)
     });
   }
@@ -598,7 +599,7 @@ export class ExplorerViewProvider implements vscode.WebviewViewProvider {
   private async openSourceNode(nodeId: string): Promise<void> {
     const node = this.sourceNodeTokens.resolve(nodeId);
     if (node) {
-      await openNodeInEditor(node);
+      await this.dependencies.sourceHighlighter.revealNode(node);
       return;
     }
     await this.postStatus("idle", "Node is not available");

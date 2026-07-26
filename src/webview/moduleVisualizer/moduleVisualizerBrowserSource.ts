@@ -434,6 +434,9 @@ export function getModuleVisualizerBrowserSource(): string {
       state.selectedEdgeId = undefined;
       if (node.kind === "function") {
         renderFunctionDetail(node);
+        if (node.sourceToken) {
+          requestOpenSource({ kind: "node", sourceToken: node.sourceToken });
+        }
         toggleFunctionLogic(node);
         return;
       }

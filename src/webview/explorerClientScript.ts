@@ -367,15 +367,16 @@ export function getExplorerClientScript(options: ExplorerClientScriptOptions): s
 
       if (hitNode) {
         selectAndToggleNode(hitNode.id);
+        if (!isVirtualNodeId(hitNode.id)) {
+          vscode.postMessage({ type: "node/openSource", payload: { nodeId: hitNode.id } });
+        }
       }
     }
 
     function handleGraphDoubleClick(event) {
-      const hitNode = graphRenderer.hitTestNode(getCanvasPoint(event), state.viewport);
-
-      if (hitNode && !isVirtualNodeId(hitNode.id)) {
-        vscode.postMessage({ type: "node/openSource", payload: { nodeId: hitNode.id } });
-      }
+      // Source navigation occurs on the first click. Retain this handler only
+      // to prevent an accidental browser double-click from selecting text.
+      event.preventDefault();
     }
 
     function handleGraphKeyDown(event) {

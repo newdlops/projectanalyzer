@@ -11,6 +11,7 @@ import { validateWebviewRequest } from "../../protocol/webviewRequestValidation"
 import type { ProjectAnalyzerLogger } from "../../observability/logger";
 import type { ProjectGraph, SymbolNode } from "../../shared/types";
 import type { ProjectAnalyzerConfig } from "../../vscode/configuration";
+import type { SourceHighlighter } from "../../vscode/sourceHighlightService";
 import {
   CodeFlowEvidenceTokenRegistry,
   CodeFlowHostDelivery
@@ -19,7 +20,6 @@ import { WebviewGraphDelivery } from "../sidebarGraphDelivery";
 import { SourceNodeTokenRegistry } from "../sourceNavigation";
 import {
   createNonce,
-  openSourceLocationInEditor,
   readSourceText
 } from "../webviewHostActions";
 import { getFunctionVisualizerHtml } from "./functionVisualizerHtml";
@@ -28,6 +28,7 @@ import { getFunctionVisualizerHtml } from "./functionVisualizerHtml";
 export type FunctionVisualizerPanelProviderDependencies = {
   config: ProjectAnalyzerConfig;
   logger: ProjectAnalyzerLogger;
+  sourceHighlighter: SourceHighlighter;
 };
 
 /** One latest-wins root visualization waiting for a ready Webview. */
@@ -77,7 +78,8 @@ export class FunctionVisualizerPanelProvider {
       logger: dependencies.logger,
       projectionOptions: dependencies.config.codeFlow,
       readSourceText,
-      openEvidenceLocation: ({ filePath, range }) => openSourceLocationInEditor(filePath, range),
+      openEvidenceLocation: ({ filePath, range }) =>
+        dependencies.sourceHighlighter.revealRange(filePath, range),
       postMessage: (message) => this.postMessage(message)
     });
   }

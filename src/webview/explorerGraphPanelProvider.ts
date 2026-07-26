@@ -19,6 +19,7 @@ import type { ProjectAnalyzerLogger } from "../observability/logger";
 import type { ProjectGraph } from "../shared/types";
 import type { AnalysisCacheStore } from "../storage/cacheStore";
 import type { ProjectAnalyzerConfig } from "../vscode/configuration";
+import type { SourceHighlighter } from "../vscode/sourceHighlightService";
 import {
   GraphPanelPayloadDelivery,
   normalizeGraphPanelNodeBudget
@@ -29,8 +30,7 @@ import {
   createNonce,
   exportGraphToJson,
   formatCount,
-  getNodeDisplayName,
-  openNodeInEditor
+  getNodeDisplayName
 } from "./webviewHostActions";
 
 /** Dependencies required by the graph browser panel provider. */
@@ -39,6 +39,7 @@ export type ExplorerGraphPanelProviderDependencies = {
   cacheStore: AnalysisCacheStore;
   config: ProjectAnalyzerConfig;
   logger: ProjectAnalyzerLogger;
+  sourceHighlighter: SourceHighlighter;
 };
 
 /**
@@ -310,7 +311,7 @@ export class ExplorerGraphPanelProvider {
       return;
     }
 
-    await openNodeInEditor(node);
+    await this.dependencies.sourceHighlighter.revealNode(node);
   }
 
   /**

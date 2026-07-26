@@ -20,12 +20,11 @@ import type { ExtensionResponse, WebviewRequest } from "../../protocol/messages"
 import { validateWebviewRequest } from "../../protocol/webviewRequestValidation";
 import type { ProjectAnalyzerLogger } from "../../observability/logger";
 import type { ProjectGraph } from "../../shared/types";
+import type { SourceHighlighter } from "../../vscode/sourceHighlightService";
 import { WebviewGraphDelivery } from "../sidebarGraphDelivery";
 import { SourceNodeTokenRegistry } from "../sourceNavigation";
 import {
   createNonce,
-  openNodeInEditor,
-  openSourceLocationInEditor,
   readSourceText
 } from "../webviewHostActions";
 import { CodeFlowEvidenceTokenRegistry } from "../codeFlow";
@@ -36,6 +35,7 @@ import { getModuleVisualizerHtml } from "./moduleVisualizerHtml";
 /** Host actions injected by the extension composition root. */
 export type ModuleVisualizerPanelProviderDependencies = {
   logger: ProjectAnalyzerLogger;
+  sourceHighlighter: SourceHighlighter;
 };
 
 /** Creates and synchronizes one reusable project Module Flow editor tab. */
@@ -322,7 +322,7 @@ export class ModuleVisualizerPanelProvider implements vscode.Disposable {
           );
           return;
         }
-        await openSourceLocationInEditor(location.filePath, location.range);
+        await this.dependencies.sourceHighlighter.revealRange(location.filePath, location.range);
         return;
       }
       if (request.target.kind === "evidence") {
@@ -336,7 +336,7 @@ export class ModuleVisualizerPanelProvider implements vscode.Disposable {
           );
           return;
         }
-        await openSourceLocationInEditor(location.filePath, location.range);
+        await this.dependencies.sourceHighlighter.revealRange(location.filePath, location.range);
         return;
       }
 
@@ -351,7 +351,7 @@ export class ModuleVisualizerPanelProvider implements vscode.Disposable {
         );
         return;
       }
-      await openNodeInEditor(node);
+      await this.dependencies.sourceHighlighter.revealNode(node);
     } catch (error) {
       await this.publishFailure(request, "openSource", "projectionFailed", formatError(error));
     }
