@@ -150,6 +150,71 @@ export function getFunctionLogicInspectorStyles(): string {
       border-radius: 0;
     }
 
+    .logic-condition-cases {
+      display: grid;
+      gap: 6px;
+      margin: 10px 0;
+      padding: 9px;
+      border: 1px solid var(--vscode-panel-border);
+      border-radius: 5px;
+      background: color-mix(in srgb, var(--vscode-editor-background) 88%, var(--vscode-textBlockQuote-background));
+    }
+
+    .logic-condition-expression {
+      display: block;
+      color: var(--vscode-textPreformat-foreground);
+      font-family: var(--vscode-editor-font-family);
+      font-size: var(--logic-code-small);
+      overflow-wrap: anywhere;
+    }
+
+    .logic-condition-case-table {
+      display: grid;
+      gap: 3px;
+      overflow-x: auto;
+    }
+
+    .logic-condition-case-row {
+      display: grid;
+      grid-template-columns: repeat(var(--logic-condition-columns, 3), minmax(46px, 1fr)) minmax(52px, .8fr) minmax(92px, 1.4fr);
+      min-width: max-content;
+      padding: 0;
+      color: var(--vscode-foreground);
+      background: transparent;
+      border: 1px solid transparent;
+      border-radius: 3px;
+      text-align: left;
+      font: inherit;
+    }
+
+    button.logic-condition-case-row { cursor: pointer; }
+    button.logic-condition-case-row:hover { background: var(--vscode-list-hoverBackground); }
+    button.logic-condition-case-row.selected {
+      border-color: var(--vscode-focusBorder);
+      background: color-mix(in srgb, var(--vscode-list-activeSelectionBackground) 62%, transparent);
+    }
+    button.logic-condition-case-row:focus-visible {
+      outline: 1px solid var(--vscode-focusBorder);
+      outline-offset: 1px;
+    }
+    .logic-condition-case-row > span {
+      min-width: 0;
+      padding: 4px 5px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .logic-condition-case-header {
+      color: var(--vscode-descriptionForeground);
+      font-size: var(--logic-font-tiny);
+      font-weight: 700;
+    }
+    .logic-condition-case-omitted {
+      margin: 0;
+      color: var(--vscode-descriptionForeground);
+      font-size: var(--logic-font-small);
+    }
+
     .logic-inspector-scroll > .logic-signature,
     .logic-inspector-scroll > .logic-understanding,
     .logic-inspector-scroll > .logic-callees,

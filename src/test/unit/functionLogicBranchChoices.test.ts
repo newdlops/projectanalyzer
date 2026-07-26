@@ -11,6 +11,7 @@ import {
   getFunctionLogicBranchChoicesBrowserSource,
   pruneFunctionLogicBranchChoices,
   toggleFunctionLogicBranchChoice,
+  toggleFunctionLogicBranchChoiceCase,
   type FunctionLogicBranchChoiceBlock,
   type FunctionLogicBranchChoiceEdge
 } from "../../webview/codeFlow/branchChoices";
@@ -170,14 +171,49 @@ test("toggles a source choice and prunes stale or non-choice identities", () => 
   assert.deepEqual([...pruned], [["decision", "true"]]);
 });
 
+test("applies and clears a complete short-circuit case without disturbing other choices", () => {
+  const edges: FunctionLogicBranchChoiceEdge[] = [
+    edge("enter", "entry", "a", "next"),
+    edge("a-true", "a", "b", "true"),
+    edge("a-false", "a", "deny", "false"),
+    edge("b-true", "b", "allow", "true"),
+    edge("b-false", "b", "deny", "false"),
+    edge("unrelated-true", "unrelated", "allow", "true")
+  ];
+  const retained = new Map([["unrelated", "unrelated-true"]]);
+  const selected = toggleFunctionLogicBranchChoiceCase(
+    retained,
+    edges,
+    ["a-true", "b-false"]
+  );
+  const cleared = toggleFunctionLogicBranchChoiceCase(
+    selected,
+    edges,
+    ["a-true", "b-false"]
+  );
+
+  assert.deepEqual([...selected], [
+    ["unrelated", "unrelated-true"],
+    ["a", "a-true"],
+    ["b", "b-false"]
+  ]);
+  assert.deepEqual([...cleared], [["unrelated", "unrelated-true"]]);
+  assert.deepEqual(
+    [...toggleFunctionLogicBranchChoiceCase(retained, edges, ["a-true", "missing"])],
+    [...retained]
+  );
+});
+
 test("exports identical branch reachability into the Webview runtime", () => {
   const source = getFunctionLogicBranchChoicesBrowserSource();
   const browser = new Function(`${source}\nreturn {
     createFunctionLogicBranchChoiceProjection,
-    toggleFunctionLogicBranchChoice
+    toggleFunctionLogicBranchChoice,
+    toggleFunctionLogicBranchChoiceCase
   };`)() as {
     createFunctionLogicBranchChoiceProjection: typeof createFunctionLogicBranchChoiceProjection;
     toggleFunctionLogicBranchChoice: typeof toggleFunctionLogicBranchChoice;
+    toggleFunctionLogicBranchChoiceCase: typeof toggleFunctionLogicBranchChoiceCase;
   };
   const choices = new Map([["decision", "false"]]);
   const host = createFunctionLogicBranchChoiceProjection(
@@ -196,6 +232,10 @@ test("exports identical branch reachability into the Webview runtime", () => {
   assert.deepEqual(
     [...browser.toggleFunctionLogicBranchChoice(choices, diamondEdges[2])],
     []
+  );
+  assert.deepEqual(
+    [...browser.toggleFunctionLogicBranchChoiceCase(new Map(), diamondEdges, ["true"])],
+    [["decision", "true"]]
   );
 });
 

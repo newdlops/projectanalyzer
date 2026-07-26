@@ -19,6 +19,7 @@ export function getFunctionLogicSelectionBrowserSource(): string {
       moveFocus,
       graphContext,
       onBranchChoice,
+      onConditionCase,
       branchChoices
     ) {
       const selected = blocksById.get(blockId);
@@ -48,6 +49,7 @@ export function getFunctionLogicSelectionBrowserSource(): string {
         inspector.selectionPanel,
         graphContext,
         onBranchChoice,
+        onConditionCase,
         branchChoices
       );
       inspector.setSelection(selected);
@@ -65,6 +67,7 @@ export function getFunctionLogicSelectionBrowserSource(): string {
       panel,
       graphContext,
       onBranchChoice,
+      onConditionCase,
       branchChoices
     ) {
       clearElement(panel);
@@ -87,6 +90,14 @@ export function getFunctionLogicSelectionBrowserSource(): string {
         () => onBranchChoice(undefined)
       );
       if (choiceSummary) panel.append(choiceSummary);
+
+      if (block.conditionTable) {
+        panel.append(createFunctionLogicConditionCaseTable(
+          block.conditionTable,
+          branchChoices,
+          (row) => onConditionCase(row, block.id)
+        ));
+      }
 
       if (block.valueChanges && block.valueChanges.length > 0) {
         const changes = document.createElement("div");
@@ -162,6 +173,61 @@ export function getFunctionLogicSelectionBrowserSource(): string {
         source.addEventListener("click", () => openLogicEvidence(block.evidenceToken));
         panel.append(source);
       }
+    }
+
+    /** Renders a bounded, static short-circuit case table for one root condition. */
+    function createFunctionLogicConditionCaseTable(table, choices, onConditionCase) {
+      const section = document.createElement("section");
+      const heading = document.createElement("strong");
+      const expression = document.createElement("code");
+      const matrix = document.createElement("div");
+      section.className = "logic-condition-cases";
+      heading.textContent = "Condition cases";
+      expression.className = "logic-condition-expression";
+      expression.textContent = table.expression;
+      matrix.className = "logic-condition-case-table";
+      matrix.style.setProperty("--logic-condition-columns", String(table.columns.length));
+      const header = document.createElement("div");
+      header.className = "logic-condition-case-row logic-condition-case-header";
+      for (const column of table.columns) {
+        const cell = document.createElement("span");
+        cell.textContent = column.expression;
+        cell.title = column.expression;
+        header.append(cell);
+      }
+      header.append(createConditionCaseCell("Result"), createConditionCaseCell("Next"));
+      matrix.append(header);
+      for (const row of table.rows) {
+        const button = document.createElement("button");
+        const selected = row.choiceEdgeIds.every((edgeId) =>
+          [...choices.values()].includes(edgeId)
+        );
+        button.type = "button";
+        button.className = "logic-condition-case-row" + (selected ? " selected" : "");
+        button.title = (selected ? "Clear" : "Apply") + " condition case · " + table.expression;
+        button.setAttribute("aria-pressed", selected ? "true" : "false");
+        for (const value of row.values) {
+          button.append(createConditionCaseCell(value === "skipped" ? "—" : value));
+        }
+        button.append(createConditionCaseCell(row.result), createConditionCaseCell(row.targetLabel));
+        button.addEventListener("click", () => onConditionCase(row));
+        matrix.append(button);
+      }
+      section.append(heading, expression, matrix);
+      if (table.omittedCaseCount > 0) {
+        const omitted = document.createElement("p");
+        omitted.className = "logic-condition-case-omitted";
+        omitted.textContent = table.omittedCaseCount + " additional cases are hidden.";
+        section.append(omitted);
+      }
+      return section;
+    }
+
+    /** Creates one bounded table cell without interpreting source expressions as HTML. */
+    function createConditionCaseCell(text) {
+      const cell = document.createElement("span");
+      cell.textContent = text;
+      return cell;
     }
   `;
 }

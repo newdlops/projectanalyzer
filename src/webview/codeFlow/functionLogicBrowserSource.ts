@@ -126,6 +126,37 @@ export function getFunctionLogicBrowserSource(): string {
           false,
           graphContext,
           applyBranchChoice,
+          applyConditionCase,
+          branchChoices
+        );
+      };
+      /** Applies one table row's short-circuit decisions as a coherent scenario. */
+      const applyConditionCase = (row, sourceBlockId) => {
+        branchChoices = toggleFunctionLogicBranchChoiceCaseSession(
+          choiceSessionKey,
+          logic.edges,
+          row.choiceEdgeIds
+        );
+        applyFunctionLogicBranchChoicePresentation(
+          logic.blocks,
+          logic.edges,
+          branchChoices,
+          nodeButtonsById,
+          edgeRendering.elementsById
+        );
+        if (valueFlowRendering) valueFlowRendering.refresh();
+        selectLogicGraphNode(
+          sourceBlockId || row.targetBlockId,
+          nodeButtonsById,
+          blocksById,
+          outgoingBySourceId,
+          connectedEdgeIdsByBlockId,
+          edgeRendering.elementsById,
+          inspector,
+          false,
+          graphContext,
+          applyBranchChoice,
+          applyConditionCase,
           branchChoices
         );
       };
@@ -218,10 +249,14 @@ export function getFunctionLogicBrowserSource(): string {
             true,
             graphContext,
             applyBranchChoice,
+            applyConditionCase,
             branchChoices
           );
           if (compoundOwnerIds.has(block.id)) {
             bodyFocusController.focus(block.id);
+          }
+          if (block.evidenceToken) {
+            openLogicEvidence(block.evidenceToken);
           }
           if (block.drillTargets && block.drillTargets.length > 0
             && graphContext && graphContext.onExpandableBlockClick) {
@@ -275,6 +310,7 @@ export function getFunctionLogicBrowserSource(): string {
         false,
         graphContext,
         applyBranchChoice,
+        applyConditionCase,
         branchChoices
       );
       return {

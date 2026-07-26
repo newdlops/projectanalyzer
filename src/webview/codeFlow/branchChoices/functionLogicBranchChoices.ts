@@ -68,6 +68,38 @@ export function toggleFunctionLogicBranchChoice(
 }
 
 /**
+ * Applies every decision edge belonging to one parser-proven condition case.
+ * Re-applying the fully active case clears only those same decision sources,
+ * preserving independent choices elsewhere in the function graph.
+ */
+export function toggleFunctionLogicBranchChoiceCase(
+  choices: ReadonlyMap<string, string>,
+  edges: readonly FunctionLogicBranchChoiceEdge[],
+  choiceEdgeIds: readonly string[]
+): Map<string, string> {
+  const edgesById = new Map(edges
+    .filter(isFunctionLogicBranchChoiceEdge)
+    .map((edge) => [edge.id, edge]));
+  const caseEdges = choiceEdgeIds.flatMap((edgeId) => {
+    const edge = edgesById.get(edgeId);
+    return edge ? [edge] : [];
+  });
+  if (caseEdges.length === 0 || caseEdges.length !== choiceEdgeIds.length) {
+    return new Map(choices);
+  }
+  const active = caseEdges.every((edge) => choices.get(edge.sourceId) === edge.id);
+  const next = new Map(choices);
+  for (const edge of caseEdges) {
+    if (active) {
+      next.delete(edge.sourceId);
+    } else {
+      next.set(edge.sourceId, edge.id);
+    }
+  }
+  return next;
+}
+
+/**
  * Walks from every real graph root while honoring selected branch edges.
  * Multiple choices compose, shared merge continuations stay reachable, and a
  * minimum-depth visited map terminates loops within an explicit depth bound.
@@ -152,6 +184,7 @@ export function getFunctionLogicBranchChoicesBrowserSource(): string {
     isFunctionLogicBranchChoiceEdge,
     pruneFunctionLogicBranchChoices,
     toggleFunctionLogicBranchChoice,
+    toggleFunctionLogicBranchChoiceCase,
     createFunctionLogicBranchChoiceProjection
   ].map((value) => value.toString()).join("\n");
   return `${pureSource}
@@ -175,6 +208,17 @@ export function getFunctionLogicBranchChoicesBrowserSource(): string {
     function toggleFunctionLogicBranchChoiceSession(sessionKey, edges, edge) {
       const choices = readFunctionLogicBranchChoices(sessionKey, edges);
       functionLogicBranchChoices = toggleFunctionLogicBranchChoice(choices, edge);
+      return functionLogicBranchChoices;
+    }
+
+    /** Applies a whole short-circuit table row as one coherent graph scenario. */
+    function toggleFunctionLogicBranchChoiceCaseSession(sessionKey, edges, choiceEdgeIds) {
+      const choices = readFunctionLogicBranchChoices(sessionKey, edges);
+      functionLogicBranchChoices = toggleFunctionLogicBranchChoiceCase(
+        choices,
+        edges,
+        choiceEdgeIds
+      );
       return functionLogicBranchChoices;
     }
 

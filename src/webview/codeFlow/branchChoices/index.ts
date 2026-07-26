@@ -6,6 +6,7 @@ export {
   isFunctionLogicBranchChoiceEdge,
   pruneFunctionLogicBranchChoices,
   toggleFunctionLogicBranchChoice,
+  toggleFunctionLogicBranchChoiceCase,
   type FunctionLogicBranchChoiceBlock,
   type FunctionLogicBranchChoiceEdge,
   type FunctionLogicBranchChoiceProjection
