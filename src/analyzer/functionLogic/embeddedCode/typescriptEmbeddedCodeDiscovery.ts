@@ -16,6 +16,7 @@ import type {
   TypeScriptEmbeddedCodeMode,
   TypeScriptEmbeddedCodeRequest
 } from "./types";
+import type { TypeScriptEmbeddedCodeResolver } from "./typescriptEmbeddedCodeResolver";
 
 /** Hard bounds prevent generated strings from turning discovery into a parser sink. */
 export const MAX_EMBEDDED_CODE_CHARACTERS = 24_000;
@@ -34,6 +35,8 @@ type StaticText = {
   text: string;
   evidenceNode: ts.Expression;
   exactCodeTag: boolean;
+  range?: ReturnType<typeof toSourceRange>;
+  fromConstant?: { name: string; declarationRange: ReturnType<typeof toSourceRange> };
 };
 
 type DirectValueTarget = {
@@ -47,6 +50,7 @@ export function discoverTypeScriptEmbeddedCode(input: {
   scriptKind: ts.ScriptKind;
   anchorBlockId: string;
   root: ts.Node;
+  resolver?: TypeScriptEmbeddedCodeResolver;
 }): TypeScriptEmbeddedCodeDiscovery {
   const requests: TypeScriptEmbeddedCodeRequest[] = [];
   const consumedTextRanges = new Set<string>();
@@ -59,7 +63,7 @@ export function discoverTypeScriptEmbeddedCode(input: {
     if (node !== input.root && isFunctionLikeWithBody(node)) continue;
 
     if (ts.isCallExpression(node) || ts.isNewExpression(node)) {
-      const candidate = readKnownCodeConsumer(input.sourceFile, node);
+      const candidate = readKnownCodeConsumer(input.sourceFile, node, input.resolver);
       if (candidate.kind === "static") {
         requests.push(createRequest(
           input.sourceFile,
@@ -68,7 +72,10 @@ export function discoverTypeScriptEmbeddedCode(input: {
           candidate.consumer,
           candidate.mode,
           "exact",
-          candidate.parameterSource
+          candidate.parameterSource,
+          node,
+          candidate.executionScope,
+          candidate.parseGoal
         ));
         consumedTextRanges.add(nodeRangeKey(candidate.text.evidenceNode, input.sourceFile));
       } else if (candidate.kind === "dynamic") {
@@ -88,6 +95,9 @@ export function discoverTypeScriptEmbeddedCode(input: {
       || consumedTextRanges.has(nodeRangeKey(staticText.evidenceNode, input.sourceFile))) {
       continue;
     }
+    if (target.nameHint && input.resolver?.isConsumedConstant(normalizeText(target.nameHint))) {
+      continue;
+    }
     const hinted = Boolean(target.nameHint && CODE_NAME_PATTERN.test(target.nameHint));
     if (!staticText.exactCodeTag
       && !isStrongCodeProgram(staticText.text, input.scriptKind, hinted)) {
@@ -99,7 +109,11 @@ export function discoverTypeScriptEmbeddedCode(input: {
       staticText,
       staticText.exactCodeTag ? "code-tagged text" : "stored code text",
       "stored",
-      staticText.exactCodeTag ? "exact" : "inferred"
+      staticText.exactCodeTag ? "exact" : "inferred",
+      undefined,
+      target.expression,
+      "not-executed",
+      "script"
     ));
   }
 
@@ -121,31 +135,42 @@ function createRequest(
   consumer: string,
   mode: TypeScriptEmbeddedCodeMode,
   confidence: FunctionLogicConfidence,
-  parameterSource?: string
+  parameterSource: string | undefined,
+  invocationNode: ts.Node,
+  executionScope: TypeScriptEmbeddedCodeRequest["executionScope"],
+  parseGoal: TypeScriptEmbeddedCodeRequest["parseGoal"]
 ): TypeScriptEmbeddedCodeRequest {
-  const range = toSourceRange(sourceFile, staticText.evidenceNode);
+  const codeRange = staticText.range ?? toSourceRange(sourceFile, staticText.evidenceNode);
+  const invocationRange = toSourceRange(sourceFile, invocationNode);
   return {
     anchorBlockId,
     code: staticText.text,
     ...(parameterSource ? { parameterSource } : {}),
     consumer,
     mode,
+    executionScope,
+    parseGoal,
     confidence,
-    range,
-    sourceOrder: staticText.evidenceNode.getStart(sourceFile)
+    invocationRange,
+    codeRange,
+    range: codeRange,
+    sourceOrder: invocationNode.getStart(sourceFile)
   };
 }
 
 /** Recognizes only APIs whose documented argument is executable JavaScript text. */
 function readKnownCodeConsumer(
   sourceFile: ts.SourceFile,
-  node: ts.CallExpression | ts.NewExpression
+  node: ts.CallExpression | ts.NewExpression,
+  resolver?: TypeScriptEmbeddedCodeResolver
 ):
   | {
       kind: "static";
       text: StaticText;
       consumer: string;
       mode: TypeScriptEmbeddedCodeMode;
+      executionScope: TypeScriptEmbeddedCodeRequest["executionScope"];
+      parseGoal: TypeScriptEmbeddedCodeRequest["parseGoal"];
       parameterSource?: string;
     }
   | { kind: "dynamic" }
@@ -155,16 +180,26 @@ function readKnownCodeConsumer(
   if (!callee) return { kind: "none" };
 
   if (isGlobalCallee(callee.text, "eval")) {
-    return readSingleCodeArgument(sourceFile, args[0], callee.text, "immediate");
+    if (callee.text === "eval" && resolver?.isBareEvalShadowed()) return { kind: "none" };
+    return readSingleCodeArgument(
+      sourceFile,
+      args[0],
+      callee.text,
+      "immediate",
+      callee.text === "eval" ? "host-lexical" : "global",
+      "script",
+      resolver,
+      node.getStart(sourceFile)
+    );
   }
   if (TIMER_NAMES.has(callee.name) && isGlobalLikeCallee(callee.text, callee.name)) {
-    return readSingleCodeArgument(sourceFile, args[0], callee.text, "deferred");
+    return readSingleCodeArgument(sourceFile, args[0], callee.text, "deferred", "not-executed", "script");
   }
   if (VM_IMMEDIATE_NAMES.has(callee.name) && callee.text.includes(".")) {
-    return readSingleCodeArgument(sourceFile, args[0], callee.text, "immediate");
+    return readSingleCodeArgument(sourceFile, args[0], callee.text, "immediate", "isolated", "script");
   }
   if (callee.name === "compileFunction" && callee.text.includes(".")) {
-    return readSingleCodeArgument(sourceFile, args[0], callee.text, "callable");
+    return readSingleCodeArgument(sourceFile, args[0], callee.text, "callable", "not-executed", "function-body");
   }
   if (isGlobalCallee(callee.text, "Function")) {
     if (args.length === 0) return { kind: "none" };
@@ -178,6 +213,8 @@ function readKnownCodeConsumer(
       text: body,
       consumer: callee.text,
       mode: "callable",
+      executionScope: "not-executed",
+      parseGoal: "function-body",
       ...(staticValues.length > 1
         ? { parameterSource: staticValues.slice(0, -1).map((value) => value.text).join(",") }
         : {})
@@ -191,12 +228,27 @@ function readSingleCodeArgument(
   sourceFile: ts.SourceFile,
   argument: ts.Expression | undefined,
   consumer: string,
-  mode: TypeScriptEmbeddedCodeMode
+  mode: TypeScriptEmbeddedCodeMode,
+  executionScope: TypeScriptEmbeddedCodeRequest["executionScope"],
+  parseGoal: TypeScriptEmbeddedCodeRequest["parseGoal"],
+  resolver?: TypeScriptEmbeddedCodeResolver,
+  invocationStart?: number
 ): ReturnType<typeof readKnownCodeConsumer> {
   if (!argument) return { kind: "none" };
-  const text = readStaticText(sourceFile, argument);
+  const resolved = resolver && invocationStart !== undefined
+    ? resolver.resolve(argument, invocationStart)
+    : undefined;
+  const text = resolved
+    ? {
+        text: resolved.text,
+        evidenceNode: resolved.evidenceNode,
+        exactCodeTag: resolved.exactCodeTag,
+        range: resolved.range,
+        ...(resolved.fromConstant ? { fromConstant: resolved.fromConstant } : {})
+      }
+    : readStaticText(sourceFile, argument);
   return text
-    ? { kind: "static", text, consumer, mode }
+    ? { kind: "static", text, consumer, mode, executionScope, parseGoal }
     : { kind: "dynamic" };
 }
 

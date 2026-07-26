@@ -107,6 +107,8 @@ export type FunctionLogicBlock = {
   depth: number;
   /** Nearest control statement whose body directly owns this statement. */
   parentBlockId?: string;
+  /** Static embedded-code boundary that owns this virtual program member. */
+  embeddedBoundaryId?: string;
   branchLabel?: string;
   confidence: FunctionLogicConfidence;
   /** Present only for source-backed boolean condition predicates. */

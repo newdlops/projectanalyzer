@@ -60,11 +60,16 @@ import { collectTypeScriptExpressionValueChanges } from "./valueChanges";
 import {
   collectTypeScriptFunctionValueFacts,
   createFunctionLogicDataFlowProjection,
+  createFunctionLogicValueFlowsForBindings,
+  type FunctionLogicValueFacts,
   type FunctionLogicDataFlowProjection
 } from "./dataFlow";
 import {
   discoverTypeScriptEmbeddedCode,
   expandTypeScriptEmbeddedCode,
+  createTypeScriptEmbeddedCodeResolver,
+  type TypeScriptEmbeddedCodeExpansion,
+  type TypeScriptEmbeddedHostBinding,
   type TypeScriptEmbeddedCodeRequest
 } from "./embeddedCode";
 
@@ -129,6 +134,7 @@ function buildFunctionLogic(
   const jsxValueRequests: TypeScriptJsxValueFlowRequest[] = [];
   const expressionFlowRequests: TypeScriptExpressionFlowRequest[] = [];
   const embeddedCodeRequests: TypeScriptEmbeddedCodeRequest[] = [];
+  const embeddedCodeResolver = createTypeScriptEmbeddedCodeResolver({ sourceFile, functionNode });
   let dynamicEmbeddedConsumerCount = 0;
   const gaps = createDefaultGaps();
   const callsites = collectFunctionCallsites(sourceFile, graphNode.filePath, functionNode);
@@ -202,7 +208,8 @@ function buildFunctionLogic(
       sourceFile,
       scriptKind: getScriptKind(graphNode.filePath, graphNode.language),
       anchorBlockId: block.id,
-      root: task.node
+      root: task.node,
+      resolver: embeddedCodeResolver
     });
     embeddedCodeRequests.push(...embeddedDiscovery.requests);
     dynamicEmbeddedConsumerCount += embeddedDiscovery.dynamicConsumerCount;
@@ -277,6 +284,7 @@ function buildFunctionLogic(
   if (jsxExpansion.omittedBlockCount > 0) {
     gaps.push(createJsxLimitGap(jsxExpansion.omittedBlockCount, maxBlocks));
   }
+  const hostValueFacts = collectTypeScriptFunctionValueFacts(sourceFile, functionNode);
   const embeddedExpansion = expandTypeScriptEmbeddedCode({
     sourceFile,
     scriptKind: getScriptKind(graphNode.filePath, graphNode.language),
@@ -285,6 +293,7 @@ function buildFunctionLogic(
     edges: jsxExpansion.edges,
     requests: embeddedCodeRequests,
     dynamicConsumerCount: dynamicEmbeddedConsumerCount,
+    hostBindings: createEmbeddedHostBindings(hostValueFacts),
     remainingBlockBudget: Math.max(
       0,
       maxBlocks - Math.max(0, jsxExpansion.blocks.length - 2)
@@ -296,7 +305,8 @@ function buildFunctionLogic(
     functionNode,
     embeddedExpansion.blocks,
     embeddedExpansion.edges,
-    gaps
+    gaps,
+    hostValueFacts
   );
   const combinedCallsites = [...callsites, ...embeddedExpansion.callsites];
 
@@ -307,8 +317,8 @@ function buildFunctionLogic(
     blocks: dataFlow.blocks,
     edges: embeddedExpansion.edges,
     callsites: combinedCallsites,
-    valueBindings: [...dataFlow.valueBindings, ...embeddedExpansion.valueBindings],
-    valueFlows: [...dataFlow.valueFlows, ...embeddedExpansion.valueFlows],
+    valueBindings: deduplicateById([...dataFlow.valueBindings, ...embeddedExpansion.valueBindings]),
+    valueFlows: mergeEmbeddedValueFlows(dataFlow, embeddedExpansion),
     gaps,
     summary: createSummary(dataFlow.blocks, countDirectCallsites(combinedCallsites))
   };
@@ -435,8 +445,10 @@ function finalizeSimpleExpressionAnalysis(
     sourceFile,
     scriptKind: getScriptKind(graphNode.filePath, graphNode.language),
     anchorBlockId: expression.id,
-    root: functionNode.body
+    root: functionNode.body,
+    resolver: createTypeScriptEmbeddedCodeResolver({ sourceFile, functionNode })
   });
+  const hostValueFacts = collectTypeScriptFunctionValueFacts(sourceFile, functionNode);
   const embeddedExpansion = expandTypeScriptEmbeddedCode({
     sourceFile,
     scriptKind: getScriptKind(graphNode.filePath, graphNode.language),
@@ -445,6 +457,7 @@ function finalizeSimpleExpressionAnalysis(
     edges: expansion.edges,
     requests: embeddedDiscovery.requests,
     dynamicConsumerCount: embeddedDiscovery.dynamicConsumerCount,
+    hostBindings: createEmbeddedHostBindings(hostValueFacts),
     remainingBlockBudget: Math.max(
       0,
       maxBlocks - Math.max(0, expansion.blocks.length - 2)
@@ -456,7 +469,8 @@ function finalizeSimpleExpressionAnalysis(
     functionNode,
     embeddedExpansion.blocks,
     embeddedExpansion.edges,
-    gaps
+    gaps,
+    hostValueFacts
   );
   const combinedCallsites = [...callsites, ...embeddedExpansion.callsites];
   return {
@@ -466,8 +480,8 @@ function finalizeSimpleExpressionAnalysis(
     blocks: dataFlow.blocks,
     edges: embeddedExpansion.edges,
     callsites: combinedCallsites,
-    valueBindings: [...dataFlow.valueBindings, ...embeddedExpansion.valueBindings],
-    valueFlows: [...dataFlow.valueFlows, ...embeddedExpansion.valueFlows],
+    valueBindings: deduplicateById([...dataFlow.valueBindings, ...embeddedExpansion.valueBindings]),
+    valueFlows: mergeEmbeddedValueFlows(dataFlow, embeddedExpansion),
     gaps,
     summary: createSummary(dataFlow.blocks, countDirectCallsites(combinedCallsites))
   };
@@ -479,12 +493,13 @@ function createTypeScriptDataFlow(
   functionNode: FunctionLikeWithBody,
   blocks: FunctionLogicBlock[],
   edges: FunctionLogicEdge[],
-  gaps: FunctionLogicGap[]
+  gaps: FunctionLogicGap[],
+  facts = collectTypeScriptFunctionValueFacts(sourceFile, functionNode)
 ): FunctionLogicDataFlowProjection {
   const projection = createFunctionLogicDataFlowProjection(
     blocks,
     edges,
-    collectTypeScriptFunctionValueFacts(sourceFile, functionNode)
+    facts
   );
   const omittedCount = projection.omittedFactCount + projection.omittedFlowCount;
   if (omittedCount > 0) {
@@ -494,6 +509,50 @@ function createTypeScriptDataFlow(
     });
   }
   return projection;
+}
+
+/** Converts analyzer-local host facts into the minimal direct-eval bridge contract. */
+function createEmbeddedHostBindings(
+  facts: FunctionLogicValueFacts
+): TypeScriptEmbeddedHostBinding[] {
+  return facts.bindings.map((binding) => ({
+    id: binding.id,
+    name: binding.name,
+    kind: binding.kind,
+    confidence: binding.confidence,
+    ...(binding.valueRole ? { valueRole: binding.valueRole } : {})
+  }));
+}
+
+/** Replaces affected host flows with paths recomputed across immediate eval blocks. */
+function mergeEmbeddedValueFlows(
+  dataFlow: FunctionLogicDataFlowProjection,
+  expansion: TypeScriptEmbeddedCodeExpansion
+): ReturnType<typeof createFunctionLogicValueFlowsForBindings>["valueFlows"] {
+  if (expansion.hostBindingIds.length === 0) {
+    return deduplicateById([...dataFlow.valueFlows, ...expansion.valueFlows]);
+  }
+  const bindingIds = new Set(expansion.hostBindingIds);
+  const recomputed = createFunctionLogicValueFlowsForBindings({
+    blocks: dataFlow.blocks,
+    edges: expansion.edges,
+    bindingIds
+  });
+  return deduplicateById([
+    ...dataFlow.valueFlows.filter((flow) => !bindingIds.has(flow.bindingId)),
+    ...expansion.valueFlows.filter((flow) => !bindingIds.has(flow.bindingId)),
+    ...recomputed.valueFlows
+  ]);
+}
+
+/** Keeps public payload records stable when host and virtual planners meet. */
+function deduplicateById<T extends { id: string }>(values: readonly T[]): T[] {
+  const seen = new Set<string>();
+  return values.filter((value) => {
+    if (seen.has(value.id)) return false;
+    seen.add(value.id);
+    return true;
+  });
 }
 
 /** Reports shared statement/render truncation without implying an exact total. */

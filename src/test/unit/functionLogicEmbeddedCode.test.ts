@@ -149,6 +149,104 @@ test("joins literal-only concatenation and rejects interpolated code text", () =
   ));
 });
 
+test("resolves const eval text and bridges direct-eval reads and writes to host bindings", () => {
+  const sourceText = [
+    "function evaluateInline(input: number) {",
+    "  let total = input;",
+    "  const code = \"total += 2; if (total > 5) audit(total);\";",
+    "  eval(code);",
+    "  return total;",
+    "}"
+  ].join("\n");
+  const analysis = analyzeSource("evaluateInline", sourceText);
+  const totalBinding = analysis.valueBindings?.find((binding) => binding.name === "total");
+  assert.ok(totalBinding, "host total binding is retained");
+  assert.equal(analysis.blocks.filter((block) => block.kind === "embedded").length, 1);
+  const embeddedAccesses = analysis.blocks.flatMap((block) => block.detail.includes("Embedded text line")
+    ? block.valueAccesses ?? []
+    : []);
+  assert.ok(embeddedAccesses.some((access) =>
+    access.bindingId === totalBinding.id && access.access === "readwrite"
+  ));
+  assert.ok(analysis.valueFlows?.some((flow) =>
+    flow.bindingId === totalBinding.id
+      && analysis.blocks.find((block) => block.id === flow.targetBlockId)?.detail.includes("Embedded text line")
+  ));
+  assert.equal(analysis.gaps.some((gap) => gap.message.includes("runtime-built text")), false);
+});
+
+test("does not treat a shadowed eval parameter as an embedded-code consumer", () => {
+  const sourceText = [
+    "function shadowed(eval: (code: string) => void) {",
+    "  eval(\"audit('not global eval')\");",
+    "}"
+  ].join("\n");
+  const analysis = analyzeSource("shadowed", sourceText);
+  assert.equal(analysis.blocks.some((block) => block.kind === "embedded"), false);
+  assert.equal(analysis.gaps.some((gap) => gap.message.includes("runtime-built text")), false);
+});
+
+test("keeps global eval immediate but does not bridge caller lexical bindings", () => {
+  const sourceText = [
+    "function globalScope() {",
+    "  let total = 0;",
+    "  globalThis.eval(\"total += 1;\");",
+    "  return total;",
+    "}"
+  ].join("\n");
+  const analysis = analyzeSource("globalScope", sourceText);
+  const totalBinding = analysis.valueBindings?.find((binding) => binding.name === "total");
+  assert.ok(totalBinding);
+  const embeddedBlocks = analysis.blocks.filter((block) => block.detail.includes("Embedded text line"));
+  assert.ok(embeddedBlocks.length > 0);
+  assert.equal(embeddedBlocks.some((block) => block.valueAccesses?.some((access) =>
+    access.bindingId === totalBinding.id
+  )), false);
+});
+
+test("splices an eval nested in short-circuit syntax onto the true expression branch", () => {
+  const analysis = analyzeSource("branchEval", [
+    "function branchEval(flag: boolean) {",
+    "  flag && eval(\"audit();\");",
+    "  after();",
+    "}"
+  ].join("\n"));
+  const condition = requireBlock(analysis.blocks, (block) => block.label === "check flag");
+  const boundary = requireBlock(analysis.blocks, (block) => block.kind === "embedded");
+  assert.ok(analysis.edges.some((edge) =>
+    edge.sourceId === condition.id && edge.targetId === boundary.id && edge.kind === "true"
+  ));
+  assert.equal(analysis.edges.some((edge) =>
+    edge.sourceId === condition.id && edge.targetId === boundary.id && edge.kind === "false"
+  ), false);
+});
+
+test("gives plain eval text nodes their own host evidence ranges for editor highlighting", () => {
+  const analysis = analyzeSource("literalEvidence", [
+    "function literalEvidence() {",
+    "  eval(\"let total = 1; audit(total);\");",
+    "}"
+  ].join("\n"));
+  const boundary = requireBlock(analysis.blocks, (block) => block.kind === "embedded");
+  const declaration = requireBlock(analysis.blocks, (block) => block.label === "let total = 1;");
+  const audit = requireBlock(analysis.blocks, (block) => block.label === "audit(total);");
+  assert.ok(declaration.range.startCharacter > boundary.range.startCharacter);
+  assert.ok(audit.range.startCharacter > declaration.range.endCharacter);
+  assert.ok(audit.range.endCharacter < boundary.range.endCharacter);
+});
+
+test("rejects invalid top-level eval control syntax before planning an inner CFG", () => {
+  const analysis = analyzeSource("invalidEval", [
+    "function invalidEval() {",
+    "  eval(\"return 1;\");",
+    "  after();",
+    "}"
+  ].join("\n"));
+  assert.ok(analysis.gaps.some((gap) => gap.code === "parseLimited"
+    && gap.message.includes("embedded-code parser diagnostic")));
+  assert.equal(analysis.blocks.some((block) => block.label === "return 1"), false);
+});
+
 test("bounds embedded regions and exposes distinct graph semantics", () => {
   const bounded = analyzeFixture(8);
   const styles = getFunctionLogicGraphStyles();
@@ -162,7 +260,10 @@ test("bounds embedded regions and exposes distinct graph semantics", () => {
   assert.match(styles, /\.logic-node-callable\s*\{/u);
   assert.match(styles, /\.logic-edge-defines/u);
   assert.match(styles, /\.logic-edge-deferred/u);
-  assert.match(browser, /static code text/u);
+  assert.match(browser, /STATIC PROGRAM/u);
+  assert.match(browser, /describeEmbeddedBoundaryTiming/u);
+  assert.match(browser, /Focus embedded code/u);
+  assert.match(browser, /Focus this static embedded program/u);
   assert.match(browser, /kind === "embedded"/u);
   assert.match(browser, /kind === "callable"/u);
 });
@@ -199,6 +300,30 @@ function createFunctionNode(line: number, character: number): SymbolNode {
     selectionRange,
     language: "typescript"
   };
+}
+
+/** Analyzes a compact standalone fixture while preserving real selection evidence. */
+function analyzeSource(name: string, sourceText: string): ReturnType<typeof analyzeFunctionLogic> {
+  const declarationCharacter = sourceText.split("\n")[0].indexOf(name);
+  const selectionRange = {
+    startLine: 0,
+    startCharacter: declarationCharacter,
+    endLine: 0,
+    endCharacter: declarationCharacter + name.length
+  };
+  return analyzeFunctionLogic({
+    functionNode: {
+      id: `fixture:function:${name}`,
+      kind: "function",
+      name,
+      qualifiedName: name,
+      filePath: `/workspace/${name}.ts`,
+      range: selectionRange,
+      selectionRange,
+      language: "typescript"
+    },
+    sourceText
+  });
 }
 
 /** Finds one expected block with a focused assertion failure. */

@@ -44,6 +44,8 @@ import {
   collectFunctionCallsites
 } from "../typescriptFunctionLogicSyntax";
 import type { TypeScriptEmbeddedCodeRequest } from "./types";
+import type { TypeScriptEmbeddedHostBinding } from "./types";
+import { bridgeTypeScriptEmbeddedHostLexicals } from "./typescriptEmbeddedLexicalBridge";
 import {
   appendEmbeddedVisibleBlock,
   collectEmbeddedStatementCallables,
@@ -77,6 +79,8 @@ export type TypeScriptEmbeddedProgramPlan = {
   functionCount: number;
   parseDiagnosticCount: number;
   omittedBlockCount: number;
+  hostBindingIds: string[];
+  invalidConstantWriteCount: number;
 };
 
 /** Parses and plans one request without evaluating, importing, or type-checking it. */
@@ -86,8 +90,28 @@ export function planTypeScriptEmbeddedProgram(input: {
   request: TypeScriptEmbeddedCodeRequest;
   boundaryBlock: FunctionLogicBlock;
   maxBlocks: number;
+  hostBindings?: readonly TypeScriptEmbeddedHostBinding[];
+  /** Host source is used only to remap virtual text ranges to clickable evidence. */
+  hostSourceFile: ts.SourceFile;
 }): TypeScriptEmbeddedProgramPlan {
   const syntheticPath = createSyntheticPath(input.hostFilePath, input.request, input.scriptKind);
+  const scriptValidation = input.request.parseGoal === "script"
+    ? validateScriptProgram(syntheticPath, input.request.code)
+    : 0;
+  if (scriptValidation > 0) {
+    return {
+      blocks: [input.boundaryBlock],
+      edges: [],
+      callsites: [],
+      valueBindings: [],
+      valueFlows: [],
+      functionCount: 0,
+      parseDiagnosticCount: scriptValidation,
+      omittedBlockCount: 0,
+      hostBindingIds: [],
+      invalidConstantWriteCount: 0
+    };
+  }
   const wrapperName = `__project_analyzer_embedded_${createContentHash(syntheticPath).slice(0, 12)}`;
   const prefix = `async function ${wrapperName}(${input.request.parameterSource ?? ""}) {\n`;
   const sourceFile = ts.createSourceFile(
@@ -115,7 +139,9 @@ export function planTypeScriptEmbeddedProgram(input: {
       valueFlows: [],
       functionCount,
       parseDiagnosticCount: Math.max(1, parseDiagnosticCount),
-      omittedBlockCount: 0
+      omittedBlockCount: 0,
+      hostBindingIds: [],
+      invalidConstantWriteCount: 0
     };
   }
 
@@ -168,15 +194,28 @@ export function planTypeScriptEmbeddedProgram(input: {
   }
 
   const confidence = input.request.confidence;
-  const decoratedBlocks = blockOrder.flatMap((blockId) => {
+  const rawBlocks = blockOrder.flatMap((blockId) => {
     const block = blocksById.get(blockId);
-    return block ? [decorateEmbeddedBlock(
+    return block ? [block] : [];
+  });
+  const bridge = input.request.executionScope === "host-lexical" && input.hostBindings
+    ? bridgeTypeScriptEmbeddedHostLexicals({
+        sourceFile,
+        rootFunction,
+        blocks: rawBlocks,
+        hostBindings: input.hostBindings
+      })
+    : { blocks: rawBlocks, hostBindingIds: [], invalidConstantWriteCount: 0 };
+  const decoratedBlocks = bridge.blocks.flatMap((block) => {
+    return [decorateEmbeddedBlock(
       block,
       input.boundaryBlock.id,
       input.hostFilePath,
-      input.request.range,
+      input.request.codeRange,
+      input.hostSourceFile,
+      input.request.code,
       confidence
-    )] : [];
+    )];
   });
   return {
     blocks: decoratedBlocks,
@@ -203,8 +242,33 @@ export function planTypeScriptEmbeddedProgram(input: {
     })),
     functionCount,
     parseDiagnosticCount,
-    omittedBlockCount
+    omittedBlockCount,
+    hostBindingIds: bridge.hostBindingIds,
+    invalidConstantWriteCount: bridge.invalidConstantWriteCount
   };
+}
+
+/** Validates eval/vm text as JavaScript Script syntax before the CFG wrapper is built. */
+function validateScriptProgram(filePath: string, code: string): number {
+  const sourceFile = ts.createSourceFile(
+    `${filePath}.validation.js`,
+    code,
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.JS
+  );
+  const moduleStatementCount = sourceFile.statements.filter((statement) =>
+    ts.isImportDeclaration(statement) || ts.isImportEqualsDeclaration(statement)
+      || ts.isExportDeclaration(statement) || ts.isExportAssignment(statement)
+      || (ts.isVariableStatement(statement)
+        && statement.modifiers?.some((modifier) => modifier.kind === ts.SyntaxKind.ExportKeyword))
+      || (ts.isFunctionDeclaration(statement) || ts.isClassDeclaration(statement))
+        && statement.modifiers?.some((modifier) => modifier.kind === ts.SyntaxKind.ExportKeyword)
+  ).length;
+  const invalidTopLevelControlCount = sourceFile.statements.filter((statement) =>
+    ts.isReturnStatement(statement) || ts.isBreakStatement(statement) || ts.isContinueStatement(statement)
+  ).length;
+  return readParseDiagnosticCount(sourceFile) + moduleStatementCount + invalidTopLevelControlCount;
 }
 
 /** Builds one program/function scope and queues its nested callable bodies. */

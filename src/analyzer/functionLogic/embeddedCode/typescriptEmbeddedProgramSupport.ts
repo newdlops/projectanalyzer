@@ -277,12 +277,19 @@ export function decorateEmbeddedBlock(
   boundaryBlockId: string,
   hostFilePath: string,
   hostRange: SourceRange,
+  hostSourceFile: ts.SourceFile,
+  embeddedCode: string,
   confidence: FunctionLogicConfidence
 ): FunctionLogicBlock {
   if (block.id === boundaryBlockId) return block;
   const embeddedLine = Math.max(1, block.range.startLine);
+  const mappedRange = mapEmbeddedTextRange(hostSourceFile, hostRange, embeddedCode, block.range)
+    ?? hostRange;
   return {
     ...block,
+    // Virtual program nodes keep their ordinary control parent while retaining
+    // this separate boundary identity for focused embedded-code reading.
+    embeddedBoundaryId: boundaryBlockId,
     detail: `${block.detail} Embedded text line ${embeddedLine}.`,
     confidence: combineEmbeddedConfidence(block.confidence, confidence),
     valueChanges: block.valueChanges?.map((change) => ({
@@ -294,7 +301,75 @@ export function decorateEmbeddedBlock(
       confidence: combineEmbeddedConfidence(access.confidence, confidence)
     })),
     filePath: hostFilePath,
-    range: hostRange
+    range: mappedRange
+  };
+}
+
+/**
+ * Maps a virtual embedded-program range into its exact host literal segment.
+ * Only one plain literal/template is remapped: escaped, concatenated, and
+ * alias-derived text remains safely attached to its full source evidence.
+ */
+function mapEmbeddedTextRange(
+  sourceFile: ts.SourceFile,
+  hostRange: SourceRange,
+  embeddedCode: string,
+  virtualRange: SourceRange
+): SourceRange | undefined {
+  const hostStart = sourceFile.getPositionOfLineAndCharacter(
+    hostRange.startLine,
+    hostRange.startCharacter
+  );
+  const hostEnd = sourceFile.getPositionOfLineAndCharacter(
+    hostRange.endLine,
+    hostRange.endCharacter
+  );
+  const literalText = sourceFile.text.slice(hostStart, hostEnd);
+  if (literalText.length < 2 || !isPlainEmbeddedLiteral(literalText, embeddedCode)) return undefined;
+  const startOffset = embeddedOffset(embeddedCode, virtualRange.startLine - 1, virtualRange.startCharacter);
+  const endOffset = embeddedOffset(embeddedCode, virtualRange.endLine - 1, virtualRange.endCharacter);
+  if (startOffset === undefined || endOffset === undefined || startOffset > endOffset) return undefined;
+  return toSourceRangeFromOffsets(sourceFile, hostStart + 1 + startOffset, hostStart + 1 + endOffset);
+}
+
+/** Confirms source text is one unescaped literal/template whose body matches decoded code exactly. */
+function isPlainEmbeddedLiteral(literalText: string, embeddedCode: string): boolean {
+  const quote = literalText[0];
+  if ((quote !== "'" && quote !== '"' && quote !== "`") || literalText.at(-1) !== quote) {
+    return false;
+  }
+  return literalText.slice(1, -1) === embeddedCode;
+}
+
+/** Converts a line/character in decoded code into an offset without recursive scanning. */
+function embeddedOffset(code: string, line: number, character: number): number | undefined {
+  if (line < 0 || character < 0) return undefined;
+  let offset = 0;
+  let currentLine = 0;
+  while (currentLine < line) {
+    const newline = code.indexOf("\n", offset);
+    if (newline < 0) return undefined;
+    offset = newline + 1;
+    currentLine += 1;
+  }
+  const lineEnd = code.indexOf("\n", offset);
+  const maximumCharacter = (lineEnd < 0 ? code.length : lineEnd) - offset;
+  return character <= maximumCharacter ? offset + character : undefined;
+}
+
+/** Reuses TypeScript's UTF-16 source positions for the host evidence contract. */
+function toSourceRangeFromOffsets(
+  sourceFile: ts.SourceFile,
+  startOffset: number,
+  endOffset: number
+): SourceRange {
+  const start = sourceFile.getLineAndCharacterOfPosition(startOffset);
+  const end = sourceFile.getLineAndCharacterOfPosition(endOffset);
+  return {
+    startLine: start.line,
+    startCharacter: start.character,
+    endLine: end.line,
+    endCharacter: end.character
   };
 }
 

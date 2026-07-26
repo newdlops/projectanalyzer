@@ -5,10 +5,13 @@
 
 export { discoverTypeScriptEmbeddedCode } from "./typescriptEmbeddedCodeDiscovery";
 export { expandTypeScriptEmbeddedCode } from "./typescriptEmbeddedCodeExpansion";
+export { createTypeScriptEmbeddedCodeResolver } from "./typescriptEmbeddedCodeResolver";
 export type {
   TypeScriptEmbeddedCodeDiscovery,
   TypeScriptEmbeddedCodeExpansion,
+  TypeScriptEmbeddedExecutionScope,
+  TypeScriptEmbeddedHostBinding,
   TypeScriptEmbeddedCodeMode,
+  TypeScriptEmbeddedParseGoal,
   TypeScriptEmbeddedCodeRequest
 } from "./types";
-

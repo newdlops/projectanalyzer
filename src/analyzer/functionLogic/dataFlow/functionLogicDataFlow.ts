@@ -105,7 +105,7 @@ export function createFunctionLogicDataFlowProjection(
   const enrichedBlocks = blocks.map((block) => {
     const valueAccesses = accessesByBlockId.get(block.id);
     return valueAccesses && valueAccesses.length > 0
-      ? { ...block, valueAccesses }
+      ? { ...block, valueAccesses: mergeValueAccesses(block.valueAccesses, valueAccesses) }
       : block;
   });
   const boundedDepth = normalizeBound(maximumDepth, blocks.length, blocks.length);
@@ -173,6 +173,75 @@ export function createFunctionLogicDataFlowProjection(
   };
 }
 
+/**
+ * Recomputes selected bindings from already projected block accesses. Embedded
+ * direct-eval access rows use this after their host CFG splice so a write can
+ * reach later host reads without entering definition-only/deferred branches.
+ */
+export function createFunctionLogicValueFlowsForBindings(input: {
+  blocks: readonly FunctionLogicBlock[];
+  edges: readonly FunctionLogicEdge[];
+  bindingIds: ReadonlySet<string>;
+  maximumDepth?: number;
+  maximumFlows?: number;
+}): Pick<FunctionLogicDataFlowProjection, "valueFlows" | "omittedFlowCount"> {
+  const accessesByBlockId = new Map<string, FunctionLogicValueAccess[]>();
+  for (const block of input.blocks) {
+    const accesses = (block.valueAccesses ?? []).filter((access) => input.bindingIds.has(access.bindingId));
+    if (accesses.length > 0) accessesByBlockId.set(block.id, accesses);
+  }
+  const boundedDepth = normalizeBound(
+    input.maximumDepth ?? input.blocks.length,
+    input.blocks.length,
+    input.blocks.length
+  );
+  const boundedFlows = normalizeBound(
+    input.maximumFlows ?? DEFAULT_MAX_VALUE_FLOWS,
+    DEFAULT_MAX_VALUE_FLOWS,
+    ALLOWED_MAX_VALUE_FLOWS
+  );
+  const runtimeEdges = input.edges.filter((edge) => edge.kind !== "defines" && edge.kind !== "deferred");
+  const incomingByTargetId = createIncomingEdgeIndex(input.blocks, runtimeEdges);
+  const definitionsByBindingId = createDefinitionIndex(accessesByBlockId);
+  const valueFlows: FunctionLogicValueFlow[] = [];
+  const seen = new Set<string>();
+  let omittedFlowCount = 0;
+
+  for (const [targetBlockId, accesses] of accessesByBlockId) {
+    for (const access of accesses) {
+      if (access.access !== "read" && access.access !== "readwrite") continue;
+      for (const sourceBlockId of findReachingDefinitionBlocks(
+        targetBlockId,
+        access.bindingId,
+        incomingByTargetId,
+        definitionsByBindingId,
+        boundedDepth
+      )) {
+        const key = [access.bindingId, sourceBlockId, targetBlockId, access.access, access.usage ?? "use"].join("\0");
+        if (seen.has(key)) continue;
+        seen.add(key);
+        if (valueFlows.length >= boundedFlows) {
+          omittedFlowCount += 1;
+          continue;
+        }
+        valueFlows.push({
+          id: `logic-value-flow:${createContentHash(key).slice(0, 32)}`,
+          bindingId: access.bindingId,
+          sourceBlockId,
+          targetBlockId,
+          targetAccess: access.access,
+          ...(access.usage ? { targetUsage: access.usage } : {}),
+          confidence: combineConfidence(
+            access.confidence,
+            definitionsByBindingId.get(access.bindingId)?.get(sourceBlockId) ?? "exact"
+          )
+        });
+      }
+    }
+  }
+  return { valueFlows, omittedFlowCount };
+}
+
 /** Keeps one semantic access row per binding, block, role, and confidence. */
 function appendValueAccess(
   accessesByBlockId: Map<string, FunctionLogicValueAccess[]>,
@@ -189,6 +258,26 @@ function appendValueAccess(
     values.push(access);
     accessesByBlockId.set(blockId, values);
   }
+}
+
+/** Merges independently projected host and embedded rows without losing either fact. */
+function mergeValueAccesses(
+  existing: readonly FunctionLogicValueAccess[] | undefined,
+  incoming: readonly FunctionLogicValueAccess[]
+): FunctionLogicValueAccess[] {
+  const values = [...(existing ?? [])];
+  const seen = new Set(values.map(valueAccessKey));
+  for (const access of incoming) {
+    if (seen.has(valueAccessKey(access))) continue;
+    seen.add(valueAccessKey(access));
+    values.push(access);
+  }
+  return values;
+}
+
+/** Stable semantic key shared by host and virtual embedded access rows. */
+function valueAccessKey(access: FunctionLogicValueAccess): string {
+  return [access.bindingId, access.access, access.usage ?? "", access.confidence].join("\0");
 }
 
 /** Maps an access to the most specific visible range, preferring deeper blocks. */

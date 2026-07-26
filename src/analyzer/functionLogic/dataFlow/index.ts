@@ -5,6 +5,7 @@
 
 export {
   createFunctionLogicDataFlowProjection,
+  createFunctionLogicValueFlowsForBindings,
   type FunctionLogicDataFlowProjection
 } from "./functionLogicDataFlow";
 export { collectTypeScriptFunctionValueFacts } from "./typescriptFunctionDataFlow";

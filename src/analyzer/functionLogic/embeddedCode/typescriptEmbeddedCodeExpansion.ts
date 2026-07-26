@@ -21,7 +21,8 @@ import type {
 import type {
   TypeScriptEmbeddedCodeExpansion,
   TypeScriptEmbeddedCodeMode,
-  TypeScriptEmbeddedCodeRequest
+  TypeScriptEmbeddedCodeRequest,
+  TypeScriptEmbeddedHostBinding
 } from "./types";
 import { planTypeScriptEmbeddedProgram } from "./typescriptEmbeddedProgramPlanner";
 
@@ -43,6 +44,7 @@ export function expandTypeScriptEmbeddedCode(input: {
   requests: readonly TypeScriptEmbeddedCodeRequest[];
   dynamicConsumerCount: number;
   remainingBlockBudget: number;
+  hostBindings?: readonly TypeScriptEmbeddedHostBinding[];
 }): TypeScriptEmbeddedCodeExpansion {
   const orderedRequests = [...input.requests].sort((left, right) =>
     left.sourceOrder - right.sourceOrder
@@ -57,15 +59,18 @@ export function expandTypeScriptEmbeddedCode(input: {
   const valueBindings: FunctionLogicValueBinding[] = [];
   const valueFlows: FunctionLogicValueFlow[] = [];
   const artifacts: PlannedArtifact[] = [];
+  const hostBindingIds = new Set<string>();
   let edges = [...input.edges];
   let remainingBlocks = Math.max(0, Math.floor(input.remainingBlockBudget));
   let parseDiagnosticCount = 0;
   let omittedBlockCount = 0;
   let omittedRegionCount = Math.max(0, orderedRequests.length - selectedRequests.length);
+  let invalidConstantWriteCount = 0;
 
   for (let index = 0; index < selectedRequests.length; index += 1) {
     const request = selectedRequests[index];
-    const anchor = blocksById.get(request.anchorBlockId);
+    const anchor = findExecutionAnchor(input.blocks, request.invocationRange)
+      ?? blocksById.get(request.anchorBlockId);
     if (!anchor || remainingBlocks <= 0) {
       omittedRegionCount += 1;
       continue;
@@ -76,7 +81,9 @@ export function expandTypeScriptEmbeddedCode(input: {
       scriptKind: input.scriptKind,
       request,
       boundaryBlock: boundary,
-      maxBlocks: remainingBlocks
+      maxBlocks: remainingBlocks,
+      hostBindings: input.hostBindings,
+      hostSourceFile: input.sourceFile
     });
     const specializedBlocks = specializeBoundarySummary(plan.blocks, request, plan.functionCount);
     const rootExit = specializedBlocks.find((block) =>
@@ -128,6 +135,8 @@ export function expandTypeScriptEmbeddedCode(input: {
     callsites.push(...plan.callsites);
     valueBindings.push(...plan.valueBindings);
     valueFlows.push(...plan.valueFlows);
+    for (const bindingId of plan.hostBindingIds) hostBindingIds.add(bindingId);
+    invalidConstantWriteCount += plan.invalidConstantWriteCount;
     remainingBlocks = Math.max(0, remainingBlocks - specializedBlocks.length);
     parseDiagnosticCount += plan.parseDiagnosticCount;
     omittedBlockCount += plan.omittedBlockCount;
@@ -142,7 +151,8 @@ export function expandTypeScriptEmbeddedCode(input: {
     dynamicConsumerCount: input.dynamicConsumerCount,
     parseDiagnosticCount,
     omittedBlockCount,
-    omittedRegionCount
+    omittedRegionCount,
+    invalidConstantWriteCount
   });
   return {
     blocks,
@@ -153,7 +163,8 @@ export function expandTypeScriptEmbeddedCode(input: {
     gaps,
     addedBlockCount: artifacts.reduce((count, artifact) =>
       count + artifact.blocks.length,
-    0)
+    0),
+    hostBindingIds: [...hostBindingIds].sort()
   };
 }
 
@@ -176,7 +187,7 @@ function createEmbeddedBoundary(
     id: createFunctionLogicBlockId(filePath, "embedded", request.range, identityLabel),
     kind: "embedded",
     label: createBoundaryLabel(request, 0),
-    detail: createBoundaryDetail(request.mode),
+    detail: createBoundaryDetail(request),
     depth: anchor.depth,
     parentBlockId: anchor.parentBlockId,
     branchLabel: anchor.branchLabel,
@@ -196,7 +207,7 @@ function specializeBoundarySummary(
     ? {
         ...block,
         label: createBoundaryLabel(request, functionCount),
-        detail: createBoundaryDetail(request.mode, functionCount)
+        detail: createBoundaryDetail(request, functionCount)
       }
     : block);
 }
@@ -218,21 +229,26 @@ function createBoundaryLabel(
 
 /** Explains runtime timing without claiming that parsed text was observed executing. */
 function createBoundaryDetail(
-  mode: TypeScriptEmbeddedCodeMode,
+  request: TypeScriptEmbeddedCodeRequest,
   functionCount = 0
 ): string {
   const functions = functionCount > 0
     ? ` ${functionCount} contained callable definition${functionCount === 1 ? " is" : "s are"} analyzed as separate scopes.`
     : "";
-  if (mode === "immediate") {
+  if (request.mode === "immediate") {
+    const scopeDetail = request.executionScope === "host-lexical"
+      ? " Unambiguous caller lexical bindings are linked through this program."
+      : request.executionScope === "global"
+        ? " This is a global-scope boundary; caller locals are not linked."
+        : " This program uses an isolated execution context."
     return "A statically complete code string is parsed without execution and placed before the host statement completes."
-      + functions;
+      + scopeDetail + functions;
   }
-  if (mode === "deferred") {
+  if (request.mode === "deferred") {
     return "A statically complete timer program is parsed as a separately scheduled path with no immediate return edge."
       + functions;
   }
-  if (mode === "callable") {
+  if (request.mode === "callable") {
     return "Static text defines a callable body; creation does not execute that body."
       + functions;
   }
@@ -264,6 +280,7 @@ function createExpansionGaps(input: {
   parseDiagnosticCount: number;
   omittedBlockCount: number;
   omittedRegionCount: number;
+  invalidConstantWriteCount: number;
 }): FunctionLogicGap[] {
   const gaps: FunctionLogicGap[] = [];
   if (input.dynamicConsumerCount > 0) {
@@ -288,6 +305,12 @@ function createExpansionGaps(input: {
     gaps.push({
       code: "parseLimited",
       message: `${input.omittedRegionCount} additional embedded code region(s) were omitted after the bounded region/block limit.`
+    });
+  }
+  if (input.invalidConstantWriteCount > 0) {
+    gaps.push({
+      code: "dynamicBehavior",
+      message: `${input.invalidConstantWriteCount} direct eval write(s) target host const binding(s) and were not treated as successful value updates.`
     });
   }
   return gaps;
@@ -332,3 +355,48 @@ function deduplicateById<T extends { id: string }>(values: readonly T[]): T[] {
   });
 }
 
+/** Selects the narrowest executable post-expression block containing an eval call. */
+function findExecutionAnchor(
+  blocks: readonly FunctionLogicBlock[],
+  range: TypeScriptEmbeddedCodeRequest["invocationRange"]
+): FunctionLogicBlock | undefined {
+  let selected: FunctionLogicBlock | undefined;
+  for (const block of blocks) {
+    if (block.kind === "entry" || block.kind === "exit" || block.kind === "embedded"
+      || block.kind === "callable") {
+      continue;
+    }
+    if (!containsRange(block.range, range)) continue;
+    if (!selected || rangeSpan(block.range) < rangeSpan(selected.range)
+      || (rangeSpan(block.range) === rangeSpan(selected.range) && block.depth > selected.depth)) {
+      selected = block;
+    }
+  }
+  return selected;
+}
+
+/** Checks zero-based source ranges without converting through absolute offsets. */
+function containsRange(
+  container: TypeScriptEmbeddedCodeRequest["invocationRange"],
+  candidate: TypeScriptEmbeddedCodeRequest["invocationRange"]
+): boolean {
+  return comparePosition(container.startLine, container.startCharacter,
+    candidate.startLine, candidate.startCharacter) <= 0
+    && comparePosition(container.endLine, container.endCharacter,
+      candidate.endLine, candidate.endCharacter) >= 0;
+}
+
+/** Ranks source-backed blocks by their narrowest enclosing evidence. */
+function rangeSpan(range: TypeScriptEmbeddedCodeRequest["invocationRange"]): number {
+  return Math.max(0, (range.endLine - range.startLine) * 1_000_000
+    + range.endCharacter - range.startCharacter);
+}
+
+function comparePosition(
+  leftLine: number,
+  leftCharacter: number,
+  rightLine: number,
+  rightCharacter: number
+): number {
+  return leftLine - rightLine || leftCharacter - rightCharacter;
+}

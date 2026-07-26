@@ -22,6 +22,25 @@ export type TypeScriptEmbeddedCodeMode =
   | "callable"
   | "stored";
 
+/** Lexical environment used when an immediate text consumer evaluates code. */
+export type TypeScriptEmbeddedExecutionScope =
+  | "host-lexical"
+  | "global"
+  | "isolated"
+  | "not-executed";
+
+/** Parser grammar selected from the runtime API rather than the host file extension. */
+export type TypeScriptEmbeddedParseGoal = "script" | "function-body";
+
+/** A host binding that an unshadowed direct eval may read or write. */
+export type TypeScriptEmbeddedHostBinding = {
+  id: string;
+  name: string;
+  kind: "parameter" | "local" | "constant";
+  confidence: FunctionLogicConfidence;
+  valueRole?: "component";
+};
+
 /** One statically complete text value that can be parsed as a JavaScript program. */
 export type TypeScriptEmbeddedCodeRequest = {
   anchorBlockId: string;
@@ -30,7 +49,13 @@ export type TypeScriptEmbeddedCodeRequest = {
   parameterSource?: string;
   consumer: string;
   mode: TypeScriptEmbeddedCodeMode;
+  executionScope: TypeScriptEmbeddedExecutionScope;
+  parseGoal: TypeScriptEmbeddedParseGoal;
   confidence: FunctionLogicConfidence;
+  /** Range of the consuming call; it determines execution order and CFG placement. */
+  invocationRange: SourceRange;
+  /** Range of the literal or constant initializer that supplied the text. */
+  codeRange: SourceRange;
   range: SourceRange;
   sourceOrder: number;
 };
@@ -50,5 +75,6 @@ export type TypeScriptEmbeddedCodeExpansion = {
   valueFlows: FunctionLogicValueFlow[];
   gaps: FunctionLogicGap[];
   addedBlockCount: number;
+  /** Host binding identities whose flows must be recomputed across direct eval regions. */
+  hostBindingIds: string[];
 };
-
