@@ -62,6 +62,13 @@ test("builds statement, branch, repeat, effect, and exit paths inside a function
   const effects = analysis.blocks.filter((block) => block.kind === "effect");
   assert.ok(firstCondition && loop && mutation && secondCondition);
   assert.equal(firstCondition.range.startLine, 1);
+  assert.deepEqual(firstCondition.condition, {
+    groupId: firstCondition.id,
+    expression: "!order.items.length",
+    groupExpression: "!order.items.length",
+    memberIndex: 0,
+    root: true
+  });
   assert.equal(mutation.range.startLine, 6);
   assert.deepEqual(effects.map((block) => block.confidence), ["inferred", "inferred"]);
   assert.deepEqual(effects.map((block) => block.branchLabel), ["true", "false"]);
@@ -70,6 +77,13 @@ test("builds statement, branch, repeat, effect, and exit paths inside a function
   assertEdgeKindsFrom(analysis, loop.id, ["iterate", "exit"]);
   assertEdgeKindsFrom(analysis, mutation.id, ["repeat"]);
   assertEdgeKindsFrom(analysis, secondCondition.id, ["true", "false"]);
+  assert.deepEqual(secondCondition.condition, {
+    groupId: secondCondition.id,
+    expression: "total > limit",
+    groupExpression: "total > limit",
+    memberIndex: 0,
+    root: true
+  });
   assert.ok(analysis.edges.some((edge) => edge.kind === "return"));
   assert.ok(analysis.edges.some((edge) => edge.kind === "throw"));
   assert.deepEqual(analysis.callsites.map((callsite) => callsite.calleeText), [

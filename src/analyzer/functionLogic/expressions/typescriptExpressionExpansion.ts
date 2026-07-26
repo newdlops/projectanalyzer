@@ -219,7 +219,21 @@ function decorateBooleanFragmentBlocks(
   blocks: FunctionLogicBlock[],
   anchor: FunctionLogicBlock
 ): FunctionLogicBlock[] {
+  const groupId = anchor.condition?.groupId ?? anchor.id;
+  const groupExpression = anchor.condition?.groupExpression ?? anchor.condition?.expression;
+  let conditionMemberIndex = 0;
   return blocks.map((block) => {
+    const condition = block.condition
+      ? {
+          ...block.condition,
+          groupId,
+          memberIndex: conditionMemberIndex++,
+          root: block.id === anchor.id,
+          ...(block.id === anchor.id && groupExpression
+            ? { groupExpression }
+            : {})
+        }
+      : undefined;
     if (block.id === anchor.id) {
       return {
         ...block,
@@ -235,6 +249,7 @@ function decorateBooleanFragmentBlocks(
         branchLabel: anchor.branchLabel,
         valueChanges: anchor.valueChanges,
         confidence: anchor.confidence,
+        condition,
         filePath: anchor.filePath,
         range: anchor.range
       };
@@ -243,7 +258,8 @@ function decorateBooleanFragmentBlocks(
       ...block,
       depth: anchor.depth + Math.max(1, block.depth),
       parentBlockId: block.parentBlockId ?? anchor.id,
-      branchLabel: block.branchLabel ?? anchor.branchLabel
+      branchLabel: block.branchLabel ?? anchor.branchLabel,
+      condition
     };
   });
 }

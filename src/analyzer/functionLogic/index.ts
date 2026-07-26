@@ -11,6 +11,7 @@ export type {
   FunctionLogicBlock,
   FunctionLogicBlockKind,
   FunctionLogicCallsite,
+  FunctionLogicCondition,
   FunctionLogicConfidence,
   FunctionLogicEdge,
   FunctionLogicEdgeKind,

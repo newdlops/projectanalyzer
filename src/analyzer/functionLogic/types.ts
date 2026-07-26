@@ -69,6 +69,24 @@ export type FunctionLogicEdgeKind =
 /** Confidence says whether syntax proves the role or only supports a heuristic. */
 export type FunctionLogicConfidence = "exact" | "inferred";
 
+/**
+ * Source-backed identity for one boolean decision and its position inside a
+ * short-circuit condition group. A group can later describe evaluation cases
+ * without reparsing rendered labels or confusing nested standalone `if` nodes.
+ */
+export type FunctionLogicCondition = {
+  /** Stable analyzer-local identity shared by every predicate in one decision. */
+  groupId: string;
+  /** Complete source text for this predicate, preserved independently of its label. */
+  expression: string;
+  /** Complete source text of the owning decision; present only on its root predicate. */
+  groupExpression?: string;
+  /** Zero-based evaluation order within the condition group. */
+  memberIndex: number;
+  /** True only for the source condition that owns the complete decision. */
+  root: boolean;
+};
+
 /** Language adapters that can produce function-internal control flow. */
 export type FunctionLogicLanguage =
   | "typescript"
@@ -91,6 +109,8 @@ export type FunctionLogicBlock = {
   parentBlockId?: string;
   branchLabel?: string;
   confidence: FunctionLogicConfidence;
+  /** Present only for source-backed boolean condition predicates. */
+  condition?: FunctionLogicCondition;
   /** Exact writes and conservative receiver changes visible inside this block. */
   valueChanges?: FunctionLogicValueChange[];
   /** Parameter/local/constant definitions and uses mapped to this block. */

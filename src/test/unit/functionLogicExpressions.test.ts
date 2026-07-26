@@ -133,6 +133,36 @@ test("routes complex boolean operands in real short-circuit order", () => {
   assertEdge(analysis, readable.id, blocked.id, "true");
   assertEdge(analysis, blocked.id, allowed.id, "true", /negated · truthy/u);
   assertEdge(analysis, blocked.id, denied.id, "false", /negated · falsy/u);
+  assert.deepEqual(
+    [session, owner, readable, blocked].map((block) => block.condition),
+    [
+      {
+        groupId: session.id,
+        expression: "session",
+        groupExpression: "session && (isOwner(user) || canRead(user)) && !blocked",
+        memberIndex: 0,
+        root: true
+      },
+      {
+        groupId: session.id,
+        expression: "isOwner(user)",
+        memberIndex: 1,
+        root: false
+      },
+      {
+        groupId: session.id,
+        expression: "canRead(user)",
+        memberIndex: 2,
+        root: false
+      },
+      {
+        groupId: session.id,
+        expression: "!blocked",
+        memberIndex: 3,
+        root: false
+      }
+    ]
+  );
   assert.equal(analysis.summary.branchCount, 4);
 });
 

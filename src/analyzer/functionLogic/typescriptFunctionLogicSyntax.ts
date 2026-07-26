@@ -47,11 +47,14 @@ export function classifyStatement(
   let label = completeSourceText(node.getText(sourceFile), "Statement");
   let detail = "Executes one source statement.";
   let evidenceNode: ts.Node = node;
+  /** Complete if-condition text remains separate from graph-box presentation text. */
+  let conditionExpression: string | undefined;
   const valueChanges = collectTypeScriptValueChanges(sourceFile, node);
 
   if (ts.isIfStatement(node)) {
     kind = "condition";
-    label = `if ${completeSourceText(node.expression.getText(sourceFile), "condition")}`;
+    conditionExpression = completeSourceText(node.expression.getText(sourceFile), "condition");
+    label = `if ${conditionExpression}`;
     detail = "Chooses the true or false branch from this condition.";
     evidenceNode = node.expression;
   } else if (isLoopStatement(node)) {
@@ -121,14 +124,24 @@ export function classifyStatement(
   }
 
   const range = toSourceRange(sourceFile, evidenceNode);
+  const id = createBlockId(filePath, kind, range, label);
   return {
-    id: createBlockId(filePath, kind, range, label),
+    id,
     kind,
     label,
     detail,
     depth: task.depth,
     branchLabel: task.branchLabel,
     confidence,
+    condition: conditionExpression
+      ? {
+          groupId: id,
+          expression: conditionExpression,
+          groupExpression: conditionExpression,
+          memberIndex: 0,
+          root: true
+        }
+      : undefined,
     valueChanges: valueChanges.length > 0 ? valueChanges : undefined,
     filePath,
     range

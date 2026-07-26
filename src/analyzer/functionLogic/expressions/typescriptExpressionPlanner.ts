@@ -309,7 +309,16 @@ function combineNegation(
           ...block,
           label: `check ${normalizeExpressionText(expression.getText(context.sourceFile), "condition")}`,
           detail: "Tests this negated operand only when short-circuit evaluation reaches it.",
-          range: toSourceRange(context.sourceFile, expression)
+          range: toSourceRange(context.sourceFile, expression),
+          condition: block.condition
+            ? {
+                ...block.condition,
+                expression: normalizeExpressionText(
+                  expression.getText(context.sourceFile),
+                  "condition"
+                )
+              }
+            : undefined
         }
       : block
     )
@@ -540,13 +549,22 @@ function createAtomicBlock(
       : `Calls ${callName} only on this selected expression path.`;
   }
 
+  const id = createFunctionLogicBlockId(context.filePath, kind, range, label);
   return {
-    id: createFunctionLogicBlockId(context.filePath, kind, range, label),
+    id,
     kind,
     label,
     detail,
     depth: 0,
     confidence,
+    condition: role === "boolean"
+      ? {
+          groupId: id,
+          expression: text,
+          memberIndex: 0,
+          root: true
+        }
+      : undefined,
     valueChanges: valueChanges.length > 0 ? valueChanges : undefined,
     filePath: context.filePath,
     range
