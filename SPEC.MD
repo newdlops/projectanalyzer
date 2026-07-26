@@ -564,6 +564,33 @@ parent, branch label을 보존한다. Python의
 monkey patching/decorator/descriptor와 Java의 virtual dispatch,
 reflection/framework interception/thread scheduling은 runtime unknown으로 남긴다.
 
+TypeScript/JavaScript control condition의 root boolean group은 parser가 증명한
+predicate 평가 순서로 최대 6개 column, 실제 CFG short-circuit path 최대 32개 row의
+`conditionTable`을 가질 수 있다. 각 row는 predicate별 `true`/`false`/`skipped`,
+최종 boolean result, 첫 non-group target과 그 row를 구성하는 opaque true/false edge
+identity를 보존한다. 이는 Cartesian truth table이나 source 실행이 아니다. Inspector에서
+row를 선택하면 해당 edge들을 하나의 branch scenario로 함께 적용하고, 같은 완전 row를
+다시 선택하면 그 decision source들만 해제한다. nested 독립 condition, 상한 초과 group,
+불완전한 projection은 table을 보내지 않는다.
+
+TypeScript/JavaScript control condition의 root boolean group은 parser가 증명한
+predicate 평가 순서로 최대 6개 column, 실제 CFG short-circuit path 최대 32개 row의
+`conditionTable`을 가질 수 있다. 각 row는 predicate별 `true`/`false`/`skipped`,
+최종 boolean result, 첫 non-group target과 그 row를 구성하는 opaque true/false edge
+identity를 보존한다. 이는 Cartesian truth table이나 source 실행이 아니다. Inspector에서
+row를 선택하면 해당 edge들을 하나의 branch scenario로 함께 적용하고, 같은 완전 row를
+다시 선택하면 그 decision source들만 해제한다. nested 독립 condition, 상한 초과 group,
+불완전한 projection은 table을 보내지 않는다.
+
+TypeScript/JavaScript control condition의 root boolean group은 parser가 증명한
+predicate 평가 순서로 최대 6개 column, 실제 CFG short-circuit path 최대 32개 row의
+`conditionTable`을 가질 수 있다. 각 row는 predicate별 `true`/`false`/`skipped`,
+최종 boolean result, 첫 non-group target과 그 row를 구성하는 opaque true/false edge
+identity를 보존한다. 이는 Cartesian truth table이나 source 실행이 아니다. Inspector에서
+row를 선택하면 해당 edge들을 하나의 branch scenario로 함께 적용하고, 같은 완전 row를
+다시 선택하면 그 decision source들만 해제한다. nested 독립 condition, 상한 초과 group,
+불완전한 projection은 table을 보내지 않는다.
+
 TypeScript/JavaScript의 static code text는 일반 string value와 분리된 embedded-code 경계로
 해석한다. direct/global `eval`, `Function` constructor/call, `setTimeout`/`setInterval` string
 handler, Node `vm.runInContext`/`runInNewContext`/`runInThisContext`/`compileFunction`의 code

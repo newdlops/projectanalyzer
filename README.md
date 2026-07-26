@@ -441,6 +441,13 @@ Optional chaining and branch expressions embedded inside a larger call argument
 remain inside that containing statement so the graph does not claim an unsafe
 evaluation order.
 
+For TypeScript/JavaScript control conditions with at most six parser-proven
+predicates, the Inspector also shows up to 32 actual short-circuit evaluation
+cases. These are CFG paths, not a Cartesian truth table or source execution:
+each predicate is `true`, `false`, or skipped, with the resulting branch and
+next block. Selecting a row applies all of its opaque `true`/`false` edges as
+one scenario; selecting it again clears only that row's decisions.
+
 Static TypeScript/JavaScript code text has its own Function Logic boundary. Direct
 `eval("…")`, `new Function("…")`, `setTimeout("…")`/`setInterval("…")`, and Node
 `vm.runIn*`/`compileFunction` consumers accept only a statically complete string literal,
@@ -548,7 +555,9 @@ Key reusable modules:
 - `src/protocol/moduleFlow.ts` — bounded list/detail/expand/source requests,
   opaque identities, and stale-response guards
 - `src/protocol/functionLogic.ts` — logic blocks, transfers, drill targets, and
-  evidence requests
+  evidence requests, including bounded condition-case tables
+- `src/application/codeFlow/conditionCases/` — pure iterative short-circuit
+  case enumeration and bounded projection contracts
 - `src/protocol/functionVisualizer.ts` — editor-tab navigation session contract
 - `src/webview/codeFlow/` — flow-first Activity Bar launcher and shared graph
   renderer
