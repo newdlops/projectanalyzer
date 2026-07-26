@@ -19,17 +19,34 @@ export function getFunctionLogicGraphHeaderBrowserSource(): string {
       const header = document.createElement("div");
       const title = document.createElement("strong");
       const controls = document.createElement("div");
+      const showGroup = document.createElement("div");
+      const viewGroup = document.createElement("div");
+      const readGroup = document.createElement("div");
       const viewportControls = createFunctionLogicViewportControls(viewportController);
       header.className = "logic-graph-header";
       title.textContent = graphTitle || "Control paths";
       controls.className = "logic-graph-controls";
-      controls.append(lensToolbar, viewportControls);
+      showGroup.className = "logic-graph-control-group logic-graph-show-group";
+      viewGroup.className = "logic-graph-control-group logic-graph-view-group";
+      readGroup.className = "logic-graph-control-group logic-graph-read-group";
+      showGroup.append(createLogicGraphControlLabel("Show"), lensToolbar);
+      viewGroup.append(createLogicGraphControlLabel("View"), viewportControls);
+      readGroup.append(createLogicGraphControlLabel("Read"));
       // append(undefined) creates visible text in browsers, so Tutor's
       // optional control must be added only when the host supplied one.
-      if (extraControl) controls.append(extraControl);
-      controls.append(inspectorToggle);
+      if (extraControl) readGroup.append(extraControl);
+      readGroup.append(inspectorToggle);
+      controls.append(showGroup, viewGroup, readGroup);
       header.append(title, controls, lensLegend);
       return header;
+    }
+
+    /** Labels compact control clusters without turning actions into a new lens. */
+    function createLogicGraphControlLabel(text) {
+      const label = document.createElement("span");
+      label.className = "logic-graph-control-label";
+      label.textContent = text;
+      return label;
     }
 
     /** Indexes outgoing edges for selection, navigation, and Inspector detail. */

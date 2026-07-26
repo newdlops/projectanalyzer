@@ -14,6 +14,8 @@ export function getFunctionLogicInspectorStyles(): string {
       overflow: hidden;
       border-radius: 7px;
       isolation: isolate;
+      container-type: inline-size;
+      container-name: logic-inspector;
       transition: grid-template-columns 170ms ease-out;
     }
 
@@ -110,6 +112,13 @@ export function getFunctionLogicInspectorStyles(): string {
 
     .logic-inspector-heading > strong { font-size: var(--logic-font-large); }
 
+    .logic-inspector-mode-description {
+      color: var(--vscode-descriptionForeground);
+      font-size: var(--logic-font-small);
+      line-height: 1.35;
+      overflow-wrap: anywhere;
+    }
+
     .logic-inspector-selected-label {
       color: var(--vscode-descriptionForeground);
       font-family: var(--vscode-editor-font-family);
@@ -141,6 +150,14 @@ export function getFunctionLogicInspectorStyles(): string {
       overflow-y: auto;
       overscroll-behavior: contain;
       scrollbar-gutter: stable;
+    }
+
+    .logic-inspector-inspect-content {
+      display: grid;
+      grid-auto-rows: max-content;
+      align-content: start;
+      gap: 10px;
+      min-width: 0;
     }
 
     .logic-inspector-selection {
@@ -215,11 +232,11 @@ export function getFunctionLogicInspectorStyles(): string {
       font-size: var(--logic-font-small);
     }
 
-    .logic-inspector-scroll > .logic-signature,
-    .logic-inspector-scroll > .logic-callees,
-    .logic-inspector-scroll > .logic-data-flow-toolbar,
-    .logic-inspector-scroll > .logic-value-preview-editor,
-    .logic-inspector-scroll > .logic-scenario-trace {
+    .logic-inspector-inspect-content > .logic-signature,
+    .logic-inspector-inspect-content > .logic-callees,
+    .logic-inspector-inspect-content > .logic-data-flow-toolbar,
+    .logic-inspector-inspect-content > .logic-value-preview-editor,
+    .logic-inspector-inspect-content > .logic-scenario-trace {
       border-radius: 5px;
     }
 

@@ -164,6 +164,20 @@ export function getFunctionLogicGraphStyles(): string {
       font-size: var(--logic-font-body);
     }
 
+    .logic-graph-control-group {
+      display: inline-flex;
+      min-width: 0;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 4px;
+    }
+
+    .logic-graph-control-label {
+      color: var(--vscode-descriptionForeground);
+      font-size: var(--logic-font-tiny);
+      font-weight: 700;
+    }
+
     .logic-graph-legend {
       grid-column: 1 / -1;
       display: flex;

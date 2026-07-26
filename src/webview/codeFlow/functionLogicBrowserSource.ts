@@ -235,7 +235,7 @@ export function getFunctionLogicBrowserSource(): string {
         writeTransform
       });
       const tutorRendering = createFunctionTutorIntegration(
-        logic, comprehension, valueFlowRendering, viewportController);
+        logic, comprehension, valueFlowRendering, viewportController, inspector);
       const hasJsxFlow = logic.blocks.some((block) => block.kind === "render");
       const hasEventFlow = logic.blocks.some((block) => block.kind === "event");
       const hasRenderFlow = hasJsxFlow || hasEventFlow;
@@ -310,8 +310,8 @@ export function getFunctionLogicBrowserSource(): string {
       stage.append(canvas);
       viewport.append(stage);
       inspector.attachViewport(viewport);
+      inspector.registerGuide(tutorRendering);
       inspector.appendSections(
-        tutorRendering?.section,
         valueFlowRendering?.valuePreviewEditor,
         valueFlowRendering?.scenarioTrace,
         valueFlowRendering?.playback,
