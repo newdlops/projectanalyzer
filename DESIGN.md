@@ -65,21 +65,27 @@ debugger: source is never executed and uncertainty remains visible.
 
 ## Information and interaction contract
 
-- The graph header uses the explicit **Function Guide** disclosure control with
-  `aria-expanded`; it is not a fifth graph lens and never uses pressed state.
-- Opening the Guide does not move the viewport, open source, alter branch/value
-  state, start playback, or calculate scenarios. It presents **At a Glance** and
-  five stable questions: codebase fit, inputs, path decisions, work/calls, and
-  outcomes.
+- The graph header groups controls by **Show**, **View**, and **Read**. Its
+  explicit **Function Guide** and **Inspector** controls are mutually exclusive
+  disclosures with `aria-expanded`; neither is a fifth graph lens or uses
+  pressed state. Repeating the active control closes the reading panel.
+- The reading panel has two exclusive modes. Inspector shows the selected block;
+  Function Guide shows **At a Glance** and five stable questions: codebase fit,
+  inputs, path decisions, work/calls, and outcomes. Opening or changing a Guide
+  question does not move the viewport, select a block, change a lens, open
+  source, alter branch/value state, start playback, or calculate scenarios.
 - Each answer contains a deterministic claim, source-backed facts, certainty,
   source basis, and an explicit **Show on Graph** or **Open Source** action when
   matching evidence exists. Only those explicit actions may change the graph
   lens, selection, or viewport.
 - **Static Input Cases** is a lazy disclosure within the Guide. Its bounded
-  interpreter starts only when opened, reports pending/error state locally, and
-  calls **Load Inputs into Values** only for known literals.
-- Closing the Guide clears Guide attention but preserves branch choices, value
-  playback, manual values, Inspector scroll, and all non-Guide graph state.
+  interpreter starts only when opened, exposes idle/running/paused/complete
+  status locally, pauses when the Guide closes, and never executes source.
+  **Load Inputs & Open Values** transfers known literals only, switches to the
+  existing Values lens, then opens the editable Scenario values destination.
+- Closing the Guide clears Guide attention and scenario preview but preserves
+  branch choices, value playback, manual values, per-session reading state, and
+  all non-Guide graph state.
 
 ## Visual, accessibility, and responsive rules
 
@@ -87,12 +93,14 @@ debugger: source is never executed and uncertainty remains visible.
   the existing graph vocabulary. Do not introduce a new palette, font, card
   system, decorative motion, or a parallel attention opacity system.
 - The default reading surface is one selected question at a time: overview,
-  ordered question navigation, answer, facts, actions, then source basis.
-  Counts and omitted items remain bounded and explicit.
+  ordered question navigation, answer, three immediate facts, optional bounded
+  **More Facts**, actions, then source basis. Counts are semantic, bounded, and
+  explicit rather than inferred from truncated display rows.
 - Use semantic headings, ordered navigation, buttons, definition lists, tables,
   and details. `aria-expanded`, `aria-controls`, visible `:focus-visible`,
   polite calculation status, forced-colors, reduced-motion, and text certainty
   are required.
-- Long identifiers wrap; narrow Inspector layouts stack relation chains and move
-  scenario certainty into row details instead of creating page-level horizontal
-  scrolling. Guide attention uses the shared comprehension projection.
+- Long identifiers wrap; narrow Inspector layouts keep certainty as text badges
+  beside each case/detail and use two- or three-column tables that do not create
+  page-level horizontal scrolling. Guide attention uses the shared comprehension
+  projection. Coarse-pointer targets are at least 44px.
