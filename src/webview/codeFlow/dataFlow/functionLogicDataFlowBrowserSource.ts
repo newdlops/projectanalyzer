@@ -4,10 +4,15 @@
  * readable beside the independently rendered control-flow edges.
  */
 
+import { getFunctionLogicValueFlowRoutingBrowserSource } from "./functionLogicValueFlowRouting";
+
 /** Returns CSP-safe value-flow browser helpers. */
 export function getFunctionLogicDataFlowBrowserSource(): string {
   return /* js */ `
+    ${getFunctionLogicValueFlowRoutingBrowserSource()}
+
     const MAX_LOGIC_VALUE_ACCESS_ROWS = 8;
+    const MAX_LOGIC_VALUE_FLOW_HOPS = 1500;
     let functionLogicValueFlowSessionKey = "";
     let functionLogicSelectedValueBindingId = "";
 
@@ -31,7 +36,7 @@ export function getFunctionLogicDataFlowBrowserSource(): string {
         || "";
     }
 
-    /** Builds the selector and hidden-per-binding SVG paths behind graph nodes. */
+    /** Builds the selector and hidden-per-binding curved hops behind graph nodes. */
     function createFunctionLogicValueFlowRendering(
       logic,
       nodeLayoutsByBlockId,
@@ -41,6 +46,12 @@ export function getFunctionLogicDataFlowBrowserSource(): string {
     ) {
       const bindings = logic.valueBindings || [];
       const flows = logic.valueFlows || [];
+      const flowHops = createFunctionLogicValueFlowHops(
+        flows,
+        logic.edges || [],
+        logic.blocks.length,
+        MAX_LOGIC_VALUE_FLOW_HOPS
+      );
       prepareFunctionLogicValuePreviewSession(sessionKey, bindings);
       const editableBindings = readFunctionLogicScenarioEditableBindings(bindings);
       const bindingById = new Map(bindings.map((binding) => [binding.id, binding]));
@@ -54,6 +65,9 @@ export function getFunctionLogicDataFlowBrowserSource(): string {
       const legend = document.createElement("div");
       const paths = [];
       const buttonByBindingId = new Map();
+      // Each selected binding starts on the same side and alternates locally,
+      // producing a predictable stepping-stone rhythm independent of siblings.
+      const hopIndexByBindingId = new Map();
       let selectedBindingId = readFunctionLogicValueFlowSelection(
         sessionKey,
         editableBindings,
@@ -89,19 +103,27 @@ export function getFunctionLogicDataFlowBrowserSource(): string {
       svg.setAttribute("viewBox", "0 0 " + logic.layout.width + " " + logic.layout.height);
       svg.setAttribute("aria-hidden", "true");
       svg.append(createFunctionLogicValueFlowArrowMarker());
-      for (let index = 0; index < flows.length; index += 1) {
-        const flow = flows[index];
+      for (let index = 0; index < flowHops.length; index += 1) {
+        const flow = flowHops[index];
         const source = nodeLayoutsByBlockId.get(flow.sourceBlockId);
         const target = nodeLayoutsByBlockId.get(flow.targetBlockId);
         if (!source || !target || !bindingById.has(flow.bindingId)) continue;
+        const bindingHopIndex = hopIndexByBindingId.get(flow.bindingId) || 0;
+        hopIndexByBindingId.set(flow.bindingId, bindingHopIndex + 1);
         const path = createLogicSvgElement("path");
         path.setAttribute(
           "class",
-          "logic-data-flow-edge"
+          "logic-data-flow-edge logic-data-flow-hop"
             + (flow.targetUsage ? " " + flow.targetUsage : "")
             + (flow.confidence === "inferred" ? " inferred" : "")
         );
-        path.setAttribute("d", createFunctionLogicValueFlowPath(source, target, index));
+        path.setAttribute("d", createFunctionLogicValueFlowHopPath(
+          source,
+          target,
+          bindingHopIndex
+        ));
+        path.setAttribute("data-value-hop", flow.sourceBlockId + "→" + flow.targetBlockId);
+        path.setAttribute("data-value-hop-index", String(bindingHopIndex));
         path.setAttribute(
           "marker-end",
           flow.targetUsage === "sink"
@@ -116,10 +138,11 @@ export function getFunctionLogicDataFlowBrowserSource(): string {
       toolbar.setAttribute("aria-label", "Function parameter, local, and constant flows");
       header.className = "logic-data-flow-header";
       title.textContent = "Values in this function";
-      hint.textContent = "Choose one binding to trace possible definition → consume / sink flow.";
+      hint.textContent = "Choose one binding to trace curved declaration → use → sink hops.";
       buttons.className = "logic-data-flow-bindings";
       legend.className = "logic-data-flow-legend";
       legend.append(
+        createBadge("⌒ CURVED HOPS", "flow-badge logic-legend value-hop"),
         createBadge("○ CONSUME", "flow-badge logic-legend value-consume"),
         createBadge("◎ SINK", "flow-badge logic-legend value-sink")
       );
@@ -191,7 +214,7 @@ export function getFunctionLogicDataFlowBrowserSource(): string {
       }
 
       return {
-        svg: flows.length > 0 ? svg : undefined,
+        svg: flowHops.length > 0 ? svg : undefined,
         toolbar: bindings.length > 0 ? toolbar : undefined,
         valuePreviewEditor: valuePreviewRendering.element,
         scenarioTrace: scenarioTraceRendering.element,
@@ -224,39 +247,6 @@ export function getFunctionLogicDataFlowBrowserSource(): string {
         defs.append(marker);
       }
       return defs;
-    }
-
-    /** Routes forward values vertically and loop/branch-back values around the right side. */
-    function createFunctionLogicValueFlowPath(source, target, index) {
-      const sourceCenterX = source.x + source.width / 2;
-      const targetCenterX = target.x + target.width / 2;
-      if (source.blockId === target.blockId) {
-        const right = source.x + source.width;
-        const channel = right + 22 + (index % 4) * 7;
-        const top = source.y + source.height * 0.35;
-        const bottom = source.y + source.height * 0.7;
-        return "M " + right + " " + top
-          + " C " + channel + " " + top + ", " + channel + " " + bottom
-          + ", " + right + " " + bottom;
-      }
-      if (target.y >= source.y + source.height) {
-        const sourceY = source.y + source.height;
-        const targetY = target.y;
-        const middleY = (sourceY + targetY) / 2;
-        return "M " + sourceCenterX + " " + sourceY
-          + " C " + sourceCenterX + " " + middleY + ", "
-          + targetCenterX + " " + middleY + ", "
-          + targetCenterX + " " + targetY;
-      }
-      const sourceX = source.x + source.width;
-      const targetX = target.x + target.width;
-      const sourceY = source.y + source.height / 2;
-      const targetY = target.y + target.height / 2;
-      const channelX = Math.max(sourceX, targetX) + 24 + (index % 5) * 7;
-      return "M " + sourceX + " " + sourceY
-        + " C " + channelX + " " + sourceY + ", "
-        + channelX + " " + targetY + ", "
-        + targetX + " " + targetY;
     }
 
     /** Renders compact value-use rows shared by graph nodes and detail panels. */

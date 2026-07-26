@@ -270,6 +270,9 @@ test("lexical value flow stays parser-adapted, bounded, iterative, and protocol-
   const browser = readSource(
     "src/webview/codeFlow/dataFlow/functionLogicDataFlowBrowserSource.ts"
   );
+  const valueFlowRouting = readSource(
+    "src/webview/codeFlow/dataFlow/functionLogicValueFlowRouting.ts"
+  );
   const compound = readSource(
     "src/webview/functionVisualizer/compoundFunctionLogicGraphSource.ts"
   );
@@ -298,7 +301,11 @@ test("lexical value flow stays parser-adapted, bounded, iterative, and protocol-
   assert.match(protocol, /FunctionLogicValueFlowPayload/u);
   assert.match(protocol, /FunctionLogicValueUsagePayloadKind/u);
   assert.match(renderer, /getFunctionLogicDataFlowBrowserSource/u);
-  assert.match(browser, /createFunctionLogicValueFlowPath/u);
+  assert.match(browser, /createFunctionLogicValueFlowHops/u);
+  assert.match(browser, /createFunctionLogicValueFlowHopPath/u);
+  assert.match(valueFlowRouting, /while \(cursor < pending\.length\)/u);
+  assert.match(valueFlowRouting, /const visited = new Set/u);
+  assert.match(valueFlowRouting, /` Q /u);
   assert.match(browser, /formatFunctionLogicBindingKind/u);
   assert.match(browser, /formatFunctionLogicValueUsage/u);
   assert.match(browser, /logic-data-flow-sink-arrow/u);

@@ -38,6 +38,11 @@ export function getFunctionLogicDataFlowStyles(): string {
       gap: 4px;
     }
 
+    .flow-badge.logic-legend.value-hop {
+      color: var(--vscode-charts-blue, var(--vscode-textLink-foreground));
+      border-style: solid;
+    }
+
     .flow-badge.logic-legend.value-consume {
       color: var(--vscode-charts-blue, var(--vscode-textLink-foreground));
       border-style: dotted;
@@ -95,6 +100,9 @@ export function getFunctionLogicDataFlowStyles(): string {
     }
 
     .logic-data-flow-edge.selected { display: block; }
+    .logic-data-flow-edge.logic-data-flow-hop {
+      stroke-linejoin: round;
+    }
     .logic-data-flow-edge.consume { stroke-dasharray: 2 4; }
     .logic-data-flow-edge.sink {
       stroke: var(--vscode-charts-yellow, var(--vscode-textLink-foreground));
