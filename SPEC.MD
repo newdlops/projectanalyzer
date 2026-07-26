@@ -221,6 +221,21 @@ module이나 relation을 관계가 없다는 뜻으로 해석하지 않는다.
 Function Logic은 선택된 한 함수 내부의 가능한 제어 흐름이다. Project Graph의 call
 edge를 재배열한 결과가 아니라 현재 source syntax에서 직접 만든 별도 분석 결과다.
 
+Function Logic detail은 선택적으로 `Function Guide` payload를 포함할 수 있다. Guide는
+LLM, network, token, source execution 없이 source documentation, owner 구조, 기존
+architecture/semantic-flow index, direct graph caller/callee relation, declaration type/default,
+literal union, direct branch constraint, Function Logic을 bounded하게 결합한다. Webview는
+raw path/analyzer ID 대신 기존 opaque flow/block/edge/binding/evidence token만 받는다.
+Guide는 코드베이스 위치, 입력, 결정, 작업/호출, 종료의 5개 고정 질문을 항상
+ready/partial/unavailable 상태로 제공하며, claim마다 exact/inferred/unknown과 source
+basis를 보존한다. `Static Input Cases`는 Guide 내부에서만 lazy하게 JSON expression IR을
+해석한다. 서로 다른 callsite의 인자를 섞지 않고 uncertain/dynamic 값은 unknown 및 gap으로
+남긴다. scenario interpreter는 path 8, step 240, loop block 3회 상한을 지키고 제한에
+닿은 결과를 normal return으로 표시하지 않는다. TypeScript/JavaScript는 compiler AST
+adapter, Python/Java는 parser header와 structured condition fallback,
+F#/OCaml/Elixir는 safe binding/header fallback을 사용한다. 지원하지 않는
+write/call/alias는 추측하지 않는다.
+
 ```ts
 type FunctionLogicLanguage =
   | "typescript" | "javascript" | "python" | "java"
@@ -679,7 +694,7 @@ root 화면의 상단 chrome은 함수 title과 graph metric을 같은 행에 �
 짧은 보조 행으로 유지한다. 정상 idle status와 단일 root breadcrumb는 높이를 차지하지 않으며,
 분석/attach/error 상태와 실제 parent-child history가 생겼을 때만 각각 다시 표시한다. upstream
 entrypoint가 없으면 section 전체를 숨기고, 존재할 때는 `Reached from` inline strip으로 표시한다.
-Inspector를 열면 graph 위에 겹치지 않고 별도 우측 grid column을 차지하며, 720px 이하에서는
+Inspector를 열면 graph 위에 겹치지 않고 별도 우측 grid column을 차지하며, 839px 이하에서는
 graph 아래의 별도 고정 높이 row로 이동한다. drawer body는 workspace 높이 안에서 독립적으로
 scroll하고 긴 evidence가 graph canvas의 크기나 위치를 밀어내지 않는다.
 
@@ -774,11 +789,11 @@ scroll하고 긴 evidence가 graph canvas의 크기나 위치를 밀어내지 �
 - workspace-relative statement location
 - graph node 선택 시 자동으로 열리고 detail, outgoing target, source action을 보여 주는
   graph-adjacent right-side Inspector drawer
-- analyzer binding 유무와 관계없이 모든 새 root graph에서 Scenario tools를 찾을 수 있도록
-  Inspector를 처음부터 열고, 사용자가 닫은 상태는 같은 root의 relayout 동안 유지
-- Inspector 최상단의 non-shrinking scenario value editor, binding selector, 전체 direct callee
-  목록, signature, 읽기 가이드와 drawer 내부 독립 scroll; 긴 scenario variable list는 editor
-  내부에서 별도로 bounded scroll
+- wide editor의 새 root graph는 Inspector를 열고, 좁은 editor는 graph-first로 시작하며 사용자의
+  open/close 선택은 같은 root relayout 동안 유지
+- selected summary와 source action은 모든 lens의 첫 Inspector section으로 유지한다. Scenario value
+  editor와 binding selector는 Values lens에서, callee 목록은 Calls lens에서만 공개한다. 긴 scenario
+  variable list는 editor 내부에서 별도로 bounded scroll한다.
 - desktop에서는 graph와 별도 column, 작은 화면에서는 graph 아래 별도 row, 명시적 toggle/close,
   `Escape`, `aria-expanded`/`aria-hidden`/`inert` 상태
 - child function attachment로 graph를 다시 그려도 같은 root에서는 drawer open 상태 유지
@@ -1132,10 +1147,10 @@ Webview는 Project Graph, 파일 시스템, VS Code API에 직접 접근하지 �
 
 #### `webview/codeFlow/valuePreview`
 
-- parameter/local/constant 및 user-added `CUSTOM` variable용 상시 표시 bounded
+- parameter/local/constant 및 user-added `CUSTOM` variable용 Values lens 표시 bounded
   `Name`/`Scenario input` editor
-- Inspector의 첫 section으로 배치하고 intrinsic row height를 보존하며, tracked/manual row 목록만
-  내부 scroll시켜 선택 block evidence의 크기와 무관하게 editor를 보이게 하는 layout contract
+- Values lens에서 selected summary 다음에 배치하고 intrinsic row height를 보존하며, tracked/manual
+  row 목록만 내부 scroll시켜 선택 block evidence의 크기와 무관하게 editor를 보이게 하는 layout contract
 - analyzer binding이 없어도 lexical identifier와 초기값을 직접 추가하고, 이후 동일 이름의
   단일 analyzer binding이 나타나면 session value를 실제 binding으로 승격하는 fallback contract
 - root/session별 입력 annotation과 graph/selection access label 동기화

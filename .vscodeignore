@@ -11,6 +11,8 @@
 .mcp.json
 AGENTS.md
 SPEC.MD
+PRODUCT.md
+DESIGN.md
 FunctionSpec.md
 docs/**
 package-lock.json

@@ -143,19 +143,24 @@ dedicated Function Visualizer tab with a bounded control-flow graph:
   short quadratic declaration → use → use → sink hops, including independent branch
   arms, branch joins, and loop-carried definitions without hiding control edges;
   dotted consume paths and double/striped sink cues remain distinguishable without color
-- an always-present Debug Variables-style `Name` / `Scenario input` table for
-  entering session-only JSON/scalar parameter values or local/constant definition
-  overrides; it stays at the top of the Inspector, and a long variable list scrolls
-  inside the table instead of collapsing it; if analysis misses a binding, add a
-  `CUSTOM` variable by name and value
+- a Debug Variables-style `Name` / `Scenario input` table in the **Values** lens
+  for entering session-only JSON/scalar parameter values or local/constant definition
+  overrides; a long variable list scrolls inside the table instead of collapsing it;
+  if analysis misses a binding, add a `CUSTOM` variable by name and value
+- a **Function Guide** disclosure in the Function Logic Inspector that explains five
+  fixed source-backed questions: codebase role, inputs, path-changing decisions,
+  work/calls, and outcomes; it never moves the graph until **Show on Graph** is chosen
+- lazy **Static Input Cases** under that guide, with statically inferred inputs,
+  possible outcomes, certainty, and tracked value transitions; **Load Inputs into
+  Values** copies only known values into the existing Values editor
 - a bounded **Scenario calculation** directly below that table, showing selected and
   transitively derived values through `DEFINED`, `CALCULATED`, `UPDATED`, `CONSUME`,
   and `SINK` steps, including `before → after` results
 - clickable scenario-value names that select the shared value-flow lens and
   highlight the matching label, definition/use graph nodes, and arrows
-- automatic Inspector opening for every new function graph, including graphs with
-  no analyzer-reported bindings, while an explicit close choice remains preserved
-  through relayouts of that root graph
+- a wide-editor default Inspector that preserves an explicit close choice through
+  relayouts of that root graph; narrower editors begin graph-first and expose the
+  same Inspector through its labelled toggle
 - Function Logic UI text linked to the VS Code UI font settings and source/value
   text linked to the configured VS Code editor font settings
 - exact assignment/update/delete evidence and visibly dashed inferred receiver mutations
@@ -389,6 +394,19 @@ joined by spelling alone. This is lexical static flow plus source-proven object-
 evidence: it does not evaluate runtime values or infer aliases, keys hidden behind
 arbitrary spreads/calls, closures, or interprocedural data flow.
 
+Function Guide is a separate, non-executing codebase-understanding layer. It joins
+source documentation, owner chain, existing architecture and semantic-flow indexes,
+direct callers/callees, Function Logic blocks, and bounded static input cases into
+five fixed questions. It samples a bounded set of graph-backed callsites, declaration
+defaults, literal types, and direct branch boundaries; it never combines argument
+values from different calls. Its browser interpreter consumes a JSON expression IR
+only—there is no LLM request, network request, `eval`, `Function`, or source-code
+execution. TypeScript/JavaScript get AST facts; Python and Java additionally derive
+simple declaration-header types/defaults and direct comparisons; F#/OCaml/Elixir
+retain only safe declaration/binding facts. Unknown calls, aliases, unsupported
+writes, loop/path limits, and language limits stay visible as gaps. Static Input
+Cases are finite possible scenarios, never runtime traces.
+
 F#/OCaml/Elixir model `|>` as exact sequential evaluation, preserving complete
 input and stage text plus each language's argument-insertion direction. Named
 local stages can attach their Function Logic on the same canvas. Function
@@ -452,17 +470,21 @@ Static TypeScript/JavaScript code text has its own Function Logic boundary. Dire
 `eval("…")`, `new Function("…")`, `setTimeout("…")`/`setInterval("…")`, and Node
 `vm.runIn*`/`compileFunction` consumers accept only a statically complete string literal,
 no-substitution template, explicit `js`/`ts` code tag, or bounded literal-only `+`
-concatenation. A stored literal is recognized conservatively only when parsing proves
-function/control/multi-statement code shape; ordinary text such as `"hello"` is not
-reclassified as code.
+concatenation. A direct unshadowed `eval` may also consume one bounded, unambiguous
+`const` code binding (including a short chain of literal-only `const` aliases). A stored
+literal is recognized conservatively only when parsing proves function/control/multi-statement
+code shape; ordinary text such as `"hello"` is not reclassified as code.
 
 The decoded text is parsed but never executed. Its top-level program and every contained
 function declaration, function-valued binding, method, accessor, arrow, and nested
 function receive separate `TEXT`/`FN` scopes. Definition edges explicitly say that a body
 is not invoked. Immediate eval/vm text resumes the host statement after its embedded exit;
 timer text is deferred with no immediate return; stored and `Function` text remain
-definition-only until a real invocation can be proven. Interpolated templates, identifier
-arguments, runtime-built strings, and parser recovery stay visible analysis gaps.
+definition-only until a real invocation can be proven. Unshadowed direct eval links
+unambiguous host parameter/local reads and writes through the parsed text, while
+`globalThis.eval`/`window.eval` remain global-scope boundaries. Interpolated templates,
+mutable or ambiguous identifier arguments, runtime-built strings, and parser recovery stay
+visible analysis gaps.
 
 Select a `true`, `false`, or `case` edge label—or the matching choice in the
 selected-node panel—to preview that static scenario. Nested selections compose,
@@ -569,6 +591,11 @@ Key reusable modules:
   browser-only free-pan, focal zoom, Center, and Fit controls
 - `src/webview/codeFlow/valuePreview/` — session-only literal Scenario editor,
   bounded definition/consume/sink progression, and safe JSON field copy-on-write
+- `src/analyzer/functionTutor/` and `src/application/codeFlow/functionTutor/` —
+  source documentation, codebase-context collection, guide planning, bounded input
+  inference, static scenario planning, and opaque payload projection
+- `src/webview/codeFlow/tutor/` — accessible Function Guide, lazy JSON-IR scenarios,
+  explicit graph attention, source navigation, and Values-editor handoff
 - `src/webview/functionVisualizer/` — editor-tab lifecycle, reading UX, and
   cycle-safe lazy function navigation
 - `src/webview/codeFlow/dataFlow/` — binding selector, nearest-use hop planning,
@@ -596,9 +623,10 @@ or used to choose a branch. Clicking a `Name` label only selects the existing
 static curved value-hop overlay.
 
 Embedded-code discovery accepts at most 24,000 decoded characters and 64 literal-only
-concatenation pieces per candidate, retains at most 16 regions, and shares the configured
-Function Logic block budget. Multiple functions are queued iteratively; omitted regions,
-callable scopes, parser diagnostics, and dynamic text consumers are reported as gaps.
+concatenation pieces per candidate, follows at most eight `const` aliases, retains at most
+16 regions, and shares the configured Function Logic block budget. Multiple functions are
+queued iteratively; omitted regions, callable scopes, parser diagnostics, and dynamic text
+consumers are reported as gaps.
 
 Function Logic viewport movement is presentation-only. Pan uses a numerically
 guarded screen transform rather than analyzer coordinates, zoom is bounded to
