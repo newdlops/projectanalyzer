@@ -409,13 +409,13 @@ export function getCodeFlowBrowserSource(): string {
       renderActions();
     }
 
-    /** Updates start-mode accessibility and query affordances. */
+    /** Updates the pressed starting-point control and its query affordances. */
     function configureSearchInput() {
       const entrypoints = state.startMode === "entrypoints";
       elements.modeEntrypoints.classList.toggle("active", entrypoints);
       elements.modeFunctions.classList.toggle("active", !entrypoints);
-      elements.modeEntrypoints.setAttribute("aria-selected", entrypoints ? "true" : "false");
-      elements.modeFunctions.setAttribute("aria-selected", entrypoints ? "false" : "true");
+      elements.modeEntrypoints.setAttribute("aria-pressed", entrypoints ? "true" : "false");
+      elements.modeFunctions.setAttribute("aria-pressed", entrypoints ? "false" : "true");
       elements.searchInput.placeholder = entrypoints
         ? "Route, operation, or framework"
         : "Function name or source path";
@@ -565,7 +565,6 @@ export function getCodeFlowBrowserSource(): string {
       const button = document.createElement("button");
       button.type = "button";
       button.className = "result-card";
-      button.setAttribute("role", "option");
       return button;
     }
 

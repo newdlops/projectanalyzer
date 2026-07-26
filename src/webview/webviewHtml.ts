@@ -101,9 +101,9 @@ function getCodeFlowSidebarHtml(options: WebviewHtmlOptions): string {
         <span id="catalog-summary" class="summary-chip"></span>
       </div>
 
-      <div class="start-mode-switch" role="tablist" aria-label="Flow starting point">
-        <button id="mode-entrypoints" class="start-mode active" type="button" role="tab" aria-selected="true">Entrypoints</button>
-        <button id="mode-functions" class="start-mode" type="button" role="tab" aria-selected="false">Functions</button>
+      <div class="start-mode-switch" role="group" aria-label="Flow starting point">
+        <button id="mode-entrypoints" class="start-mode active" type="button" aria-pressed="true">Entrypoints</button>
+        <button id="mode-functions" class="start-mode" type="button" aria-pressed="false">Functions</button>
       </div>
 
       <form id="flow-search-form" class="flow-search" role="search">
@@ -118,7 +118,7 @@ function getCodeFlowSidebarHtml(options: WebviewHtmlOptions): string {
         <button id="flow-search-submit" class="search-submit" type="submit" aria-label="Search">Find</button>
       </form>
       <div id="flow-search-meta" class="flow-search-meta" aria-live="polite"></div>
-      <div id="flow-results" class="flow-results" role="listbox" aria-label="Flow starting points"></div>
+      <div id="flow-results" class="flow-results" aria-label="Flow starting points"></div>
       <button id="flow-search-more" class="text-button" type="button" hidden>Load more functions</button>
     </section>
 

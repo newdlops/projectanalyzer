@@ -126,6 +126,17 @@ export function getExplorerStyles(surface: ExplorerSurface): string {
       opacity: 0.55;
     }
 
+    /* Keep keyboard focus visible for shared sidebar and panel actions. */
+    .primary-button:focus-visible,
+    .secondary-button:focus-visible,
+    .action-button:focus-visible,
+    .mode-button:focus-visible,
+    .view-button:focus-visible,
+    .icon-button:focus-visible {
+      outline: 1px solid var(--vscode-focusBorder);
+      outline-offset: 2px;
+    }
+
     .mode-switch {
       padding: 2px;
       border: 1px solid var(--vscode-panel-border);

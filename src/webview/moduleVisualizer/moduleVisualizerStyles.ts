@@ -17,7 +17,7 @@ export function getModuleVisualizerStyles(): string {
     html, body { width: 100%; height: 100%; }
 
     body {
-      min-width: 480px;
+      min-width: 320px;
       margin: 0;
       background: var(--vscode-editor-background);
     }
@@ -475,8 +475,16 @@ export function getModuleVisualizerStyles(): string {
     }
 
     @media (max-width: 760px) {
-      .module-flow-workspace { grid-template-columns: minmax(0, 1fr); }
-      .module-flow-detail { display: none; }
+      .module-flow-workspace {
+        grid-template-columns: minmax(0, 1fr);
+        grid-template-rows: minmax(360px, 1fr) minmax(180px, 35vh);
+      }
+
+      /* Preserve source-backed details in narrow editor groups instead of hiding them. */
+      .module-flow-detail {
+        border-top: 1px solid var(--vscode-panel-border);
+        border-left: 0;
+      }
     }
 
     @media (prefers-reduced-motion: reduce) {

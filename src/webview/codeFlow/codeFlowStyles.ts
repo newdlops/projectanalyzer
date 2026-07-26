@@ -280,6 +280,7 @@ export function getCodeFlowStyles(): string {
     }
 
     .start-mode:focus-visible,
+    .search-submit:focus-visible,
     .result-card:focus-visible,
     .flow-step:focus-visible,
     .logic-block:focus-visible,
@@ -310,8 +311,10 @@ export function getCodeFlowStyles(): string {
       outline: none;
     }
 
-    .flow-search input:focus {
+    .flow-search input:focus-visible {
       border-color: var(--vscode-focusBorder);
+      outline: 1px solid var(--vscode-focusBorder);
+      outline-offset: 1px;
     }
 
     .search-submit {

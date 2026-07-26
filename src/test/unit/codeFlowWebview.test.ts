@@ -127,6 +127,23 @@ test("function mode searches concrete definitions and requests tokenized context
   }
 });
 
+test("starting-point controls expose their selected mode as pressed buttons", () => {
+  const runtime = installSidebarWebviewRuntime();
+
+  try {
+    new Function(requireSidebarScript())();
+    assert.equal(runtime.getAttribute("mode-entrypoints", "aria-pressed"), "true");
+    assert.equal(runtime.getAttribute("mode-functions", "aria-pressed"), "false");
+
+    runtime.click("mode-functions");
+
+    assert.equal(runtime.getAttribute("mode-entrypoints", "aria-pressed"), "false");
+    assert.equal(runtime.getAttribute("mode-functions", "aria-pressed"), "true");
+  } finally {
+    runtime.restore();
+  }
+});
+
 test("function detail renders internal branches and opens exact statement evidence", () => {
   const runtime = installSidebarWebviewRuntime();
 
@@ -141,6 +158,8 @@ test("function detail renders internal branches and opens exact statement eviden
     assert.equal(runtime.countRenderedByClass("flow-steps", "logic-depth-2"), 1);
     assert.ok(rendered.includes("function place(order: Order)"));
     assert.ok(rendered.includes("if order.valid"));
+    assert.ok(rendered.includes("Condition cases"));
+    assert.ok(rendered.includes("order.valid"));
     assert.ok(rendered.includes("Choose true → repository.save(order);"));
     assert.ok(rendered.includes("Choose false → END"));
     runtime.clickByTitle("Choose path · true → repository.save(order);");
@@ -154,6 +173,14 @@ test("function detail renders internal branches and opens exact statement eviden
     assert.ok(runtime.getRenderedText("flow-steps").includes(
       "Choose true → repository.save(order);"
     ));
+    runtime.clickByTitle("Apply condition case · order.valid");
+    assert.ok(runtime.getRenderedText("flow-steps").includes(
+      "1 branch choice selected · reachable continuation highlighted"
+    ));
+    runtime.clickByTitle("Clear condition case · order.valid");
+    assert.ok(runtime.getRenderedText("flow-steps").includes(
+      "Choose true → repository.save(order);"
+    ));
     runtime.clickByTitle("Choose path · false → END");
     assert.ok(runtime.getRenderedText("flow-steps").includes("Selected false → END"));
     runtime.clickByTitle("Clear all selected branch choices");
@@ -162,6 +189,10 @@ test("function detail renders internal branches and opens exact statement eviden
     runtime.clickByTitle("Zoom in function graph");
     assert.ok(runtime.getRenderedText("flow-steps").includes("Control paths"));
     runtime.clickByTitle("Select logic · repository.save(order);");
+    assert.deepEqual(latestPayload(runtime.messages, "codeFlow/openEvidence"), {
+      graphVersion,
+      evidenceToken
+    });
     assert.ok(runtime.getRenderedText("flow-steps").includes("return → END"));
     assert.ok(runtime.getRenderedText("flow-reader-kicker").includes("FUNCTION LOGIC · POSSIBLE CONTROL PATHS"));
     assert.ok(runtime.getRenderedText("flow-semantics-note").some((text) => text.includes("current source syntax")));
@@ -454,7 +485,30 @@ function createFunctionLogicDetailMessage(version: string): unknown {
             depth: 1,
             confidence: "exact",
             sourceLocation: "src/application/ordersService.ts:14",
-            evidenceToken
+            evidenceToken,
+            conditionTable: {
+              expression: "order.valid",
+              columns: [{ blockId: conditionId, expression: "order.valid" }],
+              rows: [
+                {
+                  id: "function-logic-condition-case:11111111111111111111111111111111",
+                  values: ["true"],
+                  result: "true",
+                  choiceEdgeIds: ["function-logic-edge:11111111111111111111111111111111"],
+                  targetBlockId: effectId,
+                  targetLabel: "repository.save(order);"
+                },
+                {
+                  id: "function-logic-condition-case:22222222222222222222222222222222",
+                  values: ["false"],
+                  result: "false",
+                  choiceEdgeIds: ["function-logic-edge:44444444444444444444444444444444"],
+                  targetBlockId: exitId,
+                  targetLabel: "Exit place"
+                }
+              ],
+              omittedCaseCount: 0
+            }
           },
           {
             id: effectId,
