@@ -14,6 +14,10 @@ import { normalizeProjectGraphMetadata } from "../../graph/graphMetadata";
 import type { ProjectAnalyzerLogger } from "../../observability/logger";
 import type { ProjectGraph, SourceFile } from "../../shared/types";
 import { createWorkspaceSourceManifestInput } from "./workspaceSourceManifest";
+import {
+  type CollectedProcessOutput,
+  ProcessOutputCollector
+} from "./processOutputCollector";
 import { mergeSupplementalLanguageGraph } from "./supplementalLanguageGraph";
 
 /** Languages whose symbols are supplied by the in-process analyzer for now. */
@@ -163,13 +167,26 @@ export class RustAnalyzerBackend implements AnalysisBackend {
     );
     this.options.logger.debug("rust.process.stdout", {
       durationMs: Date.now() - startedAt,
-      stdoutBytes: Buffer.byteLength(output, "utf8")
+      stdoutBytes: output.stdoutBytes,
+      stdoutChunks: output.stdoutChunks
     });
-    const graph = JSON.parse(output) as ProjectGraph;
-
-    if (!graph || !Array.isArray(graph.nodes) || !Array.isArray(graph.edges)) {
+    const parseStartedAt = Date.now();
+    let parsedGraph: unknown;
+    try {
+      parsedGraph = JSON.parse(output.stdout) as unknown;
+    } finally {
+      // The parsed graph replaces the potentially very large serialized copy.
+      output.stdout = "";
+    }
+    if (!isProjectGraphPayload(parsedGraph)) {
       throw new Error("Rust analyzer returned an invalid graph payload.");
     }
+    const graph = parsedGraph;
+    this.options.logger.debug("rust.process.parsed", {
+      durationMs: Date.now() - parseStartedAt,
+      edges: graph.edges.length,
+      nodes: graph.nodes.length
+    });
 
     return normalizeProjectGraphMetadata(graph);
   }
@@ -260,7 +277,7 @@ function runProcess(
   logger: ProjectAnalyzerLogger,
   activeProcesses: Set<childProcess.ChildProcess>,
   stdin?: string | Buffer | Iterable<Uint8Array>
-): Promise<string> {
+): Promise<CollectedProcessOutput> {
   return new Promise((resolve, reject) => {
     const startedAt = Date.now();
     const child = childProcess.spawn(invocation.command, invocation.args, {
@@ -269,19 +286,14 @@ function runProcess(
     activeProcesses.add(child);
     /** Lazy manifest source, destroyed explicitly if the engine exits early. */
     let inputStream: Readable | undefined;
-    const stdoutChunks: Buffer[] = [];
-    const stderrChunks: Buffer[] = [];
+    const output = new ProcessOutputCollector();
+    let settled = false;
 
     child.stdout.on("data", (chunk: Buffer) => {
-      stdoutChunks.push(chunk);
-      logger.debug("rust.process.stdoutChunk", { bytes: chunk.length });
+      output.appendStdout(chunk);
     });
     child.stderr.on("data", (chunk: Buffer) => {
-      stderrChunks.push(chunk);
-      logger.warn("rust.process.stderrChunk", {
-        bytes: chunk.length,
-        preview: chunk.toString("utf8").slice(0, 300)
-      });
+      output.appendStderr(chunk);
     });
     child.stdin.on("error", (error) => {
       // A child that exits early can close stdin before the lazy manifest is
@@ -289,27 +301,46 @@ function runProcess(
       logger.debug("rust.process.stdinClosed", { error: formatError(error) });
     });
     child.on("error", (error) => {
+      if (settled) return;
+      settled = true;
       activeProcesses.delete(child);
       inputStream?.destroy();
+      output.release();
       logger.error("rust.process.error", { error: formatError(error) });
       reject(error);
     });
     child.on("close", (code) => {
+      if (settled) return;
+      settled = true;
       activeProcesses.delete(child);
       inputStream?.destroy();
-      const stderr = Buffer.concat(stderrChunks).toString("utf8");
+      const collected = output.take();
       logger.debug("rust.process.close", {
         code,
         durationMs: Date.now() - startedAt,
-        stderrBytes: Buffer.byteLength(stderr, "utf8")
+        stderrBytes: collected.stderrBytes,
+        stderrChunks: collected.stderrChunks,
+        stderrOmittedBytes: collected.stderrOmittedBytes,
+        stdoutBytes: collected.stdoutBytes,
+        stdoutChunks: collected.stdoutChunks
       });
+      if (collected.stderrBytes > 0) {
+        logger.warn("rust.process.stderr", {
+          bytes: collected.stderrBytes,
+          omittedBytes: collected.stderrOmittedBytes,
+          preview: collected.stderrPreview
+        });
+      }
 
       if (code !== 0) {
-        reject(new Error(stderr || `Rust analyzer exited with code ${code ?? "unknown"}`));
+        collected.stdout = "";
+        reject(new Error(
+          formatProcessStderr(collected) || `Rust analyzer exited with code ${code ?? "unknown"}`
+        ));
         return;
       }
 
-      resolve(Buffer.concat(stdoutChunks).toString("utf8"));
+      resolve(collected);
     });
 
     if (stdin !== undefined && typeof stdin !== "string" && !Buffer.isBuffer(stdin)) {
@@ -325,6 +356,22 @@ function runProcess(
       child.stdin.end();
     }
   });
+}
+
+/** Adds an explicit omission suffix to a bounded stderr preview. */
+function formatProcessStderr(output: CollectedProcessOutput): string {
+  const preview = output.stderrPreview.trim();
+  if (!preview) return "";
+  return output.stderrOmittedBytes > 0
+    ? `${preview}\n[${output.stderrOmittedBytes} stderr bytes omitted]`
+    : preview;
+}
+
+/** Narrows the minimum engine response before metadata normalization. */
+function isProjectGraphPayload(value: unknown): value is ProjectGraph {
+  if (!value || typeof value !== "object") return false;
+  const candidate = value as Partial<ProjectGraph>;
+  return Array.isArray(candidate.nodes) && Array.isArray(candidate.edges);
 }
 
 /** Builds a small graph summary for log lines. */

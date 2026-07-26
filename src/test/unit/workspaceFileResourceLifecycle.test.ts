@@ -42,6 +42,8 @@ test("streams analyzer input and disposes owned child processes with extension s
   assert.match(backend, /createWorkspaceSourceManifestInput\(sourceFiles\)/u);
   assert.match(backend, /Readable\.from\(stdin, \{ objectMode: false \}\)/u);
   assert.match(backend, /inputStream\?\.destroy\(\)/u);
+  assert.match(backend, /new ProcessOutputCollector\(\)/u);
+  assert.doesNotMatch(backend, /rust\.process\.stdoutChunk|rust\.process\.stderrChunk/u);
   assert.match(backend, /for \(const process of this\.activeProcesses\)/u);
   assert.match(services, /context\.subscriptions\.push\(analyzer\)/u);
   assert.match(services, /context\.subscriptions\.push\(moduleVisualizerPanelProvider\)/u);
