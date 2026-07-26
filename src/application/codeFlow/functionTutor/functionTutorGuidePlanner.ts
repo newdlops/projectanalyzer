@@ -74,7 +74,10 @@ function buildPlaceChapter(input: BuildFunctionTutorGuideInput): FunctionTutorGu
   const answer = retained.length === 0
     ? "The current bounded graph does not provide source-backed placement context for this function."
     : `The current graph provides ${retained.length} source-backed placement fact${plural(retained.length)} for this function.`;
-  return createChapter(1, "place", "Where Does It Fit?", retained, answer, "calls", input.functionLogic.blocks[0]?.id, [], []);
+  return createChapter(1, "place", "Where Does It Fit?", retained, answer, "calls", input.functionLogic.blocks[0]?.id, [], [], {
+    entrypointCount: context.counts.totalEntrypointCount,
+    callerCount: context.counts.totalCallerCount
+  });
 }
 
 function buildInputChapter(input: BuildFunctionTutorGuideInput): FunctionTutorGuideChapter {
@@ -93,7 +96,10 @@ function buildInputChapter(input: BuildFunctionTutorGuideInput): FunctionTutorGu
   const answer = input.declaration.parameters.length === 0
     ? "No declared parameters are visible in the current function declaration."
     : `${input.declaration.parameters.length} declared input${plural(input.declaration.parameters.length)} and ${input.scenarios.filter((seed) => seed.certainty === "exact").length} exact callsite tuple${plural(input.scenarios.filter((seed) => seed.certainty === "exact").length)} are available for static reading.`;
-  return createChapter(2, "inputs", "What Comes In?", facts.slice(0, MAX_INPUT_FACTS), answer, "values", parameterBlocks[0], parameterBlocks, []);
+  return createChapter(2, "inputs", "What Comes In?", facts.slice(0, MAX_INPUT_FACTS), answer, "values", parameterBlocks[0], parameterBlocks, [], {
+    parameterCount: input.declaration.parameters.length,
+    exactCallsiteTupleCount: input.scenarios.filter((seed) => seed.certainty === "exact").length
+  });
 }
 
 function buildDecisionChapter(input: BuildFunctionTutorGuideInput): FunctionTutorGuideChapter {
@@ -110,7 +116,10 @@ function buildDecisionChapter(input: BuildFunctionTutorGuideInput): FunctionTuto
   const answer = candidates.length === 0
     ? "No branch or loop is visible in the bounded function body."
     : `${branchCount} decision${plural(branchCount)} and ${loopCount} loop${plural(loopCount)} can change the static path.`;
-  return createChapter(3, "decisions", "What Changes the Path?", facts, answer, "flow", candidates[0]?.id, candidates.map((block) => block.id), candidates.flatMap((block) => input.functionLogic.edges.filter((edge) => edge.sourceId === block.id).map((edge) => edge.id)));
+  return createChapter(3, "decisions", "What Changes the Path?", facts, answer, "flow", candidates[0]?.id, candidates.map((block) => block.id), candidates.flatMap((block) => input.functionLogic.edges.filter((edge) => edge.sourceId === block.id).map((edge) => edge.id)), {
+    decisionCount: branchCount,
+    loopCount
+  });
 }
 
 function buildWorkChapter(input: BuildFunctionTutorGuideInput): FunctionTutorGuideChapter {
@@ -132,7 +141,11 @@ function buildWorkChapter(input: BuildFunctionTutorGuideInput): FunctionTutorGui
   const answer = retained.length === 0
     ? "No classified value change, call, render, event, or effect is visible in the bounded function body."
     : `${changeCount} visible value change${plural(changeCount)}, ${effectCount} effect block${plural(effectCount)}, and ${input.context.callees.length} direct outgoing relation${plural(input.context.callees.length)} are available for inspection.`;
-  return createChapter(4, "work", "What Does It Change or Call?", retained, answer, "calls", retained[0]?.blockIds[0], retained.flatMap((fact) => fact.blockIds), []);
+  return createChapter(4, "work", "What Does It Change or Call?", retained, answer, "calls", retained[0]?.blockIds[0], retained.flatMap((fact) => fact.blockIds), [], {
+    valueChangeCount: changeCount,
+    effectBlockCount: effectCount,
+    outgoingRelationCount: input.context.callees.length
+  });
 }
 
 function buildOutcomeChapter(input: BuildFunctionTutorGuideInput): FunctionTutorGuideChapter {
@@ -144,7 +157,11 @@ function buildOutcomeChapter(input: BuildFunctionTutorGuideInput): FunctionTutor
   const answer = terminalBlocks.length === 0
     ? "No explicit return, throw, or exit block is visible; follow the final transfer in the graph."
     : `${returnCount} return point${plural(returnCount)} and ${throwCount} throw${plural(throwCount)} are visible in the bounded function body.`;
-  return createChapter(5, "outcomes", "How Can It Finish?", facts.slice(0, MAX_FACTS), answer, "effects", terminalBlocks[0]?.id, terminalBlocks.map((block) => block.id), []);
+  return createChapter(5, "outcomes", "How Can It Finish?", facts.slice(0, MAX_FACTS), answer, "effects", terminalBlocks[0]?.id, terminalBlocks.map((block) => block.id), [], {
+    returnCount,
+    throwCount,
+    exitCount: terminalBlocks.filter((block) => block.kind === "exit").length
+  });
 }
 
 function createChapter(
@@ -156,7 +173,8 @@ function createChapter(
   preferredLens: FunctionTutorGuideChapter["preferredLens"],
   primaryBlockId: string | undefined,
   attentionBlockIds: string[],
-  attentionEdgeIds: string[]
+  attentionEdgeIds: string[],
+  counts: Record<string, number> = {}
 ): FunctionTutorGuideChapter {
   const status = facts.length >= 2 ? "ready" : facts.length === 1 ? "partial" : "unavailable";
   return {
@@ -165,7 +183,7 @@ function createChapter(
     kind,
     question,
     status,
-    answer: { text: answer, counts: { factCount: facts.length } },
+    answer: { text: answer, counts: { factCount: facts.length, ...counts } },
     facts,
     preferredLens,
     ...(primaryBlockId ? { primaryBlockId } : {}),
