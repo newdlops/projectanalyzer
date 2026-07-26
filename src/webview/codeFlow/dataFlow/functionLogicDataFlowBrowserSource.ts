@@ -261,6 +261,10 @@ export function getFunctionLogicDataFlowBrowserSource(): string {
         valuePreviewEditor: valuePreviewRendering.element,
         scenarioTrace: scenarioTraceRendering.element,
         refresh,
+        /** Delegates an explicit Guide → Values handoff to the editor surface. */
+        focusKnownInputs(names, message) {
+          valuePreviewRendering.focusKnownInputs(names, message);
+        },
         resetPlayback() {
           playback.reset();
           refresh();

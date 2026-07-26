@@ -123,6 +123,7 @@ export function getFunctionLogicValuePreviewBrowserSource(): string {
       header.className = "logic-value-preview-header";
       heading.className = "logic-value-preview-heading";
       title.textContent = "Scenario values";
+      title.tabIndex = -1;
       hint.textContent = "Edit tracked values like Debug Variables. If analysis missed a name, "
         + "add it below; JSON/scalars feed safe calculation. Source calls are never executed.";
       clearAll.type = "button";
@@ -381,6 +382,19 @@ export function getFunctionLogicValuePreviewBrowserSource(): string {
         setSelectedBinding(bindingId) {
           selectedBindingId = bindingId || "";
           applySelectedBinding();
+        },
+        /** Focuses the first transferred value and leaves a visible local status. */
+        focusKnownInputs(names, message) {
+          const requested = new Set(names || []);
+          let target;
+          for (const binding of bindings) {
+            if (!requested.has(binding.name)) continue;
+            target = inputsByBindingId.get(binding.id);
+            if (target) break;
+          }
+          addStatus.textContent = message || "Static inputs loaded into Scenario values.";
+          (target || title).scrollIntoView?.({ block: "nearest" });
+          (target || title).focus();
         }
       };
     }

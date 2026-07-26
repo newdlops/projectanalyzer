@@ -2,7 +2,7 @@
 
 export function getFunctionTutorIntegrationBrowserSource(): string {
   return /* js */ `
-    function createFunctionTutorIntegration(logic, comprehension, valueFlowRendering, viewportController) {
+    function createFunctionTutorIntegration(logic, comprehension, valueFlowRendering, viewportController, inspector) {
       function applyGuideFocus(chapter) {
         comprehension.setGuideFocus({
           primaryBlockId: chapter?.primaryBlockId,
@@ -25,14 +25,24 @@ export function getFunctionTutorIntegrationBrowserSource(): string {
           comprehension.setGuideFocus({ primaryBlockId: path?.blockIds?.[0], blockIds: path?.blockIds || [], edgeIds: path?.edgeIds || [] });
         },
         onLoadInputs(seed) {
-        for (const input of seed.inputs) {
-          if (input.value.kind === "unknown") continue;
-          const parameter = logic.tutor?.parameters.find((candidate) => candidate.id === input.parameterId);
-          const valueText = functionTutorScenarioInputText(input.value);
-          if (parameter && valueText !== undefined) functionLogicManualScenarioValueByName.set(parameter.name, valueText);
-        }
-        comprehension.setLens("values");
-        valueFlowRendering?.refresh();
+          const loadedNames = [];
+          for (const input of seed.inputs) {
+            if (input.value.kind === "unknown") continue;
+            const parameter = logic.tutor?.parameters.find((candidate) => candidate.id === input.parameterId);
+            const valueText = functionTutorScenarioInputText(input.value);
+            if (!parameter || valueText === undefined) continue;
+            functionLogicManualScenarioValueByName.set(parameter.name, valueText);
+            loadedNames.push(parameter.name);
+          }
+          comprehension.setLens("values");
+          valueFlowRendering?.refresh();
+          // Values is an explicit handoff: preserve the Guide state while
+          // placing the editable destination and its confirmation in view.
+          inspector?.openInspect();
+          valueFlowRendering?.focusKnownInputs(
+            loadedNames,
+            "Loaded " + loadedNames.length + " known input" + (loadedNames.length === 1 ? "" : "s") + " from Static Input Cases."
+          );
         },
         onOpenEvidence(token) { if (token) openLogicEvidence(token); },
         onClearGuideFocus() { comprehension.clearGuideFocus(); },
