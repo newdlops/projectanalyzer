@@ -52,6 +52,7 @@ test("keeps the graph primary and moves supporting inspectors into an adjacent d
   const runtime = installSidebarWebviewRuntime();
   const openTitle = "Open function inspector · return true;";
   const closeTitle = "Close function inspector · return true;";
+  const panelCloseTitle = "Close function reading panel";
 
   try {
     new Function(requireFunctionVisualizerScript())();
@@ -91,7 +92,7 @@ test("keeps the graph primary and moves supporting inspectors into an adjacent d
       ), 1, `${inspectorClass} should live inside the drawer`);
     }
 
-    runtime.clickByTitle("Close function inspector");
+    runtime.clickByTitle(panelCloseTitle);
     assert.equal(runtime.getRenderedAttributeByTitle(
       "flow-steps",
       openTitle,
@@ -110,7 +111,7 @@ test("keeps the graph primary and moves supporting inspectors into an adjacent d
       "aria-hidden"
     ), "true");
     runtime.clickByTitle(openTitle);
-    runtime.clickByTitle("Close function inspector");
+    runtime.clickByTitle(panelCloseTitle);
     runtime.clickByTitle("Select logic · return true;");
     assert.equal(runtime.getRenderedAttributeByClass(
       "flow-steps",

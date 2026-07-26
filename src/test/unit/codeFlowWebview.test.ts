@@ -259,6 +259,13 @@ test("Function Guide explains codebase context through an accessible disclosure 
     assert.ok(rendered.includes("Where Does It Fit?"));
     assert.ok(rendered.includes("Static Input Cases"));
     assert.equal(runtime.getRenderedAttributeByTitle("flow-steps", "Open a source-backed guide to this function and its codebase context", "aria-expanded"), "true");
+    assert.equal(runtime.getRenderedAttributeByClass("flow-steps", "logic-inspector-toggle", "aria-expanded"), "false");
+    runtime.clickByTitle("Open a source-backed guide to this function and its codebase context");
+    assert.equal(runtime.getRenderedAttributeByClass("flow-steps", "logic-inspector-drawer", "aria-hidden"), "true");
+    assert.equal(runtime.getRenderedAttributeByTitle("flow-steps", "Open a source-backed guide to this function and its codebase context", "aria-expanded"), "false");
+    runtime.dispatchRenderedEventByClass("flow-steps", "logic-inspector-toggle", "click");
+    assert.equal(runtime.getRenderedAttributeByClass("flow-steps", "logic-inspector-drawer", "aria-hidden"), "false");
+    assert.equal(runtime.getRenderedAttributeByClass("flow-steps", "logic-inspector-toggle", "aria-expanded"), "true");
   } finally {
     runtime.restore();
   }

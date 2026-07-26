@@ -329,19 +329,20 @@ test("Function Logic keeps a large graph surface and modular adjacent inspector 
 
   assert.match(renderer, /getFunctionLogicInspectorBrowserSource/u);
   assert.match(renderer, /inspector\.attachViewport\(viewport\)/u);
+  assert.match(renderer, /inspector\.registerGuide\(tutorRendering\)/u);
   assert.match(renderer, /inspector\.appendSections\(/u);
   assert.match(renderer, /valueFlowRendering\?\.valuePreviewEditor/u);
   assert.match(renderer, /valueFlowRendering\?\.scenarioTrace/u);
   assert.match(renderer, /valueFlowRendering\?\.toolbar/u);
-  assert.match(inspector, /functionLogicInspectorSessionKey/u);
-  assert.match(inspector, /drawer\.inert = !functionLogicInspectorOpen/u);
+  assert.match(inspector, /functionLogicInspectorStateBySession/u);
+  assert.match(inspector, /drawer\.inert = !state\.open/u);
   assert.match(inspector, /event\.key !== "Escape"/u);
   assert.match(inspector, /aria-expanded/u);
   assert.match(inspector, /window\.matchMedia\("\(min-width: 1040px\)"\)/u);
-  assert.match(inspector, /functionLogicInspectorOpen = wideQuery \? wideQuery\.matches : true/u);
+  assert.match(inspector, /open: wideQuery \? wideQuery\.matches : true/u);
   assert.match(
     inspector,
-    /scroll\.replaceChildren\(\.\.\.available, \.\.\.scroll\.children\)/u
+    /inspectContent\.replaceChildren\(\.\.\.available, \.\.\.inspectContent\.children\)/u
   );
   assert.match(inspectorStyles, /display: grid/u);
   assert.match(inspectorStyles, /grid-template-columns: minmax\(0, 1fr\) 0/u);
@@ -551,7 +552,8 @@ test("Scenario Variables and its Inspector are invariant even without analyzer b
   );
 
   assert.match(renderer, /createFunctionLogicInspector\(choiceSessionKey\)/u);
-  assert.match(inspector, /functionLogicInspectorOpen = wideQuery \? wideQuery\.matches : true/u);
+  assert.match(inspector, /functionLogicInspectorStateBySession/u);
+  assert.match(inspector, /MAX_FUNCTION_LOGIC_INSPECTOR_SESSIONS/u);
   assert.match(dataFlow, /valuePreviewEditor: valuePreviewRendering\.element/u);
   assert.match(dataFlow, /scenarioTrace: scenarioTraceRendering\.element/u);
   assert.doesNotMatch(

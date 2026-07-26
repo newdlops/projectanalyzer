@@ -229,6 +229,12 @@ export function installSidebarWebviewRuntime(initialWebviewState?: unknown): Sid
     }
   });
   Reflect.set(globalThis, "document", {
+    createTextNode(value: string) {
+      generatedElementId += 1;
+      const textNode = getOrCreateElement(`text:${generatedElementId}`);
+      textNode.textContent = value;
+      return textNode;
+    },
     createElement(tagName: string) {
       generatedElementId += 1;
       return getOrCreateElement(`${tagName}:${generatedElementId}`);
