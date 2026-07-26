@@ -38,3 +38,4 @@ export {
   createSymbolCodeFlowDetail,
   type SymbolCodeFlowProjectionOptions
 } from "./codeFlowProjection";
+export { buildFunctionTutorModel } from "./functionTutor";

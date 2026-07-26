@@ -33,6 +33,10 @@ import {
   createFunctionLogicDrillTargets,
   type FunctionLogicSourceTokenFactory
 } from "./functionLogicDrillTargets";
+import {
+  createFunctionTutorPayload,
+  type FunctionTutorBuildModel
+} from "./functionTutor";
 
 const DEFAULT_ORIGIN_LIMIT = 5;
 const DISPLAY_TEXT_LIMIT = 180;
@@ -52,7 +56,8 @@ export function createFunctionLogicCodeFlowDetail(
   deliveryVersion: string,
   createEvidenceToken: CodeFlowEvidenceTokenFactory,
   createSourceToken: FunctionLogicSourceTokenFactory,
-  originLimit = DEFAULT_ORIGIN_LIMIT
+  originLimit = DEFAULT_ORIGIN_LIMIT,
+  tutorModel?: FunctionTutorBuildModel
 ): CodeFlowDetailPayload {
   const flowId = createCodeFlowIdentity(deliveryVersion, `function-logic\0${node.id}`);
   const sourceDisplay = createSourceDisplayFormatter(graph.workspaceRoot);
@@ -192,6 +197,13 @@ export function createFunctionLogicCodeFlowDetail(
         : [];
     }
   ) ?? [];
+  const tutor = tutorModel ? createFunctionTutorPayload(tutorModel, {
+    flowId,
+    blockIds: protocolBlockIds,
+    edgeIds: protocolEdgeIds,
+    bindingIds: protocolBindingIds,
+    createEvidenceToken
+  }) : undefined;
 
   return {
     graphVersion: deliveryVersion,
@@ -212,7 +224,8 @@ export function createFunctionLogicCodeFlowDetail(
       layout: createFunctionLogicGraphLayout(blocks, edges),
       summary: analysis.summary,
       callees: drillProjection.callees,
-      omittedCalleeCount: drillProjection.omittedCalleeCount
+      omittedCalleeCount: drillProjection.omittedCalleeCount,
+      ...(tutor ? { tutor } : {})
     },
     origins,
     gaps,

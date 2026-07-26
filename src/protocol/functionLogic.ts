@@ -245,6 +245,8 @@ export type FunctionLogicPayload = {
   summary: FunctionLogicSummaryPayload;
   callees: FunctionLogicDrillTargetPayload[];
   omittedCalleeCount: number;
+  /** Optional bounded static examples for the Tutor Inspector mode. */
+  tutor?: import("./functionTutor").FunctionTutorPayload;
 };
 
 /** Request to reveal one evidence range previously issued by the Host. */

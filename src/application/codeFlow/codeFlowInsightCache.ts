@@ -5,6 +5,7 @@
  */
 
 import { createFunctionFrameworkSemantics } from "../../graph/functionFrameworkSemantics";
+import { createFunctionIndex, type FunctionIndex } from "../../graph/functionIndex";
 import {
   createFunctionArchitectureIndex,
   type FunctionArchitectureIndex
@@ -19,6 +20,8 @@ import type { ProjectGraph } from "../../shared/types";
 export type CodeFlowInsightSnapshot = {
   functionArchitecture: FunctionArchitectureIndex;
   semanticFlows: SemanticFlowIndex;
+  /** Direct caller/callee evidence reused by Function Explorer and Function Guide. */
+  functionIndex: FunctionIndex;
 };
 
 /** Computes CodeFlow insight indexes once per immutable graph snapshot. */
@@ -37,7 +40,8 @@ export class CodeFlowInsightCache {
     const frameworkSemantics = createFunctionFrameworkSemantics(graph);
     const snapshot: CodeFlowInsightSnapshot = {
       functionArchitecture: createFunctionArchitectureIndex(graph, frameworkSemantics),
-      semanticFlows: createSemanticFlowIndex(graph, {}, frameworkSemantics)
+      semanticFlows: createSemanticFlowIndex(graph, {}, frameworkSemantics),
+      functionIndex: createFunctionIndex(graph, { includeInventoryRows: false })
     };
     this.cachedGraph = graph;
     this.cachedSnapshot = snapshot;
