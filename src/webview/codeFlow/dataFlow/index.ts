@@ -2,6 +2,8 @@
 
 export { getFunctionLogicDataFlowBrowserSource } from "./functionLogicDataFlowBrowserSource";
 export { getFunctionLogicDataFlowStyles } from "./functionLogicDataFlowStyles";
+export { getFunctionLogicValueFlowPlaybackBrowserSource } from "./functionLogicValueFlowPlaybackBrowserSource";
+export { getFunctionLogicValueFlowPlaybackStyles } from "./functionLogicValueFlowPlaybackStyles";
 export {
   createFunctionLogicValueFlowHopPath,
   createFunctionLogicValueFlowHops,

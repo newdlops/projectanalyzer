@@ -5,35 +5,33 @@
  */
 
 import { getFunctionLogicValueFlowRoutingBrowserSource } from "./functionLogicValueFlowRouting";
+import { getFunctionLogicValueFlowPlaybackBrowserSource } from "./functionLogicValueFlowPlaybackBrowserSource";
 
 /** Returns CSP-safe value-flow browser helpers. */
 export function getFunctionLogicDataFlowBrowserSource(): string {
   return /* js */ `
     ${getFunctionLogicValueFlowRoutingBrowserSource()}
+    ${getFunctionLogicValueFlowPlaybackBrowserSource()}
 
     const MAX_LOGIC_VALUE_ACCESS_ROWS = 8;
     const MAX_LOGIC_VALUE_FLOW_HOPS = 1500;
     let functionLogicValueFlowSessionKey = "";
     let functionLogicSelectedValueBindingId = "";
 
-    /** Keeps one selected binding while the same root graph is relaid out. */
+    /**
+     * Keeps an explicit reader binding while the same root graph is relaid out.
+     * A new graph deliberately starts unselected: a value overlay is a Values
+     * question, not default control-flow decoration.
+     */
     function readFunctionLogicValueFlowSelection(sessionKey, bindings, flows) {
       const bindingIds = new Set(bindings.map((binding) => binding.id));
       if (functionLogicValueFlowSessionKey !== sessionKey) {
         functionLogicValueFlowSessionKey = sessionKey;
-        functionLogicSelectedValueBindingId = firstFlowBindingId(bindings, flows);
+        functionLogicSelectedValueBindingId = "";
       } else if (!bindingIds.has(functionLogicSelectedValueBindingId)) {
-        functionLogicSelectedValueBindingId = firstFlowBindingId(bindings, flows);
+        functionLogicSelectedValueBindingId = "";
       }
       return functionLogicSelectedValueBindingId;
-    }
-
-    /** Prefers a binding with a real definition-to-use relation. */
-    function firstFlowBindingId(bindings, flows) {
-      const flowBindingIds = new Set(flows.map((flow) => flow.bindingId));
-      return bindings.find((binding) => flowBindingIds.has(binding.id))?.id
-        || bindings[0]?.id
-        || "";
     }
 
     /** Builds the selector and hidden-per-binding curved hops behind graph nodes. */
@@ -42,7 +40,8 @@ export function getFunctionLogicDataFlowBrowserSource(): string {
       nodeLayoutsByBlockId,
       nodeButtonsById,
       controlEdgeElementsById,
-      sessionKey
+      sessionKey,
+      onBindingSelected
     ) {
       const bindings = logic.valueBindings || [];
       const flows = logic.valueFlows || [];
@@ -65,6 +64,8 @@ export function getFunctionLogicDataFlowBrowserSource(): string {
       const legend = document.createElement("div");
       const paths = [];
       const buttonByBindingId = new Map();
+      const traveler = createLogicSvgElement("g");
+      const travelerDot = createLogicSvgElement("circle");
       // Each selected binding starts on the same side and alternates locally,
       // producing a predictable stepping-stone rhythm independent of siblings.
       const hopIndexByBindingId = new Map();
@@ -74,6 +75,7 @@ export function getFunctionLogicDataFlowBrowserSource(): string {
         flows
       );
       let scenarioTraceRendering;
+      let playback;
       const valuePreviewRendering = createFunctionLogicValuePreviewEditor(
         bindings,
         logic.blocks,
@@ -89,11 +91,17 @@ export function getFunctionLogicDataFlowBrowserSource(): string {
 
       /** Updates the shared value-flow lens from either selector surface. */
       function selectBinding(bindingId, toggleSelected) {
+        const previousBindingId = selectedBindingId;
         selectedBindingId = toggleSelected && selectedBindingId === bindingId
           ? ""
           : bindingId;
         functionLogicValueFlowSessionKey = sessionKey;
         functionLogicSelectedValueBindingId = selectedBindingId;
+        if (onBindingSelected) onBindingSelected(selectedBindingId);
+        playback?.sync(selectedBindingId);
+        if (selectedBindingId && selectedBindingId !== previousBindingId) {
+          playback?.playFromStart();
+        }
         refresh();
       }
 
@@ -133,6 +141,11 @@ export function getFunctionLogicDataFlowBrowserSource(): string {
         svg.append(path);
         paths.push({ flow, path });
       }
+      traveler.setAttribute("class", "logic-data-flow-traveler");
+      travelerDot.setAttribute("r", "4");
+      traveler.hidden = true;
+      traveler.append(travelerDot);
+      svg.append(traveler);
 
       toolbar.className = "logic-data-flow-toolbar";
       toolbar.setAttribute("aria-label", "Function parameter, local, and constant flows");
@@ -167,6 +180,33 @@ export function getFunctionLogicDataFlowBrowserSource(): string {
         buttonByBindingId.set(binding.id, button);
       }
       toolbar.append(header, legend, buttons);
+      playback = createFunctionLogicValueFlowPlayback({
+        readHops(bindingId) {
+          return paths.filter((record) => record.flow.bindingId === bindingId
+            && !record.path.classList.contains("choice-dimmed"));
+        },
+        onActiveHop(record, activeIndex, _hopCount, animated) {
+          for (const node of nodeButtonsById.values()) {
+            node.classList.remove("data-flow-playback-source", "data-flow-playback-target");
+          }
+          const selectedHops = selectedBindingId
+            ? paths.filter((candidate) => candidate.flow.bindingId === selectedBindingId
+              && !candidate.path.classList.contains("choice-dimmed"))
+            : [];
+          for (let index = 0; index < selectedHops.length; index += 1) {
+            const candidate = selectedHops[index];
+            candidate.path.classList.toggle("playback-active", candidate === record);
+            candidate.path.classList.toggle("playback-past", index < activeIndex);
+          }
+          traveler.hidden = true;
+          if (!record) return;
+          nodeButtonsById.get(record.flow.sourceBlockId)
+            ?.classList.add("data-flow-playback-source");
+          nodeButtonsById.get(record.flow.targetBlockId)
+            ?.classList.add("data-flow-playback-target");
+          moveFunctionLogicValueFlowTraveler(traveler, record.path, animated);
+        }
+      });
 
       /** Synchronizes selected binding, branch reachability, and node emphasis. */
       function refresh() {
@@ -211,15 +251,46 @@ export function getFunctionLogicDataFlowBrowserSource(): string {
             selected && Boolean(sourceDimmed || targetDimmed)
           );
         }
+        playback?.sync(selectedBindingId);
       }
 
       return {
         svg: flowHops.length > 0 ? svg : undefined,
         toolbar: bindings.length > 0 ? toolbar : undefined,
+        playback: bindings.length > 0 ? playback.element : undefined,
         valuePreviewEditor: valuePreviewRendering.element,
         scenarioTrace: scenarioTraceRendering.element,
-        refresh
+        refresh,
+        resetPlayback() {
+          playback.reset();
+          refresh();
+        }
       };
+    }
+
+    /** Moves a single SVG marker across the active hop when motion is enabled. */
+    function moveFunctionLogicValueFlowTraveler(traveler, path, animated) {
+      if (typeof path.getTotalLength !== "function"
+        || typeof path.getPointAtLength !== "function") {
+        return;
+      }
+      const length = path.getTotalLength();
+      if (!Number.isFinite(length) || length <= 0) return;
+      const start = path.getPointAtLength(0);
+      const end = path.getPointAtLength(length);
+      if (!start || !end) return;
+      traveler.hidden = false;
+      traveler.setAttribute("transform", "translate(" + end.x + " " + end.y + ")");
+      if (animated && typeof traveler.animate === "function") {
+        traveler.animate([
+          { transform: "translate(" + start.x + "px, " + start.y + "px)" },
+          { transform: "translate(" + end.x + "px, " + end.y + "px)" }
+        ], {
+          duration: FUNCTION_LOGIC_VALUE_FLOW_PLAYBACK_DURATION_MS,
+          easing: "cubic-bezier(0.16, 1, 0.3, 1)",
+          fill: "both"
+        });
+      }
     }
 
     /** Creates a distinct arrowhead for the optional value-flow overlay. */

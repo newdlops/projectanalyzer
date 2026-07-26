@@ -1,5 +1,7 @@
 /** Theme-aware styles for Function Logic binding selectors and value-flow overlays. */
 
+import { getFunctionLogicValueFlowPlaybackStyles } from "./functionLogicValueFlowPlaybackStyles";
+
 /** Returns isolated CSS for parameter/local/constant data-flow presentation. */
 export function getFunctionLogicDataFlowStyles(): string {
   return /* css */ `
@@ -126,7 +128,9 @@ export function getFunctionLogicDataFlowStyles(): string {
     }
 
     .logic-graph-node.data-flow-definition {
-      border-left-width: 5px;
+      box-shadow:
+        inset 0 3px 0 var(--vscode-charts-blue, var(--vscode-focusBorder)),
+        0 0 0 2px color-mix(in srgb, var(--vscode-charts-blue) 35%, transparent);
     }
 
     .logic-graph-node.data-flow-consume { border-left-style: dotted; }
@@ -212,6 +216,8 @@ export function getFunctionLogicDataFlowStyles(): string {
       color: var(--vscode-charts-blue, var(--vscode-textLink-foreground));
       border-style: dotted;
     }
+
+    ${getFunctionLogicValueFlowPlaybackStyles()}
 
     @media (forced-colors: active) {
       .logic-data-flow-toolbar,
