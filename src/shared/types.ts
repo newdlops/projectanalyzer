@@ -163,6 +163,16 @@ export type FrameworkUnitEdge = {
   metadata?: Record<string, unknown>;
 };
 
+/** Host-side bounds applied before a visual graph payload crosses to a Webview. */
+export type VisualGraphProjectionMetadata = {
+  mode: "call" | "file" | "class";
+  maximumNodes: number;
+  sourceNodeCount: number;
+  sourceEdgeCount: number;
+  omittedNodeCount: number;
+  omittedEdgeCount: number;
+};
+
 /** Normalized graph payload shared by analyzer, storage, and Webview protocol. */
 export type ProjectGraph = {
   workspaceRoot: string;
@@ -178,6 +188,7 @@ export type ProjectGraph = {
     projectPackageRoots?: ProjectPackageRoot[];
     frameworkUnits?: FrameworkUnit[];
     frameworkUnitEdges?: FrameworkUnitEdge[];
+    visualProjection?: VisualGraphProjectionMetadata;
     fileCount: number;
     symbolCount: number;
     edgeCount: number;

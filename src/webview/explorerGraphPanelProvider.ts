@@ -19,7 +19,11 @@ import type { ProjectAnalyzerLogger } from "../observability/logger";
 import type { ProjectGraph } from "../shared/types";
 import type { AnalysisCacheStore } from "../storage/cacheStore";
 import type { ProjectAnalyzerConfig } from "../vscode/configuration";
-import { projectGraphForView, summarizeFileImportGraph, summarizeProjectedGraph } from "./graphProjection";
+import {
+  GraphPanelPayloadDelivery,
+  normalizeGraphPanelNodeBudget
+} from "./graphPanel";
+import { projectGraphForView, summarizeProjectedGraph } from "./graphProjection";
 import { getExplorerHtml } from "./webviewHtml";
 import {
   createNonce,
@@ -55,22 +59,33 @@ export class ExplorerGraphPanelProvider {
   /** Graph payload to send after a newly created panel reports readiness. */
   private pendingGraph: ProjectGraph | undefined;
 
+  /** Optional focus seed that must survive the next bounded projection. */
+  private pendingProjectionRootNodeId: string | undefined;
+
   /** Node focus request to send after a newly created panel reports readiness. */
   private pendingFocusNodeId: string | undefined;
+
+  /** Last full Host graph; the Webview receives only its bounded projection. */
+  private activeGraph: ProjectGraph | undefined;
+
+  /** Suppresses duplicate same-snapshot/mode payloads after successful delivery. */
+  private readonly payloadDelivery = new GraphPanelPayloadDelivery();
 
   public constructor(private readonly dependencies: ExplorerGraphPanelProviderDependencies) {}
 
   /**
    * Opens or reveals the graph browser tab and optionally publishes a graph.
    */
-  public async openGraph(graph?: ProjectGraph): Promise<void> {
+  public async openGraph(graph?: ProjectGraph, rootNodeId?: string): Promise<void> {
     this.dependencies.logger.info("graphPanel.openGraph", {
       hasGraph: Boolean(graph),
       hasPanel: Boolean(this.panel)
     });
 
     if (graph) {
+      this.activeGraph = graph;
       this.pendingGraph = graph;
+      this.pendingProjectionRootNodeId = rootNodeId;
     }
 
     if (!this.panel) {
@@ -84,12 +99,15 @@ export class ExplorerGraphPanelProvider {
         }
       );
       this.webviewReady = false;
+      this.payloadDelivery.clear();
       this.panel.webview.html = getExplorerHtml({
         webview: this.panel.webview,
         extensionUri: this.dependencies.context.extensionUri,
         nonce: createNonce(),
         defaultDepth: this.dependencies.config.defaultDepth,
-        maxRenderedNodes: this.dependencies.config.maxRenderedNodes,
+        maxRenderedNodes: normalizeGraphPanelNodeBudget(
+          this.dependencies.config.maxRenderedNodes
+        ),
         initialMode: this.mode,
         surface: "panel"
       });
@@ -108,6 +126,11 @@ export class ExplorerGraphPanelProvider {
       this.panel.onDidDispose(() => {
         this.panel = undefined;
         this.webviewReady = false;
+        this.pendingGraph = undefined;
+        this.pendingProjectionRootNodeId = undefined;
+        this.pendingFocusNodeId = undefined;
+        this.activeGraph = undefined;
+        this.payloadDelivery.clear();
       });
       return;
     }
@@ -115,37 +138,63 @@ export class ExplorerGraphPanelProvider {
     this.panel.reveal(vscode.ViewColumn.Active, false);
 
     if (graph) {
-      await this.publishGraph(graph);
+      await this.publishGraph(graph, rootNodeId);
     }
   }
 
   /**
    * Sends a graph payload to the panel when it is open.
    */
-  public async publishGraph(graph: ProjectGraph): Promise<void> {
+  public async publishGraph(graph: ProjectGraph, rootNodeId?: string): Promise<void> {
+    this.activeGraph = graph;
     this.pendingGraph = graph;
-    this.dependencies.logger.info("graphPanel.publishGraph", {
-      edges: graph.edges.length,
-      fileImportGraph: summarizeFileImportGraph(graph),
-      nodes: graph.nodes.length,
-      ready: this.webviewReady
-    });
+    this.pendingProjectionRootNodeId = rootNodeId;
 
     if (!this.panel || !this.webviewReady) {
+      this.dependencies.logger.debug("graphPanel.publishGraph.queued", {
+        edges: graph.edges.length,
+        nodes: graph.nodes.length,
+        ready: this.webviewReady
+      });
       return;
     }
 
-    const projectedGraph = projectGraphForView(graph, this.mode);
+    if (!this.payloadDelivery.needsDelivery(graph, this.mode, rootNodeId)) {
+      this.dependencies.logger.debug("graphPanel.publishGraph.skipped", {
+        mode: this.mode,
+        reason: "same bounded projection"
+      });
+      this.pendingGraph = undefined;
+      this.pendingProjectionRootNodeId = undefined;
+      return;
+    }
+
+    const projectedGraph = projectGraphForView(graph, this.mode, {
+      maxNodes: normalizeGraphPanelNodeBudget(this.dependencies.config.maxRenderedNodes),
+      rootNodeId
+    });
     this.dependencies.logger.info("graphPanel.publishGraph.projected", summarizeProjectedGraph(projectedGraph));
-    await this.postMessage({ type: "graph/loaded", payload: projectedGraph });
+    const delivered = await this.postMessage({ type: "graph/loaded", payload: projectedGraph });
+    if (!delivered) {
+      this.dependencies.logger.warn("graphPanel.publishGraph.notDelivered", {
+        mode: this.mode
+      });
+      return;
+    }
+    this.payloadDelivery.record(graph, this.mode, projectedGraph, rootNodeId);
     this.pendingGraph = undefined;
+    this.pendingProjectionRootNodeId = undefined;
   }
 
   /**
    * Clears panel state after cache removal.
    */
   public async clearGraph(): Promise<void> {
+    this.activeGraph = undefined;
     this.pendingGraph = undefined;
+    this.pendingProjectionRootNodeId = undefined;
+    this.pendingFocusNodeId = undefined;
+    this.payloadDelivery.clear();
     await this.postMessage({ type: "graph/cleared", payload: {} });
   }
 
@@ -153,8 +202,15 @@ export class ExplorerGraphPanelProvider {
    * Opens the graph browser and asks the panel to reveal a specific graph node.
    */
   public async focusNode(nodeId: string, graph?: ProjectGraph): Promise<void> {
+    const sourceGraph = graph ?? await this.readActiveGraph();
+    if (sourceGraph) {
+      const focusedMode = readGraphModeForNode(sourceGraph, nodeId, this.mode);
+      if (focusedMode !== this.mode) {
+        await this.setMode(focusedMode);
+      }
+    }
     this.pendingFocusNodeId = nodeId;
-    await this.openGraph(graph);
+    await this.openGraph(sourceGraph, nodeId);
 
     if (this.webviewReady) {
       await this.postMessage({ type: "graph/focusNode", payload: { nodeId } });
@@ -205,7 +261,7 @@ export class ExplorerGraphPanelProvider {
     await this.postMessage({ type: "ui/ready", payload: {} });
 
     if (this.pendingGraph) {
-      await this.publishGraph(this.pendingGraph);
+      await this.publishGraph(this.pendingGraph, this.pendingProjectionRootNodeId);
     } else {
       await this.postLatestGraph();
     }
@@ -231,7 +287,7 @@ export class ExplorerGraphPanelProvider {
    * Publishes the latest cached graph into the graph browser.
    */
   private async postLatestGraph(): Promise<void> {
-    const graph = await this.dependencies.cacheStore.getLatestGraph();
+    const graph = await this.readActiveGraph();
     this.dependencies.logger.info("graphPanel.postLatestGraph", { hasGraph: Boolean(graph) });
 
     if (graph) {
@@ -246,7 +302,7 @@ export class ExplorerGraphPanelProvider {
    * Opens the source location represented by a graph node.
    */
   private async openSourceNode(nodeId: string): Promise<void> {
-    const graph = await this.dependencies.cacheStore.getLatestGraph();
+    const graph = await this.readActiveGraph();
     const node = graph?.nodes.find((candidate) => candidate.id === nodeId);
 
     if (!node) {
@@ -264,7 +320,7 @@ export class ExplorerGraphPanelProvider {
     nodeId: string,
     direction: "callers" | "callees"
   ): Promise<void> {
-    const graph = await this.dependencies.cacheStore.getLatestGraph();
+    const graph = await this.readActiveGraph();
 
     if (!graph) {
       await this.postStatus("idle", "Analyze before exploring call relationships");
@@ -286,11 +342,18 @@ export class ExplorerGraphPanelProvider {
       maxDepth: relationshipDepth
     });
     const subgraph = createTraversalSubgraph(graph, result);
+    const projectedSubgraph = projectGraphForView(subgraph, "call", {
+      maxNodes: normalizeGraphPanelNodeBudget(this.dependencies.config.maxRenderedNodes),
+      rootNodeId: nodeId
+    });
     const relationshipLabel = direction === "callers" ? "callers" : "callees";
     const nodeLabel = getNodeDisplayName(node);
 
     await this.setMode("call");
-    await this.postMessage({ type: "graph/updated", payload: subgraph });
+    const delivered = await this.postMessage({ type: "graph/updated", payload: projectedSubgraph });
+    if (delivered) {
+      this.payloadDelivery.record(graph, "call", projectedSubgraph, nodeId);
+    }
 
     if (result.edges.length === 0) {
       await this.postStatus("idle", `No ${relationshipLabel} found for ${nodeLabel}`);
@@ -307,7 +370,7 @@ export class ExplorerGraphPanelProvider {
    * Exports the latest cached graph to JSON.
    */
   private async exportGraph(request: ExportRequest): Promise<void> {
-    const graph = await this.dependencies.cacheStore.getLatestGraph();
+    const graph = await this.readActiveGraph();
 
     if (!graph) {
       await this.postStatus("idle", "Analyze before exporting");
@@ -336,22 +399,41 @@ export class ExplorerGraphPanelProvider {
   /**
    * Posts a typed response to the graph panel when it is open.
    */
-  private async postMessage(message: ExtensionResponse): Promise<void> {
+  private async postMessage(message: ExtensionResponse): Promise<boolean> {
     if (!this.panel || (!this.webviewReady && message.type !== "ui/ready")) {
       this.dependencies.logger.debug("graphPanel.postMessage.skipped", {
         hasPanel: Boolean(this.panel),
         ready: this.webviewReady,
         type: message.type
       });
-      return;
+      return false;
     }
 
     this.dependencies.logger.debug("graphPanel.postMessage", { type: message.type });
-    await this.panel.webview.postMessage(message);
+    return this.panel.webview.postMessage(message);
   }
 
   /** Routes browser-side diagnostics into the extension output channel. */
   private logWebviewMessage(payload: WebviewLogRequest): void {
     this.dependencies.logger[payload.level](`webview.${payload.source}.${payload.message}`, payload.fields);
   }
+
+  /** Reuses the active immutable object before consulting persisted cache. */
+  private async readActiveGraph(): Promise<ProjectGraph | undefined> {
+    return this.activeGraph ?? this.dependencies.cacheStore.getLatestGraph();
+  }
+}
+
+/** Selects the graph mode that can actually contain one requested node kind. */
+function readGraphModeForNode(
+  graph: ProjectGraph,
+  nodeId: string,
+  fallback: GraphViewMode
+): GraphViewMode {
+  const kind = graph.nodes.find((node) => node.id === nodeId)?.kind;
+  if (kind === "function" || kind === "method" || kind === "constructor") return "call";
+  if (kind === "class" || kind === "interface" || kind === "enum" || kind === "property") {
+    return "class";
+  }
+  return kind === "file" || kind === "external" ? "file" : fallback;
 }

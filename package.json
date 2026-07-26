@@ -2,7 +2,7 @@
   "name": "function-analysis",
   "displayName": "Project Analyzer: Code Flow",
   "description": "Understand unfamiliar codebases through bounded, source-backed code flows.",
-  "version": "0.0.1057",
+  "version": "0.0.1059",
   "publisher": "newdlops",
   "private": true,
   "license": "MIT",
@@ -144,7 +144,8 @@
           "type": "number",
           "default": 500,
           "minimum": 1,
-          "description": "Maximum graph nodes rendered in a single explorer view."
+          "maximum": 2000,
+          "description": "Maximum graph nodes projected and rendered in a single explorer view."
         },
         "projectAnalyzer.defaultDepth": {
           "type": "number",

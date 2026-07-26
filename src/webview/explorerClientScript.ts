@@ -140,7 +140,7 @@ export function getExplorerClientScript(options: ExplorerClientScriptOptions): s
         });
         resetGraphFocus();
         resetViewport();
-        elements.status.textContent = "Loaded";
+        elements.status.textContent = formatProjectionStatus(state.graph);
         render();
         return;
       }
@@ -229,6 +229,7 @@ export function getExplorerClientScript(options: ExplorerClientScriptOptions): s
         edges: scene.edges.length,
         nodes: scene.nodes.length,
         omitted: scene.omittedNodeCount
+          + (state.graph.metadata?.visualProjection?.omittedNodeCount || 0)
       });
 
       if (scene.nodes.length === 0) {
@@ -753,11 +754,22 @@ export function getExplorerClientScript(options: ExplorerClientScriptOptions): s
     }
 
     function summarizeGraph(graph) {
+      const projection = graph?.metadata?.visualProjection;
       return {
         edges: graph?.edges?.length ?? 0,
         files: graph?.metadata?.fileCount ?? 0,
-        nodes: graph?.nodes?.length ?? 0
+        nodes: graph?.nodes?.length ?? 0,
+        omittedEdges: projection?.omittedEdgeCount ?? 0,
+        omittedNodes: projection?.omittedNodeCount ?? 0
       };
+    }
+
+    /** Makes Host-side payload bounds visible instead of looking like missing analysis. */
+    function formatProjectionStatus(graph) {
+      const projection = graph?.metadata?.visualProjection;
+      if (!projection || projection.omittedNodeCount <= 0) return "Loaded";
+      return "Loaded " + graph.nodes.length + " of " + projection.sourceNodeCount
+        + " nodes · expand or focus to inspect another bounded slice";
     }
 
     function logWebview(level, message, fields) {

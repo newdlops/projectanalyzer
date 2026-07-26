@@ -42,6 +42,68 @@ test("projectGraphForView keeps source containers and call edges in call mode", 
   assert.deepEqual(projected.edges.map((edge) => edge.kind).sort(), ["calls", "contains", "contains"]);
 });
 
+test("projectGraphForView bounds transport before a large file graph reaches the Webview", () => {
+  const fileCount = 2_000;
+  const nodes = Array.from({ length: fileCount }, (_, index) =>
+    createNode(
+      `file-${index}`,
+      "file",
+      index === 0 ? "main.ts" : `file-${index}.ts`,
+      index === 0 ? "/workspace/src/main.ts" : `/workspace/src/file-${index}.ts`
+    )
+  );
+  const edges = Array.from({ length: fileCount - 1 }, (_, index) =>
+    createEdge("imports", `file-${index}`, `file-${index + 1}`)
+  );
+  const graph = createProjectionFixture(nodes, edges);
+  graph.metadata.fileCount = fileCount;
+
+  const projected = projectGraphForView(graph, "file", { maxNodes: 120 });
+
+  assert.equal(projected.nodes.length, 120);
+  assert.ok(projected.nodes.some((node) => node.id === "file-0"));
+  assert.equal(projected.edges.length, 119);
+  assert.deepEqual(projected.metadata.visualProjection, {
+    mode: "file",
+    maximumNodes: 120,
+    sourceNodeCount: fileCount,
+    sourceEdgeCount: fileCount - 1,
+    omittedNodeCount: fileCount - 120,
+    omittedEdgeCount: fileCount - 120
+  });
+  assert.ok(Buffer.byteLength(JSON.stringify(projected), "utf8") < 100 * 1024);
+});
+
+test("bounded graph projection keeps an explicitly focused node and its neighborhood", () => {
+  const nodes = Array.from({ length: 30 }, (_, index) =>
+    createNode(`function-${index}`, "function", `function${index}`, "/workspace/source.ts")
+  );
+  const edges = Array.from({ length: nodes.length - 1 }, (_, index) =>
+    createEdge("calls", `function-${index}`, `function-${index + 1}`)
+  );
+  const graph = createProjectionFixture(nodes, edges);
+
+  const projected = projectGraphForView(graph, "call", {
+    maxNodes: 5,
+    rootNodeId: "function-20"
+  });
+
+  assert.equal(projected.nodes.length, 5);
+  assert.ok(projected.nodes.some((node) => node.id === "function-20"));
+  assert.ok(projected.nodes.some((node) => node.id === "function-19"));
+  assert.ok(projected.nodes.some((node) => node.id === "function-21"));
+});
+
+test("bounded graph projection is stable when source arrays are reversed", () => {
+  const graph = createProjectionFixture();
+  const reversed = createProjectionFixture([...graph.nodes].reverse(), [...graph.edges].reverse());
+  const first = projectGraphForView(graph, "file", { maxNodes: 2 });
+  const second = projectGraphForView(reversed, "file", { maxNodes: 2 });
+
+  assert.deepEqual(first.nodes.map((node) => node.id).sort(), second.nodes.map((node) => node.id).sort());
+  assert.deepEqual(first.edges.map((edge) => edge.id).sort(), second.edges.map((edge) => edge.id).sort());
+});
+
 test("projectGraphForSidebar keeps callables and call edges in the Extension Host", () => {
   const graph = createProjectionFixture();
   const projected = projectGraphForSidebar(graph);

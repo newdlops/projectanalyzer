@@ -53,6 +53,28 @@ test("CodeFlow owns its insight cache and Host delivery public boundary", () => 
   assert.doesNotMatch(provider, /codeFlow\/codeFlowHostDelivery/u);
 });
 
+test("compatibility Graph Panel bounds and deduplicates payloads before Webview delivery", () => {
+  const provider = readSource("src/webview/explorerGraphPanelProvider.ts");
+  const projection = readSource("src/webview/graphProjection.ts");
+  const delivery = readSource(
+    "src/webview/graphPanel/graphPanelPayloadDelivery.ts"
+  );
+
+  assert.match(provider, /normalizeGraphPanelNodeBudget/u);
+  assert.match(provider, /payloadDelivery\.needsDelivery/u);
+  assert.match(provider, /payloadDelivery\.record/u);
+  assert.match(provider, /rootNodeId/u);
+  assert.doesNotMatch(provider, /summarizeFileImportGraph\(graph\)/u);
+  assert.match(projection, /createBoundedProjectionNodeIds/u);
+  assert.match(projection, /while \(selected\.size < maximumNodes\)/u);
+  assert.match(projection, /visualProjection/u);
+  assert.match(delivery, /MAX_GRAPH_PANEL_PAYLOAD_NODES = 2_000/u);
+  assert.doesNotMatch(
+    [projection, delivery].join("\n"),
+    /from ".*(?:vscode|extension|application)/u
+  );
+});
+
 test("Function Logic graph layout stays pure, bounded, and iterative", () => {
   const layout = readSource("src/application/codeFlow/functionLogicGraphLayout.ts");
 

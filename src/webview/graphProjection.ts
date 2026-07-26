@@ -5,18 +5,29 @@
  */
 
 import type { GraphViewMode } from "../protocol/messages";
-import type { EdgeKind, GraphEdge, ProjectGraph, SymbolKind } from "../shared/types";
+import type {
+  EdgeKind,
+  GraphEdge,
+  ProjectGraph,
+  SymbolKind,
+  SymbolNode
+} from "../shared/types";
 import {
+  compareFileNodes,
   createProgressiveGraphIndex,
+  getApplicationEntrypointScore,
   getApplicationEntryNodes,
   getGraphRelativePath,
-  getImportRootNodes
+  getImportRootNodes,
+  isNonApplicationRootPath
 } from "./explorerProgressiveFileGraph";
 
 /** Small summary used by host-side logging. */
 export type GraphProjectionSummary = {
   edges: number;
   nodes: number;
+  omittedEdges: number;
+  omittedNodes: number;
 };
 
 /** Import graph health summary used to diagnose entry-point explosions. */
@@ -34,7 +45,9 @@ export type FileImportGraphSummary = {
 
 /** Controls whether projected payload counts replace original analysis counts. */
 export type GraphProjectionOptions = {
+  maxNodes?: number;
   preserveMetadata?: boolean;
+  rootNodeId?: string;
 };
 
 const callNodeKinds = new Set<SymbolKind>(["function", "method", "constructor"]);
@@ -57,13 +70,37 @@ export function projectGraphForView(
   mode: GraphViewMode,
   options: GraphProjectionOptions = {}
 ): ProjectGraph {
-  const includedNodeIds = createIncludedNodeIds(graph, mode);
-  const edges = graph.edges.filter((edge) =>
+  const candidateNodeIds = createIncludedNodeIds(graph, mode);
+  const sourceEdges = graph.edges.filter((edge) =>
     isProjectedEdge(edge, mode) &&
-    includedNodeIds.has(edge.sourceId) &&
-    includedNodeIds.has(edge.targetId)
+    candidateNodeIds.has(edge.sourceId) &&
+    candidateNodeIds.has(edge.targetId)
+  );
+  const maximumNodes = normalizeMaximumProjectionNodes(options.maxNodes);
+  const includedNodeIds = maximumNodes && candidateNodeIds.size > maximumNodes
+    ? createBoundedProjectionNodeIds(
+        graph,
+        mode,
+        candidateNodeIds,
+        sourceEdges,
+        maximumNodes,
+        options.rootNodeId
+      )
+    : candidateNodeIds;
+  const edges = sourceEdges.filter((edge) =>
+    includedNodeIds.has(edge.sourceId) && includedNodeIds.has(edge.targetId)
   );
   const nodes = graph.nodes.filter((node) => includedNodeIds.has(node.id));
+  const visualProjection = maximumNodes
+    ? {
+        mode,
+        maximumNodes,
+        sourceNodeCount: candidateNodeIds.size,
+        sourceEdgeCount: sourceEdges.length,
+        omittedNodeCount: Math.max(0, candidateNodeIds.size - nodes.length),
+        omittedEdgeCount: Math.max(0, sourceEdges.length - edges.length)
+      }
+    : undefined;
 
   return {
     ...graph,
@@ -74,7 +111,8 @@ export function projectGraphForView(
       : {
         ...graph.metadata,
         symbolCount: nodes.length,
-        edgeCount: edges.length
+        edgeCount: edges.length,
+        visualProjection
       }
   };
 }
@@ -152,8 +190,145 @@ function createSidebarMetadata(graph: ProjectGraph): ProjectGraph["metadata"] {
 export function summarizeProjectedGraph(graph: ProjectGraph): GraphProjectionSummary {
   return {
     edges: graph.edges.length,
-    nodes: graph.nodes.length
+    nodes: graph.nodes.length,
+    omittedEdges: graph.metadata.visualProjection?.omittedEdgeCount ?? 0,
+    omittedNodes: graph.metadata.visualProjection?.omittedNodeCount ?? 0
   };
+}
+
+/** Normalizes an optional delivery limit without imposing one on domain callers. */
+function normalizeMaximumProjectionNodes(value: number | undefined): number | undefined {
+  if (value === undefined || !Number.isFinite(value)) return undefined;
+  return Math.max(1, Math.floor(value));
+}
+
+/**
+ * Selects a deterministic connected slice before Webview delivery. A requested
+ * focus is the first seed; otherwise application entries/root-like nodes lead
+ * an iterative breadth-first walk, followed by disconnected candidates.
+ */
+function createBoundedProjectionNodeIds(
+  graph: ProjectGraph,
+  mode: GraphViewMode,
+  candidateNodeIds: ReadonlySet<string>,
+  edges: readonly GraphEdge[],
+  maximumNodes: number,
+  rootNodeId: string | undefined
+): Set<string> {
+  const outgoingBySourceId = new Map<string, string[]>();
+  const incomingByTargetId = new Map<string, string[]>();
+  for (const edge of edges) {
+    pushProjectionNeighbor(outgoingBySourceId, edge.sourceId, edge.targetId);
+    pushProjectionNeighbor(incomingByTargetId, edge.targetId, edge.sourceId);
+  }
+  for (const neighbors of outgoingBySourceId.values()) neighbors.sort();
+  for (const neighbors of incomingByTargetId.values()) neighbors.sort();
+  const orderedCandidates = graph.nodes.filter((node) => candidateNodeIds.has(node.id))
+    .sort((left, right) => compareProjectionNodes(graph, left, right));
+  const seedIds = rootNodeId && candidateNodeIds.has(rootNodeId)
+    ? [rootNodeId]
+    : createProjectionSeedIds(
+        graph,
+        mode,
+        orderedCandidates,
+        outgoingBySourceId,
+        incomingByTargetId
+      );
+  const selected = new Set<string>();
+  const pending: string[] = [];
+  let cursor = 0;
+  let fallbackCursor = 0;
+
+  const enqueue = (nodeId: string): void => {
+    if (selected.size >= maximumNodes || selected.has(nodeId) || !candidateNodeIds.has(nodeId)) {
+      return;
+    }
+    selected.add(nodeId);
+    pending.push(nodeId);
+  };
+  for (const seedId of seedIds) enqueue(seedId);
+
+  while (selected.size < maximumNodes) {
+    if (cursor >= pending.length) {
+      while (
+        fallbackCursor < orderedCandidates.length &&
+        selected.has(orderedCandidates[fallbackCursor].id)
+      ) {
+        fallbackCursor += 1;
+      }
+      const fallback = orderedCandidates[fallbackCursor];
+      if (!fallback) break;
+      fallbackCursor += 1;
+      enqueue(fallback.id);
+      continue;
+    }
+    const nodeId = pending[cursor];
+    cursor += 1;
+    for (const targetId of outgoingBySourceId.get(nodeId) ?? []) enqueue(targetId);
+    for (const sourceId of incomingByTargetId.get(nodeId) ?? []) enqueue(sourceId);
+  }
+  return selected;
+}
+
+/** Orders candidates independently from analyzer array order. */
+function compareProjectionNodes(
+  graph: ProjectGraph,
+  left: SymbolNode,
+  right: SymbolNode
+): number {
+  if (left.kind === "file" && right.kind === "file") {
+    return compareFileNodes(graph, left, right);
+  }
+  return left.kind.localeCompare(right.kind) || left.id.localeCompare(right.id);
+}
+
+/** Chooses a small meaningful root set without recursively exploring the graph. */
+function createProjectionSeedIds(
+  graph: ProjectGraph,
+  mode: GraphViewMode,
+  candidates: SymbolNode[],
+  outgoingBySourceId: ReadonlyMap<string, string[]>,
+  incomingByTargetId: ReadonlyMap<string, string[]>
+): string[] {
+  if (mode === "file") {
+    const scoredEntries = candidates.filter((node) => node.kind === "file")
+      .map((node) => ({
+        node,
+        score: getApplicationEntrypointScore(getGraphRelativePath(graph, node.filePath))
+      }))
+      .filter((candidate) => candidate.score > 0)
+      .sort((left, right) =>
+        right.score - left.score || compareFileNodes(graph, left.node, right.node)
+      )
+      .slice(0, 24)
+      .map((candidate) => candidate.node.id);
+    if (scoredEntries.length > 0) return scoredEntries;
+  }
+  const rootLike = candidates.filter((node) =>
+    !incomingByTargetId.has(node.id) && (outgoingBySourceId.get(node.id)?.length ?? 0) > 0
+  );
+  const applicationRoots = mode === "file"
+    ? rootLike.filter((node) =>
+        !isNonApplicationRootPath(getGraphRelativePath(graph, node.filePath))
+      )
+    : rootLike;
+  const seeds = applicationRoots.length > 0 ? applicationRoots : rootLike;
+  return seeds.sort((left, right) =>
+    (outgoingBySourceId.get(right.id)?.length ?? 0) -
+      (outgoingBySourceId.get(left.id)?.length ?? 0) ||
+    left.id.localeCompare(right.id)
+  ).slice(0, 24).map((node) => node.id);
+}
+
+/** Adds one stable adjacency entry used by the bounded iterative walk. */
+function pushProjectionNeighbor(
+  index: Map<string, string[]>,
+  sourceId: string,
+  targetId: string
+): void {
+  const targets = index.get(sourceId) ?? [];
+  targets.push(targetId);
+  index.set(sourceId, targets);
 }
 
 /** Builds root and edge counts for the file import graph. */
