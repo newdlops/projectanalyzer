@@ -21,6 +21,8 @@ const REQUIRED_ENTRIES = [
   entry("[Content_Types].xml", 1_000),
   entry("extension/LICENSE.txt", 1_100),
   entry("extension/package.json", 4_000),
+  entry("extension/package.nls.json", 2_000),
+  entry("extension/package.nls.ko.json", 2_000),
   entry("extension/out/extension/activate.js", 2_000),
   entry("extension/readme.md", 20_000),
   entry("extension/changelog.md", 2_000),

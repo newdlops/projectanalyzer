@@ -24,6 +24,8 @@ const REQUIRED_PATHS = Object.freeze([
   "[Content_Types].xml",
   "extension/LICENSE.txt",
   "extension/package.json",
+  "extension/package.nls.json",
+  "extension/package.nls.ko.json",
   "extension/out/extension/activate.js",
   "extension/readme.md",
   "extension/changelog.md",

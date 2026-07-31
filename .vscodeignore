@@ -27,6 +27,8 @@ media/project-analyzer-marketplace.svg
 
 # TypeScript and Rust sources are compiled before VSIX packaging
 src/**
+!package.nls.json
+!package.nls.ko.json
 scripts/**
 engine/analyzer/src/**
 engine/analyzer/target/**
