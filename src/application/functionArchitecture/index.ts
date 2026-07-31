@@ -2,7 +2,5 @@
 
 export {
   createEntrypointArchitecturePayload,
-  createFunctionArchitecturePayload,
-  formatArchitectureLayer,
-  formatFunctionArchitectureSummary
+  createFunctionArchitecturePayload
 } from "./functionArchitecturePayload";
