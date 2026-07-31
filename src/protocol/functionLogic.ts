@@ -6,6 +6,7 @@
 
 import type { EdgeConfidence } from "../shared/types";
 import type { SourceNodeToken } from "./sourceNavigation";
+import type { FunctionLogicBlockPresentationKey, FunctionLogicEdgePresentationKey, PresentationParams } from "../localization/presentationDescriptors";
 
 /** Browser-visible function-local block kinds mirrored by the application projector. */
 export type FunctionLogicBlockPayloadKind =
@@ -160,10 +161,21 @@ export type FunctionLogicBlockPayload = {
   kind: FunctionLogicBlockPayloadKind;
   label: string;
   detail: string;
+  /** Browser-owned labels/details with syntax preserved as primitive interpolation params. */
+  presentation?: {
+    labelKey: FunctionLogicBlockPresentationKey;
+    labelParams?: PresentationParams;
+    detailKey: FunctionLogicBlockPresentationKey;
+    detailParams?: PresentationParams;
+  };
+  /** Stable embedded-code timing supplied by the analyzer instead of label parsing. */
+  embeddedPresentationKind?: "directEval" | "globalEval" | "deferred" | "created" | "static";
   depth: number;
   /** Opaque nearest control block that directly owns this statement body. */
   parentBlockId?: string;
   branchLabel?: string;
+  /** Localized structured-branch role; raw branchLabel remains compatibility data. */
+  branchPresentation?: { key: FunctionLogicEdgePresentationKey; params?: PresentationParams };
   confidence: FunctionLogicPayloadConfidence;
   sourceLocation?: string;
   evidenceToken?: CodeFlowEvidenceToken;
@@ -181,6 +193,8 @@ export type FunctionLogicEdgePayload = {
   targetId: string;
   kind: FunctionLogicEdgePayloadKind;
   label?: string;
+  /** Finite browser-owned edge text; raw labels remain compatibility data. */
+  presentation?: { key: FunctionLogicEdgePresentationKey; params?: PresentationParams };
   confidence: FunctionLogicPayloadConfidence;
 };
 

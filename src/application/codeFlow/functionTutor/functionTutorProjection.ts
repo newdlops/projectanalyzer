@@ -65,6 +65,7 @@ export function createFunctionTutorPayload(
       id,
       kind: gap.kind,
       summary: gap.summary,
+      presentationKey: tutorGapPresentationKey(gap.kind),
       parameterId: gap.parameterId ? parameterIds.get(gap.parameterId) : undefined,
       blockId: gap.blockId ? context.blockIds.get(gap.blockId) : undefined,
       evidenceTokens: evidenceTokens(gap.evidence ?? [])
@@ -184,6 +185,11 @@ export function createFunctionTutorPayload(
   };
 }
 
+/** Maps stable analyzer gap kinds to browser-owned text without inspecting English prose. */
+function tutorGapPresentationKey(kind: FunctionTutorBuildModel["gaps"][number]["kind"]): import("../../../localization/presentationDescriptors").FunctionTutorGapPresentationKey {
+  return `tutor-gap-${kind}`;
+}
+
 /** Projects codebase facts through opaque IDs while retaining only bounded display text. */
 function projectCodebaseContext(
   model: FunctionTutorBuildModel,
@@ -274,13 +280,18 @@ function projectGuidePlan(
       ordinal: chapter.ordinal,
       kind: chapter.kind,
       question: chapter.question,
+      questionKey: chapter.questionKey,
       status: chapter.status,
       answer: { text: chapter.answer.text, counts: { ...chapter.answer.counts } },
+      answerKey: chapter.answerKey,
       facts: chapter.facts.map((fact) => ({
         id: opaqueTutorIdentity(context, "fact", fact.id),
         kind: fact.kind,
         label: fact.label,
+        labelPresentationKey: fact.labelPresentationKey,
+        labelPresentationParams: fact.labelPresentationParams,
         detail: fact.detail,
+        presentationKey: fact.presentationKey,
         certainty: fact.certainty,
         blockIds: fact.blockIds.flatMap((id) => context.blockIds.has(id) ? [context.blockIds.get(id)!] : []),
         edgeIds: fact.edgeIds.flatMap((id) => context.edgeIds.has(id) ? [context.edgeIds.get(id)!] : []),

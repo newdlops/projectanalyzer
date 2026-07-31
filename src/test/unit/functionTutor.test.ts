@@ -55,13 +55,11 @@ test("Function Guide derives bounded typed/default/branch scenarios without exec
   assert.ok(model.seeds.some((seed) => seed.source === "callsite"));
   assert.ok(model.seeds.every((seed) => seed.inputs.length === declaration.parameters.length));
   assert.equal(model.guide.chapters.length, 5);
-  assert.deepEqual(model.guide.chapters.map((chapter) => chapter.question), [
-    "Where Does It Fit?",
-    "What Comes In?",
-    "What Changes the Path?",
-    "What Does It Change or Call?",
-    "How Can It Finish?"
+  // Fixed questions are semantic descriptors, not Host-provided English.
+  assert.deepEqual(model.guide.chapters.map((chapter) => chapter.questionKey), [
+    "place", "inputs", "decisions", "work", "outcomes"
   ]);
+  assert.ok(model.guide.chapters.every((chapter) => chapter.answerKey === chapter.kind));
   assert.notEqual(model.availability, "unavailable");
 });
 

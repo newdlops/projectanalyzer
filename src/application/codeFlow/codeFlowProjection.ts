@@ -5,14 +5,12 @@
  */
 
 import {
-  createFunctionArchitecturePayload,
-  formatArchitectureLayer
+  createFunctionArchitecturePayload
 } from "../functionArchitecture";
 import { createSourceDisplayFormatter } from "../sourcePresentation";
 import type { FunctionArchitectureIndex } from "../../insights/architecturalLayers";
 import type {
   SemanticFlow,
-  SemanticFlowCoverageGap,
   SemanticFlowIndex,
   SemanticFlowStep
 } from "../../insights/semanticFlow";
@@ -20,6 +18,7 @@ import type {
   CodeFlowDetailPayload,
   CodeFlowGapPayload,
   CodeFlowId,
+  CodeFlowPresentationDescriptor,
   CodeFlowResolution,
   CodeFlowStage,
   CodeFlowStepPayload
@@ -38,6 +37,12 @@ import {
   createCodeFlowCatalogItem
 } from "./codeFlowCatalog";
 import { createCodeFlowIdentity } from "./codeFlowIdentity";
+import {
+  createBoundGap,
+  createCallEvidencePresentation,
+  createSemanticEvidencePresentation,
+  createSemanticGapPayload
+} from "./codeFlowPresentation";
 
 /** Conservative defaults keep the narrow reader usable on large call graphs. */
 const SYMBOL_FLOW_DEFAULT_MAX_DEPTH = 3;
@@ -115,6 +120,10 @@ export function createEntrypointCodeFlowDetail(
     kind: "entrypoint",
     title: safeText(flow.name, "Unnamed entrypoint"),
     subtitle: createEntrypointSubtitle(flow),
+    ...(!hasVisibleText(flow.name)
+      ? { titlePresentation: { key: "code-flow-unnamed-entrypoint" as const } }
+      : {}),
+    subtitlePresentation: createEntrypointSubtitlePresentation(flow),
     semantics: "static",
     focusStepId: boundaryStepId,
     steps,
@@ -173,7 +182,8 @@ export function createSymbolCodeFlowDetail(
       resolution: "concrete",
       sourceLocation: rootSourceLocation,
       sourceToken: createSourceToken(node.id),
-      evidenceLabel: "Selected source definition"
+      evidenceLabel: "Selected source definition",
+      evidencePresentation: { key: "code-flow-evidence-selected-definition" }
     })
   ];
   const gaps: CodeFlowGapPayload[] = [];
@@ -235,12 +245,14 @@ export function createSymbolCodeFlowDetail(
               resolution,
               sourceLocation,
               sourceToken: usesDefinition ? createSourceToken(target.id) : undefined,
-              evidenceLabel: createCallEvidenceLabel(edge.confidence, resolution)
+              evidenceLabel: createCallEvidenceLabel(edge.confidence, resolution),
+              evidencePresentation: createCallEvidencePresentation(edge.confidence, resolution)
             })
           : createMissingTargetStepPayload({
               stepId,
               parentId: current.stepId,
               label: targetLabel,
+              hasExplicitLabel: hasCallTargetLabel(edge, target),
               depth: current.depth + 1,
               confidence: edge.confidence,
               sourceLocation
@@ -263,7 +275,8 @@ export function createSymbolCodeFlowDetail(
       flowId,
       "depthLimit",
       "More calls beyond the reading depth",
-      `${depthLimitedCount} additional call relationship(s) were left collapsed at depth ${maxDepth}.`
+      `${depthLimitedCount} additional call relationship(s) were left collapsed at depth ${maxDepth}.`,
+      { count: depthLimitedCount, depth: maxDepth }
     ));
   }
   if (stepLimitedCount > 0) {
@@ -271,7 +284,8 @@ export function createSymbolCodeFlowDetail(
       flowId,
       "stepLimit",
       "Flow step limit reached",
-      `At least ${stepLimitedCount} additional call relationship(s) were omitted after ${maxSteps} visible steps.`
+      `At least ${stepLimitedCount} additional call relationship(s) were omitted after ${maxSteps} visible steps.`,
+      { count: stepLimitedCount, limit: maxSteps }
     ));
   }
   if (duplicateOrCycleCount > 0) {
@@ -279,7 +293,8 @@ export function createSymbolCodeFlowDetail(
       flowId,
       "cycleOrDuplicate",
       "Repeated or cyclic calls collapsed",
-      `${duplicateOrCycleCount} relationship(s) reached a function already represented in this flow.`
+      `${duplicateOrCycleCount} relationship(s) reached a function already represented in this flow.`,
+      { count: duplicateOrCycleCount }
     ));
   }
 
@@ -300,7 +315,8 @@ export function createSymbolCodeFlowDetail(
       flowId,
       "entrypointNotFound",
       "No supported entrypoint found",
-      "The current static index does not connect this function to a supported HTTP or GraphQL entrypoint."
+      "The current static index does not connect this function to a supported HTTP or GraphQL entrypoint.",
+      {}
     ));
   }
 
@@ -312,6 +328,12 @@ export function createSymbolCodeFlowDetail(
     subtitle: rootSourceLocation
       ? `Function context · ${rootSourceLocation}`
       : "Function context",
+    ...(!hasVisibleText(node.qualifiedName || node.name)
+      ? { titlePresentation: { key: "code-flow-anonymous-callable" as const } }
+      : {}),
+    subtitlePresentation: rootSourceLocation
+      ? { key: "code-flow-function-context-source", params: { source: rootSourceLocation } }
+      : { key: "code-flow-function-context" },
     semantics: "static",
     focusStepId: rootStepId,
     steps,
@@ -348,7 +370,7 @@ function createSemanticStepPayload(
     parentId,
     stage: getSemanticStepStage(step, architecture),
     label: safeText(label, "Unnamed flow step"),
-    detail: createStepDetail(step, architecture, sourceLocation),
+    detail: createStepDetail(sourceLocation),
     depth: Math.max(0, step.depth),
     relation: step.kind === "route" || step.kind === "operation" ? "starts" : "calls",
     confidence: step.confidence,
@@ -356,7 +378,11 @@ function createSemanticStepPayload(
     architectureLayer: architecture.layer,
     sourceToken,
     sourceLocation,
-    evidenceLabel: createSemanticEvidenceLabel(step)
+    evidenceLabel: createSemanticEvidenceLabel(step),
+    ...(!hasVisibleText(label)
+      ? { labelPresentation: { key: "code-flow-unnamed-step" as const } }
+      : {}),
+    evidencePresentation: createSemanticEvidencePresentation(step)
   };
 }
 
@@ -372,18 +398,17 @@ function createNodeStepPayload(input: {
   sourceLocation?: string;
   sourceToken?: SourceNodeToken;
   evidenceLabel: string;
+  evidencePresentation: CodeFlowPresentationDescriptor;
 }): CodeFlowStepPayload {
   const architecture = input.architecture;
   const stage = getNodeStage(input.node, input.resolution, architecture);
-  const location = input.sourceLocation ? ` · ${input.sourceLocation}` : "";
-  const layer = architecture ? formatArchitectureLayer(architecture.layer) : "Unclassified";
 
   return {
     id: input.stepId,
     parentId: input.parentId,
     stage,
     label: safeText(input.node.qualifiedName || input.node.name, "Anonymous callable"),
-    detail: `${layer}${location}`,
+    detail: input.sourceLocation ?? "",
     depth: input.depth,
     relation: input.parentId ? "calls" : undefined,
     confidence: input.confidence,
@@ -391,7 +416,11 @@ function createNodeStepPayload(input: {
     architectureLayer: architecture?.layer,
     sourceToken: input.sourceToken,
     sourceLocation: input.sourceLocation,
-    evidenceLabel: input.evidenceLabel
+    evidenceLabel: input.evidenceLabel,
+    ...(!hasVisibleText(input.node.qualifiedName || input.node.name)
+      ? { labelPresentation: { key: "code-flow-anonymous-callable" as const } }
+      : {}),
+    evidencePresentation: input.evidencePresentation
   };
 }
 
@@ -400,6 +429,7 @@ function createMissingTargetStepPayload(input: {
   stepId: string;
   parentId: string;
   label: string;
+  hasExplicitLabel: boolean;
   depth: number;
   confidence: EdgeConfidence;
   sourceLocation?: string;
@@ -417,7 +447,14 @@ function createMissingTargetStepPayload(input: {
     confidence: input.confidence,
     resolution: "unresolved",
     sourceLocation: input.sourceLocation,
-    evidenceLabel: createCallEvidenceLabel(input.confidence, "unresolved")
+    evidenceLabel: createCallEvidenceLabel(input.confidence, "unresolved"),
+    ...(!input.hasExplicitLabel
+      ? { labelPresentation: { key: "code-flow-unresolved-target" as const } }
+      : {}),
+    detailPresentation: input.sourceLocation
+      ? { key: "code-flow-unresolved-callsite-source", params: { source: input.sourceLocation } }
+      : { key: "code-flow-unresolved-callsite" },
+    evidencePresentation: createCallEvidencePresentation(input.confidence, "unresolved")
   };
 }
 
@@ -553,15 +590,8 @@ function getNodeStage(
 }
 
 /** Formats a compact detail without treating structural hints as runtime facts. */
-function createStepDetail(
-  step: SemanticFlowStep,
-  architecture: FunctionArchitecturePayload,
-  sourceLocation: string | undefined
-): string {
-  const layer = formatArchitectureLayer(architecture.layer);
-  const role = getStepRoleLabel(step);
-  const location = sourceLocation ? ` · ${sourceLocation}` : "";
-  return `${layer} · ${role}${location}`;
+function createStepDetail(sourceLocation: string | undefined): string {
+  return sourceLocation ?? "";
 }
 
 /** Returns one short evidence label for the selected step. */
@@ -586,76 +616,6 @@ function createCallEvidenceLabel(
       ? "external target"
       : "target unresolved";
   return `Static calls edge · ${confidence} · ${target}`;
-}
-
-/** Produces a role label without adding unsupported effect claims. */
-function getStepRoleLabel(step: SemanticFlowStep): string {
-  if (step.kind === "route") return "HTTP boundary";
-  if (step.kind === "operation") return "GraphQL boundary";
-  if (step.kind === "handler") return "Mapped handler";
-  switch (step.role) {
-    case "controller": return "Controller call";
-    case "resolver": return "Resolver call";
-    case "service": return "Service call";
-    case "repository": return "Repository call";
-    case "model": return "Model call";
-    case "external": return "External call";
-    case "sideEffect": return "Possible effect call";
-    default: return step.resolution === "unresolved" ? "Unresolved call" : "Call";
-  }
-}
-
-/** Converts domain coverage gaps into stable, display-safe protocol records. */
-function createSemanticGapPayload(
-  flowId: CodeFlowId,
-  gap: SemanticFlowCoverageGap,
-  index: number
-): CodeFlowGapPayload {
-  return {
-    id: `${flowId}:gap:${gap.reason}:${index}`,
-    reason: gap.reason,
-    label: getGapLabel(gap.reason),
-    detail: createGapDetail(gap)
-  };
-}
-
-/** Creates a non-domain gap for arbitrary symbol context. */
-function createBoundGap(
-  flowId: CodeFlowId,
-  reason: CodeFlowGapPayload["reason"],
-  label: string,
-  detail: string
-): CodeFlowGapPayload {
-  return {
-    id: `${flowId}:gap:${reason}`,
-    reason,
-    label,
-    detail
-  };
-}
-
-/** Removes graph identities from existing domain diagnostic prose. */
-function createGapDetail(gap: SemanticFlowCoverageGap): string {
-  switch (gap.reason) {
-    case "ambiguous":
-      return `${gap.candidateFunctionIds.length} equally trusted handler candidate(s) remain.`;
-    case "handlerNotMapped":
-      return "The framework entrypoint is visible, but no unique callable definition is mapped.";
-    case "depthLimit":
-      return `${gap.omittedFunctionIds.length} known call target(s) continue beyond depth ${gap.limit ?? "limit"}.`;
-    case "stepLimit":
-      return `${gap.omittedFunctionIds.length} known call target(s) were omitted after the step limit.`;
-  }
-}
-
-/** Human-readable gap label shared by entrypoint flows. */
-function getGapLabel(reason: SemanticFlowCoverageGap["reason"]): string {
-  switch (reason) {
-    case "ambiguous": return "Handler mapping is ambiguous";
-    case "handlerNotMapped": return "Handler definition is unknown";
-    case "depthLimit": return "More calls beyond the reading depth";
-    case "stepLimit": return "Flow step limit reached";
-  }
 }
 
 /** Counts only visible protocol state so omitted graph data is not implied. */
@@ -741,6 +701,16 @@ function getCallTargetLabel(edge: GraphEdge, target: SymbolNode | undefined): st
   return "Unresolved call target";
 }
 
+/** Detects whether an unresolved target has source-derived display text. */
+function hasCallTargetLabel(edge: GraphEdge, target: SymbolNode | undefined): boolean {
+  if (hasVisibleText(target?.qualifiedName) || hasVisibleText(target?.name)) {
+    return true;
+  }
+  return ["targetName", "calleeName", "qualifiedName", "name"].some((key) =>
+    typeof edge.metadata?.[key] === "string" && hasVisibleText(edge.metadata?.[key] as string)
+  );
+}
+
 /** Narrows downstream expansion to callable definitions. */
 function isCallableNode(node: SymbolNode): boolean {
   return node.kind === "function" || node.kind === "method" || node.kind === "constructor";
@@ -768,6 +738,29 @@ function createContentBoundStepId(flowId: CodeFlowId, identity: string): string 
 function createEntrypointSubtitle(flow: SemanticFlow): string {
   const kind = flow.entrypointKind === "httpRoute" ? "HTTP entrypoint" : "GraphQL operation";
   return `${safeText(flow.framework, "Unknown framework")} · ${kind} · static path`;
+}
+
+/** Keeps framework literals as descriptor parameters rather than localized nested text. */
+function createEntrypointSubtitlePresentation(flow: SemanticFlow): CodeFlowPresentationDescriptor {
+  const framework = flow.framework?.trim();
+  if (!framework) {
+    return {
+      key: flow.entrypointKind === "httpRoute"
+        ? "code-flow-entrypoint-http-unknown-framework"
+        : "code-flow-entrypoint-graphql-unknown-framework"
+    };
+  }
+  return {
+    key: flow.entrypointKind === "httpRoute"
+      ? "code-flow-entrypoint-http"
+      : "code-flow-entrypoint-graphql",
+    params: { framework: safeText(framework, "Unknown framework") }
+  };
+}
+
+/** Distinguishes analyzer-provided values from a Host-owned fallback. */
+function hasVisibleText(value: string | undefined): boolean {
+  return Boolean(value?.trim());
 }
 
 /** Locale-independent stable text ordering. */

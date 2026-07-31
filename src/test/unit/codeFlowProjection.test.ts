@@ -106,6 +106,105 @@ test("entrypoint detail teaches boundary, decision, effect, and verification", (
   assert.doesNotMatch(JSON.stringify(detail), /\/workspace/u);
 });
 
+test("Code Flow projection emits finite descriptors for subtitles, fallbacks, and evidence", () => {
+  const base = createMappedFlow("", "", "/workspace/api", "httpRoute", undefined);
+  const confidenceValues: GraphEdge["confidence"][] = ["exact", "resolved", "inferred", "unresolved"];
+  const resolutionValues = ["concrete", "external", "unresolved"] as const;
+  const handlers = confidenceValues.map((confidence, index) => ({
+    ...createCallStep(`handler-${confidence}`, "", "routeHandler", index + 1, `/workspace/handler-${index}.ts`),
+    kind: "handler" as const,
+    confidence
+  }));
+  const calls = confidenceValues.flatMap((confidence, confidenceIndex) =>
+    resolutionValues.map((resolution, resolutionIndex) => ({
+      ...createCallStep(
+        `call-${confidence}-${resolution}`,
+        "",
+        "service",
+        10 + confidenceIndex * resolutionValues.length + resolutionIndex,
+        `/workspace/call-${confidenceIndex}-${resolutionIndex}.ts`
+      ),
+      confidence,
+      resolution
+    }))
+  );
+  const graph = createGraph();
+  const detail = createEntrypointCodeFlowDetail(
+    graph,
+    { ...base, steps: [base.steps[0], ...handlers, ...calls] },
+    deliveryVersion,
+    createFunctionArchitectureIndex(graph),
+    createSourceToken
+  );
+
+  assert.equal(detail.titlePresentation?.key, "code-flow-unnamed-entrypoint");
+  assert.equal(getSubtitlePresentationKey(detail.subtitlePresentation), "code-flow-entrypoint-http-unknown-framework");
+  assert.equal(detail.steps[0]?.evidencePresentation?.key, "code-flow-evidence-framework-boundary");
+  assert.deepEqual(
+    new Set(detail.steps.slice(1, 5).map((step) => step.evidencePresentation?.key)),
+    new Set(confidenceValues.map((confidence) => `code-flow-evidence-handler-${confidence}`))
+  );
+  assert.deepEqual(
+    new Set(detail.steps.slice(5).map((step) => step.evidencePresentation?.key)),
+    new Set(confidenceValues.flatMap((confidence) =>
+      resolutionValues.map((resolution) => `code-flow-evidence-call-${confidence}-${resolution}`)
+    ))
+  );
+
+  const knownHttp = createEntrypointCodeFlowDetail(
+    graph,
+    createMappedFlow("GET /known", "Express", "/workspace/api", "httpRoute", undefined),
+    deliveryVersion,
+    createFunctionArchitectureIndex(graph),
+    createSourceToken
+  );
+  const knownGraphql = createEntrypointCodeFlowDetail(
+    graph,
+    createMappedFlow("viewer", "Apollo", "/workspace/api", "graphqlOperation", "Query"),
+    deliveryVersion,
+    createFunctionArchitectureIndex(graph),
+    createSourceToken
+  );
+  const unknownGraphql = createEntrypointCodeFlowDetail(
+    graph,
+    createMappedFlow("viewer", "", "/workspace/api", "graphqlOperation", "Query"),
+    deliveryVersion,
+    createFunctionArchitectureIndex(graph),
+    createSourceToken
+  );
+  assert.equal(getSubtitlePresentationKey(knownHttp.subtitlePresentation), "code-flow-entrypoint-http");
+  assert.equal(getSubtitlePresentationKey(knownGraphql.subtitlePresentation), "code-flow-entrypoint-graphql");
+  assert.equal(getSubtitlePresentationKey(unknownGraphql.subtitlePresentation), "code-flow-entrypoint-graphql-unknown-framework");
+});
+
+test("Code Flow semantic gaps emit finite titles and locale-neutral bound parameters", () => {
+  const gaps: SemanticFlow["coverageGaps"] = [
+    { entrypointUnitId: "route", reason: "ambiguous", message: "legacy", candidateFunctionIds: ["a", "b"], targetFrameworkUnitIds: [], omittedFunctionIds: [] },
+    { entrypointUnitId: "route", reason: "handlerNotMapped", message: "legacy", candidateFunctionIds: [], targetFrameworkUnitIds: [], omittedFunctionIds: [] },
+    { entrypointUnitId: "route", reason: "depthLimit", message: "legacy", candidateFunctionIds: [], targetFrameworkUnitIds: [], omittedFunctionIds: ["a"], limit: 3 },
+    { entrypointUnitId: "route", reason: "stepLimit", message: "legacy", candidateFunctionIds: [], targetFrameworkUnitIds: [], omittedFunctionIds: ["a", "b"], limit: 8 }
+  ];
+  const graph = createGraph();
+  const detail = createEntrypointCodeFlowDetail(
+    graph,
+    createMappedFlow("GET /gaps", "Express", "/workspace/api", "httpRoute", undefined, { gaps }),
+    deliveryVersion,
+    createFunctionArchitectureIndex(graph),
+    createSourceToken
+  );
+
+  assert.deepEqual(detail.gaps.map((gap) => gap.labelPresentation?.key), [
+    "code-flow-gap-ambiguous", "code-flow-gap-handler-not-mapped",
+    "code-flow-gap-depth-limit", "code-flow-gap-step-limit"
+  ]);
+  assert.deepEqual(detail.gaps.map((gap) => gap.codeFlowDetailPresentation), [
+    { key: "code-flow-gap-ambiguous-detail", params: { count: 2 } },
+    { key: "code-flow-gap-handler-not-mapped-detail", params: {} },
+    { key: "code-flow-gap-depth-limit-detail", params: { count: 1, depth: 3 } },
+    { key: "code-flow-gap-step-limit-detail", params: { count: 2, limit: 8 } }
+  ]);
+});
+
 test("function context iteratively collapses cycles and reports depth limits", () => {
   const nodes = [
     createCallable("root", "/workspace/src/application/root.ts"),
@@ -117,6 +216,7 @@ test("function context iteratively collapses cycles and reports depth limits", (
   const edges: GraphEdge[] = [
     createCallEdge("root-first", "root", "first", "exact"),
     createCallEdge("root-missing", "root", "missing", "unresolved", "persistUnknown"),
+    createCallEdge("root-missing-no-label", "root", "missing-no-label", "unresolved"),
     createCallEdge("first-root", "first", "root", "inferred"),
     createCallEdge("first-second", "first", "second", "resolved"),
     createCallEdge("second-third", "second", "third", "resolved"),
@@ -146,6 +246,39 @@ test("function context iteratively collapses cycles and reports depth limits", (
   assert.equal(detail.steps.filter((step) => step.label === "root").length, 1);
   assert.ok(detail.steps.filter((step) => step.resolution === "concrete").every((step) => step.sourceToken));
   assert.ok(detail.steps.filter((step) => step.resolution === "unresolved").every((step) => !step.sourceToken));
+  assert.equal(
+    detail.steps.find((step) => step.resolution === "unresolved")?.detailPresentation?.key,
+    "code-flow-unresolved-callsite-source"
+  );
+  assert.equal(
+    detail.steps.find((step) => step.label === "Unresolved call target")?.labelPresentation?.key,
+    "code-flow-unresolved-target"
+  );
+  assert.deepEqual(
+    detail.gaps.map((gap) => gap.labelPresentation?.key),
+    ["code-flow-gap-depth-limit", "code-flow-gap-cycle-or-duplicate"]
+  );
+  assert.equal(detail.titlePresentation, undefined);
+  assert.equal(getSubtitlePresentationKey(detail.subtitlePresentation), "code-flow-function-context-source");
+  assert.equal(detail.steps[0]?.evidencePresentation?.key, "code-flow-evidence-selected-definition");
+  assert.ok(detail.steps.every((step) => step.evidencePresentation));
+});
+
+test("function context distinguishes anonymous labels and a missing source location", () => {
+  const node = { ...createCallable("", "") };
+  const graph = createGraph({ callables: [node] });
+  const detail = createSymbolCodeFlowDetail(
+    graph,
+    createFlowIndex(graph.version, []),
+    node,
+    deliveryVersion,
+    createFunctionArchitectureIndex(graph),
+    createSourceToken
+  );
+
+  assert.equal(detail.titlePresentation?.key, "code-flow-anonymous-callable");
+  assert.equal(getSubtitlePresentationKey(detail.subtitlePresentation), "code-flow-function-context");
+  assert.equal(detail.steps[0]?.labelPresentation?.key, "code-flow-anonymous-callable");
 });
 
 test("CodeFlow insight cache keys by immutable graph object", () => {
@@ -229,4 +362,11 @@ function createCallEdge(
 /** Produces a deterministic opaque token for concrete test definitions. */
 function createSourceToken(nodeId: string): SourceNodeToken {
   return `source-node:${nodeId}`;
+}
+
+/** Narrows the legacy Function Logic marker while asserting Code Flow descriptors. */
+function getSubtitlePresentationKey(
+  presentation: { key: string } | "functionLogic" | undefined
+): string | undefined {
+  return typeof presentation === "string" ? undefined : presentation?.key;
 }

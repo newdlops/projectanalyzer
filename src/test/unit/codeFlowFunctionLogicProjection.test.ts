@@ -7,6 +7,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { analyzeFunctionLogic } from "../../analyzer/functionLogic";
 import { createFunctionLogicCodeFlowDetail } from "../../application/codeFlow";
+import { FUNCTION_LOGIC_EDGE_PRESENTATION_KEYS } from "../../localization/presentationDescriptors";
 import type { CodeFlowEvidenceToken } from "../../protocol/functionLogic";
 import type { SourceNodeToken } from "../../protocol/sourceNavigation";
 import { createContentHash } from "../../shared/hash";
@@ -16,6 +17,21 @@ import {
   createGraph,
   createMappedFlow
 } from "./helpers/projectReadingGuideFixtures";
+
+test("maps every stable Function Logic edge kind to finite browser copy", () => {
+  const edgeKinds = [
+    "next", "defines", "deferred", "true", "false", "iterate", "repeat", "exit",
+    "case", "exception", "finally", "return", "throw", "break", "continue",
+    "else-if", "default", "try", "catch", "elif", "loop-completed", "except", "with",
+    "synchronized", "nested"
+    , "truthy", "falsy", "present", "nullish", "each"
+  ] as const;
+
+  assert.deepEqual(
+    edgeKinds.map((kind) => `logic-edge-${kind}`),
+    FUNCTION_LOGIC_EDGE_PRESENTATION_KEYS
+  );
+});
 
 test("projects internal logic with opaque evidence and known entrypoint origins", () => {
   const filePath = "/workspace/src/orders.ts";
@@ -87,6 +103,14 @@ test("projects internal logic with opaque evidence and known entrypoint origins"
   assert.equal(detail.logic?.layout.edges.length, detail.logic?.edges.length);
   assert.ok((detail.logic?.layout.height ?? 0) > 0);
   assert.ok(detail.logic?.blocks.every((block) => /^function-logic-block:[0-9a-f]{32}$/u.test(block.id)));
+  assert.ok(detail.logic?.blocks.every((block) =>
+    Boolean(block.presentation?.labelKey)
+      && block.presentation?.detailKey === `logic-block-detail-${block.kind}`
+      && block.presentation?.detailParams === undefined
+  ));
+  assert.ok(detail.logic?.edges.every((edge) =>
+    edge.presentation?.key === `logic-edge-${edge.kind}`
+  ));
   assert.ok(detail.logic?.blocks.every((block) => /^code-evidence:[0-9a-f]{64}$/u.test(block.evidenceToken ?? "")));
   assert.equal(detail.origins[0]?.name, "GET /orders");
   assert.deepEqual(detail.logic?.callees, []);

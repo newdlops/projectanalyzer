@@ -8,6 +8,7 @@ import type {
   FunctionLogicBlockPayloadKind,
   FunctionLogicEdgePayloadKind
 } from "./functionLogic";
+import type { FunctionTutorFactPresentationKey, FunctionTutorGapPresentationKey, FunctionTutorSemanticPresentationKey, PresentationParams } from "../localization/presentationDescriptors";
 
 export type FunctionTutorPayloadCertainty = "exact" | "inferred" | "unknown";
 export type FunctionTutorStaticValuePayload =
@@ -151,8 +152,12 @@ export type FunctionTutorGuideChapterPayload = {
   ordinal: 1 | 2 | 3 | 4 | 5;
   kind: "place" | "inputs" | "decisions" | "work" | "outcomes";
   question: string;
+  /** Fixed question identity; browser formats it without matching English text. */
+  questionKey?: "place" | "inputs" | "decisions" | "work" | "outcomes";
   status: "ready" | "partial" | "unavailable";
   answer: { text: string; counts: Record<string, number> };
+  /** Fixed answer shape. Source-backed fact text remains separate. */
+  answerKey?: "place" | "inputs" | "decisions" | "work" | "outcomes";
   facts: FunctionTutorGuideFactPayload[];
   preferredLens: "flow" | "values" | "calls" | "effects";
   primaryBlockId?: string;
@@ -165,7 +170,11 @@ export type FunctionTutorGuideFactPayload = {
   id: string;
   kind: string;
   label: string;
+  labelPresentationKey?: FunctionTutorSemanticPresentationKey;
+  labelPresentationParams?: PresentationParams;
   detail: string;
+  /** Owned fact explanation key; source documentation and evidence remain literals. */
+  presentationKey?: FunctionTutorFactPresentationKey;
   certainty: FunctionTutorPayloadCertainty;
   blockIds: string[];
   edgeIds: string[];
@@ -238,6 +247,8 @@ export type FunctionTutorGapPayload = {
   id: string;
   kind: string;
   summary: string;
+  presentationKey?: FunctionTutorGapPresentationKey;
+  presentationParams?: PresentationParams;
   parameterId?: string;
   blockId?: string;
   evidenceTokens: CodeFlowEvidenceToken[];

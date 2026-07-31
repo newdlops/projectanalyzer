@@ -101,6 +101,8 @@ export function createFunctionLogicCodeFlowDetail(
       kind: block.kind,
       label: completeGraphText(block.label, "Source statement"),
       detail: completeGraphText(block.detail, "Static source operation."),
+      presentation: block.presentation ?? createFunctionLogicBlockPresentation(block),
+      embeddedPresentationKind: block.embeddedPresentationKind,
       depth: Math.max(0, block.depth),
       parentBlockId: block.parentBlockId
         ? protocolBlockIds.get(block.parentBlockId)
@@ -108,6 +110,7 @@ export function createFunctionLogicCodeFlowDetail(
       branchLabel: block.branchLabel
         ? completeGraphText(block.branchLabel, "branch")
         : undefined,
+      branchPresentation: block.branchPresentation,
       confidence: block.confidence,
       sourceLocation: sourceDisplay.location(block.filePath, block.range),
       evidenceToken: createEvidenceToken(block.filePath, block.range),
@@ -147,6 +150,7 @@ export function createFunctionLogicCodeFlowDetail(
           targetId,
           kind: edge.kind,
           label: edge.label ? safeText(edge.label, edge.kind) : undefined,
+          presentation: edge.presentation ?? createFunctionLogicEdgePresentation(edge.kind),
           confidence: edge.confidence
         }]
       : [];
@@ -210,7 +214,10 @@ export function createFunctionLogicCodeFlowDetail(
     id: flowId,
     kind: "functionLogic",
     title: completeGraphText(node.qualifiedName || node.name, "Anonymous callable"),
-    subtitle: location ? `Function logic · ${location}` : "Function logic",
+    // The path is source-derived and remains literal. Its owned wrapper is a
+    // stable semantic marker so retained Webviews can switch language in place.
+    subtitle: location ?? "",
+    subtitlePresentation: "functionLogic",
     semantics: "static",
     focusStepId: blocks[0]?.id,
     steps: [],
@@ -238,6 +245,30 @@ export function createFunctionLogicCodeFlowDetail(
       gapCount: gaps.length
     }
   };
+}
+
+/**
+ * Supplies finite browser copy for every analyzer block while preserving source
+ * labels/details as inert primitive parameters. Language adapters can override
+ * this default through `block.presentation` without changing graph identity.
+ */
+function createFunctionLogicBlockPresentation(
+  block: FunctionLogicAnalysis["blocks"][number]
+): NonNullable<FunctionLogicBlockPayload["presentation"]> {
+  const kind = block.kind;
+  return {
+    labelKey: `logic-block-label-${kind}`,
+    labelParams: { source: completeGraphText(block.label, "") },
+    detailKey: `logic-block-detail-${kind}`,
+    detailParams: undefined
+  };
+}
+
+/** Supplies a stable localized descriptor for each analyzer edge vocabulary. */
+function createFunctionLogicEdgePresentation(
+  kind: FunctionLogicAnalysis["edges"][number]["kind"]
+): NonNullable<FunctionLogicEdgePayload["presentation"]> {
+  return { key: `logic-edge-${kind}` };
 }
 
 /**
@@ -323,20 +354,24 @@ function createLogicGap(
       : gap.code === "functionNotFound"
         ? "functionBodyNotFound"
         : "analysisLimitation";
-  const label = gap.code === "languageUnsupported"
-    ? "Language logic parser unavailable"
+  const presentation = gap.code === "languageUnsupported"
+    ? "languageUnsupported"
     : gap.code === "sourceUnavailable"
-      ? "Current source unavailable"
+      ? "sourceUnavailable"
       : gap.code === "functionNotFound"
-        ? "Function body changed"
+        ? "functionBodyNotFound"
         : gap.code === "dynamicBehavior"
-          ? "Runtime behavior remains unknown"
-          : "Expression detail remains collapsed";
+          ? "runtimeUnknown"
+          : "expressionCollapsed";
   return {
     id: `${flowId}:gap:${reason}:${index}`,
     reason,
-    label,
-    detail: safeText(gap.message, "Function logic analysis is incomplete.")
+    // Analyzer diagnostic text is an external/source literal. The owned title
+    // is transported as a semantic key and localized only in the browser.
+    label: "",
+    detail: safeText(gap.message, ""),
+    presentation,
+    detailPresentation: gap.presentation
   };
 }
 

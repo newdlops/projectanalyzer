@@ -110,6 +110,8 @@ export type SearchResult = {
 export type ErrorPayload = {
   code: string;
   message: string;
+  /** Literal detail from a real external Error; never localized or interpreted. */
+  detail?: string;
 };
 
 /** Analysis lifecycle update displayed by the Webview. */
@@ -121,6 +123,7 @@ export type AnalysisStatusPayload = {
 /** Messages sent from Extension Host to Webview. */
 export type ExtensionResponse =
   | { type: "ui/ready"; payload: Record<string, never> }
+  | { type: "ui/language"; payload: { language: "ko" | "en" } }
   | { type: "graph/loaded"; payload: ProjectGraph }
   | { type: "graph/updated"; payload: ProjectGraph }
   | { type: "graph/focusNode"; payload: GraphFocusNodeRequest }

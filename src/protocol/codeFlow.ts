@@ -4,6 +4,7 @@
  */
 
 import type { EdgeConfidence } from "../shared/types";
+import type { CodeFlowPresentationKey, FunctionLogicGapPresentationKey, PresentationParams } from "../localization/presentationDescriptors";
 import type { ArchitecturalLayerPayload } from "./functionArchitecture";
 import type { SourceNodeToken } from "./sourceNavigation";
 import type {
@@ -16,6 +17,12 @@ export type CodeFlowId = `code-flow:${string}`;
 
 /** User-facing stages that reinforce the product's reusable reading frame. */
 export type CodeFlowStage = "boundary" | "path" | "decision" | "effect" | "unknown";
+
+/** Localizable host-owned copy while source names, paths, and framework names stay literal. */
+export type CodeFlowPresentationDescriptor = {
+  key: CodeFlowPresentationKey;
+  params?: PresentationParams;
+};
 
 /** Entrypoint categories available from the initial flow catalog. */
 export type CodeFlowEntrypointKind = "httpRoute" | "graphqlOperation";
@@ -74,6 +81,9 @@ export type CodeFlowCatalogItem = {
   framework: string;
   scopeLabel?: string;
   detail: string;
+  /** Locale-neutral owned fallback copy; raw fields remain compatibility text. */
+  namePresentation?: CodeFlowPresentationDescriptor;
+  frameworkPresentation?: CodeFlowPresentationDescriptor;
   confidence?: EdgeConfidence;
   mapped: boolean;
   gapCount: number;
@@ -114,6 +124,9 @@ export type CodeFlowStepPayload = {
   sourceToken?: SourceNodeToken;
   sourceLocation?: string;
   evidenceLabel: string;
+  labelPresentation?: CodeFlowPresentationDescriptor;
+  detailPresentation?: CodeFlowPresentationDescriptor;
+  evidencePresentation?: CodeFlowPresentationDescriptor;
 };
 
 /** Visible explanation for an incomplete or deliberately bounded projection. */
@@ -122,6 +135,13 @@ export type CodeFlowGapPayload = {
   reason: CodeFlowGapReason;
   label: string;
   detail: string;
+  /** Stable owned explanation rendered from the active browser catalog. */
+  presentation?: "languageUnsupported" | "sourceUnavailable" | "functionBodyNotFound" | "analysisLimitation" | "runtimeUnknown" | "expressionCollapsed";
+  /** Code Flow-owned finite title; Function Logic keeps `presentation` for compatibility. */
+  labelPresentation?: CodeFlowPresentationDescriptor;
+  /** Code Flow-owned finite prose; Function Logic keeps `detailPresentation` for compatibility. */
+  codeFlowDetailPresentation?: CodeFlowPresentationDescriptor;
+  detailPresentation?: { key: FunctionLogicGapPresentationKey; params?: PresentationParams };
 };
 
 /** Small counters used to orient the reader without becoming a dashboard. */
@@ -141,6 +161,9 @@ export type CodeFlowDetailPayload = {
   kind: CodeFlowDetailKind;
   title: string;
   subtitle: string;
+  /** Typed owned subtitle copy; legacy Function Logic marker remains during browser migration. */
+  titlePresentation?: CodeFlowPresentationDescriptor;
+  subtitlePresentation?: CodeFlowPresentationDescriptor | "functionLogic";
   semantics: "static";
   focusStepId?: string;
   steps: CodeFlowStepPayload[];
@@ -153,6 +176,8 @@ export type CodeFlowDetailPayload = {
 /** Display-safe reason why an otherwise valid flow request could not complete. */
 export type CodeFlowFailurePayload = {
   graphVersion: string;
+  /** Locale-neutral owned copy retained by browser surfaces during language changes. */
+  presentationKey: "staleStartAgain" | "staleSearchAgain" | "staleVisualizeAgain" | "staleReopenLogic" | "flowNotFound" | "sourceNotFound" | "sourceNotCallable" | "evidenceNotFound" | "currentFunctionUnavailable" | "cursorNotCallable";
   code:
     | "staleGraph"
     | "flowNotFound"

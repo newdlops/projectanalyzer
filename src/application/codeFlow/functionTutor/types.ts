@@ -11,6 +11,7 @@ import type {
   FunctionTutorGap,
   FunctionTutorStaticValue
 } from "../../../analyzer/functionTutor";
+import type { FunctionTutorFactPresentationKey, FunctionTutorSemanticPresentationKey, PresentationParams } from "../../../localization/presentationDescriptors";
 import type { FunctionLogicAnalysis } from "../../../analyzer/functionLogic";
 import type {
   ArchitecturalLayer,
@@ -157,7 +158,11 @@ export type FunctionTutorGuideFact = {
   id: string;
   kind: FunctionTutorGuideFactKind;
   label: string;
+  /** Browser-owned semantic label; source-backed names remain interpolation params. */
+  labelPresentationKey?: FunctionTutorSemanticPresentationKey;
+  labelPresentationParams?: PresentationParams;
   detail: string;
+  presentationKey?: FunctionTutorFactPresentationKey;
   certainty: FunctionTutorCertainty;
   blockIds: string[];
   edgeIds: string[];
@@ -173,11 +178,13 @@ export type FunctionTutorGuideChapter = {
   ordinal: 1 | 2 | 3 | 4 | 5;
   kind: FunctionTutorGuideChapterKind;
   question: string;
+  questionKey?: FunctionTutorGuideChapterKind;
   status: FunctionTutorGuideChapterStatus;
   answer: {
     text: string;
     counts: Record<string, number>;
   };
+  answerKey?: FunctionTutorGuideChapterKind;
   facts: FunctionTutorGuideFact[];
   preferredLens: "flow" | "values" | "calls" | "effects";
   primaryBlockId?: string;

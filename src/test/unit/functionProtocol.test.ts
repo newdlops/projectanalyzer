@@ -61,6 +61,7 @@ test("function/searchFailed keeps request correlation JSON-shaped", () => {
       graphVersion: "sidebar-snapshot:4",
       requestId: 8,
       query: "service",
+      reason: "projectionFailed",
       message: "Function search failed; try again"
     }
   } satisfies ExtensionResponse;

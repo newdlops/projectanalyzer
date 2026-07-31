@@ -7,6 +7,7 @@
  */
 
 import { createContentHash } from "../../../shared/hash";
+import type { FunctionTutorSemanticPresentationKey, PresentationParams } from "../../../localization/presentationDescriptors";
 import type { FunctionLogicAnalysis, FunctionLogicBlock } from "../../../analyzer/functionLogic";
 import type { FunctionTutorCertainty, FunctionTutorDeclarationAnalysis, FunctionTutorEvidence, FunctionTutorGap } from "../../../analyzer/functionTutor";
 import type {
@@ -52,29 +53,29 @@ function buildPlaceChapter(input: BuildFunctionTutorGuideInput): FunctionTutorGu
   const facts: FunctionTutorGuideFact[] = [];
   const context = input.context;
   if (context.documentation?.summary) {
-    facts.push(createFact("documentation", "Source documentation", context.documentation.summary, "exact", [], [], context.documentation.evidence));
+    facts.push(createFact("documentation", "Source documentation", context.documentation.summary, "exact", [], [], context.documentation.evidence, "tutor-label-documentation"));
   }
   for (const owner of context.owners.slice(0, 2)) {
-    facts.push(createFact("owner", `${owner.kind}: ${owner.name}`, "Lexical owner in the current graph snapshot.", owner.certainty, [], [], owner.evidence));
+    facts.push(createFact("owner", owner.name, "", owner.certainty, [], [], owner.evidence, "tutor-label-owner", {
+      kind: `tutor-label-owner-${owner.kind}`,
+      name: owner.name
+    }));
   }
   if (context.architecture) {
     const certainty = architectureCertainty(context.architecture.confidence);
-    const detail = context.architecture.conflicted
-      ? "Multiple architecture signals are present in the current graph."
-      : `Architecture evidence classifies this as ${context.architecture.layer}.`;
-    facts.push(createFact("architecture", `Layer: ${context.architecture.layer}`, detail, certainty, [], [], context.architecture.evidence.flatMap((item) => item.evidence)));
+    const detail = "";
+    facts.push(createFact("architecture", context.architecture.layer, detail, certainty, [], [], context.architecture.evidence.flatMap((item) => item.evidence), "tutor-label-architecture", {
+      layer: context.architecture.layer
+    }));
   }
   for (const entrypoint of context.entrypoints.slice(0, 1)) {
-    facts.push(createFact("entrypoint", entrypoint.label, `${entrypoint.steps.length} bounded entrypoint steps reach this function.`, entrypoint.certainty, [], [], entrypoint.evidence));
+    facts.push(createFact("entrypoint", entrypoint.label, "", entrypoint.certainty, [], [], entrypoint.evidence));
   }
   for (const caller of context.callers.slice(0, 1)) {
-    facts.push(createFact("caller", caller.qualifiedName, `${caller.callCount} direct callsite${plural(caller.callCount)} in the current graph.`, caller.certainty, [], [], caller.evidence));
+    facts.push(createFact("caller", caller.qualifiedName, "", caller.certainty, [], [], caller.evidence));
   }
   const retained = facts.slice(0, MAX_FACTS);
-  const answer = retained.length === 0
-    ? "The current bounded graph does not provide source-backed placement context for this function."
-    : `The current graph provides ${retained.length} source-backed placement fact${plural(retained.length)} for this function.`;
-  return createChapter(1, "place", "Where Does It Fit?", retained, answer, "calls", input.functionLogic.blocks[0]?.id, [], [], {
+  return createChapter(1, "place", "", retained, "", "calls", input.functionLogic.blocks[0]?.id, [], [], {
     entrypointCount: context.counts.totalEntrypointCount,
     callerCount: context.counts.totalCallerCount
   });
@@ -83,20 +84,16 @@ function buildPlaceChapter(input: BuildFunctionTutorGuideInput): FunctionTutorGu
 function buildInputChapter(input: BuildFunctionTutorGuideInput): FunctionTutorGuideChapter {
   const facts: FunctionTutorGuideFact[] = [];
   for (const parameter of input.declaration.parameters.slice(0, 4)) {
-    const type = parameter.typeText ?? parameter.typeKind;
-    const detail = parameter.defaultValue
-      ? `Declared ${type}; default is statically known.`
-      : `Declared ${type}.`;
+    const detail = "";
     facts.push(createFact("parameter", parameter.name, detail, parameter.declarationEvidence.some((evidence) => evidence.certainty === "unknown") ? "unknown" : "exact", [], [], parameter.declarationEvidence));
   }
   if (input.declaration.parameters.length > 4) {
-    facts.push(createFact("parameter", `${input.declaration.parameters.length - 4} more parameters`, "Additional declared inputs remain available in the function signature.", "exact", [], [], []));
+    facts.push(createFact("parameter", `${input.declaration.parameters.length - 4} more parameters`, "", "exact", [], [], [], "tutor-label-omitted-parameters", {
+      count: input.declaration.parameters.length - 4
+    }));
   }
   const parameterBlocks = collectParameterAttention(input.functionLogic, input.declaration.parameters.map((parameter) => parameter.bindingId).filter((id): id is string => Boolean(id)));
-  const answer = input.declaration.parameters.length === 0
-    ? "No declared parameters are visible in the current function declaration."
-    : `${input.declaration.parameters.length} declared input${plural(input.declaration.parameters.length)} and ${input.scenarios.filter((seed) => seed.certainty === "exact").length} exact callsite tuple${plural(input.scenarios.filter((seed) => seed.certainty === "exact").length)} are available for static reading.`;
-  return createChapter(2, "inputs", "What Comes In?", facts.slice(0, MAX_INPUT_FACTS), answer, "values", parameterBlocks[0], parameterBlocks, [], {
+  return createChapter(2, "inputs", "", facts.slice(0, MAX_INPUT_FACTS), "", "values", parameterBlocks[0], parameterBlocks, [], {
     parameterCount: input.declaration.parameters.length,
     exactCallsiteTupleCount: input.scenarios.filter((seed) => seed.certainty === "exact").length
   });
@@ -108,15 +105,11 @@ function buildDecisionChapter(input: BuildFunctionTutorGuideInput): FunctionTuto
     .sort((left, right) => decisionRank(left) - decisionRank(right) || left.range.startLine - right.range.startLine || left.id.localeCompare(right.id));
   const facts = candidates.slice(0, MAX_FACTS).map((block) => {
     const kind: FunctionTutorGuideFactKind = block.kind === "loop" ? "loop" : "decision";
-    const outgoing = input.functionLogic.edges.filter((edge) => edge.sourceId === block.id).length;
-    return blockFact(kind, block, `${outgoing} visible control continuation${plural(outgoing)}.`, input.functionLogic);
+    return blockFact(kind, block, "", input.functionLogic);
   });
   const branchCount = candidates.filter((block) => block.kind !== "loop").length;
   const loopCount = candidates.filter((block) => block.kind === "loop").length;
-  const answer = candidates.length === 0
-    ? "No branch or loop is visible in the bounded function body."
-    : `${branchCount} decision${plural(branchCount)} and ${loopCount} loop${plural(loopCount)} can change the static path.`;
-  return createChapter(3, "decisions", "What Changes the Path?", facts, answer, "flow", candidates[0]?.id, candidates.map((block) => block.id), candidates.flatMap((block) => input.functionLogic.edges.filter((edge) => edge.sourceId === block.id).map((edge) => edge.id)), {
+  return createChapter(3, "decisions", "", facts, "", "flow", candidates[0]?.id, candidates.map((block) => block.id), candidates.flatMap((block) => input.functionLogic.edges.filter((edge) => edge.sourceId === block.id).map((edge) => edge.id)), {
     decisionCount: branchCount,
     loopCount
   });
@@ -125,23 +118,20 @@ function buildDecisionChapter(input: BuildFunctionTutorGuideInput): FunctionTuto
 function buildWorkChapter(input: BuildFunctionTutorGuideInput): FunctionTutorGuideChapter {
   const facts: FunctionTutorGuideFact[] = [];
   for (const block of input.functionLogic.blocks) {
-    if ((block.valueChanges?.length ?? 0) > 0) facts.push(blockFact("value-change", block, `${block.valueChanges?.length} visible value change${plural(block.valueChanges?.length ?? 0)}.`, input.functionLogic));
-    if (block.kind === "effect") facts.push(blockFact("effect", block, "Possible static effect boundary.", input.functionLogic));
-    if (block.kind === "render") facts.push(blockFact("render", block, "Source-backed render relation.", input.functionLogic));
-    if (block.kind === "event") facts.push(blockFact("event", block, "Source-backed event relation.", input.functionLogic));
-    if (block.kind === "call") facts.push(blockFact("call", block, "Source-backed call block.", input.functionLogic));
-    if (block.kind === "embedded" || block.kind === "callable") facts.push(blockFact("embedded", block, "Static embedded-code boundary.", input.functionLogic));
+    if ((block.valueChanges?.length ?? 0) > 0) facts.push(blockFact("value-change", block, "", input.functionLogic));
+    if (block.kind === "effect") facts.push(blockFact("effect", block, "", input.functionLogic));
+    if (block.kind === "render") facts.push(blockFact("render", block, "", input.functionLogic));
+    if (block.kind === "event") facts.push(blockFact("event", block, "", input.functionLogic));
+    if (block.kind === "call") facts.push(blockFact("call", block, "", input.functionLogic));
+    if (block.kind === "embedded" || block.kind === "callable") facts.push(blockFact("embedded", block, "", input.functionLogic));
   }
   for (const callee of input.context.callees) {
-    facts.push(createFact(callee.relation === "render" ? "render" : callee.relation === "event" ? "event" : "call", callee.name, `${callee.kind} target with ${callee.callCount} direct callsite${plural(callee.callCount)}.`, callee.certainty, callee.sourceBlockId ? [callee.sourceBlockId] : [], [], callee.evidence));
+    facts.push(createFact(callee.relation === "render" ? "render" : callee.relation === "event" ? "event" : "call", callee.name, "", callee.certainty, callee.sourceBlockId ? [callee.sourceBlockId] : [], [], callee.evidence));
   }
   const retained = rankWorkFacts(facts).slice(0, MAX_FACTS);
   const changeCount = input.functionLogic.blocks.reduce((total, block) => total + (block.valueChanges?.length ?? 0), 0);
   const effectCount = input.functionLogic.blocks.filter((block) => block.kind === "effect").length;
-  const answer = retained.length === 0
-    ? "No classified value change, call, render, event, or effect is visible in the bounded function body."
-    : `${changeCount} visible value change${plural(changeCount)}, ${effectCount} effect block${plural(effectCount)}, and ${input.context.callees.length} direct outgoing relation${plural(input.context.callees.length)} are available for inspection.`;
-  return createChapter(4, "work", "What Does It Change or Call?", retained, answer, "calls", retained[0]?.blockIds[0], retained.flatMap((fact) => fact.blockIds), [], {
+  return createChapter(4, "work", "", retained, "", "calls", retained[0]?.blockIds[0], retained.flatMap((fact) => fact.blockIds), [], {
     valueChangeCount: changeCount,
     effectBlockCount: effectCount,
     outgoingRelationCount: input.context.callees.length
@@ -150,14 +140,13 @@ function buildWorkChapter(input: BuildFunctionTutorGuideInput): FunctionTutorGui
 
 function buildOutcomeChapter(input: BuildFunctionTutorGuideInput): FunctionTutorGuideChapter {
   const terminalBlocks = input.functionLogic.blocks.filter((block) => block.kind === "return" || block.kind === "throw" || block.kind === "exit");
-  const facts = terminalBlocks.slice(0, MAX_FACTS).map((block) => blockFact(block.kind === "throw" ? "throw" : block.kind === "return" ? "return" : "exit", block, "Visible function terminal.", input.functionLogic));
-  if (input.scenarios.length > 0) facts.push(createFact("scenario", `${input.scenarios.length} static input case${plural(input.scenarios.length)}`, "Possible outcomes are calculated only when Static Input Cases is opened.", "inferred", [], [], []));
+  const facts = terminalBlocks.slice(0, MAX_FACTS).map((block) => blockFact(block.kind === "throw" ? "throw" : block.kind === "return" ? "return" : "exit", block, "", input.functionLogic));
+  if (input.scenarios.length > 0) facts.push(createFact("scenario", `${input.scenarios.length} static input case${plural(input.scenarios.length)}`, "", "inferred", [], [], [], "tutor-label-scenario-count", {
+    count: input.scenarios.length
+  }));
   const returnCount = terminalBlocks.filter((block) => block.kind === "return").length;
   const throwCount = terminalBlocks.filter((block) => block.kind === "throw").length;
-  const answer = terminalBlocks.length === 0
-    ? "No explicit return, throw, or exit block is visible; follow the final transfer in the graph."
-    : `${returnCount} return point${plural(returnCount)} and ${throwCount} throw${plural(throwCount)} are visible in the bounded function body.`;
-  return createChapter(5, "outcomes", "How Can It Finish?", facts.slice(0, MAX_FACTS), answer, "effects", terminalBlocks[0]?.id, terminalBlocks.map((block) => block.id), [], {
+  return createChapter(5, "outcomes", "", facts.slice(0, MAX_FACTS), "", "effects", terminalBlocks[0]?.id, terminalBlocks.map((block) => block.id), [], {
     returnCount,
     throwCount,
     exitCount: terminalBlocks.filter((block) => block.kind === "exit").length
@@ -178,12 +167,14 @@ function createChapter(
 ): FunctionTutorGuideChapter {
   const status = facts.length >= 2 ? "ready" : facts.length === 1 ? "partial" : "unavailable";
   return {
-    id: `function-tutor-chapter:${kind}:${createContentHash(question).slice(0, 16)}`,
+    id: `function-tutor-chapter:${kind}:${createContentHash(kind).slice(0, 16)}`,
     ordinal,
     kind,
     question,
+    questionKey: kind,
     status,
     answer: { text: answer, counts: { factCount: facts.length, ...counts } },
+    answerKey: kind,
     facts,
     preferredLens,
     ...(primaryBlockId ? { primaryBlockId } : {}),
@@ -214,13 +205,21 @@ function createFact(
   certainty: FunctionTutorCertainty,
   blockIds: string[],
   edgeIds: string[],
-  evidence: FunctionTutorEvidence[]
+  evidence: FunctionTutorEvidence[],
+  labelPresentationKey?: FunctionTutorSemanticPresentationKey,
+  labelPresentationParams?: PresentationParams
 ): FunctionTutorGuideFact {
+  const sourceDocumentation = kind === "documentation";
   return {
     id: `function-tutor-fact:${kind}:${createContentHash(`${label}\0${detail}\0${blockIds.join(",")}`).slice(0, 20)}`,
     kind,
     label,
-    detail,
+    labelPresentationKey,
+    labelPresentationParams,
+    // Documentation is user/source text and must remain literal. Every other
+    // planner explanation is owned prose rendered from the browser catalog.
+    detail: sourceDocumentation ? detail : "",
+    presentationKey: sourceDocumentation ? undefined : `tutor-fact-${kind}`,
     certainty,
     blockIds,
     edgeIds,

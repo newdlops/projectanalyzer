@@ -73,16 +73,17 @@ export function createCodeFlowCatalogItem(
   const mapped = flow.steps.some((step) =>
     step.kind === "handler" && step.resolution === "concrete" && step.functionId !== undefined
   );
-  const kindLabel = flow.entrypointKind === "httpRoute" ? "HTTP" : "GraphQL";
-  const mappingLabel = mapped ? "handler mapped" : "handler unknown";
-
   return {
     id: createCodeFlowIdentity(deliveryVersion, flow.id),
     kind: flow.entrypointKind,
     name: safeText(flow.name, "Unnamed entrypoint"),
+    ...(flow.name?.trim() ? {} : { namePresentation: { key: "code-flow-unnamed-entrypoint" as const } }),
     framework: safeText(flow.framework, "Unknown framework"),
+    ...(flow.framework?.trim() ? {} : { frameworkPresentation: { key: "code-flow-unknown-framework" as const } }),
     scopeLabel: scopeLabel && scopeLabel !== "." ? scopeLabel : undefined,
-    detail: `${kindLabel} · ${mappingLabel}`,
+    // Kind and mapping are typed protocol fields. Do not send an English
+    // presentation sentence that a retained Korean Webview cannot reformat.
+    detail: "",
     confidence: flow.confidence,
     mapped,
     gapCount: flow.coverageGaps.length
@@ -147,4 +148,3 @@ function safeText(value: string | undefined, fallback: string): string {
     ? normalized
     : `${normalized.slice(0, DISPLAY_TEXT_LIMIT - 1)}…`;
 }
-
