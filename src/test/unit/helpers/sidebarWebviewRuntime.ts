@@ -10,6 +10,8 @@ import assert from "node:assert/strict";
 export type SidebarWebviewRuntime = {
   click(elementId: string): void;
   clickByTitle(title: string): void;
+  /** Exercises a currently attached repeated control without relying on translated text. */
+  clickRenderedByClassNth(elementId: string, className: string, index: number): void;
   countRenderedByClass(elementId: string, className: string): number;
   countRenderedByClassWithinClass(
     elementId: string,
@@ -19,6 +21,13 @@ export type SidebarWebviewRuntime = {
   dispatchRenderedEventByClass(
     elementId: string,
     className: string,
+    type: string,
+    event?: Record<string, unknown>
+  ): boolean;
+  dispatchRenderedEventByClassNth(
+    elementId: string,
+    className: string,
+    index: number,
     type: string,
     event?: Record<string, unknown>
   ): boolean;
@@ -35,6 +44,12 @@ export type SidebarWebviewRuntime = {
     name: string
   ): string | undefined;
   getFocusedElementId(): string | undefined;
+  /** Returns the data attribute of the focused attached control for semantic-focus assertions. */
+  getFocusedRenderedAttribute(name: string): string | undefined;
+  getRenderedIdentityByTitle(elementId: string, title: string): string;
+  getRenderedIdentityByClassNth(elementId: string, className: string, index: number): string;
+  getRenderedOpenByClassNth(elementId: string, className: string, index: number): boolean;
+  getRenderedValueByTitle(elementId: string, title: string): string;
   getPersistedState(): unknown;
   getRenderedPositionByTitle(
     elementId: string,
@@ -47,6 +62,7 @@ export type SidebarWebviewRuntime = {
   isDisabled(elementId: string): boolean;
   isHidden(elementId: string): boolean;
   inputByTitle(title: string, value: string): void;
+  focusRenderedByClassNth(elementId: string, className: string, index: number): void;
   keydown(elementId: string, key: string): void;
   keydownByClass(elementId: string, className: string, key: string): void;
   keydownByTitle(title: string, key: string): void;
@@ -57,7 +73,10 @@ export type SidebarWebviewRuntime = {
     className: string,
     scroll: { left: number; top: number }
   ): void;
+  /** Changes a native disclosure's open state and emits its corresponding toggle event. */
+  setRenderedOpenByClassNth(elementId: string, className: string, index: number, open: boolean): void;
   setValue(elementId: string, value: string): void;
+  selectRenderedByClassNth(elementId: string, className: string, index: number, value: string): void;
   submit(elementId: string): void;
   textValues: string[];
 };
@@ -93,6 +112,7 @@ export function installSidebarWebviewRuntime(initialWebviewState?: unknown): Sid
     let textContent = "";
     const element: SidebarFakeElement = {
       id,
+      tagName: tagNameForId(id),
       attributes,
       children,
       className: "",
@@ -116,6 +136,7 @@ export function installSidebarWebviewRuntime(initialWebviewState?: unknown): Sid
       dataset: {},
       disabled: false,
       hidden: false,
+      open: false,
       style: {
         getPropertyValue(name) {
           return styles.get(name) ?? "";
@@ -150,6 +171,9 @@ export function installSidebarWebviewRuntime(initialWebviewState?: unknown): Sid
           children.splice(index, 1);
         }
         return child;
+      },
+      removeAttribute(name: string) {
+        attributes.delete(name);
       },
       focus() {
         focusedElementId = id;
@@ -229,6 +253,12 @@ export function installSidebarWebviewRuntime(initialWebviewState?: unknown): Sid
     }
   });
   Reflect.set(globalThis, "document", {
+    // Browser catalog formatting keys off the document language even when this
+    // small runtime does not implement the static-markup query APIs.
+    documentElement: { lang: "en" },
+    get activeElement() {
+      return focusedElementId ? elements.get(focusedElementId) : undefined;
+    },
     createTextNode(value: string) {
       generatedElementId += 1;
       const textNode = getOrCreateElement(`text:${generatedElementId}`);
@@ -280,6 +310,13 @@ export function installSidebarWebviewRuntime(initialWebviewState?: unknown): Sid
         handler({ preventDefault() {} });
       }
     },
+    clickRenderedByClassNth(elementId, className, index) {
+      const element = findRenderedByClassNth(getOrCreateElement(elementId), className, index);
+      assert.ok(element, `missing rendered .${className}[${index}] below ${elementId}`);
+      const handlers = elementListeners.get(element.id)?.get("click") ?? [];
+      assert.ok(handlers.length > 0, `missing click handler for .${className}[${index}]`);
+      for (const handler of handlers) handler({ preventDefault() {} });
+    },
     countRenderedByClass(elementId, className) {
       return countDescendantsByClass(getOrCreateElement(elementId), className);
     },
@@ -307,6 +344,11 @@ export function installSidebarWebviewRuntime(initialWebviewState?: unknown): Sid
       for (const handler of handlers) handler(payload);
       return prevented;
     },
+    dispatchRenderedEventByClassNth(elementId, className, index, type, event = {}) {
+      const element = findRenderedByClassNth(getOrCreateElement(elementId), className, index);
+      assert.ok(element, `missing rendered .${className}[${index}] below ${elementId}`);
+      return dispatchSidebarElementEvent(elementListeners, element, type, event);
+    },
     dispatchMessage(message) {
       const handler = windowListeners.get("message");
       assert.ok(handler, "missing sidebar message listener");
@@ -328,6 +370,29 @@ export function installSidebarWebviewRuntime(initialWebviewState?: unknown): Sid
     },
     getFocusedElementId() {
       return focusedElementId;
+    },
+    getFocusedRenderedAttribute(name) {
+      return focusedElementId ? getSidebarAttribute(elements.get(focusedElementId)!, name) : undefined;
+    },
+    getRenderedIdentityByTitle(elementId, title) {
+      const element = findRenderedByTitle(getOrCreateElement(elementId), title);
+      assert.ok(element, `missing rendered element titled ${title} below ${elementId}`);
+      return element.id;
+    },
+    getRenderedIdentityByClassNth(elementId, className, index) {
+      const element = findRenderedByClassNth(getOrCreateElement(elementId), className, index);
+      assert.ok(element, `missing rendered .${className}[${index}] below ${elementId}`);
+      return element.id;
+    },
+    getRenderedOpenByClassNth(elementId, className, index) {
+      const element = findRenderedByClassNth(getOrCreateElement(elementId), className, index);
+      assert.ok(element, `missing rendered .${className}[${index}] below ${elementId}`);
+      return element.open;
+    },
+    getRenderedValueByTitle(elementId, title) {
+      const element = findRenderedByTitle(getOrCreateElement(elementId), title);
+      assert.ok(element, `missing rendered element titled ${title} below ${elementId}`);
+      return element.value;
     },
     getPersistedState() {
       return webviewState;
@@ -374,6 +439,11 @@ export function installSidebarWebviewRuntime(initialWebviewState?: unknown): Sid
         handler({ preventDefault() {} });
       }
     },
+    focusRenderedByClassNth(elementId, className, index) {
+      const element = findRenderedByClassNth(getOrCreateElement(elementId), className, index);
+      assert.ok(element, `missing rendered .${className}[${index}] below ${elementId}`);
+      element.focus();
+    },
     keydown(elementId, key) {
       const handlers = elementListeners.get(elementId)?.get("keydown") ?? [];
       assert.ok(handlers.length > 0, `missing keydown handler for ${elementId}`);
@@ -412,8 +482,24 @@ export function installSidebarWebviewRuntime(initialWebviewState?: unknown): Sid
       element.scrollLeft = scroll.left;
       element.scrollTop = scroll.top;
     },
+    setRenderedOpenByClassNth(elementId, className, index, open) {
+      const element = findRenderedByClassNth(getOrCreateElement(elementId), className, index);
+      assert.ok(element, `missing rendered .${className}[${index}] below ${elementId}`);
+      element.open = open;
+      // Native details controls own their own toggle behavior. Only the lazy
+      // scenario disclosure installs a listener; plain reading disclosures do not.
+      if ((elementListeners.get(element.id)?.get("toggle") ?? []).length > 0) {
+        dispatchSidebarElementEvent(elementListeners, element, "toggle");
+      }
+    },
     setValue(elementId, value) {
       getOrCreateElement(elementId).value = value;
+    },
+    selectRenderedByClassNth(elementId, className, index, value) {
+      const element = findRenderedByClassNth(getOrCreateElement(elementId), className, index);
+      assert.ok(element, `missing rendered .${className}[${index}] below ${elementId}`);
+      element.value = value;
+      dispatchSidebarElementEvent(elementListeners, element, "change");
     },
     submit(elementId) {
       const handlers = elementListeners.get(elementId)?.get("submit") ?? [];
@@ -453,6 +539,52 @@ function findRenderedByClass(
     pending.push(...current.children);
   }
   return undefined;
+}
+
+/** Finds an attached repeated element by document order without recursive traversal. */
+function findRenderedByClassNth(
+  root: SidebarFakeElement,
+  className: string,
+  index: number
+): SidebarFakeElement | undefined {
+  const pending = [root]; let matched = 0;
+  while (pending.length > 0) {
+    const current = pending.shift();
+    if (!current) continue;
+    if (current.className.split(/\s+/u).includes(className)) {
+      if (matched === index) return current;
+      matched += 1;
+    }
+    pending.push(...current.children);
+  }
+  return undefined;
+}
+
+/** Sends one synthetic control event and reports whether its default was prevented. */
+function dispatchSidebarElementEvent(
+  listeners: Map<string, Map<string, SidebarEventHandler[]>>,
+  element: SidebarFakeElement,
+  type: string,
+  event: Record<string, unknown> = {}
+): boolean {
+  const handlers = listeners.get(element.id)?.get(type) ?? [];
+  assert.ok(handlers.length > 0, `missing ${type} handler for ${element.id}`);
+  let prevented = false;
+  const payload = { target: element, ...event, preventDefault() { prevented = true; } };
+  for (const handler of handlers) handler(payload);
+  return prevented;
+}
+
+/** Derives the browser element name retained by the generated fake-element id. */
+function tagNameForId(id: string): string {
+  return id.split(":", 1)[0]?.toUpperCase() || "DIV";
+}
+
+/** Reads native-style data attributes from a fake element's dataset. */
+function getSidebarAttribute(element: SidebarFakeElement, name: string): string | undefined {
+  if (!name.startsWith("data-")) return element.attributes.get(name);
+  const key = name.slice(5).replace(/-([a-z])/gu, (_match, letter: string) => letter.toUpperCase());
+  return element.dataset[key];
 }
 
 /** Finds a titled element only inside the currently attached fake DOM subtree. */
@@ -508,6 +640,7 @@ type SidebarEventHandler = (event: Record<string, unknown> & {
 type SidebarFakeElement = {
   attributes: Map<string, string>;
   id: string;
+  tagName: string;
   children: SidebarFakeElement[];
   readonly firstChild?: SidebarFakeElement;
   className: string;
@@ -520,6 +653,7 @@ type SidebarFakeElement = {
   dataset: Record<string, string>;
   disabled: boolean;
   hidden: boolean;
+  open: boolean;
   style: {
     getPropertyValue: (name: string) => string;
     setProperty: (name: string, value: string) => void;
@@ -536,6 +670,7 @@ type SidebarFakeElement = {
   removeEventListener: (type: string, handler: SidebarEventHandler) => void;
   append: (...children: SidebarFakeElement[]) => void;
   removeChild: (child: SidebarFakeElement) => SidebarFakeElement;
+  removeAttribute: (name: string) => void;
   focus: () => void;
   closest: (selector: string) => SidebarFakeElement | undefined;
   getBoundingClientRect: () => {

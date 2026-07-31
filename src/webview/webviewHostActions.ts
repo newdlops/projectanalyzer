@@ -5,6 +5,7 @@
 
 import * as crypto from "node:crypto";
 import * as vscode from "vscode";
+import { localizeHost, type UiLanguage } from "../localization/uiLanguage";
 import type { ProjectGraph, SymbolNode } from "../shared/types";
 
 /** Reads the current editor document snapshot, including unsaved changes. */
@@ -18,15 +19,18 @@ export async function readSourceText(filePath: string): Promise<string | undefin
 }
 
 /**
- * Exports the graph to a user-selected JSON file and returns a status message.
+ * Exports the graph to a user-selected JSON file and returns locale-neutral success data.
  */
-export async function exportGraphToJson(graph: ProjectGraph): Promise<string | undefined> {
+export async function exportGraphToJson(
+  graph: ProjectGraph,
+  language: UiLanguage
+): Promise<{ nodeCount: number } | undefined> {
   const uri = await vscode.window.showSaveDialog({
     defaultUri: vscode.Uri.file("project-analyzer-graph.json"),
     filters: {
       JSON: ["json"]
     },
-    saveLabel: "Export Graph"
+    saveLabel: localizeHost(language, "exportGraph")
   });
 
   if (!uri) {
@@ -35,7 +39,7 @@ export async function exportGraphToJson(graph: ProjectGraph): Promise<string | u
 
   const serializedGraph = JSON.stringify(graph, null, 2);
   await vscode.workspace.fs.writeFile(uri, Buffer.from(serializedGraph, "utf8"));
-  return `Exported ${graph.nodes.length} nodes`;
+  return { nodeCount: graph.nodes.length };
 }
 
 /**
@@ -50,11 +54,4 @@ export function createNonce(): string {
  */
 export function getNodeDisplayName(node: SymbolNode): string {
   return node.name || node.qualifiedName || node.id;
-}
-
-/**
- * Formats counted nouns for compact Webview status messages.
- */
-export function formatCount(count: number, noun: string): string {
-  return `${count} ${noun}${count === 1 ? "" : "s"}`;
 }

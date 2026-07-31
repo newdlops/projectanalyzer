@@ -88,6 +88,7 @@ export function createExtensionServices(context: vscode.ExtensionContext): Exten
     getWorkspaceRoot: () => vscode.workspace.workspaceFolders?.[0]?.uri.fsPath
   });
   const moduleVisualizerPanelProvider = new ModuleVisualizerPanelProvider({
+    config,
     logger,
     sourceHighlighter
   });

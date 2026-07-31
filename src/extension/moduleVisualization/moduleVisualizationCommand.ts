@@ -4,6 +4,8 @@ import * as vscode from "vscode";
 import type { ModuleFlowLaunchResultPayload } from "../../protocol/moduleFlow";
 import type { ModuleVisualizerPanelProvider } from "../../webview/moduleVisualizer";
 import type { WorkspaceGraphCoordinator } from "../workspaceAnalysis";
+import { localizeHost } from "../../localization/uiLanguage";
+import { readProjectAnalyzerConfig } from "../../vscode/configuration";
 
 /** Public command identity contributed to the Command Palette and sidebar title. */
 export const OPEN_MODULE_FLOW_COMMAND = "projectAnalyzer.openModuleFlow";
@@ -31,16 +33,17 @@ export function registerModuleVisualizationCommand(
 export async function openModuleFlow(
   services: ModuleVisualizationCommandServices
 ): Promise<ModuleFlowLaunchResultPayload> {
+  const language = readProjectAnalyzerConfig().uiLanguage;
   try {
     return await vscode.window.withProgress(
       {
         location: vscode.ProgressLocation.Window,
-        title: "Code Flow: preparing project module flow"
+        title: localizeHost(language, "preparingModule")
       },
       async (): Promise<ModuleFlowLaunchResultPayload> => {
         const resolution = await services.workspaceGraphCoordinator.resolveWorkspaceGraph();
         if (resolution.status === "unavailable") {
-          const message = "Open a workspace folder before visualizing project Module Flow.";
+          const message = localizeHost(language, "openWorkspace");
           await vscode.window.showInformationMessage(
             message
           );
@@ -49,20 +52,18 @@ export async function openModuleFlow(
         await services.moduleVisualizerPanelProvider.openGraph(resolution.graph);
         return {
           outcome: "opened",
-          message: "Module Flow opened in an editor tab."
+          message: localizeHost(language, "moduleOpened")
         };
       }
     );
   } catch (error) {
-    const message = `Could not open project Module Flow: ${formatError(error)}`;
+    const detail = error instanceof Error ? error.message : undefined;
+    const message = localizeHost(language, "moduleFailed", { detail: detail ?? localizeHost(language, "unknownVisualizationFailure") });
     await vscode.window.showErrorMessage(
       message
     );
-    return { outcome: "failed", message };
+    return { outcome: "failed", message, ...(detail ? { detail } : {}) };
   }
 }
 
 /** Produces concise user-facing failures without exposing extension internals. */
-function formatError(error: unknown): string {
-  return error instanceof Error ? error.message : "Unknown visualization failure";
-}

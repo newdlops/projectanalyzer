@@ -33,7 +33,7 @@ test("sidebar exposes the Code Flow reading mindset and one start question", () 
   assert.match(html, /Export Evidence JSON/u);
   assert.match(html, /\.logic-node-label[\s\S]*white-space: pre-wrap/u);
   assert.match(html, /code-snippet-keyword/u);
-  assert.match(script, /mountCodeSnippet\(label, block\.label\)/u);
+  assert.match(script, /mountCodeSnippet\(label, renderedLabel\)/u);
   assert.match(html, /\.logic-node-meta[\s\S]*white-space: normal/u);
   assert.doesNotMatch(html, /-webkit-line-clamp/u);
 
@@ -73,6 +73,9 @@ test("graph panel remains a CSP-safe compatibility renderer", () => {
   const script = requireInlineScript(html);
 
   assert.match(html, /id="graph-canvas"/u);
+  assert.match(html, /data-mode="file" data-i18n="graph-mode-files"/u);
+  assert.match(html, /data-mode="call" data-i18n="graph-mode-calls"/u);
+  assert.match(html, /data-mode="class" data-i18n="graph-mode-classes"/u);
   assert.match(html, /id="fit-view"/u);
   assert.match(html, /id="center-view"/u);
   assert.doesNotMatch(html, /<svg/u);

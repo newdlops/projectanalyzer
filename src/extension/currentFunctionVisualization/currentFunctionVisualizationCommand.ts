@@ -10,6 +10,8 @@ import { createContentHash } from "../../shared/hash";
 import type { SourceFile } from "../../shared/types";
 import type { ExtensionServices } from "../extensionServices";
 import { resolveCurrentFunctionGraph } from "./currentFunctionGraph";
+import { localizeHost } from "../../localization/uiLanguage";
+import { readProjectAnalyzerConfig } from "../../vscode/configuration";
 
 /** Public command identity contributed to the editor context menu. */
 export const VISUALIZE_CURRENT_FUNCTION_COMMAND =
@@ -34,9 +36,10 @@ export async function visualizeCurrentFunction(
   services: ExtensionServices
 ): Promise<void> {
   const document = editor.document;
+  const language = readProjectAnalyzerConfig().uiLanguage;
   if (document.isUntitled) {
     await vscode.window.showInformationMessage(
-      "Save this supported source file before visualizing its function flow."
+      localizeHost(language, "saveSourceFirst")
     );
     return;
   }
@@ -51,7 +54,7 @@ export async function visualizeCurrentFunction(
   });
   if (!target) {
     await vscode.window.showInformationMessage(
-      "Place the cursor inside a supported function, method, constructor, lambda, or callback."
+      localizeHost(language, "placeCursor")
     );
     return;
   }
@@ -60,7 +63,7 @@ export async function visualizeCurrentFunction(
     await vscode.window.withProgress(
       {
         location: vscode.ProgressLocation.Window,
-        title: `Code Flow: visualizing ${target.name}`
+        title: localizeHost(language, "visualizing", { name: target.name })
       },
       async () => {
         const sourceFile = createSourceFileSnapshot(document, sourceText);
@@ -76,7 +79,7 @@ export async function visualizeCurrentFunction(
     );
   } catch (error) {
     await vscode.window.showErrorMessage(
-      `Could not visualize the current function: ${formatError(error)}`
+      localizeHost(language, "visualizeFailed", { detail: formatError(error, language) })
     );
   }
 }
@@ -96,6 +99,7 @@ function createSourceFileSnapshot(
 }
 
 /** Produces concise user-facing failures without exposing extension internals. */
-function formatError(error: unknown): string {
-  return error instanceof Error ? error.message : "Unknown visualization failure";
+function formatError(error: unknown, language: "en" | "ko"): string {
+  // External Error detail remains literal; only the owned fallback is localized.
+  return error instanceof Error ? error.message : localizeHost(language, "unknownVisualizationFailure");
 }
