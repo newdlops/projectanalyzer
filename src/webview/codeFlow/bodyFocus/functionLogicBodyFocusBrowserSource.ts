@@ -38,7 +38,7 @@ export function getFunctionLogicBodyFocusBrowserSource(): string {
       const layer = createLogicCompoundGroupLayer([], options.blocksById);
       const navigation = document.createElement("nav");
       navigation.className = "logic-body-focus-navigation";
-      navigation.setAttribute("aria-label", "Dynamic body frame navigation");
+      navigation.setAttribute("aria-label", projectAnalyzerText("body-navigation"));
       navigation.setAttribute("aria-live", "polite");
       let focusedOwnerBlockId = readFunctionLogicBodyFocusSession(
         options.sessionKey,
@@ -81,11 +81,11 @@ export function getFunctionLogicBodyFocusBrowserSource(): string {
           node.classList.toggle("logic-node-body-focused", focused);
           node.setAttribute("aria-current", focused ? "true" : "false");
           const baseTitle = node.dataset.logicBaseTitle || node.title;
-          const bodyAction = focused
-            ? "Current outer body frame"
+          const bodyAction = projectAnalyzerText(focused
+            ? "body-current-outer"
             : visibleOwnerIds.has(group.ownerBlockId)
-              ? "Show only this body as the outer frame"
-              : "Show this body as the outer frame";
+              ? "body-show-outer"
+              : "body-show-outermost");
           node.title = baseTitle + " · " + bodyAction;
         }
       }
@@ -134,17 +134,16 @@ export function getFunctionLogicBodyFocusBrowserSource(): string {
       summary.className = "logic-body-focus-summary";
       path.className = "logic-body-focus-path";
       if (!projection.focusedOwnerBlockId) {
-        summary.textContent = "BODY VIEW · OUTERMOST";
+        summary.textContent = projectAnalyzerText("body-view-outermost");
         const hint = document.createElement("span");
         hint.className = "logic-body-focus-hint";
-        hint.textContent = "Nested frames are hidden. Select a BODY owner to open its frame.";
+        hint.textContent = projectAnalyzerText("body-nested-hidden");
         navigation.append(summary, hint);
         return;
       }
 
       const focusedBlock = blocksById.get(projection.focusedOwnerBlockId);
-      summary.textContent = "BODY VIEW · "
-        + formatLogicKind(focusedBlock?.kind || "body").toUpperCase() + " BODY";
+      summary.textContent = projectAnalyzerText("body-view", { kind: formatLogicKind(focusedBlock?.kind || "body").toUpperCase() });
       for (let index = 0; index < projection.pathOwnerBlockIds.length; index += 1) {
         const ownerBlockId = projection.pathOwnerBlockIds[index];
         const block = blocksById.get(ownerBlockId);
@@ -158,14 +157,14 @@ export function getFunctionLogicBodyFocusBrowserSource(): string {
         if (ownerBlockId === projection.focusedOwnerBlockId) {
           const current = document.createElement("span");
           current.className = "logic-body-focus-current";
-          current.textContent = block?.label || formatLogicKind(block?.kind || "body");
+          current.textContent = formatLogicBlockLabel(block) || formatLogicKind(block?.kind || "body");
           path.append(current);
         } else {
           const ancestor = document.createElement("button");
           ancestor.type = "button";
           ancestor.className = "logic-body-focus-crumb";
-          ancestor.textContent = block?.label || formatLogicKind(block?.kind || "body");
-          ancestor.title = "Show " + ancestor.textContent + " as the outer body frame";
+          ancestor.textContent = formatLogicBlockLabel(block) || formatLogicKind(block?.kind || "body");
+          ancestor.title = projectAnalyzerText("body-show-as-outer", { label: ancestor.textContent });
           ancestor.addEventListener("click", () => onFocus(ownerBlockId));
           path.append(ancestor);
         }
@@ -180,18 +179,16 @@ export function getFunctionLogicBodyFocusBrowserSource(): string {
       actions.className = "logic-body-focus-actions";
       parent.type = "button";
       parent.className = "logic-body-focus-action";
-      parent.textContent = "Parent body";
-      parent.title = parentOwnerBlockId
-        ? "Show parent body as outer frame"
-        : "Show all outermost body frames";
+      parent.textContent = projectAnalyzerText("parent-body");
+      parent.title = projectAnalyzerText(parentOwnerBlockId ? "body-parent-outer" : "body-all-outermost");
       parent.addEventListener("click", () => {
         if (parentOwnerBlockId) onFocus(parentOwnerBlockId);
         else onReset();
       });
       outermost.type = "button";
       outermost.className = "logic-body-focus-action";
-      outermost.textContent = "Outermost";
-      outermost.title = "Show all outermost body frames";
+      outermost.textContent = projectAnalyzerText("outermost");
+      outermost.title = projectAnalyzerText("body-all-outermost");
       outermost.addEventListener("click", onReset);
       actions.append(parent, outermost);
       navigation.append(summary, path, actions);

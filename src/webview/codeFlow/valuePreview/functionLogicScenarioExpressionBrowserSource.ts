@@ -93,7 +93,7 @@ export function getFunctionLogicScenarioExpressionBrowserSource(): string {
         }
         const descriptor = readFunctionLogicScenarioOperator(token.text);
         if (!descriptor || stack.length < descriptor.arity) {
-          return createFunctionLogicScenarioUnknown("incomplete expression", dependencyOrigins);
+          return createFunctionLogicScenarioUnknown(createFunctionLogicScenarioReason("scenario-reason-incomplete-expression"), dependencyOrigins);
         }
         if (descriptor.arity === 1) {
           stack.push(applyFunctionLogicScenarioUnary(token.text, stack.pop()));
@@ -108,7 +108,7 @@ export function getFunctionLogicScenarioExpressionBrowserSource(): string {
       }
       return stack.length === 1
         ? stack[0]
-        : createFunctionLogicScenarioUnknown("unsupported expression shape", dependencyOrigins);
+        : createFunctionLogicScenarioUnknown(createFunctionLogicScenarioReason("scenario-reason-unsupported-expression"), dependencyOrigins);
     }
 
     /** Tokenizes literals, safe member paths, operators, and nested ternaries. */
@@ -116,9 +116,9 @@ export function getFunctionLogicScenarioExpressionBrowserSource(): string {
       const expression = String(rawExpression || "").trim();
       const tokens = [];
       const identifiers = [];
-      if (!expression) return { tokens, identifiers, error: "expression is missing" };
+      if (!expression) return { tokens, identifiers, error: createFunctionLogicScenarioReason("scenario-reason-expression-missing") };
       if (expression.length > MAX_LOGIC_SCENARIO_EXPRESSION_LENGTH) {
-        return { tokens, identifiers, error: "expression exceeds the scenario limit" };
+        return { tokens, identifiers, error: createFunctionLogicScenarioReason("scenario-reason-expression-limit") };
       }
       let cursor = 0;
       let expectingOperand = true;
@@ -129,13 +129,13 @@ export function getFunctionLogicScenarioExpressionBrowserSource(): string {
           continue;
         }
         if (tokens.length >= MAX_LOGIC_SCENARIO_TOKENS) {
-          return { tokens, identifiers, error: "expression has too many tokens" };
+          return { tokens, identifiers, error: createFunctionLogicScenarioReason("scenario-reason-token-limit") };
         }
         if ([34, 39, 96].includes(character.charCodeAt(0))) {
           const quoted = readFunctionLogicScenarioQuotedToken(expression, cursor);
           if (!quoted.ok) return { tokens, identifiers, error: quoted.error };
           const parsed = readFunctionLogicScenarioStringLiteral(quoted.text);
-          if (!parsed.ok) return { tokens, identifiers, error: "invalid string literal" };
+          if (!parsed.ok) return { tokens, identifiers, error: createFunctionLogicScenarioReason("scenario-reason-invalid-string") };
           tokens.push({ type: "literal", value: parsed.value });
           cursor = quoted.end;
           expectingOperand = false;
@@ -146,7 +146,7 @@ export function getFunctionLogicScenarioExpressionBrowserSource(): string {
           const numberToken = readFunctionLogicScenarioNumberToken(expression, cursor);
           const parsed = parseFunctionLogicScenarioInput(numberToken.text, "");
           if (parsed.kind !== "known" || typeof parsed.value !== "number") {
-            return { tokens, identifiers, error: "invalid numeric literal" };
+            return { tokens, identifiers, error: createFunctionLogicScenarioReason("scenario-reason-invalid-number") };
           }
           tokens.push({ type: "literal", value: parsed.value });
           cursor = numberToken.end;
@@ -168,7 +168,7 @@ export function getFunctionLogicScenarioExpressionBrowserSource(): string {
           } else if (["and", "or", "not"].includes(keyword)) {
             const normalized = keyword === "and" ? "&&" : keyword === "or" ? "||" : "u!";
             if (normalized !== "u!" && expectingOperand) {
-              return { tokens, identifiers, error: "binary operator is missing its left value" };
+              return { tokens, identifiers, error: createFunctionLogicScenarioReason("scenario-reason-incomplete-expression") };
             }
             tokens.push({ type: "operator", text: normalized });
             expectingOperand = true;
@@ -178,7 +178,7 @@ export function getFunctionLogicScenarioExpressionBrowserSource(): string {
             while (isFunctionLogicScenarioWhitespace(expression[lookahead])) lookahead += 1;
             if (expression[lookahead] === "(") {
               identifiers.push(readFunctionLogicScenarioBaseName(keyword));
-              return { tokens, identifiers, error: "function and constructor calls are not executed" };
+              return { tokens, identifiers, error: createFunctionLogicScenarioReason("scenario-reason-calls-static") };
             }
             tokens.push({ type: "identifier", text: keyword });
             identifiers.push(readFunctionLogicScenarioBaseName(keyword));
@@ -187,14 +187,14 @@ export function getFunctionLogicScenarioExpressionBrowserSource(): string {
           continue;
         }
         if (character === "(") {
-          if (!expectingOperand) return { tokens, identifiers, error: "function calls are not executed" };
+          if (!expectingOperand) return { tokens, identifiers, error: createFunctionLogicScenarioReason("scenario-reason-calls-static") };
           tokens.push({ type: "leftParen" });
           cursor += 1;
           expectingOperand = true;
           continue;
         }
         if (character === ")") {
-          if (expectingOperand) return { tokens, identifiers, error: "empty grouping" };
+          if (expectingOperand) return { tokens, identifiers, error: createFunctionLogicScenarioReason("scenario-reason-empty-group") };
           tokens.push({ type: "rightParen" });
           cursor += 1;
           expectingOperand = false;
@@ -203,7 +203,7 @@ export function getFunctionLogicScenarioExpressionBrowserSource(): string {
         if (character === "?") {
           if (expectingOperand || expression[cursor + 1] === "?" || expression[cursor + 1] === ".") {
             const operator = expression[cursor + 1] === "?" ? "??" : "";
-            if (!operator) return { tokens, identifiers, error: "optional access is not evaluated" };
+            if (!operator) return { tokens, identifiers, error: createFunctionLogicScenarioReason("scenario-reason-optional-access") };
             tokens.push({ type: "operator", text: operator });
             cursor += 2;
             expectingOperand = true;
@@ -215,7 +215,7 @@ export function getFunctionLogicScenarioExpressionBrowserSource(): string {
           continue;
         }
         if (character === ":") {
-          if (expectingOperand) return { tokens, identifiers, error: "ternary branch is missing" };
+          if (expectingOperand) return { tokens, identifiers, error: createFunctionLogicScenarioReason("scenario-reason-incomplete-ternary") };
           tokens.push({ type: "colon" });
           cursor += 1;
           expectingOperand = true;
@@ -223,13 +223,13 @@ export function getFunctionLogicScenarioExpressionBrowserSource(): string {
         }
         const operator = readFunctionLogicScenarioOperatorToken(expression, cursor, expectingOperand);
         if (!operator) {
-          return { tokens, identifiers, error: "unsupported token " + JSON.stringify(character) };
+          return { tokens, identifiers, error: createFunctionLogicScenarioReason("scenario-reason-unsupported-token", { token: character }) };
         }
         tokens.push({ type: "operator", text: operator.text });
         cursor = operator.end;
         expectingOperand = true;
       }
-      if (expectingOperand) return { tokens, identifiers, error: "expression ends with an operator" };
+      if (expectingOperand) return { tokens, identifiers, error: createFunctionLogicScenarioReason("scenario-reason-expression-operator-end") };
       return { tokens, identifiers };
     }
 
@@ -249,10 +249,10 @@ export function getFunctionLogicScenarioExpressionBrowserSource(): string {
         if (token.type === "rightParen") {
           while (operators.length > 0 && operators[operators.length - 1].type !== "leftParen") {
             const operator = operators.pop();
-            if (operator.type === "question") return { tokens: output, error: "incomplete ternary" };
+            if (operator.type === "question") return { tokens: output, error: createFunctionLogicScenarioReason("scenario-reason-incomplete-ternary") };
             output.push(operator);
           }
-          if (operators.length === 0) return { tokens: output, error: "unmatched closing parenthesis" };
+          if (operators.length === 0) return { tokens: output, error: createFunctionLogicScenarioReason("scenario-reason-unmatched-closing-paren") };
           operators.pop();
           continue;
         }
@@ -268,19 +268,19 @@ export function getFunctionLogicScenarioExpressionBrowserSource(): string {
         if (token.type === "colon") {
           while (operators.length > 0 && operators[operators.length - 1].type !== "question") {
             if (operators[operators.length - 1].type === "leftParen") {
-              return { tokens: output, error: "ternary separator has no matching question" };
+              return { tokens: output, error: createFunctionLogicScenarioReason("scenario-reason-ternary-separator") };
             }
             output.push(operators.pop());
           }
           if (operators.length === 0) {
-            return { tokens: output, error: "ternary separator has no matching question" };
+            return { tokens: output, error: createFunctionLogicScenarioReason("scenario-reason-ternary-separator") };
           }
           operators.pop();
           operators.push({ type: "operator", text: "?:" });
           continue;
         }
         const descriptor = readFunctionLogicScenarioOperator(token.text);
-        if (!descriptor) return { tokens: output, error: "unsupported operator " + token.text };
+        if (!descriptor) return { tokens: output, error: createFunctionLogicScenarioReason("scenario-reason-unsupported-operator", { operator: token.text }) };
         while (operators.length > 0 && operators[operators.length - 1].type === "operator") {
           const previous = readFunctionLogicScenarioOperator(operators[operators.length - 1].text);
           if (!previous) break;
@@ -294,8 +294,8 @@ export function getFunctionLogicScenarioExpressionBrowserSource(): string {
       }
       while (operators.length > 0) {
         const operator = operators.pop();
-        if (operator.type === "leftParen") return { tokens: output, error: "unmatched opening parenthesis" };
-        if (operator.type === "question") return { tokens: output, error: "incomplete ternary" };
+        if (operator.type === "leftParen") return { tokens: output, error: createFunctionLogicScenarioReason("scenario-reason-unmatched-opening-paren") };
+        if (operator.type === "question") return { tokens: output, error: createFunctionLogicScenarioReason("scenario-reason-incomplete-ternary") };
         output.push(operator);
       }
       return { tokens: output };
@@ -345,7 +345,7 @@ export function getFunctionLogicScenarioExpressionBrowserSource(): string {
     function applyFunctionLogicScenarioUnary(operator, operand) {
       if (!operand || operand.kind !== "known") {
         return createFunctionLogicScenarioUnknown(
-          operand?.reason || "unary operand is unknown",
+          operand?.reasonDescriptor || createFunctionLogicScenarioReason("scenario-reason-value-unknown"),
           operand?.origins || []
         );
       }
@@ -355,9 +355,9 @@ export function getFunctionLogicScenarioExpressionBrowserSource(): string {
         if (operator === "u-") return createFunctionLogicScenarioKnown(-operand.value, operand.origins);
         if (operator === "u~") return createFunctionLogicScenarioKnown(~operand.value, operand.origins);
       } catch (_error) {
-        return createFunctionLogicScenarioUnknown("unary operation failed", operand.origins);
+        return createFunctionLogicScenarioUnknown(createFunctionLogicScenarioReason("scenario-reason-unary-failed"), operand.origins);
       }
-      return createFunctionLogicScenarioUnknown("unsupported unary operator", operand.origins);
+      return createFunctionLogicScenarioUnknown(createFunctionLogicScenarioReason("scenario-reason-unsupported-operator", { operator: operator }), operand.origins);
     }
 
     /** Applies arithmetic, comparison, or logical operations without side effects. */
@@ -378,7 +378,7 @@ export function getFunctionLogicScenarioExpressionBrowserSource(): string {
       }
       if (!left || !right || left.kind !== "known" || right.kind !== "known") {
         return createFunctionLogicScenarioUnknown(
-          left?.kind !== "known" ? left?.reason : right?.reason,
+          left?.kind !== "known" ? left?.reasonDescriptor || createFunctionLogicScenarioReason("scenario-reason-value-unknown") : right?.reasonDescriptor || createFunctionLogicScenarioReason("scenario-reason-value-unknown"),
           origins
         );
       }
@@ -403,10 +403,10 @@ export function getFunctionLogicScenarioExpressionBrowserSource(): string {
         else if (operator === ">>") value = left.value >> right.value;
         else if (operator === ">>>") value = left.value >>> right.value;
         else if (operator === "&&" || operator === "||" || operator === "??") value = right.value;
-        else return createFunctionLogicScenarioUnknown("unsupported binary operator", origins);
+        else return createFunctionLogicScenarioUnknown(createFunctionLogicScenarioReason("scenario-reason-unsupported-operator", { operator: operator }), origins);
         return createFunctionLogicScenarioKnown(value, origins);
       } catch (_error) {
-        return createFunctionLogicScenarioUnknown("binary operation failed", origins);
+        return createFunctionLogicScenarioUnknown(createFunctionLogicScenarioReason("scenario-reason-binary-failed"), origins);
       }
     }
 
@@ -415,7 +415,7 @@ export function getFunctionLogicScenarioExpressionBrowserSource(): string {
       const origins = normalizeFunctionLogicScenarioOrigins(condition?.origins || []);
       if (!condition || condition.kind !== "known") {
         return createFunctionLogicScenarioUnknown(
-          condition?.reason || "ternary condition is unknown",
+          condition?.reasonDescriptor || createFunctionLogicScenarioReason("scenario-reason-value-unknown"),
           [...origins, ...(whenTrue?.origins || []), ...(whenFalse?.origins || [])]
         );
       }
@@ -425,7 +425,7 @@ export function getFunctionLogicScenarioExpressionBrowserSource(): string {
     /** Resolves a lexical binding and own-data member path from the environment. */
     function resolveFunctionLogicScenarioIdentifier(path, environment, context) {
       const parsed = parseFunctionLogicScenarioPath(path);
-      if (!parsed) return createFunctionLogicScenarioUnknown("unsupported member path", []);
+      if (!parsed) return createFunctionLogicScenarioUnknown(createFunctionLogicScenarioReason("scenario-reason-member-path"), []);
       let state = resolveFunctionLogicScenarioBindingState(
         parsed.base,
         environment,
@@ -441,13 +441,13 @@ export function getFunctionLogicScenarioExpressionBrowserSource(): string {
           ...(keyState.origins || [])
         ]);
         if (keyState.kind !== "known") {
-          return createFunctionLogicScenarioUnknown(keyState.reason, origins);
+          return createFunctionLogicScenarioUnknown(keyState.reasonDescriptor || createFunctionLogicScenarioReason("scenario-reason-value-unknown"), origins);
         }
         const container = state.value;
         const key = keyState.value;
         if ((typeof container !== "object" || container === null)
           && typeof container !== "string") {
-          return createFunctionLogicScenarioUnknown("member access requires an object, array, or string", origins);
+          return createFunctionLogicScenarioUnknown(createFunctionLogicScenarioReason("scenario-reason-member-container"), origins);
         }
         if (key === "length" && (Array.isArray(container) || typeof container === "string")) {
           state = createFunctionLogicScenarioKnown(container.length, origins);
@@ -455,7 +455,7 @@ export function getFunctionLogicScenarioExpressionBrowserSource(): string {
         }
         const descriptor = Object.getOwnPropertyDescriptor(Object(container), key);
         if (!descriptor || !Object.prototype.hasOwnProperty.call(descriptor, "value")) {
-          return createFunctionLogicScenarioUnknown("member " + String(key) + " is unavailable", origins);
+          return createFunctionLogicScenarioUnknown(createFunctionLogicScenarioReason("scenario-reason-member-unavailable", { member: String(key) }), origins);
         }
         state = createFunctionLogicScenarioKnown(descriptor.value, origins);
       }
@@ -466,10 +466,10 @@ export function getFunctionLogicScenarioExpressionBrowserSource(): string {
     function resolveFunctionLogicScenarioBindingState(name, environment, context) {
       const bindingIds = context.bindingsByName.get(name) || [];
       if (bindingIds.length === 0) {
-        return createFunctionLogicScenarioUnknown("unresolved identifier " + name, []);
+        return createFunctionLogicScenarioUnknown(createFunctionLogicScenarioReason("scenario-reason-unresolved-identifier", { name: name }), []);
       }
       const candidates = bindingIds.map((bindingId) =>
-        environment.get(bindingId) || createFunctionLogicScenarioUnset("binding has no value", [bindingId])
+        environment.get(bindingId) || createFunctionLogicScenarioUnset(createFunctionLogicScenarioReason("scenario-reason-binding-empty"), [bindingId])
       );
       let state = candidates[0];
       for (let index = 1; index < candidates.length; index += 1) {
@@ -577,7 +577,7 @@ export function getFunctionLogicScenarioExpressionBrowserSource(): string {
         }
         cursor += 1;
       }
-      return { ok: false, error: "unterminated string literal" };
+      return { ok: false, error: createFunctionLogicScenarioReason("scenario-reason-invalid-string") };
     }
 
     /** Collects origins even when parsing stops at an unsupported call/token. */

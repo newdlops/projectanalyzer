@@ -101,7 +101,7 @@ export function getFunctionLogicCompoundGroupBrowserSource(): string {
         frame.style.setProperty("width", group.width + "px");
         frame.style.setProperty("height", group.height + "px");
         caption.className = "logic-compound-caption";
-        caption.textContent = formatLogicKind(owner.kind).toUpperCase() + " BODY";
+        caption.textContent = projectAnalyzerText("logic-compound-body", { kind: formatLogicKind(owner.kind) });
         frame.append(caption);
         layer.append(frame);
       }

@@ -70,16 +70,25 @@ export function getFunctionLogicViewportBrowserSource(): string {
       function updateControls(announce) {
         if (!controls || !transform) return;
         const percentage = Math.max(1, Math.round(transform.scale * 100));
+        controls.group.setAttribute("aria-label", projectAnalyzerText("function-viewport-controls"));
+        controls.zoomOut.title = projectAnalyzerText("function-zoom-out");
+        controls.zoomIn.title = projectAnalyzerText("function-zoom-in");
+        controls.center.textContent = projectAnalyzerText("center");
+        controls.center.title = projectAnalyzerText("function-center");
+        controls.fit.textContent = projectAnalyzerText("fit");
+        controls.fit.title = projectAnalyzerText("function-fit");
         controls.level.textContent = percentage + "%";
-        controls.level.title = "Reset function graph zoom to 100%; current zoom "
-          + percentage + "%";
+        controls.level.title = projectAnalyzerText("reset-function-zoom-current", { count: percentage });
         controls.level.setAttribute("aria-label", controls.level.title);
         controls.zoomOut.disabled = transform.scale <= FUNCTION_LOGIC_MIN_SCALE + 0.00001;
         controls.zoomIn.disabled = transform.scale >= FUNCTION_LOGIC_MAX_SCALE - 0.00001;
         if (!announce) return;
         if (announcementTimer !== undefined) clearTimeout(announcementTimer);
         announcementTimer = setTimeout(() => {
-          controls.announcement.textContent = "Function graph zoom " + percentage + " percent";
+          // A retained visualizer can dispose this viewport before the polite
+          // announcement fires; do not touch the torn-down browser document.
+          if (!active) return;
+          controls.announcement.textContent = projectAnalyzerText("function-zoom-announcement", { count: percentage });
           announcementTimer = undefined;
         }, 180);
       }
@@ -349,22 +358,24 @@ export function getFunctionLogicViewportBrowserSource(): string {
         center,
         fit,
         revealBlocks,
-        attachControls
+        attachControls,
+        /** Rewrites retained controls without committing a viewport transform. */
+        refreshLanguage() { updateControls(false); }
       };
     }
 
     /** Builds accessible zoom, Center, and Fit controls for one controller. */
     function createFunctionLogicViewportControls(controller) {
       const group = document.createElement("div");
-      const zoomOut = createFunctionLogicViewportButton("−", "Zoom out function graph");
-      const level = createFunctionLogicViewportButton("100%", "Reset function graph zoom to 100%");
-      const zoomIn = createFunctionLogicViewportButton("+", "Zoom in function graph");
-      const center = createFunctionLogicViewportButton("Center", "Center function graph (C)");
-      const fit = createFunctionLogicViewportButton("Fit", "Fit complete function graph (F)");
+      const zoomOut = createFunctionLogicViewportButton("−", projectAnalyzerText("function-zoom-out"));
+      const level = createFunctionLogicViewportButton("100%", projectAnalyzerText("function-zoom-reset"));
+      const zoomIn = createFunctionLogicViewportButton("+", projectAnalyzerText("function-zoom-in"));
+      const center = createFunctionLogicViewportButton(projectAnalyzerText("center"), projectAnalyzerText("function-center"));
+      const fit = createFunctionLogicViewportButton(projectAnalyzerText("fit"), projectAnalyzerText("function-fit"));
       const announcement = document.createElement("span");
       group.className = "logic-viewport-controls";
       group.setAttribute("role", "group");
-      group.setAttribute("aria-label", "Function graph viewport controls");
+      group.setAttribute("aria-label", projectAnalyzerText("function-viewport-controls"));
       level.classList.add("logic-zoom-level");
       center.classList.add("logic-center-button");
       fit.classList.add("logic-fit-button");
@@ -378,7 +389,7 @@ export function getFunctionLogicViewportBrowserSource(): string {
       center.addEventListener("click", controller.center);
       fit.addEventListener("click", controller.fit);
       group.append(zoomOut, level, zoomIn, center, fit, announcement);
-      controller.attachControls({ zoomOut, level, zoomIn, center, fit, announcement });
+      controller.attachControls({ group, zoomOut, level, zoomIn, center, fit, announcement });
       return group;
     }
 

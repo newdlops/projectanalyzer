@@ -20,6 +20,50 @@ export function getFunctionLogicScenarioEvaluatorBrowserSource(): string {
     const MAX_LOGIC_SCENARIO_WORK_ITEMS = 1200;
     const MAX_LOGIC_SCENARIO_DISPLAY_LENGTH = 180;
 
+    /**
+     * Converts evaluator-owned failures into a small presentation contract.
+     * The legacy reason field remains only as a compatibility fallback for older payloads;
+     * new states always carry the locale-neutral descriptor.
+     */
+    /** Legacy-only adapter for persisted states produced before descriptor contracts. */
+    function adaptLegacyFunctionLogicScenarioReason(reason, fallbackKey) {
+      if (reason && typeof reason === "object" && reason.key) return reason;
+      const text = String(reason || "");
+      const exact = {
+        "value is unknown": "scenario-reason-value-unknown",
+        "value is not assigned": "scenario-reason-value-unassigned",
+        "scenario input is not set": "scenario-reason-input-unset",
+        "parameter input is not set": "scenario-reason-parameter-unset",
+        "custom variable input is not set": "scenario-reason-custom-unset",
+        "definition has not been reached": "scenario-reason-definition-unreached",
+        "function calls are not executed": "scenario-reason-calls-static",
+        "function and constructor calls are not executed": "scenario-reason-calls-static",
+        "multiple reachable values": "scenario-reason-multiple-values",
+        "prototype-sensitive field is not writable": "scenario-reason-prototype-write",
+        "object field is not assigned": "scenario-reason-field-unassigned"
+      };
+      if (exact[text]) return { key: exact[text], values: {}, fallback: text };
+      const member = /^member (.+) is unavailable$/u.exec(text);
+      if (member) return { key: "scenario-reason-member-unavailable", values: { member: member[1] }, fallback: text };
+      const identifier = /^unresolved identifier (.+)$/u.exec(text);
+      if (identifier) return { key: "scenario-reason-unresolved-identifier", values: { name: identifier[1] }, fallback: text };
+      const operator = /^unsupported (?:assignment )?operator (.+)$/u.exec(text);
+      if (operator) return { key: "scenario-reason-unsupported-operator", values: { operator: operator[1] }, fallback: text };
+      return { key: fallbackKey || "scenario-reason-static-unsupported", values: {}, fallback: text || "value is unknown" };
+    }
+
+    /** Creates one locale-neutral evaluator failure descriptor from finite catalog keys. */
+    function createFunctionLogicScenarioReason(key, values, fallback) {
+      return { key: key, values: values || {}, ...(fallback ? { fallback: fallback } : {}) };
+    }
+
+    /** Formats a descriptor at render time, retaining legacy payload support. */
+    function formatFunctionLogicScenarioReason(state) {
+      const descriptor = state?.reasonDescriptor;
+      if (descriptor?.key) return projectAnalyzerText(descriptor.key, descriptor.values);
+      return String(state?.reason || projectAnalyzerText("scenario-reason-value-unknown"));
+    }
+
     /** Creates an immutable known value with bounded provenance identities. */
     function createFunctionLogicScenarioKnown(value, origins) {
       return {
@@ -30,22 +74,30 @@ export function getFunctionLogicScenarioEvaluatorBrowserSource(): string {
     }
 
     /** Creates an explicit unknown rather than guessing unsupported semantics. */
-    function createFunctionLogicScenarioUnknown(reason, origins) {
+    function createFunctionLogicScenarioUnknown(reasonDescriptor, origins) {
+      if (!reasonDescriptor?.key) return createLegacyFunctionLogicScenarioUnknown(reasonDescriptor, origins);
       return {
         kind: "unknown",
-        reason: reason || "value is unknown",
+        reason: reasonDescriptor?.fallback || "",
+        reasonDescriptor,
         origins: normalizeFunctionLogicScenarioOrigins(origins)
       };
     }
 
     /** Represents a binding that has not reached a visible definition. */
-    function createFunctionLogicScenarioUnset(reason, origins) {
+    function createFunctionLogicScenarioUnset(reasonDescriptor, origins) {
+      if (!reasonDescriptor?.key) return createLegacyFunctionLogicScenarioUnset(reasonDescriptor, origins);
       return {
         kind: "unset",
-        reason: reason || "value is not assigned",
+        reason: reasonDescriptor?.fallback || "",
+        reasonDescriptor,
         origins: normalizeFunctionLogicScenarioOrigins(origins)
       };
     }
+
+    /** Legacy-only state construction for older cached records; new evaluator paths use descriptors directly. */
+    function createLegacyFunctionLogicScenarioUnknown(reason, origins) { return createFunctionLogicScenarioUnknown(adaptLegacyFunctionLogicScenarioReason(reason), origins); }
+    function createLegacyFunctionLogicScenarioUnset(reason, origins) { return createFunctionLogicScenarioUnset(adaptLegacyFunctionLogicScenarioReason(reason), origins); }
 
     /** Deduplicates and bounds provenance carried through derived values. */
     function normalizeFunctionLogicScenarioOrigins(origins) {
@@ -64,10 +116,10 @@ export function getFunctionLogicScenarioEvaluatorBrowserSource(): string {
         ...(origins || [])
       ]);
       if (!state || state.kind === "unset") {
-        return createFunctionLogicScenarioUnset(state?.reason, combined);
+        return state?.reasonDescriptor ? createFunctionLogicScenarioUnset(state.reasonDescriptor, combined) : createLegacyFunctionLogicScenarioUnset(state?.reason, combined);
       }
       if (state.kind === "unknown") {
-        return createFunctionLogicScenarioUnknown(state.reason, combined);
+        return state.reasonDescriptor ? createFunctionLogicScenarioUnknown(state.reasonDescriptor, combined) : createLegacyFunctionLogicScenarioUnknown(state.reason, combined);
       }
       return createFunctionLogicScenarioKnown(state.value, combined);
     }
@@ -77,7 +129,7 @@ export function getFunctionLogicScenarioEvaluatorBrowserSource(): string {
       const text = String(rawValue || "").trim();
       const origins = bindingId ? [bindingId] : [];
       if (!text) {
-        return createFunctionLogicScenarioUnset("scenario input is not set", origins);
+        return createFunctionLogicScenarioUnset(createFunctionLogicScenarioReason("scenario-reason-input-unset"), origins);
       }
       try {
         return createFunctionLogicScenarioKnown(JSON.parse(text), origins);
@@ -108,10 +160,7 @@ export function getFunctionLogicScenarioEvaluatorBrowserSource(): string {
       }
       const stringValue = readFunctionLogicScenarioStringLiteral(text);
       if (stringValue.ok) return createFunctionLogicScenarioKnown(stringValue.value, origins);
-      return createFunctionLogicScenarioUnknown(
-        "invalid input; use JSON or a string, number, boolean, null, or undefined literal",
-        origins
-      );
+      return createFunctionLogicScenarioUnknown(createFunctionLogicScenarioReason("scenario-reason-invalid-input"), origins);
     }
 
     /** Runs immutable state propagation over only the branch-enabled visible CFG. */
@@ -151,10 +200,10 @@ export function getFunctionLogicScenarioEvaluatorBrowserSource(): string {
           binding.id,
           binding.kind === "parameter" || binding.manual
             ? (rawInput ? parsed : createFunctionLogicScenarioUnknown(
-                binding.manual ? "custom variable input is not set" : "parameter input is not set",
+                createFunctionLogicScenarioReason(binding.manual ? "scenario-reason-custom-unset" : "scenario-reason-parameter-unset"),
                 [binding.id]
               ))
-            : createFunctionLogicScenarioUnset("definition has not been reached", [binding.id])
+            : createFunctionLogicScenarioUnset(createFunctionLogicScenarioReason("scenario-reason-definition-unreached"), [binding.id])
         );
       }
       const roots = logic.blocks.filter((block) => enabledBlockIds.has(block.id)
@@ -287,7 +336,7 @@ export function getFunctionLogicScenarioEvaluatorBrowserSource(): string {
             operator: "scenario =",
             expression: readFunctionLogicValuePreview(binding.id),
             before: before.get(binding.id)
-              || createFunctionLogicScenarioUnset("not assigned", [binding.id]),
+              || createFunctionLogicScenarioUnset(createFunctionLogicScenarioReason("scenario-reason-value-unassigned"), [binding.id]),
             after: next,
             dependencyBindingIds: [binding.id],
             confidence: binding.confidence
@@ -299,7 +348,7 @@ export function getFunctionLogicScenarioEvaluatorBrowserSource(): string {
         for (const binding of targets) {
           if (change.operation === "initialize" && overriddenBindingIds.has(binding.id)) continue;
           const previous = after.get(binding.id)
-            || createFunctionLogicScenarioUnset("value is not assigned", [binding.id]);
+            || createFunctionLogicScenarioUnset(createFunctionLogicScenarioReason("scenario-reason-value-unassigned"), [binding.id]);
           const transitionBefore = change.targetKind === "property"
             ? readFunctionLogicScenarioPropertyTransitionState(
                 change,
@@ -313,7 +362,7 @@ export function getFunctionLogicScenarioEvaluatorBrowserSource(): string {
           after.set(binding.id, next);
           const transitionAfter = change.targetKind === "property"
             ? change.operation === "delete" && next.kind === "known"
-              ? createFunctionLogicScenarioUnset("object field is deleted", next.origins)
+              ? createFunctionLogicScenarioUnset(createFunctionLogicScenarioReason("scenario-reason-value-deleted"), next.origins)
               : readFunctionLogicScenarioPropertyTransitionState(
                   change,
                   next,
@@ -346,9 +395,9 @@ export function getFunctionLogicScenarioEvaluatorBrowserSource(): string {
           continue;
         }
         const previous = after.get(access.bindingId)
-          || createFunctionLogicScenarioUnset("value is not assigned", [access.bindingId]);
+          || createFunctionLogicScenarioUnset(createFunctionLogicScenarioReason("scenario-reason-value-unassigned"), [access.bindingId]);
         after.set(access.bindingId, createFunctionLogicScenarioUnknown(
-          "write has no supported source expression",
+          createFunctionLogicScenarioReason("scenario-reason-unsupported-expression", {}, "write has no supported source expression"),
           previous.origins
         ));
       }
@@ -358,7 +407,7 @@ export function getFunctionLogicScenarioEvaluatorBrowserSource(): string {
           continue;
         }
         after.set(binding.id, createFunctionLogicScenarioUnknown(
-          "no scenario input or supported initializer is available",
+          createFunctionLogicScenarioReason("scenario-reason-static-unsupported"),
           [binding.id]
         ));
       }
@@ -393,21 +442,21 @@ export function getFunctionLogicScenarioEvaluatorBrowserSource(): string {
       }
       if (change.targetKind !== "variable") {
         return createFunctionLogicScenarioUnknown(
-          change.targetKind + " changes are not modeled as lexical assignments",
+          createFunctionLogicScenarioReason("scenario-reason-static-unsupported", { target: change.targetKind }),
           previous.origins
         );
       }
       if (change.operation === "delete") {
-        return createFunctionLogicScenarioUnset("value is deleted", previous.origins);
+        return createFunctionLogicScenarioUnset(createFunctionLogicScenarioReason("scenario-reason-value-deleted"), previous.origins);
       }
       if (change.operation === "iterate") {
         return createFunctionLogicScenarioUnknown(
-          "iteration count and current item require a selected runtime step",
+          createFunctionLogicScenarioReason("scenario-reason-static-unsupported"),
           previous.origins
         );
       }
       if (change.operation === "mutate" || change.confidence === "inferred") {
-        return createFunctionLogicScenarioUnknown("inferred mutation is not executed", previous.origins);
+        return createFunctionLogicScenarioUnknown(createFunctionLogicScenarioReason("scenario-reason-inferred-mutation"), previous.origins);
       }
       if (change.operator === "++" || change.operator === "--") {
         return applyFunctionLogicScenarioBinary(
@@ -430,7 +479,7 @@ export function getFunctionLogicScenarioEvaluatorBrowserSource(): string {
       return operator
         ? applyFunctionLogicScenarioBinary(operator, previous, right)
         : createFunctionLogicScenarioUnknown(
-            "unsupported assignment operator " + change.operator,
+            createFunctionLogicScenarioReason("scenario-reason-unsupported-operator", { operator: change.operator }),
             [...previous.origins, ...right.origins]
           );
     }
@@ -461,18 +510,18 @@ export function getFunctionLogicScenarioEvaluatorBrowserSource(): string {
         return createFunctionLogicScenarioKnown(left.value, origins);
       }
       if (left.kind === "unset" && right.kind === "unset") {
-        return createFunctionLogicScenarioUnset(left.reason || right.reason, origins);
+        return left.reasonDescriptor || right.reasonDescriptor ? createFunctionLogicScenarioUnset(left.reasonDescriptor || right.reasonDescriptor, origins) : createLegacyFunctionLogicScenarioUnset(left.reason || right.reason, origins);
       }
-      if (left.kind === "unknown" && right.kind === "unknown" && left.reason === right.reason) {
-        return createFunctionLogicScenarioUnknown(left.reason, origins);
+      if (left.kind === "unknown" && right.kind === "unknown" && left.reasonDescriptor?.key === right.reasonDescriptor?.key) {
+        return left.reasonDescriptor ? createFunctionLogicScenarioUnknown(left.reasonDescriptor, origins) : createLegacyFunctionLogicScenarioUnknown(left.reason, origins);
       }
       if (left.kind === "unset" || right.kind === "unset") {
         return createFunctionLogicScenarioUnknown(
-          "value is not assigned on every reachable path",
+          createFunctionLogicScenarioReason("scenario-reason-value-unassigned"),
           origins
         );
       }
-      return createFunctionLogicScenarioUnknown("multiple reachable values", origins);
+      return createFunctionLogicScenarioUnknown(createFunctionLogicScenarioReason("scenario-reason-multiple-values", {}, "multiple reachable values"), origins);
     }
 
     /** Merges complete environments without recursion or object mutation. */
@@ -502,7 +551,7 @@ export function getFunctionLogicScenarioEvaluatorBrowserSource(): string {
     /** Compares value, state kind, reason, and provenance deterministically. */
     function areFunctionLogicScenarioStatesEqual(left, right) {
       if (!left || !right || left.kind !== right.kind) return left === right;
-      if ((left.reason || "") !== (right.reason || "")) return false;
+      if ((left.reasonDescriptor?.key || left.reason || "") !== (right.reasonDescriptor?.key || right.reason || "")) return false;
       if (left.kind === "known" && !areFunctionLogicScenarioValuesEqual(left.value, right.value)) {
         return false;
       }
@@ -525,8 +574,10 @@ export function getFunctionLogicScenarioEvaluatorBrowserSource(): string {
 
     /** Produces debugger-shaped, bounded display text for one scenario state. */
     function formatFunctionLogicScenarioState(state) {
-      if (!state || state.kind === "unset") return "<unset>";
-      if (state.kind === "unknown") return "<unknown: " + state.reason + ">";
+      if (!state || state.kind === "unset") return projectAnalyzerText("scenario-state-unset");
+      if (state.kind === "unknown") return projectAnalyzerText("scenario-state-unknown", {
+        reason: formatFunctionLogicScenarioReason(state)
+      });
       let text;
       if (typeof state.value === "string") text = JSON.stringify(state.value);
       else if (state.value === undefined) text = "undefined";

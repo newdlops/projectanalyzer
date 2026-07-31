@@ -4,6 +4,8 @@
  */
 
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import test from "node:test";
 import { getExplorerHtml } from "../../webview/webviewHtml";
 import { installSidebarWebviewRuntime } from "./helpers/sidebarWebviewRuntime";
@@ -45,6 +47,68 @@ test("entrypoint selection renders evidence and opens only its source token", ()
       graphVersion,
       sourceToken: functionToken
     });
+  } finally {
+    runtime.restore();
+  }
+});
+
+test("language changes prefer Code Flow descriptors and retain the selected static detail", () => {
+  const runtime = installSidebarWebviewRuntime();
+
+  try {
+    new Function(requireSidebarScript())();
+    runtime.dispatchMessage(createGraphMessage(graphVersion));
+    const catalog = createCatalogMessage(graphVersion, 0, "", "Legacy catalog name") as { payload: { items: Array<Record<string, unknown>> } };
+    catalog.payload.items[0].namePresentation = { key: "code-flow-unnamed-entrypoint" };
+    catalog.payload.items[0].frameworkPresentation = { key: "code-flow-unknown-framework" };
+    runtime.dispatchMessage(catalog);
+    assert.ok(runtime.getRenderedText("flow-results").includes("Unnamed entrypoint"));
+
+    const detail = createDetailMessage(graphVersion) as { payload: Record<string, any> };
+    detail.payload.titlePresentation = { key: "code-flow-unnamed-entrypoint" };
+    detail.payload.subtitlePresentation = { key: "code-flow-entrypoint-http", params: { framework: "Express" } };
+    detail.payload.steps[0].labelPresentation = { key: "code-flow-unnamed-step" };
+    detail.payload.steps[0].detailPresentation = { key: "code-flow-unresolved-callsite" };
+    detail.payload.steps[0].evidencePresentation = { key: "code-flow-evidence-framework-boundary" };
+    detail.payload.gaps = [{
+      id: "gap:1", reason: "depthLimit", label: "Legacy gap", detail: "Legacy detail",
+      labelPresentation: { key: "code-flow-gap-depth-limit" },
+      codeFlowDetailPresentation: { key: "code-flow-gap-depth-limit-detail", params: { count: 2, depth: 3 } }
+    }];
+    runtime.dispatchMessage(detail);
+    const messageCount = runtime.messages.length;
+
+    runtime.dispatchMessage({ type: "ui/language", payload: { language: "ko" } });
+
+    assert.equal(runtime.messages.length, messageCount);
+    assert.ok(runtime.textValues.includes("이름 없는 진입점"));
+    assert.ok(runtime.getRenderedText("flow-steps").includes("이름 없는 흐름 단계"));
+    assert.ok(runtime.getRenderedText("flow-steps").includes("프레임워크 진입점 근거"));
+    assert.ok(runtime.getRenderedText("flow-gaps").includes("읽기 깊이 한도"));
+    assert.ok(runtime.getRenderedText("flow-gaps").includes("추가 호출 관계 2개가 깊이 3에서 접혀 있습니다."));
+    runtime.clickByTitle("src/routes.ts:8");
+    assert.deepEqual(latestPayload(runtime.messages, "node/openSource"), { nodeId: routeToken });
+  } finally {
+    runtime.restore();
+  }
+});
+
+test("language changes preserve active Function Logic graph and selection without requests", () => {
+  const runtime = installSidebarWebviewRuntime();
+
+  try {
+    new Function(requireSidebarScript())();
+    runtime.dispatchMessage(createGraphMessage(graphVersion));
+    runtime.dispatchMessage(createFunctionLogicDetailMessage(graphVersion));
+    runtime.clickByTitle("Choose path · true → repository.save(order);");
+    const messageCount = runtime.messages.length;
+    const nodeCount = runtime.countRenderedByClass("flow-steps", "logic-block");
+
+    runtime.dispatchMessage({ type: "ui/language", payload: { language: "ko" } });
+
+    assert.equal(runtime.messages.length, messageCount);
+    assert.equal(runtime.countRenderedByClass("flow-steps", "logic-block"), nodeCount);
+    assert.ok(runtime.textValues.includes("함수 로직 · 가능한 제어 경로"));
   } finally {
     runtime.restore();
   }
@@ -122,6 +186,53 @@ test("function mode searches concrete definitions and requests tokenized context
       graphVersion,
       sourceToken: functionToken
     });
+  } finally {
+    runtime.restore();
+  }
+});
+
+test("Function Search retains semantic failures and fallback labels across language changes", () => {
+  const runtime = installSidebarWebviewRuntime();
+
+  try {
+    new Function(requireSidebarScript())();
+    runtime.dispatchMessage(createGraphMessage(graphVersion));
+    runtime.click("mode-functions");
+    runtime.dispatchMessage({
+      type: "function/searchFailed",
+      payload: {
+        graphVersion,
+        requestId: 1,
+        query: "",
+        reason: "graphUnavailable",
+        message: "Legacy failure"
+      }
+    });
+    const messageCount = runtime.messages.length;
+    assert.ok(runtime.getRenderedText("flow-results").includes("Analyze the workspace before searching functions."));
+
+    runtime.dispatchMessage({ type: "ui/language", payload: { language: "ko" } });
+
+    assert.equal(runtime.messages.length, messageCount);
+    assert.ok(runtime.getRenderedText("flow-results").includes("함수를 검색하기 전에 작업 영역을 분석하세요."));
+
+    runtime.setValue("flow-search-input", "external");
+    runtime.submit("flow-search-form");
+    runtime.dispatchMessage({
+      type: "function/searchLoaded",
+      payload: {
+        graphVersion,
+        requestId: 2,
+        query: "external",
+        rows: [{
+          id: "function-row:fallback", sectionId: "allFunctions", kind: "call",
+          label: "Legacy external", labelPresentation: { key: "function-search-external-callable" },
+          depth: 0, hasChildren: false, expanded: false, functionKind: "external", role: "external"
+        }],
+        totalMatchCount: 1
+      }
+    });
+    assert.ok(runtime.getRenderedText("flow-results").includes("외부 호출 가능 항목"));
   } finally {
     runtime.restore();
   }
@@ -271,6 +382,133 @@ test("Function Guide explains codebase context through an accessible disclosure 
   }
 });
 
+test("Function Guide relocalizes in place without requesting graph work", () => {
+  const runtime = installSidebarWebviewRuntime();
+  try {
+    new Function(requireSidebarScript())();
+    const message = createFunctionLogicDetailMessage(graphVersion) as { payload: { logic: Record<string, unknown> } };
+    message.payload.logic.tutor = createTutorFixture();
+    runtime.dispatchMessage(createGraphMessage(graphVersion));
+    runtime.dispatchMessage(message);
+    runtime.clickByTitle("Open a source-backed guide to this function and its codebase context");
+    const guideCount = runtime.countRenderedByClass("flow-steps", "logic-function-guide");
+    const graphCount = runtime.countRenderedByClass("flow-steps", "logic-graph-node");
+    const messageCount = runtime.messages.length;
+    const englishNodeAria = runtime.getRenderedAttributeByClass(
+      "flow-steps", "logic-graph-node", "aria-label"
+    ) ?? "";
+    assert.match(englishNodeAria, /Value changes: none\./u);
+    assert.doesNotMatch(englishNodeAria, /logic-aria-none|: \./u);
+
+    runtime.dispatchMessage({ type: "ui/language", payload: { language: "ko" } });
+    assert.ok(runtime.getRenderedText("flow-steps").includes("함수 가이드"));
+    assert.ok(runtime.textValues.includes("정적 입력 사례 · 1개"));
+    const koreanNodeAria = runtime.getRenderedAttributeByClass(
+      "flow-steps", "logic-graph-node", "aria-label"
+    ) ?? "";
+    assert.match(koreanNodeAria, /값 변경: 없음\./u);
+    assert.doesNotMatch(koreanNodeAria, /logic-aria-none|: \./u);
+    runtime.dispatchMessage({ type: "ui/language", payload: { language: "en" } });
+
+    assert.equal(runtime.messages.length, messageCount);
+    assert.equal(runtime.countRenderedByClass("flow-steps", "logic-function-guide"), guideCount);
+    assert.equal(runtime.countRenderedByClass("flow-steps", "logic-graph-node"), graphCount);
+    assert.equal(runtime.getRenderedAttributeByTitle("flow-steps", "Open a source-backed guide to this function and its codebase context", "aria-expanded"), "true");
+  } finally {
+    runtime.restore();
+  }
+});
+
+test("Function Guide retains semantic reading, Values, and graph state through live locale changes", async () => {
+  const runtime = installSidebarWebviewRuntime();
+  try {
+    new Function(requireSidebarScript())();
+    const message = createFunctionLogicDetailMessage(graphVersion) as { payload: { logic: Record<string, unknown> } };
+    message.payload.logic.tutor = createTutorFixture();
+    message.payload.logic.valueBindings = [{
+      id: "function-logic-binding:11111111111111111111111111111111",
+      name: "amount", kind: "parameter",
+      definitionBlockId: "function-logic-block:11111111111111111111111111111111", confidence: "exact"
+    }];
+    runtime.dispatchMessage(createGraphMessage(graphVersion));
+    runtime.dispatchMessage(message);
+    runtime.clickByTitle("Open a source-backed guide to this function and its codebase context");
+    runtime.clickRenderedByClassNth("flow-steps", "logic-guide-question", 1);
+    runtime.setRenderedOpenByClassNth("flow-steps", "logic-guide-more-facts", 0, true);
+    runtime.setRenderedOpenByClassNth("flow-steps", "logic-guide-source-basis", 0, true);
+    runtime.setRenderedOpenByClassNth("flow-steps", "logic-guide-scenarios", 0, true);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    runtime.clickRenderedByClassNth("flow-steps", "logic-guide-scenario-select", 0);
+    runtime.clickByTitle("Load selected static inputs into Scenario values");
+    runtime.clickByTitle("Open a source-backed guide to this function and its codebase context");
+    runtime.focusRenderedByClassNth("flow-steps", "logic-guide-action", 1);
+
+    const messages = [...runtime.messages];
+    const graphNodeIdentity = runtime.getRenderedIdentityByClassNth("flow-steps", "logic-graph-node", 0);
+    const canvasTransform = runtime.getRenderedStyleByClass("flow-steps", "logic-graph-canvas", "transform");
+    assert.equal(runtime.getRenderedValueByTitle("flow-steps", "Scenario input for PARAM amount"), "10");
+    assert.equal(runtime.getRenderedOpenByClassNth("flow-steps", "logic-guide-more-facts", 0), true);
+    assert.equal(runtime.getRenderedOpenByClassNth("flow-steps", "logic-guide-source-basis", 0), true);
+    assert.equal(runtime.getFocusedRenderedAttribute("data-guide-key"), "scenario-load-inputs:function-tutor-seed:11111111111111111111111111111111");
+    assert.equal(runtime.getRenderedAttributeByClass("flow-steps", "logic-inspector-drawer", "aria-hidden"), "false");
+    assert.equal(runtime.getRenderedAttributeByClass("flow-steps", "logic-inspector-toggle", "aria-expanded"), "false");
+    assert.ok(runtime.getRenderedText("flow-steps").includes("Loaded 1 known inputs into Values."));
+
+    runtime.dispatchMessage({ type: "ui/language", payload: { language: "ko" } });
+    assert.ok(runtime.getRenderedText("flow-steps").includes("함수 가이드"));
+    assert.ok(runtime.getRenderedText("flow-steps").includes("알려진 입력 1개를 값에 불러왔습니다."));
+    assert.equal(runtime.getRenderedValueByTitle("flow-steps", "매개변수 amount의 시나리오 입력"), "10");
+    assert.equal(runtime.getRenderedOpenByClassNth("flow-steps", "logic-guide-more-facts", 0), true);
+    assert.equal(runtime.getRenderedOpenByClassNth("flow-steps", "logic-guide-source-basis", 0), true);
+    assert.equal(runtime.getFocusedRenderedAttribute("data-guide-key"), "scenario-load-inputs:function-tutor-seed:11111111111111111111111111111111");
+    assert.equal(runtime.getRenderedAttributeByClass("flow-steps", "logic-inspector-drawer", "aria-hidden"), "false");
+    assert.equal(runtime.getRenderedAttributeByClass("flow-steps", "logic-inspector-toggle", "aria-expanded"), "false");
+
+    runtime.dispatchMessage({ type: "ui/language", payload: { language: "en" } });
+    assert.ok(runtime.getRenderedText("flow-steps").includes("Loaded 1 known inputs into Values."));
+    assert.equal(runtime.getRenderedValueByTitle("flow-steps", "Scenario input for PARAM amount"), "10");
+    assert.equal(runtime.getRenderedOpenByClassNth("flow-steps", "logic-guide-scenarios", 0), true);
+    assert.equal(runtime.getRenderedOpenByClassNth("flow-steps", "logic-guide-more-facts", 0), true);
+    assert.equal(runtime.getRenderedOpenByClassNth("flow-steps", "logic-guide-source-basis", 0), true);
+    assert.equal(runtime.getFocusedRenderedAttribute("data-guide-key"), "scenario-load-inputs:function-tutor-seed:11111111111111111111111111111111");
+    assert.equal(runtime.getRenderedAttributeByClass("flow-steps", "logic-inspector-drawer", "aria-hidden"), "false");
+    assert.equal(runtime.getRenderedAttributeByClass("flow-steps", "logic-inspector-toggle", "aria-expanded"), "false");
+    assert.equal(runtime.getRenderedIdentityByClassNth("flow-steps", "logic-graph-node", 0), graphNodeIdentity);
+    assert.equal(runtime.getRenderedStyleByClass("flow-steps", "logic-graph-canvas", "transform"), canvasTransform);
+    assert.deepEqual(runtime.messages, messages);
+  } finally {
+    runtime.restore();
+  }
+});
+
+test("Function Guide locale refresh never rebuilds the graph or restarts playback", () => {
+  const source = readFileSync(resolve(process.cwd(), "src/webview/codeFlow/tutor/functionTutorGuideBrowserSource.ts"), "utf8");
+  const start = source.indexOf("refreshLanguage() {");
+  const end = source.indexOf("\n        }\n      };", start);
+  const refresh = source.slice(start, end);
+  assert.ok(start >= 0 && end > start);
+  assert.doesNotMatch(refresh, /renderFunctionLogic|createFunctionLogicGraph|createFunctionLogicGraphLayout|resetPlayback|\.sync\(|vscode\.postMessage|scene|layout|playFromStart|clearFlowSteps/u);
+  assert.match(source, /statusPresentation = \{ key/u);
+  assert.match(source, /chapterId: current\.id/u);
+  assert.match(source, /count: known\.length, allKnown/u);
+  assert.match(source, /errorsBySeed\.set\(seed\.id, \{ key: "static-case-failed" \}\)/u);
+});
+
+test("Function Logic selection and ARIA prefer localized descriptors over raw enum copy", () => {
+  const root = process.cwd();
+  const selection = readFileSync(resolve(root, "src/webview/codeFlow/functionLogicSelectionBrowserSource.ts"), "utf8");
+  const browser = readFileSync(resolve(root, "src/webview/codeFlow/functionLogicBrowserSource.ts"), "utf8");
+  const drill = readFileSync(resolve(root, "src/webview/codeFlow/functionLogicDrillBrowserSource.ts"), "utf8");
+
+  assert.match(selection, /projectAnalyzerText\("logic-confidence-"/u);
+  assert.match(selection, /formatLogicBlockDetail\(block\)/u);
+  assert.match(selection, /block\.branchPresentation\?\.key/u);
+  assert.match(browser, /logic-confidence-" \+ \(change\.confidence/u);
+  assert.match(browser, /logic-target-transfer/u);
+  assert.doesNotMatch(browser.slice(browser.indexOf("const valueChangeText"), browser.indexOf("const expandable")), /" to "/u);
+  assert.match(drill, /projectAnalyzerText\("logic-confidence-"/u);
+});
+
 test("function graph traces parameter, local, and constant definition-use flow", () => {
   const runtime = installSidebarWebviewRuntime();
 
@@ -336,8 +574,8 @@ test("function graph traces parameter, local, and constant definition-use flow",
     assert.equal(runtime.countRenderedByClass("flow-steps", "logic-data-flow-edge"), 1);
     assert.equal(runtime.countRenderedByClass("flow-steps", "logic-value-access"), 3);
     assert.equal(runtime.countRenderedByClass("flow-steps", "logic-scenario-trace"), 1);
-    runtime.clickByTitle("Trace parameter order");
-    runtime.clickByTitle("Trace parameter order");
+    runtime.clickByTitle("Trace PARAM order");
+    runtime.clickByTitle("Trace PARAM order");
   } finally {
     runtime.restore();
   }
@@ -661,11 +899,11 @@ function createTutorFixture(): Record<string, unknown> {
     guide: {
       initialChapterId: "function-tutor-chapter:place", summary: { readyChapterCount: 5, partialChapterCount: 0, unavailableChapterCount: 0 },
       chapters: [
-        { id: "function-tutor-chapter:place", ordinal: 1, kind: "place", question: "Where Does It Fit?", status: "ready", answer: { text: "The current graph provides source-backed placement facts.", counts: { factCount: 1 } }, facts: [{ id: "function-tutor-fact:place", kind: "documentation", label: "Source documentation", detail: "Calculates a bounded amount.", certainty: "exact", blockIds: [], edgeIds: [], evidenceTokens: [] }], preferredLens: "calls", attentionBlockIds: [], attentionEdgeIds: [], gapIds: [] },
-        { id: "function-tutor-chapter:inputs", ordinal: 2, kind: "inputs", question: "What Comes In?", status: "ready", answer: { text: "One input is declared.", counts: { factCount: 1 } }, facts: [], preferredLens: "values", primaryBlockId: conditionId, attentionBlockIds: [conditionId], attentionEdgeIds: [], gapIds: [] },
-        { id: "function-tutor-chapter:decisions", ordinal: 3, kind: "decisions", question: "What Changes the Path?", status: "ready", answer: { text: "One decision is visible.", counts: { factCount: 1 } }, facts: [], preferredLens: "flow", primaryBlockId: conditionId, attentionBlockIds: [conditionId], attentionEdgeIds: [], gapIds: [] },
-        { id: "function-tutor-chapter:work", ordinal: 4, kind: "work", question: "What Does It Change or Call?", status: "ready", answer: { text: "One value change is visible.", counts: { factCount: 1 } }, facts: [], preferredLens: "values", primaryBlockId: effectId, attentionBlockIds: [effectId], attentionEdgeIds: [], gapIds: [] },
-        { id: "function-tutor-chapter:outcomes", ordinal: 5, kind: "outcomes", question: "How Can It Finish?", status: "ready", answer: { text: "One return is visible.", counts: { factCount: 1 } }, facts: [], preferredLens: "effects", primaryBlockId: effectId, attentionBlockIds: [effectId], attentionEdgeIds: [], gapIds: [] }
+        { id: "function-tutor-chapter:place", ordinal: 1, kind: "place", question: "Where Does It Fit?", questionKey: "place", status: "ready", answerKey: "place", answer: { text: "The current graph provides source-backed placement facts.", counts: { factCount: 1 } }, facts: [{ id: "function-tutor-fact:place", kind: "documentation", label: "Source documentation", labelPresentationKey: "tutor-label-documentation", detail: "Calculates a bounded amount.", certainty: "exact", blockIds: [], edgeIds: [], evidenceTokens: [] }], preferredLens: "calls", attentionBlockIds: [], attentionEdgeIds: [], gapIds: [] },
+        { id: "function-tutor-chapter:inputs", ordinal: 2, kind: "inputs", question: "What Comes In?", questionKey: "inputs", status: "ready", answerKey: "inputs", answer: { text: "One input is declared.", counts: { parameterCount: 1, exactCallsiteTupleCount: 0 } }, facts: ["amount", "default", "number", "bounded"].map((label, index) => ({ id: "function-tutor-fact:inputs:" + index, kind: "parameter", label, labelPresentationKey: "tutor-label-documentation", detail: "Known static input.", presentationKey: "no-static-answer", certainty: "exact", blockIds: [conditionId], edgeIds: [], evidenceTokens: [] })), preferredLens: "values", primaryBlockId: conditionId, attentionBlockIds: [conditionId], attentionEdgeIds: [], gapIds: [] },
+        { id: "function-tutor-chapter:decisions", ordinal: 3, kind: "decisions", question: "What Changes the Path?", questionKey: "decisions", status: "ready", answerKey: "decisions", answer: { text: "One decision is visible.", counts: { decisionCount: 1, loopCount: 0 } }, facts: [], preferredLens: "flow", primaryBlockId: conditionId, attentionBlockIds: [conditionId], attentionEdgeIds: [], gapIds: [] },
+        { id: "function-tutor-chapter:work", ordinal: 4, kind: "work", question: "What Does It Change or Call?", questionKey: "work", status: "ready", answerKey: "work", answer: { text: "One value change is visible.", counts: { valueChangeCount: 1, effectBlockCount: 1, outgoingRelationCount: 0 } }, facts: [], preferredLens: "values", primaryBlockId: effectId, attentionBlockIds: [effectId], attentionEdgeIds: [], gapIds: [] },
+        { id: "function-tutor-chapter:outcomes", ordinal: 5, kind: "outcomes", question: "How Can It Finish?", questionKey: "outcomes", status: "ready", answerKey: "outcomes", answer: { text: "One return is visible.", counts: { returnCount: 1, throwCount: 0 } }, facts: [], preferredLens: "effects", primaryBlockId: effectId, attentionBlockIds: [effectId], attentionEdgeIds: [], gapIds: [] }
       ]
     },
     parameters: [{ id: amountId, bindingId: amountBinding, name: "amount", index: 0, typeKind: "number", optional: false, rest: false }],

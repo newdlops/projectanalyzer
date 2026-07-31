@@ -22,8 +22,8 @@ export function getFunctionTutorBrowserSource(): string {
     }
     function isFunctionTutorKnown(value) { return value && value.kind !== "unknown"; }
     function functionTutorValueText(value) {
-      if (!value) return "Unknown";
-      if (value.kind === "unknown") return "Unknown";
+      if (!value) return projectAnalyzerText("unknown");
+      if (value.kind === "unknown") return projectAnalyzerText("unknown");
       if (value.kind === "null" || value.kind === "undefined") return value.kind;
       if (value.kind === "array") return "[" + value.items.map(functionTutorValueText).join(", ") + (value.truncated ? ", …" : "") + "]";
       if (value.kind === "object") return "{" + value.entries.map((entry) => entry.key + ": " + functionTutorValueText(entry.value)).join(", ") + (value.truncated ? ", …" : "") + "}";

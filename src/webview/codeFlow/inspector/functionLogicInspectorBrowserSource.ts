@@ -48,12 +48,12 @@ export function getFunctionLogicInspectorBrowserSource(): string {
       const selectionPanel = document.createElement("section");
       const toggle = document.createElement("button");
       let guide;
-      let currentSelectionLabel = "selected block";
+      let currentSelectionLabel = projectAnalyzerText("selected-block");
 
       workspace.className = "logic-graph-workspace";
       drawer.id = inspectorId;
       drawer.className = "logic-inspector-drawer";
-      drawer.setAttribute("aria-label", "Function reading panel");
+      drawer.setAttribute("aria-label", projectAnalyzerText("reading-panel"));
       header.className = "logic-inspector-header";
       headingGroup.className = "logic-inspector-heading";
       selectedLabel.className = "logic-inspector-selected-label";
@@ -61,7 +61,7 @@ export function getFunctionLogicInspectorBrowserSource(): string {
       close.type = "button";
       close.className = "logic-inspector-close";
       close.textContent = "×";
-      close.title = "Close function reading panel";
+      close.title = projectAnalyzerText("close-reading-panel");
       close.setAttribute("aria-label", close.title);
       scroll.className = "logic-inspector-scroll";
       inspectContent.className = "logic-inspector-inspect-content";
@@ -69,7 +69,7 @@ export function getFunctionLogicInspectorBrowserSource(): string {
       selectionPanel.setAttribute("aria-live", "polite");
       toggle.type = "button";
       toggle.className = "logic-inspector-toggle";
-      toggle.textContent = "Inspector";
+      toggle.textContent = projectAnalyzerText("inspector");
       toggle.setAttribute("aria-controls", inspectorId);
 
       inspectContent.append(selectionPanel);
@@ -82,11 +82,10 @@ export function getFunctionLogicInspectorBrowserSource(): string {
       /** Synchronizes header language with the sole visible reading surface. */
       function renderModeHeader() {
         const guideMode = state.mode === "guide";
-        eyebrow.textContent = guideMode ? "FUNCTION GUIDE" : "FUNCTION INSPECTOR";
-        heading.textContent = guideMode ? "Understand This Function" : "Selected block";
+        eyebrow.textContent = projectAnalyzerText(guideMode ? "guide-eyebrow" : "inspector-eyebrow");
+        heading.textContent = projectAnalyzerText(guideMode ? "understand-function" : "selected-block");
         description.textContent = guideMode
-          ? "Source-backed static analysis · no code runs"
-          : "Inspect the currently selected graph block.";
+          ? projectAnalyzerText("guide-description") : projectAnalyzerText("inspect-description");
         selectedLabel.hidden = guideMode;
         selectedLabel.textContent = currentSelectionLabel;
       }
@@ -114,8 +113,7 @@ export function getFunctionLogicInspectorBrowserSource(): string {
 
       /** Keeps the Inspector toggle purpose specific to the current selection. */
       function updateToggleTitle() {
-        toggle.title = (state.open && state.mode === "inspect" ? "Close" : "Open")
-          + " function inspector · " + currentSelectionLabel;
+        toggle.title = projectAnalyzerText("toggle-inspector", { action: projectAnalyzerText(state.open && state.mode === "inspect" ? "close" : "open"), label: currentSelectionLabel });
       }
 
       function openInspect(focusDrawer) {
@@ -158,9 +156,21 @@ export function getFunctionLogicInspectorBrowserSource(): string {
         openGuide() { setDrawer(true, "guide", false); },
         /** Updates drawer and toggle context when graph selection changes. */
         setSelection(block) {
-          currentSelectionLabel = block?.label || "selected block";
+          currentSelectionLabel = block ? formatLogicBlockLabel(block) : projectAnalyzerText("selected-block");
           selectedLabel.textContent = currentSelectionLabel;
           updateToggleTitle();
+        },
+        /** Reapplies retained drawer chrome without changing open mode or scroll. */
+        refreshLanguage() {
+          drawer.setAttribute("aria-label", projectAnalyzerText("reading-panel"));
+          close.title = projectAnalyzerText("close-reading-panel");
+          close.setAttribute("aria-label", close.title);
+          toggle.textContent = projectAnalyzerText("inspector");
+          // This is deliberately a presentation-only pass: preserve the active
+          // drawer mode, scroll offset, and Guide instance while rewriting chrome.
+          renderModeHeader();
+          updateToggleTitle();
+          guide?.refreshLanguage?.();
         },
         /** Lets CSS disclose only the tools relevant to the reader question. */
         setLens(lens) { drawer.dataset.logicLens = lens; },

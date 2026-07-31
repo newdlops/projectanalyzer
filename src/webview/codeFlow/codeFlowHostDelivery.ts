@@ -28,6 +28,7 @@ import type {
 import type { CodeFlowOpenEvidenceRequest } from "../../protocol/functionLogic";
 import type { ExtensionResponse } from "../../protocol/messages";
 import type { ProjectAnalyzerLogger } from "../../observability/logger";
+import { localizeHost, type UiLanguage } from "../../localization/uiLanguage";
 import type { ProjectGraph, SymbolNode } from "../../shared/types";
 import type { WebviewGraphDelivery } from "../sidebarGraphDelivery";
 import type { SourceNodeTokenRegistry } from "../sourceNavigation";
@@ -43,6 +44,7 @@ export type CodeFlowHostDeliveryDependencies = {
   sourceNodeTokens: SourceNodeTokenRegistry;
   evidenceTokens: CodeFlowEvidenceTokenRegistry;
   logger: ProjectAnalyzerLogger;
+  getUiLanguage(): UiLanguage;
   projectionOptions?: SymbolCodeFlowProjectionOptions;
   readSourceText(filePath: string): Promise<string | undefined>;
   openEvidenceLocation(location: CodeFlowEvidenceLocation): Promise<void>;
@@ -76,7 +78,7 @@ export class CodeFlowHostDelivery {
   ): Promise<void> {
     const active = this.resolveActiveGraph(request.graphVersion, knownGraph);
     if (!active) {
-      await this.publishFailure(request.graphVersion, "staleGraph", "The analyzed graph changed. Start the flow again.");
+      await this.publishFailure(request.graphVersion, "staleGraph", "staleStartAgain", this.localize("staleGraph", this.localize("startAgain")));
       return;
     }
 
@@ -100,7 +102,7 @@ export class CodeFlowHostDelivery {
   public async publishEntrypoint(request: CodeFlowSelectRequest): Promise<void> {
     const active = this.resolveActiveGraph(request.graphVersion);
     if (!active) {
-      await this.publishFailure(request.graphVersion, "staleGraph", "The analyzed graph changed. Start the flow again.");
+      await this.publishFailure(request.graphVersion, "staleGraph", "staleStartAgain", this.localize("staleGraph", this.localize("startAgain")));
       return;
     }
 
@@ -109,7 +111,7 @@ export class CodeFlowHostDelivery {
       createCodeFlowIdentity(active.version, candidate.id) === request.flowId
     );
     if (!flow) {
-      await this.publishFailure(active.version, "flowNotFound", "This flow is not available in the current analysis.");
+      await this.publishFailure(active.version, "flowNotFound", "flowNotFound", this.localize("flowNotFound"));
       return;
     }
 
@@ -131,17 +133,17 @@ export class CodeFlowHostDelivery {
   public async publishSourceContext(request: CodeFlowSelectSourceRequest): Promise<void> {
     const active = this.resolveActiveGraph(request.graphVersion);
     if (!active) {
-      await this.publishFailure(request.graphVersion, "staleGraph", "The analyzed graph changed. Search again.");
+      await this.publishFailure(request.graphVersion, "staleGraph", "staleSearchAgain", this.localize("staleGraph", this.localize("searchAgain")));
       return;
     }
 
     const node = this.dependencies.sourceNodeTokens.resolve(request.sourceToken);
     if (!node) {
-      await this.publishFailure(active.version, "sourceNotFound", "This source result is no longer available.");
+      await this.publishFailure(active.version, "sourceNotFound", "sourceNotFound", this.localize("sourceNotFound"));
       return;
     }
     if (!isConcreteCallable(node)) {
-      await this.publishFailure(active.version, "sourceNotCallable", "Select a concrete function, method, or constructor.");
+      await this.publishFailure(active.version, "sourceNotCallable", "sourceNotCallable", this.localize("sourceNotCallable"));
       return;
     }
 
@@ -156,16 +158,16 @@ export class CodeFlowHostDelivery {
   ): Promise<boolean> {
     const active = this.resolveActiveGraph(graphVersion);
     if (!active) {
-      await this.publishFailure(graphVersion, "staleGraph", "The analyzed graph changed. Visualize the function again.");
+      await this.publishFailure(graphVersion, "staleGraph", "staleVisualizeAgain", this.localize("staleGraph", this.localize("visualizeAgain")));
       return false;
     }
     const node = active.graph.nodes.find((candidate) => candidate.id === nodeId);
     if (!node) {
-      await this.publishFailure(active.version, "sourceNotFound", "The current function is not available in this analysis.");
+      await this.publishFailure(active.version, "sourceNotFound", "currentFunctionUnavailable", this.localize("currentFunctionUnavailable"));
       return false;
     }
     if (!isConcreteCallable(node)) {
-      await this.publishFailure(active.version, "sourceNotCallable", "The cursor is not inside a concrete callable.");
+      await this.publishFailure(active.version, "sourceNotCallable", "cursorNotCallable", this.localize("cursorNotCallable"));
       return false;
     }
 
@@ -211,7 +213,7 @@ export class CodeFlowHostDelivery {
       const declaration = createUnavailableFunctionTutorDeclaration(
         node,
         analysis,
-        "Function Guide could not parse the selected declaration; source-backed graph facts remain available."
+        this.localize("tutorUnavailable")
       );
       tutorModel = await buildFunctionTutorModel({
         graph: active.graph,
@@ -247,12 +249,12 @@ export class CodeFlowHostDelivery {
   public async openEvidence(request: CodeFlowOpenEvidenceRequest): Promise<void> {
     const active = this.resolveActiveGraph(request.graphVersion);
     if (!active) {
-      await this.publishFailure(request.graphVersion, "staleGraph", "The analyzed graph changed. Reopen the function logic.");
+      await this.publishFailure(request.graphVersion, "staleGraph", "staleReopenLogic", this.localize("staleGraph", this.localize("reopenLogic")));
       return;
     }
     const location = this.dependencies.evidenceTokens.resolve(request.evidenceToken);
     if (!location) {
-      await this.publishFailure(active.version, "evidenceNotFound", "This statement evidence is no longer available.");
+      await this.publishFailure(active.version, "evidenceNotFound", "evidenceNotFound", this.localize("evidenceNotFound"));
       return;
     }
     await this.dependencies.openEvidenceLocation(location);
@@ -277,13 +279,19 @@ export class CodeFlowHostDelivery {
   private async publishFailure(
     graphVersion: string,
     code: CodeFlowFailurePayload["code"],
+    presentationKey: CodeFlowFailurePayload["presentationKey"],
     message: string
   ): Promise<void> {
     this.dependencies.logger.debug("codeFlow.detail.failed", { code });
     await this.dependencies.postMessage({
       type: "codeFlow/detailFailed",
-      payload: { graphVersion, code, message }
+      payload: { graphVersion, code, presentationKey, message }
     });
+  }
+
+  /** Formats owned failure wrappers at delivery time; caller-supplied details remain literal. */
+  private localize(key: "staleGraph" | "startAgain" | "searchAgain" | "visualizeAgain" | "reopenLogic" | "flowNotFound" | "sourceNotFound" | "sourceNotCallable" | "evidenceNotFound" | "currentFunctionUnavailable" | "cursorNotCallable" | "tutorUnavailable", action = ""): string {
+    return localizeHost(this.dependencies.getUiLanguage(), key, { action });
   }
 }
 

@@ -44,6 +44,9 @@ export function getFunctionLogicBrowserSource(): string {
     ${getFunctionTutorIntegrationBrowserSource()}
     /** Disposes the active viewport controller before its graph DOM is removed. */
     function disposeActiveFunctionLogicViewport() {
+      state.activeLogicGraphRendering = undefined;
+      state.activeLogicValueFlowRendering?.dispose?.();
+      state.activeLogicValueFlowRendering = undefined;
       if (!state.activeLogicViewportController) return;
       state.activeLogicViewportController.dispose();
       state.activeLogicViewportController = undefined;
@@ -54,8 +57,9 @@ export function getFunctionLogicBrowserSource(): string {
       if (logic.blocks.length === 0 || logic.layout.nodes.length === 0) {
         const empty = document.createElement("div");
         empty.className = "flow-empty";
-        empty.textContent = "No function-body graph is available for this source.";
+        empty.textContent = projectAnalyzerText("no-function-body");
         elements.flowSteps.append(empty);
+        state.activeLogicGraphRendering = { updateLanguage() { empty.textContent = projectAnalyzerText("no-function-body"); } };
         return;
       }
 
@@ -63,6 +67,8 @@ export function getFunctionLogicBrowserSource(): string {
       elements.flowSteps.append(graphRendering.element);
       graphRendering.activateViewport();
       state.activeLogicViewportController = graphRendering.viewportController;
+      state.activeLogicValueFlowRendering = graphRendering.valueFlowRendering;
+      state.activeLogicGraphRendering = graphRendering;
       if (graphContext && graphContext.onGraphRendered) {
         graphContext.onGraphRendered(graphRendering);
       }
@@ -242,30 +248,33 @@ export function getFunctionLogicBrowserSource(): string {
       const hasValueChanges = logic.blocks.some((block) =>
         block.valueChanges && block.valueChanges.length > 0
       );
+      const graphTitle = () => graphContext?.graphTitle
+        ? (typeof graphContext.graphTitle === "function" ? graphContext.graphTitle() : graphContext.graphTitle)
+        : (hasRenderFlow
+          ? (hasValueFlow || hasValueChanges
+              ? projectAnalyzerText("graph-control-render-event-value")
+              : hasJsxFlow && hasEventFlow
+                ? projectAnalyzerText("graph-control-jsx-event")
+                : hasJsxFlow ? projectAnalyzerText("graph-control-jsx") : projectAnalyzerText("graph-control-event"))
+          : (hasValueFlow || hasValueChanges ? projectAnalyzerText("control-value-flow") : projectAnalyzerText("control-paths")));
       const graphHeader = createLogicGraphHeader(
         viewportController,
         inspector.toggle,
         createFunctionLogicLensToolbar(comprehension),
         createFunctionLogicLensLegend(comprehension),
-        graphContext?.graphTitle || (hasRenderFlow
-          ? (hasValueFlow || hasValueChanges
-              ? "Control, render, event & value flow"
-              : hasJsxFlow && hasEventFlow
-                ? "Control, JSX & event boundaries"
-                : hasJsxFlow ? "Control & JSX render flow" : "Control & event boundaries")
-          : (hasValueFlow || hasValueChanges ? "Control & value flow" : "Control paths")),
+        graphTitle,
         tutorRendering?.toggle
       );
       graph.className = "logic-graph";
       viewport.className = "logic-graph-viewport";
       viewport.setAttribute("role", "region");
-      const graphSemantics = ["Function control"];
-      if (hasJsxFlow) graphSemantics.push("JSX render");
-      if (hasEventFlow) graphSemantics.push("event boundaries");
-      if (hasValueFlow) graphSemantics.push("lexical value consume and sink flow");
-      viewport.setAttribute("aria-label", graphSemantics.join(", ") + " graph");
+      const graphSemantics = [projectAnalyzerText("function-control")];
+      if (hasJsxFlow) graphSemantics.push(projectAnalyzerText("jsx-render"));
+      if (hasEventFlow) graphSemantics.push(projectAnalyzerText("event-boundaries"));
+      if (hasValueFlow) graphSemantics.push(projectAnalyzerText("value-flow"));
+      viewport.setAttribute("aria-label", graphSemantics.join(", ") + " " + projectAnalyzerText("graph"));
       viewport.setAttribute("aria-keyshortcuts", "+ - 0 C F");
-      viewport.title = "Drag empty space or use a trackpad to pan; use Ctrl/Command + wheel to zoom";
+      viewport.title = projectAnalyzerText("drag-to-pan");
       viewport.tabIndex = 0;
       stage.className = "logic-graph-stage";
       canvas.className = "logic-graph-canvas";
@@ -311,14 +320,17 @@ export function getFunctionLogicBrowserSource(): string {
       viewport.append(stage);
       inspector.attachViewport(viewport);
       inspector.registerGuide(tutorRendering);
+      const staticLedger = createFunctionLogicStaticFlowLedger(logic, comprehension);
+      const calleeExplorer = createLogicCalleeExplorer(logic.callees || [], logic.omittedCalleeCount || 0);
+      const signature = createLogicSignature(logic.signature);
       inspector.appendSections(
         valueFlowRendering?.valuePreviewEditor,
         valueFlowRendering?.scenarioTrace,
         valueFlowRendering?.playback,
         valueFlowRendering?.toolbar,
-        createFunctionLogicStaticFlowLedger(logic, comprehension),
-        createLogicCalleeExplorer(logic.callees || [], logic.omittedCalleeCount || 0),
-        createLogicSignature(logic.signature)
+        staticLedger,
+        calleeExplorer,
+        signature
       );
       graph.append(graphHeader);
       graph.append(bodyFocusController.navigation);
@@ -350,7 +362,49 @@ export function getFunctionLogicBrowserSource(): string {
         viewportController,
         activateViewport: viewportController.initialize,
         nodeButtonsById,
-        nodeLayoutsByBlockId
+        nodeLayoutsByBlockId,
+        valueFlowRendering,
+        /** Rewrites retained locale copy without rebuilding graph geometry or state. */
+        updateLanguage(language) {
+          edgeRendering.svg.setAttribute("aria-label", projectAnalyzerText("control-paths"));
+          edgeChoiceLayer.setAttribute("aria-label", projectAnalyzerText("branch-choices"));
+          const semantics = [projectAnalyzerText("function-control")];
+          if (hasJsxFlow) semantics.push(projectAnalyzerText("jsx-render"));
+          if (hasEventFlow) semantics.push(projectAnalyzerText("event-boundaries"));
+          if (hasValueFlow) semantics.push(projectAnalyzerText("value-flow"));
+          viewport.setAttribute("aria-label", semantics.join(", ") + " " + projectAnalyzerText("graph"));
+          viewport.title = projectAnalyzerText("drag-to-pan");
+          for (const edge of logic.edges) {
+            const rendered = edgeRendering.elementsById.get(edge.id);
+            if (!rendered) continue;
+            const label = formatLogicEdge(edge);
+            rendered.label.textContent = label;
+            if (rendered.choiceButton) {
+              rendered.choiceButton.textContent = label;
+              rendered.choiceButton.title = projectAnalyzerText("choose-path", { label: label });
+            }
+          }
+          for (const [blockId, button] of nodeButtonsById) {
+            const block = blocksById.get(blockId);
+            if (!block) continue;
+            button.refreshLanguage?.();
+          }
+          valueFlowRendering?.updateLanguage(language);
+          bodyFocusController.refresh();
+          graphHeader.refreshLanguage?.();
+          signature.refreshLanguage?.();
+          calleeExplorer?.refreshLanguage?.();
+          inspector.refreshLanguage?.();
+          comprehension.refreshLanguage?.();
+          viewportController.refreshLanguage?.();
+          const retainedSelection = blocksById.get(state.selectedLogicBlockId || preferredBlock.id);
+          if (retainedSelection) {
+            renderLogicSelection(retainedSelection, outgoingBySourceId.get(retainedSelection.id) || [], blocksById, inspector.selectionPanel, selectionGraphContext, applyBranchChoice, applyConditionCase, branchChoices);
+            inspector.setSelection(retainedSelection);
+          }
+          // Do not select again: selection can focus the drawer and changes no
+          // graph state, but this locale pass must be completely side-effect free.
+        }
       };
     }
     /** Creates the compact current-function header above the graph. */
@@ -359,9 +413,10 @@ export function getFunctionLogicBrowserSource(): string {
       const signatureLabel = document.createElement("span");
       const signatureCode = document.createElement("code");
       signature.className = "logic-signature";
-      signatureLabel.textContent = "FUNCTION";
+      signatureLabel.textContent = projectAnalyzerText("function-signature");
       signatureCode.textContent = signatureText;
       signature.append(signatureLabel, signatureCode);
+      signature.refreshLanguage = () => { signatureLabel.textContent = projectAnalyzerText("function-signature"); };
       return signature;
     }
 
@@ -374,7 +429,7 @@ export function getFunctionLogicBrowserSource(): string {
       svg.setAttribute("height", String(layout.height));
       svg.setAttribute("viewBox", "0 0 " + layout.width + " " + layout.height);
       svg.setAttribute("role", "group");
-      svg.setAttribute("aria-label", "Control paths");
+      svg.setAttribute("aria-label", projectAnalyzerText("control-paths"));
       svg.append(createLogicArrowMarker());
 
       for (const edgeLayout of layout.edges) {
@@ -419,7 +474,7 @@ export function getFunctionLogicBrowserSource(): string {
     function createLogicEdgeChoiceLayer(layout, edgesById, elementsById, onBranchChoice) {
       const layer = document.createElement("div");
       layer.className = "logic-edge-choice-layer";
-      layer.setAttribute("aria-label", "Branch choices");
+      layer.setAttribute("aria-label", projectAnalyzerText("branch-choices"));
       for (const edgeLayout of layout.edges) {
         const edge = edgesById.get(edgeLayout.edgeId);
         const elements = elementsById.get(edgeLayout.edgeId);
@@ -428,7 +483,7 @@ export function getFunctionLogicBrowserSource(): string {
         button.type = "button";
         button.className = "logic-edge-choice-button logic-edge-choice-" + edge.kind;
         button.textContent = formatLogicEdge(edge);
-        button.title = "Choose path: " + formatLogicEdge(edge);
+        button.title = projectAnalyzerText("choose-path", { label: formatLogicEdge(edge) });
         button.setAttribute("aria-pressed", "false");
         button.style.setProperty("left", edgeLayout.labelX + "px");
         button.style.setProperty("top", edgeLayout.labelY + "px");
@@ -480,8 +535,11 @@ export function getFunctionLogicBrowserSource(): string {
       const branch = document.createElement("span");
       const label = document.createElement("strong");
       const meta = document.createElement("small");
+      let embeddedTimingBadge;
+      let bodyBadge;
+      let childCountBadge;
       const valueChangeText = (block.valueChanges || []).map((change) =>
-        formatLogicValueChange(change) + " (" + change.confidence + ")"
+        formatLogicValueChange(change) + " (" + projectAnalyzerText("logic-confidence-" + (change.confidence || "unknown")) + ")"
       ).join(", ");
       const valueAccessText = (block.valueAccesses || []).map((access) =>
         formatFunctionLogicBindingKind(access.bindingKind, access.valueRole) + " "
@@ -489,7 +547,8 @@ export function getFunctionLogicBrowserSource(): string {
       ).join(", ");
       const outgoingText = outgoing.map((edge) => {
         const target = blocksById.get(edge.targetId);
-        return formatLogicEdge(edge) + (target ? " to " + completeTargetLabel(target) : "");
+        return formatLogicEdge(edge) + (target
+          ? projectAnalyzerText("logic-target-transfer", { target: completeTargetLabel(target) }) : "");
       }).join(", ");
       const expandable = Boolean(block.drillTargets && block.drillTargets.length > 0);
       const rendersOnly = expandable && block.drillTargets.every((target) =>
@@ -499,8 +558,8 @@ export function getFunctionLogicBrowserSource(): string {
         target.relation === "event"
       );
       const expandableRole = rendersOnly
-        ? "rendered component"
-        : eventHandlersOnly ? "event handler" : "called function";
+        ? projectAnalyzerText("rendered-component")
+        : eventHandlersOnly ? projectAnalyzerText("event-handler") : projectAnalyzerText("child-function");
       const expanded = Boolean(
         expandable && graphContext && graphContext.isBlockExpanded
         && graphContext.isBlockExpanded(block.id)
@@ -518,10 +577,10 @@ export function getFunctionLogicBrowserSource(): string {
         + (entering ? " logic-node-entering" : "");
       node.classList.toggle("expandable", expandable);
       node.classList.toggle("expanded", expanded);
-      const baseNodeTitle = "Select logic · " + block.label;
+      const renderedLabel = formatLogicBlockLabel(block); const baseNodeTitle = projectAnalyzerText("select-logic", { label: renderedLabel });
       node.dataset.logicBaseTitle = baseNodeTitle;
       node.title = baseNodeTitle
-        + (ownsCompoundBody ? " · Show this body as the outer frame" : "");
+        + (ownsCompoundBody ? " · " + projectAnalyzerText("body-show-outer") : "");
       node.style.setProperty("left", layout.x + "px");
       node.style.setProperty("top", layout.y + "px");
       node.style.setProperty("width", layout.width + "px");
@@ -532,42 +591,45 @@ export function getFunctionLogicBrowserSource(): string {
           Math.min(140, Math.max(0, Number(layout.rank) || 0) * 18) + "ms"
         );
       }
-      node.setAttribute("aria-label", block.label
-        + (valueChangeText ? ". Value changes: " + valueChangeText : "")
-        + (valueAccessText ? ". Value flow: " + valueAccessText : "")
-        + (outgoingText ? ". Paths: " + outgoingText : "")
-        + (expandable
-          ? ". Child flows are available through the Inspector."
-          : "")
-        + (ownsCompoundBody
-          ? ". Activate to show this component body as the outer body frame."
-          : ""));
+      node.setAttribute("aria-label", projectAnalyzerText("logic-node-aria", {
+        label: renderedLabel,
+        changes: valueChangeText || projectAnalyzerText("logic-aria-none"),
+        flow: valueAccessText || projectAnalyzerText("logic-aria-none"),
+        paths: outgoingText || projectAnalyzerText("logic-aria-none"),
+        child: expandable ? projectAnalyzerText("logic-aria-child-available") : projectAnalyzerText("logic-aria-none"),
+        outer: ownsCompoundBody ? projectAnalyzerText("logic-aria-outer-available") : projectAnalyzerText("logic-aria-none")
+      }));
       node.setAttribute("aria-pressed", "false");
       top.className = "logic-node-top";
       branch.className = "logic-node-branch";
-      branch.textContent = block.branchLabel || "";
+      branch.textContent = block.branchPresentation
+        ? projectAnalyzerText(block.branchPresentation.key, block.branchPresentation.params)
+        : block.branchLabel || "";
       label.className = "logic-node-label";
-      mountCodeSnippet(label, block.label);
+      mountCodeSnippet(label, renderedLabel);
       meta.className = "logic-node-meta";
-      meta.textContent = block.sourceLocation || block.detail;
+      meta.textContent = block.sourceLocation || formatLogicBlockDetail(block);
       top.append(kind);
       if (block.kind === "embedded") {
-        top.append(createBadge(
+        embeddedTimingBadge = createBadge(
           describeEmbeddedBoundaryTiming(block),
           "logic-node-embedded-timing"
-        ));
+        );
+        top.append(embeddedTimingBadge);
       }
       if (ownsCompoundBody) {
-        top.append(createBadge("BODY", "logic-node-body-focus"));
+        bodyBadge = createBadge(projectAnalyzerText("body"), "logic-node-body-focus");
+        top.append(bodyBadge);
       }
       if (block.functionLabel) {
         top.append(createBadge(block.functionLabel, "logic-node-function"));
       }
       if (block.drillTargets && block.drillTargets.length > 0) {
-        top.append(createBadge(
-          block.drillTargets.length + " child" + plural(block.drillTargets.length),
+        childCountBadge = createBadge(
+          projectAnalyzerText("logic-child-count", { count: block.drillTargets.length }),
           "logic-node-callee"
-        ));
+        );
+        top.append(childCountBadge);
       }
       if (branch.textContent) top.append(branch);
       node.append(top, label);
@@ -581,6 +643,25 @@ export function getFunctionLogicBrowserSource(): string {
         ));
       }
       node.append(meta);
+      node.refreshLanguage = () => {
+        const nextLabel = formatLogicBlockLabel(block);
+        const changes = (block.valueChanges || []).map((change) => formatLogicValueChange(change) + " (" + projectAnalyzerText("logic-confidence-" + (change.confidence || "unknown")) + ")").join(", ");
+        const accesses = (block.valueAccesses || []).map((access) => formatFunctionLogicBindingKind(access.bindingKind, access.valueRole) + " " + access.name + " " + formatFunctionLogicValueUsage(access)).join(", ");
+        const paths = outgoing.map((edge) => { const target = blocksById.get(edge.targetId); return formatLogicEdge(edge) + (target ? projectAnalyzerText("logic-target-transfer", { target: completeTargetLabel(target) }) : ""); }).join(", ");
+        node.dataset.logicBaseTitle = projectAnalyzerText("select-logic", { label: nextLabel });
+        node.title = node.dataset.logicBaseTitle + (ownsCompoundBody ? " · " + projectAnalyzerText("body-show-outer") : "");
+        node.setAttribute("aria-label", projectAnalyzerText("logic-node-aria", { label: nextLabel, changes: changes || projectAnalyzerText("logic-aria-none"), flow: accesses || projectAnalyzerText("logic-aria-none"), paths: paths || projectAnalyzerText("logic-aria-none"), child: expandable ? projectAnalyzerText("logic-aria-child-available") : projectAnalyzerText("logic-aria-none"), outer: ownsCompoundBody ? projectAnalyzerText("logic-aria-outer-available") : projectAnalyzerText("logic-aria-none") }));
+        kind.textContent = formatLogicKind(block.kind);
+        branch.textContent = block.branchPresentation ? projectAnalyzerText(block.branchPresentation.key, block.branchPresentation.params) : block.branchLabel || "";
+        // Preserve syntax-token rendering while retaining the node button itself.
+        clearElement(label);
+        mountCodeSnippet(label, nextLabel);
+        meta.textContent = block.sourceLocation || formatLogicBlockDetail(block);
+        embeddedTimingBadge && (embeddedTimingBadge.textContent = describeEmbeddedBoundaryTiming(block));
+        bodyBadge && (bodyBadge.textContent = projectAnalyzerText("body"));
+        childCountBadge && (childCountBadge.textContent = projectAnalyzerText("logic-child-count", { count: block.drillTargets.length }));
+        for (const child of node.children) child.refreshLanguage?.();
+      };
       return node;
     }
 
@@ -591,34 +672,26 @@ export function getFunctionLogicBrowserSource(): string {
         type: "codeFlow/openEvidence",
         payload: { graphVersion: state.graph.version, evidenceToken }
       });
-      elements.status.textContent = "Statement opened for verification";
+      elements.status.textContent = projectAnalyzerText("statement-opened");
     }
 
     /** Formats concise statement-role labels for graph nodes. */
     function formatLogicKind(kind) {
-      if (kind === "entry") return "START";
-      if (kind === "exit") return "END";
-      if (kind === "condition") return "IF";
-      if (kind === "embedded") return "TEXT";
-      if (kind === "callable") return "FN";
-      if (kind === "render") return "JSX";
-      if (kind === "event") return "EVENT";
-      if (kind === "mutation") return "STATE";
-      return kind;
+      const key = "logic-" + String(kind || "unknown");
+      const localized = projectAnalyzerText(key);
+      return localized === key ? projectAnalyzerText("logic-unknown") : localized;
     }
 
     /**
      * Names the parser-proven embedded-code timing from the boundary's stable
-     * analyzer label. It never evaluates source text or claims an observed run.
+     * analyzer metadata. It never evaluates source text or claims an observed run.
      */
     function describeEmbeddedBoundaryTiming(block) {
-      const label = String(block.label || "");
-      if (label.startsWith("execute code text · eval")) return "DIRECT EVAL · STATIC";
-      if (label.startsWith("execute code text · globalThis.eval")
-        || label.startsWith("execute code text · window.eval")) return "GLOBAL EVAL · STATIC";
-      if (label.startsWith("schedule code text")) return "DEFERRED · STATIC";
-      if (label.startsWith("create callable from")) return "CREATED · NOT INVOKED";
-      return "STATIC PROGRAM";
+      if (block.embeddedPresentationKind === "directEval") return projectAnalyzerText("embedded-direct-eval");
+      if (block.embeddedPresentationKind === "globalEval") return projectAnalyzerText("embedded-global-eval");
+      if (block.embeddedPresentationKind === "deferred") return projectAnalyzerText("embedded-deferred");
+      if (block.embeddedPresentationKind === "created") return projectAnalyzerText("embedded-created");
+      return projectAnalyzerText("embedded-static");
     }
 
     /** Builds exact/inferred value rows shared by graph nodes and selection details. */
@@ -631,15 +704,21 @@ export function getFunctionLogicBrowserSource(): string {
         const value = document.createElement("code");
         row.className = "logic-value-change " + change.confidence;
         row.title = change.confidence === "exact"
-          ? "Source syntax proves this value change"
-          : "The receiver may change; verify the called method";
+          ? projectAnalyzerText("value-change-exact") : projectAnalyzerText("value-change-inferred");
         kind.className = "logic-value-target-kind";
         kind.textContent = formatLogicValueTargetKind(change.targetKind)
-          + (change.confidence === "inferred" ? " · MAY CHANGE" : " · CHANGES");
+          + " · " + projectAnalyzerText(change.confidence === "inferred" ? "may-change" : "changes");
         mountCodeSnippet(value, formatLogicValueChange(change));
         row.append(kind, value);
         list.append(row);
+        row.refreshLanguage = () => {
+          row.title = change.confidence === "exact" ? projectAnalyzerText("value-change-exact") : projectAnalyzerText("value-change-inferred");
+          kind.textContent = formatLogicValueTargetKind(change.targetKind) + " · " + projectAnalyzerText(change.confidence === "inferred" ? "may-change" : "changes");
+        };
       }
+      list.refreshLanguage = () => {
+        for (const row of list.children) row.refreshLanguage?.();
+      };
       return list;
     }
 
@@ -651,9 +730,7 @@ export function getFunctionLogicBrowserSource(): string {
 
     /** Keeps graph target categories compact but textually distinguishable. */
     function formatLogicValueTargetKind(kind) {
-      if (kind === "receiver") return "RECEIVER";
-      if (kind === "property") return "FIELD";
-      return "VAR";
+      if (kind === "receiver") return projectAnalyzerText("receiver"); if (kind === "property") return projectAnalyzerText("field"); return projectAnalyzerText("variable");
     }
 
     /** Maps arbitrary analyzer nesting onto a small, stable visual tint scale. */
@@ -666,42 +743,41 @@ export function getFunctionLogicBrowserSource(): string {
 
     /** Keeps edge semantics explicit instead of implying observed execution. */
     function formatLogicEdge(edge) {
-      if (edge.label) return edge.label;
-      if (edge.kind === "next") return "then";
-      if (edge.kind === "defines") return "defined body; not invoked";
-      if (edge.kind === "deferred") return "scheduled separately";
-      if (edge.kind === "iterate") return "enter loop";
-      if (edge.kind === "exit") return "leave";
-      return edge.kind;
+      if (edge.presentation) return projectAnalyzerText(edge.presentation.key, edge.presentation.params);
+      return projectAnalyzerText("logic-edge-" + String(edge.kind || "next"));
     }
 
     /** Creates a complete target hint for accessibility and transfer details. */
     function completeTargetLabel(block) {
-      if (block.kind === "exit") return "END";
-      if (block.kind === "entry") return "START";
-      return block.label || block.kind;
+      if (block.kind === "exit") return projectAnalyzerText("logic-exit");
+      if (block.kind === "entry") return projectAnalyzerText("logic-entry");
+      return formatLogicBlockLabel(block) || block.kind;
     }
+
+    /** Formats finite block prose while leaving syntax-bearing params untouched. */
+    function formatLogicBlockLabel(block) { return block?.presentation ? projectAnalyzerText(block.presentation.labelKey, block.presentation.labelParams) : String(block?.label || block?.kind || ""); }
+    function formatLogicBlockDetail(block) { return block?.presentation ? projectAnalyzerText(block.presentation.detailKey, block.presentation.detailParams) : String(block?.detail || ""); }
 
     /** Summarizes internal logic rather than call-graph size. */
     function createFunctionLogicSummaryText(logic) {
       const summary = logic.summary;
-      const parts = [summary.blockCount + " logic block" + plural(summary.blockCount)];
-      if (summary.branchCount) parts.push(summary.branchCount + " branch" + plural(summary.branchCount));
-      if (summary.loopCount) parts.push(summary.loopCount + " loop" + plural(summary.loopCount));
+      const parts = [projectAnalyzerText("logic-block-count", { count: summary.blockCount })];
+      if (summary.branchCount) parts.push(projectAnalyzerText("summary-branches", { count: summary.branchCount }));
+      if (summary.loopCount) parts.push(projectAnalyzerText("summary-loops", { count: summary.loopCount }));
       const renderCount = logic.blocks.filter((block) => block.kind === "render").length;
       const eventCount = logic.blocks.filter((block) => block.kind === "event").length;
-      if (renderCount) parts.push(renderCount + " JSX step" + plural(renderCount));
-      if (eventCount) parts.push(eventCount + " event binding" + plural(eventCount));
-      if (summary.effectCount) parts.push(summary.effectCount + " possible effect" + plural(summary.effectCount));
+      if (renderCount) parts.push(projectAnalyzerText("summary-jsx-steps", { count: renderCount }));
+      if (eventCount) parts.push(projectAnalyzerText("summary-event-bindings", { count: eventCount }));
+      if (summary.effectCount) parts.push(projectAnalyzerText("summary-effects", { count: summary.effectCount }));
       if (summary.valueChangeCount) parts.push(
-        summary.valueChangeCount + " value change" + plural(summary.valueChangeCount)
+        projectAnalyzerText("summary-value-changes", { count: summary.valueChangeCount })
       );
       else if (summary.mutationCount) parts.push(
-        summary.mutationCount + " mutation" + plural(summary.mutationCount)
+        projectAnalyzerText("summary-mutations", { count: summary.mutationCount })
       );
       const bindingCount = (logic.valueBindings || []).length;
       if (bindingCount) parts.push(
-        bindingCount + " tracked binding" + plural(bindingCount)
+        projectAnalyzerText("tracked-binding-count", { count: bindingCount })
       );
       return parts.join(" · ");
     }

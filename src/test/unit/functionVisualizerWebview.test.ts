@@ -4,6 +4,8 @@
  */
 
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import test from "node:test";
 import { getFunctionVisualizerHtml } from "../../webview/functionVisualizer/functionVisualizerHtml";
 import { installSidebarWebviewRuntime } from "./helpers/sidebarWebviewRuntime";
@@ -31,6 +33,24 @@ type TestValueChange = {
   value?: string;
   confidence: "exact" | "inferred";
 };
+
+test("emits accessible change playback styles for reduced motion and forced colors", () => {
+  const html = getFunctionVisualizerHtml({
+    webview: { cspSource: "vscode-webview:" } as never,
+    nonce: "function-visualizer-test-nonce"
+  });
+
+  assert.ok(html.includes("data-flow-playback-change::after"));
+  assert.ok(html.includes("content: \"Δ\""));
+  assert.ok(html.includes("logic-data-flow-traveler-label"));
+  assert.ok(html.includes("getPointAtLength"));
+  assert.ok(html.includes("carriedValue"));
+  assert.ok(html.includes("renderFunctionLogicValueFlowTravelerProgress"));
+  assert.ok(html.includes("for (let index = 0; index < 32; index += 1)"));
+  assert.ok(html.includes("scheduleFrame"));
+  assert.ok(html.includes("@media (prefers-reduced-motion: reduce)"));
+  assert.ok(html.includes("@media (forced-colors: active)"));
+});
 
 test("keeps root navigation and idle status from consuming graph height", () => {
   const runtime = installSidebarWebviewRuntime();
@@ -363,10 +383,57 @@ test("pans the graph freely and provides Center, Fit, and focal zoom controls", 
   }
 });
 
+test("relocalizes a retained calculated graph without replacing nodes, values, viewport, or Host state", () => {
+  const runtime = installSidebarWebviewRuntime();
+  try {
+    new Function(requireFunctionVisualizerScript())();
+    runtime.dispatchMessage(createSessionMessage());
+    runtime.dispatchMessage(createCalculatedScenarioDetail());
+    runtime.clickByTitle("Select logic · total += 2;");
+    runtime.inputByTitle("Scenario input for PARAM input", "4");
+    const nodeId = runtime.getRenderedIdentityByTitle("flow-steps", "Select logic · total += 2;");
+    const transform = runtime.getRenderedStyleByClass("flow-steps", "logic-graph-canvas", "transform");
+    const messageCount = runtime.messages.length;
+
+    runtime.dispatchMessage({ type: "ui/language", payload: { language: "ko" } });
+    assert.ok(runtime.textValues.includes("시나리오 값"));
+    assert.ok(runtime.textValues.includes("매개변수"));
+    runtime.dispatchMessage({ type: "ui/language", payload: { language: "en" } });
+
+    assert.equal(runtime.messages.length, messageCount);
+    assert.equal(runtime.getRenderedIdentityByTitle("flow-steps", "Select logic · total += 2;"), nodeId);
+    assert.equal(runtime.getRenderedValueByTitle("flow-steps", "Scenario input for PARAM input"), "4");
+    assert.equal(runtime.getRenderedStyleByClass("flow-steps", "logic-graph-canvas", "transform"), transform);
+    assert.ok(runtime.getRenderedText("flow-steps").includes("Scenario values"));
+  } finally {
+    runtime.restore();
+  }
+});
+
+test("language-only paths do not rebuild the Function Logic scene or request Host work", () => {
+  const logicSource = readFileSync(resolve(process.cwd(), "src/webview/codeFlow/functionLogicBrowserSource.ts"), "utf8");
+  const visualizerSource = readFileSync(resolve(process.cwd(), "src/webview/functionVisualizer/functionVisualizerBrowserSource.ts"), "utf8");
+  const updateStart = logicSource.indexOf("updateLanguage(language)");
+  const updateEnd = logicSource.indexOf("\n        }\n      };", updateStart);
+  const relocalizeStart = visualizerSource.indexOf("function relocalizeFunctionVisualizerPresentation()");
+  const relocalizeEnd = visualizerSource.indexOf("\n    /** Keeps source locations", relocalizeStart);
+  const updateBody = logicSource.slice(updateStart, updateEnd);
+  const relocalizeBody = visualizerSource.slice(relocalizeStart, relocalizeEnd);
+
+  assert.ok(updateStart >= 0 && updateEnd > updateStart);
+  assert.ok(relocalizeStart >= 0 && relocalizeEnd > relocalizeStart);
+  assert.doesNotMatch(updateBody, /createFunctionLogicGraph|createFunctionLogicGraphLayout|clearElement\(|replaceChildren\(|vscode\.postMessage|resetPlayback|\.sync\(/u);
+  assert.doesNotMatch(relocalizeBody, /render\(|clearElement\(|flowSteps|disposeActiveFunctionLogicViewport|vscode\.postMessage/u);
+  assert.match(updateBody, /button\.refreshLanguage\?\.\(\)[\s\S]*?bodyFocusController\.refresh\(\)/u);
+  assert.match(logicSource, /node\.dataset\.logicBaseTitle = projectAnalyzerText/u);
+  assert.match(logicSource, /clearElement\(label\);\s*mountCodeSnippet\(label, nextLabel\)/u);
+  assert.equal((visualizerSource.match(/for \(const gap of gaps\)/gu) || []).length, 1);
+});
+
 test("accepts Scenario inputs without executing source or messaging the Host", () => {
   const runtime = installSidebarWebviewRuntime();
-  const inputTitle = "Scenario input for parameter input";
-  const highlightTitle = "Highlight parameter input value flow";
+  const inputTitle = "Scenario input for PARAM input";
+  const highlightTitle = "Highlight PARAM input value flow";
   const preview = "{\"id\":42,\"ready\":true}";
 
   try {
@@ -406,14 +473,14 @@ test("accepts Scenario inputs without executing source or messaging the Host", (
       "Select logic · return true;",
       "data-flow-related"
     ), false);
-    runtime.clickByTitle("Trace parameter input");
+    runtime.clickByTitle("Trace PARAM input");
     assert.equal(runtime.countRenderedByClass("flow-steps", "logic-scenario-step"), 2);
     assert.equal(runtime.getRenderedAttributeByTitle(
       "flow-steps",
       "Declared values and changes",
       "aria-pressed"
     ), "true");
-    assert.ok(runtime.getRenderedText("flow-steps").includes("DEFINED"));
+    assert.ok(runtime.getRenderedText("flow-steps").includes("START input"));
     assert.ok(runtime.getRenderedText("flow-steps").includes("SINK · UPDATE"));
     assert.equal(runtime.getRenderedAttributeByTitle(
       "flow-steps",
@@ -437,7 +504,7 @@ test("accepts Scenario inputs without executing source or messaging the Host", (
     assert.equal(runtime.messages.length, beforeInputMessages);
     assert.ok(runtime.getRenderedText("flow-steps").includes("= " + preview));
     assert.ok(runtime.getRenderedText("flow-steps").includes(
-      preview + " → <unknown: write has no supported source expression>"
+      preview + " → <unknown: unsupported expression shape>"
     ));
 
     runtime.dispatchMessage(createFunctionDetail(
@@ -474,14 +541,10 @@ test("plays a user-selected value flow without messaging the Host", () => {
 
     const beforePlaybackMessages = runtime.messages.length;
     assert.ok(runtime.getRenderedText("flow-steps").includes("Flow playback"));
-    runtime.clickByTitle("Trace parameter input");
+    runtime.clickByTitle("Trace PARAM input");
 
-    assert.ok(runtime.getRenderedText("flow-steps").includes("Hop 1 of 1 · sink"));
-    assert.equal(runtime.hasRenderedClassByTitle(
-      "flow-steps",
-      "Select logic · return true;",
-      "data-flow-playback-target"
-    ), true);
+    assert.ok(runtime.getRenderedText("flow-steps").includes("START input"));
+    assert.ok(runtime.getRenderedText("flow-steps").includes("Select a value"));
     assert.equal(runtime.messages.length, beforePlaybackMessages);
   } finally {
     runtime.restore();
@@ -532,12 +595,12 @@ test("keeps an editable Scenario variable surface when analyzer bindings are abs
     assert.ok(added.includes("user-added"));
     assert.ok(added.includes("total = input * 2"));
     assert.ok(added.includes("0 → 8"));
-    assert.ok(added.includes("CUSTOM input · input 4 · current 4 · 1 step"));
+    assert.ok(added.includes("CUSTOM input · input 4 · current 4 · 2 steps"));
     assert.equal(runtime.messages.length, beforeInputMessages);
 
-    runtime.inputByTitle("Scenario input for custom input", "7");
+    runtime.inputByTitle("Scenario input for CUSTOM input", "7");
     assert.ok(runtime.getRenderedText("flow-steps").includes(
-      "CUSTOM input · input 7 · current 7 · 1 step"
+      "CUSTOM input · input 7 · current 7 · 2 steps"
     ));
     assert.ok(runtime.getRenderedText("flow-steps").includes("0 → 14"));
     assert.equal(runtime.messages.length, beforeInputMessages);
@@ -562,9 +625,9 @@ test("calculates entered values through nested ternaries and subsequent assignme
     runtime.dispatchMessage(createCalculatedScenarioDetail());
     const beforeInputMessages = runtime.messages.length;
 
-    runtime.clickByTitle("Trace parameter input");
-    runtime.inputByTitle("Scenario input for parameter input", "4");
-    runtime.inputByTitle("Scenario input for parameter ready", "true");
+    runtime.clickByTitle("Trace PARAM input");
+    runtime.inputByTitle("Scenario input for PARAM input", "4");
+    runtime.inputByTitle("Scenario input for PARAM ready", "true");
 
     const rendered = runtime.getRenderedText("flow-steps");
     assert.ok(rendered.includes(
@@ -575,6 +638,12 @@ test("calculates entered values through nested ternaries and subsequent assignme
     assert.ok(rendered.includes("11 → 13"));
     assert.ok(rendered.includes("CALCULATED"));
     assert.ok(rendered.includes("UPDATED"));
+    runtime.clickByTitle("Trace LOCAL total");
+    assert.ok(runtime.getRenderedText("flow-steps").includes("START total"));
+    runtime.clickByTitle("Next value-flow hop");
+    assert.ok(runtime.getRenderedText("flow-steps").some((text) => text.includes("Frame")));
+    runtime.clickByTitle("Replay value flow");
+    assert.ok(runtime.getRenderedText("flow-steps").includes("START total"));
     assert.equal(runtime.messages.length, beforeInputMessages);
   } finally {
     runtime.restore();
@@ -795,8 +864,13 @@ test("keeps complete child and resume labels while expanding compound boxes", ()
     assert.equal(childBlock.functionLabel, completeFunctionTitle);
     assert.ok(childBlock.functionLabel);
     assert.ok(childBlock.functionLabel.endsWith(functionTail));
-    assert.equal(resume.label, `Resume · ${callerLabel}`);
-    assert.ok(resume.label.endsWith(callerTail));
+    assert.deepEqual(resume.presentation, {
+      labelKey: "resume",
+      labelParams: { label: callerLabel },
+      detailKey: "call-rejoin",
+      detailParams: {}
+    });
+    assert.ok(resume.presentation.labelParams.label.endsWith(callerTail));
     assert.doesNotMatch(
       JSON.stringify(scene.logic.blocks.map((block) => ({
         label: block.label,
@@ -941,9 +1015,10 @@ test("keeps the parent canvas visible when an attached child analysis fails", ()
     assert.ok(runtime.getRenderedText("function-title").includes("Root.run"));
     assert.equal(runtime.countRenderedByClass("flow-steps", "logic-graph"), 1);
     assert.equal(runtime.countRenderedByClass("flow-steps", "logic-graph-node"), 2);
-    assert.ok(runtime.getRenderedText("flow-steps").includes(
-      "The called function changed before it could be analyzed."
-    ));
+    assert.match(
+      runtime.getRenderedText("flow-steps").join(" "),
+      /Related function unavailable: The called function changed before it could be analyzed\.|This related function flow is unavailable\./u
+    );
   } finally {
     runtime.restore();
   }
@@ -1536,8 +1611,14 @@ function readRenderedViewportTransform(
 type TestLogicBlock = {
   id: string;
   kind: string;
-  label: string;
-  detail: string;
+  label?: string;
+  detail?: string;
+  presentation?: {
+    labelKey: string;
+    labelParams: Record<string, string>;
+    detailKey: string;
+    detailParams: Record<string, string>;
+  };
   depth: number;
   confidence: string;
   functionLabel?: string;

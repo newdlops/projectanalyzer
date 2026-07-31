@@ -73,15 +73,17 @@ export function getFunctionLogicSelectionBrowserSource(): string {
       clearElement(panel);
       const header = document.createElement("div");
       const name = document.createElement("strong");
-      const confidence = createBadge(block.confidence, "confidence " + block.confidence);
+      const confidence = createBadge(projectAnalyzerText("logic-confidence-" + (block.confidence || "unknown")), "confidence " + block.confidence);
       const detail = document.createElement("p");
       const meta = document.createElement("div");
       header.className = "logic-selection-header";
-      mountCodeSnippet(name, block.label);
+      mountCodeSnippet(name, formatLogicBlockLabel(block));
       detail.className = "logic-selection-detail";
-      detail.textContent = block.detail;
+      detail.textContent = formatLogicBlockDetail(block);
       meta.className = "logic-selection-meta";
-      meta.textContent = [block.branchLabel, block.sourceLocation].filter(Boolean).join(" · ");
+      const branch = block.branchPresentation?.key
+        ? projectAnalyzerText(block.branchPresentation.key, block.branchPresentation.params) : block.branchLabel;
+      meta.textContent = [branch, block.sourceLocation].filter(Boolean).join(" · ");
       header.append(createBadge(formatLogicKind(block.kind), "logic-kind " + block.kind), name, confidence);
       panel.append(header, detail);
       if (meta.textContent) panel.append(meta);
@@ -89,8 +91,8 @@ export function getFunctionLogicSelectionBrowserSource(): string {
         const focusBody = document.createElement("button");
         focusBody.type = "button";
         focusBody.className = "logic-button logic-focus-body";
-        focusBody.textContent = "Focus this body";
-        focusBody.title = "Show this body as the outer frame";
+        focusBody.textContent = projectAnalyzerText("focus-body");
+        focusBody.title = projectAnalyzerText("body-show-outermost");
         focusBody.addEventListener("click", () => graphContext.focusBody(block.id));
         panel.append(focusBody);
       }
@@ -100,10 +102,8 @@ export function getFunctionLogicSelectionBrowserSource(): string {
         focusEmbedded.type = "button";
         focusEmbedded.className = "logic-button logic-focus-embedded";
         const focused = Boolean(graphContext.isEmbeddedFocused?.(embeddedBoundaryId));
-        focusEmbedded.textContent = focused ? "Show full function graph" : "Focus embedded code";
-        focusEmbedded.title = focused
-          ? "Show the full function graph"
-          : "Focus this static embedded program";
+        focusEmbedded.textContent = projectAnalyzerText(focused ? "show-graph" : "focus-body");
+        focusEmbedded.title = projectAnalyzerText(focused ? "show-full-graph" : "focus-embedded");
         focusEmbedded.addEventListener("click", () => graphContext.focusEmbedded(
           focused ? undefined : embeddedBoundaryId
         ));
@@ -127,7 +127,7 @@ export function getFunctionLogicSelectionBrowserSource(): string {
         const changes = document.createElement("div");
         const title = document.createElement("strong");
         changes.className = "logic-selection-value-section";
-        title.textContent = "Values changed here";
+        title.textContent = projectAnalyzerText("values-changed");
         changes.append(
           title,
           createLogicValueChangeList(block.valueChanges, "logic-selection-value-changes")
@@ -139,7 +139,7 @@ export function getFunctionLogicSelectionBrowserSource(): string {
         const accesses = document.createElement("div");
         const title = document.createElement("strong");
         accesses.className = "logic-selection-access-section";
-        title.textContent = "Parameters, locals, and constants here";
+        title.textContent = projectAnalyzerText("bindings-here");
         accesses.append(
           title,
           createFunctionLogicValueAccessList(
@@ -176,11 +176,9 @@ export function getFunctionLogicSelectionBrowserSource(): string {
         const callees = document.createElement("div");
         const title = document.createElement("strong");
         callees.className = "logic-selection-callees";
-        title.textContent = block.drillTargets.some((target) => target.relation === "event")
-          ? "Inspect separately dispatched event handlers"
-          : block.drillTargets.some((target) => target.relation === "render")
-            ? "Continue into rendered or called code"
-            : "Continue into called code";
+        title.textContent = projectAnalyzerText(block.drillTargets.some((target) => target.relation === "event")
+          ? "inspect-events" : block.drillTargets.some((target) => target.relation === "render")
+            ? "continue-rendered" : "continue-called");
         callees.append(title);
         for (const target of block.drillTargets) {
           callees.append(createDrillTargetButton(target, block, graphContext));
@@ -192,8 +190,8 @@ export function getFunctionLogicSelectionBrowserSource(): string {
         const source = document.createElement("button");
         source.type = "button";
         source.className = "logic-button logic-open-statement";
-        source.textContent = "Open statement";
-        source.title = "Open statement" + (block.sourceLocation ? " · " + block.sourceLocation : "");
+        source.textContent = projectAnalyzerText("open-statement");
+        source.title = projectAnalyzerText("open-statement") + (block.sourceLocation ? " · " + block.sourceLocation : "");
         source.addEventListener("click", () => openLogicEvidence(block.evidenceToken));
         panel.append(source);
       }
@@ -206,7 +204,7 @@ export function getFunctionLogicSelectionBrowserSource(): string {
       const expression = document.createElement("code");
       const matrix = document.createElement("div");
       section.className = "logic-condition-cases";
-      heading.textContent = "Condition cases";
+      heading.textContent = projectAnalyzerText("condition-cases");
       expression.className = "logic-condition-expression";
       expression.textContent = table.expression;
       matrix.className = "logic-condition-case-table";
@@ -219,7 +217,7 @@ export function getFunctionLogicSelectionBrowserSource(): string {
         cell.title = column.expression;
         header.append(cell);
       }
-      header.append(createConditionCaseCell("Result"), createConditionCaseCell("Next"));
+      header.append(createConditionCaseCell(projectAnalyzerText("result")), createConditionCaseCell(projectAnalyzerText("next")));
       matrix.append(header);
       for (const row of table.rows) {
         const button = document.createElement("button");
@@ -228,7 +226,7 @@ export function getFunctionLogicSelectionBrowserSource(): string {
         );
         button.type = "button";
         button.className = "logic-condition-case-row" + (selected ? " selected" : "");
-        button.title = (selected ? "Clear" : "Apply") + " condition case · " + table.expression;
+        button.title = projectAnalyzerText("condition-case", { action: projectAnalyzerText(selected ? "clear" : "apply"), expression: table.expression });
         button.setAttribute("aria-pressed", selected ? "true" : "false");
         for (const value of row.values) {
           button.append(createConditionCaseCell(value === "skipped" ? "—" : value));
@@ -241,7 +239,7 @@ export function getFunctionLogicSelectionBrowserSource(): string {
       if (table.omittedCaseCount > 0) {
         const omitted = document.createElement("p");
         omitted.className = "logic-condition-case-omitted";
-        omitted.textContent = table.omittedCaseCount + " additional cases are hidden.";
+        omitted.textContent = projectAnalyzerText("additional-cases", { count: table.omittedCaseCount });
         section.append(omitted);
       }
       return section;

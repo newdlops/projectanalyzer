@@ -19,29 +19,31 @@ export function getFunctionLogicDrillBrowserSource(): string {
       const eventTargetCount = targets.filter((target) => target.relation === "event").length;
       section.className = "logic-callees";
       header.className = "logic-callees-header";
-      title.textContent = eventTargetCount > 0
-        ? "Go deeper into calls, renders, or event handlers"
-        : renderTargetCount > 0
-          ? "Go deeper into called or rendered code"
-          : "Go deeper into called functions";
-      detail.textContent = eventTargetCount > 0
-        ? "Event handlers open as dispatch branches and do not return into the registration flow."
-        : "Open a statically resolved definition, then use the breadcrumb to return.";
+      const titleKey = eventTargetCount > 0 ? "callee-events-title" : renderTargetCount > 0 ? "callee-render-title" : "callee-call-title";
+      const detailKey = eventTargetCount > 0 ? "callee-events-detail" : "callee-detail";
+      const count = createBadge(projectAnalyzerText("child-target-count", { count: targets.length }), "logic-callee-count");
+      title.textContent = projectAnalyzerText(titleKey);
+      detail.textContent = projectAnalyzerText(detailKey);
       list.className = "logic-callee-list";
       text.append(title, detail);
-      header.append(text, createBadge(
-        targets.length + " child target" + plural(targets.length),
-        "logic-callee-count"
-      ));
-      for (const target of targets) list.append(createDrillTargetButton(target));
+      header.append(text, count);
+      const buttons = targets.map((target) => createDrillTargetButton(target));
+      for (const button of buttons) list.append(button);
       if (omittedCount > 0) {
         const omitted = document.createElement("small");
         omitted.className = "logic-callee-omitted";
-        omitted.textContent = omittedCount + " additional concrete child target" + plural(omittedCount)
-          + " omitted by the display limit.";
+        omitted.textContent = projectAnalyzerText("child-targets-omitted", { count: omittedCount });
         list.append(omitted);
       }
       section.append(header, list);
+      section.refreshLanguage = () => {
+        title.textContent = projectAnalyzerText(titleKey);
+        detail.textContent = projectAnalyzerText(detailKey);
+        count.textContent = projectAnalyzerText("child-target-count", { count: targets.length });
+        for (const button of buttons) button.refreshLanguage?.();
+        const omitted = list.querySelector?.(".logic-callee-omitted");
+        if (omitted) omitted.textContent = projectAnalyzerText("child-targets-omitted", { count: omittedCount });
+      };
       return section;
     }
 
@@ -59,26 +61,16 @@ export function getFunctionLogicDrillBrowserSource(): string {
       );
       const renderedComponent = target.relation === "render";
       const eventHandler = target.relation === "event";
-      const targetRole = renderedComponent
-        ? "rendered component"
-        : eventHandler ? "event handler" : "child function";
+      const targetRole = projectAnalyzerText(renderedComponent ? "rendered-component" : eventHandler ? "event-handler" : "child-function");
       button.type = "button";
       button.className = "logic-callee-button";
       button.classList.toggle("expanded", expandedInline);
-      button.title = (expandedInline
-        ? "Collapse " + targetRole + " · "
-        : expandsInline
-          ? "Attach " + targetRole + " · "
-          : "Open " + targetRole + " · ")
-        + target.qualifiedName;
+      button.title = projectAnalyzerText(expandedInline ? "collapse-target" : expandsInline ? "attach-target" : "open-target", { role: targetRole, label: target.qualifiedName });
       name.textContent = target.qualifiedName || target.name;
       meta.textContent = [
         target.sourceLocation,
-        target.confidence,
-        target.callsiteCount + (renderedComponent
-          ? " render site"
-          : eventHandler ? " event binding" : " callsite")
-          + plural(target.callsiteCount)
+        projectAnalyzerText("logic-confidence-" + (target.confidence || "unknown")),
+        projectAnalyzerText(renderedComponent ? "render-sites" : eventHandler ? "event-bindings" : "callsites", { count: target.callsiteCount })
       ].filter(Boolean).join(" · ");
       button.append(name, meta);
       button.addEventListener("click", () => {
@@ -88,6 +80,11 @@ export function getFunctionLogicDrillBrowserSource(): string {
         }
         drillIntoFunction(target);
       });
+      button.refreshLanguage = () => {
+        const role = projectAnalyzerText(renderedComponent ? "rendered-component" : eventHandler ? "event-handler" : "child-function");
+        button.title = projectAnalyzerText(expandedInline ? "collapse-target" : expandsInline ? "attach-target" : "open-target", { role: role, label: target.qualifiedName });
+        meta.textContent = [target.sourceLocation, projectAnalyzerText("logic-confidence-" + (target.confidence || "unknown")), projectAnalyzerText(renderedComponent ? "render-sites" : eventHandler ? "event-bindings" : "callsites", { count: target.callsiteCount })].filter(Boolean).join(" · ");
+      };
       return button;
     }
   `;

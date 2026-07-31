@@ -24,20 +24,29 @@ export function getFunctionLogicGraphHeaderBrowserSource(): string {
       const readGroup = document.createElement("div");
       const viewportControls = createFunctionLogicViewportControls(viewportController);
       header.className = "logic-graph-header";
-      title.textContent = graphTitle || "Control paths";
+      const resolveTitle = () => typeof graphTitle === "function" ? graphTitle() : (graphTitle || projectAnalyzerText("control-paths-title"));
+      title.textContent = resolveTitle();
       controls.className = "logic-graph-controls";
       showGroup.className = "logic-graph-control-group logic-graph-show-group";
       viewGroup.className = "logic-graph-control-group logic-graph-view-group";
       readGroup.className = "logic-graph-control-group logic-graph-read-group";
-      showGroup.append(createLogicGraphControlLabel("Show"), lensToolbar);
-      viewGroup.append(createLogicGraphControlLabel("View"), viewportControls);
-      readGroup.append(createLogicGraphControlLabel("Read"));
+      showGroup.append(createLogicGraphControlLabel(projectAnalyzerText("show")), lensToolbar);
+      viewGroup.append(createLogicGraphControlLabel(projectAnalyzerText("view")), viewportControls);
+      readGroup.append(createLogicGraphControlLabel(projectAnalyzerText("read")));
       // append(undefined) creates visible text in browsers, so Tutor's
       // optional control must be added only when the host supplied one.
       if (extraControl) readGroup.append(extraControl);
       readGroup.append(inspectorToggle);
       controls.append(showGroup, viewGroup, readGroup);
       header.append(title, controls, lensLegend);
+      // Keep stable header nodes: a language update must not replace controls
+      // because callers retain focus and viewport state across the update.
+      header.refreshLanguage = () => {
+        title.textContent = resolveTitle();
+        showGroup.firstChild.textContent = projectAnalyzerText("show");
+        viewGroup.firstChild.textContent = projectAnalyzerText("view");
+        readGroup.firstChild.textContent = projectAnalyzerText("read");
+      };
       return header;
     }
 

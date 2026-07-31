@@ -69,9 +69,41 @@ export function getFunctionLogicValueFlowPlaybackStyles(): string {
     .logic-data-flow-edge.playback-past { opacity: 0.58; }
 
     .logic-graph-node.data-flow-playback-source,
-    .logic-graph-node.data-flow-playback-target {
+    .logic-graph-node.data-flow-playback-target,
+    .logic-graph-node.data-flow-playback-current {
       border-color: var(--vscode-focusBorder);
       box-shadow: 0 0 0 3px color-mix(in srgb, var(--vscode-focusBorder) 32%, transparent);
+    }
+
+    .logic-graph-node.data-flow-playback-change {
+      position: relative;
+      border-color: var(--vscode-charts-orange, var(--vscode-focusBorder));
+      animation: logic-value-flow-change-ring 440ms ease-out 1;
+    }
+
+    .logic-graph-node.data-flow-playback-change::after {
+      content: "Δ";
+      position: absolute;
+      top: -0.7em;
+      right: -0.45em;
+      z-index: 2;
+      display: grid;
+      width: 1.45em;
+      height: 1.45em;
+      place-items: center;
+      color: var(--vscode-editor-background);
+      background: var(--vscode-charts-orange, var(--vscode-focusBorder));
+      border: 1px solid var(--vscode-editor-background);
+      border-radius: 50%;
+      font-size: var(--logic-font-tiny);
+      font-weight: 800;
+      line-height: 1;
+      pointer-events: none;
+    }
+
+    @keyframes logic-value-flow-change-ring {
+      from { box-shadow: 0 0 0 0 var(--vscode-charts-orange, var(--vscode-focusBorder)); }
+      to { box-shadow: 0 0 0 5px transparent; }
     }
 
     .logic-graph-node.data-flow-playback-target.data-flow-sink {
@@ -79,23 +111,42 @@ export function getFunctionLogicValueFlowPlaybackStyles(): string {
     }
 
     .logic-data-flow-traveler {
-      fill: var(--vscode-focusBorder);
-      stroke: var(--vscode-editor-background);
-      stroke-width: 2;
       pointer-events: none;
-      transform-box: fill-box;
-      transform-origin: center;
+    }
+
+    .logic-data-flow-traveler-body {
+      fill: var(--vscode-button-background, var(--vscode-focusBorder));
+      stroke: var(--vscode-editor-background);
+      stroke-width: 1.5;
+    }
+
+    .logic-data-flow-traveler-label {
+      fill: var(--vscode-button-foreground, var(--vscode-editor-background));
+      font-family: var(--vscode-font-family);
+      font-size: var(--logic-font-tiny);
+      font-weight: 700;
+      pointer-events: none;
     }
 
     @media (prefers-reduced-motion: reduce) {
       .logic-data-flow-traveler { display: none; }
+      .logic-graph-node.data-flow-playback-change { animation: none; }
     }
 
     @media (forced-colors: active) {
       .logic-value-flow-playback { border-color: CanvasText; }
       .logic-data-flow-edge.playback-active { stroke: Highlight; }
+      .logic-data-flow-traveler-body { fill: Highlight; stroke: Canvas; }
+      .logic-data-flow-traveler-label { fill: HighlightText; }
       .logic-graph-node.data-flow-playback-source,
-      .logic-graph-node.data-flow-playback-target { outline: 2px solid Highlight; }
+      .logic-graph-node.data-flow-playback-target,
+      .logic-graph-node.data-flow-playback-current,
+      .logic-graph-node.data-flow-playback-change { outline: 2px solid Highlight; }
+      .logic-graph-node.data-flow-playback-change::after {
+        color: HighlightText;
+        background: Highlight;
+        border-color: Canvas;
+      }
     }
   `;
 }

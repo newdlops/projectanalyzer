@@ -272,8 +272,8 @@ export function getFunctionLogicBranchChoicesBrowserSource(): string {
       button.type = "button";
       button.className = "flow-badge logic-transfer logic-transfer-choice " + edge.kind
         + (selected ? " selected" : "");
-      button.textContent = (selected ? "Selected " : "Choose ") + transfer;
-      button.title = (selected ? "Clear selected path · " : "Choose path · ") + transfer;
+      button.textContent = projectAnalyzerText(selected ? "selected-path" : "choose-path-button", { label: transfer });
+      button.title = projectAnalyzerText(selected ? "clear-selected-path" : "choose-branch-path", { label: transfer });
       button.setAttribute("aria-pressed", selected ? "true" : "false");
       button.addEventListener("click", () => onChoice(edge));
       return button;
@@ -286,13 +286,11 @@ export function getFunctionLogicBranchChoicesBrowserSource(): string {
       const text = document.createElement("span");
       const reset = document.createElement("button");
       summary.className = "logic-choice-summary";
-      text.textContent = choices.size + " branch choice"
-        + (choices.size === 1 ? "" : "s")
-        + " selected · reachable continuation highlighted";
+      text.textContent = projectAnalyzerText("branch-summary", { count: choices.size });
       reset.type = "button";
       reset.className = "logic-choice-reset";
-      reset.textContent = "Reset choices";
-      reset.title = "Clear all selected branch choices";
+      reset.textContent = projectAnalyzerText("reset-choices");
+      reset.title = projectAnalyzerText("clear-branch-choices");
       reset.addEventListener("click", onClear);
       summary.append(text, reset);
       return summary;

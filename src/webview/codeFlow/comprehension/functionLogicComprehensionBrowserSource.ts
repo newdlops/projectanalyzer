@@ -133,7 +133,9 @@ export function getFunctionLogicComprehensionBrowserSource(): string {
         clearGuideFocus() { dispatch({ type: "clear-guide-focus" }); },
         setLens(lens) { dispatch({ type: "set-lens", lens }); },
         subscribe(listener) { listeners.add(listener); return () => listeners.delete(listener); },
-        refresh
+        refresh,
+        /** Notifies retained toolbar/legend/ledger subscribers after a locale change. */
+        refreshLanguage() { for (const listener of listeners) listener(comprehensionState); }
       };
     }
 
@@ -144,29 +146,37 @@ export function getFunctionLogicComprehensionBrowserSource(): string {
       const buttons = new Map();
       toolbar.className = "logic-lens-toolbar";
       toolbar.setAttribute("role", "group");
-      toolbar.setAttribute("aria-label", "Function reading lens");
+      toolbar.setAttribute("aria-label", projectAnalyzerText("reading-lens"));
       label.className = "logic-lens-label";
-      label.textContent = "Show";
+      label.textContent = projectAnalyzerText("show");
       toolbar.append(label);
       for (const descriptor of [
-        ["flow", "Flow", "Control structure and possible paths"],
-        ["values", "Values", "Declared values and changes"],
-        ["calls", "Calls", "Called, rendered, and event code"],
-        ["effects", "Effects", "Mutations, returns, and throws"]
+        ["flow", "lens-flow", "lens-flow-help"],
+        ["values", "lens-values", "lens-values-help"],
+        ["calls", "lens-calls", "lens-calls-help"],
+        ["effects", "lens-effects", "lens-effects-help"]
       ]) {
         const [lens, text, title] = descriptor;
         const button = document.createElement("button");
         button.type = "button";
         button.className = "logic-lens-button";
-        button.textContent = text;
-        button.title = title;
+        button.textContent = projectAnalyzerText(text);
+        button.title = projectAnalyzerText(title);
         button.setAttribute("aria-pressed", lens === controller.getState().lens ? "true" : "false");
         button.addEventListener("click", () => controller.setLens(lens));
         toolbar.append(button);
         buttons.set(lens, button);
       }
       controller.subscribe((readerState) => {
+        toolbar.setAttribute("aria-label", projectAnalyzerText("reading-lens"));
+        label.textContent = projectAnalyzerText("show");
         for (const [lens, button] of buttons) {
+          const descriptor = {
+            flow: ["lens-flow", "lens-flow-help"], values: ["lens-values", "lens-values-help"],
+            calls: ["lens-calls", "lens-calls-help"], effects: ["lens-effects", "lens-effects-help"]
+          }[lens];
+          button.textContent = projectAnalyzerText(descriptor[0]);
+          button.title = projectAnalyzerText(descriptor[1]);
           button.setAttribute("aria-pressed", lens === readerState.lens ? "true" : "false");
         }
       });
@@ -177,15 +187,15 @@ export function getFunctionLogicComprehensionBrowserSource(): string {
     function createFunctionLogicLensLegend(controller) {
       const legend = document.createElement("div");
       const descriptorsByLens = {
-        flow: [["solid · exact", "exact"], ["dashed · inferred", "inferred"], ["◇ choose path", "choice"]],
-        values: [["Δ changed", "value-change"], ["⇢ declaration → use", "value-flow"], ["dashed · inferred", "inferred"]],
-        calls: [["solid · immediate call", "exact"], ["dashed · deferred", "event"], ["ƒ defined · not invoked", "callable"]],
-        effects: [["Δ mutation", "value-change"], ["return / throw", "event"], ["dashed · inferred", "inferred"]]
+        flow: [["legend-solid-exact", "exact"], ["legend-dashed-inferred", "inferred"], ["legend-choose-path", "choice"]],
+        values: [["legend-value-changed", "value-change"], ["legend-declaration-use", "value-flow"], ["legend-dashed-inferred", "inferred"]],
+        calls: [["legend-solid-immediate-call", "exact"], ["legend-dashed-deferred", "event"], ["legend-defined-not-invoked", "callable"]],
+        effects: [["legend-mutation", "value-change"], ["legend-return-throw", "event"], ["legend-dashed-inferred", "inferred"]]
       };
       const render = (readerState) => {
         clearElement(legend);
         for (const [text, className] of descriptorsByLens[readerState.lens]) {
-          legend.append(createBadge(text, "logic-legend " + className));
+          legend.append(createBadge(projectAnalyzerText(text), "logic-legend " + className));
         }
       };
       legend.className = "logic-graph-legend";
@@ -212,8 +222,8 @@ export function getFunctionLogicComprehensionBrowserSource(): string {
         const list = document.createElement("ol");
         const selectedIndex = Math.max(0, orderedBlocks.findIndex((block) => block.id === readerState.selectedBlockId));
         const start = Math.max(0, Math.min(selectedIndex - 2, Math.max(0, orderedBlocks.length - 5)));
-        heading.textContent = "Static Flow Ledger";
-        detail.textContent = "Possible static reading order, not an execution trace.";
+        heading.textContent = projectAnalyzerText("static-ledger");
+        detail.textContent = projectAnalyzerText("possible-static");
         list.className = "logic-static-ledger-list";
         for (const block of orderedBlocks.slice(start, start + 5)) {
           const item = document.createElement("li");
@@ -222,10 +232,10 @@ export function getFunctionLogicComprehensionBrowserSource(): string {
           const label = document.createElement("strong");
           button.type = "button";
           button.className = "logic-static-ledger-step";
-          button.title = "Select static step · " + block.label;
+          button.title = projectAnalyzerText("select-static-step", { label: formatLogicBlockLabel(block) });
           button.setAttribute("aria-current", block.id === readerState.selectedBlockId ? "step" : "false");
           kind.textContent = formatLogicKind(block.kind);
-          label.textContent = block.label;
+          label.textContent = formatLogicBlockLabel(block);
           button.append(kind, label);
           button.addEventListener("click", () => controller.activateBlock(block.id, true));
           item.append(button);
