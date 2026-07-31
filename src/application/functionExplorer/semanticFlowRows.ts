@@ -12,8 +12,7 @@ import type {
   FunctionExplorerRow
 } from "../../protocol/functionExplorer";
 import {
-  createEntrypointArchitecturePayload,
-  formatFunctionArchitectureSummary
+  createEntrypointArchitecturePayload
 } from "../functionArchitecture";
 import { createFlowStepArchitecturePayload } from "./semanticFlowArchitecture";
 
@@ -352,8 +351,7 @@ function createHandlerRow(
     expanded: false,
     functionId: step.functionId,
     symbolId: concrete ? step.functionId : undefined,
-    detail: `${formatFunctionArchitectureSummary(architecture)} · `
-      + `${getUnitKindLabel(step.unitKind)} · ${formatSourceLocation(step)}`,
+    detail: formatSourceLocation(step),
     filePath: step.filePath,
     range: step.range,
     functionKind: concrete ? "handler" : step.functionId ? "unresolved" : undefined,
@@ -495,8 +493,7 @@ function createDownstreamRow(
     symbolId: concrete ? step.functionId : undefined,
     edgeIds: step.callEdgeId ? [step.callEdgeId] : undefined,
     relation: "downstream",
-    detail: `${formatFunctionArchitectureSummary(architecture)} · `
-      + `${getDownstreamKindLabel(step)} · ${formatSourceLocation(step)}`,
+    detail: formatSourceLocation(step),
     filePath: step.filePath || undefined,
     range: step.range,
     functionKind: concrete
@@ -698,15 +695,6 @@ function formatSourceLocation(step: SemanticFlowStep): string {
   return step.filePath ? `${step.filePath}${line}` : "source unavailable";
 }
 
-/** Converts framework unit kinds into concise user-facing labels. */
-function getUnitKindLabel(unitKind: SemanticFlowStep["unitKind"]): string {
-  if (unitKind === "operation") {
-    return "Resolver";
-  }
-
-  return unitKind === "view" ? "View" : unitKind === "controller" ? "Controller" : "Handler";
-}
-
 /** Maps domain-only semantic roles onto the existing Function Explorer vocabulary. */
 function toFunctionExplorerRole(role: SemanticFlowStep["role"]): FunctionExplorerRole {
   if (role === "model") {
@@ -718,28 +706,6 @@ function toFunctionExplorerRole(role: SemanticFlowStep["role"]): FunctionExplore
   }
 
   return role;
-}
-
-/** Returns a concise, evidence-safe call classification for a row detail. */
-function getDownstreamKindLabel(step: SemanticFlowStep): string {
-  if (step.resolution === "unresolved") {
-    return "Unresolved call target";
-  }
-
-  if (step.resolution === "external") {
-    return "External call target";
-  }
-
-  switch (step.role) {
-    case "resolver": return "Resolver";
-    case "controller": return "Controller";
-    case "service": return "Service";
-    case "repository": return "Repository";
-    case "model": return "Model operation";
-    case "sideEffect": return "Possible side effect";
-    case "routeHandler": return "Route handler";
-    default: return "Call";
-  }
 }
 
 /** Converts every domain coverage category into an explicit user-facing diagnosis. */

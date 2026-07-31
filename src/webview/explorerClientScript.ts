@@ -13,6 +13,7 @@ import {
 } from "./explorerGraphOrdering";
 import { getExplorerCanvasRendererSource } from "./explorerCanvasRenderer";
 import { getProgressiveFileGraphBrowserSource } from "./explorerProgressiveFileGraph";
+import { getExplorerProgressiveHelpersBrowserSource } from "./explorerProgressiveHelpersBrowserSource";
 import { createCrossFreeTreePositions } from "./explorerGraphTreeLayout";
 
 /** Data injected into the browser-side explorer script. */
@@ -59,6 +60,9 @@ export function getExplorerClientScript(options: ExplorerClientScriptOptions): s
       mode: ${JSON.stringify(options.initialMode)},
       selectedNodeId: virtualRootId,
       analysisState: "idle",
+      /** Browser-owned status/canvas copy only; Host analysis text remains literal. */
+      browserStatus: undefined,
+      canvasMessage: undefined,
       expandedGraphNodeIds: createDefaultExpandedNodeIds(),
       viewport: { scale: 1, x: 0, y: 0 },
       pan: { active: false, pointerId: undefined, lastClientX: 0, lastClientY: 0, moved: false },
@@ -92,7 +96,7 @@ export function getExplorerClientScript(options: ExplorerClientScriptOptions): s
         state.mode = button.dataset.mode;
         resetGraphFocus();
         resetViewport();
-        postRequest("graph/load", { mode: state.mode, depth: defaultDepth }, "Switching view");
+        postRequest("graph/load", { mode: state.mode, depth: defaultDepth }, "graph-switching-view");
         render();
       });
     }
@@ -124,9 +128,14 @@ export function getExplorerClientScript(options: ExplorerClientScriptOptions): s
 
     window.addEventListener("message", (event) => {
       const message = event.data;
+      if (message.type === "ui/language") {
+        applyProjectAnalyzerLanguage(message.payload?.language === "ko" ? "ko" : "en");
+        refreshLocalizedGraphChrome();
+        return;
+      }
 
       if (message.type === "ui/ready") {
-        elements.status.textContent = "Connected";
+        setBrowserStatus("connected");
         return;
       }
 
@@ -140,7 +149,7 @@ export function getExplorerClientScript(options: ExplorerClientScriptOptions): s
         });
         resetGraphFocus();
         resetViewport();
-        elements.status.textContent = formatProjectionStatus(state.graph);
+        setBrowserStatus(...formatProjectionStatus(state.graph));
         render();
         return;
       }
@@ -152,6 +161,7 @@ export function getExplorerClientScript(options: ExplorerClientScriptOptions): s
 
       if (message.type === "analysis/status") {
         state.analysisState = message.payload.state;
+        state.browserStatus = undefined;
         elements.status.textContent = message.payload.message;
         return;
       }
@@ -174,16 +184,47 @@ export function getExplorerClientScript(options: ExplorerClientScriptOptions): s
 
       if (message.type === "error") {
         state.analysisState = "failed";
-        elements.status.textContent = message.payload.message;
+        const detail = message.payload.detail;
+        const key = message.payload.code === "analysis.failed"
+          ? "error-analysis.failed"
+          : message.payload.code === "analysis.currentFileFailed" ? "error-analysis.currentFileFailed" : undefined;
+        if (key) setBrowserStatus(key, { detail: detail ? ": " + detail : "" });
+        else {
+          state.browserStatus = undefined;
+          elements.status.textContent = message.payload.message;
+        }
       }
     });
 
     render();
-    postRequest("ui/ready", {}, "Connecting");
+    postRequest("ui/ready", {}, "connecting-status");
 
-    function postRequest(type, payload, statusText) {
-      elements.status.textContent = statusText;
+    function postRequest(type, payload, statusKey, params) {
+      setBrowserStatus(statusKey, params);
       vscode.postMessage({ type, payload });
+    }
+
+    /** Stores only browser-owned copy in semantic form for language refreshes. */
+    function setBrowserStatus(key, params) {
+      state.browserStatus = { key, params };
+      elements.status.textContent = projectAnalyzerText(key, params);
+    }
+
+    /** Rewrites retained chrome without recreating scene, layout, viewport, or requests. */
+    function refreshLocalizedGraphChrome() {
+      if (state.browserStatus) {
+        elements.status.textContent = projectAnalyzerText(state.browserStatus.key, state.browserStatus.params);
+      }
+      if (state.canvasMessage) {
+        graphRenderer.updateMessage(projectAnalyzerText(state.canvasMessage.key, state.canvasMessage.params));
+      }
+      graphRenderer.updateNodeLabel(virtualRootId, projectAnalyzerText("graph-project-root"));
+    }
+
+    /** Stores browser-owned canvas copy and uses clear only when there is no scene to retain. */
+    function clearCanvasWithMessage(key, params) {
+      state.canvasMessage = { key, params };
+      graphRenderer.clearWithMessage(projectAnalyzerText(key, params));
     }
 
     function render() {
@@ -212,7 +253,7 @@ export function getExplorerClientScript(options: ExplorerClientScriptOptions): s
       });
 
       if (!state.graph) {
-        graphRenderer.clearWithMessage("Analyze to render graph");
+        clearCanvasWithMessage("graph-empty-analyze");
         return;
       }
 
@@ -233,19 +274,26 @@ export function getExplorerClientScript(options: ExplorerClientScriptOptions): s
       });
 
       if (scene.nodes.length === 0) {
-        graphRenderer.clearWithMessage("No graph nodes in this view");
+        clearCanvasWithMessage("graph-empty-nodes");
         return;
       }
 
       graphRenderer.setScene(scene);
+      state.canvasMessage = undefined;
       logWebview("debug", "render.queued", graphRenderer.getSceneBounds() || {});
     }
 
     function reportGraphRenderError(error) {
-      const message = error instanceof Error ? error.message : "Unknown graph render failure";
-      elements.status.textContent = "Render failed: " + message;
-      graphRenderer.clearWithMessage("Render failed");
-      logWebview("error", "render.failed", { message });
+      // Error messages are source literals; unknown thrown values need a semantic key so
+      // a later locale refresh does not retain copy from the previous language.
+      const isError = error instanceof Error;
+      const message = isError ? error.message : undefined;
+      setBrowserStatus(
+        isError ? "render-failed" : "graph-render-failed-unknown",
+        isError ? { detail: message } : undefined
+      );
+      clearCanvasWithMessage("graph-render-failed-message");
+      logWebview("error", "render.failed", { message: message || "unknown" });
       console.error(error);
     }
 
@@ -663,7 +711,7 @@ export function getExplorerClientScript(options: ExplorerClientScriptOptions): s
 
     function resolveProgressiveNode(graph, nodeId) {
       if (nodeId === virtualRootId) {
-        return createVirtualNode(virtualRootId, "Project Root", "workspace", graph.workspaceRoot);
+        return createVirtualNode(virtualRootId, projectAnalyzerText("graph-project-root"), "workspace", graph.workspaceRoot);
       }
 
       if (nodeId.startsWith("virtual::path::")) {
@@ -704,86 +752,7 @@ export function getExplorerClientScript(options: ExplorerClientScriptOptions): s
       return ["function", "method", "constructor"].includes(node.kind);
     }
 
-    function createVirtualNode(id, name, kind, filePath) {
-      return {
-        id,
-        kind,
-        name,
-        qualifiedName: name,
-        filePath,
-        range: emptyRange(),
-        selectionRange: emptyRange(),
-        language: "virtual"
-      };
-    }
-
-    function createProgressiveEdge(sourceId, targetId, kind) {
-      return {
-        id: "edge::progressive::" + sourceId + "::" + targetId,
-        kind,
-        sourceId,
-        targetId,
-        filePath: "",
-        range: emptyRange(),
-        confidence: "exact"
-      };
-    }
-
-    function addNode(nodesById, node) {
-      nodesById.set(node.id, node);
-    }
-
-    function addEdge(edgesById, edge) {
-      edgesById.set(edge.id, edge);
-    }
-
-    function isVirtualNodeId(nodeId) {
-      return nodeId.startsWith("virtual::");
-    }
-
-    function emptyRange() {
-      return {
-        startLine: 0,
-        startCharacter: 0,
-        endLine: 0,
-        endCharacter: 0
-      };
-    }
-
-    function clamp(value, min, max) {
-      return Math.min(max, Math.max(min, value));
-    }
-
-    function summarizeGraph(graph) {
-      const projection = graph?.metadata?.visualProjection;
-      return {
-        edges: graph?.edges?.length ?? 0,
-        files: graph?.metadata?.fileCount ?? 0,
-        nodes: graph?.nodes?.length ?? 0,
-        omittedEdges: projection?.omittedEdgeCount ?? 0,
-        omittedNodes: projection?.omittedNodeCount ?? 0
-      };
-    }
-
-    /** Makes Host-side payload bounds visible instead of looking like missing analysis. */
-    function formatProjectionStatus(graph) {
-      const projection = graph?.metadata?.visualProjection;
-      if (!projection || projection.omittedNodeCount <= 0) return "Loaded";
-      return "Loaded " + graph.nodes.length + " of " + projection.sourceNodeCount
-        + " nodes · expand or focus to inspect another bounded slice";
-    }
-
-    function logWebview(level, message, fields) {
-      vscode.postMessage({
-        type: "telemetry/log",
-        payload: {
-          fields,
-          level,
-          message,
-          source: "graphPanel"
-        }
-      });
-    }
+    ${getExplorerProgressiveHelpersBrowserSource()}
   `;
 }
 

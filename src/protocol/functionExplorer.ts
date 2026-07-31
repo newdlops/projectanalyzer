@@ -6,6 +6,7 @@
  */
 
 import type { EdgeConfidence, SourceRange } from "../shared/types";
+import type { FunctionSearchPresentationKey, PresentationParams } from "../localization/presentationDescriptors";
 import type { FunctionArchitecturePayload } from "./functionArchitecture";
 import type { SourceNodeToken } from "./sourceNavigation";
 
@@ -233,6 +234,8 @@ export type FunctionExplorerSearchRow = Omit<
   filePath?: never;
   functionId?: never;
   symbolId?: never;
+  /** Finite fallback only when no safe source-derived callable label exists. */
+  labelPresentation?: { key: FunctionSearchPresentationKey; params?: PresentationParams };
 };
 
 /** Options echoed with an index-loaded payload so the Webview can diff state. */
@@ -308,6 +311,8 @@ export type FunctionExplorerSearchFailurePayload = {
   graphVersion: string;
   requestId: number;
   query: string;
+  /** Stable host cause rendered in the active browser catalog. */
+  reason: "graphUnavailable" | "projectionFailed";
   message: string;
 };
 

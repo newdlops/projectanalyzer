@@ -112,6 +112,12 @@ test("host adapter publishes, drops stale requests, and correlates failures", as
   assert.equal(missingGraphResponse?.type, "function/searchFailed");
   assert.equal(
     missingGraphResponse?.type === "function/searchFailed"
+      ? missingGraphResponse.payload.reason
+      : undefined,
+    "graphUnavailable"
+  );
+  assert.equal(
+    missingGraphResponse?.type === "function/searchFailed"
       ? missingGraphResponse.payload.requestId
       : undefined,
     3
@@ -130,6 +136,12 @@ test("host adapter publishes, drops stale requests, and correlates failures", as
   }, dependencies);
   const failedProjectionResponse = readFirstResponse(posted);
   assert.equal(failedProjectionResponse?.type, "function/searchFailed");
+  assert.equal(
+    failedProjectionResponse?.type === "function/searchFailed"
+      ? failedProjectionResponse.payload.reason
+      : undefined,
+    "projectionFailed"
+  );
   assert.equal(
     failedProjectionResponse?.type === "function/searchFailed"
       ? failedProjectionResponse.payload.requestId

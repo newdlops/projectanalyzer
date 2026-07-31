@@ -42,7 +42,9 @@ export function getExplorerCanvasRendererSource(): string {
         screenToCanvas,
         screenToWorld,
         setScene,
-        setViewport
+        setViewport,
+        updateMessage,
+        updateNodeLabel
       };
 
       function setScene(scene) {
@@ -69,6 +71,22 @@ export function getExplorerCanvasRendererSource(): string {
         rendererState.nodes = [];
         rendererState.edges = [];
         rendererState.bounds = undefined;
+        requestDraw();
+      }
+
+      /** Updates browser-owned empty/error copy without replacing the current scene. */
+      function updateMessage(message) {
+        rendererState.message = message;
+        requestDraw();
+      }
+
+      /** Updates a retained virtual label while preserving geometry and viewport state. */
+      function updateNodeLabel(nodeId, label) {
+        const node = rendererState.nodes.find((candidate) => candidate.id === nodeId);
+        if (!node || node.label === label) {
+          return;
+        }
+        node.label = label;
         requestDraw();
       }
 
@@ -107,7 +125,7 @@ export function getExplorerCanvasRendererSource(): string {
         }
 
         if (!rendererState.scene || rendererState.nodes.length === 0) {
-          drawMessage("No graph nodes in this view", theme);
+          drawMessage(rendererState.message || "", theme);
           context.restore();
           return;
         }

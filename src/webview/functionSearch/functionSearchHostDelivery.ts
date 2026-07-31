@@ -42,6 +42,7 @@ export async function deliverFunctionSearch(
         graphVersion: request.graphVersion,
         requestId: request.requestId,
         query: request.query,
+        reason: "graphUnavailable",
         message: "Analyze before searching functions"
       }
     });
@@ -78,6 +79,7 @@ export async function deliverFunctionSearch(
         graphVersion: request.graphVersion,
         requestId: request.requestId,
         query: request.query,
+        reason: "projectionFailed",
         message: "Function search failed; try again"
       }
     });

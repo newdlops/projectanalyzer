@@ -45,6 +45,8 @@ export function getFunctionSearchBrowserSource(): string {
       state.functionSearchPendingRequestId = undefined;
       state.functionSearchQuery = "";
       state.functionSearchError = undefined;
+      state.functionSearchFailure = undefined;
+      state.functionSearchLocalError = undefined;
       state.functionSearchRevision += 1;
       if (elements.functionSearchInput) {
         elements.functionSearchInput.value = "";
@@ -73,7 +75,12 @@ export function getFunctionSearchBrowserSource(): string {
         state.functionSearchPendingCursor = undefined;
         state.functionSearchPendingRequestId = undefined;
         state.functionSearchQuery = query;
-        state.functionSearchError = "Search text must be 512 characters or fewer";
+        state.functionSearchError = undefined;
+        state.functionSearchFailure = undefined;
+        state.functionSearchLocalError = {
+          key: "search-query-limit",
+          params: { count: FUNCTION_SEARCH_QUERY_LIMIT }
+        };
         state.functionSearchRevision += 1;
         state.treeRowsCache.clear();
         renderFunctionCallTree();
@@ -89,6 +96,8 @@ export function getFunctionSearchBrowserSource(): string {
       state.functionSearchPendingRequestId = requestId;
       state.functionSearchQuery = query;
       state.functionSearchError = undefined;
+      state.functionSearchFailure = undefined;
+      state.functionSearchLocalError = undefined;
       if (!cursor) {
         state.functionSearch = undefined;
       }
@@ -105,7 +114,7 @@ export function getFunctionSearchBrowserSource(): string {
           includeExternal: false,
           includeUnresolved: false
         }
-      }, query ? "Searching functions" : "Loading all functions");
+      }, projectAnalyzerText(query ? "searching-functions-status" : "loading-all-functions"));
     }
 
     /** Accepts only the active query and appends a cursor page without duplicates. */
@@ -132,6 +141,8 @@ export function getFunctionSearchBrowserSource(): string {
       state.functionSearchPendingCursor = undefined;
       state.functionSearchPendingRequestId = undefined;
       state.functionSearchError = undefined;
+      state.functionSearchFailure = undefined;
+      state.functionSearchLocalError = undefined;
       state.functionSearchRevision += 1;
       state.treeRowsCache.clear();
       if (shouldAppend && !payload.nextCursor) {
@@ -155,6 +166,8 @@ export function getFunctionSearchBrowserSource(): string {
       state.functionSearchPendingCursor = undefined;
       state.functionSearchPendingRequestId = undefined;
       state.functionSearchError = payload.message;
+      state.functionSearchFailure = payload;
+      state.functionSearchLocalError = undefined;
       state.functionSearchRevision += 1;
       state.treeRowsCache.clear();
       elements.functionSearchInput.focus();
@@ -187,6 +200,16 @@ export function getFunctionSearchBrowserSource(): string {
       elements.functionSearchInput.focus();
     }
 
+    /** Re-formats retained search copy after a language switch without posting a request. */
+    function refreshFunctionSearchLanguage() {
+      renderFunctionSearchControls();
+      if (state.functionSearchActive) {
+        state.functionSearchRevision += 1;
+        state.treeRowsCache.clear();
+        renderFunctionCallTree();
+      }
+    }
+
     /** Updates controls without recreating them during virtual-tree renders. */
     function renderFunctionSearchControls() {
       const hasGraph = Boolean(state.graph);
@@ -204,22 +227,28 @@ export function getFunctionSearchBrowserSource(): string {
       elements.functionSearchMore.disabled = state.functionSearchLoading;
 
       if (!state.functionSearchActive) {
-        elements.functionSearchStatus.textContent = "Search by function name or source path; leave blank to browse all";
+        elements.functionSearchStatus.textContent = projectAnalyzerText("search-help");
         return;
       }
-      if (state.functionSearchError) {
-        elements.functionSearchStatus.textContent = state.functionSearchError;
+      if (state.functionSearchFailure || state.functionSearchLocalError || state.functionSearchError) {
+        elements.functionSearchStatus.textContent = formatFunctionSearchFailure(
+          state.functionSearchFailure,
+          state.functionSearchError,
+          state.functionSearchLocalError
+        );
         return;
       }
       if (state.functionSearchLoading && !state.functionSearch) {
-        elements.functionSearchStatus.textContent = "Searching...";
+        elements.functionSearchStatus.textContent = projectAnalyzerText("searching");
         return;
       }
 
       const loadedCount = state.functionSearch?.rows.length ?? 0;
       const totalCount = state.functionSearch?.totalMatchCount ?? loadedCount;
-      elements.functionSearchStatus.textContent =
-        String(loadedCount) + " of " + String(totalCount) + " matching functions";
+      elements.functionSearchStatus.textContent = projectAnalyzerText("function-search-matching-count", {
+        loaded: loadedCount,
+        total: totalCount
+      });
     }
 
     /** Converts protocol search rows into source-opening virtual tree rows. */
@@ -234,9 +263,9 @@ export function getFunctionSearchBrowserSource(): string {
 
         return {
           id: "function-search-result:" + row.id,
-          label: row.label,
-          name: row.label,
-          detail: row.detail || "",
+          label: formatFunctionSearchLabel(row),
+          name: formatFunctionSearchLabel(row),
+          detail: formatFunctionSearchDetail(row),
           kind: isConcrete ? "semantic" : (row.functionKind || row.kind),
           nodeId: isConcrete ? nodeId : undefined,
           functionKind: row.functionKind,
@@ -246,6 +275,41 @@ export function getFunctionSearchBrowserSource(): string {
           openSourceOnClick: isConcrete
         };
       });
+    }
+
+    /** Formats owned callable metadata from semantic protocol fields only. */
+    function formatFunctionSearchDetail(row) {
+      const parts = [];
+      if (row.detail) parts.push(row.detail); // source path/location literal
+      const architecture = row.architecture;
+      if (architecture) {
+        const layerKey = "architecture-" + architecture.layer;
+        let summary = projectAnalyzerText(layerKey);
+        if (architecture.businessLogic === "domainRuleCandidate") summary += " · " + projectAnalyzerText("domain-rule-candidate");
+        if (architecture.businessLogic === "applicationWorkflowCandidate") summary += " · " + projectAnalyzerText("workflow-candidate");
+        parts.push(summary + " · " + projectAnalyzerText("purity-unverified"));
+      } else {
+        parts.push(projectAnalyzerText("unclassified") + " · " + projectAnalyzerText("purity-unverified"));
+      }
+      const metrics = row.metrics || {};
+      parts.push(projectAnalyzerText("caller-count", { count: metrics.directCallerCount || 0 }));
+      parts.push(projectAnalyzerText("callee-count", { count: metrics.directCalleeCount || 0 }));
+      return parts.join(" · ");
+    }
+
+    /** Prefers semantic fallback labels while preserving literal source labels. */
+    function formatFunctionSearchLabel(row) {
+      return row.labelPresentation
+        ? projectAnalyzerText(row.labelPresentation.key, row.labelPresentation.params)
+        : row.label;
+    }
+
+    /** Formats a retained Host failure without issuing another search request. */
+    function formatFunctionSearchFailure(failure, fallback, localFailure) {
+      if (failure?.reason === "graphUnavailable") return projectAnalyzerText("function-search-failure-graph-unavailable");
+      if (failure?.reason === "projectionFailed") return projectAnalyzerText("function-search-failure-projection-failed");
+      if (localFailure?.key) return projectAnalyzerText(localFailure.key, localFailure.params);
+      return fallback || projectAnalyzerText("function-search-failed");
     }
   `;
 }

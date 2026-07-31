@@ -4,6 +4,7 @@
  */
 
 import * as vscode from "vscode";
+import { localizeHost, type HostMessageKey } from "../localization/uiLanguage";
 import type { AnalysisBackend } from "../analyzer/core/analysisBackend";
 import { CodeFlowInsightCache } from "../application/codeFlow";
 import { FunctionExplorerProjectionService } from "../application/functionExplorer";
@@ -68,6 +69,13 @@ export type ExplorerViewProviderDependencies = {
 /** Temporary gate while the visual graph renderer is disconnected from the GUI. */
 const GRAPH_RENDERING_ENABLED = false;
 
+/** Retained locale-neutral status re-emitted when only the sidebar language changes. */
+type ExplorerSemanticStatus = {
+  state: AnalysisStatusPayload["state"];
+  key: HostMessageKey;
+  params: Record<string, string | number>;
+};
+
 /** Registers and serves the Project Analyzer sidebar Webview. */
 export class ExplorerViewProvider implements vscode.WebviewViewProvider {
   public static readonly viewType = "projectAnalyzer.explorerView";
@@ -80,6 +88,9 @@ export class ExplorerViewProvider implements vscode.WebviewViewProvider {
 
   /** Tracks whether the Webview script has loaded and can receive responses. */
   private webviewReady = false;
+  /** Resolved whole-sidebar UI locale retained until the sidebar reports readiness. */
+  private uiLanguage: "ko" | "en";
+  private semanticStatus: ExplorerSemanticStatus | undefined;
 
   /** Active immutable graph and Webview-only stale-response identity. */
   private readonly graphDelivery = new SidebarGraphDelivery();
@@ -97,12 +108,14 @@ export class ExplorerViewProvider implements vscode.WebviewViewProvider {
   private readonly codeFlowDelivery: CodeFlowHostDelivery;
 
   public constructor(private readonly dependencies: ExplorerViewProviderDependencies) {
+    this.uiLanguage = dependencies.config.uiLanguage;
     this.codeFlowDelivery = new CodeFlowHostDelivery({
       graphDelivery: this.graphDelivery,
       insightCache: this.codeFlowInsights,
       sourceNodeTokens: this.sourceNodeTokens,
       evidenceTokens: this.codeFlowEvidenceTokens,
       logger: dependencies.logger,
+      getUiLanguage: () => this.uiLanguage,
       projectionOptions: dependencies.config.codeFlow,
       readSourceText,
       openEvidenceLocation: ({ filePath, range }) =>
@@ -117,6 +130,17 @@ export class ExplorerViewProvider implements vscode.WebviewViewProvider {
   public resolveWebviewView(webviewView: vscode.WebviewView): void {
     this.view = webviewView;
     this.webviewReady = false;
+    // The contributed fallback name remains package-NLS owned until resolution;
+    // this mutable title is the owned runtime-language exception thereafter.
+    webviewView.title = localizeHost(this.uiLanguage, "explorerView");
+    webviewView.onDidDispose(() => {
+      // A previously resolved view may dispose after a newer instance opens.
+      // Release only its own reference so the newer view remains deliverable.
+      if (this.view === webviewView) {
+        this.view = undefined;
+        this.webviewReady = false;
+      }
+    });
     this.view.webview.options = {
       enableScripts: true
     };
@@ -127,7 +151,8 @@ export class ExplorerViewProvider implements vscode.WebviewViewProvider {
       defaultDepth: this.dependencies.config.defaultDepth,
       maxRenderedNodes: this.dependencies.config.maxRenderedNodes,
       initialMode: "file",
-      surface: "sidebar"
+      surface: "sidebar",
+      language: this.uiLanguage
     });
 
     this.view.webview.onDidReceiveMessage((message: unknown) => {
@@ -268,6 +293,7 @@ export class ExplorerViewProvider implements vscode.WebviewViewProvider {
     this.dependencies.logger.info("sidebar.ready", {
       autoAnalyze: this.dependencies.config.autoAnalyze
     });
+    await this.postMessage({ type: "ui/language", payload: { language: this.uiLanguage } });
     await this.postMessage({ type: "ui/ready", payload: {} });
 
     if (this.dependencies.config.autoAnalyze) {
@@ -276,6 +302,19 @@ export class ExplorerViewProvider implements vscode.WebviewViewProvider {
     }
 
     await this.postLatestGraph();
+  }
+
+  /** Re-emits only sidebar locale and retained semantic status to a ready Webview. */
+  public async updateUiLanguage(language: "ko" | "en"): Promise<void> {
+    if (this.uiLanguage === language) return;
+    this.uiLanguage = language;
+    if (this.view) this.view.title = localizeHost(language, "explorerView");
+    await this.postMessage({ type: "ui/language", payload: { language } });
+    if (this.semanticStatus) await this.postStatus(
+      this.semanticStatus.state,
+      this.semanticStatus.key,
+      this.semanticStatus.params
+    );
   }
 
   /**
@@ -296,7 +335,7 @@ export class ExplorerViewProvider implements vscode.WebviewViewProvider {
   private async runWorkspaceAnalysis(): Promise<void> {
     if (this.analysisRunning) {
       this.dependencies.logger.warn("sidebar.workspaceAnalysis.alreadyRunning");
-      await this.postStatus("running", "Analysis already running");
+      await this.postStatus("running", "analysisAlreadyRunning");
       return;
     }
 
@@ -304,12 +343,12 @@ export class ExplorerViewProvider implements vscode.WebviewViewProvider {
     this.dependencies.logger.info("sidebar.workspaceAnalysis.start", {
       cacheEnabled: this.dependencies.config.cache.enabled
     });
-    await this.postStatus("running", "Analyzing workspace");
+    await this.postStatus("running", "analyzingWorkspace");
 
     try {
       const result = await this.dependencies.workspaceGraphCoordinator.resolveWorkspaceGraph();
       if (result.status === "unavailable") {
-        await this.postStatus("idle", "Open a workspace folder first");
+        await this.postStatus("idle", "openWorkspaceFolder");
         return;
       }
       this.dependencies.logger.info("sidebar.workspaceAnalysis.complete", {
@@ -321,20 +360,20 @@ export class ExplorerViewProvider implements vscode.WebviewViewProvider {
       await this.publishGraph(result.graph);
       await this.postStatus(
         "complete",
-        result.source === "exactCache"
-          ? `Loaded cached workspace graph, ${result.graph.nodes.length} nodes`
-          : `Indexed ${result.graph.metadata.fileCount} files, ${result.graph.nodes.length} nodes`
+        result.source === "exactCache" ? "loadedCachedWorkspace" : "indexedWorkspace",
+        result.source === "exactCache" ? { nodes: result.graph.nodes.length } : { files: result.graph.metadata.fileCount, nodes: result.graph.nodes.length }
       );
     } catch (error) {
       this.dependencies.logger.error("sidebar.workspaceAnalysis.failed", {
         error: error instanceof Error ? error.stack ?? error.message : String(error)
       });
-      await this.postStatus("failed", "Analysis failed");
+      await this.postStatus("failed", "analysisFailed");
       await this.postMessage({
         type: "error",
         payload: {
           code: "analysis.failed",
-          message: error instanceof Error ? error.message : "Unknown analysis failure"
+          message: localizeHost(this.uiLanguage, "analysisFailedDetail", { detail: error instanceof Error ? error.message : localizeHost(this.uiLanguage, "unknownAnalysisFailure") }),
+          ...(error instanceof Error ? { detail: error.message } : {})
         }
       });
     } finally {
@@ -348,14 +387,14 @@ export class ExplorerViewProvider implements vscode.WebviewViewProvider {
   private async runCurrentFileAnalysis(): Promise<void> {
     if (this.analysisRunning) {
       this.dependencies.logger.warn("sidebar.currentFileAnalysis.alreadyRunning");
-      await this.postStatus("running", "Analysis already running");
+      await this.postStatus("running", "analysisAlreadyRunning");
       return;
     }
 
     const editor = vscode.window.activeTextEditor;
 
     if (!editor) {
-      await this.postStatus("idle", "Open a source file first");
+      await this.postStatus("idle", "openSourceFile");
       return;
     }
 
@@ -364,7 +403,7 @@ export class ExplorerViewProvider implements vscode.WebviewViewProvider {
       fileName: editor.document.fileName,
       languageId: editor.document.languageId
     });
-    await this.postStatus("running", "Analyzing current file");
+    await this.postStatus("running", "analyzingCurrentFile");
 
     try {
       const document = editor.document;
@@ -392,7 +431,7 @@ export class ExplorerViewProvider implements vscode.WebviewViewProvider {
         });
         await this.dependencies.cacheStore.setActiveGraph("currentFile", currentFileCacheKey);
         await this.publishGraph(cachedGraph);
-        await this.postStatus("complete", `Loaded cached ${document.fileName}, ${cachedGraph.nodes.length} nodes`);
+        await this.postStatus("complete", "loadedCachedFile", { file: document.fileName, nodes: cachedGraph.nodes.length });
         return;
       }
 
@@ -404,17 +443,18 @@ export class ExplorerViewProvider implements vscode.WebviewViewProvider {
       });
       await this.saveGraphToCache("currentFile", currentFileCacheKey, result.graph, document.fileName);
       await this.publishGraph(result.graph);
-      await this.postStatus("complete", `Analyzed ${document.fileName}, ${result.graph.nodes.length} nodes`);
+      await this.postStatus("complete", "analyzedFile", { file: document.fileName, nodes: result.graph.nodes.length });
     } catch (error) {
       this.dependencies.logger.error("sidebar.currentFileAnalysis.failed", {
         error: error instanceof Error ? error.stack ?? error.message : String(error)
       });
-      await this.postStatus("failed", "Current-file analysis failed");
+      await this.postStatus("failed", "currentFileAnalysisFailed");
       await this.postMessage({
         type: "error",
         payload: {
           code: "analysis.currentFileFailed",
-          message: error instanceof Error ? error.message : "Unknown current-file analysis failure"
+          message: localizeHost(this.uiLanguage, "currentFileAnalysisFailedDetail", { detail: error instanceof Error ? error.message : localizeHost(this.uiLanguage, "unknownCurrentFileAnalysisFailure") }),
+          ...(error instanceof Error ? { detail: error.message } : {})
         }
       });
     } finally {
@@ -443,10 +483,10 @@ export class ExplorerViewProvider implements vscode.WebviewViewProvider {
       this.dependencies.logger.error("sidebar.cacheClear.failed", {
         error: error instanceof Error ? error.stack ?? error.message : String(error)
       });
-      await this.postStatus("failed", "In-memory graph cleared; persisted cache could not be cleared");
+      await this.postStatus("failed", "cacheClearFailed");
       return;
     }
-    await this.postStatus("idle", "Cache cleared");
+    await this.postStatus("idle", "cacheCleared");
   }
 
   /**
@@ -462,11 +502,11 @@ export class ExplorerViewProvider implements vscode.WebviewViewProvider {
    */
   private async requestAnalysisCancellation(): Promise<void> {
     if (!this.analysisRunning) {
-      await this.postStatus("idle", "No analysis is running");
+      await this.postStatus("idle", "noAnalysisRunning");
       return;
     }
 
-    await this.postStatus("running", "Cancellation will stop future analyzer workers");
+    await this.postStatus("running", "cancellationPending");
   }
 
   /**
@@ -476,17 +516,17 @@ export class ExplorerViewProvider implements vscode.WebviewViewProvider {
     const graph = await this.dependencies.cacheStore.getLatestGraph();
 
     if (!graph) {
-      await this.postStatus("idle", "Analyze before exporting");
+      await this.postStatus("idle", "analyzeBeforeExport");
       return;
     }
 
     if (request.format !== "json") {
-      await this.postStatus("idle", `${request.format.toUpperCase()} export is not implemented yet`);
+      await this.postStatus("idle", "exportNotImplemented", { format: request.format.toUpperCase() });
       return;
     }
 
-    const message = await exportGraphToJson(graph);
-    await this.postStatus(message ? "complete" : "idle", message ?? "Export canceled");
+    const result = await exportGraphToJson(graph, this.uiLanguage);
+    await this.postStatus(result ? "complete" : "idle", result ? "exportSucceeded" : "exportCanceled", result ? { nodes: result.nodeCount } : {});
   }
 
   /**
@@ -503,12 +543,12 @@ export class ExplorerViewProvider implements vscode.WebviewViewProvider {
 
     if (!graph) {
       await this.dependencies.graphPanelProvider.openGraph();
-      await this.postStatus("idle", "Graph browser opened; analyze to load graph");
+      await this.postStatus("idle", "graphBrowserEmpty");
       return;
     }
 
     await this.dependencies.graphPanelProvider.openGraph(graph);
-    await this.postStatus("complete", "Graph browser opened");
+    await this.postStatus("complete", "graphBrowserOpened");
   }
 
   /**
@@ -523,18 +563,18 @@ export class ExplorerViewProvider implements vscode.WebviewViewProvider {
     const graph = await this.dependencies.cacheStore.getLatestGraph();
 
     if (!graph) {
-      await this.postStatus("idle", "Analyze before focusing graph nodes");
+      await this.postStatus("idle", "analyzeBeforeFocus");
       return;
     }
 
     await this.dependencies.graphPanelProvider.focusNode(nodeId, graph);
-    await this.postStatus("complete", "Graph browser focused");
+    await this.postStatus("complete", "graphBrowserFocused");
   }
 
   /** Reports the temporary renderer gate without affecting analyzed tree data. */
   private async postGraphRenderingDisabledStatus(): Promise<void> {
     this.dependencies.logger.info("sidebar.graphRendering.disabled");
-    await this.postStatus("idle", "Graph rendering is temporarily disabled");
+    await this.postStatus("idle", "graphRenderingDisabled");
   }
 
   /** Builds and publishes the host-side Function Explorer index for a graph. */
@@ -565,7 +605,7 @@ export class ExplorerViewProvider implements vscode.WebviewViewProvider {
   private async postLatestFunctionIndex(request: FunctionExplorerIndexRequest = {}): Promise<void> {
     const snapshot = this.graphDelivery.current();
     if (!snapshot) {
-      await this.postStatus("idle", "Analyze before loading function flows");
+      await this.postStatus("idle", "analyzeBeforeFunctionFlows");
       return;
     }
     if (!this.graphDelivery.matches(request.graphVersion)) {
@@ -579,12 +619,12 @@ export class ExplorerViewProvider implements vscode.WebviewViewProvider {
   private async openFunctionVisualizer(request: CodeFlowSelectSourceRequest): Promise<void> {
     const snapshot = this.graphDelivery.current();
     if (!snapshot || !this.graphDelivery.matches(request.graphVersion)) {
-      await this.postStatus("idle", "The analyzed graph changed; choose the function again");
+      await this.postStatus("idle", "graphChangedChooseFunction");
       return;
     }
     const node = this.sourceNodeTokens.resolve(request.sourceToken);
     if (!node || !["function", "method", "constructor"].includes(node.kind)) {
-      await this.postStatus("idle", "This function is no longer available");
+      await this.postStatus("idle", "functionUnavailable");
       return;
     }
 
@@ -592,7 +632,7 @@ export class ExplorerViewProvider implements vscode.WebviewViewProvider {
       snapshot.graph,
       node.id
     );
-    await this.postStatus("complete", "Function Visualizer opened in a new tab");
+    await this.postStatus("complete", "functionVisualizerOpened");
   }
 
   /** Resolves a snapshot token or legacy active ID and opens its source. */
@@ -602,7 +642,7 @@ export class ExplorerViewProvider implements vscode.WebviewViewProvider {
       await this.dependencies.sourceHighlighter.revealNode(node);
       return;
     }
-    await this.postStatus("idle", "Node is not available");
+    await this.postStatus("idle", "nodeUnavailable");
   }
 
   /** Publishes the latest cached graph if one exists. */
@@ -615,7 +655,7 @@ export class ExplorerViewProvider implements vscode.WebviewViewProvider {
       return;
     }
 
-    await this.postStatus("idle", "No graph loaded");
+    await this.postStatus("idle", "noGraphLoaded");
   }
 
   /** Returns a cached graph only when persistent cache reuse is enabled. */
@@ -652,8 +692,16 @@ export class ExplorerViewProvider implements vscode.WebviewViewProvider {
   }
 
   /** Posts an analysis status update to the visible sidebar. */
-  private async postStatus(state: AnalysisStatusPayload["state"], message: string): Promise<void> {
-    await this.postMessage({ type: "analysis/status", payload: { state, message } });
+  private async postStatus(
+    state: AnalysisStatusPayload["state"],
+    key: HostMessageKey,
+    params: Record<string, string | number> = {}
+  ): Promise<void> {
+    this.semanticStatus = { state, key, params };
+    await this.postMessage({
+      type: "analysis/status",
+      payload: { state, message: localizeHost(this.uiLanguage, key, params) }
+    });
   }
 
   /** Records a lazy request rejected because another graph is now active. */

@@ -7,8 +7,7 @@
 
 import type { FunctionIndexNode } from "../../graph/functionIndex";
 import {
-  createFunctionArchitecturePayload,
-  formatFunctionArchitectureSummary
+  createFunctionArchitecturePayload
 } from "../functionArchitecture";
 import type { FunctionArchitectureIndex } from "../../insights/architecturalLayers";
 import type { FunctionArchitecturePayload } from "../../protocol/functionArchitecture";
@@ -248,7 +247,7 @@ function createSearchRow(
     expanded: false,
     detail: concrete
       ? createConcreteDetail(match)
-      : createPlaceholderDetail(node),
+      : createPlaceholderDetail(),
     functionKind: node.kind,
     role: node.role,
     tags: [...node.tags],
@@ -256,6 +255,11 @@ function createSearchRow(
     architecture: match.architecture,
     confidence: node.confidence
   };
+
+  const labelPresentation = createSearchLabelPresentation(node);
+  if (labelPresentation) {
+    row.labelPresentation = labelPresentation;
+  }
 
   if (concrete) {
     row.sourceToken = createSourceToken?.(node.id);
@@ -285,6 +289,19 @@ function createSafeSearchLabel(node: FunctionIndexNode): string {
   return "Anonymous callable";
 }
 
+/** Emits a finite descriptor only when no safe analyzer/source label survives. */
+function createSearchLabelPresentation(node: FunctionIndexNode): FunctionExplorerSearchRow["labelPresentation"] {
+  for (const candidate of [node.qualifiedName, node.name]) {
+    const value = candidate.trim();
+    if (value && !containsHostIdentity(value, node)) {
+      return undefined;
+    }
+  }
+  if (node.kind === "external") return { key: "function-search-external-callable" };
+  if (node.kind === "unresolved") return { key: "function-search-unresolved-call" };
+  return { key: "function-search-anonymous-callable" };
+}
+
 /** Detects exact analyzer IDs and embedded absolute portable path forms. */
 function containsHostIdentity(value: string, node: FunctionIndexNode): boolean {
   const normalized = normalizePath(value);
@@ -303,15 +320,16 @@ function containsHostIdentity(value: string, node: FunctionIndexNode): boolean {
 /** Formats a one-based workspace-relative source location plus direct metrics. */
 function createConcreteDetail(match: FunctionSearchMatch): string {
   const lineSuffix = match.node.range ? `:${match.node.range.startLine + 1}` : "";
-  const metrics = match.node.metrics;
-  return `${match.locationPath}${lineSuffix} · ${formatFunctionArchitectureSummary(match.architecture)} · `
-    + `${metrics.directCallerCount} callers · ${metrics.directCalleeCount} callees`;
+  // Only source-derived location crosses as display text. Role, confidence,
+  // architecture and metrics remain typed fields on the row and are formatted
+  // by the active Webview locale without a new Host request.
+  return `${match.locationPath}${lineSuffix}`;
 }
 
 /** Describes placeholders without presenting their callsite as target source. */
-function createPlaceholderDetail(node: FunctionIndexNode): string {
-  const label = node.kind === "external" ? "external callable" : "unresolved callable";
-  return `${label} · ${node.metrics.directCallerCount} callers`;
+function createPlaceholderDetail(): string {
+  // Placeholder kind and metrics are semantic row fields, not English prose.
+  return "";
 }
 
 /** Keeps host absolute paths out of Webview payloads for out-of-root sources. */

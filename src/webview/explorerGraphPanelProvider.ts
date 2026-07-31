@@ -19,6 +19,7 @@ import type { ProjectAnalyzerLogger } from "../observability/logger";
 import type { ProjectGraph } from "../shared/types";
 import type { AnalysisCacheStore } from "../storage/cacheStore";
 import type { ProjectAnalyzerConfig } from "../vscode/configuration";
+import { localizeHost, type HostMessageKey } from "../localization/uiLanguage";
 import type { SourceHighlighter } from "../vscode/sourceHighlightService";
 import {
   GraphPanelPayloadDelivery,
@@ -29,7 +30,6 @@ import { getExplorerHtml } from "./webviewHtml";
 import {
   createNonce,
   exportGraphToJson,
-  formatCount,
   getNodeDisplayName
 } from "./webviewHostActions";
 
@@ -56,6 +56,9 @@ export class ExplorerGraphPanelProvider {
 
   /** Tracks whether the panel script can receive graph payloads. */
   private webviewReady = false;
+  /** Current locale is retained for a hidden or not-yet-created graph panel. */
+  private uiLanguage: "ko" | "en";
+  private semanticStatus: { state: AnalysisStatusPayload["state"]; key: HostMessageKey; params: Record<string, string | number> } | undefined;
 
   /** Graph payload to send after a newly created panel reports readiness. */
   private pendingGraph: ProjectGraph | undefined;
@@ -72,7 +75,9 @@ export class ExplorerGraphPanelProvider {
   /** Suppresses duplicate same-snapshot/mode payloads after successful delivery. */
   private readonly payloadDelivery = new GraphPanelPayloadDelivery();
 
-  public constructor(private readonly dependencies: ExplorerGraphPanelProviderDependencies) {}
+  public constructor(private readonly dependencies: ExplorerGraphPanelProviderDependencies) {
+    this.uiLanguage = dependencies.config.uiLanguage;
+  }
 
   /**
    * Opens or reveals the graph browser tab and optionally publishes a graph.
@@ -92,7 +97,7 @@ export class ExplorerGraphPanelProvider {
     if (!this.panel) {
       this.panel = vscode.window.createWebviewPanel(
         ExplorerGraphPanelProvider.viewType,
-        "Project Analyzer Graph",
+        localizeHost(this.uiLanguage, "projectGraph"),
         vscode.ViewColumn.Active,
         {
           enableScripts: true,
@@ -110,7 +115,8 @@ export class ExplorerGraphPanelProvider {
           this.dependencies.config.maxRenderedNodes
         ),
         initialMode: this.mode,
-        surface: "panel"
+        surface: "panel",
+        language: this.uiLanguage
       });
       this.panel.webview.onDidReceiveMessage((message: unknown) => {
         const validation = validateWebviewRequest(message);
@@ -141,6 +147,15 @@ export class ExplorerGraphPanelProvider {
     if (graph) {
       await this.publishGraph(graph, rootNodeId);
     }
+  }
+
+  /** Updates panel chrome in place without touching its graph projection. */
+  public async updateUiLanguage(language: "ko" | "en"): Promise<void> {
+    if (this.uiLanguage === language) return;
+    this.uiLanguage = language;
+    if (this.panel) this.panel.title = localizeHost(language, "projectGraph");
+    await this.postMessage({ type: "ui/language", payload: { language } });
+    if (this.semanticStatus) await this.postStatus(this.semanticStatus.state, this.semanticStatus.key, this.semanticStatus.params);
   }
 
   /**
@@ -259,7 +274,9 @@ export class ExplorerGraphPanelProvider {
       hasPendingFocus: Boolean(this.pendingFocusNodeId),
       hasPendingGraph: Boolean(this.pendingGraph)
     });
+    await this.postMessage({ type: "ui/language", payload: { language: this.uiLanguage } });
     await this.postMessage({ type: "ui/ready", payload: {} });
+    if (this.semanticStatus) await this.postStatus(this.semanticStatus.state, this.semanticStatus.key, this.semanticStatus.params);
 
     if (this.pendingGraph) {
       await this.publishGraph(this.pendingGraph, this.pendingProjectionRootNodeId);
@@ -296,7 +313,7 @@ export class ExplorerGraphPanelProvider {
       return;
     }
 
-    await this.postStatus("idle", "No graph loaded");
+    await this.postStatus("idle", "noGraphLoaded");
   }
 
   /**
@@ -307,7 +324,7 @@ export class ExplorerGraphPanelProvider {
     const node = graph?.nodes.find((candidate) => candidate.id === nodeId);
 
     if (!node) {
-      await this.postStatus("idle", "Node is not available");
+      await this.postStatus("idle", "nodeUnavailable");
       return;
     }
 
@@ -324,14 +341,14 @@ export class ExplorerGraphPanelProvider {
     const graph = await this.readActiveGraph();
 
     if (!graph) {
-      await this.postStatus("idle", "Analyze before exploring call relationships");
+      await this.postStatus("idle", "analyzeBeforeFunctionFlows");
       return;
     }
 
     const node = graph.nodes.find((candidate) => candidate.id === nodeId);
 
     if (!node) {
-      await this.postStatus("idle", "Selected node is not available");
+      await this.postStatus("idle", "graphItemUnavailable");
       return;
     }
 
@@ -347,7 +364,6 @@ export class ExplorerGraphPanelProvider {
       maxNodes: normalizeGraphPanelNodeBudget(this.dependencies.config.maxRenderedNodes),
       rootNodeId: nodeId
     });
-    const relationshipLabel = direction === "callers" ? "callers" : "callees";
     const nodeLabel = getNodeDisplayName(node);
 
     await this.setMode("call");
@@ -357,13 +373,13 @@ export class ExplorerGraphPanelProvider {
     }
 
     if (result.edges.length === 0) {
-      await this.postStatus("idle", `No ${relationshipLabel} found for ${nodeLabel}`);
+      await this.postStatus("idle", direction === "callers" ? "noCallersFound" : "noCalleesFound", { name: nodeLabel });
       return;
     }
 
     await this.postStatus(
       "complete",
-      `Showing ${relationshipLabel} for ${nodeLabel} (${formatCount(result.edges.length, "call edge")}, depth ${relationshipDepth})`
+      direction === "callers" ? "showingCallers" : "showingCallees", { name: nodeLabel, count: result.edges.length, depth: relationshipDepth }
     );
   }
 
@@ -374,17 +390,17 @@ export class ExplorerGraphPanelProvider {
     const graph = await this.readActiveGraph();
 
     if (!graph) {
-      await this.postStatus("idle", "Analyze before exporting");
+      await this.postStatus("idle", "analyzeBeforeExport");
       return;
     }
 
     if (request.format !== "json") {
-      await this.postStatus("idle", `${request.format.toUpperCase()} export is not implemented yet`);
+      await this.postStatus("idle", "exportNotImplemented", { format: request.format.toUpperCase() });
       return;
     }
 
-    const message = await exportGraphToJson(graph);
-    await this.postStatus(message ? "complete" : "idle", message ?? "Export canceled");
+    const result = await exportGraphToJson(graph, this.uiLanguage);
+    await this.postStatus(result ? "complete" : "idle", result ? "exportSucceeded" : "exportCanceled", result ? { nodes: result.nodeCount } : {});
   }
 
   /**
@@ -392,9 +408,11 @@ export class ExplorerGraphPanelProvider {
    */
   private async postStatus(
     state: AnalysisStatusPayload["state"],
-    message: string
+    key: HostMessageKey,
+    params: Record<string, string | number> = {}
   ): Promise<void> {
-    await this.postMessage({ type: "analysis/status", payload: { state, message } });
+    this.semanticStatus = { state, key, params };
+    await this.postMessage({ type: "analysis/status", payload: { state, message: localizeHost(this.uiLanguage, key, params) } });
   }
 
   /**

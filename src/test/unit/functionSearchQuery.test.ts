@@ -61,7 +61,7 @@ test("searches name, qualified name, and file path without case sensitivity", ()
   assert.equal(concreteRow?.symbolId, undefined);
   assert.equal(concreteRow?.filePath, undefined);
   assert.deepEqual(concreteRow?.range, createRange(11));
-  assert.match(concreteRow?.detail ?? "", /^src\/users\/UserService\.ts:12 ·/u);
+  assert.equal(concreteRow?.detail, "src/users/UserService.ts:12");
 
   assert.ok(externalRow);
   assert.equal(externalRow.functionId, undefined);
@@ -88,11 +88,12 @@ test("does not expose absolute host paths for sources outside the workspace", ()
   const serialized = JSON.stringify(payload);
 
   assert.equal(payload.rows[0]?.filePath, undefined);
+  assert.equal(payload.rows[0]?.detail, "outside.ts:5");
   assert.match(payload.rows[0]?.sourceToken ?? "", /^source-node:[0-9a-f]{64}$/u);
   assert.equal(payload.rows[0]?.functionId, undefined);
   assert.equal(payload.rows[0]?.symbolId, undefined);
   assert.equal(payload.rows[0]?.label, "outsideHandler");
-  assert.match(payload.rows[0]?.detail ?? "", /^outside\.ts:5 ·/u);
+  assert.equal(payload.rows[0]?.detail, "outside.ts:5");
   assert.doesNotMatch(serialized, /Users|private-owner|secrets/u);
 });
 
@@ -112,6 +113,20 @@ test("applies external and unresolved filters while retaining exact totals", () 
   );
   assert.equal(query(nodes, { filters: { includeExternal: false } }).totalMatchCount, 2);
   assert.equal(query(nodes, { filters: { includeUnresolved: false } }).totalMatchCount, 2);
+});
+
+test("emits semantic fallback labels only when source-derived callable names are absent", () => {
+  const rows = query([
+    createIndexNode("named", { name: "sourceName", qualifiedName: "Source.named" }),
+    createIndexNode("external", { kind: "external", role: "external", name: "", qualifiedName: "" }),
+    createIndexNode("unresolved", { kind: "unresolved", role: "unresolved", name: "", qualifiedName: "" }),
+    createIndexNode("anonymous", { name: "", qualifiedName: "" })
+  ]).rows;
+
+  assert.equal(rows.find((row) => row.label === "Source.named")?.labelPresentation, undefined);
+  assert.equal(rows.find((row) => row.functionKind === "external")?.labelPresentation?.key, "function-search-external-callable");
+  assert.equal(rows.find((row) => row.functionKind === "unresolved")?.labelPresentation?.key, "function-search-unresolved-call");
+  assert.equal(rows.find((row) => row.label === "Anonymous callable")?.labelPresentation?.key, "function-search-anonymous-callable");
 });
 
 test("returns an exact terminal empty page when no callable matches", () => {
@@ -181,7 +196,7 @@ test("empty search surfaces business candidates with shared layer evidence", () 
   assert.equal(payload.rows[0]?.architecture?.layer, "domain");
   assert.equal(payload.rows[0]?.architecture?.businessLogic, "domainRuleCandidate");
   assert.equal(payload.rows[0]?.architecture?.purity, "unknown");
-  assert.match(payload.rows[0]?.detail ?? "", /Domain · domain-rule candidate · purity unverified/u);
+  assert.equal(payload.rows[0]?.detail, "src/domain/pricing-policy.ts:1");
 });
 
 test("opaque cursors return every deterministic page without duplicates", () => {

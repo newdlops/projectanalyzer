@@ -151,7 +151,9 @@ test("expanded routes expose bounded downstream calls with stable nesting and na
   assert.equal(service.symbolId, "user-service");
   assert.equal(service.filePath, "/workspace/userService.ts");
   assert.equal(service.architecture?.layer, "application");
-  assert.match(service.detail ?? "", /Application · workflow candidate · purity unverified/u);
+  assert.equal(service.detail, "/workspace/userService.ts:9");
+  assert.equal(service.architecture?.businessLogic, "applicationWorkflowCandidate");
+  assert.equal(service.architecture?.purity, "unknown");
   assert.equal(repository.parentId, serviceId);
   assert.equal(repository.depth, 5);
   assert.equal(repository.role, "repository");
@@ -160,7 +162,7 @@ test("expanded routes expose bounded downstream calls with stable nesting and na
   assert.equal(unresolved.parentId, serviceId);
   assert.equal(unresolved.functionId, "external:dynamicLookup");
   assert.equal(unresolved.symbolId, undefined);
-  assert.match(unresolved.detail ?? "", /^Unclassified.*Unresolved call target/);
+  assert.equal(unresolved.detail, "/workspace/userService.ts:19");
   assert.deepEqual(unresolved.tags, ["unresolvedCall"]);
   assert.equal(gap.parentId, serviceId);
   assert.equal(gap.depth, 5);
