@@ -39,12 +39,12 @@ export function getCompoundFunctionLogicDimensionsSource(): string {
       );
       const valueAccessTexts = allValueAccessTexts.slice(0, 8);
       if (allValueAccessTexts.length > 8) {
-        valueAccessTexts.push("+" + (allValueAccessTexts.length - 8) + " more bindings");
+        valueAccessTexts.push(projectAnalyzerText("more-bindings", { count: allValueAccessTexts.length - 8 }));
       }
       const visibleTexts = [
-        block.label,
-        block.sourceLocation || block.detail,
-        block.branchLabel,
+        formatLogicBlockLabel(block),
+        block.sourceLocation || formatLogicBlockDetail(block),
+        block.branchPresentation?.key ? projectAnalyzerText(block.branchPresentation.key, block.branchPresentation.params) : block.branchLabel,
         block.functionLabel,
         ...valueChangeTexts,
         ...valueAccessTexts
@@ -75,20 +75,22 @@ export function getCompoundFunctionLogicDimensionsSource(): string {
             COMPOUND_BADGE_CHARACTER_WIDTH
           )
         : 0;
-      const branchLabelLines = block.branchLabel
+      const branchLabel = block.branchPresentation?.key
+        ? projectAnalyzerText(block.branchPresentation.key, block.branchPresentation.params) : block.branchLabel;
+      const branchLabelLines = branchLabel
         ? estimateCompoundWrappedLines(
-            block.branchLabel,
+            branchLabel,
             innerWidth,
             COMPOUND_BADGE_CHARACTER_WIDTH
           )
         : 0;
       const labelLines = estimateCompoundWrappedLines(
-        block.label,
+        formatLogicBlockLabel(block),
         innerWidth,
         COMPOUND_LABEL_CHARACTER_WIDTH
       );
       const metaLines = estimateCompoundWrappedLines(
-        block.sourceLocation || block.detail,
+        block.sourceLocation || formatLogicBlockDetail(block),
         innerWidth,
         COMPOUND_META_CHARACTER_WIDTH
       );

@@ -26,11 +26,14 @@ export function getFunctionVisualizerBrowserSource(): string {
       nextAttachedFunctionId: 0,
       activeLogicGraphSurface: undefined,
       activeLogicViewportController: undefined,
+      activeLogicValueFlowRendering: undefined,
+      uiLanguage: "en",
       loading: false,
       error: undefined,
       selectedLogicBlockId: undefined,
       logicGraphScale: 1,
-      logicGraphViewportTransform: undefined
+      logicGraphViewportTransform: undefined,
+      presentation: { breadcrumbs: [], gaps: [], empty: undefined }
     };
 
     const elements = {
@@ -54,6 +57,14 @@ export function getFunctionVisualizerBrowserSource(): string {
     window.addEventListener("message", (event) => {
       const message = event.data;
       if (!message || typeof message.type !== "string") return;
+
+      if (message.type === "ui/language") {
+        const language = message.payload?.language === "ko" ? "ko" : "en";
+        state.uiLanguage = language;
+        applyProjectAnalyzerLanguage(language);
+        relocalizeFunctionVisualizerPresentation();
+        return;
+      }
 
       if (message.type === "functionVisualizer/sessionLoaded") {
         beginSession(message.payload);
@@ -130,12 +141,12 @@ export function getFunctionVisualizerBrowserSource(): string {
       if (!payload || !isCurrentGraph(payload.graphVersion)
         || (!state.pendingTarget && !state.pendingExpansionId)) return;
       if (state.pendingExpansionId) {
-        acceptAttachedFunctionFailure(payload.message);
+        acceptAttachedFunctionFailure(payload);
         return;
       }
       state.pendingTarget = undefined;
       state.loading = false;
-      state.error = payload.message || "This function flow is unavailable.";
+      state.error = payload;
       render();
     }
 
@@ -157,14 +168,14 @@ export function getFunctionVisualizerBrowserSource(): string {
     }
 
     /** Keeps the parent flow visible and turns a failed child into one graph node. */
-    function acceptAttachedFunctionFailure(message) {
+    function acceptAttachedFunctionFailure(failure) {
       const expansionId = state.pendingExpansionId;
       const expansion = state.attachedFunctions.find((candidate) =>
         candidate.id === expansionId
       );
       if (expansion) {
         expansion.status = "failed";
-        expansion.error = message || "This related function flow is unavailable.";
+        expansion.error = failure;
       }
       state.pendingExpansionId = undefined;
       state.loading = false;
@@ -185,11 +196,11 @@ export function getFunctionVisualizerBrowserSource(): string {
 
       state.pendingTarget = {
         sourceToken: target.sourceToken,
-        label: target.qualifiedName || target.name || "Called function"
+        label: target.qualifiedName || target.name || projectAnalyzerText("called-function")
       };
       state.loading = true;
       state.error = undefined;
-      setVisualizerStatus("Building " + state.pendingTarget.label + "…", true);
+      setVisualizerStatus(projectAnalyzerText("building-function", { label: state.pendingTarget.label }), true);
       renderNavigation();
       vscode.postMessage({
         type: "codeFlow/selectSource",
@@ -228,35 +239,35 @@ export function getFunctionVisualizerBrowserSource(): string {
       clearElement(elements.flowSteps);
       clearElement(elements.flowGaps);
       clearElement(elements.origins);
+      state.presentation = { breadcrumbs: [], gaps: [], empty: undefined };
 
       if (!entry) {
-        elements.title.textContent = state.pendingTarget?.label || "Function Visualizer";
-        elements.subtitle.textContent = "Building a source-backed control-flow graph";
+        elements.title.textContent = state.pendingTarget?.label || projectAnalyzerText("function-title");
+        elements.subtitle.textContent = projectAnalyzerText("building-control-flow");
         elements.summary.textContent = "";
-        elements.semantics.textContent = "Static analysis; runtime execution is not observed.";
+        elements.semantics.textContent = projectAnalyzerText("static-not-runtime");
         elements.flowGapsSection.hidden = true;
         elements.originsSection.hidden = true;
-        elements.flowSteps.append(createEmptyState(
-          state.error || "Reading the function body and matching direct calls…"
-        ));
-        setVisualizerStatus(state.error || "Analyzing function logic", true);
+        state.presentation.empty = createEmptyState(formatFunctionStatus(state.error) || projectAnalyzerText("reading-function"));
+        elements.flowSteps.append(state.presentation.empty);
+        setVisualizerStatus(formatFunctionStatus(state.error) || projectAnalyzerText("analyzing-function-logic"), true);
         return;
       }
 
       const detail = entry.detail;
-      document.title = "Function Flow · " + detail.title;
+      document.title = projectAnalyzerText("function-flow-title", { title: detail.title });
       elements.title.textContent = detail.title;
-      elements.subtitle.textContent = detail.subtitle;
+      elements.subtitle.textContent = formatFunctionSubtitle(detail);
       elements.summary.textContent = createFunctionLogicSummaryText(detail.logic);
-      elements.semantics.textContent = "Source-backed static flow · solid exact · dashed inferred · events dispatch without return.";
+      elements.semantics.textContent = projectAnalyzerText("function-semantics");
       const pendingExpansion = state.attachedFunctions.find((candidate) =>
         candidate.id === state.pendingExpansionId
       );
-      const activeStatus = state.error
+      const activeStatus = formatFunctionStatus(state.error)
         || (pendingExpansion
-          ? "Attaching " + expansionTargetLabel(pendingExpansion) + "…"
+          ? projectAnalyzerText("attaching-function", { label: expansionTargetLabel(pendingExpansion) })
           : state.loading && state.pendingTarget
-            ? "Building " + state.pendingTarget.label + "…"
+            ? projectAnalyzerText("building-function", { label: state.pendingTarget.label })
             : "");
       setVisualizerStatus(activeStatus, Boolean(activeStatus));
       renderOrigins(detail.origins || []);
@@ -271,6 +282,47 @@ export function getFunctionVisualizerBrowserSource(): string {
         createAttachedGraphContext(attachedScene, rootScopeId, graphViewportSnapshot)
       );
       renderGaps(detail.gaps || []);
+    }
+
+    /** Patches retained Function Visualizer chrome and graph copy without rebuilding state. */
+    function relocalizeFunctionVisualizerPresentation() {
+      const entry = state.history[state.historyIndex];
+      if (!entry) {
+        elements.title.textContent = state.pendingTarget?.label || projectAnalyzerText("function-title");
+        elements.subtitle.textContent = projectAnalyzerText("building-control-flow");
+        elements.semantics.textContent = projectAnalyzerText("static-not-runtime");
+        state.presentation.empty && (state.presentation.empty.textContent = formatFunctionStatus(state.error) || projectAnalyzerText("reading-function"));
+        relocalizeNavigation();
+        setVisualizerStatus(formatFunctionStatus(state.error) || projectAnalyzerText("analyzing-function-logic"), true);
+        return;
+      }
+      const detail = entry.detail;
+      document.title = projectAnalyzerText("function-flow-title", { title: detail.title });
+      elements.subtitle.textContent = formatFunctionSubtitle(detail);
+      elements.summary.textContent = createFunctionLogicSummaryText(detail.logic);
+      elements.semantics.textContent = projectAnalyzerText("function-semantics");
+      relocalizeNavigation();
+      for (const record of state.presentation.gaps) {
+        record.label.textContent = record.gap.presentation ? projectAnalyzerText("logic-gap-" + record.gap.presentation) : record.gap.label;
+        record.detail.textContent = record.gap.detailPresentation ? projectAnalyzerText(record.gap.detailPresentation.key, record.gap.detailPresentation.params) : record.gap.detail;
+      }
+      const pendingExpansion = state.attachedFunctions.find((candidate) => candidate.id === state.pendingExpansionId);
+      const localizedStatus = formatFunctionStatus(state.error) || (pendingExpansion
+        ? projectAnalyzerText("attaching-function", { label: expansionTargetLabel(pendingExpansion) })
+        : state.loading && state.pendingTarget
+          ? projectAnalyzerText("building-function", { label: state.pendingTarget.label }) : "");
+      setVisualizerStatus(localizedStatus, Boolean(localizedStatus));
+      state.activeLogicGraphRendering?.updateLanguage(state.uiLanguage);
+    }
+
+    /** Keeps source locations literal while localizing their owned wrapper. */
+    function formatFunctionSubtitle(detail) {
+      if (detail.subtitlePresentation === "functionLogic") {
+        return detail.subtitle
+          ? projectAnalyzerText("function-logic-title") + " · " + detail.subtitle
+          : projectAnalyzerText("function-logic-title");
+      }
+      return detail.subtitle;
     }
 
     /** Shows known upstream boundaries as context without changing this root. */
@@ -297,7 +349,7 @@ export function getFunctionVisualizerBrowserSource(): string {
         button.type = "button";
         button.className = "breadcrumb-button" + (index === state.historyIndex ? " active" : "");
         button.textContent = entry.detail.title || entry.target.label;
-        button.title = "Go back to function · " + (entry.detail.title || entry.target.label);
+        button.title = projectAnalyzerText("back-to-function", { title: entry.detail.title || entry.target.label });
         button.disabled = index === state.historyIndex;
         button.addEventListener("click", () => navigateToHistory(index));
         if (index > 0) {
@@ -308,6 +360,14 @@ export function getFunctionVisualizerBrowserSource(): string {
           elements.breadcrumbs.append(separator);
         }
         elements.breadcrumbs.append(button);
+        state.presentation.breadcrumbs.push({ button, entry });
+      }
+    }
+
+    /** Updates retained navigation labels without rebuilding its history controls. */
+    function relocalizeNavigation() {
+      for (const record of state.presentation.breadcrumbs) {
+        record.button.title = projectAnalyzerText("back-to-function", { title: record.entry.detail.title || record.entry.target.label });
       }
     }
 
@@ -315,6 +375,12 @@ export function getFunctionVisualizerBrowserSource(): string {
     function setVisualizerStatus(message, visible) {
       elements.status.textContent = message || "";
       elements.status.hidden = !visible;
+    }
+    /** Resolves retained Host failure descriptors on each locale change. */
+    function formatFunctionStatus(status) {
+      if (status?.presentationKey) return projectAnalyzerText("code-flow-failure-" + status.presentationKey);
+      if (status?.localKey) return projectAnalyzerText(status.localKey);
+      return status?.message || "";
     }
 
     /** Renders analyzer limitations as visible static-analysis boundaries. */
@@ -325,10 +391,13 @@ export function getFunctionVisualizerBrowserSource(): string {
         const label = document.createElement("strong");
         const detail = document.createElement("p");
         card.className = "gap-card";
-        label.textContent = gap.label;
-        detail.textContent = gap.detail;
+        label.textContent = gap.presentation ? projectAnalyzerText("logic-gap-" + gap.presentation) : gap.label;
+        detail.textContent = gap.detailPresentation
+          ? projectAnalyzerText(gap.detailPresentation.key, gap.detailPresentation.params)
+          : gap.detail;
         card.append(label, detail);
         elements.flowGaps.append(card);
+        state.presentation.gaps.push({ gap, label, detail });
       }
     }
 
@@ -347,11 +416,10 @@ export function getFunctionVisualizerBrowserSource(): string {
 
     /** Adapts the compound scene to the reusable single-graph renderer. */
     function createAttachedGraphContext(scene, rootScopeId, graphViewportSnapshot) {
-      const graphKind = scene.logic.blocks.some((block) =>
+      const graphKind = () => scene.logic.blocks.some((block) =>
         block.valueChanges && block.valueChanges.length > 0
       ) || (scene.logic.valueBindings || []).length > 0
-        ? "Control & value flow"
-        : "Control paths";
+        ? projectAnalyzerText("control-value-flow") : projectAnalyzerText("control-paths");
       const isEnteringBlock = (blockId) => {
         const identity = scene.blockIdentityById.get(blockId);
         return Boolean(
@@ -360,9 +428,9 @@ export function getFunctionVisualizerBrowserSource(): string {
       };
       return {
         selectedBlockId: state.selectedLogicBlockId,
-        graphTitle: scene.attachedFunctionCount > 0
-          ? graphKind + " · " + (scene.attachedFunctionCount + 1) + " functions in one graph"
-          : graphKind,
+        graphTitle: () => scene.attachedFunctionCount > 0
+          ? projectAnalyzerText("functions-in-one-graph", { count: scene.attachedFunctionCount + 1, graph: graphKind() })
+          : graphKind(),
         onSelectionChanged: (blockId) => {
           state.selectedLogicBlockId = blockId;
         },
@@ -521,7 +589,7 @@ export function getFunctionVisualizerBrowserSource(): string {
         addedCount += 1;
       }
       if (addedCount < targets.length) {
-        state.error = "The attached function limit was reached. Collapse a branch before expanding more.";
+        state.error = { localKey: "attached-limit" };
       }
       pumpAttachedFunctionQueue();
       render();
@@ -589,7 +657,7 @@ export function getFunctionVisualizerBrowserSource(): string {
 
     /** Returns the safest available label for one opaque child target. */
     function expansionTargetLabel(expansion) {
-      return expansion.target.qualifiedName || expansion.target.name || "Called function";
+      return expansion.target.qualifiedName || expansion.target.name || projectAnalyzerText("called-function");
     }
 
     ${getCompoundFunctionLogicGraphSource()}

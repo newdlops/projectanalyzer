@@ -11,6 +11,7 @@ import { validateWebviewRequest } from "../../protocol/webviewRequestValidation"
 import type { ProjectAnalyzerLogger } from "../../observability/logger";
 import type { ProjectGraph, SymbolNode } from "../../shared/types";
 import type { ProjectAnalyzerConfig } from "../../vscode/configuration";
+import { localizeHost } from "../../localization/uiLanguage";
 import type { SourceHighlighter } from "../../vscode/sourceHighlightService";
 import {
   CodeFlowEvidenceTokenRegistry,
@@ -47,6 +48,8 @@ export class FunctionVisualizerPanelProvider {
 
   /** Prevents payload delivery before the inline browser program is listening. */
   private webviewReady = false;
+  /** Latest playback-card locale is retained for the next readiness handshake. */
+  private uiLanguage: "ko" | "en";
 
   /** Latest explicit root request replaces any root not yet delivered. */
   private pendingVisualization: PendingFunctionVisualization | undefined;
@@ -70,12 +73,14 @@ export class FunctionVisualizerPanelProvider {
   public constructor(
     private readonly dependencies: FunctionVisualizerPanelProviderDependencies
   ) {
+    this.uiLanguage = dependencies.config.uiLanguage;
     this.codeFlowDelivery = new CodeFlowHostDelivery({
       graphDelivery: this.graphDelivery,
       insightCache: this.insightCache,
       sourceNodeTokens: this.sourceNodeTokens,
       evidenceTokens: this.evidenceTokens,
       logger: dependencies.logger,
+      getUiLanguage: () => this.uiLanguage,
       projectionOptions: dependencies.config.codeFlow,
       readSourceText,
       openEvidenceLocation: ({ filePath, range }) =>
@@ -92,14 +97,14 @@ export class FunctionVisualizerPanelProvider {
   ): Promise<void> {
     const node = graph.nodes.find((candidate) => candidate.id === nodeId);
     if (!node || !isConcreteCallable(node)) {
-      throw new Error("The selected graph node is not a concrete callable.");
+      throw new Error(localizeHost(this.uiLanguage, "sourceNotCallable"));
     }
 
     this.pendingVisualization = { graph, nodeId, sourceText };
     this.ensurePanel();
     this.panel?.reveal(vscode.ViewColumn.Active, false);
     if (this.panel) {
-      this.panel.title = createPanelTitle(node);
+      this.panel.title = createPanelTitle(node, this.uiLanguage);
     }
     if (this.webviewReady) {
       await this.enqueuePendingVisualization();
@@ -113,14 +118,15 @@ export class FunctionVisualizerPanelProvider {
     }
     this.panel = vscode.window.createWebviewPanel(
       FunctionVisualizerPanelProvider.viewType,
-      "Function Visualizer",
+      localizeHost(this.uiLanguage, "functionVisualizer"),
       vscode.ViewColumn.Active,
       { enableScripts: true, retainContextWhenHidden: true }
     );
     this.webviewReady = false;
     this.panel.webview.html = getFunctionVisualizerHtml({
       webview: this.panel.webview,
-      nonce: createNonce()
+      nonce: createNonce(),
+      language: this.uiLanguage
     });
     this.panel.webview.onDidReceiveMessage((message: unknown) => {
       const validation = validateWebviewRequest(message);
@@ -142,6 +148,7 @@ export class FunctionVisualizerPanelProvider {
     switch (message.type) {
       case "ui/ready":
         this.webviewReady = true;
+        await this.postMessage({ type: "ui/language", payload: { language: this.uiLanguage } });
         await this.postMessage({ type: "ui/ready", payload: {} });
         await this.enqueuePendingVisualization();
         break;
@@ -154,6 +161,14 @@ export class FunctionVisualizerPanelProvider {
       default:
         break;
     }
+  }
+
+  /** Publishes an idempotent full-surface locale update to a ready retained panel. */
+  public async updateUiLanguage(language: "ko" | "en"): Promise<void> {
+    if (this.uiLanguage === language) return;
+    this.uiLanguage = language;
+    if (this.panel) this.panel.title = localizeHost(language, "functionVisualizer");
+    await this.postMessage({ type: "ui/language", payload: { language } });
   }
 
   /** Publishes one token-approved direct callee into the current browser trail. */
@@ -235,6 +250,6 @@ function isConcreteCallable(node: SymbolNode): boolean {
 }
 
 /** Keeps the reusable editor-tab label anchored to its explicit root function. */
-function createPanelTitle(node: SymbolNode): string {
-  return `Function Flow · ${node.name || node.qualifiedName || "Anonymous"}`;
+function createPanelTitle(node: SymbolNode, language: "ko" | "en"): string {
+  return `${localizeHost(language, "functionFlow")} · ${node.name || node.qualifiedName || localizeHost(language, "anonymous")}`;
 }

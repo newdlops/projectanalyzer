@@ -27,8 +27,8 @@ test("package contributions activate and expose the current-function editor menu
     packageJson.contributes.commands.filter((command) => command.command === commandId),
     [{
       command: commandId,
-      title: "Visualize Current Function",
-      category: "Code Flow"
+      title: "%command.visualizeCurrentFunction%",
+      category: "%command.category%"
     }]
   );
   const contextMenu = packageJson.contributes.menus["editor/context"] ?? [];
@@ -393,8 +393,10 @@ test("Function Logic viewport owns free pan, focal zoom, Center, and Fit", () =>
   assert.match(browser, /addEventListener\("pointerdown", handlePointerDown\)/u);
   assert.match(browser, /addEventListener\("wheel", handleWheel, \{ passive: false \}\)/u);
   assert.match(browser, /translate3d\(/u);
-  assert.match(browser, /"Center", "Center function graph \(C\)"/u);
-  assert.match(browser, /"Fit", "Fit complete function graph \(F\)"/u);
+  assert.match(browser, /projectAnalyzerText\("center"\)/u);
+  assert.match(browser, /projectAnalyzerText\("function-center"\)/u);
+  assert.match(browser, /projectAnalyzerText\("fit"\)/u);
+  assert.match(browser, /projectAnalyzerText\("function-fit"\)/u);
   assert.match(browser, /aria-keyshortcuts/u);
   assert.match(styles, /overflow: hidden/u);
   assert.match(styles, /touch-action: none/u);
@@ -455,9 +457,12 @@ test("code-snippet presentation is shared, inert, and Webview-only", () => {
   assert.doesNotMatch(tokenizer, /innerHTML|outerHTML|insertAdjacentHTML|\beval\s*\(/u);
   assert.match(styles, /white-space: pre-wrap/u);
   assert.match(logicRenderer, /getCodeSnippetBrowserSource/u);
-  assert.match(logicRenderer, /mountCodeSnippet\(label, block\.label\)/u);
+  assert.match(logicRenderer, /const renderedLabel = formatLogicBlockLabel\(block\)/u);
+  assert.match(logicRenderer, /mountCodeSnippet\(label, renderedLabel\)/u);
   assert.match(moduleBrowser, /getCodeSnippetBrowserSource/u);
-  assert.match(moduleRenderer, /mountCodeSnippet\(title, node\.label\)/u);
+  assert.match(moduleRenderer, /const nodeLabel = presentation\.labelKey/u);
+  assert.match(moduleRenderer, /projectAnalyzerText\(presentation\.labelKey, presentation\.params\)/u);
+  assert.match(moduleRenderer, /mountCodeSnippet\(title, nodeLabel\)/u);
   assert.doesNotMatch(
     tokenizer,
     /from ".*(?:analyzer|application|protocol|vscode|extension)/u
@@ -513,7 +518,7 @@ test("Scenario values stay bounded, calculated, traceable, session-scoped, and b
   assert.match(dataFlow, /selectBinding\(bindingId, false\)/u);
   assert.match(dataFlow, /valuePreviewRendering\.setSelectedBinding/u);
   assert.match(dataFlow, /scenarioTraceRendering\.setSelectedBinding/u);
-  assert.match(preview, /label\.textContent = value/u);
+  assert.match(preview, /label\.textContent = value \? "= " \+ value : ""/u);
   assert.match(trace, /MAX_LOGIC_SCENARIO_TRACE_STEPS = 80/u);
   assert.match(trace, /formatFunctionLogicScenarioRole/u);
   assert.match(trace, /calculateFunctionLogicScenario/u);
@@ -529,7 +534,7 @@ test("Scenario values stay bounded, calculated, traceable, session-scoped, and b
   assert.match(objectWrite, /MAX_LOGIC_SCENARIO_MEMBER_WRITE_DEPTH = 24/u);
   assert.match(objectWrite, /for \(let index = 0; index < resolved\.keys\.length - 1/u);
   assert.match(objectWrite, /Object\.getOwnPropertyDescriptor/u);
-  assert.match(objectWrite, /prototype-sensitive field is not writable/u);
+  assert.match(objectWrite, /createFunctionLogicScenarioReason\("scenario-reason-object-prototype"/u);
   assert.match(evaluator, /mergeFunctionLogicScenarioEnvironments/u);
   assert.match(evaluator, /choice-dimmed/u);
   assert.doesNotMatch(

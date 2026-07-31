@@ -5,6 +5,7 @@
  */
 
 import { getCompoundFunctionLogicDimensionsSource } from "./compoundFunctionLogicDimensionsSource";
+import { getCompoundFunctionLogicIdentitySource } from "./compoundFunctionLogicIdentitySource";
 import { getCompoundFunctionLogicRoutingSource } from "./compoundFunctionLogicRoutingSource";
 
 /** Returns CSP-compatible helpers for composing attached functions in one canvas. */
@@ -21,6 +22,7 @@ export function getCompoundFunctionLogicGraphSource(): string {
     const COMPOUND_NODE_PORT_PADDING = 18;
 
     ${getCompoundFunctionLogicDimensionsSource()}
+    ${getCompoundFunctionLogicIdentitySource()}
     ${getCompoundFunctionLogicRoutingSource()}
 
     /**
@@ -283,12 +285,15 @@ export function getCompoundFunctionLogicGraphSource(): string {
             kind: isControlContinuationKind(sourceBlock.kind)
               ? sourceBlock.kind
               : "operation",
-            label: "Resume · " + completeAttachedContinuationLabel(sourceBlock.label),
-            detail: firstSynchronousExpansion.target.relation === "render"
-              ? "The rendered component flow rejoins the parent render path here."
-              : "Called code returns here before the caller continues.",
+            presentation: {
+              labelKey: "resume",
+              labelParams: { label: completeAttachedContinuationLabel(sourceBlock.label) },
+              detailKey: firstSynchronousExpansion.target.relation === "render"
+                ? "render-rejoin" : "call-rejoin",
+              detailParams: {}
+            },
             depth: sourceBlock.depth,
-            branchLabel: "after child",
+            branchPresentation: { key: "after-child", params: {} },
             confidence: sourceBlock.confidence,
             parentBlockId: sourceBlock.parentBlockId,
             functionLabel: callerScope?.isRoot
@@ -318,10 +323,11 @@ export function getCompoundFunctionLogicGraphSource(): string {
             sourceId,
             targetId,
             kind: "next",
-            label: (eventHandler
-              ? "event handler "
-              : expansion.target.relation === "render" ? "renders " : "calls ")
-              + attachedFunctionTargetLabel(expansion),
+            presentation: eventHandler
+              ? { key: "edge-event-handler", params: { label: attachedFunctionTargetLabel(expansion) } }
+              : expansion.target.relation === "render"
+                ? { key: "edge-renders", params: { label: attachedFunctionTargetLabel(expansion) } }
+                : { key: "edge-calls", params: { label: attachedFunctionTargetLabel(expansion) } },
             confidence: expansion.target.confidence === "inferred" ? "inferred" : "exact",
             relation: eventHandler ? "event" : "call"
           });
@@ -336,9 +342,9 @@ export function getCompoundFunctionLogicGraphSource(): string {
               sourceId: terminalIds[terminalIndex],
               targetId: continuationId,
               kind: "next",
-              label: expansion.target.relation === "render"
-                ? "returns to render path"
-                : "returns to caller",
+              presentation: expansion.target.relation === "render"
+                ? { key: "edge-returns-render", params: {} }
+                : { key: "edge-returns-caller", params: {} },
               confidence: expansion.target.confidence === "inferred" ? "inferred" : "exact",
               relation: "callReturn"
             });
@@ -355,7 +361,7 @@ export function getCompoundFunctionLogicGraphSource(): string {
 
     /** Preserves the complete caller cue shown in a continuation box. */
     function completeAttachedContinuationLabel(label) {
-      return String(label || "caller flow");
+      return String(label || projectAnalyzerText("caller-flow"));
     }
 
     /** Converts loading, cycle, limit, and failure states into real graph nodes. */
@@ -382,8 +388,7 @@ export function getCompoundFunctionLogicGraphSource(): string {
           blocks: [{
             id: blockId,
             kind: "unknown",
-            label: status.label,
-            detail: status.detail,
+            presentation: status.presentation,
             depth: expansion.depth,
             confidence: expansion.target.confidence === "inferred" ? "inferred" : "exact"
           }],
@@ -410,25 +415,25 @@ export function getCompoundFunctionLogicGraphSource(): string {
     function createAttachedFunctionStatus(status, targetLabel, error) {
       if (status === "cycle") {
         return {
-          label: "Call cycle · " + targetLabel,
-          detail: "This function is already visible in the ancestor flow."
+          presentation: { labelKey: "call-cycle", labelParams: { label: targetLabel }, detailKey: "call-cycle-detail", detailParams: {} }
         };
       }
       if (status === "limited") {
         return {
-          label: "Depth limit · " + targetLabel,
-          detail: "The attached-function depth limit was reached."
+          presentation: { labelKey: "depth-limit", labelParams: { label: targetLabel }, detailKey: "depth-limit-detail", detailParams: {} }
         };
       }
       if (status === "failed") {
         return {
-          label: targetLabel + " unavailable",
-          detail: error || "This related function flow is unavailable."
+          presentation: {
+            labelKey: "related-function-unavailable-label", labelParams: { label: targetLabel },
+            detailKey: error?.presentationKey ? "code-flow-failure-" + error.presentationKey : error ? "related-function-error" : "related-function-unavailable",
+            detailParams: error?.presentationKey ? {} : error ? { detail: error.message || error } : {}
+          }
         };
       }
       return {
-        label: "Loading · " + targetLabel,
-        detail: "Reading the related function body into this graph."
+        presentation: { labelKey: "loading-related", labelParams: { label: targetLabel }, detailKey: "loading-related-detail", detailParams: {} }
       };
     }
 
@@ -773,44 +778,14 @@ export function getCompoundFunctionLogicGraphSource(): string {
       return compact;
     }
 
-    /** Creates stable browser-only identities without exposing new Host authority. */
-    function createCompoundBlockId(scopeId, blockId) {
-      return "compound-block:" + scopeId + ":" + blockId;
-    }
-
-    /** Creates stable browser-only edge identities inside one compound scene. */
-    function createCompoundEdgeId(scopeId, edgeId) {
-      return "compound-edge:" + scopeId + ":" + edgeId;
-    }
-
-    /** Namespaces one value binding inside its attached function scope. */
-    function createCompoundBindingId(scopeId, bindingId) {
-      return "compound-binding:" + scopeId + ":" + bindingId;
-    }
-
-    /** Namespaces one value-flow relation inside its attached function scope. */
-    function createCompoundValueFlowId(scopeId, valueFlowId) {
-      return "compound-value-flow:" + scopeId + ":" + valueFlowId;
-    }
-
-    /** Indexes an original block within its function scope. */
-    function createScopeBlockKey(scopeId, blockId) {
-      return scopeId + "::" + blockId;
-    }
-
-    /** Joins scope and binding identities without relying on display labels. */
-    function createScopeBindingKey(scopeId, bindingId) {
-      return scopeId + "\u0000" + bindingId;
-    }
-
     /** Returns the safest visible label for an attached function target. */
     function attachedFunctionTargetLabel(expansion) {
-      return expansion.target.qualifiedName || expansion.target.name || "Called function";
+      return expansion.target.qualifiedName || expansion.target.name || projectAnalyzerText("called-function");
     }
 
     /** Preserves the complete function badge inside variable-size graph boxes. */
     function completeAttachedFunctionLabel(label) {
-      return String(label || "Called function");
+      return String(label || projectAnalyzerText("called-function"));
     }
   `;
 }
