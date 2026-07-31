@@ -1,8 +1,8 @@
 {
   "name": "function-analysis",
-  "displayName": "Project Analyzer: Code Flow",
-  "description": "Understand unfamiliar codebases through bounded, source-backed code flows.",
-  "version": "0.0.1070",
+  "displayName": "%extension.displayName%",
+  "description": "%extension.description%",
+  "version": "0.0.1074",
   "publisher": "newdlops",
   "private": true,
   "license": "MIT",
@@ -50,7 +50,7 @@
       "activitybar": [
         {
           "id": "projectAnalyzer",
-          "title": "Code Flow",
+          "title": "%viewContainer.title%",
           "icon": "media/project-analyzer.svg"
         }
       ]
@@ -59,7 +59,7 @@
       "projectAnalyzer": [
         {
           "id": "projectAnalyzer.explorerView",
-          "name": "Understand Code",
+          "name": "%view.name%",
           "type": "webview"
         }
       ]
@@ -67,13 +67,13 @@
     "commands": [
       {
         "command": "projectAnalyzer.visualizeCurrentFunction",
-        "title": "Visualize Current Function",
-        "category": "Code Flow"
+        "title": "%command.visualizeCurrentFunction%",
+        "category": "%command.category%"
       },
       {
         "command": "projectAnalyzer.openModuleFlow",
-        "title": "Open Project Module Flow",
-        "category": "Code Flow",
+        "title": "%command.openModuleFlow%",
+        "category": "%command.category%",
         "icon": "$(type-hierarchy)"
       }
     ],
@@ -94,17 +94,28 @@
       ]
     },
     "configuration": {
-      "title": "Project Analyzer: Code Flow",
+      "title": "%configuration.title%",
       "properties": {
         "projectAnalyzer.enabled": {
           "type": "boolean",
           "default": true,
-          "description": "Enable Project Analyzer extension features."
+          "description": "%configuration.enabled.description%"
         },
         "projectAnalyzer.autoAnalyze": {
           "type": "boolean",
           "default": true,
-          "description": "Analyze the workspace automatically so Code Flow starting points are ready when the view opens."
+          "description": "%configuration.autoAnalyze.description%"
+        },
+        "projectAnalyzer.uiLanguage": {
+          "type": "string",
+          "enum": ["auto", "ko", "en"],
+          "enumDescriptions": [
+            "%configuration.uiLanguage.auto%",
+            "%configuration.uiLanguage.ko%",
+            "%configuration.uiLanguage.en%"
+          ],
+          "default": "auto",
+          "description": "%configuration.uiLanguage.description%"
         },
         "projectAnalyzer.include": {
           "type": "array",
@@ -114,7 +125,7 @@
           "default": [
             "**/*.{ts,tsx,js,jsx,py,java,fs,fsx,ml,mli,ex,exs}"
           ],
-          "description": "Glob patterns included in project analysis."
+          "description": "%configuration.include.description%"
         },
         "projectAnalyzer.exclude": {
           "type": "array",
@@ -132,68 +143,68 @@
             "**/.venv/**",
             "**/venv/**"
           ],
-          "description": "Glob patterns excluded from project analysis."
+          "description": "%configuration.exclude.description%"
         },
         "projectAnalyzer.maxFileSizeKb": {
           "type": "number",
           "default": 1024,
           "minimum": 1,
-          "description": "Maximum source file size in KiB for static analysis."
+          "description": "%configuration.maxFileSizeKb.description%"
         },
         "projectAnalyzer.maxRenderedNodes": {
           "type": "number",
           "default": 500,
           "minimum": 1,
           "maximum": 2000,
-          "description": "Maximum graph nodes projected and rendered in a single explorer view."
+          "description": "%configuration.maxRenderedNodes.description%"
         },
         "projectAnalyzer.defaultDepth": {
           "type": "number",
           "default": 2,
           "minimum": 0,
-          "description": "Default graph expansion depth for caller and callee exploration."
+          "description": "%configuration.defaultDepth.description%"
         },
         "projectAnalyzer.codeFlow.maxDepth": {
           "type": "number",
           "default": 3,
           "minimum": 0,
           "maximum": 12,
-          "description": "Maximum downstream call depth shown for a selected-function Code Flow."
+          "description": "%configuration.codeFlow.maxDepth.description%"
         },
         "projectAnalyzer.codeFlow.maxSteps": {
           "type": "number",
           "default": 30,
           "minimum": 1,
           "maximum": 200,
-          "description": "Maximum visible steps in a selected-function Code Flow."
+          "description": "%configuration.codeFlow.maxSteps.description%"
         },
         "projectAnalyzer.codeFlow.maxLogicBlocks": {
           "type": "number",
           "default": 120,
           "minimum": 1,
           "maximum": 300,
-          "description": "Maximum syntax-backed statement and expression blocks in a selected Function Logic flow."
+          "description": "%configuration.codeFlow.maxLogicBlocks.description%"
         },
         "projectAnalyzer.includeExternalDependencies": {
           "type": "boolean",
           "default": false,
-          "description": "Include external dependency nodes in graph views."
+          "description": "%configuration.includeExternalDependencies.description%"
         },
         "projectAnalyzer.showUnresolvedEdges": {
           "type": "boolean",
           "default": true,
-          "description": "Show graph edges whose target cannot be resolved statically."
+          "description": "%configuration.showUnresolvedEdges.description%"
         },
         "projectAnalyzer.cache.enabled": {
           "type": "boolean",
           "default": true,
-          "description": "Persist analysis cache in VS Code workspace storage."
+          "description": "%configuration.cache.enabled.description%"
         },
         "projectAnalyzer.cache.maxSizeMb": {
           "type": "number",
           "default": 256,
           "minimum": 1,
-          "description": "Maximum persisted analysis cache size in MiB."
+          "description": "%configuration.cache.maxSizeMb.description%"
         }
       }
     }

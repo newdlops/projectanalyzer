@@ -4,9 +4,15 @@
  */
 
 import * as vscode from "vscode";
+import {
+  resolveUiLanguage,
+  type UiLanguage,
+  type UiLanguagePreference
+} from "../localization/uiLanguage";
 
 /** Runtime settings consumed by analyzer, graph, and Webview modules. */
 export type ProjectAnalyzerConfig = {
+  uiLanguage: UiLanguage;
   enabled: boolean;
   autoAnalyze: boolean;
   include: string[];
@@ -27,6 +33,8 @@ export type ProjectAnalyzerConfig = {
   };
 };
 
+export { resolveUiLanguage, type UiLanguage } from "../localization/uiLanguage";
+
 /**
  * Reads the current Project Analyzer settings from VS Code.
  */
@@ -34,6 +42,10 @@ export function readProjectAnalyzerConfig(): ProjectAnalyzerConfig {
   const config = vscode.workspace.getConfiguration("projectAnalyzer");
 
   return {
+    uiLanguage: resolveUiLanguage(
+      config.get<UiLanguagePreference | unknown>("uiLanguage", "auto"),
+      vscode.env.language
+    ),
     enabled: config.get("enabled", true),
     autoAnalyze: config.get("autoAnalyze", true),
     include: config.get("include", ["**/*.{ts,tsx,js,jsx,py,java,fs,fsx,ml,mli,ex,exs}"]),
