@@ -21,6 +21,8 @@ import { validateWebviewRequest } from "../../protocol/webviewRequestValidation"
 import type { ProjectAnalyzerLogger } from "../../observability/logger";
 import type { ProjectGraph } from "../../shared/types";
 import type { SourceHighlighter } from "../../vscode/sourceHighlightService";
+import type { ProjectAnalyzerConfig } from "../../vscode/configuration";
+import { localizeHost } from "../../localization/uiLanguage";
 import { WebviewGraphDelivery } from "../sidebarGraphDelivery";
 import { SourceNodeTokenRegistry } from "../sourceNavigation";
 import {
@@ -34,6 +36,7 @@ import { getModuleVisualizerHtml } from "./moduleVisualizerHtml";
 
 /** Host actions injected by the extension composition root. */
 export type ModuleVisualizerPanelProviderDependencies = {
+  config: ProjectAnalyzerConfig;
   logger: ProjectAnalyzerLogger;
   sourceHighlighter: SourceHighlighter;
 };
@@ -47,6 +50,8 @@ export class ModuleVisualizerPanelProvider implements vscode.Disposable {
 
   /** Prevents delivery before the nonce-protected browser program is listening. */
   private webviewReady = false;
+  /** Latest locale survives hidden-Webview rehydration. */
+  private uiLanguage: "ko" | "en";
 
   /** Latest graph replaces a not-yet-delivered workspace analysis result. */
   private pendingGraph: ProjectGraph | undefined;
@@ -79,6 +84,7 @@ export class ModuleVisualizerPanelProvider implements vscode.Disposable {
   public constructor(
     private readonly dependencies: ModuleVisualizerPanelProviderDependencies
   ) {
+    this.uiLanguage = dependencies.config.uiLanguage;
     this.functionLogicDelivery = new ModuleFlowFunctionLogicDelivery({
       graphDelivery: this.graphDelivery,
       projection: this.projection,
@@ -109,7 +115,7 @@ export class ModuleVisualizerPanelProvider implements vscode.Disposable {
     }
     this.panel = vscode.window.createWebviewPanel(
       ModuleVisualizerPanelProvider.viewType,
-      "Module Flow",
+      localizeHost(this.uiLanguage, "moduleFlow"),
       vscode.ViewColumn.Active,
       // Module Flow can retain hundreds of DOM/SVG objects. Let VS Code destroy
       // the browser context while hidden; the Host snapshot rehydrates it later.
@@ -118,7 +124,8 @@ export class ModuleVisualizerPanelProvider implements vscode.Disposable {
     this.webviewReady = false;
     this.panel.webview.html = getModuleVisualizerHtml({
       webview: this.panel.webview,
-      nonce: createNonce()
+      nonce: createNonce(),
+      language: this.uiLanguage
     });
     this.panel.webview.onDidReceiveMessage((message: unknown) => {
       const validation = validateWebviewRequest(message);
@@ -145,6 +152,7 @@ export class ModuleVisualizerPanelProvider implements vscode.Disposable {
     switch (message.type) {
       case "ui/ready":
         this.webviewReady = true;
+        await this.postMessage({ type: "ui/language", payload: { language: this.uiLanguage } });
         await this.postMessage({ type: "ui/ready", payload: {} });
         if (this.pendingGraph) {
           await this.enqueuePendingGraph();
@@ -172,6 +180,14 @@ export class ModuleVisualizerPanelProvider implements vscode.Disposable {
     }
   }
 
+  /** Updates mutable panel chrome and the browser without rebuilding the graph. */
+  public async updateUiLanguage(language: "ko" | "en"): Promise<void> {
+    if (this.uiLanguage === language) return;
+    this.uiLanguage = language;
+    if (this.panel) this.panel.title = localizeHost(language, "moduleFlow");
+    await this.postMessage({ type: "ui/language", payload: { language } });
+  }
+
   /** Adds the latest root delivery to a non-recursive promise queue. */
   private enqueuePendingGraph(): Promise<void> {
     const scheduled = this.deliveryQueue.then(() => this.publishPendingGraph());
@@ -183,7 +199,8 @@ export class ModuleVisualizerPanelProvider implements vscode.Disposable {
         type: "error",
         payload: {
           code: "moduleFlow.deliveryFailed",
-          message: `Could not build Module Flow: ${formatError(error)}`
+          message: localizeHost(this.uiLanguage, "moduleBuildFailed", { detail: error instanceof Error ? error.message : localizeHost(this.uiLanguage, "unknownModuleFailure") }),
+          ...(error instanceof Error ? { detail: error.message } : {})
         }
       });
     });
@@ -245,7 +262,7 @@ export class ModuleVisualizerPanelProvider implements vscode.Disposable {
       const payload = this.projection.projectDetail(request);
       if (!payload) {
         const code = request.target.kind === "module" ? "moduleNotFound" : "edgeNotFound";
-        await this.publishFailure(request, "detail", code, "The selected graph item is unavailable.");
+        await this.publishFailure(request, "detail", code, localizeHost(this.uiLanguage, "graphItemUnavailable"));
         return;
       }
       await this.postMessage({ type: "moduleFlow/detailLoaded", payload });
@@ -266,7 +283,7 @@ export class ModuleVisualizerPanelProvider implements vscode.Disposable {
           request,
           "expand",
           "moduleNotFound",
-          "This module cannot be expanded in the active graph."
+          localizeHost(this.uiLanguage, "moduleNotExpandable")
         );
         return;
       }
@@ -290,7 +307,7 @@ export class ModuleVisualizerPanelProvider implements vscode.Disposable {
           request,
           "functionLogic",
           "functionNotFound",
-          "This function is no longer attached to the active Module Flow."
+          localizeHost(this.uiLanguage, "functionDetached")
         );
         return;
       }
@@ -318,7 +335,7 @@ export class ModuleVisualizerPanelProvider implements vscode.Disposable {
             request,
             "openSource",
             "evidenceNotFound",
-            "This function statement evidence has expired."
+            localizeHost(this.uiLanguage, "functionEvidenceExpired")
           );
           return;
         }
@@ -332,7 +349,7 @@ export class ModuleVisualizerPanelProvider implements vscode.Disposable {
             request,
             "openSource",
             "evidenceNotFound",
-            "This source evidence has expired."
+            localizeHost(this.uiLanguage, "sourceEvidenceExpired")
           );
           return;
         }
@@ -347,7 +364,7 @@ export class ModuleVisualizerPanelProvider implements vscode.Disposable {
           request,
           "openSource",
           "sourceNotFound",
-          "This source definition has expired."
+          localizeHost(this.uiLanguage, "sourceDefinitionExpired")
         );
         return;
       }
@@ -370,7 +387,7 @@ export class ModuleVisualizerPanelProvider implements vscode.Disposable {
       request,
       operation,
       "staleGraph",
-      "The project graph changed. Reload Module Flow and try again."
+      localizeHost(this.uiLanguage, "moduleGraphStale")
     );
     return false;
   }

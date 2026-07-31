@@ -18,6 +18,7 @@ import { getModuleFlowLineageFocusBrowserSource } from "./moduleFlowLineageFocus
 import { getModuleFlowModuleComponentFocusBrowserSource } from "./moduleFlowModuleComponentFocus";
 import { getModuleVisualizerGraphRendererSource } from "./moduleVisualizerGraphRendererSource";
 import { getModuleVisualizerViewportBrowserSource } from "./moduleVisualizerViewportBrowserSource";
+import { getModuleFlowLabelBrowserSource } from "./moduleFlowLabelBrowserSource";
 
 /** Returns one nonce-compatible script with the pure layout runtime embedded. */
 export function getModuleVisualizerBrowserSource(): string {
@@ -105,7 +106,12 @@ export function getModuleVisualizerBrowserSource(): string {
       zoomAnnouncementTimer: undefined,
       resizeObserver: undefined,
       pan: undefined,
-      frameScheduler: undefined
+      frameScheduler: undefined,
+      // Locale-sensitive browser copy is retained as descriptors/literals so a
+      // language switch can update text without requesting or rebuilding scene data.
+      statusPresentation: undefined,
+      summaryPresentation: undefined,
+      detailModel: { kind: "empty" }
     };
     state.frameScheduler = new ModuleFlowFrameScheduler(
       window.requestAnimationFrame.bind(window),
@@ -125,7 +131,7 @@ export function getModuleVisualizerBrowserSource(): string {
     /** Requests a complete bounded scene for toolbar changes. */
     function requestList() {
       if (!state.graphVersion) return;
-      setStatus("Updating the module lens");
+      setSemanticStatus("updating-lens");
       const requestId = post("moduleFlow/list", {
         graphVersion: state.graphVersion,
         mode: state.mode,
@@ -182,7 +188,7 @@ export function getModuleVisualizerBrowserSource(): string {
         state.enteringNodeIds.clear();
         state.enteringEdgeIds.clear();
         renderGraph(anchor, true);
-        setStatus("Collapsed " + module.label);
+        setSemanticStatus("collapsed", { label: module.label });
         return;
       }
       if (state.pendingNodeIds.has(module.id)) {
@@ -190,7 +196,9 @@ export function getModuleVisualizerBrowserSource(): string {
         return;
       }
       state.pendingNodeIds.add(module.id);
-      setStatus("Attaching " + (expansion === "boundaryFunctions" ? "boundary functions" : "child modules"));
+      setSemanticStatus(
+        expansion === "boundaryFunctions" ? "attaching-boundary-functions" : "attaching-child-modules"
+      );
       post("moduleFlow/expand", {
         graphVersion: state.graphVersion,
         moduleId: module.id,
@@ -213,8 +221,15 @@ export function getModuleVisualizerBrowserSource(): string {
       const message = event.data;
       if (!message || typeof message.type !== "string" || !message.payload) return;
       const payload = message.payload;
+      if (message.type === "ui/language") {
+        applyProjectAnalyzerLanguage(payload.language === "ko" ? "ko" : "en");
+        relocalizeModuleFlowPresentation();
+        return;
+      }
       if (message.type === "error") {
-        setStatus(payload.message || "Module Flow could not be loaded");
+        const key = "error-" + payload.code;
+        if (projectAnalyzerText(key) !== key) setSemanticStatus(key, { detail: payload.detail ? ": " + payload.detail : "" });
+        else setLiteralStatus(payload.message || projectAnalyzerText("module-failed"));
         return;
       }
       if (message.type === "moduleFlow/listLoaded") {
@@ -273,14 +288,13 @@ export function getModuleVisualizerBrowserSource(): string {
       state.latestListRequestId = payload.requestId;
       syncModeButtons();
       const summary = payload.summary;
-      dom.summary.textContent = summary.visibleModuleCount + " of " + summary.totalModuleCount
-        + " modules · " + summary.visibleEdgeCount + " of " + summary.totalEdgeCount
-        + " relationships · " + summary.crossModuleEvidenceCount + " evidence points";
+      state.summaryPresentation = { key: "module-count-summary", params: { visibleModules: summary.visibleModuleCount, totalModules: summary.totalModuleCount, visibleEdges: summary.visibleEdgeCount, totalEdges: summary.totalEdgeCount, evidence: summary.crossModuleEvidenceCount } };
+      dom.summary.textContent = projectAnalyzerText(state.summaryPresentation.key, state.summaryPresentation.params);
       renderEmptyDetail();
       renderGraph(undefined, true);
-      setStatus(summary.omittedModuleCount + summary.omittedEdgeCount > 0
-        ? "Bounded scene loaded; omitted counts are shown in the header"
-        : "Module Flow ready");
+      setSemanticStatus(summary.omittedModuleCount + summary.omittedEdgeCount > 0
+        ? "bounded-scene"
+        : "module-ready");
     }
 
     /** Merges one bounded delta and restores the clicked module's viewport point. */
@@ -301,19 +315,17 @@ export function getModuleVisualizerBrowserSource(): string {
         state.enteringNodeIds.clear();
         state.enteringEdgeIds.clear();
         renderGraph(currentAnchor, false);
-        setStatus("This expansion exceeds the complete canvas resource budget");
+        setSemanticStatus("module-budget");
         return;
       }
       state.enteringNodeIds = new Set((payload.nodes || []).map(function (node) { return node.id; }));
       state.enteringEdgeIds = new Set((payload.edges || []).map(function (edge) { return edge.id; }));
       renderGraph(currentAnchor, true);
       const releasedCount = retention.evictedKeys.length + pruned;
-      const released = releasedCount > 0
-        ? " · " + releasedCount + " oldest branch(es) released"
-        : "";
-      setStatus(payload.summary.visibleNodeCount + " nodes attached · "
-        + payload.summary.omittedNodeCount + " additional nodes outside this expansion budget"
-        + released);
+      setSemanticStatus(
+        releasedCount > 0 ? "module-expansion-status-released" : "module-expansion-status",
+        { count: payload.summary.visibleNodeCount, omitted: payload.summary.omittedNodeCount, released: releasedCount }
+      );
     }
 
     /** Clears request-local loading state and exposes a display-safe failure. */
@@ -325,7 +337,7 @@ export function getModuleVisualizerBrowserSource(): string {
         if (pending.anchorNodeId) state.pendingNodeIds.delete(pending.anchorNodeId);
         if (pending.moduleId) state.pendingNodeIds.delete(pending.moduleId);
       }
-      setStatus(payload.message || "Module Flow request failed");
+      setFailureStatus(payload);
       renderGraph(undefined, false);
     }
 
@@ -355,20 +367,37 @@ export function getModuleVisualizerBrowserSource(): string {
     }
 
     /** Projects all browser-visible strings into the layout measurement contract. */
+    function formatModulePresentation(presentation, fallback) {
+      return presentation && presentation.key
+        ? projectAnalyzerText(presentation.key, presentation.params)
+        : fallback;
+    }
+
     function toLayoutNode(node) {
       if (node.kind === "logicBlock") {
         const detailLines = [];
-        if (node.branchLabel) detailLines.push("Branch · " + node.branchLabel);
+        const title = node.presentation?.labelKey
+          ? projectAnalyzerText(node.presentation.labelKey, node.presentation.labelParams)
+          : node.label;
+        const subtitle = node.presentation?.detailKey
+          ? projectAnalyzerText(node.presentation.detailKey, node.presentation.detailParams)
+          : node.detail;
+        const branchLabel = node.branchPresentation?.key
+          ? projectAnalyzerText(node.branchPresentation.key, node.branchPresentation.params)
+          : node.branchLabel;
+        if (branchLabel) detailLines.push(projectAnalyzerText("branch", { label: branchLabel }));
         if (node.locationLabel) detailLines.push(node.locationLabel);
         return {
           id: node.id,
           kind: "function",
-          title: node.label,
-          subtitle: node.detail,
-          badges: [node.blockKind, node.confidence],
+          title,
+          subtitle,
+          badges: [projectAnalyzerText("module-logic-" + node.blockKind), projectAnalyzerText("module-confidence-" + (node.confidence || "unknown"))],
           metricLines: [
-            (node.valueChanges || []).length + " value changes · "
-              + (node.valueAccesses || []).length + " value accesses"
+            projectAnalyzerText("module-value-flow-metrics", {
+              changes: (node.valueChanges || []).length,
+              accesses: (node.valueAccesses || []).length
+            })
           ],
           detailLines: detailLines
         };
@@ -377,31 +406,31 @@ export function getModuleVisualizerBrowserSource(): string {
         return {
           id: node.id,
           kind: "function",
-          title: node.label,
-          subtitle: node.detail,
-          badges: ["function", node.confidence || "static"],
+          title: node.presentation?.labelKey ? projectAnalyzerText(node.presentation.labelKey, node.presentation.params) : node.label,
+          subtitle: node.presentation?.detailKey ? projectAnalyzerText(node.presentation.detailKey, node.presentation.params) : node.detail,
+          badges: [projectAnalyzerText("function-kind"), projectAnalyzerText("module-confidence-" + (node.confidence || "static"))],
           metricLines: [
-            node.incomingBoundaryCount + " incoming boundary calls",
-            node.outgoingBoundaryCount + " outgoing boundary calls"
+            projectAnalyzerText("incoming-boundary-calls", { count: node.incomingBoundaryCount }),
+            projectAnalyzerText("outgoing-boundary-calls", { count: node.outgoingBoundaryCount })
           ],
           detailLines: node.locationLabel
-            ? [node.locationLabel, "Click to attach its function graph"]
-            : ["Click to attach its function graph"]
+            ? [node.locationLabel, projectAnalyzerText("attach-function-graph")]
+            : [projectAnalyzerText("attach-function-graph")]
         };
       }
-      const badges = [node.basis, node.confidence].concat(node.frameworks || [], node.ecosystems || []);
+      const badges = [projectAnalyzerText("module-basis-" + (node.basis || "unknown")), projectAnalyzerText("module-confidence-" + (node.confidence || "unknown"))].concat(node.frameworks || [], node.ecosystems || []);
       const metrics = node.metrics || {};
       return {
         id: node.id,
         kind: node.external ? "external" : "module",
-        title: node.label,
-        subtitle: node.detail,
+        title: node.presentation?.labelKey ? projectAnalyzerText(node.presentation.labelKey, node.presentation.params) : node.label,
+        subtitle: node.presentation?.detailKey ? projectAnalyzerText(node.presentation.detailKey, node.presentation.params) : node.detail,
         badges: badges,
         metricLines: [
-          (metrics.analyzedFileCount || 0) + " direct files · " + (metrics.callableCount || 0) + " direct functions",
-          (metrics.descendantFileCount || 0) + " tree files · " + (metrics.descendantCallableCount || 0) + " tree functions",
-          (metrics.incomingEvidenceCount || 0) + " incoming · " + (metrics.outgoingEvidenceCount || 0) + " outgoing evidence",
-          (metrics.entrypointCount || 0) + " entrypoints · " + (metrics.frameworkUnitCount || 0) + " framework units"
+          projectAnalyzerText("module-direct-metrics", { files: metrics.analyzedFileCount || 0, functions: metrics.callableCount || 0 }),
+          projectAnalyzerText("module-tree-metrics", { files: metrics.descendantFileCount || 0, functions: metrics.descendantCallableCount || 0 }),
+          projectAnalyzerText("module-evidence-metrics", { incoming: metrics.incomingEvidenceCount || 0, outgoing: metrics.outgoingEvidenceCount || 0 }),
+          projectAnalyzerText("module-entry-metrics", { entrypoints: metrics.entrypointCount || 0, units: metrics.frameworkUnitCount || 0 })
         ],
         detailLines: node.locationLabel
           ? [node.locationLabel, expansionHint(node)]
@@ -434,9 +463,6 @@ export function getModuleVisualizerBrowserSource(): string {
       state.selectedEdgeId = undefined;
       if (node.kind === "function") {
         renderFunctionDetail(node);
-        if (node.sourceToken) {
-          requestOpenSource({ kind: "node", sourceToken: node.sourceToken });
-        }
         toggleFunctionLogic(node);
         return;
       }
@@ -494,7 +520,7 @@ export function getModuleVisualizerBrowserSource(): string {
       dom.viewport.scrollTop = 0;
       renderEmptyDetail();
       renderGraph(undefined, hadSceneFocus);
-      setStatus("Module focus cleared · initial scene restored");
+      setSemanticStatus("focus-cleared");
     }
 
     /** Selects an evidence-backed aggregate route for its detail rows. */
@@ -508,16 +534,19 @@ export function getModuleVisualizerBrowserSource(): string {
 
     /** Renders Host-projected module or relation details without HTML parsing. */
     function renderDetail(detail) {
+      state.detailModel = detail ? { kind: "host", detail: detail } : { kind: "empty" };
       dom.detail.replaceChildren();
       if (!detail) return;
       if (detail.kind === "edge") {
-        appendText(dom.detail, "h2", "detail-title", edgeLabel(detail.edge) || "Relationship");
-        appendText(dom.detail, "div", "detail-row", detail.edge.evidenceCount + " evidence points · " + detail.omittedEvidenceCount + " not shown");
-        const section = createDetailSection("Source evidence");
+        appendText(dom.detail, "h2", "detail-title", edgeLabel(detail.edge) || projectAnalyzerText("relationship"));
+        appendText(dom.detail, "div", "detail-row", projectAnalyzerText("evidence-points", { count: detail.edge.evidenceCount, omitted: detail.omittedEvidenceCount }));
+        const section = createDetailSection(projectAnalyzerText("source-evidence"));
         for (const evidence of detail.evidence || []) {
-          const row = appendText(section, "div", "detail-row", evidence.label + " · " + evidence.confidence);
+          const label = formatModulePresentation(evidence.labelPresentation || evidence.presentation, evidence.label);
+          const confidence = projectAnalyzerText("module-confidence-" + (evidence.confidence || "unknown"));
+          const row = appendText(section, "div", "detail-row", label + " · " + confidence);
           if (evidence.evidenceToken) {
-            const button = appendText(row, "button", "detail-action", "Open exact source range");
+            const button = appendText(row, "button", "detail-action", projectAnalyzerText("open-exact-source"));
             button.type = "button";
             button.addEventListener("click", function () {
               requestOpenSource({ kind: "evidence", evidenceToken: evidence.evidenceToken });
@@ -528,29 +557,31 @@ export function getModuleVisualizerBrowserSource(): string {
         return;
       }
       const module = detail.module;
-      appendText(dom.detail, "h2", "detail-title", module.label);
-      appendText(dom.detail, "div", "detail-row", module.detail + (module.locationLabel ? " · " + module.locationLabel : ""));
-      const actions = createDetailSection("Attach to this canvas");
-      if (module.expandable.boundaryFunctions) addExpansionAction(actions, module, "boundaryFunctions", "Toggle boundary functions");
-      if (module.expandable.childModules) addExpansionAction(actions, module, "childModules", "Toggle child modules");
+      const moduleTitle = module.presentation?.labelKey ? projectAnalyzerText(module.presentation.labelKey, module.presentation.params) : module.label;
+      const moduleDetail = module.presentation?.detailKey ? projectAnalyzerText(module.presentation.detailKey, module.presentation.params) : module.detail;
+      appendText(dom.detail, "h2", "detail-title", moduleTitle);
+      appendText(dom.detail, "div", "detail-row", moduleDetail + (module.locationLabel ? " · " + module.locationLabel : ""));
+      const actions = createDetailSection(projectAnalyzerText("attach-canvas"));
+      if (module.expandable.boundaryFunctions) addExpansionAction(actions, module, "boundaryFunctions", projectAnalyzerText("toggle-boundary-functions"));
+      if (module.expandable.childModules) addExpansionAction(actions, module, "childModules", projectAnalyzerText("toggle-child-modules"));
       if (actions.children.length > 1) dom.detail.appendChild(actions);
-      appendDetailRows("Why this is a module", detail.boundaryEvidence || [], function (entry) { return entry.label; });
-      appendDetailRows("Internal relationships", detail.internalRelations || [], function (entry) { return entry.kind + " · " + entry.count; });
-      const sources = createDetailSection("Representative source");
+      appendDetailRows(projectAnalyzerText("why-module"), detail.boundaryEvidence || [], function (entry) { return formatModulePresentation(entry.labelPresentation || entry.presentation, entry.label); });
+      appendDetailRows(projectAnalyzerText("internal-relationships"), detail.internalRelations || [], function (entry) { return projectAnalyzerText("module-relation-" + entry.kind, { count: entry.count }); });
+      const sources = createDetailSection(projectAnalyzerText("representative-source"));
       for (const source of detail.representativeSources || []) {
-        const row = appendText(sources, "div", "detail-row", source.label);
+        const row = appendText(sources, "div", "detail-row", formatModulePresentation(source.presentation, source.label));
         if (source.sourceToken) {
-          const button = appendText(row, "button", "detail-action", "Open source");
+          const button = appendText(row, "button", "detail-action", projectAnalyzerText("open-source-range"));
           button.type = "button";
           button.addEventListener("click", function () {
             requestOpenSource({ kind: "node", sourceToken: source.sourceToken });
           });
         }
       }
-      if (detail.omittedSourceCount > 0) appendText(sources, "div", "detail-row", detail.omittedSourceCount + " additional source files");
+      if (detail.omittedSourceCount > 0) appendText(sources, "div", "detail-row", projectAnalyzerText("additional-source-files", { count: detail.omittedSourceCount }));
       dom.detail.appendChild(sources);
-      appendEdgeButtons("Incoming module relationships", detail.incomingEdges || []);
-      appendEdgeButtons("Outgoing module relationships", detail.outgoingEdges || []);
+      appendEdgeButtons(projectAnalyzerText("incoming-relationships"), detail.incomingEdges || [], detail.omittedIncomingEdgeCount, "additional-incoming-relationships");
+      appendEdgeButtons(projectAnalyzerText("outgoing-relationships"), detail.outgoingEdges || [], detail.omittedOutgoingEdgeCount, "additional-outgoing-relationships");
     }
 
     function addExpansionAction(section, module, expansion, label) {
@@ -566,34 +597,39 @@ export function getModuleVisualizerBrowserSource(): string {
       dom.detail.appendChild(section);
     }
 
-    function appendEdgeButtons(title, edges) {
-      if (edges.length === 0) return;
+    function appendEdgeButtons(title, edges, omittedCount, omittedKey) {
+      if (edges.length === 0 && !omittedCount) return;
       const section = createDetailSection(title);
       for (const edge of edges) {
         const button = appendText(section, "button", "detail-action", edgeLabel(edge));
         button.type = "button";
         button.addEventListener("click", function () { selectEdge(edge); });
       }
+      if (omittedCount > 0) {
+        appendText(section, "div", "detail-row", projectAnalyzerText(omittedKey, { count: omittedCount }));
+      }
       dom.detail.appendChild(section);
     }
 
     /** Displays synthetic containment, calls, and function control locally. */
     function renderLocalEdgeDetail(edge) {
+      state.detailModel = { kind: "localEdge", edge: edge };
       dom.detail.replaceChildren();
-      appendText(dom.detail, "h2", "detail-title", edgeLabel(edge) || "Structural relationship");
+      appendText(dom.detail, "h2", "detail-title", edgeLabel(edge) || projectAnalyzerText("structural-relationship"));
       const detail = edge.presentationKind === "contains"
-        ? "This card belongs to the source module boundary."
+        ? projectAnalyzerText("module-local-boundary")
         : edge.presentationKind === "functionEntry"
-          ? "This route enters the attached function-local graph."
+          ? projectAnalyzerText("module-function-entry")
           : edge.presentationKind === "controlFlow"
-            ? "Static function control flow · " + edge.controlKind
-            : edge.evidenceCount + " concrete boundary calls";
+            ? projectAnalyzerText("module-control-flow", { kind: projectAnalyzerText("logic-edge-" + edge.controlKind) })
+            : projectAnalyzerText("module-calls", { count: edge.evidenceCount });
       appendText(dom.detail, "div", "detail-row", detail);
     }
 
     function renderEmptyDetail() {
+      state.detailModel = { kind: "empty" };
       dom.detail.replaceChildren();
-      appendText(dom.detail, "div", "detail-empty", "Select a module or relationship to inspect source-backed details.");
+      appendText(dom.detail, "div", "detail-empty", projectAnalyzerText("select-module-detail"));
     }
 
     function createDetailSection(title) {
@@ -645,27 +681,52 @@ export function getModuleVisualizerBrowserSource(): string {
       dom.viewport.scrollTop = clampModuleFlowScroll(nextTop, frame.maxScrollTop);
     }
 
-    function edgeLabel(edge) {
-      if (!edge) return "";
-      if (edge.presentationKind === "contains") return "contains";
-      if (edge.presentationKind === "functionEntry") return edge.controlLabel || "enters";
-      if (edge.presentationKind === "controlFlow") {
-        return edge.controlLabel || edge.controlKind || "next";
-      }
-      const values = (edge.relations || []).map(function (relation) {
-        return relation.kind + " " + relation.count;
-      });
-      return values.join(" · ") || (edge.presentationKind === "concreteCall" ? "calls" : "relationship");
-    }
-
-    function expansionHint(node) {
-      if (!node.expandable) return "Inspect module details";
-      if (node.expandable.boundaryFunctions) return "Click to attach boundary functions";
-      if (node.expandable.childModules) return "Click to attach child modules";
-      return "Inspect module details";
-    }
+    ${getModuleFlowLabelBrowserSource()}
 
     function setStatus(value) { dom.status.textContent = value || ""; }
+
+    /** Stores browser-owned status in semantic form when it contains no Host literal. */
+    function setSemanticStatus(key, params) {
+      state.statusPresentation = { key: key, params: params };
+      setStatus(projectAnalyzerText(key, params));
+    }
+
+    /** Retains Host-provided legacy copy only when no finite failure reason exists. */
+    function setLiteralStatus(value) {
+      state.statusPresentation = undefined;
+      setStatus(value);
+    }
+
+    /** Formats typed failure reasons before falling back to the compatibility message. */
+    function setFailureStatus(failure) {
+      const key = failure && failure.code ? "module-failure-" + failure.code : undefined;
+      if (key && projectAnalyzerText(key) !== key) setSemanticStatus(key, { operation: failure.operation });
+      else setLiteralStatus(failure?.message || projectAnalyzerText("request-failed"));
+    }
+
+    /** Patches text/accessibility only; it must not trigger layout or Host requests. */
+    function relocalizeModuleFlowPresentation() {
+      if (state.statusPresentation) setStatus(projectAnalyzerText(state.statusPresentation.key, state.statusPresentation.params));
+      if (state.summaryPresentation) dom.summary.textContent = projectAnalyzerText(state.summaryPresentation.key, state.summaryPresentation.params);
+      for (const [nodeId, card] of state.nodeElementsById) {
+        const node = state.nodesById.get(nodeId);
+        if (node) updateModuleFlowNodeContent(card, node);
+      }
+      refreshModuleFlowEdgePresentation();
+      refreshModuleFlowCyclePresentation();
+      renderRetainedModuleFlowDetail();
+      updateModuleFlowZoomControls(false);
+    }
+
+    /** Reuses the chosen detail model while preserving selected node/edge identities. */
+    function renderRetainedModuleFlowDetail() {
+      const model = state.detailModel || { kind: "empty" };
+      if (model.kind === "host") renderDetail(model.detail);
+      else if (model.kind === "localEdge") renderLocalEdgeDetail(model.edge);
+      else if (model.kind === "function") renderFunctionDetail(model.node);
+      else if (model.kind === "logicBlock") renderLogicBlockDetail(model.node);
+      else renderEmptyDetail();
+    }
 
     /** Extracts the panel provider's monotonic graph-delivery identity. */
     function parseSnapshotIdentity(value) {

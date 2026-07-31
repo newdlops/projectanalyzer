@@ -25,17 +25,29 @@ test("connects the function anchor to its entry and preserves control semantics"
     edge.presentationKind === "functionEntry"
       && edge.sourceId === FUNCTION_ID
       && edge.targetId === "function-logic-block:entry"
+      && edge.presentation?.key === "module-edge-function-entry"
   ));
   assert.ok(scene.edges.some((edge) =>
     edge.presentationKind === "controlFlow"
       && edge.controlKind === "true"
       && edge.controlLabel === "approved"
+      && edge.presentation?.key === "logic-edge-true"
   ));
   assert.equal(
     scene.edges.some((edge) => edge.id === "function-logic-edge:unknown-endpoint"),
     false
   );
   assert.equal(scene.nodes[1]?.valueAccesses[0]?.name, "approved");
+  assert.deepEqual(scene.nodes[1]?.presentation, {
+    labelKey: "logic-block-label-condition",
+    labelParams: { source: "approved?" },
+    detailKey: "logic-block-detail-condition",
+    detailParams: { source: "if (approved)" }
+  });
+  assert.deepEqual(scene.nodes[1]?.branchPresentation, {
+    key: "logic-edge-true",
+    params: { source: "approved" }
+  });
   assert.equal(scene.summary.visibleNodeCount, 3);
   assert.equal(scene.summary.visibleEdgeCount, 3);
   assert.equal(scene.summary.candidateEdgeCount, 5);
@@ -66,6 +78,13 @@ function createPayload(): ModuleFlowFunctionLogicPayload {
     kind: "condition",
     label: "approved?",
     detail: "if (approved)",
+    presentation: {
+      labelKey: "logic-block-label-condition",
+      labelParams: { source: "approved?" },
+      detailKey: "logic-block-detail-condition",
+      detailParams: { source: "if (approved)" }
+    },
+    branchPresentation: { key: "logic-edge-true", params: { source: "approved" } },
     depth: 0,
     confidence: "exact",
     valueAccesses: [{
@@ -105,6 +124,7 @@ function createPayload(): ModuleFlowFunctionLogicPayload {
         targetId: blocks[2].id,
         kind: "true",
         label: "approved",
+        presentation: { key: "logic-edge-true", params: { source: "approved" } },
         confidence: "exact"
       }, {
         id: "function-logic-edge:unknown-endpoint",

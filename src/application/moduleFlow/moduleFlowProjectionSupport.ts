@@ -198,7 +198,14 @@ export function projectBoundaryEvidence(
     workspace: "Analyzed workspace boundary",
     external: "External or statically unresolved boundary"
   };
-  return { kind, label: labels[kind] };
+  return {
+    kind,
+    label: labels[kind],
+    presentation: {
+      key: `module-evidence-${kind}`,
+      ...(frameworkLabels.length > 0 ? { params: { frameworks: frameworkLabels.join(", ") } } : {})
+    }
+  };
 }
 
 /** Returns a concise but complete module classification line. */

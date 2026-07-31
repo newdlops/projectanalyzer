@@ -199,10 +199,30 @@ export function getModuleVisualizerGraphRendererSource(): string {
           element.style.width = group.width + "px";
           element.style.height = group.height + "px";
         }
-        if (element.textContent !== group.label) element.textContent = group.label;
+        const cycleLabel = group.self
+          ? projectAnalyzerText("module-cycle-self")
+          : projectAnalyzerText("module-cycle-group", { count: group.nodeCount });
+        if (element.textContent !== cycleLabel) element.textContent = cycleLabel;
+        element.title = cycleLabel;
+        element.setAttribute("aria-label", cycleLabel);
       }
       removeStaleModuleFlowElements(state.cycleElementsById, retained, function (element) { return element; });
       dom.cycles.appendChild(additions);
+    }
+
+    /** Updates retained SCC captions without reading or changing layout geometry. */
+    function refreshModuleFlowCyclePresentation() {
+      if (!state.layout) return;
+      for (const group of state.layout.cycleGroups) {
+        const element = state.cycleElementsById.get(group.id);
+        if (!element) continue;
+        const label = group.self
+          ? projectAnalyzerText("module-cycle-self")
+          : projectAnalyzerText("module-cycle-group", { count: group.nodeCount });
+        element.textContent = label;
+        element.title = label;
+        element.setAttribute("aria-label", label);
+      }
     }
 
     /** Reconciles orthogonal routes without replacing retained SVG groups. */
@@ -265,9 +285,9 @@ export function getModuleVisualizerGraphRendererSource(): string {
           );
           record.path.setAttribute(
             "aria-label",
-            "Inspect relationship: " + labelValue
+            projectAnalyzerText("inspect-relationship", { label: labelValue })
               + (crossingCount > 0
-                ? "; " + crossingCount + " crossed line" + (crossingCount === 1 ? "" : "s") + " bridged"
+                ? "; " + projectAnalyzerText("module-crossed-line-bridge", { count: crossingCount })
                 : "")
           );
           record.direction.setAttribute("d", directionData);
@@ -293,6 +313,24 @@ export function getModuleVisualizerGraphRendererSource(): string {
       removeStaleModuleFlowElements(state.edgeElementsById, retained, function (record) { return record.group; });
       dom.edges.appendChild(additions);
       return created;
+    }
+
+    /** Patches edge prose and ARIA from the current registry without rerouting paths. */
+    function refreshModuleFlowEdgePresentation() {
+      for (const [edgeId, record] of state.edgeElementsById) {
+        const edge = state.edgesById.get(edgeId);
+        if (!edge) continue;
+        const label = edgeLabel(edge);
+        const crossingCount = Number(record.group.dataset.crossingCount || 0);
+        record.path.setAttribute(
+          "aria-label",
+          projectAnalyzerText("inspect-relationship", { label: label })
+            + (crossingCount > 0
+              ? "; " + projectAnalyzerText("module-crossed-line-bridge", { count: crossingCount })
+              : "")
+        );
+        if (record.label) record.label.textContent = label;
+      }
     }
 
     /** Reconciles variable-height cards and rebuilds text only on payload change. */
@@ -347,10 +385,10 @@ export function getModuleVisualizerGraphRendererSource(): string {
     /** Creates a stable key from only card-visible values, excluding source tokens. */
     function createModuleFlowNodePresentationKey(node) {
       return JSON.stringify([
-        node.kind, node.label, node.detail, node.locationLabel, node.external,
+        node.kind, node.label, node.detail, node.presentation, node.locationLabel, node.external,
         node.basis, node.confidence, node.frameworks, node.ecosystems, node.metrics,
         node.incomingBoundaryCount, node.outgoingBoundaryCount, node.expandable,
-        node.blockKind, node.branchLabel, node.valueChanges, node.valueAccesses,
+        node.blockKind, node.branchLabel, node.branchPresentation, node.valueChanges, node.valueAccesses,
         node.drillTargets
       ]);
     }
@@ -358,34 +396,43 @@ export function getModuleVisualizerGraphRendererSource(): string {
     /** Mounts complete text through textContent when a card payload actually changes. */
     function updateModuleFlowNodeContent(card, node) {
       card.replaceChildren();
+      const presentation = node.presentation || {};
+      const nodeLabel = presentation.labelKey
+        ? projectAnalyzerText(presentation.labelKey, presentation.params)
+        : node.label;
+      const nodeDetail = presentation.detailKey
+        ? projectAnalyzerText(presentation.detailKey, presentation.params)
+        : node.detail;
       const kindLabel = node.kind === "logicBlock"
-        ? "Function · " + node.blockKind
-        : node.kind === "function" ? "Entry / boundary function" : node.detail;
+        ? projectAnalyzerText("module-logic-kind", { kind: projectAnalyzerText("module-logic-" + node.blockKind) })
+        : node.kind === "function" ? projectAnalyzerText("module-function-kind") : nodeDetail;
       appendText(card, "div", "module-card-kind", kindLabel);
-      const title = appendText(card, "div", "module-card-title", node.label);
-      if (node.kind === "logicBlock") mountCodeSnippet(title, node.label);
-      appendText(card, "div", "module-card-detail", node.detail);
+      const title = appendText(card, "div", "module-card-title", nodeLabel);
+      if (node.kind === "logicBlock") mountCodeSnippet(title, nodeLabel);
+      appendText(card, "div", "module-card-detail", nodeDetail);
       if (node.locationLabel) appendText(card, "div", "module-card-location", node.locationLabel);
       const badges = document.createElement("div");
       badges.className = "module-card-badges";
       const badgeValues = node.kind === "logicBlock"
-        ? [node.blockKind, node.confidence]
+        ? [projectAnalyzerText("module-logic-" + node.blockKind), projectAnalyzerText("module-confidence-" + (node.confidence || "unknown"))]
         : node.kind === "function"
-        ? [node.confidence || "static"]
-        : [node.basis, node.confidence].concat(node.frameworks || [], node.ecosystems || []);
+        ? [node.confidence ? projectAnalyzerText("module-confidence-" + node.confidence) : projectAnalyzerText("module-static")]
+        : [projectAnalyzerText("module-basis-badge-" + node.basis), projectAnalyzerText("module-confidence-" + node.confidence)].concat(node.frameworks || [], node.ecosystems || []);
       for (const value of badgeValues) appendText(badges, "span", "module-badge", value);
       card.appendChild(badges);
       if (node.kind === "logicBlock") {
         appendText(card, "div", "module-card-metric",
-          (node.valueChanges || []).length + " value changes · "
-            + (node.valueAccesses || []).length + " value accesses");
-        if (node.branchLabel) appendText(card, "div", "module-card-hint", "Branch · " + node.branchLabel);
+          projectAnalyzerText("module-value-changes", { count: (node.valueChanges || []).length }) + " · "
+            + projectAnalyzerText("module-value-accesses", { count: (node.valueAccesses || []).length }));
+        const branch = node.branchPresentation?.key
+          ? projectAnalyzerText(node.branchPresentation.key, node.branchPresentation.params) : node.branchLabel;
+        if (branch) appendText(card, "div", "module-card-hint", projectAnalyzerText("branch", { label: branch }));
       } else if (node.kind === "function") {
-        appendText(card, "div", "module-card-metric", node.incomingBoundaryCount + " incoming · " + node.outgoingBoundaryCount + " outgoing boundary calls");
-        appendText(card, "div", "module-card-hint", "Click to attach function graph");
+        appendText(card, "div", "module-card-metric", projectAnalyzerText("incoming-boundary-calls", { count: node.incomingBoundaryCount }) + " · " + projectAnalyzerText("outgoing-boundary-calls", { count: node.outgoingBoundaryCount }));
+        appendText(card, "div", "module-card-hint", projectAnalyzerText("module-graph-hint"));
       } else if (!node.external) {
         const metrics = node.metrics || {};
-        appendText(card, "div", "module-card-metric", (metrics.callableCount || 0) + " direct functions · " + (metrics.entrypointCount || 0) + " entrypoints");
+        appendText(card, "div", "module-card-metric", projectAnalyzerText("module-direct-functions", { count: metrics.callableCount || 0 }) + " · " + projectAnalyzerText("module-entrypoints", { count: metrics.entrypointCount || 0 }));
         appendText(card, "div", "module-card-hint", expansionHint(node));
       }
     }

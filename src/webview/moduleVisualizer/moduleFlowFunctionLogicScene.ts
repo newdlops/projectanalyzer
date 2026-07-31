@@ -5,6 +5,8 @@
  */
 
 import type {
+  FunctionLogicBlockPayload,
+  FunctionLogicEdgePayload,
   FunctionLogicBlockPayloadKind,
   FunctionLogicPayloadConfidence,
   FunctionLogicValueAccessPayload,
@@ -20,8 +22,11 @@ export type ModuleFlowLogicBlockSceneNode = {
   blockKind: FunctionLogicBlockPayloadKind;
   label: string;
   detail: string;
+  presentation?: FunctionLogicBlockPayload["presentation"];
+  embeddedPresentationKind?: FunctionLogicBlockPayload["embeddedPresentationKind"];
   locationLabel?: string;
   branchLabel?: string;
+  branchPresentation?: FunctionLogicBlockPayload["branchPresentation"];
   confidence: FunctionLogicPayloadConfidence;
   evidenceToken?: string;
   valueChanges: FunctionLogicValueChangePayload[];
@@ -38,6 +43,7 @@ export type ModuleFlowLogicSceneEdge = {
   presentationKind: "functionEntry" | "controlFlow";
   controlKind: string;
   controlLabel?: string;
+  presentation?: FunctionLogicEdgePayload["presentation"] | { key: "module-edge-function-entry"; params?: Record<string, string> };
   relations: [];
   confidenceCounts: {
     exact: number;
@@ -87,8 +93,11 @@ export function createModuleFlowFunctionLogicScene(
     blockKind: block.kind,
     label: block.label,
     detail: block.detail,
+    ...(block.presentation ? { presentation: block.presentation } : {}),
+    ...(block.embeddedPresentationKind ? { embeddedPresentationKind: block.embeddedPresentationKind } : {}),
     ...(block.sourceLocation ? { locationLabel: block.sourceLocation } : {}),
     ...(block.branchLabel ? { branchLabel: block.branchLabel } : {}),
+    ...(block.branchPresentation ? { branchPresentation: block.branchPresentation } : {}),
     confidence: block.confidence,
     ...(block.evidenceToken ? { evidenceToken: block.evidenceToken } : {}),
     valueChanges: [...(block.valueChanges ?? [])],
@@ -115,6 +124,7 @@ export function createModuleFlowFunctionLogicScene(
       presentationKind: "controlFlow",
       controlKind: edge.kind,
       ...(edge.label ? { controlLabel: edge.label } : {}),
+      ...(edge.presentation ? { presentation: edge.presentation } : {}),
       relations: [],
       confidenceCounts: {
         exact: edge.confidence === "exact" ? 1 : 0,
@@ -137,7 +147,7 @@ export function createModuleFlowFunctionLogicScene(
         targetId: entry.id,
         presentationKind: "functionEntry",
         controlKind: "entry",
-        controlLabel: "enters",
+        presentation: { key: "module-edge-function-entry" },
         relations: [],
         confidenceCounts: { exact: 1, resolved: 0, inferred: 0, unresolved: 0 },
         evidenceCount: 1,

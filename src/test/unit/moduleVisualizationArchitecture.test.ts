@@ -26,8 +26,8 @@ test("package contributes a descriptive Module Flow command and sidebar title ac
   );
   assert.ok(packageJson.contributes.commands.some((command) =>
     command.command === OPEN_MODULE_FLOW_COMMAND
-      && command.title === "Open Project Module Flow"
-      && command.category === "Code Flow"
+      && command.title === "%command.openModuleFlow%"
+      && command.category === "%command.category%"
   ));
 
   const viewTitleItem = (packageJson.contributes.menus["view/title"] ?? [])

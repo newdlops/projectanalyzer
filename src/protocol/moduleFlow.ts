@@ -14,6 +14,7 @@ import type {
   FunctionLogicPayload
 } from "./functionLogic";
 import type { SourceNodeToken } from "./sourceNavigation";
+import type { ModuleFlowPresentationKey, PresentationParams } from "../localization/presentationDescriptors";
 
 /** Hard request budget for one initial module scene. */
 export const MODULE_FLOW_LIST_MAX_MODULES = 80;
@@ -104,6 +105,7 @@ export type ModuleFlowModuleNodePayload = {
   kind: "module";
   label: string;
   detail: string;
+  presentation?: { labelKey?: ModuleFlowPresentationKey; detailKey?: ModuleFlowPresentationKey; params?: PresentationParams };
   /** Workspace-relative display text only; never an absolute Host path. */
   locationLabel?: string;
   parentId?: ModuleFlowModuleId;
@@ -125,6 +127,7 @@ export type ModuleFlowFunctionNodePayload = {
   kind: "function";
   label: string;
   detail: string;
+  presentation?: { labelKey?: ModuleFlowPresentationKey; detailKey?: ModuleFlowPresentationKey; params?: PresentationParams };
   locationLabel?: string;
   sourceToken?: SourceNodeToken;
   architectureLayer?: ArchitecturalLayerPayload;
@@ -219,17 +222,20 @@ export type ModuleFlowBoundaryEvidencePayload = {
     | "workspace"
     | "external";
   label: string;
+  presentation?: { key: ModuleFlowPresentationKey; params?: PresentationParams };
 };
 
 /** One representative file that may be opened only through its source token. */
 export type ModuleFlowSourcePayload = {
   label: string;
+  presentation?: { key: ModuleFlowPresentationKey };
   sourceToken?: SourceNodeToken;
 };
 
 /** One retained, source-backed evidence row for an aggregated edge. */
 export type ModuleFlowEvidencePayload = {
   label: string;
+  presentation?: { key: ModuleFlowPresentationKey };
   source: "graphEdge" | "frameworkUnitEdge";
   confidence: EdgeConfidence;
   evidenceToken?: ModuleFlowEvidenceToken;
@@ -356,6 +362,8 @@ export type ModuleFlowLaunchRequest = {
 export type ModuleFlowLaunchResultPayload = {
   outcome: "opened" | "unavailable" | "failed";
   message: string;
+  /** Literal detail from a real external Error when opening failed. */
+  detail?: string;
 };
 
 /** Requests owned by the Module Flow vertical slice. */

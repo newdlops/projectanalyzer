@@ -78,7 +78,9 @@ export function getModuleVisualizerViewportBrowserSource(): string {
     function updateModuleFlowZoomControls(announce) {
       const percentage = Math.max(1, Math.round(state.scale * 100));
       dom.zoomLevel.textContent = percentage + "%";
-      dom.zoomLevel.setAttribute("aria-label", "Reset zoom to 100 percent; current zoom " + percentage + " percent");
+      const resetLabel = projectAnalyzerText("reset-zoom-current", { count: percentage });
+      dom.zoomLevel.setAttribute("aria-label", resetLabel);
+      dom.zoomLevel.title = resetLabel;
       dom.zoomOut.disabled = state.scale <= MODULE_FLOW_MIN_SCALE + 0.0005;
       dom.zoomIn.disabled = state.scale >= MODULE_FLOW_MAX_SCALE - 0.0005;
       if (!announce) return;
@@ -86,7 +88,7 @@ export function getModuleVisualizerViewportBrowserSource(): string {
         window.clearTimeout(state.zoomAnnouncementTimer);
       }
       state.zoomAnnouncementTimer = window.setTimeout(function () {
-        dom.zoomAnnouncement.textContent = "Zoom " + percentage + " percent";
+        dom.zoomAnnouncement.textContent = projectAnalyzerText("zoom-announcement", { count: percentage });
         state.zoomAnnouncementTimer = undefined;
       }, 240);
     }

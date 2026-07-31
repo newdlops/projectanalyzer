@@ -30,6 +30,8 @@ test("groups a dependency cycle and gives every cycle edge a unique outer track"
 
   assert.ok(cycleGroup);
   assert.deepEqual(cycleGroup.nodeIds, ["a", "b", "c"]);
+  assert.equal(cycleGroup.self, false);
+  assert.equal(cycleGroup.nodeCount, 3);
   assert.equal(cycleEdges.length, 3);
   assert.equal(new Set(cycleEdges.map((edge) => edge.outerTrack)).size, 3);
   assert.ok(requireNode(nodesById, "entry").rank < requireNode(nodesById, "a").rank);
@@ -45,6 +47,15 @@ test("groups a dependency cycle and gives every cycle edge a unique outer track"
   }
   assertNoNodeOverlap(layout.nodes);
   assertEdgesAvoidUnrelatedNodes(layout, edges);
+});
+
+test("exposes a self-cycle as locale-neutral semantic data", () => {
+  const layout = createModuleFlowGraphLayout([createNode("self")], [createEdge("self-loop", "self", "self")]);
+  const group = layout.cycleGroups[0];
+
+  assert.ok(group);
+  assert.equal(group.self, true);
+  assert.equal(group.nodeCount, 1);
 });
 
 test("produces identical geometry for reversed and duplicate input order", () => {

@@ -85,6 +85,108 @@ test("embeds the shared layout, SCC, and orthogonal routing runtime", () => {
   assert.match(program, /state\.layoutCache\.get\(layoutKey\)/u);
 });
 
+test("formats Module Flow layout-node metrics through the active browser locale", () => {
+  const source = readSource("src/webview/moduleVisualizer/moduleVisualizerBrowserSource.ts");
+  const start = source.indexOf("function toLayoutNode(node)");
+  const end = source.indexOf("/** Computes nested module color depth", start);
+  const layoutNodeSource = source.slice(start, end);
+
+  assert.match(layoutNodeSource, /node\.presentation\?\.labelKey/u);
+  assert.match(layoutNodeSource, /node\.branchPresentation\?\.key/u);
+  assert.match(layoutNodeSource, /module-value-flow-metrics/u);
+  assert.match(layoutNodeSource, /module-direct-metrics/u);
+  assert.match(layoutNodeSource, /module-entry-metrics/u);
+  assert.doesNotMatch(layoutNodeSource, /direct files|tree files|outgoing evidence|value changes/u);
+});
+
+test("formats Module Flow detail rows through relation and confidence descriptors", () => {
+  const source = readSource("src/webview/moduleVisualizer/moduleVisualizerBrowserSource.ts");
+  const start = source.indexOf("function renderDetail(detail)");
+  const end = source.indexOf("${getModuleFlowLabelBrowserSource()}", start);
+  const detailSource = source.slice(start, end);
+
+  assert.match(detailSource, /evidence\.labelPresentation \|\| evidence\.presentation/u);
+  assert.match(detailSource, /module-confidence-/u);
+  assert.match(detailSource, /module-relation-/u);
+  assert.match(detailSource, /additional-incoming-relationships/u);
+  assert.match(detailSource, /logic-edge-" \+ edge\.controlKind/u);
+  assert.doesNotMatch(detailSource, /incoming relationships|outgoing relationships|relation\.kind \+ " "/u);
+});
+
+test("Module Flow logic detail localizes analyzer access and operation enums", () => {
+  const source = readSource("src/webview/moduleVisualizer/moduleFlowFunctionLogicBrowserSource.ts");
+  const start = source.indexOf("function renderLogicBlockDetail(node)");
+  const end = source.indexOf("function formatModuleLogicValueOperation", start);
+  const detail = source.slice(start, end);
+
+  assert.match(detail, /formatModuleLogicValueOperation\(change\.operation\)/u);
+  assert.match(detail, /formatModuleLogicValueOperation\(access\.access\)/u);
+  assert.match(detail, /formatModuleLogicValueOperation\(access\.usage\)/u);
+  assert.doesNotMatch(detail, /access\.access \+|change\.operation \+/u);
+  assert.match(source, /logic-value-operation-" \+ String\(operation/u);
+});
+
+test("formats Module Flow synthetic and aggregate edge labels through descriptors", () => {
+  const source = readSource("src/webview/moduleVisualizer/moduleFlowLabelBrowserSource.ts");
+  const start = source.indexOf("function edgeLabel(edge)");
+  const end = source.indexOf("function expansionHint(node)", start);
+  const edgeLabelSource = source.slice(start, end);
+
+  assert.match(edgeLabelSource, /edge\.presentation\?\.key/u);
+  assert.match(edgeLabelSource, /module-edge-function-entry/u);
+  assert.match(edgeLabelSource, /logic-edge-" \+ \(edge\.controlKind/u);
+  assert.match(edgeLabelSource, /module-relation-" \+ relation\.kind/u);
+  assert.doesNotMatch(edgeLabelSource, /return "contains"|return "enters"|return "next"|relation\.kind \+ " "/u);
+});
+
+test("formats Module Flow cycle chrome from semantic self and node-count data", () => {
+  const source = readSource("src/webview/moduleVisualizer/moduleVisualizerGraphRendererSource.ts");
+  const start = source.indexOf("function reconcileModuleFlowCycles(layout)");
+  const end = source.indexOf("function reconcileModuleFlowEdges", start);
+  const cycleSource = source.slice(start, end);
+
+  assert.match(cycleSource, /group\.self/u);
+  assert.match(cycleSource, /group\.nodeCount/u);
+  assert.match(cycleSource, /module-cycle-self/u);
+  assert.match(cycleSource, /module-cycle-group/u);
+  assert.doesNotMatch(cycleSource, /group\.label/u);
+});
+
+test("language updates patch retained Module Flow presentation without requests or layout work", () => {
+  const source = readSource("src/webview/moduleVisualizer/moduleVisualizerBrowserSource.ts");
+  const handlerStart = source.indexOf('if (message.type === "ui/language")');
+  const handlerEnd = source.indexOf('if (message.type === "error")', handlerStart);
+  const handler = source.slice(handlerStart, handlerEnd);
+  const relocalizeStart = source.indexOf("function relocalizeModuleFlowPresentation()");
+  const relocalizeEnd = source.indexOf("function renderRetainedModuleFlowDetail", relocalizeStart);
+  const relocalize = source.slice(relocalizeStart, relocalizeEnd);
+
+  assert.match(handler, /applyProjectAnalyzerLanguage/u);
+  assert.match(handler, /relocalizeModuleFlowPresentation\(\)/u);
+  assert.doesNotMatch(handler, /post\(|requestList|collectScene|renderGraph|rebuildModuleFlowScene/u);
+  assert.match(relocalize, /updateModuleFlowNodeContent\(card, node\)/u);
+  assert.match(relocalize, /refreshModuleFlowEdgePresentation\(\)/u);
+  assert.match(relocalize, /refreshModuleFlowCyclePresentation\(\)/u);
+  assert.match(relocalize, /renderRetainedModuleFlowDetail\(\)/u);
+  assert.doesNotMatch(relocalize, /collectScene|createModuleFlowGraphLayout|sceneDirty|layoutCache|renderGraph|post\(/u);
+});
+
+test("retains semantic status, typed failure, and detail models across Module Flow locale changes", () => {
+  const source = readSource("src/webview/moduleVisualizer/moduleVisualizerBrowserSource.ts");
+  const renderer = readSource("src/webview/moduleVisualizer/moduleVisualizerGraphRendererSource.ts");
+
+  assert.match(source, /statusPresentation: undefined/u);
+  assert.match(source, /summaryPresentation: undefined/u);
+  assert.match(source, /detailModel: \{ kind: "empty" \}/u);
+  assert.match(source, /function setFailureStatus\(failure\)/u);
+  assert.match(source, /"module-failure-" \+ failure\.code/u);
+  assert.match(source, /function renderRetainedModuleFlowDetail\(\)/u);
+  assert.match(renderer, /function refreshModuleFlowEdgePresentation\(\)/u);
+  assert.match(renderer, /module-crossed-line-bridge/u);
+  assert.match(renderer, /function refreshModuleFlowCyclePresentation\(\)/u);
+  assert.match(renderer, /updateModuleFlowNodeContent\(card, node\)/u);
+});
+
 test("attaches entry function logic to the existing Module Flow scene", () => {
   const program = requireBrowserProgram(createDocument());
   const panelSource = readSource(
@@ -104,6 +206,15 @@ test("attaches entry function logic to the existing Module Flow scene", () => {
   assert.match(
     program,
     /if \(node\.kind === "function"\)[\s\S]*renderFunctionDetail\(node\);[\s\S]*toggleFunctionLogic\(node\)/u
+  );
+  const selectNodeStart = program.indexOf("function selectNode(node)");
+  const functionSelectionStart = program.indexOf('if (node.kind === "function")', selectNodeStart);
+  const functionSelectionEnd = program.indexOf('if (node.kind === "logicBlock")', functionSelectionStart);
+  const functionSelection = program.slice(functionSelectionStart, functionSelectionEnd);
+  assert.doesNotMatch(functionSelection, /requestOpenSource/u);
+  assert.match(
+    program,
+    /function renderFunctionDetail\(node\)[\s\S]*open-function-source[\s\S]*requestOpenSource\(\{ kind: "node", sourceToken: node\.sourceToken \}\)/u
   );
   assert.match(program, /post\("moduleFlow\/functionLogic"/u);
   assert.match(program, /createModuleFlowFunctionLogicScene\(payload\)/u);
@@ -284,9 +395,11 @@ test("keeps complete labels and mounts all Host text through textContent", () =>
   );
   assert.doesNotMatch(styles, /\btext-overflow\s*:/u);
   assert.doesNotMatch(styles, /(?:-webkit-)?line-clamp\s*:/u);
-  assert.doesNotMatch(document, /…/u);
+  // Localized catalog prose is embedded in the document script. Complete-label
+  // protection applies to rendered Module Flow markup, not unrelated catalog copy.
+  assert.doesNotMatch(document.slice(0, document.indexOf("<script")), /…/u);
   assert.match(program, /element\.textContent = value == null \? "" : String\(value\)/u);
-  assert.match(program, /node\.kind === "logicBlock"\) mountCodeSnippet\(title, node\.label\)/u);
+  assert.match(program, /node\.kind === "logicBlock"\) mountCodeSnippet\(title, nodeLabel\)/u);
   assert.match(program, /label\.textContent = labelValue/u);
   assert.match(program, /dom\.status\.textContent = value \|\| ""/u);
   assert.doesNotMatch(program, /\b(?:innerHTML|outerHTML|insertAdjacentHTML)\b/u);

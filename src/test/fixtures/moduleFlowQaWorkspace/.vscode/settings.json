@@ -1,0 +1,12 @@
+{
+  "projectAnalyzer.autoAnalyze": false,
+  "projectAnalyzer.cache.enabled": false,
+  "projectAnalyzer.uiLanguage": "ko",
+  "projectAnalyzer.include": [
+    "apps/**/*.ts",
+    "packages/**/*.ts"
+  ],
+  "projectAnalyzer.exclude": [
+    "**/node_modules/**"
+  ]
+}

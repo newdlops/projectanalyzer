@@ -17,6 +17,13 @@ import {
   getModuleFlowGraphRoutingBrowserSource,
   routeModuleFlowGraphEdges, type ModuleFlowEdgeBridge
 } from "./moduleFlowGraphRouting";
+import {
+  compareModuleFlowEdges,
+  compareModuleFlowNodes,
+  compareModuleFlowText,
+  createModuleFlowCycleLabel,
+  getModuleFlowGraphOrderingBrowserSource
+} from "./moduleFlowGraphOrdering";
 
 // Local aliases prevent CommonJS import rewrites from leaking into the
 // serialized browser function body returned by getModuleFlowGraphLayoutBrowserSource.
@@ -90,6 +97,10 @@ export type ModuleFlowGraphEdgeLayout = {
 /** Visible enclosure for one cyclic strongly connected component. */
 export type ModuleFlowCycleGroupLayout = {
   id: string;
+  /** Locale-neutral cycle semantics; the browser owns its rendered copy. */
+  self: boolean;
+  nodeCount: number;
+  /** Compatibility copy for legacy consumers; browser renderers must ignore it. */
   label: string;
   nodeIds: string[];
   x: number;
@@ -242,16 +253,16 @@ export function getModuleFlowGraphLayoutBrowserSource(): string {
     runtimeConstants,
     getModuleFlowSccBrowserSource(),
     getModuleFlowGraphRoutingBrowserSource(),
+    getModuleFlowGraphOrderingBrowserSource(),
+    "const moduleFlowGraphOrdering_1 = { compareModuleFlowEdges, compareModuleFlowNodes, compareModuleFlowText, createModuleFlowCycleLabel };",
     "const createModuleFlowSccIndexForLayout = createModuleFlowSccIndex;",
     "const routeModuleFlowGraphEdgesForLayout = routeModuleFlowGraphEdges;",
-    compareModuleFlowText, compareModuleFlowNodes, compareModuleFlowEdges,
     canonicalizeModuleFlowNodes, canonicalizeModuleFlowEdges,
     createModuleFlowComponentRanks, orderModuleFlowComponentsByRank,
     averageModuleFlowPredecessorOrder, measureModuleFlowNode,
     measureModuleFlowComponent, measureModuleFlowRankWidth, measureModuleFlowTextWidth,
     countModuleFlowWrappedLines, countModuleFlowDisplayUnits, measureModuleFlowBadgeRows,
     findModuleFlowOuterEdges, countModuleFlowEdgesByRank, positionModuleFlowComponents,
-    createModuleFlowCycleLabel,
     createModuleFlowGraphLayout
   ].map((value) => typeof value === "string" ? value : value.toString()).join("\n");
 }
@@ -700,6 +711,8 @@ function positionModuleFlowComponents(
       if (component.cyclic) {
         cycleGroups.push({
           id: component.id,
+          self: component.nodeIds.length === 1,
+          nodeCount: component.nodeIds.length,
           label: createModuleFlowCycleLabel(component),
           nodeIds: [...component.nodeIds],
           x: Math.round(currentX),
@@ -752,48 +765,4 @@ function positionModuleFlowComponents(
     + MODULE_FLOW_EDGE_TRACK_PADDING
     + ((outgoingEdgeCountByRank.get(lastRank) ?? 0) + 1) * MODULE_FLOW_EDGE_TRACK_GAP;
   return { nodes, cycleGroups, rankBounds, contentBottom };
-}
-
-/** Creates concise group chrome without changing or replacing node text. */
-function createModuleFlowCycleLabel(component: ModuleFlowSccComponent): string {
-  return component.nodeIds.length === 1
-    ? "Self cycle"
-    : `Cycle · ${component.nodeIds.length} nodes`;
-}
-
-/** Full node comparison makes duplicate-ID selection input-order independent. */
-function compareModuleFlowNodes(
-  left: ModuleFlowGraphNodeInput,
-  right: ModuleFlowGraphNodeInput
-): number {
-  return compareModuleFlowText(left.id, right.id)
-    || compareModuleFlowText(left.kind, right.kind)
-    || compareModuleFlowText(left.title, right.title)
-    || compareModuleFlowText(left.subtitle ?? "", right.subtitle ?? "")
-    || compareModuleFlowText((left.badges ?? []).join("\0"), (right.badges ?? []).join("\0"))
-    || compareModuleFlowText(
-      (left.metricLines ?? []).join("\0"),
-      (right.metricLines ?? []).join("\0")
-    )
-    || compareModuleFlowText(
-      (left.detailLines ?? []).join("\0"),
-      (right.detailLines ?? []).join("\0")
-    );
-}
-
-/** Full edge comparison canonicalizes duplicate identities and channel order. */
-function compareModuleFlowEdges(
-  left: ModuleFlowGraphEdgeInput,
-  right: ModuleFlowGraphEdgeInput
-): number {
-  return compareModuleFlowText(left.sourceId, right.sourceId)
-    || compareModuleFlowText(left.targetId, right.targetId)
-    || compareModuleFlowText(left.id, right.id)
-    || compareModuleFlowText(left.kind ?? "", right.kind ?? "")
-    || compareModuleFlowText(left.label ?? "", right.label ?? "");
-}
-
-/** Locale-independent comparison shared by host and browser layout runtimes. */
-function compareModuleFlowText(left: string, right: string): number {
-  return left < right ? -1 : left > right ? 1 : 0;
 }

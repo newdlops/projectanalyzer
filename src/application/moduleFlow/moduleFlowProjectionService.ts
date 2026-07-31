@@ -298,6 +298,11 @@ export class ModuleFlowProjectionService {
       kind: "module",
       label: safeLabel(module.name, "Unnamed module"),
       detail: describeModule(module),
+      presentation: {
+        ...(module.name ? {} : { labelKey: "module-fallback-unnamed" }),
+        detailKey: `module-basis-${module.basis}`,
+        params: { confidence: module.confidence }
+      },
       locationLabel: safeLocationLabel(module.displayPath),
       parentId,
       basis: module.basis,
@@ -388,6 +393,7 @@ export class ModuleFlowProjectionService {
     );
     const representativeSources: ModuleFlowSourcePayload[] = directFiles.map((node) => ({
       label: sourceDisplay.path(node.filePath) ?? "Source file",
+      ...(!sourceDisplay.path(node.filePath) ? { presentation: { key: "module-fallback-source" } } : {}),
       sourceToken: this.tokenFactories.createSourceToken(node.id)
     }));
 
@@ -434,6 +440,8 @@ export class ModuleFlowProjectionService {
       label: entry.filePath
         ? sourceDisplay.location(entry.filePath, entry.range) ?? "Source evidence"
         : "Source evidence",
+      ...(!entry.filePath || !sourceDisplay.location(entry.filePath, entry.range)
+        ? { presentation: { key: "module-fallback-evidence" } } : {}),
       source: entry.source,
       confidence: entry.confidence,
       evidenceToken: entry.filePath && entry.range
@@ -596,6 +604,11 @@ export class ModuleFlowProjectionService {
       kind: "function",
       label: safeLabel(candidate.node.qualifiedName || candidate.node.name, "Anonymous callable"),
       detail: formatBoundaryFunctionDetail(incoming, outgoing),
+      presentation: {
+        ...(!candidate.node.qualifiedName && !candidate.node.name ? { labelKey: "module-fallback-anonymous" } : {}),
+        detailKey: "module-function-detail",
+        params: { incoming, outgoing }
+      },
       locationLabel: sourceDisplay.location(candidate.node.filePath, candidate.node.selectionRange),
       sourceToken: this.tokenFactories.createSourceToken(candidate.node.id),
       confidence: strongestConfidence([...candidate.incoming, ...candidate.outgoing]),
