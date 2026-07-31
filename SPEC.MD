@@ -1159,8 +1159,30 @@ Webview는 Project Graph, 파일 시스템, VS Code API에 직접 접근하지 �
   public Scenario evaluator surface
 - token/operator/value stack 기반 arithmetic/comparison/boolean/nested ternary 계산과 own-data member read
 - 반복형 CFG worklist, immutable binding state, merge lattice, cycle/safety bound를 사용한 branch-aware 전파
-- graph rank 순서의 bounded `DEFINED`/`CALCULATED`/`UPDATED`/`CONSUME`/`SINK` progression
-- call/constructor/getter/source mutation/Host message/branch 자동 선택이 없는 browser-only 경계
+- graph rank 순서의 bounded 80-frame Scenario-backed value progression: explicit binding
+  selection은 definition block의 `START name = value`에서 시작하고 entered input,
+  source-derived state, 또는 explicit unknown을 표시한다. `initialize`/assign/update/
+  increment/delete 및 unsupported write/readwrite는 `before → after`와
+  exact/inferred/unknown text를 보존하는 change frame이며 최초 define/override는 START다.
+  frames는 possible static flow일 뿐 runtime path가 아니며 기존 lexical hop이 있는 경우에만
+  traveler/curve를 사용하며 token은 직선 보간이 아니라 기존 SVG path geometry를 sampling한다;
+  derived/write frame은 새 semantic edge를 만들지 않는다.
+- call/constructor/getter/source mutation/Host message/branch 자동 선택이 없는 browser-only 경계;
+  input/branch/session 변경은 pending playback timer와 transient change effect를 취소하고
+  START로 reset하며 graph selection, pan/zoom, source navigation, Inspector/lens 상태는 변경하지 않음
+- 그래프 render/선택은 START ready 상태에서 scheduler 없이 정지한다. Play/Replay만 진행을
+  시작하며 transition은 하나의 취소 가능한 handle과 path당 lazy 32-point SVG cache를 사용한다.
+  pause/reset/deselect/branch/session/graph disposal/document hidden은 즉시 취소하고 hidden 상태는
+  명시적 Play 전까지 재개하지 않는다. exact path가 없거나 offscreen/disconnected/reduced-motion이면
+  geometry work 없이 discrete arrival을 보존한다. 모든 Project Analyzer 소유 runtime/Webview surface는
+  `projectAnalyzer.uiLanguage` Setting(`auto`/`ko`/`en`)을 사용한다. explicit 값이
+  우선하고 auto/missing/invalid는 VS Code display language의 `ko`/`ko-*`만 한국어, 나머지는 영어로
+  resolve한다. Host ready handshake와 exact-setting live update는 표면의 title/guide/control/status/ARIA/
+  confidence/lang을 graph rebuild나 scheduler/geometry work 없이 in-place 변경하며 identifier와 carried value는
+  source text를 유지한다. 해결된 sidebar Webview 보기 제목과 소유 editor-panel 제목은 즉시
+  변경되는 예외다. Activity Bar 컨테이너, command/menu, Settings UI, extension label은
+  immutable manifest/package-NLS contribution이므로 VS Code 표시 언어를 바꾸고 다시
+  로드한 뒤에만 바뀌며, sidebar가 resolve되기 전에는 package-NLS 보기 이름을 fallback으로 쓴다.
 
 #### `webview/codeFlow/typography`
 

@@ -17,15 +17,19 @@ route; it never turns every node into an animated card or hides confidence.
 ## Information and interaction contract
 
 - Variable chips remain the primary entry point; selecting one reveals its
-  existing value-flow overlay, starts one bounded pass, and exposes a compact
-  Playback control strip.
-- Initial graph rendering never starts motion. A direct variable selection
-  starts one pass; Play, Pause, Previous, Next, and Replay allow immediate
-  interruption and deliberate review.
-- The strip reports the current hop and its semantic outcome (read, update,
-  consume, or sink) in text as well as color.
+  existing value-flow overlay, places its `START name = value` frame in a ready
+  state, and exposes a compact Playback control strip. Selection never starts
+  a pass: **Select a value → Play → token follows the real edge → value changes
+  on arrival** is the ordered, visible first-use guide.
+- Initial graph rendering and value selection have zero pending playback work.
+  Play and Replay are the only progression actions; Pause, Previous, Next, and
+  reset allow immediate interruption and deliberate review.
+- The strip reports one bounded, possible-static Scenario frame in text as well
+  as color. An explicit binding selection begins with `START name = value` at
+  its definition, using entered Scenario input, source-derived state, or an
+  explicit unknown. Derived and write frames do not create graph edges.
 - Selecting a different binding, changing branch choices, or closing the view
-  stops playback and returns it to the first available hop.
+  stops playback and returns it to the START frame.
 - Empty and no-route states explain why playback is unavailable. Inferred hops
   remain dashed and are labeled as inferred.
 
@@ -35,19 +39,36 @@ route; it never turns every node into an animated card or hides confidence.
   and the existing warning/error colors only for their semantic states.
 - Controls are compact, keyboard reachable, visibly focused, and grouped with
   a live status announcement.
-- Motion is 220 ms per hop with an ease-out curve. The graph marker travels
-  along the currently active SVG hop; the already-existing route remains
-  visible for spatial context.
+- Motion is bounded slow (760 ms) path travel with an ease-out curve. The labeled
+  `name = value` token travels
+  only along an already-existing lexical SVG hop; derived/write-only frames
+  highlight their node without inventing a semantic edge. Mutations receive a
+  one-shot orange `Δ` ring and expose `before → after` plus confidence in text.
 - `prefers-reduced-motion` replaces travel with an immediate active-hop state.
-- Only the active hop and its two endpoint nodes receive transient emphasis;
-  no continuous or decorative loop is used.
+- Only the active frame and, where present, its lexical hop endpoints receive
+  transient emphasis; no continuous or decorative loop is used. Reduced motion
+  and forced colors retain START, `Δ`, status, and manual controls while
+  suppressing traveler movement and pulse.
+- All Project Analyzer-owned runtime and Webview surfaces follow the single
+  `projectAnalyzer.uiLanguage` preference (`auto`, `ko`, or `en`). Explicit
+  choices update open surfaces in place without changing graph or playback state.
+  Once resolved, the sidebar Webview view title and owned editor-panel titles
+  update immediately. The Activity Bar container, command/menu labels, Settings
+  UI, and extension labels remain immutable manifest contribution chrome and
+  follow VS Code's display language after reload; package-NLS supplies the
+  sidebar fallback before resolution.
+  Setting: `ko`/`en` override explicitly, while `auto` resolves from the VS
+  Code display language (`ko`/`ko-*` is Korean; all other/missing values are
+  English). The Host updates a ready card in place without playback work or a
+  graph rebuild. Source identifiers and carried values remain unchanged.
 
 ## Responsive and state requirements
 
 - The control strip wraps in the Inspector and preserves labels at narrow
   editor widths.
-- Disabled, empty, paused, playing, complete, inferred, and sink states are
-  visible and announced.
+- Disabled, empty, ready, paused, playing, complete, inferred, and sink states
+  are visible and announced. Hidden, offscreen, disconnected, or reduced-motion
+  routes arrive discretely while retaining the same token, value, and text.
 - Long binding names and source labels wrap rather than force horizontal page
   scrolling.
 

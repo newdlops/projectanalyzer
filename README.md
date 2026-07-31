@@ -617,7 +617,18 @@ an analysis gap. The Webview derives at most 1,500 cycle-safe nearest-use hops f
 those semantic relations. Graph nodes render at most eight access rows while the binding
 selector still exposes every retained binding. The scenario-value editor shows at
 most 120 retained bindings and accepts up to 240 literal characters per binding;
-its selected trace renders at most 80 access steps. Those browser-session
+its selected trace/playback renders at most 80 possible static Scenario frames,
+beginning with `START name = value`; transition frames retain `before → after`
+and exact/inferred/unknown text while using travelers only for existing lexical
+hops; matching travel is bounded slow curved path sampling, with a discrete fallback. Selecting a value only
+places `START` in a ready state: **Play** or **Replay** explicitly starts progression. Idle, paused, hidden,
+replaced, and completed cards retain no playback scheduler; one transition uses one scheduler and lazily caches
+32 SVG samples per exact path for replay. `projectAnalyzer.uiLanguage` offers `auto`, `ko`, or
+`en`: auto follows VS Code's display language. All Project Analyzer-owned runtime and Webview surfaces update in place;
+the resolved sidebar view title and owned editor-panel titles are the mutable-title exception. The Activity Bar container,
+command/menu labels, Settings UI, and extension labels remain manifest contribution labels and instead follow VS Code's
+display language after reload. Before the sidebar resolves, its package-NLS fallback title is shown. Ready cards update in place
+without graph reconstruction or scheduled playback work, leaving source identifiers and values unchanged. Those browser-session
 annotations are never evaluated, persisted to source, sent to the Extension Host,
 or used to choose a branch. Clicking a `Name` label only selects the existing
 static curved value-hop overlay.
@@ -710,6 +721,9 @@ npm run compile
 Open the repository in VS Code and run `Run Project Analyzer Extension` from the
 Run and Debug view. The extension contributes a Project Analyzer Activity Bar
 container named Code Flow with the flow-first sidebar.
+
+For the repeatable Module Flow language-switch desktop check, see
+[Module Flow i18n QA](docs/MODULE_FLOW_I18N_QA.md).
 
 ## Tests
 
