@@ -33,6 +33,7 @@ import type {
   FunctionLogicEdge,
   FunctionLogicEdgeKind
 } from "../types";
+import type { FunctionLogicEdgePresentationKey, PresentationParams } from "../../../localization/presentationDescriptors";
 
 /** One transfer that should continue into the enclosing JSX return block. */
 export type TypeScriptJsxLogicExit = {
@@ -66,6 +67,7 @@ type PendingJsxTask = {
   containerId: string;
   depth: number;
   branchLabel?: string;
+  branchPresentation?: { key: FunctionLogicEdgePresentationKey; params?: PresentationParams };
   ownerTag?: string;
 };
 
@@ -73,6 +75,7 @@ type JsxBranchDraft = {
   role: "then" | "else" | "loopBody";
   edgeKind: FunctionLogicEdgeKind;
   label: string;
+  presentation?: { key: FunctionLogicEdgePresentationKey; params?: PresentationParams };
   node?: ts.Node;
 };
 
@@ -150,9 +153,17 @@ export function analyzeTypeScriptJsxLogic(
       kind,
       label,
       detail,
+      // JSX labels combine source tags/names with owned verbs. Preserve raw
+      // fields for identity, while browser copy receives only source syntax.
+      presentation: {
+        labelKey: `logic-block-label-${kind}`,
+        labelParams: { source: normalizeSourceText(node.getText(input.sourceFile)) },
+        detailKey: `logic-block-detail-${kind}`
+      },
       depth: task.depth,
       parentBlockId: containers.get(task.containerId)?.ownerBlockId,
       branchLabel: task.branchLabel,
+      branchPresentation: task.branchPresentation,
       confidence,
       filePath: input.filePath,
       range,
@@ -248,11 +259,13 @@ export function analyzeTypeScriptJsxLogic(
           role: "then",
           edgeKind: "true",
           label: "true",
+          presentation: { key: "logic-edge-true" },
           node: node.whenTrue
         }, {
           role: "else",
           edgeKind: "false",
           label: "false",
+          presentation: { key: "logic-edge-false" },
           node: node.whenFalse
         }]);
       }
@@ -276,6 +289,7 @@ export function analyzeTypeScriptJsxLogic(
           role: "then",
           edgeKind: "true",
           label: isTruthyRender ? "truthy" : "present",
+          presentation: { key: isTruthyRender ? "logic-edge-truthy" : "logic-edge-present" },
           node: isTruthyRender ? node.right : undefined
         }, {
           role: "else",
@@ -283,6 +297,7 @@ export function analyzeTypeScriptJsxLogic(
           label: node.operatorToken.kind === ts.SyntaxKind.QuestionQuestionToken
             ? "nullish"
             : "falsy",
+          presentation: { key: node.operatorToken.kind === ts.SyntaxKind.QuestionQuestionToken ? "logic-edge-nullish" : "logic-edge-falsy" },
           node: isTruthyRender ? undefined : node.right
         }]);
       }
@@ -308,6 +323,7 @@ export function analyzeTypeScriptJsxLogic(
             role: "loopBody",
             edgeKind: "iterate",
             label: `each ${item || "item"}`,
+            presentation: { key: "logic-edge-each", params: { source: item || "item" } },
             node: mapCallback.body
           }], "loop", "inferred");
         }
@@ -500,7 +516,8 @@ function scheduleBranches(
     controlBranches.push({
       containerId,
       edgeKind: branch.edgeKind,
-      label: branch.label
+      label: branch.label,
+      presentation: branch.presentation
     });
     if (branch.node) {
       tasks.push({
@@ -509,6 +526,7 @@ function scheduleBranches(
         containerId,
         depth: task.depth + 1,
         branchLabel: branch.label,
+        branchPresentation: branch.presentation,
         ownerTag: task.ownerTag
       });
     }

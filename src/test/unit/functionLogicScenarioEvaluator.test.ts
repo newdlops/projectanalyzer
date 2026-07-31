@@ -14,6 +14,11 @@ type ScenarioState = {
   kind: "known" | "unknown" | "unset";
   value?: unknown;
   reason?: string;
+  reasonDescriptor?: {
+    key: string;
+    values: Record<string, string | number | boolean>;
+    fallback?: string;
+  };
   origins: string[];
 };
 
@@ -129,8 +134,20 @@ test("leaves calls and unsupported runtime behavior explicitly unknown", () => {
   );
 
   assert.equal(result.kind, "unknown");
-  assert.match(result.reason ?? "", /calls are not executed/u);
+  assert.deepEqual(result.reasonDescriptor, {
+    key: "scenario-reason-calls-static",
+    values: {}
+  });
   assert.deepEqual(result.origins, ["input"]);
+
+  const unsupportedToken = evaluator.evaluate("input @ 2", environment, evaluator.createContext(bindings));
+  assert.deepEqual(unsupportedToken.reasonDescriptor, {
+    key: "scenario-reason-unsupported-token",
+    values: { token: "@" }
+  });
+
+  const unsupportedOperator = evaluator.evaluate("input <<", environment, evaluator.createContext(bindings));
+  assert.equal(unsupportedOperator.reasonDescriptor?.key, "scenario-reason-expression-operator-end");
 });
 
 test("calculates immediate code text but never enters defined or deferred text", () => {
@@ -209,7 +226,10 @@ test("reads JSON members and dynamic indexes without invoking prototype access",
   assert.equal(evaluator.evaluate("payload.items[index] * 2", environment, context).value, 6);
   const inherited = evaluator.evaluate("payload.toString", environment, context);
   assert.equal(inherited.kind, "unknown");
-  assert.match(inherited.reason ?? "", /unavailable/u);
+  assert.deepEqual(inherited.reasonDescriptor, {
+    key: "scenario-reason-member-unavailable",
+    values: { member: "toString" }
+  });
 });
 
 test("calculates nested JSON field writes, dynamic indexes, and deletes immutably", () => {
@@ -262,7 +282,10 @@ test("evaluates JSON source literals but blocks prototype-sensitive field writes
   );
   const state = blocked.recordsByBlockId.get("blocked")?.after.get("payload");
   assert.equal(state?.kind, "unknown");
-  assert.match(state?.reason ?? "", /prototype-sensitive/u);
+  assert.deepEqual(state?.reasonDescriptor, {
+    key: "scenario-reason-object-prototype",
+    values: { key: "__proto__" }
+  });
   assert.equal(Object.prototype.hasOwnProperty.call(Object.prototype, "polluted"), false);
 });
 

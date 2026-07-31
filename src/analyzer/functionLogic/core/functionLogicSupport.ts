@@ -5,6 +5,7 @@
 
 import { createContentHash } from "../../../shared/hash";
 import type { SourceRange, SymbolNode } from "../../../shared/types";
+import type { FunctionLogicEdgePresentationKey, PresentationParams } from "../../../localization/presentationDescriptors";
 import type {
   FunctionLogicAnalysis,
   FunctionLogicBlock,
@@ -53,7 +54,8 @@ export function createFunctionLogicEdge(
   targetId: string,
   kind: FunctionLogicEdgeKind,
   label: string | undefined,
-  confidence: FunctionLogicConfidence
+  confidence: FunctionLogicConfidence,
+  presentation?: { key: FunctionLogicEdgePresentationKey; params?: PresentationParams }
 ): FunctionLogicEdge {
   const key = `${sourceId}\0${targetId}\0${kind}\0${label ?? ""}`;
   return {
@@ -62,6 +64,7 @@ export function createFunctionLogicEdge(
     targetId,
     kind,
     label,
+    presentation,
     confidence
   };
 }
@@ -135,9 +138,16 @@ export function createUnavailableFunctionLogicAnalysis(
     blocks: [],
     edges: [],
     callsites: [],
-    gaps: [{ code, message }],
+    gaps: [{ code, message, presentation: { key: unavailableGapKey(code) } }],
     summary: createFunctionLogicSummary([])
   };
+}
+
+/** Maps unavailable-analysis codes to owned browser copy without rewriting literals. */
+function unavailableGapKey(code: FunctionLogicGap["code"]): NonNullable<FunctionLogicGap["presentation"]>["key"] {
+  return code === "languageUnsupported" ? "logic-gap-unavailable-language"
+    : code === "sourceUnavailable" ? "logic-gap-unavailable-source"
+      : "logic-gap-unavailable-function";
 }
 
 /** Conservative naming cue used only to style possible external/state effects. */

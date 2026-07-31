@@ -77,6 +77,11 @@ function describePythonIf(
       role: isFirst ? "then" : isElse ? "else" : "case",
       edgeKind: isFirst ? "true" : isElse ? "false" : "case",
       label: isFirst ? "true" : isElse ? "false" : `elif ${condition}`,
+      presentation: isFirst
+        ? { key: "logic-edge-true" }
+        : isElse
+          ? { key: "logic-edge-false" }
+          : { key: "logic-edge-elif", params: { source: condition } },
       statements: expandPythonFlowStatements(source, getPythonBodyStatements(child))
     });
   }
@@ -95,6 +100,7 @@ function describePythonLoop(
       role: "loopBody",
       edgeKind: "iterate",
       label: "iterate",
+      presentation: { key: "logic-edge-iterate" },
       statements: expandPythonFlowStatements(source, getPythonBodyStatements(bodies[0]))
     });
   }
@@ -103,6 +109,7 @@ function describePythonLoop(
       role: "else",
       edgeKind: "exit",
       label: "loop completed",
+      presentation: { key: "logic-edge-loop-completed" },
       statements: expandPythonFlowStatements(source, getPythonBodyStatements(bodies[1]))
     });
   }
@@ -136,6 +143,9 @@ function describePythonMatch(
       role: "case",
       edgeKind: "case",
       label: defaultCase ? "default" : rawLabel,
+      presentation: defaultCase
+        ? { key: "logic-edge-default" }
+        : { key: "logic-edge-case", params: { source: rawLabel } },
       statements: expandPythonFlowStatements(source, getPythonBodyStatements(body))
     }];
   });
@@ -173,10 +183,23 @@ function describePythonTry(
           "except"
         )
       : keyword;
+    const exceptSource = keyword === "except"
+      ? normalizeLezerText(
+          source.text.slice(keywordStart, child.from)
+            .replace(/^\s*except\s*/u, "")
+            .replace(/:\s*$/u, ""),
+          ""
+        )
+      : undefined;
     branches.push({
       role: keyword === "try" ? "tryBody" : keyword === "finally" ? "finally" : "catch",
       edgeKind: keyword === "try" ? "next" : keyword === "finally" ? "finally" : "exception",
       label,
+      presentation: keyword === "try"
+        ? { key: "logic-edge-try" }
+        : keyword === "finally"
+          ? { key: "logic-edge-finally" }
+          : { key: "logic-edge-except", params: { source: exceptSource ?? "" } },
       statements
     });
   }
@@ -196,6 +219,7 @@ function describePythonWith(
           role: "tryBody",
           edgeKind: "next",
           label: "with body",
+          presentation: { key: "logic-edge-with" },
           statements: expandPythonFlowStatements(source, getPythonBodyStatements(body))
         }]
       }

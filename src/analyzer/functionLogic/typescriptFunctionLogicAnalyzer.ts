@@ -183,7 +183,7 @@ function buildFunctionLogic(
       continue;
     }
     if (ts.isBlock(task.node)) {
-      pushStatements(pending, task.node.statements, task.containerId, task.depth, task.branchLabel);
+      pushStatements(pending, task.node.statements, task.containerId, task.depth, task.branchLabel, task.branchPresentation);
       continue;
     }
 
@@ -236,7 +236,8 @@ function buildFunctionLogic(
   if (omittedBlockCount > 0) {
     gaps.push({
       code: "parseLimited",
-      message: `${omittedBlockCount} additional statement(s) were omitted after the ${maxBlocks}-block reading limit.`
+      message: `${omittedBlockCount} additional statement(s) were omitted after the ${maxBlocks}-block reading limit.`,
+      presentation: { key: "logic-gap-statement-limit", params: { count: omittedBlockCount, limit: maxBlocks } }
     });
   }
   if ([...controlsByBlockId.values()].some((control) =>
@@ -244,7 +245,8 @@ function buildFunctionLogic(
   )) {
     gaps.push({
       code: "parseLimited",
-      message: "Abrupt return, throw, break, and continue paths through finally are conservatively simplified."
+      message: "Abrupt return, throw, break, and continue paths through finally are conservatively simplified.",
+      presentation: { key: "logic-gap-finally" }
     });
   }
 
@@ -330,10 +332,11 @@ function pushStatements(
   statements: readonly ts.Statement[],
   containerId: string,
   depth: number,
-  branchLabel?: string
+  branchLabel?: string,
+  branchPresentation?: PendingStatement["branchPresentation"]
 ): void {
   for (let index = statements.length - 1; index >= 0; index -= 1) {
-    pending.push({ node: statements[index], containerId, depth, branchLabel });
+    pending.push({ node: statements[index], containerId, depth, branchLabel, branchPresentation });
   }
 }
 
@@ -505,7 +508,8 @@ function createTypeScriptDataFlow(
   if (omittedCount > 0) {
     gaps.push({
       code: "parseLimited",
-      message: `${omittedCount} additional value-flow fact(s) were omitted after the bounded data-flow limit.`
+      message: `${omittedCount} additional value-flow fact(s) were omitted after the bounded data-flow limit.`,
+      presentation: { key: "logic-gap-value-limit", params: { count: omittedCount } }
     });
   }
   return projection;
@@ -559,7 +563,8 @@ function deduplicateById<T extends { id: string }>(values: readonly T[]): T[] {
 function createJsxLimitGap(omittedBlockCount: number, maxBlocks: number): FunctionLogicGap {
   return {
     code: "parseLimited",
-    message: `${omittedBlockCount} additional JSX render region(s) were omitted after the shared ${maxBlocks}-block reading limit.`
+    message: `${omittedBlockCount} additional JSX render region(s) were omitted after the shared ${maxBlocks}-block reading limit.`,
+    presentation: { key: "logic-gap-jsx-limit", params: { count: omittedBlockCount, limit: maxBlocks } }
   };
 }
 
@@ -570,7 +575,8 @@ function createExpressionLimitGap(
 ): FunctionLogicGap {
   return {
     code: "parseLimited",
-    message: `${omittedRegionCount} ternary/short-circuit expression region(s) were omitted after the shared ${maxBlocks}-block reading limit.`
+    message: `${omittedRegionCount} ternary/short-circuit expression region(s) were omitted after the shared ${maxBlocks}-block reading limit.`,
+    presentation: { key: "logic-gap-expression-limit", params: { count: omittedRegionCount, limit: maxBlocks } }
   };
 }
 
@@ -594,7 +600,7 @@ function createUnavailableAnalysis(
     blocks: [],
     edges: [],
     callsites: [],
-    gaps: [{ code, message }],
+    gaps: [{ code, message, presentation: { key: code === "languageUnsupported" ? "logic-gap-unavailable-language" : code === "sourceUnavailable" ? "logic-gap-unavailable-source" : "logic-gap-unavailable-function" } }],
     summary: createSummary([])
   };
 }
@@ -604,11 +610,13 @@ function createDefaultGaps(): FunctionLogicGap[] {
   return [
     {
       code: "parseLimited",
-      message: "Optional chaining and branch expressions embedded inside a larger call argument or non-branch operation stay inside their containing statement. Ternaries nested beneath a selected outer ternary are expanded."
+      message: "Optional chaining and branch expressions embedded inside a larger call argument or non-branch operation stay inside their containing statement. Ternaries nested beneath a selected outer ternary are expanded.",
+      presentation: { key: "logic-gap-optional-chaining" }
     },
     {
       code: "dynamicBehavior",
-      message: "Exceptions, component scheduling, event dispatch, dynamic calls, runtime-built code text, and runtime data values are not observed. Statically complete code literals are parsed without execution."
+      message: "Exceptions, component scheduling, event dispatch, dynamic calls, runtime-built code text, and runtime data values are not observed. Statically complete code literals are parsed without execution.",
+      presentation: { key: "logic-gap-exceptions" }
     }
   ];
 }

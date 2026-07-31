@@ -52,6 +52,7 @@ type TestEdge = {
   targetId: string;
   kind: string;
   label?: string;
+  presentation?: { key: string; params?: Record<string, string> };
   relation?: "call" | "callReturn" | "event";
   confidence: string;
 };
@@ -259,7 +260,10 @@ test("attaches event handlers without rerouting or returning into registration f
   );
   assert.ok(dispatchEdge && originalContinuation);
   assert.equal(dispatchEdge.sourceId, rootBinding.id);
-  assert.match(dispatchEdge.label ?? "", /event handler handleClick/u);
+  assert.deepEqual(dispatchEdge.presentation, {
+    key: "edge-event-handler",
+    params: { label: "handleClick" }
+  });
   assert.equal(originalContinuation.sourceId, rootBinding.id);
   assert.equal(originalContinuation.targetId, rootContinuation.id);
   assert.equal(scene.logic.edges.some((edge) => edge.relation === "callReturn"), false);
@@ -346,7 +350,12 @@ test("keeps the current body frame stable when a nested owner is selected", () =
 /** Loads only pure browser helpers; no DOM is needed for geometry assertions. */
 function loadCompoundRuntime(): CompoundRuntime {
   return new Function(
-    `${getFunctionLogicCompoundGroupBrowserSource()}\n`
+    // The extracted layout fragment formats localized descriptors. These
+    // helpers mirror its browser-program dependencies without mounting a DOM.
+    "function projectAnalyzerText(key) { return key; }\n"
+      + "function formatLogicBlockLabel(block) { return block?.presentation ? projectAnalyzerText(block.presentation.labelKey) : String(block?.label || block?.kind || ''); }\n"
+      + "function formatLogicBlockDetail(block) { return block?.presentation ? projectAnalyzerText(block.presentation.detailKey) : String(block?.detail || ''); }\n"
+      + `${getFunctionLogicCompoundGroupBrowserSource()}\n`
       + `${getCompoundFunctionLogicGraphSource()}\n`
       + "return { createLogicCompoundGroups, createAttachedFunctionGraphScene };"
   )() as CompoundRuntime;

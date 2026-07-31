@@ -187,6 +187,7 @@ export function classifyPythonStatement(
     detail,
     depth: task.depth,
     branchLabel: task.branchLabel,
+    branchPresentation: task.branchPresentation,
     confidence,
     valueChanges: valueChanges.length > 0 ? valueChanges : undefined,
     filePath,
@@ -213,10 +214,12 @@ export function collectPythonFunctionCallsites(
 export function createPythonFunctionLogicGaps(): FunctionLogicGap[] {
   return [{
     code: "parseLimited",
-    message: "Boolean short-circuiting, standalone lazy generator expressions, nested comprehension result expressions, and other expression-level conditions stay inside their containing block. Generator-argument loops are structural; whether and how far a callee consumes them remains inferred."
+    message: "Boolean short-circuiting, standalone lazy generator expressions, nested comprehension result expressions, and other expression-level conditions stay inside their containing block. Generator-argument loops are structural; whether and how far a callee consumes them remains inferred.",
+    presentation: { key: "logic-gap-python-expression" }
   }, {
     code: "dynamicBehavior",
-    message: "Monkey patching, decorators, descriptors, dynamic dispatch, exceptions from callees, and runtime values are not observed."
+    message: "Monkey patching, decorators, descriptors, dynamic dispatch, exceptions from callees, and runtime values are not observed.",
+    presentation: { key: "logic-gap-python-runtime" }
   }];
 }
 

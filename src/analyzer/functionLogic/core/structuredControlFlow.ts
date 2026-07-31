@@ -11,6 +11,7 @@ import type {
   FunctionLogicEdgeKind
 } from "../types";
 import { createFunctionLogicEdge } from "./functionLogicSupport";
+import type { FunctionLogicEdgePresentationKey, PresentationParams } from "../../../localization/presentationDescriptors";
 
 /** Structural role of a statement container owned by a control block. */
 export type ContainerRole =
@@ -42,6 +43,7 @@ export type ControlBranch = {
   containerId: string;
   edgeKind: FunctionLogicEdgeKind;
   label?: string;
+  presentation?: { key: FunctionLogicEdgePresentationKey; params?: PresentationParams };
 };
 
 /** Branch metadata retained until all statement blocks have been scheduled. */
@@ -163,7 +165,8 @@ function appendControlEdges(
         first,
         branch.edgeKind,
         branch.label,
-        branch.edgeKind === "exception" ? "inferred" : controlConfidence
+        branch.edgeKind === "exception" ? "inferred" : controlConfidence,
+        branch.presentation
       );
     } else if (branch.edgeKind !== "exception") {
       const emptyBranchContinuation = control.kind === "try"
@@ -176,7 +179,8 @@ function appendControlEdges(
         emptyBranchContinuation,
         branch.edgeKind,
         branch.label,
-        controlConfidence
+        controlConfidence,
+        branch.presentation
       );
     }
   }
@@ -281,12 +285,13 @@ function addEdge(
   targetId: string,
   kind: FunctionLogicEdgeKind,
   label: string | undefined,
-  confidence: FunctionLogicConfidence
+  confidence: FunctionLogicConfidence,
+  presentation?: { key: FunctionLogicEdgePresentationKey; params?: PresentationParams }
 ): void {
   const key = `${sourceId}\0${targetId}\0${kind}\0${label ?? ""}`;
   if (keys.has(key)) {
     return;
   }
   keys.add(key);
-  edges.push(createFunctionLogicEdge(sourceId, targetId, kind, label, confidence));
+  edges.push(createFunctionLogicEdge(sourceId, targetId, kind, label, confidence, presentation));
 }

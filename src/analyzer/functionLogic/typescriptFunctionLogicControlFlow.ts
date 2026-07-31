@@ -33,6 +33,7 @@ export function scheduleControlChildren(
     role: ContainerRole;
     edgeKind: FunctionLogicEdgeKind;
     label?: string;
+    presentation?: ControlBranch["presentation"];
     statements: readonly ts.Statement[];
   }> = [];
   let controlKind: ControlRecord["kind"] | undefined;
@@ -44,6 +45,7 @@ export function scheduleControlChildren(
       role: "then",
       edgeKind: "true",
       label: "true",
+      presentation: { key: "logic-edge-true" },
       statements: getStatements(node.thenStatement)
     });
     if (node.elseStatement) {
@@ -51,6 +53,7 @@ export function scheduleControlChildren(
         role: "else",
         edgeKind: "false",
         label: ts.isIfStatement(node.elseStatement) ? "else if" : "false",
+        presentation: { key: ts.isIfStatement(node.elseStatement) ? "logic-edge-else-if" : "logic-edge-false" },
         statements: getStatements(node.elseStatement)
       });
     }
@@ -60,6 +63,7 @@ export function scheduleControlChildren(
       role: "loopBody",
       edgeKind: "iterate",
       label: "iterate",
+      presentation: { key: "logic-edge-iterate" },
       statements: getStatements(node.statement)
     });
   } else if (ts.isSwitchStatement(node)) {
@@ -73,6 +77,9 @@ export function scheduleControlChildren(
         label: isDefault
           ? "default"
           : completeSourceText(clause.expression.getText(sourceFile), "case"),
+        presentation: isDefault
+          ? { key: "logic-edge-default" }
+          : { key: "logic-edge-case", params: { source: completeSourceText(clause.expression.getText(sourceFile), "case") } },
         statements: clause.statements
       });
     }
@@ -82,6 +89,7 @@ export function scheduleControlChildren(
       role: "tryBody",
       edgeKind: "next",
       label: "try",
+      presentation: { key: "logic-edge-try" },
       statements: node.tryBlock.statements
     });
     if (node.catchClause) {
@@ -89,6 +97,10 @@ export function scheduleControlChildren(
         role: "catch",
         edgeKind: "exception",
         label: node.catchClause.variableDeclaration?.name.getText(sourceFile) ?? "catch",
+        presentation: {
+          key: "logic-edge-catch",
+          params: { name: node.catchClause.variableDeclaration?.name.getText(sourceFile) ?? "" }
+        },
         statements: node.catchClause.block.statements
       });
     }
@@ -97,6 +109,7 @@ export function scheduleControlChildren(
         role: "finally",
         edgeKind: "finally",
         label: "finally",
+        presentation: { key: "logic-edge-finally" },
         statements: node.finallyBlock.statements
       });
     }
@@ -125,14 +138,16 @@ export function scheduleControlChildren(
     controlBranches.push({
       containerId,
       edgeKind: branch.edgeKind,
-      label: branch.label
+      label: branch.label,
+      presentation: branch.presentation
     });
     for (const statement of branch.statements) {
       childTasks.push({
         node: statement,
         containerId,
         depth: task.depth + 1,
-        branchLabel: branch.label
+        branchLabel: branch.label,
+        branchPresentation: branch.presentation
       });
     }
   }

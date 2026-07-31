@@ -252,6 +252,11 @@ function decorateBooleanFragmentBlocks(
         condition,
         filePath: anchor.filePath,
         range: anchor.range
+        ,presentation: {
+          labelKey: `logic-block-label-${anchor.kind}`,
+          labelParams: { source: block.label },
+          detailKey: `logic-block-detail-${anchor.kind}`
+        }
       };
     }
     return {
@@ -330,7 +335,12 @@ function specializeValueCompletionAnchor(
     kind: "operation",
     label: "complete selected expression",
     detail: "Completes the containing expression after one selected path supplies its value.",
-    confidence: "exact"
+    confidence: "exact",
+    presentation: {
+      labelKey: "logic-block-label-operation",
+      labelParams: { source: anchor.label },
+      detailKey: "logic-block-detail-operation"
+    }
   };
 }
 

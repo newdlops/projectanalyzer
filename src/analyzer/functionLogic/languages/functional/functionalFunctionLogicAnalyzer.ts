@@ -163,6 +163,11 @@ function createPipelineBlocks(
     kind: "operation",
     label: inputLabel,
     detail: "Evaluates the value supplied to the first pipe-forward stage.",
+    presentation: {
+      labelKey: "logic-block-label-operation",
+      labelParams: { source: chain.inputText },
+      detailKey: "logic-block-detail-operation"
+    },
     depth: 0,
     confidence: "exact",
     filePath: input.functionNode.filePath,
@@ -183,6 +188,11 @@ function createPipelineBlocks(
       detail: source.profile.pipeInsertion === "firstArgument"
         ? "Passes the previous result as this stage's first argument."
         : "Passes the previous result as this stage's final argument.",
+      presentation: {
+        labelKey: effect ? "logic-block-label-effect" : "logic-block-label-call",
+        labelParams: { source: stage.text },
+        detailKey: effect ? "logic-block-detail-effect" : "logic-block-detail-call"
+      },
       depth: 0,
       confidence: effect ? "inferred" : "exact",
       filePath: input.functionNode.filePath,
@@ -262,18 +272,21 @@ function createFunctionalGaps(
 ): FunctionLogicGap[] {
   const gaps: FunctionLogicGap[] = [{
     code: "dynamicBehavior",
-    message: `${source.profile.language} pipe order is exact; higher-order callbacks, macros, and runtime dispatch remain runtime-dependent.`
+    message: `${source.profile.language} pipe order is exact; higher-order callbacks, macros, and runtime dispatch remain runtime-dependent.`,
+    presentation: { key: "logic-gap-functional-runtime", params: { language: source.profile.language } }
   }];
   if (chains.length === 0) {
     gaps.push({
       code: "parseLimited",
-      message: "No pipe-forward expression was found; pattern matching and composition remain collapsed."
+      message: "No pipe-forward expression was found; pattern matching and composition remain collapsed.",
+      presentation: { key: "logic-gap-functional-collapsed" }
     });
   }
   if (omittedBlockCount > 0) {
     gaps.push({
       code: "parseLimited",
-      message: `${omittedBlockCount} pipeline blocks were omitted by the configured Function Logic limit.`
+      message: `${omittedBlockCount} pipeline blocks were omitted by the configured Function Logic limit.`,
+      presentation: { key: "logic-gap-functional-limit", params: { count: omittedBlockCount } }
     });
   }
   return gaps;

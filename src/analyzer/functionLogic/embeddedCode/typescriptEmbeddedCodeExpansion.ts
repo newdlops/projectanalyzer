@@ -110,7 +110,8 @@ export function expandTypeScriptEmbeddedCode(input: {
             boundary.id,
             edge.kind,
             edge.label,
-            edge.confidence
+            edge.confidence,
+            edge.presentation
           )
         : edge);
       edges.push(...plan.edges);
@@ -119,7 +120,8 @@ export function expandTypeScriptEmbeddedCode(input: {
         anchor.id,
         "next",
         rootExit ? "resume host flow" : "embedded text unavailable",
-        request.confidence
+        request.confidence,
+        { key: "logic-edge-next" }
       ));
     } else {
       edges.push(createFunctionLogicEdge(
@@ -127,7 +129,8 @@ export function expandTypeScriptEmbeddedCode(input: {
         boundary.id,
         request.mode === "deferred" ? "deferred" : "defines",
         createBoundaryEdgeLabel(request.mode),
-        request.confidence
+        request.confidence,
+        { key: request.mode === "deferred" ? "logic-edge-deferred" : "logic-edge-defines" }
       ));
       edges.push(...plan.edges);
     }
@@ -188,6 +191,11 @@ function createEmbeddedBoundary(
     kind: "embedded",
     label: createBoundaryLabel(request, 0),
     detail: createBoundaryDetail(request),
+    presentation: { labelKey: "logic-block-label-embedded", labelParams: { source: request.consumer }, detailKey: "logic-block-detail-embedded" },
+    embeddedPresentationKind: request.mode === "immediate"
+      ? request.executionScope === "global" ? "globalEval" : "directEval"
+      : request.mode === "deferred" ? "deferred"
+        : request.mode === "callable" ? "created" : "static",
     depth: anchor.depth,
     parentBlockId: anchor.parentBlockId,
     branchLabel: anchor.branchLabel,
@@ -207,7 +215,8 @@ function specializeBoundarySummary(
     ? {
         ...block,
         label: createBoundaryLabel(request, functionCount),
-        detail: createBoundaryDetail(request, functionCount)
+        detail: createBoundaryDetail(request, functionCount),
+        presentation: { labelKey: "logic-block-label-embedded", labelParams: { source: request.consumer }, detailKey: "logic-block-detail-embedded" }
       }
     : block);
 }
@@ -286,31 +295,36 @@ function createExpansionGaps(input: {
   if (input.dynamicConsumerCount > 0) {
     gaps.push({
       code: "dynamicBehavior",
-      message: `${input.dynamicConsumerCount} code-consuming call(s) use runtime-built text and were not parsed or executed.`
+      message: `${input.dynamicConsumerCount} code-consuming call(s) use runtime-built text and were not parsed or executed.`,
+      presentation: { key: "logic-gap-runtime-code", params: { count: input.dynamicConsumerCount } }
     });
   }
   if (input.parseDiagnosticCount > 0) {
     gaps.push({
       code: "parseLimited",
-      message: `${input.parseDiagnosticCount} embedded-code parser diagnostic(s) were recovered conservatively; verify the literal before relying on its internal paths.`
+      message: `${input.parseDiagnosticCount} embedded-code parser diagnostic(s) were recovered conservatively; verify the literal before relying on its internal paths.`,
+      presentation: { key: "logic-gap-embedded-diagnostic", params: { count: input.parseDiagnosticCount } }
     });
   }
   if (input.omittedBlockCount > 0) {
     gaps.push({
       code: "parseLimited",
-      message: `${input.omittedBlockCount} embedded statement, callable scope, or value-flow fact(s) were omitted after the shared Function Logic block limit.`
+      message: `${input.omittedBlockCount} embedded statement, callable scope, or value-flow fact(s) were omitted after the shared Function Logic block limit.`,
+      presentation: { key: "logic-gap-embedded-limit", params: { count: input.omittedBlockCount } }
     });
   }
   if (input.omittedRegionCount > 0) {
     gaps.push({
       code: "parseLimited",
-      message: `${input.omittedRegionCount} additional embedded code region(s) were omitted after the bounded region/block limit.`
+      message: `${input.omittedRegionCount} additional embedded code region(s) were omitted after the bounded region/block limit.`,
+      presentation: { key: "logic-gap-embedded-region-limit", params: { count: input.omittedRegionCount } }
     });
   }
   if (input.invalidConstantWriteCount > 0) {
     gaps.push({
       code: "dynamicBehavior",
-      message: `${input.invalidConstantWriteCount} direct eval write(s) target host const binding(s) and were not treated as successful value updates.`
+      message: `${input.invalidConstantWriteCount} direct eval write(s) target host const binding(s) and were not treated as successful value updates.`,
+      presentation: { key: "logic-gap-constant-write", params: { count: input.invalidConstantWriteCount } }
     });
   }
   return gaps;

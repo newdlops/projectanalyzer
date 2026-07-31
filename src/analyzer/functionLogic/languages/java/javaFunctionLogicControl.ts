@@ -55,6 +55,7 @@ function describeJavaIf(node: SyntaxNode): LezerControlDescription {
       role: "then",
       edgeKind: "true",
       label: "true",
+      presentation: { key: "logic-edge-true" },
       statements: unwrapJavaStatement(statements[0])
     });
   }
@@ -63,6 +64,7 @@ function describeJavaIf(node: SyntaxNode): LezerControlDescription {
       role: "else",
       edgeKind: "false",
       label: "false",
+      presentation: { key: "logic-edge-false" },
       statements: unwrapJavaStatement(statements[1])
     });
   }
@@ -80,6 +82,7 @@ function describeJavaLoop(node: SyntaxNode): LezerControlDescription {
           role: "loopBody",
           edgeKind: "iterate",
           label: "iterate",
+          presentation: { key: "logic-edge-iterate" },
           statements: unwrapJavaStatement(body)
         }]
       : []
@@ -108,6 +111,9 @@ function describeJavaSwitch(
         role: "case",
         edgeKind: "case",
         label: isDefault ? "default" : label.replace(/^case\s+/u, ""),
+        presentation: isDefault
+          ? { key: "logic-edge-default" }
+          : { key: "logic-edge-case", params: { source: label.replace(/^case\s+/u, "") } },
         statements: []
       };
       branches.push(active);
@@ -132,6 +138,7 @@ function describeJavaTry(
       role: "tryBody",
       edgeKind: "next",
       label: "try",
+      presentation: { key: "logic-edge-try" },
       statements: getJavaBodyStatements(tryBlock)
     });
   }
@@ -145,6 +152,14 @@ function describeJavaTry(
         label: parameter
           ? normalizeLezerText(source.text.slice(parameter.from, parameter.to), "catch")
           : "catch",
+        presentation: {
+          key: "logic-edge-catch",
+          params: {
+            name: parameter
+              ? normalizeLezerText(source.text.slice(parameter.from, parameter.to), "").replace(/^\(|\)$/gu, "")
+              : ""
+          }
+        },
         statements: block ? getJavaBodyStatements(block) : []
       });
     } else if (child.name === "FinallyClause") {
@@ -153,6 +168,7 @@ function describeJavaTry(
         role: "finally",
         edgeKind: "finally",
         label: "finally",
+        presentation: { key: "logic-edge-finally" },
         statements: block ? getJavaBodyStatements(block) : []
       });
     }
@@ -173,6 +189,7 @@ function describeJavaNestedRegion(node: SyntaxNode): LezerControlDescription | u
           role: "tryBody",
           edgeKind: "next",
           label: node.name === "SynchronizedStatement" ? "synchronized body" : "nested block",
+          presentation: { key: node.name === "SynchronizedStatement" ? "logic-edge-synchronized" : "logic-edge-nested" },
           statements
         }]
       }

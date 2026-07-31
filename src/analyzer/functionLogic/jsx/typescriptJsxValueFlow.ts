@@ -42,7 +42,12 @@ export function planTypeScriptJsxStatementValueFlow(
     ...block,
     id: createFunctionLogicBlockId(filePath, block.kind, block.range, label),
     label,
-    detail: createJsxValueAnchorDetail(target.role, noun)
+    detail: createJsxValueAnchorDetail(target.role, noun),
+    presentation: {
+      labelKey: `logic-block-label-${block.kind}`,
+      labelParams: { source: normalizeText(statement.getText(sourceFile)) },
+      detailKey: `logic-block-detail-${block.kind}`
+    } as FunctionLogicBlock["presentation"]
   };
   return {
     block: specialized,

@@ -4,6 +4,7 @@
  */
 
 import type { SourceRange, SymbolNode } from "../../shared/types";
+import type { FunctionLogicBlockPresentationKey, FunctionLogicEdgePresentationKey, FunctionLogicGapPresentationKey, PresentationParams } from "../../localization/presentationDescriptors";
 import type { FunctionLogicValueChange } from "./valueChanges/types";
 import type {
   FunctionLogicValueAccess,
@@ -104,12 +105,23 @@ export type FunctionLogicBlock = {
   kind: FunctionLogicBlockKind;
   label: string;
   detail: string;
+  /** UI-owned prose keys; source-derived labels and details remain primitive params. */
+  presentation?: {
+    labelKey: FunctionLogicBlockPresentationKey;
+    labelParams?: PresentationParams;
+    detailKey: FunctionLogicBlockPresentationKey;
+    detailParams?: PresentationParams;
+  };
+  /** Stable embedded-code timing, independent of generated display text. */
+  embeddedPresentationKind?: "directEval" | "globalEval" | "deferred" | "created" | "static";
   depth: number;
   /** Nearest control statement whose body directly owns this statement. */
   parentBlockId?: string;
   /** Static embedded-code boundary that owns this virtual program member. */
   embeddedBoundaryId?: string;
   branchLabel?: string;
+  /** Localized structured-branch role; raw branchLabel remains compatibility data. */
+  branchPresentation?: { key: FunctionLogicEdgePresentationKey; params?: PresentationParams };
   confidence: FunctionLogicConfidence;
   /** Present only for source-backed boolean condition predicates. */
   condition?: FunctionLogicCondition;
@@ -146,6 +158,8 @@ export type FunctionLogicEdge = {
   targetId: string;
   kind: FunctionLogicEdgeKind;
   label?: string;
+  /** Browser-owned edge copy; raw labels remain available for compatibility. */
+  presentation?: { key: FunctionLogicEdgePresentationKey; params?: PresentationParams };
   confidence: FunctionLogicConfidence;
 };
 
@@ -158,6 +172,8 @@ export type FunctionLogicGap = {
     | "parseLimited"
     | "dynamicBehavior";
   message: string;
+  /** Owned diagnostic copy is transported as data; source/external details stay in message. */
+  presentation?: { key: FunctionLogicGapPresentationKey; params?: PresentationParams };
 };
 
 /** Counts derived from visible blocks and direct call expressions in this analysis. */

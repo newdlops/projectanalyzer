@@ -5,6 +5,7 @@
  */
 
 import type { SyntaxNode } from "@lezer/common";
+import type { FunctionLogicEdgePresentationKey, PresentationParams } from "../../../localization/presentationDescriptors";
 import type { SourceRange, SymbolNode } from "../../../shared/types";
 import type {
   FunctionLogicAnalysis,
@@ -55,6 +56,7 @@ export type LezerStatementTask = {
   containerId: string;
   depth: number;
   branchLabel?: string;
+  branchPresentation?: { key: FunctionLogicEdgePresentationKey; params?: PresentationParams };
   implicitReturn?: boolean;
   /** Opaque language-owned metadata for syntax-backed synthetic flow steps. */
   adapterData?: unknown;
@@ -76,6 +78,7 @@ export type LezerControlBranchDescription = {
   role: ContainerRole;
   edgeKind: FunctionLogicEdgeKind;
   label?: string;
+  presentation?: { key: FunctionLogicEdgePresentationKey; params?: PresentationParams };
   statements: LezerStatementInput[];
 };
 
@@ -231,13 +234,15 @@ function buildLezerFunctionLogic(
   if (omittedBlockCount > 0) {
     gaps.push({
       code: "parseLimited",
-      message: `${omittedBlockCount} additional statement(s) were omitted after the ${maxBlocks}-block reading limit.`
+      message: `${omittedBlockCount} additional statement(s) were omitted after the ${maxBlocks}-block reading limit.`,
+      presentation: { key: "logic-gap-statement-limit", params: { count: omittedBlockCount, limit: maxBlocks } }
     });
   }
   if (hasLezerError(callable.node)) {
     gaps.push({
       code: "parseLimited",
-      message: "The parser recovered from incomplete or unsupported syntax inside this callable; verify nearby blocks in source."
+      message: "The parser recovered from incomplete or unsupported syntax inside this callable; verify nearby blocks in source.",
+      presentation: { key: "logic-gap-parser-recovered" }
     });
   }
   if ([...controlsByBlockId.values()].some((control) =>
@@ -245,7 +250,8 @@ function buildLezerFunctionLogic(
   )) {
     gaps.push({
       code: "parseLimited",
-      message: "Abrupt return, throw, break, and continue paths through finally are conservatively simplified."
+      message: "Abrupt return, throw, break, and continue paths through finally are conservatively simplified.",
+      presentation: { key: "logic-gap-finally" }
     });
   }
 
@@ -272,7 +278,8 @@ function buildLezerFunctionLogic(
   if (omittedDataFlowCount > 0) {
     gaps.push({
       code: "parseLimited",
-      message: `${omittedDataFlowCount} additional value-flow fact(s) were omitted after the bounded data-flow limit.`
+      message: `${omittedDataFlowCount} additional value-flow fact(s) were omitted after the bounded data-flow limit.`,
+      presentation: { key: "logic-gap-value-limit", params: { count: omittedDataFlowCount } }
     });
   }
   const projectedBlocks = dataFlow?.blocks ?? blocks;
@@ -320,7 +327,8 @@ function scheduleLezerControlChildren(
     controlBranches.push({
       containerId,
       edgeKind: branch.edgeKind,
-      label: branch.label
+      label: branch.label,
+      presentation: branch.presentation
     });
     for (const statement of branch.statements) {
       const seed = normalizeLezerStatementInput(statement);
@@ -329,6 +337,7 @@ function scheduleLezerControlChildren(
         containerId,
         depth: task.depth + 1,
         branchLabel: branch.label,
+        branchPresentation: branch.presentation,
         implicitReturn: seed.implicitReturn,
         adapterData: seed.adapterData
       });

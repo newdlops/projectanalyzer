@@ -131,6 +131,7 @@ export function classifyJavaStatement(
   let confidence: FunctionLogicConfidence = "exact";
   let label = normalizeLezerText(source.text.slice(node.from, node.to), "Statement");
   let detail = "Executes one Java source statement.";
+  let presentation: FunctionLogicBlock["presentation"];
   const control = JAVA_CONTROL_NODES.get(node.name);
   const valueChanges = collectJavaValueChanges(source, node);
 
@@ -138,6 +139,7 @@ export function classifyJavaStatement(
     kind = "return";
     label = `return ${normalizeLezerText(source.text.slice(node.from, node.to), "expression")}`;
     detail = "Expression-bodied lambda implicitly returns this value.";
+    presentation = { labelKey: "logic-block-label-return", labelParams: { source: normalizeLezerText(source.text.slice(node.from, node.to), "expression") }, detailKey: "logic-block-detail-return" };
   } else if (control) {
     kind = control.kind;
     label = createJavaControlLabel(source, node, control.keyword);
@@ -148,6 +150,7 @@ export function classifyJavaStatement(
       ? "try with resources / catch / finally"
       : "try / catch / finally";
     detail = "Separates normal, exceptional, resource, and cleanup control paths.";
+    presentation = { labelKey: "logic-block-label-try", labelParams: { source: normalizeLezerText(source.text.slice(node.from, node.to), "try") }, detailKey: "logic-block-detail-try" };
   } else if (node.name === "ReturnStatement") {
     kind = "return";
     detail = "Ends this method and returns control to its caller.";
@@ -191,8 +194,10 @@ export function classifyJavaStatement(
     kind,
     label,
     detail,
+    presentation,
     depth: task.depth,
     branchLabel: task.branchLabel,
+    branchPresentation: task.branchPresentation,
     confidence,
     valueChanges: valueChanges.length > 0 ? valueChanges : undefined,
     filePath,
@@ -218,10 +223,12 @@ export function collectJavaFunctionCallsites(
 export function createJavaFunctionLogicGaps(): FunctionLogicGap[] {
   return [{
     code: "parseLimited",
-    message: "Boolean short-circuiting, ternaries, stream pipelines, expression-level switches, and labeled break/continue targets are simplified inside their containing block."
+    message: "Boolean short-circuiting, ternaries, stream pipelines, expression-level switches, and labeled break/continue targets are simplified inside their containing block.",
+    presentation: { key: "logic-gap-java-expression" }
   }, {
     code: "dynamicBehavior",
-    message: "Virtual dispatch, reflection, framework interception, exceptions from callees, threads, and runtime values are not observed."
+    message: "Virtual dispatch, reflection, framework interception, exceptions from callees, threads, and runtime values are not observed.",
+    presentation: { key: "logic-gap-java-runtime" }
   }];
 }
 

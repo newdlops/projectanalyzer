@@ -103,6 +103,34 @@ test("builds statement, branch, repeat, effect, and exit paths inside a function
   });
 });
 
+test("preserves TypeScript structured branch descriptors separately from raw labels", () => {
+  const analysis = analyzeFunctionLogic({
+    functionNode: createFunctionNode("structured", "/workspace/src/structured.ts", 0),
+    sourceText: [
+      "function structured(value: string) {",
+      "  if (value === 'a') { return 1; } else if (value === 'b') { return 2; } else { return 3; }",
+      "  switch (value) { case 'x': return 4; default: return 5; }",
+      "  try { call(); } catch (error) { recover(error); } finally { close(); }",
+      "}"
+    ].join("\n")
+  });
+
+  const edgeKeys = analysis.edges.map((edge) => edge.presentation?.key);
+  assert.ok(edgeKeys.includes("logic-edge-true"));
+  assert.ok(edgeKeys.includes("logic-edge-else-if"));
+  assert.ok(edgeKeys.includes("logic-edge-case"));
+  assert.ok(edgeKeys.includes("logic-edge-default"));
+  assert.ok(edgeKeys.includes("logic-edge-try"));
+  assert.ok(edgeKeys.includes("logic-edge-catch"));
+
+  const caseDescendant = analysis.blocks.find((block) => block.branchPresentation?.key === "logic-edge-case");
+  const catchDescendant = analysis.blocks.find((block) => block.branchPresentation?.key === "logic-edge-catch");
+  const finallyDescendant = analysis.blocks.find((block) => block.branchPresentation?.key === "logic-edge-finally");
+  assert.equal(caseDescendant?.branchPresentation?.params?.source, "'x'");
+  assert.equal(catchDescendant?.branchPresentation?.params?.name, "error");
+  assert.ok(finallyDescendant);
+});
+
 test("models a concise arrow body as an implicit return", () => {
   const arrowSource = "const normalize = (value: string) => value.trim();";
   const analysis = analyzeFunctionLogic({
@@ -173,6 +201,11 @@ test("builds Python condition, loop, match, mutation, call, and exit paths", () 
   assertEdgeKindsFrom(analysis, condition.id, ["true", "false"]);
   assertEdgeKindsFrom(analysis, loop.id, ["iterate", "exit"]);
   assertEdgeKindsFrom(analysis, match.id, ["case", "case"]);
+  assert.ok(analysis.edges.some((edge) => edge.presentation?.key === "logic-edge-true"));
+  assert.ok(analysis.edges.some((edge) => edge.presentation?.key === "logic-edge-iterate"));
+  assert.ok(analysis.edges.some((edge) => edge.presentation?.key === "logic-edge-case"
+    && edge.presentation.params?.source === "'open'"));
+  assert.ok(analysis.blocks.some((block) => block.branchPresentation?.key === "logic-edge-default"));
   assert.deepEqual(analysis.callsites.map((callsite) => callsite.calleeText), [
     "is_ready",
     "ValueError",
@@ -180,6 +213,39 @@ test("builds Python condition, loop, match, mutation, call, and exit paths", () 
   ]);
   assert.equal(analysis.summary.callCount, 3);
   assert.equal(analysis.gaps.some((gap) => gap.code === "languageUnsupported"), false);
+});
+
+test("keeps Python elif, except, and with descriptors separate from source labels", () => {
+  const analysis = analyzeFunctionLogic({
+    functionNode: {
+      ...createFunctionNode("structured", "/workspace/src/structured.py", 0),
+      language: "python"
+    },
+    sourceText: [
+      "def structured(value):",
+      "    if value > 0:",
+      "        use(value)",
+      "    elif value < 0:",
+      "        use(-value)",
+      "    else:",
+      "        use(0)",
+      "    try:",
+      "        work()",
+      "    except ValueError as error:",
+      "        recover(error)",
+      "    finally:",
+      "        close()",
+      "    with open_file() as handle:",
+      "        read(handle)"
+    ].join("\n")
+  });
+
+  assert.ok(analysis.edges.some((edge) => edge.presentation?.key === "logic-edge-elif"
+    && edge.presentation.params?.source === "value < 0"));
+  assert.ok(analysis.edges.some((edge) => edge.presentation?.key === "logic-edge-except"
+    && edge.presentation.params?.source === "ValueError as error"));
+  assert.ok(analysis.blocks.some((block) => block.branchPresentation?.key === "logic-edge-finally"));
+  assert.ok(analysis.blocks.some((block) => block.branchPresentation?.key === "logic-edge-with"));
 });
 
 test("retains exact structural parents across TypeScript and shared Lezer adapters", () => {
@@ -266,6 +332,8 @@ test("builds Java condition, loop, switch, try, mutation, call, and exit paths",
     "    }",
     "    try {",
     "      repository.save(order);",
+    "    } catch (IllegalStateException error) {",
+    "      audit.failure(error);",
     "    } finally {",
     "      audit.publish(total);",
     "    }",
@@ -300,6 +368,12 @@ test("builds Java condition, loop, switch, try, mutation, call, and exit paths",
   assertEdgeKindsFrom(analysis, condition.id, ["true", "false"]);
   assertEdgeKindsFrom(analysis, loop.id, ["iterate", "exit"]);
   assertEdgeKindsFrom(analysis, switchBlock.id, ["case", "case"]);
+  assert.ok(analysis.edges.some((edge) => edge.presentation?.key === "logic-edge-try"));
+  assert.ok(analysis.edges.some((edge) => edge.presentation?.key === "logic-edge-catch"
+    && edge.presentation.params?.name === "IllegalStateException error"));
+  assert.ok(analysis.edges.some((edge) => edge.presentation?.key === "logic-edge-case"
+    && edge.presentation.params?.source === "OPEN"));
+  assert.ok(analysis.blocks.some((block) => block.branchPresentation?.key === "logic-edge-finally"));
   assert.ok(analysis.callsites.some((callsite) => callsite.calleeText === "isReady"));
   assert.ok(analysis.callsites.some((callsite) => callsite.calleeText === "repository.save"));
   assert.equal(analysis.gaps.some((gap) => gap.code === "languageUnsupported"), false);

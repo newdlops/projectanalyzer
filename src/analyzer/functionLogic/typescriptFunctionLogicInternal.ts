@@ -5,6 +5,7 @@
  */
 
 import * as ts from "typescript";
+import type { FunctionLogicEdgePresentationKey, PresentationParams } from "../../localization/presentationDescriptors";
 
 /** Callable syntax node whose executable body is present in the source file. */
 export type FunctionLikeWithBody = ts.FunctionLikeDeclaration & { body: ts.ConciseBody };
@@ -15,4 +16,5 @@ export type PendingStatement = {
   containerId: string;
   depth: number;
   branchLabel?: string;
+  branchPresentation?: { key: FunctionLogicEdgePresentationKey; params?: PresentationParams };
 };

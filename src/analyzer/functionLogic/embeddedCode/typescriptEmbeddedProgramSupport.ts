@@ -79,6 +79,7 @@ export function specializeEmbeddedCallableBlock(
     kind: "callable",
     label,
     detail: "Defines a callable in embedded code. Its body is analyzed separately and is not entered until invoked.",
+    presentation: { labelKey: "logic-block-label-callable", labelParams: { source: createEmbeddedCallableSignature(sourceFile, callable) }, detailKey: "logic-block-detail-callable" },
     confidence: "exact"
   };
 }
@@ -98,6 +99,7 @@ export function createAdditionalEmbeddedCallableBlock(
     kind: "callable",
     label,
     detail: "Defines one callable contained by this embedded statement; the body remains a separate non-executed scope.",
+    presentation: { labelKey: "logic-block-label-callable", labelParams: { source: createEmbeddedCallableSignature(sourceFile, callable) }, detailKey: "logic-block-detail-callable" },
     depth: task.depth + 1,
     parentBlockId: owner.id,
     branchLabel: task.branchLabel,
@@ -194,6 +196,7 @@ export function createEmbeddedScopeExitBlock(
     detail: scope.relationship === "root"
       ? "Completes this parsed embedded program scope."
       : "Completes the callable body without returning into the host flow unless a real call occurs.",
+    presentation: { labelKey: "logic-block-label-exit", detailKey: "logic-block-detail-exit" },
     depth: owner.depth + 1,
     parentBlockId: owner.id,
     confidence: "exact",
@@ -219,6 +222,7 @@ export function createEmbeddedExpressionReturnBlock(
     kind: "return",
     label,
     detail: "Concise embedded callable body implicitly returns this expression.",
+    presentation: { labelKey: "logic-block-label-return", labelParams: { source: completeSourceText(expression.getText(sourceFile), "expression") }, detailKey: "logic-block-detail-return" },
     depth: owner.depth + 1,
     parentBlockId: owner.id,
     confidence: "exact",

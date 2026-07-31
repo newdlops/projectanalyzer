@@ -126,6 +126,8 @@ test("models concise JSX map callbacks as inferred repeated render flow", async 
   assert.equal(loop.label, "render each item from items");
   assert.equal(loop.confidence, "inferred");
   assertEdgeKindsFrom(analysis, loop.id, ["iterate", "exit"]);
+  assert.ok(analysis.edges.some((edge) => edge.presentation?.key === "logic-edge-each"
+    && edge.presentation.params?.source === "item"));
   assertEdgeKindsFrom(analysis, renderedCard.id, ["repeat"]);
   const renderCallsite = analysis.callsites.find((callsite) =>
     callsite.calleeText === "RenderCard"
@@ -293,12 +295,9 @@ test("renders JSX and event semantics with distinct accessible graph cues", () =
   const browserSource = getCodeFlowBrowserSource();
   const styles = getFunctionLogicGraphStyles();
 
-  assert.match(browserSource, /kind === "render"\) return "JSX"/u);
-  assert.match(browserSource, /kind === "event"\) return "EVENT"/u);
-  assert.match(browserSource, /Control & JSX render flow/u);
-  assert.match(browserSource, /"rendered component"/u);
-  assert.match(browserSource, /"event handler"/u);
-  assert.match(browserSource, /Event handlers open as dispatch branches/u);
+  assert.match(browserSource, /const key = "logic-" \+ String\(kind \|\| "unknown"\)/u);
+  assert.match(browserSource, /projectAnalyzerText\(key\)/u);
+  assert.match(browserSource, /projectAnalyzerText\("graph-control-jsx"\)/u);
   assert.match(styles, /\.logic-node-render\s*\{/u);
   assert.match(styles, /\.logic-node-event\s*\{/u);
   assert.match(styles, /\.logic-edge-event\s*\{/u);

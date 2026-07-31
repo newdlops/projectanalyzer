@@ -260,12 +260,12 @@ test("bounds embedded regions and exposes distinct graph semantics", () => {
   assert.match(styles, /\.logic-node-callable\s*\{/u);
   assert.match(styles, /\.logic-edge-defines/u);
   assert.match(styles, /\.logic-edge-deferred/u);
-  assert.match(browser, /STATIC PROGRAM/u);
+  assert.match(browser, /embeddedPresentationKind === "directEval"/u);
+  assert.doesNotMatch(browser, /label\.startsWith/u);
   assert.match(browser, /describeEmbeddedBoundaryTiming/u);
-  assert.match(browser, /Focus embedded code/u);
-  assert.match(browser, /Focus this static embedded program/u);
-  assert.match(browser, /kind === "embedded"/u);
-  assert.match(browser, /kind === "callable"/u);
+  assert.match(browser, /focus-embedded/u);
+  assert.match(browser, /const key = "logic-" \+ String\(kind \|\| "unknown"\)/u);
+  assert.match(browser, /projectAnalyzerText\(key\)/u);
 });
 
 /** Runs the public analyzer against the source-backed fixture callable. */

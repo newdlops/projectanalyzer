@@ -46,6 +46,7 @@ export function classifyStatement(
   let confidence: FunctionLogicConfidence = "exact";
   let label = completeSourceText(node.getText(sourceFile), "Statement");
   let detail = "Executes one source statement.";
+  let presentation: FunctionLogicBlock["presentation"];
   let evidenceNode: ts.Node = node;
   /** Complete if-condition text remains separate from graph-box presentation text. */
   let conditionExpression: string | undefined;
@@ -105,6 +106,13 @@ export function classifyStatement(
         ? "exact"
         : "inferred";
       evidenceNode = firstEventBinding.node;
+      // Keep compatibility label/detail, but format the owned event wrapper
+      // from the catalog; the statement itself stays an inert source param.
+      presentation = {
+        labelKey: "logic-block-label-event",
+        labelParams: { source: completeSourceText(node.getText(sourceFile), "event") },
+        detailKey: "logic-block-detail-event"
+      };
     } else if (valueChanges.length > 0) {
       kind = "mutation";
       confidence = valueChanges.some((change) => change.confidence === "exact")
@@ -130,8 +138,10 @@ export function classifyStatement(
     kind,
     label,
     detail,
+    presentation,
     depth: task.depth,
     branchLabel: task.branchLabel,
+    branchPresentation: task.branchPresentation,
     confidence,
     condition: conditionExpression
       ? {

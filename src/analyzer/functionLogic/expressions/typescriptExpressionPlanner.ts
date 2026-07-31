@@ -555,6 +555,14 @@ function createAtomicBlock(
     kind,
     label,
     detail,
+    // Preserve the legacy raw fields for graph identity, but keep generated
+    // English prefixes out of browser presentation. `text` is source syntax.
+    presentation: {
+      labelKey: `logic-block-label-${kind}`,
+      labelParams: { source: text },
+      detailKey: `logic-block-detail-${kind}`,
+      detailParams: undefined
+    },
     depth: 0,
     confidence,
     condition: role === "boolean"

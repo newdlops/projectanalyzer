@@ -596,6 +596,13 @@ function createExpressionFlowBlock(
     kind: input.kind,
     label: input.label,
     detail: input.detail,
+    // Synthetic comprehension labels contain owned verbs; render from the
+    // finite kind catalog while preserving the exact expression slice.
+    presentation: {
+      labelKey: `logic-block-label-${input.kind}`,
+      labelParams: { source: normalizeLezerText(source.text.slice(input.from, input.to), "expression") },
+      detailKey: `logic-block-detail-${input.kind}`
+    },
     depth: task.depth,
     branchLabel: task.branchLabel,
     confidence: input.confidence ?? "exact",
