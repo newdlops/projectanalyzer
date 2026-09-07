@@ -24,6 +24,7 @@ import { getFunctionTutorBrowserSource, getFunctionTutorIntegrationBrowserSource
 import { getFunctionLogicScenarioWorkspaceBrowserSource } from "./scenarioWorkspace";
 import { getFunctionLogicScenarioEvaluationBrowserSource } from "./scenarioEvaluation";
 import { getFunctionReadingBrowserSource } from "./reading";
+import { getFunctionUnderstandingBrowserSource } from "./understanding";
 /** Returns browser functions for rendering the function-local control graph. */
 export function getFunctionLogicBrowserSource(): string {
   return /* js */ `
@@ -42,6 +43,7 @@ export function getFunctionLogicBrowserSource(): string {
     ${getFunctionLogicDataFlowBrowserSource()}
     ${getFunctionLogicInspectorBrowserSource()}
     ${getFunctionReadingBrowserSource()}
+    ${getFunctionUnderstandingBrowserSource()}
     ${getFunctionLogicSelectionBrowserSource()}
     ${getFunctionLogicComprehensionBrowserSource()}
     ${getFunctionLogicGraphHeaderBrowserSource()}
@@ -237,6 +239,7 @@ export function getFunctionLogicBrowserSource(): string {
           };
       const viewportController = createFunctionLogicViewportController({
         viewport,
+        initialBlockId: rootBlock.id,
         stage,
         canvas,
         layout: logic.layout,
@@ -285,6 +288,7 @@ export function getFunctionLogicBrowserSource(): string {
                 : hasJsxFlow ? projectAnalyzerText("graph-control-jsx") : projectAnalyzerText("graph-control-event"))
           : (hasValueFlow || hasValueChanges ? projectAnalyzerText("control-value-flow") : projectAnalyzerText("control-paths")));
       const reading = createFunctionReadingSurface(logic, choiceSessionKey, viewport, comprehension, viewportController, inspector);
+      const understanding = createFunctionUnderstandingOverview(logic, choiceSessionKey, comprehension, viewportController, inspector, selectionGraphContext);
       const graphHeader = createLogicGraphHeader(
         viewportController,
         inspector.toggle,
@@ -362,7 +366,7 @@ export function getFunctionLogicBrowserSource(): string {
       );
       inspector.appendSectionsTo("info", signature, calleeExplorer);
       inspector.onValuesVisibilityChange((visible) => valueFlowRendering?.setVisible(visible));
-      graph.append(graphHeader);
+      graph.append(understanding.element, graphHeader);
       graph.append(bodyFocusController.navigation);
       graph.append(inspector.workspace);
 
@@ -394,7 +398,7 @@ export function getFunctionLogicBrowserSource(): string {
         nodeButtonsById,
         nodeLayoutsByBlockId,
         valueFlowRendering,
-        dispose() { reading.dispose(); },
+        dispose() { reading.dispose(); understanding.dispose(); },
         /** Rewrites retained locale copy without rebuilding graph geometry or state. */
         updateLanguage(language) {
           edgeRendering.svg.setAttribute("aria-label", projectAnalyzerText("control-paths"));
@@ -423,6 +427,7 @@ export function getFunctionLogicBrowserSource(): string {
           bodyFocusController.refresh();
           graphHeader.refreshLanguage?.();
           reading.refreshLanguage();
+          understanding.refreshLanguage();
           signature.refreshLanguage?.();
           calleeExplorer?.refreshLanguage?.();
           inspector.refreshLanguage?.();

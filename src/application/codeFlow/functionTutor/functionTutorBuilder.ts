@@ -4,6 +4,7 @@
  * scenarios without constructing a Cartesian product.
  */
 
+import { resolve } from "node:path";
 import { analyzeFunctionTutorCallsite } from "../../../analyzer/functionTutor";
 import {
   areFunctionTutorStaticValuesEqual,
@@ -33,6 +34,7 @@ import { collectFunctionTutorCodebaseContext } from "./functionTutorContextColle
 import { buildFunctionTutorGuide } from "./functionTutorGuidePlanner";
 import { createFunctionTutorConstraintRecommendations } from "./functionTutorInputRecommendations";
 import { buildScenarioProgramBundle } from "./scenarioProgramBundle";
+import { analyzeFunctionFrameworkBehavior } from "../../../analyzer/frameworkBehavior";
 
 const MAX_INCOMING_CALLSITES = 8;
 const MAX_CALLER_FILES = 6;
@@ -52,6 +54,13 @@ export type FunctionTutorBuildInput = {
 
 /** Builds one deterministic, bounded model that is ready for opaque projection. */
 export async function buildFunctionTutorModel(input: FunctionTutorBuildInput): Promise<FunctionTutorBuildModel> {
+  const frameworkBehavior = analyzeFunctionFrameworkBehavior({
+    functionNode: input.declaration.functionNode,
+    sourceText: await input.readSourceText(input.declaration.functionNode.filePath).catch(() => undefined),
+    // The engine emits workspace-relative package roots; syntax adapters compare absolute source ownership.
+    frameworks: input.graph.metadata.frameworks?.map((framework) => ({ ...framework, rootPath: resolve(input.graph.workspaceRoot, framework.rootPath || ".") })),
+    units: input.graph.metadata.frameworkUnits
+  });
   const scenarioBundle = input.declaration.language === "typescript" || input.declaration.language === "javascript"
     ? await buildScenarioProgramBundle(input.graph, input.declaration, input.readSourceText)
     : undefined;
@@ -85,6 +94,7 @@ export async function buildFunctionTutorModel(input: FunctionTutorBuildInput): P
     context,
     guide,
     scenarioBundle,
+    frameworkBehavior,
     availability: guide.summary.readyChapterCount > 0
       ? guide.summary.partialChapterCount > 0 || guide.summary.unavailableChapterCount > 0 ? "partial" : "ready"
       : "unavailable",

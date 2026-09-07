@@ -12,6 +12,7 @@ import type {
   FunctionTutorStaticValue
 } from "../../../analyzer/functionTutor";
 import type { ScenarioProgramBundle } from "./scenarioProgramBundle";
+import type { FunctionFrameworkBehavior } from "../../../analyzer/frameworkBehavior";
 import type { FunctionTutorFactPresentationKey, FunctionTutorSemanticPresentationKey, PresentationParams } from "../../../localization/presentationDescriptors";
 import type { FunctionLogicAnalysis } from "../../../analyzer/functionLogic";
 import type {
@@ -223,6 +224,8 @@ export type FunctionTutorBuildModel = {
   guide: FunctionTutorGuidePlan;
   /** Host-only resolved bundle; projection replaces all identities before delivery. */
   scenarioBundle?: ScenarioProgramBundle;
+  /** Source-owned framework timing and callback contracts, without execution. */
+  frameworkBehavior?: FunctionFrameworkBehavior;
   availability: FunctionTutorGuideChapterStatus;
   gaps: FunctionTutorGap[];
   summary: {

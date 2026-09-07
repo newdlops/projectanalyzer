@@ -298,6 +298,7 @@ export function getFunctionVisualizerBrowserSource(): string {
       }
       const detail = entry.detail;
       document.title = projectAnalyzerText("function-flow-title", { title: detail.title });
+      elements.title.textContent = detail.title;
       elements.subtitle.textContent = formatFunctionSubtitle(detail);
       elements.summary.textContent = createFunctionLogicSummaryText(detail.logic);
       elements.semantics.textContent = projectAnalyzerText("function-semantics");

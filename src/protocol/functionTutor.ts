@@ -10,6 +10,8 @@ import type {
 } from "./functionLogic";
 import type { FunctionTutorFactPresentationKey, FunctionTutorGapPresentationKey, FunctionTutorSemanticPresentationKey, PresentationParams } from "../localization/presentationDescriptors";
 
+import type { FunctionFrameworkBehaviorPayload } from "./frameworkBehavior";
+
 export type FunctionTutorPayloadCertainty = "exact" | "inferred" | "unknown";
 export type FunctionTutorStaticValuePayload =
   | { kind: "boolean"; value: boolean }
@@ -65,6 +67,7 @@ export type FunctionTutorPayload = {
   availability: "ready" | "partial" | "unavailable";
   context: FunctionTutorCodebaseContextPayload;
   guide: FunctionTutorGuidePlanPayload;
+  frameworkBehavior?: FunctionFrameworkBehaviorPayload;
   parameters: FunctionTutorParameterPayload[];
   seeds: FunctionTutorScenarioSeedPayload[];
   program: FunctionTutorProgramPayload;

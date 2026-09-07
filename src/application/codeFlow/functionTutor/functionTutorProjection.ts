@@ -22,6 +22,7 @@ import type {
 } from "../../../protocol/functionTutor";
 import type { SourceRange } from "../../../shared/types";
 import type { FunctionTutorBuildModel } from "./types";
+import { projectFrameworkBehavior } from "./frameworkBehaviorProjection";
 
 export type FunctionTutorProjectionContext = {
   flowId: CodeFlowId;
@@ -85,6 +86,7 @@ export function createFunctionTutorPayload(
   const projectedGaps = model.gaps.map(projectGap);
   const projectedContext = projectCodebaseContext(model, context, evidenceTokens);
   const projectedGuide = projectGuidePlan(model, context, evidenceTokens);
+  const frameworkBehavior = projectFrameworkBehavior(model.frameworkBehavior, model.functionLogic, context);
   const rootContinuationIds = new Map((model.declaration.program.continuations ?? []).map((item) => [item.id, opaqueTutorIdentity(context, "scenario-continuation", `${model.declaration.functionNode.id}:${item.id}`)]));
   const projectedBlocks = model.declaration.program.blocks.flatMap((block) => {
     const blockId = context.blockIds.get(block.blockId);
@@ -213,6 +215,7 @@ export function createFunctionTutorPayload(
     fingerprint: createContentHash(JSON.stringify({
       functionId: context.flowId,
       documentation: model.context.documentation?.summary,
+      frameworkBehavior,
       guide: projectedGuide.chapters.map((chapter) => [chapter.kind, chapter.facts.map((fact) => fact.id)]),
       parameters: model.declaration.parameters.map((parameter) => [parameter.id, parameter.typeKind]),
       seeds: model.seeds.map((seed) => seed.id),
@@ -223,6 +226,7 @@ export function createFunctionTutorPayload(
     availability: model.availability,
     context: projectedContext,
     guide: projectedGuide,
+    frameworkBehavior,
     parameters: model.declaration.parameters.map((parameter) => ({
       id: parameterIds.get(parameter.id)!,
       bindingId: parameter.bindingId ? context.bindingIds.get(parameter.bindingId) : undefined,

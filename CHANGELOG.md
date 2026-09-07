@@ -4,6 +4,34 @@ All notable user-visible changes to Project Analyzer: Code Flow are recorded in
 this file. The changelog starts with the first distribution-documented build;
 earlier local development builds were not tracked here.
 
+## 0.0.1089 - 2026-09-07
+
+### Added
+
+- **At a glance** connects function documentation, inputs, decisions and outcomes
+  to their graph nodes. Selected steps explain their role in plain language.
+- Source-backed **React behavior** explains render, state, Effect dependencies
+  and cleanup, memo/ref/context and event-handler timing.
+- Source-backed **Django behavior** explains request guards, transactions,
+  commit callbacks, signals, lazy queries, evaluation, writes and responses.
+- Framework disclosures retain their state across language changes and link
+  to existing graph nodes and exact source evidence.
+
+### Fixed
+
+- First-load camera reveals the entry node in narrow panes. Language changes
+  preserve the function title, and incomplete Tutor data keeps the overview usable.
+- Django writes contribute to identified outcome sites; attached functions and
+  nested callbacks do not inflate the selected function's summary.
+
+### Known limitations
+
+- Framework explanations describe bounded static API contracts. Actual runtime
+  scheduling, URL resolution and SQL are not observed. See
+  [supported behavior and verification](docs/FRAMEWORK_BEHAVIOR.md).
+- The five existing full-suite failures documented in 0.0.1088 remain. All newly
+  added framework/overview tests pass.
+
 ## 0.0.1088 - 2026-09-07
 
 ### Added

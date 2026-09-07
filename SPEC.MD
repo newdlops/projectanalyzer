@@ -724,6 +724,12 @@ scroll하고 긴 evidence가 graph canvas의 크기나 위치를 밀어내지 �
 
 선택 함수에서는 같은 위치에 다음 요소를 제공한다.
 
+- graph 위 `한눈에 이해`에서 작성된 함수 설명과 입력/판단/결과를 먼저 읽는다.
+  각 action은 해당 source block을 선택하고 graph와 Inspector로 이동한다.
+  반환/오류/확인된 외부 효과는 직접 소유한 표시 block 수이며 실행 횟수가 아니다.
+- React·Django source fact가 있으면 `프레임워크 동작 이해하기`를 제공한다.
+  항목별 호출 시점, 동작 설명, source caption, confidence와 opaque 근거 이동을 제공하고
+  실제 runtime scheduling·SQL 관찰과 구분한다. 기본 접힘과 locale 전환 시 상태를 보존한다.
 - graph 옆 `함수 따라 읽기` 목차에서 소스 순서와 실제 block counter를 보존하며
   전체/분기/호출/종료 필터와 이전/다음 이동을 제공한다. 1039px 이하에서는 graph 위에서 접고 펼친다.
 - Inspector의 `코드 이해`/`값과 경로`/`함수 정보` tab으로 선택 근거, 입력 실험, 함수 선언과
@@ -1239,6 +1245,32 @@ Webview는 Project Graph, 파일 시스템, VS Code API에 직접 접근하지 �
   locale refresh는 기존 버튼과 selection/filter/focus를 보존한다.
 - 초기 선택은 entry block이며, 중복되던 5행 Static Flow Ledger를 이 목차로 대체한다.
   기호 안내는 native details로 필요할 때 펼친다.
+
+#### `analyzer/frameworkBehavior`와 `webview/codeFlow/understanding`
+
+- `analyzeFunctionFrameworkBehavior`는 제공된 source, callable range, framework metadata만
+  사용한다. React는 TypeScript syntax, Django는 Lezer syntax adapter로 분리하며 source를
+  실행하거나 파일을 직접 읽지 않는다. import alias, local/enclosing shadow, nested body를 구분한다.
+- React는 import 소유 Hook API와 JSX/event 표현식을 분석한다. React import가 없는 JSX는
+  해당 package root의 React detection이 있어야 추론한다. application이 engine의 상대 root를
+  workspace 기준 절대 경로로 바꾼다. render, effect/cleanup, event 시점을 source order와 구분한다.
+- Django는 import 소유 decorator/response/transaction API와 model unit에 연결된 ORM receiver를
+  분석한다. 표준 Manager/QuerySet의 구성/평가/쓰기 규칙을 inferred fact로 제공한다. 재할당된
+  query alias나 무관한 receiver는 분류하지 않는다. view convention은 HTTP dispatch method와
+  helper를 구분하며 실제 URL 등록/요청/SQL 실행을 확정하지 않는다.
+- syntax 순회는 visited set과 depth(기본 40, 최대 100), 30,000 node 제한을 사용한다.
+  source 상한은 1,000,000 UTF-16 code unit, fact는 기본 16/최대 24개다. fact 생략 수와
+  제한 여부를 payload에 보존한다. 300자 caption은 전체 소스를 대체하지 않으며 source action으로 연다.
+- `projectFrameworkBehavior`는 raw range/file path를 제거하고 기존 evidence registry token과
+  가능한 가장 작은 containing block의 opaque ID로 투영한다. Tutor payload의 optional field이며
+  새 Webview request를 만들지 않는다. fingerprint에 framework 결과를 포함한다.
+- `createFunctionUnderstandingModel`은 root program ID mapping, 표시 layout ID, 중복 및
+  nested callable/embedded body를 확인한다. parent 순회는 visited와 configurable 최대 depth를
+  사용한다. Django write fact는 같은 block의 외부 효과 count로 합쳐 중복을 제거한다.
+- native button/details로 읽기와 설명을 제공한다. framework fact 목록은 높이 300px 안에서
+  scroll하며 session 16개까지 disclosure state를 유지한다. 560px 이하에서는 reading action을
+  세로 배치한다. 최초 viewport는 entry node를 보이게 하되 저장된 camera는 보존한다.
+- 지원 계약, 비지원 범위와 검증 결과는 `docs/FRAMEWORK_BEHAVIOR.md`에 기록한다.
 
 #### `webview/codeFlow/valuePreview`
 

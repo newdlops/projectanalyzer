@@ -62,6 +62,23 @@ Supported source-first function visualization currently covers:
 | F# / OCaml | Named functions and `|>` stages with final-argument insertion |
 | Elixir | Named functions and `|>` stages with first-argument insertion |
 
+## Understand the Selected Function
+
+**At a glance** starts with authored documentation, inputs, decisions and
+outcomes. Each reading action selects the corresponding graph node and its
+plain-language explanation in **Understand code**.
+
+For supported React and Django source, expand **Understand framework behavior**:
+
+- React: distinguish rendering, state changes, Effect dependencies and cleanup,
+  memo/ref/context and event-handler timing.
+- Django: follow request guards, transactions, commit callbacks, signals,
+  lazy query construction, evaluation, writes and response creation.
+
+Each fact includes source evidence and confidence. These are static framework
+contracts, not observed requests, renders or SQL. See
+[supported behavior, limits and verification](docs/FRAMEWORK_BEHAVIOR.md).
+
 ## The Reading Frame
 
 Every flow reinforces the same reusable way to read code:

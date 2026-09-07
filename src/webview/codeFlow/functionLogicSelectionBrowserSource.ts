@@ -85,7 +85,10 @@ export function getFunctionLogicSelectionBrowserSource(): string {
         ? projectAnalyzerText(block.branchPresentation.key, block.branchPresentation.params) : block.branchLabel;
       meta.textContent = [branch, block.sourceLocation].filter(Boolean).join(" · ");
       header.append(createBadge(formatLogicKind(block.kind), "logic-kind " + block.kind), name, confidence);
-      panel.append(header, detail);
+      panel.append(header);
+      const explanation = createFunctionStepExplanation(block);
+      if (explanation) panel.append(explanation);
+      panel.append(detail);
       if (meta.textContent) panel.append(meta);
       if (graphContext?.isBodyOwner?.(block.id) && graphContext.focusBody) {
         const focusBody = document.createElement("button");

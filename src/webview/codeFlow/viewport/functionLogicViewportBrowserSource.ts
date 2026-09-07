@@ -163,6 +163,13 @@ export function getFunctionLogicViewportBrowserSource(): string {
         viewportHeight = size.height;
         const stored = options.readTransform ? options.readTransform() : undefined;
         commit(stored || createDefaultFunctionLogicViewportTransform(geometry(), 1), false);
+        // A branched canvas can place its entry far from the canvas center.
+        // Reveal that entry on first load while retaining any reader-owned camera.
+        if (!stored && options.initialBlockId) {
+          const initialY = transform.y;
+          revealBlocks([options.initialBlockId], { announce: false });
+          commit({ ...transform, y: initialY }, false);
+        }
         viewport.addEventListener("wheel", handleWheel, { passive: false });
         viewport.addEventListener("keydown", handleKeydown);
         viewport.addEventListener("pointerdown", handlePointerDown);

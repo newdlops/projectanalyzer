@@ -1,5 +1,44 @@
 # Function reading workspace
 
+## Understanding and framework behavior
+
+The opening question is now “What comes in, what changes the path, and what
+comes out?” A compact `At a glance` region precedes graph controls. It uses
+authored documentation and actual parameter/decision/outcome facts, with three
+explicit reading actions. Selecting a source step adds a short plain-language
+explanation before its detailed evidence. Keep complete source code available.
+
+React and Django behavior appears in a dedicated disclosure in the same
+overview. State the function's evidenced role, then show framework-owned timing
+and the matching source. React render, event callbacks, and post-commit Effects
+are distinct. Django view dispatch, lazy query construction, query evaluation,
+writes, and response creation are distinct. These are documented framework
+contracts connected to static syntax, never an observed execution trace.
+
+- Preserve existing editor colors, fonts, 4/8/12/16px spacing, flat borders and
+  native controls. No new UI framework, font, palette, or decorative animation.
+- The overview begins compact; details expand on demand without changing
+  graph choices, values, or starting work. On narrow screens its reading actions
+  wrap vertically. Support 320px, long names, dense functions and both languages.
+- Each framework fact has a timing label, explanation, evidence confidence and
+  an explicit source action. Link to a graph block only through source ranges.
+  Imports, aliases, shadowing, nested callbacks, unknown receivers, parse errors
+  and analysis limits must be represented conservatively.
+- Ordinary functions retain the same reading overview without a false framework
+  classification. An unreadable source or unsupported pattern must not break the
+  existing function analysis. Framework calculations never execute application code.
+- Keep filters, keyboard focus, disclosure state and entered values through
+  locale changes. Primary actions have visible focus, disabled/empty explanations,
+  wrapping labels and 44px touch targets. No automatic camera movement.
+
+Acceptance: React fixtures cover import aliases/shadowing, state, effect dependency
+and cleanup timing, event reference versus render-time invocation, and plain JSX
+without React evidence. Django fixtures cover request/response, aliased decorators,
+lazy versus evaluated QuerySets, writes, atomic scopes and receiver registration;
+unrelated lookalike methods must not acquire exact Django semantics. Verify opaque
+evidence projection, keyboard/locale interactions, empty/dense states and actual
+390×844, 768×1024 and 1440×900 browser rendering independently from unit tests.
+
 ## Design contract — September 2026
 
 Developers opening an unfamiliar function should find its starting point, key
