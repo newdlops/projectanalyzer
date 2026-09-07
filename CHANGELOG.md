@@ -4,6 +4,42 @@ All notable user-visible changes to Project Analyzer: Code Flow are recorded in
 this file. The changelog starts with the first distribution-documented build;
 earlier local development builds were not tracked here.
 
+## 0.0.1088 - 2026-09-07
+
+### Added
+
+- A source-order **Read the function** outline with branch, call, and exit
+  filters. Selecting a step synchronizes graph selection and source evidence;
+  Previous/Next and keyboard navigation follow the same reading order.
+- Separate **Understand code**, **Values & paths**, and **Function info** tabs
+  that retain input values and individual scroll positions.
+- A path-oriented Scenario Workspace with recommended inputs, explicit
+  **Apply & Play** actions, and named value changes along possible source paths.
+- A retry action and recovery guidance when function analysis is unavailable.
+
+### Changed
+
+- Function Guide input handoff opens **Values & paths**. Leaving that tab
+  pauses playback and releases its pending scenario calculation.
+- Source reading adapts to narrow editor panes, touch targets, long code,
+  Korean/English switching, and VS Code light/dark and high-contrast themes.
+- Value analysis retains object-field ownership, known dynamic field indexes,
+  and Python assignment expressions. Recommended inputs use supported declared
+  types and bounded source constraints while retaining unknown values.
+
+### Fixed
+
+- Hidden reading panels no longer appear together, condition targets wrap
+  within their table, and selected outline rows remain legible on hover.
+- Switching between panels of different heights restores the prior scroll
+  position instead of resetting it during browser layout.
+
+### Known limitations
+
+- Some advanced method-call and logical-return scenarios still produce
+  unresolved or incorrect static outcomes. The local full test suite has five
+  outstanding failures, recorded in `docs/FUNCTION_READING_UI_QA.md`.
+
 ## 0.0.1059 - 2026-07-22
 
 ### Changed

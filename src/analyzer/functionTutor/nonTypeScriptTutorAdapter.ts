@@ -26,7 +26,7 @@ export function analyzeNonTypeScriptTutorDeclaration(
   sourceText: string,
   functionLogic: FunctionLogicAnalysis
 ): FunctionTutorDeclarationAnalysis {
-  const header = readDeclarationHeader(sourceText, functionNode.language);
+  const header = readDeclarationHeader(sourceText, functionNode.language, functionNode.range.startLine);
   const gaps: FunctionTutorGap[] = [];
   const bindingsByName = new Map((functionLogic.valueBindings ?? []).map((binding) => [binding.name, binding.id]));
   const rawParameters = header ? splitTopLevel(header.parameters) : [];
@@ -81,14 +81,21 @@ export function analyzeNonTypeScriptTutorDeclaration(
   };
 }
 
-/** Returns the declaration parameter segment without scanning beyond the first header line. */
-function readDeclarationHeader(sourceText: string, language: string): { parameters: string; range: SourceRange; async: boolean } | undefined {
+/** Returns one bounded declaration parameter segment, including multiline signatures. */
+function readDeclarationHeader(sourceText: string, language: string, declarationStartLine: number): { parameters: string; range: SourceRange; async: boolean } | undefined {
   const lines = sourceText.split(/\r?\n/);
-  const declarationIndex = lines.findIndex((line) => isDeclarationLine(line, language));
+  // The selected symbol range is authoritative. A small forward window allows
+  // adapters whose callable range begins on an attached annotation/modifier.
+  let declarationIndex = -1;
+  const firstLine = Math.max(0, Math.min(lines.length - 1, declarationStartLine));
+  const lastLine = Math.min(lines.length - 1, firstLine + 6);
+  for (let index = firstLine; index <= lastLine; index += 1) {
+    if (isDeclarationLine(lines[index], language)) { declarationIndex = index; break; }
+  }
   if (declarationIndex < 0) return undefined;
   const line = lines[declarationIndex];
-  const open = line.indexOf("(");
-  if (open < 0) {
+  const openInLine = line.indexOf("(");
+  if (openInLine < 0) {
     // F#/OCaml declarations have whitespace-separated parameters.
     const functional = /^\s*(?:let|and)\s+(?:rec\s+)?[A-Za-z_][\w']*\s+(.+?)\s*=/.exec(line);
     if (!functional) return undefined;
@@ -98,11 +105,18 @@ function readDeclarationHeader(sourceText: string, language: string): { paramete
       async: /\basync\b/.test(line)
     };
   }
-  const close = findClosingParenthesis(line, open);
+  // Keep the scan source-backed and finite while allowing normal Python/Java
+  // signatures whose annotations and defaults span several physical lines.
+  const lineStarts = collectLineStarts(sourceText);
+  const declarationOffset = lineStarts[declarationIndex] ?? 0;
+  const open = declarationOffset + openInLine;
+  const close = findClosingParenthesis(sourceText, open, Math.min(sourceText.length, open + 8_192));
   if (close < 0) return undefined;
+  const start = positionAtOffset(lineStarts, open + 1);
+  const end = positionAtOffset(lineStarts, close);
   return {
-    parameters: line.slice(open + 1, close),
-    range: { startLine: declarationIndex, startCharacter: open + 1, endLine: declarationIndex, endCharacter: close },
+    parameters: sourceText.slice(open + 1, close),
+    range: { startLine: start.line, startCharacter: start.character, endLine: end.line, endCharacter: end.character },
     async: /\basync\b/.test(line)
   };
 }
@@ -115,14 +129,14 @@ function isDeclarationLine(line: string, language: string): boolean {
   return /\([^)]*\)\s*(?:\{|throws\b)/.test(line);
 }
 
-/** Finds a close parenthesis while respecting only quoted declaration defaults. */
-function findClosingParenthesis(line: string, open: number): number {
+/** Finds a close parenthesis while respecting quoted declaration defaults. */
+function findClosingParenthesis(text: string, open: number, limit = text.length): number {
   let depth = 0;
   let quote = "";
-  for (let index = open; index < line.length; index += 1) {
-    const character = line[index];
+  for (let index = open; index < limit; index += 1) {
+    const character = text[index];
     if (quote) {
-      if (character === quote && line[index - 1] !== "\\") quote = "";
+      if (character === quote && text[index - 1] !== "\\") quote = "";
       continue;
     }
     if (character === "'" || character === '"') { quote = character; continue; }
@@ -130,6 +144,28 @@ function findClosingParenthesis(line: string, open: number): number {
     if (character === ")") { depth -= 1; if (depth === 0) return index; }
   }
   return -1;
+}
+
+/** Collects physical line starts once so offset conversion stays iterative. */
+function collectLineStarts(text: string): number[] {
+  const starts = [0];
+  for (let index = 0; index < text.length; index += 1) {
+    if (text[index] === "\n") starts.push(index + 1);
+  }
+  return starts;
+}
+
+/** Converts one bounded source offset into a zero-based editor position. */
+function positionAtOffset(lineStarts: number[], offset: number): { line: number; character: number } {
+  let low = 0;
+  let high = lineStarts.length - 1;
+  while (low <= high) {
+    const middle = Math.floor((low + high) / 2);
+    if (lineStarts[middle] <= offset) low = middle + 1;
+    else high = middle - 1;
+  }
+  const line = Math.max(0, high);
+  return { line, character: Math.max(0, offset - lineStarts[line]) };
 }
 
 /** Splits a declaration list without treating nested literals as separators. */

@@ -46,7 +46,7 @@ test("emits accessible change playback styles for reduced motion and forced colo
   assert.ok(html.includes("getPointAtLength"));
   assert.ok(html.includes("carriedValue"));
   assert.ok(html.includes("renderFunctionLogicValueFlowTravelerProgress"));
-  assert.ok(html.includes("for (let index = 0; index < 32; index += 1)"));
+  assert.ok(html.includes("for (let index = 0; index < 48; index += 1)"));
   assert.ok(html.includes("scheduleFrame"));
   assert.ok(html.includes("@media (prefers-reduced-motion: reduce)"));
   assert.ok(html.includes("@media (forced-colors: active)"));
@@ -143,7 +143,7 @@ test("keeps the graph primary and moves supporting inspectors into an adjacent d
   }
 });
 
-test("switches reader lenses without replacing the graph and publishes attention state", () => {
+test("renders one integrated legend without reader mode controls", () => {
   const runtime = installSidebarWebviewRuntime();
 
   try {
@@ -153,36 +153,14 @@ test("switches reader lenses without replacing the graph and publishes attention
 
     assert.equal(runtime.getRenderedAttributeByTitle(
       "flow-steps",
-      "Control structure and possible paths",
-      "aria-pressed"
-    ), "true");
-    assert.equal(runtime.getRenderedAttributeByTitle(
-      "flow-steps",
-      "Declared values and changes",
-      "aria-pressed"
-    ), "false");
-    assert.equal(runtime.getRenderedAttributeByTitle(
-      "flow-steps",
       "Select logic · return true;",
       "data-attention"
     ), "active");
-    assert.ok(runtime.getRenderedText("flow-steps").includes("◇ choose path"));
-
-    runtime.clickByTitle("Declared values and changes");
-
-    assert.equal(runtime.getRenderedAttributeByTitle(
-      "flow-steps",
-      "Control structure and possible paths",
-      "aria-pressed"
-    ), "false");
-    assert.equal(runtime.getRenderedAttributeByTitle(
-      "flow-steps",
-      "Declared values and changes",
-      "aria-pressed"
-    ), "true");
+    const text = runtime.getRenderedText("flow-steps");
+    assert.ok(text.includes("◇ choose path"));
+    assert.ok(text.includes("Δ changed"));
     assert.equal(runtime.countRenderedByClass("flow-steps", "logic-graph-workspace"), 1);
-    assert.ok(runtime.getRenderedText("flow-steps").includes("Δ changed"));
-    assert.ok(!runtime.getRenderedText("flow-steps").includes("◇ choose path"));
+    assert.equal(runtime.countRenderedByClass("flow-steps", "logic-lens-button"), 0);
   } finally {
     runtime.restore();
   }
@@ -282,7 +260,7 @@ test("moves graph selection with structural keyboard navigation", () => {
   }
 });
 
-test("keeps the Static Flow Ledger synchronized with graph selection", () => {
+test("keeps the source outline synchronized with graph selection", () => {
   const runtime = installSidebarWebviewRuntime();
 
   try {
@@ -290,14 +268,14 @@ test("keeps the Static Flow Ledger synchronized with graph selection", () => {
     runtime.dispatchMessage(createSessionMessage());
     runtime.dispatchMessage(createCalculatedScenarioDetail());
 
-    assert.equal(runtime.countRenderedByClass("flow-steps", "logic-static-ledger"), 1);
+    assert.equal(runtime.countRenderedByClass("flow-steps", "logic-reading-outline"), 1);
     assert.ok(runtime.getRenderedText("flow-steps").includes(
-      "Possible static reading order, not an execution trace."
+      "Follow source order. Select a step to find it on the graph."
     ));
-    runtime.clickByTitle("Select static step · total += 2;");
+    runtime.clickByTitle("total += 2; · src/root.ts:4");
     assert.equal(runtime.getRenderedAttributeByTitle(
       "flow-steps",
-      "Select static step · total += 2;",
+      "total += 2; · src/root.ts:4",
       "aria-current"
     ), "step");
     assert.equal(runtime.getRenderedAttributeByTitle(
@@ -383,6 +361,51 @@ test("pans the graph freely and provides Center, Fit, and focal zoom controls", 
   }
 });
 
+test("coalesces burst value-flow pan input into one latest-transform frame", () => {
+  const runtime = installSidebarWebviewRuntime(undefined, { controlledAnimationFrames: true });
+
+  try {
+    new Function(requireFunctionVisualizerScript())();
+    runtime.dispatchMessage(createSessionMessage());
+    runtime.dispatchMessage(createFunctionDetail("Root.run", rootToken, undefined, "call", [], true));
+    runtime.clickByTitle("Trace PARAM input");
+    runtime.flushAnimationFrames();
+    assert.equal(runtime.pendingAnimationFrameCount(), 0);
+    assert.equal(runtime.hasRenderedClassByTitle(
+      "flow-steps", "Select logic · return true;", "data-flow-related"
+    ), true);
+    const initial = readRenderedViewportTransform(runtime);
+    const beforeMessages = runtime.messages.length;
+    runtime.dispatchRenderedEventByClass("flow-steps", "logic-graph-viewport", "pointerdown", {
+      button: 0, pointerId: 9, clientX: 200, clientY: 120
+    });
+    runtime.dispatchRenderedEventByClass("flow-steps", "logic-graph-viewport", "pointermove", {
+      pointerId: 9, clientX: 190, clientY: 110
+    });
+    runtime.dispatchRenderedEventByClass("flow-steps", "logic-graph-viewport", "pointermove", {
+      pointerId: 9, clientX: 170, clientY: 80
+    });
+    runtime.dispatchRenderedEventByClass("flow-steps", "logic-graph-viewport", "wheel", {
+      deltaMode: 0, deltaX: 5, deltaY: -7, shiftKey: false
+    });
+    assert.equal(runtime.pendingAnimationFrameCount(), 1);
+    assert.deepEqual(readRenderedViewportTransform(runtime), initial);
+    runtime.flushAnimationFrames();
+    assert.deepEqual(readRenderedViewportTransform(runtime), {
+      scale: 1,
+      x: initial.x - 35,
+      y: initial.y - 33
+    });
+    assert.equal(runtime.messages.length, beforeMessages);
+    runtime.dispatchRenderedEventByClass("flow-steps", "logic-graph-viewport", "pointerup", {
+      pointerId: 9, clientX: 170, clientY: 80
+    });
+    assert.equal(runtime.pendingAnimationFrameCount(), 0);
+  } finally {
+    runtime.restore();
+  }
+});
+
 test("relocalizes a retained calculated graph without replacing nodes, values, viewport, or Host state", () => {
   const runtime = installSidebarWebviewRuntime();
   try {
@@ -398,6 +421,8 @@ test("relocalizes a retained calculated graph without replacing nodes, values, v
     runtime.dispatchMessage({ type: "ui/language", payload: { language: "ko" } });
     assert.ok(runtime.textValues.includes("시나리오 값"));
     assert.ok(runtime.textValues.includes("매개변수"));
+    assert.ok(runtime.textValues.includes("시나리오 계산"));
+    assert.ok(runtime.textValues.some((text) => text.includes("소스 코드를 실행하지 않고")));
     runtime.dispatchMessage({ type: "ui/language", payload: { language: "en" } });
 
     assert.equal(runtime.messages.length, messageCount);
@@ -405,9 +430,17 @@ test("relocalizes a retained calculated graph without replacing nodes, values, v
     assert.equal(runtime.getRenderedValueByTitle("flow-steps", "Scenario input for PARAM input"), "4");
     assert.equal(runtime.getRenderedStyleByClass("flow-steps", "logic-graph-canvas", "transform"), transform);
     assert.ok(runtime.getRenderedText("flow-steps").includes("Scenario values"));
+    assert.ok(runtime.getRenderedText("flow-steps").includes("Scenario calculation"));
   } finally {
     runtime.restore();
   }
+});
+
+test("reformats settled calculation plaque operation and confidence on language refresh", () => {
+  const script = requireFunctionVisualizerScript();
+  assert.match(script, /formatFunctionLogicValueFlowOperation\(transition\.operator\)/u);
+  assert.match(script, /projectAnalyzerText\("logic-confidence-" \+ \(transition\.confidence \|\| "unknown"\)\)/u);
+  assert.match(script, /if \(lastArrivedFrame\) renderFunctionLogicValueFlowCalculationPlaque/u);
 });
 
 test("language-only paths do not rebuild the Function Logic scene or request Host work", () => {
@@ -475,11 +508,6 @@ test("accepts Scenario inputs without executing source or messaging the Host", (
     ), false);
     runtime.clickByTitle("Trace PARAM input");
     assert.equal(runtime.countRenderedByClass("flow-steps", "logic-scenario-step"), 2);
-    assert.equal(runtime.getRenderedAttributeByTitle(
-      "flow-steps",
-      "Declared values and changes",
-      "aria-pressed"
-    ), "true");
     assert.ok(runtime.getRenderedText("flow-steps").includes("START input"));
     assert.ok(runtime.getRenderedText("flow-steps").includes("SINK · UPDATE"));
     assert.equal(runtime.getRenderedAttributeByTitle(
@@ -519,6 +547,168 @@ test("accepts Scenario inputs without executing source or messaging the Host", (
 
     runtime.clickByTitle("Clear scenario input for input");
     assert.ok(!runtime.getRenderedText("flow-steps").includes("= " + preview));
+  } finally {
+    runtime.restore();
+  }
+});
+
+test("loads a Tutor recommendation through its exact program binding when parameter bindingId is absent", () => {
+  const runtime = installSidebarWebviewRuntime();
+  const bindingId = "function-logic-binding:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+  const parameterId = "function-tutor-parameter:process-order-id";
+  const detail = createFunctionDetail("Root.run", rootToken, undefined, "call", [], true) as {
+    payload: { logic: Record<string, unknown> };
+  };
+  detail.payload.logic.tutor = {
+    parameters: [{ id: parameterId, name: "id", index: 0, typeKind: "string", optional: false, rest: false }],
+    seeds: [{ id: "function-tutor-seed:process-order", ordinal: 1, source: "type", certainty: "inferred", inputs: [{ parameterId, value: { kind: "string", value: "order-1" }, omitted: false }]}],
+    program: { bindings: [{ parameterId, bindingId, name: "id", kind: "parameter", certainty: "exact" }] }
+  };
+
+  try {
+    new Function(requireFunctionVisualizerScript())();
+    runtime.dispatchMessage(createSessionMessage());
+    runtime.dispatchMessage(detail);
+    const beforeMessages = runtime.messages.length;
+    runtime.clickByTitle("Fill recommended Scenario values from source facts and declared parameter types");
+    assert.equal(runtime.messages.length, beforeMessages);
+    assert.ok(runtime.getRenderedText("flow-steps").includes('= "order-1"'));
+    assert.ok(runtime.textValues.some((text) => text.includes("Type-based inputs · case 1")));
+
+    const textValueCount = runtime.textValues.length;
+    runtime.dispatchMessage({ type: "ui/language", payload: { language: "ko" } });
+    const localizedStatus = runtime.textValues.slice(textValueCount);
+
+    assert.ok(localizedStatus.some((text) => text.includes("타입 기반 입력 · 사례 1")));
+    assert.ok(localizedStatus.some((text) => text.includes("추론")));
+    assert.ok(!localizedStatus.some((text) => text.includes("Type baseline")));
+    assert.ok(runtime.getRenderedText("flow-steps").includes('= "order-1"'));
+
+    runtime.dispatchMessage({ type: "ui/language", payload: { language: "en" } });
+
+    assert.ok(runtime.textValues.some((text) => text.includes("Type-based inputs · case 1")));
+    assert.ok(runtime.getRenderedText("flow-steps").includes('= "order-1"'));
+  } finally {
+    runtime.restore();
+  }
+});
+
+test("completes unknown Tutor recommendations from declared parameter types", () => {
+  const runtime = installSidebarWebviewRuntime();
+  const detail = createFunctionDetail("Root.run", rootToken, undefined, "call", [], true) as {
+    payload: {
+      logic: {
+        blocks: Array<{ id: string; valueAccesses?: unknown[] }>;
+        valueBindings: Array<{
+          id: string;
+          name: string;
+          kind: "parameter";
+          definitionBlockId: string;
+          confidence: "exact";
+        }>;
+        valueFlows: unknown[];
+        tutor?: unknown;
+      };
+    };
+  };
+  const recommendations: Array<{
+    name: string;
+    typeKind: string;
+    expected: string;
+    value?: { kind: string; value: number | string };
+  }> = [
+    { name: "ready", typeKind: "boolean", expected: "false" },
+    { name: "count", typeKind: "number", expected: "42", value: { kind: "number", value: 42 } },
+    { name: "label", typeKind: "string", expected: "\"\"" },
+    { name: "items", typeKind: "array", expected: "[]" },
+    { name: "point", typeKind: "tuple", expected: "[]" },
+    { name: "options", typeKind: "object", expected: "{}" },
+    { name: "nothing", typeKind: "null", expected: "null" },
+    { name: "missing", typeKind: "undefined", expected: "undefined" },
+    { name: "priority", typeKind: "literal-union", expected: "\"urgent\"", value: { kind: "string", value: "urgent" } },
+    { name: "callback", typeKind: "callable", expected: "" }
+  ];
+  const blockId = detail.payload.logic.blocks[0].id;
+  const bindingId = (index: number) => `function-logic-binding:type-recommend-${index}`;
+  const parameterId = (index: number) => `function-tutor-parameter:type-recommend-${index}`;
+  detail.payload.logic.valueBindings = recommendations.map((recommendation, index) => ({
+    id: bindingId(index),
+    name: recommendation.name,
+    kind: "parameter",
+    definitionBlockId: blockId,
+    confidence: "exact"
+  }));
+  detail.payload.logic.blocks[0].valueAccesses = recommendations.map((recommendation, index) => ({
+    bindingId: bindingId(index),
+    name: recommendation.name,
+    bindingKind: "parameter",
+    access: "define",
+    confidence: "exact"
+  }));
+  detail.payload.logic.valueFlows = [];
+  detail.payload.logic.tutor = {
+    parameters: recommendations.map((recommendation, index) => ({
+      id: parameterId(index),
+      bindingId: bindingId(index),
+      name: recommendation.name,
+      index,
+      typeKind: recommendation.typeKind,
+      optional: false,
+      rest: false
+    })),
+    seeds: [{
+      id: "function-tutor-seed:partial-callsite",
+      ordinal: 1,
+      source: "callsite",
+      certainty: "unknown",
+      inputs: recommendations.map((recommendation, index) => ({
+        parameterId: parameterId(index),
+        value: recommendation.value ?? { kind: "unknown", reason: "not-inferred" },
+        omitted: false
+      }))
+    }],
+    program: {
+      bindings: recommendations.map((recommendation, index) => ({
+        parameterId: parameterId(index),
+        bindingId: bindingId(index),
+        name: recommendation.name,
+        kind: "parameter",
+        certainty: "exact"
+      }))
+    }
+  };
+
+  try {
+    new Function(requireFunctionVisualizerScript())();
+    runtime.dispatchMessage(createSessionMessage());
+    runtime.dispatchMessage(detail);
+    const beforeMessages = runtime.messages.length;
+
+    runtime.clickByTitle("Fill recommended Scenario values from source facts and declared parameter types");
+
+    for (const recommendation of recommendations) {
+      assert.equal(
+        runtime.getRenderedValueByTitle(
+          "flow-steps",
+          `Scenario input for PARAM ${recommendation.name}`
+        ),
+        recommendation.expected,
+        recommendation.name
+      );
+    }
+    assert.equal(runtime.messages.length, beforeMessages);
+    assert.ok(runtime.textValues.some((text) =>
+      text.includes("Loaded 9 recommended value(s)")
+      && text.includes("7 completed from declared types, 1 unavailable")
+    ));
+
+    const textValueCount = runtime.textValues.length;
+    runtime.dispatchMessage({ type: "ui/language", payload: { language: "ko" } });
+    assert.ok(runtime.textValues.slice(textValueCount).some((text) =>
+      text.includes("추천값 9개")
+      && text.includes("선언 타입으로 7개")
+      && text.includes("1개는 사용할 수 없습니다")
+    ));
   } finally {
     runtime.restore();
   }
@@ -1226,6 +1416,98 @@ test("renders variable and receiver changes inside the graph node and selection"
 });
 
 /** Extracts the exact generated panel program from its nonce-protected HTML. */
+test("maps opaque root scenario edges to direct visible branches and retains known return outcomes", () => {
+  const runtime = installSidebarWebviewRuntime();
+  const exposed = "__projectAnalyzerScenarioIdentity";
+  try {
+    new Function(requireFunctionVisualizerScript() + `
+      globalThis.${exposed} = { createAttachedGraphContext, createCompoundEdgeId, setFunctionLogicScenarioBranchChoices, readFunctionLogicBranchChoices, functionTutorScenarioOutcomeText };
+    `)();
+    const api = Reflect.get(globalThis, exposed) as {
+      createAttachedGraphContext(scene: Record<string, unknown>, rootScopeId: string): { resolveScenarioEdgeId(edgeId: string): string | undefined };
+      createCompoundEdgeId(scopeId: string, edgeId: string): string;
+      setFunctionLogicScenarioBranchChoices(sessionKey: string, edges: Array<Record<string, unknown>>, edgeIds: string[]): Map<string, string | undefined>;
+      readFunctionLogicBranchChoices(sessionKey: string, edges: Array<Record<string, unknown>>): Map<string, string>;
+      functionTutorScenarioOutcomeText(path: Record<string, unknown>): string;
+    };
+    const rootScopeId = "root-scope";
+    const trueId = api.createCompoundEdgeId(rootScopeId, "opaque-true");
+    const falseId = api.createCompoundEdgeId(rootScopeId, "opaque-false");
+    const edges = [{ id: trueId, sourceId: "decision", targetId: "yes", kind: "true" }, { id: falseId, sourceId: "decision", targetId: "no", kind: "false" }];
+    const scene = { logic: { valueBindings: [], blocks: [], edges }, blockIdentityById: new Map(), attachedFunctionCount: 0 };
+    const context = api.createAttachedGraphContext(scene, rootScopeId);
+    runtime.messages.splice(0);
+    const falseEdge = context.resolveScenarioEdgeId("opaque-false");
+    const trueEdge = context.resolveScenarioEdgeId("opaque-true");
+    assert.equal(falseEdge, falseId);
+    api.setFunctionLogicScenarioBranchChoices("scenario-direct", edges, [falseEdge!]);
+    assert.equal(api.readFunctionLogicBranchChoices("scenario-direct", edges).get("decision"), falseId);
+    api.setFunctionLogicScenarioBranchChoices("scenario-direct", edges, [trueEdge!]);
+    assert.equal(api.readFunctionLogicBranchChoices("scenario-direct", edges).get("decision"), trueId);
+    assert.match(api.functionTutorScenarioOutcomeText({ terminal: { kind: "return", value: { kind: "string", value: "no" } } }), /no/u);
+    assert.match(api.functionTutorScenarioOutcomeText({ terminal: { kind: "return", value: { kind: "string", value: "yes" } } }), /yes/u);
+    assert.equal(runtime.messages.length, 0);
+  } finally {
+    Reflect.deleteProperty(globalThis, exposed);
+    runtime.restore();
+  }
+});
+
+test("projects compound root Scenario locals into visible trace frames without private IDs", () => {
+  const runtime = installSidebarWebviewRuntime();
+  const exposed = "__projectAnalyzerCompoundScenarioTrace";
+  try {
+    new Function(requireFunctionVisualizerScript() + `
+      globalThis.${exposed} = { create: createFunctionLogicScenarioTrace, prepare: prepareFunctionLogicValuePreviewSession, write: writeFunctionLogicValuePreview };
+    `)();
+    const api = Reflect.get(globalThis, exposed) as {
+      create(logic: Record<string, unknown>, nodes: Map<string, unknown>, edges: Map<string, unknown>, identity: Record<string, (id: string) => string | undefined>): { setSelectedBinding(id: string): void; readFrames(id: string): Array<Record<string, unknown>> };
+      prepare(key: string, bindings: Array<Record<string, unknown>>): void;
+      write(id: string, value: string): void;
+    };
+    const rawParameter = "raw-root-param";
+    const rawLocal = "raw-root-async-result";
+    const rawBlock = "raw-root-entry";
+    const visibleParameter = "compound:root:param";
+    const visibleLocal = "compound:root:asyncResult";
+    const visibleBlock = "compound:root:entry";
+    const bindings = [
+      { id: visibleParameter, name: "input", kind: "parameter", definitionBlockId: visibleBlock, confidence: "exact" },
+      { id: visibleLocal, name: "asyncResult", kind: "constant", definitionBlockId: visibleBlock, confidence: "exact" }
+    ];
+    const logic = {
+      valueBindings: bindings,
+      blocks: [{ id: visibleBlock, kind: "entry", label: "asyncResult", valueAccesses: [{ bindingId: visibleLocal, access: "define" }] }],
+      edges: [], layout: { nodes: [{ blockId: visibleBlock, rank: 0, lane: 0, x: 0, y: 0 }] },
+      tutor: { programBundle: { rootProgramId: "raw-root", programs: [{ id: "raw-root", executionKind: "sync", entryBlockId: rawBlock, bindings: [{ bindingId: rawParameter, parameterId: "parameter", parameterIndex: 0 }, { bindingId: rawLocal, name: "asyncResult" }], blocks: [{ blockId: rawBlock, operations: [{ kind: "define", bindingId: rawLocal, value: { kind: "binding", bindingId: rawParameter } }], terminal: { kind: "return", value: { kind: "binding", bindingId: rawLocal } } }], edges: [] }], links: [], omittedLinks: [] } }
+    };
+    const identity = {
+      resolveScenarioBindingId: (id: string) => id === rawParameter ? visibleParameter : id === rawLocal ? visibleLocal : undefined,
+      resolveScenarioBlockId: (id: string) => id === rawBlock ? visibleBlock : undefined
+    };
+    api.prepare("compound-trace", bindings);
+    api.write(visibleParameter, "false");
+    const trace = api.create(logic, new Map(), new Map(), identity);
+    trace.setSelectedBinding(visibleLocal);
+    const frames = trace.readFrames(visibleLocal);
+    assert.equal((frames[0].binding as { id: string }).id, visibleLocal);
+    assert.equal((frames[0].block as { id: string }).id, visibleBlock);
+    assert.equal(frames[0].value, "false");
+    assert.ok(!JSON.stringify(frames).includes("raw-root-"));
+    assert.ok(runtime.textValues.some((text) => text.includes("asyncResult")));
+
+    const missing = api.create(logic, new Map(), new Map(), { resolveScenarioBindingId: () => undefined, resolveScenarioBlockId: () => undefined });
+    missing.setSelectedBinding(visibleLocal);
+    assert.equal(missing.readFrames(visibleLocal)[0].stateKind, "unset");
+    const collision = api.create(logic, new Map(), new Map(), { resolveScenarioBindingId: () => visibleLocal, resolveScenarioBlockId: () => visibleBlock });
+    collision.setSelectedBinding(visibleLocal);
+    assert.equal(collision.readFrames(visibleLocal)[0].stateKind, "unset");
+  } finally {
+    Reflect.deleteProperty(globalThis, exposed);
+    runtime.restore();
+  }
+});
+
 function requireFunctionVisualizerScript(): string {
   const html = getFunctionVisualizerHtml({
     webview: { cspSource: "vscode-webview:" } as never,

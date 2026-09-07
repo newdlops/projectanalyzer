@@ -27,7 +27,7 @@ export function getFunctionVisualizerBrowserSource(): string {
       activeLogicGraphSurface: undefined,
       activeLogicViewportController: undefined,
       activeLogicValueFlowRendering: undefined,
-      uiLanguage: "en",
+      uiLanguage: document.documentElement.lang === "ko" ? "ko" : "en",
       loading: false,
       error: undefined,
       selectedLogicBlockId: undefined,
@@ -242,13 +242,13 @@ export function getFunctionVisualizerBrowserSource(): string {
       state.presentation = { breadcrumbs: [], gaps: [], empty: undefined };
 
       if (!entry) {
-        elements.title.textContent = state.pendingTarget?.label || projectAnalyzerText("function-title");
-        elements.subtitle.textContent = projectAnalyzerText("building-control-flow");
+        elements.title.textContent = state.pendingTarget?.label || state.root?.label || projectAnalyzerText("function-title");
+        elements.subtitle.textContent = projectAnalyzerText(state.error ? "reading-unavailable" : "building-control-flow");
         elements.summary.textContent = "";
         elements.semantics.textContent = projectAnalyzerText("static-not-runtime");
         elements.flowGapsSection.hidden = true;
         elements.originsSection.hidden = true;
-        state.presentation.empty = createEmptyState(formatFunctionStatus(state.error) || projectAnalyzerText("reading-function"));
+        state.presentation.empty = createEmptyState();
         elements.flowSteps.append(state.presentation.empty);
         setVisualizerStatus(formatFunctionStatus(state.error) || projectAnalyzerText("analyzing-function-logic"), true);
         return;
@@ -288,10 +288,10 @@ export function getFunctionVisualizerBrowserSource(): string {
     function relocalizeFunctionVisualizerPresentation() {
       const entry = state.history[state.historyIndex];
       if (!entry) {
-        elements.title.textContent = state.pendingTarget?.label || projectAnalyzerText("function-title");
-        elements.subtitle.textContent = projectAnalyzerText("building-control-flow");
+        elements.title.textContent = state.pendingTarget?.label || state.root?.label || projectAnalyzerText("function-title");
+        elements.subtitle.textContent = projectAnalyzerText(state.error ? "reading-unavailable" : "building-control-flow");
         elements.semantics.textContent = projectAnalyzerText("static-not-runtime");
-        state.presentation.empty && (state.presentation.empty.textContent = formatFunctionStatus(state.error) || projectAnalyzerText("reading-function"));
+        state.presentation.empty?.refreshLanguage();
         relocalizeNavigation();
         setVisualizerStatus(formatFunctionStatus(state.error) || projectAnalyzerText("analyzing-function-logic"), true);
         return;
@@ -402,10 +402,36 @@ export function getFunctionVisualizerBrowserSource(): string {
     }
 
     /** Creates one calm initial/loading state inside the visualization surface. */
-    function createEmptyState(message) {
+    function createEmptyState() {
       const empty = document.createElement("div");
+      const content = document.createElement("div");
+      const message = document.createElement("strong");
+      const hint = document.createElement("p");
+      const retry = document.createElement("button");
       empty.className = "visualizer-empty";
-      empty.textContent = message;
+      content.className = "visualizer-empty-content";
+      retry.className = "logic-button visualizer-retry";
+      retry.type = "button";
+      retry.addEventListener("click", () => {
+        if (state.loading || !state.root || !state.graph) return;
+        state.pendingTarget = state.root;
+        state.error = undefined;
+        state.loading = true;
+        render();
+        vscode.postMessage({ type: "codeFlow/selectSource", payload: { graphVersion: state.graph.version, sourceToken: state.root.sourceToken } });
+      });
+      content.append(message, hint, retry);
+      empty.append(content);
+      empty.refreshLanguage = () => {
+        message.textContent = formatFunctionStatus(state.error) || projectAnalyzerText("reading-function");
+        hint.textContent = projectAnalyzerText(state.error ? "reading-retry-hint" : "reading-loading-hint");
+        retry.textContent = projectAnalyzerText("reading-retry");
+        retry.title = retry.textContent;
+        retry.hidden = !state.error;
+        retry.disabled = state.loading || !state.root || !state.graph;
+        empty.setAttribute("aria-busy", String(state.loading));
+      };
+      empty.refreshLanguage();
       return empty;
     }
 
@@ -427,6 +453,19 @@ export function getFunctionVisualizerBrowserSource(): string {
         );
       };
       return {
+        /** Resolves root Tutor opaque IDs into verified compound-scene identities. */
+        resolveScenarioBindingId: (bindingId) => {
+          const candidate = createCompoundBindingId(rootScopeId, bindingId);
+          return scene.logic.valueBindings.some((binding) => binding.id === candidate) ? candidate : undefined;
+        },
+        resolveScenarioBlockId: (blockId) => {
+          const candidate = createCompoundBlockId(rootScopeId, blockId);
+          return scene.logic.blocks.some((block) => block.id === candidate) ? candidate : undefined;
+        },
+        resolveScenarioEdgeId: (edgeId) => {
+          const candidate = createCompoundEdgeId(rootScopeId, edgeId);
+          return scene.logic.edges.some((edge) => edge.id === candidate) ? candidate : undefined;
+        },
         selectedBlockId: state.selectedLogicBlockId,
         graphTitle: () => scene.attachedFunctionCount > 0
           ? projectAnalyzerText("functions-in-one-graph", { count: scene.attachedFunctionCount + 1, graph: graphKind() })

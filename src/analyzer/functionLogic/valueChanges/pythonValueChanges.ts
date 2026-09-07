@@ -1,7 +1,7 @@
 /**
  * Python value-change extraction for Lezer-backed Function Logic. Direct
- * assignments/deletes are exact, for-loop bindings are explicit iterations,
- * and known mutating receiver calls remain visibly inferred.
+ * assignments/deletes and assignment expressions are exact, for-loop bindings
+ * are explicit iterations, and known mutating receiver calls remain inferred.
  */
 
 import type { SyntaxNode } from "@lezer/common";
@@ -35,7 +35,44 @@ export function collectPythonValueChanges(
     values.push(createPythonIterationChange(source, statement));
   }
 
+  values.push(...collectPythonNamedExpressionChanges(source, statement));
   values.push(...collectPythonReceiverChanges(source, statement));
+  return finalizeFunctionLogicValueChanges(values);
+}
+
+/** Extracts `name := value` writes from a statement header without entering its body. */
+function collectPythonNamedExpressionChanges(
+  source: LezerSource,
+  statement: SyntaxNode
+): FunctionLogicValueChange[] {
+  const values: Array<FunctionLogicValueChange | undefined> = [];
+  const pending: SyntaxNode[] = [statement];
+  while (pending.length > 0) {
+    const node = pending.pop();
+    if (!node) continue;
+    if (node !== statement && isPythonOwnedBody(node)) continue;
+    if (node.name === "NamedExpression") {
+      const children = getLezerChildren(node);
+      const operator = children.find((child) => child.name === "AssignOp");
+      const targetNode = operator
+        ? children.find((child) => child.to <= operator.from && child.name !== "(")
+        : undefined;
+      if (operator && targetNode) {
+        const target = normalizeValueChangeText(source.text.slice(targetNode.from, targetNode.to));
+        values.push(createFunctionLogicValueChange({
+          target,
+          targetKind: "variable",
+          operation: "assign",
+          operator: normalizeValueChangeText(source.text.slice(operator.from, operator.to)),
+          value: normalizeValueChangeText(source.text.slice(operator.to, node.to)),
+          confidence: "exact"
+        }));
+      }
+      continue;
+    }
+    const children = getLezerChildren(node);
+    for (let index = children.length - 1; index >= 0; index -= 1) pending.push(children[index]);
+  }
   return finalizeFunctionLogicValueChanges(values);
 }
 

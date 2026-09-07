@@ -3,9 +3,9 @@
 /** Returns compact VS Code-themed CSS for Guide hierarchy, states, and responsive tables. */
 export function getFunctionTutorGuideStyles(): string {
   return /* css */ `
-    .logic-function-guide { display: grid; gap: 8px; min-width: 0; }
+    .logic-function-guide { display: grid; gap: 8px; min-width: 0; container: function-guide / inline-size; }
     .logic-function-guide-content { display: grid; gap: 10px; min-width: 0; }
-    .logic-function-guide h3, .logic-function-guide h4 { margin: 0; color: var(--vscode-foreground); font-size: var(--logic-font-medium); line-height: 1.3; }
+    .logic-function-guide h3, .logic-function-guide h4, .logic-function-guide h5 { margin: 0; color: var(--vscode-foreground); font-size: var(--logic-font-medium); line-height: 1.3; }
     .logic-guide-status, .logic-guide-answer, .logic-guide-empty, .logic-guide-scenario-body > p, .logic-guide-scenario-description { margin: 0; color: var(--vscode-descriptionForeground); font-size: var(--logic-font-small); line-height: 1.45; overflow-wrap: anywhere; }
     .logic-guide-overview, .logic-guide-navigation, .logic-guide-chapter { display: grid; gap: 6px; min-width: 0; }
     .logic-guide-overview { padding-top: 8px; border-top: 1px solid var(--vscode-panel-border); }
@@ -36,6 +36,10 @@ export function getFunctionTutorGuideStyles(): string {
     .logic-guide-scenario-table, .logic-guide-transition-table { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: var(--logic-font-small); font-variant-numeric: tabular-nums; }
     .logic-guide-scenario-table caption { padding: 2px 0 5px; color: var(--vscode-descriptionForeground); text-align: left; }
     .logic-guide-scenario-table th, .logic-guide-scenario-table td, .logic-guide-transition-table th, .logic-guide-transition-table td { padding: 5px 6px; border: 1px solid var(--vscode-panel-border); text-align: left; vertical-align: top; overflow-wrap: anywhere; }
+    .logic-guide-scenario-table thead th:nth-child(1) { width: 20%; }
+    .logic-guide-scenario-table thead th:nth-child(2) { width: 30%; }
+    .logic-guide-scenario-table thead th:nth-child(3) { width: 30%; }
+    .logic-guide-scenario-table thead th:nth-child(4) { width: 20%; }
     .logic-guide-scenario-select { width: 100%; padding: 2px; color: var(--vscode-foreground); background: transparent; border: 1px solid transparent; border-radius: 2px; font: inherit; font-size: inherit; text-align: left; cursor: pointer; }
     .logic-guide-scenario-select:hover { background: var(--vscode-list-hoverBackground); }
     .logic-guide-scenario-select.selected, .logic-guide-scenario-select[aria-current="true"] { border-color: var(--vscode-focusBorder); background: var(--vscode-list-activeSelectionBackground); color: var(--vscode-list-activeSelectionForeground); }
@@ -44,10 +48,18 @@ export function getFunctionTutorGuideStyles(): string {
     .logic-guide-scenario-detail dl { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 3px 8px; margin: 0; font-size: var(--logic-font-small); }
     .logic-guide-scenario-detail dt { color: var(--vscode-descriptionForeground); }
     .logic-guide-scenario-detail dd { min-width: 0; margin: 0; overflow-wrap: anywhere; }
+    .logic-guide-scenario-detail ol { display: grid; gap: 3px; margin: 0; padding-left: 18px; overflow-wrap: anywhere; }
     .logic-guide-scenario-body select { max-width: 100%; color: var(--vscode-input-foreground); background: var(--vscode-input-background); border: 1px solid var(--vscode-input-border); border-radius: 3px; font: inherit; }
     .logic-guide-question:focus-visible, .logic-guide-action:focus-visible, .logic-guide-source-action:focus-visible, .logic-guide-toggle:focus-visible, .logic-guide-scenario-select:focus-visible, .logic-guide-scenario-body select:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-offset: 1px; }
     @media (max-width: 520px) { .logic-guide-overview dl, .logic-guide-scenario-detail dl { grid-template-columns: 1fr; gap: 1px; } .logic-guide-overview dd, .logic-guide-scenario-detail dd { margin-bottom: 5px; } }
-    @container logic-inspector (max-width: 340px) { .logic-guide-overview dl, .logic-guide-scenario-detail dl { grid-template-columns: 1fr; gap: 1px; } .logic-guide-overview dd, .logic-guide-scenario-detail dd { margin-bottom: 5px; } .logic-guide-actions { align-items: stretch; } .logic-guide-actions > button { flex: 1 1 100%; } }
+    @container function-guide (max-width: 560px) {
+      .logic-guide-scenario-table, .logic-guide-scenario-table tbody, .logic-guide-scenario-table tr, .logic-guide-scenario-table th, .logic-guide-scenario-table td { display: block; width: 100%; box-sizing: border-box; }
+      .logic-guide-scenario-table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; }
+      .logic-guide-scenario-table tr { padding: 5px 0; border-bottom: 1px solid var(--vscode-panel-border); }
+      .logic-guide-scenario-table th, .logic-guide-scenario-table td { display: grid; grid-template-columns: minmax(82px, .38fr) minmax(0, 1fr); gap: 6px; border-bottom: 0; }
+      .logic-guide-scenario-table th::before, .logic-guide-scenario-table td::before { color: var(--vscode-descriptionForeground); content: attr(data-label); font-weight: 700; }
+    }
+    @container function-guide (max-width: 340px) { .logic-guide-overview dl, .logic-guide-scenario-detail dl { grid-template-columns: 1fr; gap: 1px; } .logic-guide-overview dd, .logic-guide-scenario-detail dd { margin-bottom: 5px; } .logic-guide-actions { align-items: stretch; } .logic-guide-actions > button { flex: 1 1 100%; } }
     @media (pointer: coarse) { .logic-guide-question, .logic-guide-action, .logic-guide-source-action, .logic-guide-toggle, .logic-guide-scenario-select, .logic-guide-scenario-body select { min-height: 44px; } }
     @media (forced-colors: active) { .logic-guide-question[aria-current="true"], .logic-guide-scenario-select[aria-current="true"] { outline: 2px solid Highlight; outline-offset: -2px; } }
     @media (prefers-reduced-motion: reduce) { .logic-function-guide *, .logic-guide-toggle { transition: none; } }

@@ -4,9 +4,6 @@
  * it does not depend on VS Code, layout, or DOM implementation details.
  */
 
-/** The reader question currently foregrounded in the Function Logic graph. */
-export type FunctionLogicLens = "flow" | "values" | "calls" | "effects";
-
 /** The graph representation selected by the reader without changing graph data. */
 export type FunctionLogicComprehensionView = "map" | "steps";
 
@@ -20,7 +17,6 @@ export type FunctionLogicPlaybackState = {
 export type FunctionLogicComprehensionState = {
   sessionKey: string;
   view: FunctionLogicComprehensionView;
-  lens: FunctionLogicLens;
   selectedBlockId?: string;
   selectedBindingId?: string;
   branchChoiceEdgeIdsBySourceId: ReadonlyMap<string, string>;
@@ -39,7 +35,6 @@ export type FunctionLogicComprehensionState = {
 /** Explicit semantic transitions accepted by the comprehension state reducer. */
 export type FunctionLogicComprehensionEvent =
   | { type: "reset-session"; sessionKey: string }
-  | { type: "set-lens"; lens: FunctionLogicLens }
   | { type: "set-view"; view: FunctionLogicComprehensionView }
   | { type: "select-block"; blockId?: string }
   | { type: "select-binding"; bindingId?: string }
@@ -70,7 +65,7 @@ export type FunctionLogicAttentionBlock = {
   drillTargets?: ReadonlyArray<unknown>;
 };
 
-/** Minimal directed relation used for neighbourhood and lens relevance. */
+/** Minimal directed relation used for neighbourhood and integrated relevance. */
 export type FunctionLogicAttentionEdge = {
   id: string;
   sourceId: string;

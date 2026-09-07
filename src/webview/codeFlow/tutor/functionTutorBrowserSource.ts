@@ -21,23 +21,63 @@ export function getFunctionTutorBrowserSource(): string {
       return { ...value };
     }
     function isFunctionTutorKnown(value) { return value && value.kind !== "unknown"; }
-    function functionTutorValueText(value) {
-      if (!value) return projectAnalyzerText("unknown");
-      if (value.kind === "unknown") return projectAnalyzerText("unknown");
-      if (value.kind === "null" || value.kind === "undefined") return value.kind;
-      if (value.kind === "array") return "[" + value.items.map(functionTutorValueText).join(", ") + (value.truncated ? ", …" : "") + "]";
-      if (value.kind === "object") return "{" + value.entries.map((entry) => entry.key + ": " + functionTutorValueText(entry.value)).join(", ") + (value.truncated ? ", …" : "") + "}";
-      if (value.kind === "enum") return value.memberName;
-      return String(value.value);
+    /** Formats protocol and evaluator values without invoking object coercion. */
+    function functionTutorValueText(value) { try { return functionTutorSafeValueText(value); } catch (_error) { return projectAnalyzerText("unknown"); } }
+    function functionTutorSafeValueText(value) {
+      const unknown = () => projectAnalyzerText("unknown"); const forbidden = new Set(["__proto__", "prototype", "constructor", "__functionTutorBrand", "__functionTutorIterator"]);
+      const pending = [{ value, depth: 0, prefix: "" }]; const seen = new Set(); let output = ""; let work = 0;
+      while (pending.length && work++ < 96 && output.length < 480) {
+        const item = pending.pop(); let current = item.value;
+        if (current && typeof current === "object" && current.kind === "known") current = current.value;
+        if (current === null) { output += item.prefix + "null"; continue; }
+        if (current === undefined) { output += item.prefix + "undefined"; continue; }
+        if (typeof current === "boolean" || typeof current === "number" || typeof current === "string") { output += item.prefix + current; continue; }
+        if (!current || typeof current !== "object" || item.depth > 4 || seen.has(current)) return unknown();
+        seen.add(current);
+        if (current.kind === "unknown" || current.kind === "unset") return unknown();
+        if (current.kind === "null" || current.kind === "undefined") { output += item.prefix + current.kind; continue; }
+        if (current.kind === "boolean" || current.kind === "number" || current.kind === "string") { output += item.prefix + (typeof current.value === "string" || typeof current.value === "number" || typeof current.value === "boolean" ? current.value : unknown()); continue; }
+        if (current.kind === "enum") { output += item.prefix + (typeof current.memberName === "string" ? current.memberName : unknown()); continue; }
+        if (current.kind === "array" && Array.isArray(current.items)) { output += item.prefix + "["; pending.push({ value: current.items.length > 8 || current.truncated ? "…]" : "]", depth: 0, prefix: "" }); for (let index = Math.min(current.items.length, 8) - 1; index >= 0; index -= 1) pending.push({ value: current.items[index], depth: item.depth + 1, prefix: index ? ", " : "" }); continue; }
+        if (current.kind === "object" && Array.isArray(current.entries)) { output += item.prefix + "{"; const entries = current.entries.filter((entry) => entry && typeof entry.key === "string" && !forbidden.has(entry.key)).slice(0, 8); pending.push({ value: current.truncated || current.entries.length > entries.length ? "…}" : "}", depth: 0, prefix: "" }); for (let index = entries.length - 1; index >= 0; index -= 1) pending.push({ value: entries[index].value, depth: item.depth + 1, prefix: (index ? ", " : "") + entries[index].key + ": " }); continue; }
+        let keys; try { if (Object.getPrototypeOf(current) !== null) return unknown(); keys = Object.keys(current).filter((key) => { const descriptor = Object.getOwnPropertyDescriptor(current, key); if (!descriptor || !("value" in descriptor)) throw new Error("unsafe-descriptor"); return !forbidden.has(key); }).slice(0, 8); } catch (_error) { return unknown(); }
+        if (Object.prototype.hasOwnProperty.call(current, "__functionTutorIterator")) return unknown();
+        output += item.prefix + "{";
+        pending.push({ value: Object.keys(current).filter((key) => !forbidden.has(key)).length > keys.length ? "…}" : "}", depth: 0, prefix: "" });
+        for (let index = keys.length - 1; index >= 0; index -= 1) pending.push({ value: Object.getOwnPropertyDescriptor(current, keys[index]).value, depth: item.depth + 1, prefix: (index ? ", " : "") + keys[index] + ": " });
+      }
+      return output && output.length <= 512 && !pending.length ? output : unknown();
     }
     function functionTutorScenarioInputText(value) {
       if (!value || value.kind === "unknown") return undefined;
       if (value.kind === "undefined") return "undefined";
-      if (value.kind === "null") return "null";
-      if (value.kind === "boolean" || value.kind === "number" || value.kind === "string") return JSON.stringify(value.value);
-      if (value.kind === "array") return JSON.stringify(value.items.map((item) => item.kind === "boolean" || item.kind === "number" || item.kind === "string" ? item.value : null));
-      if (value.kind === "object") return JSON.stringify(Object.fromEntries(value.entries.map((entry) => [entry.key, entry.value.kind === "boolean" || entry.value.kind === "number" || entry.value.kind === "string" ? entry.value.value : null])));
-      return undefined;
+      const holder = { value: undefined };
+      const pending = [{ value: value, target: holder, key: "value", depth: 0 }];
+      let work = 0;
+      while (pending.length > 0 && work < 96) {
+        work += 1;
+        const item = pending.pop();
+        const current = item.value;
+        if (!current || current.kind === "unknown" || current.kind === "enum" || current.kind === "undefined" || item.depth > 4) return undefined;
+        if (current.kind === "null") { item.target[item.key] = null; continue; }
+        if (current.kind === "boolean" || current.kind === "number" || current.kind === "string") { item.target[item.key] = current.value; continue; }
+        if (current.kind === "array") {
+          const target = []; item.target[item.key] = target;
+          for (let index = current.items.length - 1; index >= 0; index -= 1) pending.push({ value: current.items[index], target: target, key: index, depth: item.depth + 1 });
+          continue;
+        }
+        if (current.kind === "object") {
+          const target = Object.create(null); item.target[item.key] = target;
+          for (let index = current.entries.length - 1; index >= 0; index -= 1) {
+            const entry = current.entries[index];
+            if (!entry || typeof entry.key !== "string" || ["__proto__", "prototype", "constructor"].includes(entry.key)) return undefined;
+            pending.push({ value: entry.value, target: target, key: entry.key, depth: item.depth + 1 });
+          }
+          continue;
+        }
+        return undefined;
+      }
+      return pending.length === 0 ? JSON.stringify(holder.value) : undefined;
     }
     function functionTutorCanonical(value) { return JSON.stringify(value); }
     function functionTutorReadMember(value, path) {
@@ -126,6 +166,11 @@ export function getFunctionTutorBrowserSource(): string {
       return { before: before || { kind: "undefined" }, after: value };
     }
     function functionTutorRunScenario(tutor, seed) {
+      // New opaque bundles share Values' iterative evaluator. The old local
+      // interpreter remains solely for snapshots issued before bundles existed.
+      const bundled = typeof functionTutorRunProgramBundleScenario === "function"
+        ? functionTutorRunProgramBundleScenario(tutor, seed) : undefined;
+      if (bundled) return bundled;
       const blocksById = new Map(tutor.program.blocks.map((block) => [block.blockId, block]));
       const outgoing = new Map();
       for (const edge of tutor.program.edges) { const values = outgoing.get(edge.sourceBlockId) || []; values.push(edge); outgoing.set(edge.sourceBlockId, values); }
@@ -147,12 +192,12 @@ export function getFunctionTutorBrowserSource(): string {
           if (operation.kind === "define" || operation.kind === "assign") {
             const value = functionTutorEvaluate(operation.value, environment); const target = operation.kind === "define" ? { kind: "binding", bindingId: operation.bindingId } : operation.target;
             const written = functionTutorWrite(environment, target, value);
-            transitions.push({ blockId: block.blockId, target: tutor.program.bindings.find((binding) => binding.bindingId === target.bindingId)?.name || "value", before: written.before, after: written.after, certainty: value.kind === "unknown" ? "unknown" : state.certainty });
+            transitions.push({ blockId: block.blockId, targetBindingId: target.bindingId, target: tutor.program.bindings.find((binding) => binding.bindingId === target.bindingId)?.name || "value", before: written.before, after: written.after, certainty: value.kind === "unknown" ? "unknown" : state.certainty });
           } else if (operation.kind === "increment") {
             const current = operation.target.kind === "binding" ? environment.get(operation.target.bindingId) : functionTutorReadMember(environment.get(operation.target.bindingId), operation.target.path);
             const value = current?.kind === "number" ? { kind: "number", value: current.value + operation.delta } : createFunctionTutorUnknown("unsupported-expression");
             const written = functionTutorWrite(environment, operation.target, value);
-            transitions.push({ blockId: block.blockId, target: tutor.program.bindings.find((binding) => binding.bindingId === operation.target.bindingId)?.name || "value", before: written.before, after: written.after, certainty: value.kind === "unknown" ? "unknown" : state.certainty });
+            transitions.push({ blockId: block.blockId, targetBindingId: operation.target.bindingId, target: tutor.program.bindings.find((binding) => binding.bindingId === operation.target.bindingId)?.name || "value", before: written.before, after: written.after, certainty: value.kind === "unknown" ? "unknown" : state.certainty });
           }
         }
         const base = { ...state, loops, environment, blockIds: [...state.blockIds, block.blockId], transitions, steps: state.steps + 1 };

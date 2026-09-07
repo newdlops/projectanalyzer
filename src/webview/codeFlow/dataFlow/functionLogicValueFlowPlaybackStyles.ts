@@ -28,11 +28,71 @@ export function getFunctionLogicValueFlowPlaybackStyles(): string {
       overflow-wrap: anywhere;
     }
 
+    .logic-value-flow-playback-tokens {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+      min-width: 0;
+      max-width: 100%;
+    }
+
+    .logic-value-flow-playback-token {
+      display: flex;
+      flex: 0 1 min(100%, 300px);
+      flex-wrap: wrap;
+      gap: 2px;
+      min-width: 0;
+      max-width: 100%;
+      padding: 3px 5px;
+      color: var(--vscode-descriptionForeground);
+      background: var(--vscode-editorWidget-background, var(--vscode-editor-background));
+      border: 1px solid var(--vscode-panel-border);
+      border-radius: 3px;
+      font-family: var(--vscode-font-family);
+      font-size: var(--logic-font-tiny);
+      line-height: 1.35;
+      overflow-wrap: anywhere;
+    }
+
+    .logic-value-flow-playback-token-identity,
+    .logic-value-flow-playback-token-initial,
+    .logic-value-flow-playback-token-before,
+    .logic-value-flow-playback-token-after {
+      min-width: 0;
+      max-width: 100%;
+      overflow-wrap: anywhere;
+      word-break: break-word;
+    }
+
+    .logic-value-flow-playback-token-identity { color: var(--vscode-editor-foreground); }
+    .logic-value-flow-playback-token-after.changed { color: var(--vscode-editorGutter-modifiedBackground, var(--vscode-textLink-foreground)); }
+
     .logic-value-flow-playback-controls {
       display: flex;
       flex-wrap: wrap;
       gap: 4px;
     }
+
+    .logic-value-flow-playback-speed {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 4px;
+      color: var(--vscode-descriptionForeground);
+      font-size: var(--logic-font-tiny);
+      overflow-wrap: anywhere;
+    }
+
+    .logic-value-flow-playback-speed-select {
+      min-height: 26px;
+      max-width: 100%;
+      color: var(--vscode-input-foreground);
+      background: var(--vscode-input-background);
+      border: 1px solid var(--vscode-input-border, var(--vscode-panel-border));
+      border-radius: 3px;
+    }
+
+    .logic-value-flow-playback-speed-select:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-offset: 1px; }
 
     .logic-value-flow-playback-button {
       min-height: 26px;
@@ -81,6 +141,10 @@ export function getFunctionLogicValueFlowPlaybackStyles(): string {
       animation: logic-value-flow-change-ring 440ms ease-out 1;
     }
 
+    .logic-graph-node.data-flow-playback-departure {
+      animation: logic-value-flow-departure 260ms ease-out 1;
+    }
+
     .logic-graph-node.data-flow-playback-change::after {
       content: "Δ";
       position: absolute;
@@ -106,11 +170,24 @@ export function getFunctionLogicValueFlowPlaybackStyles(): string {
       to { box-shadow: 0 0 0 5px transparent; }
     }
 
+    @keyframes logic-value-flow-departure {
+      from { box-shadow: 0 0 0 0 var(--vscode-focusBorder); }
+      to { box-shadow: 0 0 0 4px transparent; }
+    }
+
     .logic-graph-node.data-flow-playback-target.data-flow-sink {
       border-color: var(--vscode-charts-yellow, var(--vscode-focusBorder));
     }
 
     .logic-data-flow-traveler {
+      pointer-events: none;
+    }
+
+    .logic-data-flow-foreground {
+      position: absolute;
+      inset: 0;
+      z-index: 7;
+      overflow: visible;
       pointer-events: none;
     }
 
@@ -123,18 +200,41 @@ export function getFunctionLogicValueFlowPlaybackStyles(): string {
     .logic-data-flow-traveler-label {
       fill: var(--vscode-button-foreground, var(--vscode-editor-background));
       font-family: var(--vscode-font-family);
-      font-size: var(--logic-font-tiny);
+      font-size: var(--logic-font-small);
       font-weight: 700;
       pointer-events: none;
     }
 
+    .logic-value-flow-calculation-plaque {
+      position: absolute;
+      z-index: 8;
+      max-width: min(360px, calc(100% - 20px));
+      min-height: 30px;
+      padding: 6px 9px;
+      color: var(--vscode-editor-foreground);
+      background: var(--vscode-editorWidget-background, var(--vscode-editor-background));
+      border: 1px solid var(--vscode-focusBorder);
+      border-radius: 4px;
+      font-family: var(--vscode-font-family);
+      font-size: var(--logic-font-small);
+      line-height: 1.35;
+      overflow-wrap: anywhere;
+      pointer-events: none;
+      transform: translate(-50%, -100%);
+    }
+
     @media (prefers-reduced-motion: reduce) {
       .logic-data-flow-traveler { display: none; }
-      .logic-graph-node.data-flow-playback-change { animation: none; }
+      .logic-value-flow-calculation-plaque { transition: none; }
+      .logic-graph-node.data-flow-playback-change,
+      .logic-graph-node.data-flow-playback-departure { animation: none; }
     }
 
     @media (forced-colors: active) {
       .logic-value-flow-playback { border-color: CanvasText; }
+      .logic-value-flow-playback-speed-select { color: FieldText; background: Field; border-color: FieldText; }
+      .logic-value-flow-playback-token { color: CanvasText; background: Canvas; border-color: CanvasText; }
+      .logic-value-flow-playback-token-after.changed { color: Highlight; }
       .logic-data-flow-edge.playback-active { stroke: Highlight; }
       .logic-data-flow-traveler-body { fill: Highlight; stroke: Canvas; }
       .logic-data-flow-traveler-label { fill: HighlightText; }

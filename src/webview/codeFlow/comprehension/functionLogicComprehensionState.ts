@@ -8,14 +8,13 @@ import type {
   FunctionLogicComprehensionState
 } from "./types";
 
-/** Creates the conservative Flow-first state for a new root graph session. */
+/** Creates the conservative integrated state for a new root graph session. */
 export function createFunctionLogicComprehensionState(
   sessionKey: string
 ): FunctionLogicComprehensionState {
   return {
     sessionKey,
     view: "map",
-    lens: "flow",
     branchChoiceEdgeIdsBySourceId: new Map(),
     inspectorOpen: true,
     playback: { status: "idle", activeHopIndex: 0 }
@@ -24,7 +23,7 @@ export function createFunctionLogicComprehensionState(
 
 /**
  * Applies one explicit reader event without mutating previous session state.
- * Selecting Values never synthesizes a binding: the reader must choose one.
+ * Selecting a binding never synthesizes a value route: the reader must choose one.
  */
 export function reduceFunctionLogicComprehensionState(
   state: FunctionLogicComprehensionState,
@@ -34,9 +33,6 @@ export function reduceFunctionLogicComprehensionState(
     return event.sessionKey === state.sessionKey
       ? state
       : createFunctionLogicComprehensionState(event.sessionKey);
-  }
-  if (event.type === "set-lens") {
-    return { ...state, lens: event.lens };
   }
   if (event.type === "set-view") {
     return { ...state, view: event.view };

@@ -16,7 +16,7 @@ export function getFunctionLogicInspectorStyles(): string {
       isolation: isolate;
       container-type: inline-size;
       container-name: logic-inspector;
-      transition: grid-template-columns 170ms ease-out;
+      /* Immediate grid changes keep source-navigation camera measurements stable. */
     }
 
     .logic-graph-workspace.inspector-open {
@@ -30,6 +30,7 @@ export function getFunctionLogicInspectorStyles(): string {
     }
 
     .logic-inspector-toggle,
+    .logic-reading-toggle,
     .logic-inspector-close {
       color: var(--vscode-button-secondaryForeground);
       background: var(--vscode-button-secondaryBackground);
@@ -37,7 +38,7 @@ export function getFunctionLogicInspectorStyles(): string {
       cursor: pointer;
     }
 
-    .logic-inspector-toggle {
+    .logic-inspector-toggle, .logic-reading-toggle {
       min-height: 24px;
       padding: 2px 8px;
       border-radius: 4px;
@@ -45,13 +46,14 @@ export function getFunctionLogicInspectorStyles(): string {
       font-weight: 700;
     }
 
-    .logic-inspector-toggle[aria-expanded="true"] {
+    .logic-inspector-toggle[aria-expanded="true"], .logic-reading-toggle[aria-expanded="true"] {
       color: var(--vscode-button-foreground);
       background: var(--vscode-button-background);
       border-color: var(--vscode-focusBorder);
     }
 
     .logic-inspector-toggle:focus-visible,
+    .logic-reading-toggle:focus-visible,
     .logic-inspector-close:focus-visible {
       border-color: var(--vscode-focusBorder);
       outline: 1px solid var(--vscode-focusBorder);
@@ -63,7 +65,7 @@ export function getFunctionLogicInspectorStyles(): string {
       grid-column: 2;
       grid-row: 1;
       display: grid;
-      grid-template-rows: auto minmax(0, 1fr);
+      grid-template-rows: auto auto minmax(0, 1fr);
       width: 100%;
       min-width: 0;
       height: 100%;
@@ -87,6 +89,7 @@ export function getFunctionLogicInspectorStyles(): string {
     }
 
     .logic-inspector-header {
+      grid-row: 1;
       display: flex;
       min-width: 0;
       align-items: start;
@@ -138,6 +141,7 @@ export function getFunctionLogicInspectorStyles(): string {
     }
 
     .logic-inspector-scroll {
+      grid-row: 3;
       display: grid;
       /* Intrinsic-height rows prevent overflow-capable sections from collapsing
          to a few pixels when selected-block evidence is taller than the drawer. */
@@ -159,6 +163,28 @@ export function getFunctionLogicInspectorStyles(): string {
       gap: 10px;
       min-width: 0;
     }
+
+    .logic-inspector-tabs { display: flex; grid-row: 2; min-width: 0; border-bottom: 1px solid var(--vscode-panel-border); padding: 0 8px; }
+    .logic-inspector-tab {
+      flex: 1 1 0;
+      min-width: 0;
+      min-height: 38px;
+      padding: 8px 5px;
+      border: 0;
+      border-bottom: 2px solid transparent;
+      color: var(--vscode-descriptionForeground);
+      background: transparent;
+      font: inherit;
+      font-size: max(12px, var(--logic-font-small));
+      cursor: pointer;
+      overflow-wrap: anywhere;
+    }
+    .logic-inspector-tab[aria-selected="true"] { border-bottom-color: var(--vscode-focusBorder); color: var(--vscode-foreground); font-weight: 600; }
+    .logic-inspector-tab:hover { background: var(--vscode-list-hoverBackground); color: var(--vscode-foreground); }
+    .logic-inspector-tab:focus-visible { outline: 2px solid var(--vscode-focusBorder); outline-offset: -3px; }
+    .logic-inspector-tab-panel { display: grid; align-content: start; gap: 12px; min-width: 0; }
+    /* Native hidden wins over feature-level grid/flex declarations in every panel. */
+    .logic-graph [hidden] { display: none !important; }
 
     .logic-inspector-selection {
       padding: 0;
@@ -193,8 +219,9 @@ export function getFunctionLogicInspectorStyles(): string {
 
     .logic-condition-case-row {
       display: grid;
-      grid-template-columns: repeat(var(--logic-condition-columns, 3), minmax(46px, 1fr)) minmax(52px, .8fr) minmax(92px, 1.4fr);
-      min-width: max-content;
+      grid-template-columns: repeat(var(--logic-condition-columns, 3), minmax(36px, 1fr)) minmax(42px, .8fr) minmax(80px, 1.8fr);
+      min-width: 0;
+      width: 100%;
       padding: 0;
       color: var(--vscode-foreground);
       background: transparent;
@@ -219,7 +246,8 @@ export function getFunctionLogicInspectorStyles(): string {
       padding: 4px 5px;
       overflow: hidden;
       text-overflow: ellipsis;
-      white-space: nowrap;
+      white-space: normal;
+      overflow-wrap: anywhere;
     }
     .logic-condition-case-header {
       color: var(--vscode-descriptionForeground);
@@ -240,21 +268,11 @@ export function getFunctionLogicInspectorStyles(): string {
       border-radius: 5px;
     }
 
-    /* Lens-specific tools stay mounted to preserve scenario input and playback
-       state; only their visual disclosure changes with the reader question. */
-    .logic-inspector-drawer:not([data-logic-lens="values"]) .logic-data-flow-toolbar,
-    .logic-inspector-drawer:not([data-logic-lens="values"]) .logic-value-preview-editor,
-    .logic-inspector-drawer:not([data-logic-lens="values"]) .logic-scenario-trace,
-    .logic-inspector-drawer:not([data-logic-lens="values"]) .logic-value-flow-playback {
-      display: none;
-    }
-
-    .logic-inspector-drawer:not([data-logic-lens="calls"]) .logic-callees { display: none; }
-
     @media (pointer: coarse) {
       .logic-inspector-toggle,
-      .logic-inspector-close { min-height: 36px; }
-      .logic-inspector-close { width: 36px; }
+      .logic-reading-toggle,
+      .logic-inspector-close, .logic-inspector-tab { min-height: 44px; }
+      .logic-inspector-close { width: 44px; }
     }
 
     @media (max-width: 839px) {

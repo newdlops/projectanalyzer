@@ -116,14 +116,37 @@ export function createFunctionLogicCodeFlowDetail(
       evidenceToken: createEvidenceToken(block.filePath, block.range),
       conditionTable: conditionTablesByRootId.get(block.id),
       drillTargets: drillProjection.targetsByBlockId.get(block.id),
-      valueChanges: block.valueChanges?.map((change) => ({
-        target: completeGraphText(change.target, "value"),
-        targetKind: change.targetKind,
-        operation: change.operation,
-        operator: completeGraphText(change.operator, "changes"),
-        value: change.value ? completeGraphText(change.value, "value") : undefined,
-        confidence: change.confidence
-      })),
+      valueChanges: block.valueChanges?.map((change) => {
+        const matchingBindings = analysis.valueBindings?.filter((binding) =>
+          binding.name === change.fieldRef?.rootName
+        ) ?? [];
+        const rootBindingId = matchingBindings.length === 1
+          ? protocolBindingIds.get(matchingBindings[0].id)
+          : undefined;
+        const segments = change.fieldRef?.segments?.map((segment) => {
+          if (segment.kind === "static") return segment;
+          const matches = analysis.valueBindings?.filter((binding) => binding.name === segment.bindingName) ?? [];
+          const bindingId = matches.length === 1 ? protocolBindingIds.get(matches[0].id) : undefined;
+          return bindingId ? { kind: "binding" as const, bindingId } : undefined;
+        });
+        const hasUnresolvedSegment = Boolean(segments?.some((segment) => !segment));
+        return {
+          target: completeGraphText(change.target, "value"),
+          targetKind: change.targetKind,
+          operation: change.operation,
+          operator: completeGraphText(change.operator, "changes"),
+          value: change.value ? completeGraphText(change.value, "value") : undefined,
+          confidence: change.confidence,
+          ...(change.fieldRef && rootBindingId && !hasUnresolvedSegment ? {
+            valueRef: {
+              rootBindingId,
+              path: change.fieldRef.path,
+              displayPath: completeGraphText(change.target, "field"),
+              ...(segments?.length ? { segments: segments as Array<{ kind: "static"; key: string } | { kind: "binding"; bindingId: string }> } : {})
+            }
+          } : {})
+        };
+      }),
       valueAccesses: block.valueAccesses?.flatMap((access) => {
         const bindingId = protocolBindingIds.get(access.bindingId);
         return bindingId

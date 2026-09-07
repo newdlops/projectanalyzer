@@ -87,6 +87,10 @@ export function getFunctionLogicBranchChoiceStyles(): string {
 
     .logic-transfer-choice {
       appearance: none;
+      min-height: 32px;
+      padding: 6px 8px;
+      background: var(--vscode-editor-background);
+      border-radius: 4px;
       max-width: 100%;
       cursor: pointer;
       font: inherit;
@@ -103,6 +107,8 @@ export function getFunctionLogicBranchChoiceStyles(): string {
       border-color: var(--vscode-focusBorder);
       outline: none;
     }
+
+    .logic-transfer-choice:focus-visible { outline: 2px solid var(--vscode-focusBorder); outline-offset: 2px; }
 
     .logic-choice-summary {
       display: flex;

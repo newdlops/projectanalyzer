@@ -3,11 +3,10 @@
  * declaration, predicate, mutation, and callsite syntax into the language-
  * neutral Tutor program without evaluating source code.
  */
-
 import * as ts from "typescript";
 import { createContentHash } from "../../shared/hash";
 import type { SourceRange, SymbolNode } from "../../shared/types";
-import type { FunctionLogicAnalysis, FunctionLogicBlock } from "../functionLogic";
+import { analyzeFunctionLogic, type FunctionLogicAnalysis, type FunctionLogicBlock } from "../functionLogic";
 import {
   findSelectedFunction,
   getScriptKind,
@@ -25,6 +24,15 @@ import {
   createFunctionTutorUnknown,
   isFunctionTutorSafeObjectKey
 } from "./staticValue";
+import { toScenarioExpression } from "./scenario/expression";
+import {
+  readFunctionTutorParameterMembers,
+  readFunctionTutorParameterTypeFacts
+} from "./parameterTypeFacts";
+import {
+  collectFunctionTutorAtomicConditions,
+  normalizeFunctionTutorLengthConstraint
+} from "./parameterConstraintPaths";
 import type {
   FunctionTutorAssignmentTarget,
   FunctionTutorCertainty,
@@ -34,18 +42,18 @@ import type {
   FunctionTutorEvidence,
   FunctionTutorExpression,
   FunctionTutorGap,
-  FunctionTutorMemberFact,
   FunctionTutorOperation,
   FunctionTutorParameterFact,
-  FunctionTutorParameterTypeKind,
   FunctionTutorProgram,
   FunctionTutorProgramBinding,
   FunctionTutorProgramBlock,
   FunctionTutorStaticValue
 } from "./types";
-
-const MAX_EXPRESSION_DEPTH = 12;
-
+import { buildFunctionTutorScenarioCatalog } from "./scenario/catalog";
+/** Adapts declaration-local helpers to the focused Scenario expression module. */
+function toExpression(expression: ts.Expression, sourceFile: ts.SourceFile, bindingsByName: Map<string, string>): FunctionTutorExpression {
+  return toScenarioExpression(expression, { sourceFile, bindingsByName, readStaticValue, readBindingMember, readPropertyName, isSafeObjectKey: isFunctionTutorSafeObjectKey });
+}
 /** Dispatches declaration analysis while keeping unsupported languages explicit. */
 export function analyzeFunctionTutorDeclaration(
   input: FunctionTutorDeclarationInput
@@ -75,12 +83,22 @@ export function analyzeFunctionTutorDeclaration(
       "The selected function could not be matched to its current source declaration."
     );
   }
-  return withFunctionTutorDocumentation(
-    analyzeTypeScriptLikeDeclaration(sourceFile, functionNode, input.functionNode, input.functionLogic),
-    input.sourceText
-  );
+  const analysis = analyzeTypeScriptLikeDeclaration(sourceFile, functionNode, input.functionNode, input.functionLogic);
+  // The catalog is a Host-only, source-range-backed supplement. It deliberately
+  // does not change the graph or use display names for dispatch.
+  analysis.scenarioCatalog = buildFunctionTutorScenarioCatalog({
+    sourceFile,
+    rootNode: input.functionNode,
+    rootFunction: functionNode,
+    rootAnalysis: analysis,
+    materialize: (node, symbol, thisBindingId) => {
+      const logic = analyzeFunctionLogic({ functionNode: symbol, sourceText: input.sourceText });
+      const child = analyzeTypeScriptLikeDeclaration(sourceFile, node, symbol, logic, thisBindingId);
+      return child;
+    }
+  });
+  return withFunctionTutorDocumentation(analysis, input.sourceText);
 }
-
 /** Adds authored documentation without allowing it to alter parser or scenario facts. */
 function withFunctionTutorDocumentation(
   analysis: FunctionTutorDeclarationAnalysis,
@@ -93,22 +111,31 @@ function withFunctionTutorDocumentation(
   });
   return documentation ? { ...analysis, documentation } : analysis;
 }
-
 /** Builds parameter facts and a source-ordered program for one TS-like callable. */
 function analyzeTypeScriptLikeDeclaration(
   sourceFile: ts.SourceFile,
   functionNode: FunctionLikeWithBody,
   graphNode: SymbolNode,
-  functionLogic: FunctionLogicAnalysis
+  functionLogic: FunctionLogicAnalysis,
+  thisBindingId?: string
 ): FunctionTutorDeclarationAnalysis {
   const gaps: FunctionTutorGap[] = [];
   const bindingsByName = new Map<string, string>();
   for (const binding of functionLogic.valueBindings ?? []) bindingsByName.set(binding.name, binding.id);
+  if (thisBindingId) bindingsByName.set("this", thisBindingId);
   const parameters = functionNode.parameters.map((parameter, index) =>
     createParameterFact(sourceFile, graphNode.filePath, parameter, index, bindingsByName, gaps)
   );
   const parameterByName = new Map(parameters.map((parameter) => [parameter.name, parameter]));
   const program = createProgram(sourceFile, functionNode, graphNode.filePath, functionLogic, parameters, bindingsByName, gaps);
+  if (thisBindingId && !program.bindings.some((binding) => binding.bindingId === thisBindingId)) {
+    program.bindings.push({ bindingId: thisBindingId, name: "this", kind: "local", certainty: "exact" });
+  }
+  if (readExecutionKind(functionNode) === "generator") {
+    const generator = collectGeneratorSuspensions(functionNode, sourceFile, bindingsByName);
+    program.generatorYields = generator.yields;
+    program.generatorReturn = generator.returnValue;
+  }
   const constraints = collectConstraints(sourceFile, functionNode, functionLogic, parameterByName);
   return {
     functionNode: graphNode,
@@ -120,7 +147,25 @@ function analyzeTypeScriptLikeDeclaration(
     gaps
   };
 }
-
+/** Collects only source-ordered synchronous generator suspension expressions. */
+function collectGeneratorSuspensions(functionNode: FunctionLikeWithBody, sourceFile: ts.SourceFile, bindingsByName: Map<string, string>): { yields: FunctionTutorExpression[]; returnValue?: FunctionTutorExpression } {
+  const yields: FunctionTutorExpression[] = [];
+  let returnValue: FunctionTutorExpression | undefined;
+  const pending: ts.Node[] = [functionNode.body];
+  let cursor = 0;
+  while (cursor < pending.length && yields.length < 24) {
+    const current = pending[cursor++];
+    if (current !== functionNode.body && ts.isFunctionLike(current)) continue;
+    if (ts.isYieldExpression(current)) {
+      if (current.asteriskToken || current.expression === undefined) { yields.push({ kind: "unsupported", reason: "unsupported-expression", summary: "Only plain yield expressions are supported." }); }
+      else yields.push(toExpression(current.expression, sourceFile, bindingsByName));
+      continue;
+    }
+    if (ts.isReturnStatement(current) && current.expression) returnValue = toExpression(current.expression, sourceFile, bindingsByName);
+    ts.forEachChild(current, (child) => pending.push(child));
+  }
+  return { yields, returnValue };
+}
 /** Reads one parameter declaration without relying on rendered signature text. */
 function createParameterFact(
   sourceFile: ts.SourceFile,
@@ -133,7 +178,7 @@ function createParameterFact(
   const name = ts.isIdentifier(parameter.name) ? parameter.name.text : parameter.name.getText(sourceFile);
   const range = toSourceRange(sourceFile, parameter);
   const id = `tutor-parameter:${createContentHash(`${filePath}\0${range.startLine}\0${range.startCharacter}\0${index}`).slice(0, 24)}`;
-  const typeFacts = readTypeFacts(parameter.type, sourceFile);
+  const typeFacts = readFunctionTutorParameterTypeFacts(parameter.type, sourceFile);
   const evidence: FunctionTutorEvidence[] = [{
     kind: parameter.type ? "parameter-type" : "fallback",
     certainty: parameter.type ? "exact" : "inferred",
@@ -151,7 +196,7 @@ function createParameterFact(
       summary: "Declared parameter default."
     });
   }
-  const memberFacts = readParameterMembers(parameter, sourceFile);
+  const memberFacts = readFunctionTutorParameterMembers(parameter, sourceFile);
   const ownGaps: FunctionTutorGap[] = [];
   if (!ts.isIdentifier(parameter.name)) {
     ownGaps.push({
@@ -173,60 +218,12 @@ function createParameterFact(
     rest: Boolean(parameter.dotDotDotToken),
     defaultValue: defaultValue?.kind === "unknown" ? undefined : defaultValue,
     literalValues: typeFacts.literalValues,
+    typeRepresentative: typeFacts.representative,
     memberFacts,
     declarationEvidence: evidence,
     gaps: ownGaps
   };
 }
-
-/** Maps a small, safe subset of TS type syntax to candidate-domain facts. */
-function readTypeFacts(
-  type: ts.TypeNode | undefined,
-  sourceFile: ts.SourceFile
-): { kind: FunctionTutorParameterTypeKind; literalValues: FunctionTutorStaticValue[] } {
-  if (!type) return { kind: "unknown", literalValues: [] };
-  if (type.kind === ts.SyntaxKind.BooleanKeyword) return { kind: "boolean", literalValues: [] };
-  if (type.kind === ts.SyntaxKind.NumberKeyword || type.kind === ts.SyntaxKind.BigIntKeyword) return { kind: "number", literalValues: [] };
-  if (type.kind === ts.SyntaxKind.StringKeyword) return { kind: "string", literalValues: [] };
-  if (type.kind === ts.SyntaxKind.NullKeyword) return { kind: "null", literalValues: [{ kind: "null" }] };
-  if (ts.isLiteralTypeNode(type)) {
-    const value = readStaticValue(type.literal, sourceFile);
-    return { kind: "literal-union", literalValues: value.kind === "unknown" ? [] : [value] };
-  }
-  if (ts.isUnionTypeNode(type)) {
-    const literalValues = type.types.flatMap((member) => readTypeFacts(member, sourceFile).literalValues);
-    if (literalValues.length > 0) return { kind: "literal-union", literalValues };
-    return { kind: "unknown", literalValues: [] };
-  }
-  if (ts.isArrayTypeNode(type)) return { kind: "array", literalValues: [] };
-  if (ts.isTupleTypeNode(type)) return { kind: "tuple", literalValues: [] };
-  if (ts.isTypeLiteralNode(type)) return { kind: "object", literalValues: [] };
-  if (ts.isFunctionTypeNode(type) || ts.isConstructorTypeNode(type)) return { kind: "callable", literalValues: [] };
-  if (ts.isTypeReferenceNode(type)) {
-    const text = type.typeName.getText(sourceFile);
-    if (text === "Array" || text === "ReadonlyArray") return { kind: "array", literalValues: [] };
-    if (text === "Record" || text === "Object") return { kind: "object", literalValues: [] };
-    return { kind: "unknown", literalValues: [] };
-  }
-  return { kind: "unknown", literalValues: [] };
-}
-
-/** Extracts direct named object members only; deeper type chasing remains bounded. */
-function readParameterMembers(parameter: ts.ParameterDeclaration, sourceFile: ts.SourceFile): FunctionTutorMemberFact[] {
-  const members: FunctionTutorMemberFact[] = [];
-  if (!ts.isObjectBindingPattern(parameter.name)) return members;
-  for (const element of parameter.name.elements.slice(0, 8)) {
-    if (!ts.isIdentifier(element.name)) continue;
-    members.push({
-      path: [element.propertyName?.getText(sourceFile) ?? element.name.text],
-      typeKind: "unknown",
-      optional: Boolean(element.initializer),
-      literalValues: []
-    });
-  }
-  return members;
-}
-
 /** Builds empty blocks first so later statement collection never changes graph identity. */
 function createProgram(
   sourceFile: ts.SourceFile,
@@ -262,7 +259,7 @@ function createProgram(
   const entryBlockId = functionLogic.blocks.find((block) => block.kind === "entry")?.id
     ?? functionLogic.blocks[0]?.id
     ?? "tutor-entry:missing";
-  return {
+  const program: FunctionTutorProgram = {
     entryBlockId,
     blocks: functionLogic.blocks.map((block) => blocksById.get(block.id) ?? createEmptyProgramBlock(block)),
     edges: functionLogic.edges.map((edge) => ({
@@ -276,8 +273,9 @@ function createProgram(
     bindings: programBindings,
     gaps: gaps.slice()
   };
+  attachLogicalReturnContinuations(sourceFile, functionNode, filePath, functionLogic, program, bindingsByName, gaps);
+  return program;
 }
-
 /** Selects structural statement children without re-walking every expression. */
 function collectTutorStatementChildren(node: ts.Node): ts.Node[] {
   if (ts.isBlock(node)) return [...node.statements];
@@ -289,7 +287,51 @@ function collectTutorStatementChildren(node: ts.Node): ts.Node[] {
   }
   return [];
 }
-
+/**
+ * Connects the Function Logic short-circuit subgraph to its semantic return.
+ * The CFG is authoritative for evaluation order; this adds one value hand-off
+ * and never creates a synthetic graph edge or re-evaluates the logical return.
+ */
+function attachLogicalReturnContinuations(sourceFile: ts.SourceFile, functionNode: FunctionLikeWithBody, filePath: string, logic: FunctionLogicAnalysis, program: FunctionTutorProgram, bindingsByName: Map<string, string>, gaps: FunctionTutorGap[]): void {
+  const pending: ts.Node[] = [functionNode.body];
+  let cursor = 0;
+  while (cursor < pending.length) {
+    const node = pending[cursor++];
+    if (node !== functionNode.body && isFunctionLikeWithBody(node)) continue;
+    if (ts.isReturnStatement(node) && node.expression && ts.isBinaryExpression(node.expression)) {
+      const operator = node.expression.operatorToken.kind === ts.SyntaxKind.AmpersandAmpersandToken ? "and"
+        : node.expression.operatorToken.kind === ts.SyntaxKind.BarBarToken ? "or"
+          : node.expression.operatorToken.kind === ts.SyntaxKind.QuestionQuestionToken ? "nullish" : undefined;
+      if (operator) attachLogicalReturnContinuation(sourceFile, filePath, node, operator, logic, program, bindingsByName, gaps);
+    }
+    for (const child of collectTutorStatementChildren(node)) pending.push(child);
+  }
+}
+/** Validates one top-level logical return before attaching its opaque continuation. */
+function attachLogicalReturnContinuation(sourceFile: ts.SourceFile, filePath: string, statement: ts.ReturnStatement, operator: "and" | "or" | "nullish", logic: FunctionLogicAnalysis, program: FunctionTutorProgram, bindingsByName: Map<string, string>, gaps: FunctionTutorGap[]): void {
+  const expression = statement.expression as ts.BinaryExpression;
+  const byId = new Map(program.blocks.map((block) => [block.blockId, block]));
+  const returnBlock = findProgramBlockForNode(sourceFile, statement, logic.blocks, byId, "return");
+  const decisionBlock = findProgramBlockForNode(sourceFile, expression.left, logic.blocks, byId, "condition");
+  const supplyBlock = findProgramBlockForNode(sourceFile, expression.right, logic.blocks, byId);
+  if (!returnBlock || !decisionBlock || !supplyBlock || returnBlock.terminal?.kind !== "return") return;
+  const outcomes = logic.edges.filter((edge) => edge.sourceId === decisionBlock.blockId && (edge.kind === "true" || edge.kind === "false"));
+  const valid = outcomes.some((edge) => edge.kind === "true") && outcomes.some((edge) => edge.kind === "false")
+    && outcomes.some((edge) => edge.targetId === returnBlock.blockId)
+    && logic.edges.some((edge) => edge.sourceId === supplyBlock.blockId && edge.targetId === returnBlock.blockId);
+  if (!valid || program.continuations?.length) {
+    gaps.push({ kind: "unsupported-expression", blockId: returnBlock.blockId, summary: "The logical return does not have one unambiguous Function Logic continuation.", evidence: [createEvidence(filePath, toSourceRange(sourceFile, statement), "fallback", "unknown", "Ambiguous logical return continuation.")] });
+    return;
+  }
+  const range = toSourceRange(sourceFile, expression);
+  const id = `tutor-logical-return:${createContentHash(`${filePath}\0${range.startLine}\0${range.startCharacter}\0${returnBlock.blockId}`).slice(0, 24)}`;
+  const select = toExpression(expression.left, sourceFile, bindingsByName);
+  const supply = toExpression(expression.right, sourceFile, bindingsByName);
+  decisionBlock.decision = { expression: operator === "nullish" ? { kind: "unary", operator: "non-nullish", operand: select } : select, continuationId: id, outcomes: outcomes.map((edge) => ({ edgeId: edge.id, label: edge.label ?? edge.kind, matches: edge.kind as "true" | "false" })) };
+  supplyBlock.continuationSupplyId = id;
+  returnBlock.terminal = { kind: "return", continuationId: id };
+  program.continuations = [{ id, predicate: operator === "nullish" ? "non-nullish" : "truthy", select, supply, decisionBlockId: decisionBlock.blockId, supplyBlockId: supplyBlock.blockId, returnBlockId: returnBlock.blockId }];
+}
 /** Adds one statement's direct operations or decision to the matching visible block. */
 function collectProgramStatement(
   sourceFile: ts.SourceFile,
@@ -309,7 +351,10 @@ function collectProgramStatement(
             : ts.isBreakStatement(node) ? "break"
               : ts.isContinueStatement(node) ? "continue"
                 : undefined;
-  const block = findProgramBlockForNode(sourceFile, node, analysis.blocks, blocksById, expectedKind);
+  // Parser versions occasionally classify an async return as a plain operation;
+  // retain the range-proven terminal rather than silently degrading to exit.
+  const block = findProgramBlockForNode(sourceFile, node, analysis.blocks, blocksById, expectedKind)
+    ?? (expectedKind ? findProgramBlockForNode(sourceFile, node, analysis.blocks, blocksById) : undefined);
   if (!block) return;
   if (ts.isIfStatement(node)) {
     block.decision = createDecision(sourceFile, node.expression, analysis, block.blockId, bindingsByName);
@@ -341,14 +386,19 @@ function collectProgramStatement(
     return;
   }
   if (ts.isVariableStatement(node)) {
+    // Conditional initializer value blocks overlap the declaration. Attach the
+    // definition to the declaration's mutation/merge block so both exact CFG
+    // outcomes rejoin before subsequent assignments.
+    const operationBlock = findProgramBlockForNode(sourceFile, node, analysis.blocks, blocksById, "mutation") ?? block;
     for (const declaration of node.declarationList.declarations) {
       if (!ts.isIdentifier(declaration.name)) continue;
       const bindingId = ensureBinding(declaration.name.text, "local", bindingsByName, programBindings);
-      if (declaration.initializer) block.operations.push({
+      if (declaration.initializer) operationBlock.operations.push({
         kind: "define",
         bindingId,
         value: toExpression(declaration.initializer, sourceFile, bindingsByName)
       });
+      if (declaration.initializer) collectConditionalDecisions(declaration.initializer, sourceFile, analysis, blocksById, bindingsByName);
     }
     return;
   }
@@ -356,6 +406,7 @@ function collectProgramStatement(
     const operation = readExpressionOperation(node.expression, sourceFile, bindingsByName);
     if (operation) {
       block.operations.push(operation);
+      if (ts.isBinaryExpression(node.expression)) collectConditionalDecisions(node.expression.right, sourceFile, analysis, blocksById, bindingsByName);
     } else if (ts.isCallExpression(node.expression)) {
       block.operations.push({
         kind: "effect",
@@ -374,7 +425,18 @@ function collectProgramStatement(
     }
   }
 }
-
+/** Iteratively connects conditional RHS expressions to their existing CFG decision blocks. */
+function collectConditionalDecisions(expression: ts.Expression, sourceFile: ts.SourceFile, analysis: FunctionLogicAnalysis, blocksById: Map<string, FunctionTutorProgramBlock>, bindingsByName: Map<string, string>): void {
+  const pending: ts.Node[] = [expression]; let cursor = 0;
+  while (cursor < pending.length && cursor < 96) {
+    const current = pending[cursor++];
+    if (ts.isConditionalExpression(current)) {
+      const block = findProgramBlockForNode(sourceFile, current.condition, analysis.blocks, blocksById, "condition");
+      if (block && !block.decision) block.decision = createDecision(sourceFile, current.condition, analysis, block.blockId, bindingsByName);
+    }
+    ts.forEachChild(current, (child) => { pending.push(child); });
+  }
+}
 /** Turns simple assignment/update AST forms into operations without string parsing. */
 function readExpressionOperation(
   expression: ts.Expression,
@@ -391,6 +453,10 @@ function readExpressionOperation(
       operator: assignmentOperator(expression.operatorToken.kind)
     };
   }
+  if (ts.isDeleteExpression(expression)) {
+    const target = readAssignmentTarget(expression.expression, bindingsByName);
+    return target ? { kind: "delete", target } : undefined;
+  }
   if (ts.isPrefixUnaryExpression(expression) || ts.isPostfixUnaryExpression(expression)) {
     if (expression.operator !== ts.SyntaxKind.PlusPlusToken && expression.operator !== ts.SyntaxKind.MinusMinusToken) return undefined;
     const target = readAssignmentTarget(expression.operand, bindingsByName);
@@ -399,7 +465,6 @@ function readExpressionOperation(
   }
   return undefined;
 }
-
 /** Limits assignment targets to tracked lexical bindings and direct own members. */
 function readAssignmentTarget(
   expression: ts.Expression,
@@ -410,10 +475,9 @@ function readAssignmentTarget(
     return bindingId ? { kind: "binding", bindingId } : undefined;
   }
   const member = readBindingMember(expression, bindingsByName);
-  if (!member || member.path.some((part) => !isFunctionTutorSafeObjectKey(part))) return undefined;
-  return { kind: "member", bindingId: member.bindingId, path: member.path };
+  if (!member || member.segments.some((part) => part.kind === "static" && !isFunctionTutorSafeObjectKey(part.key))) return undefined;
+  return { kind: "member", bindingId: member.bindingId, path: member.path, segments: member.segments };
 }
-
 /** Creates a decision by reusing Function Logic edge identities rather than labels. */
 function createDecision(
   sourceFile: ts.SourceFile,
@@ -434,7 +498,6 @@ function createDecision(
   }));
   return { expression: toExpression(expression, sourceFile, bindingsByName), outcomes };
 }
-
 /** Picks the closest overlapping visible block, preferring the expected semantic role. */
 function findProgramBlockForNode(
   sourceFile: ts.SourceFile,
@@ -450,7 +513,6 @@ function findProgramBlockForNode(
     || left.id.localeCompare(right.id))[0];
   return selected ? programBlocks.get(selected.id) : undefined;
 }
-
 /** Keeps analyzer program blocks source-backed even when they have no supported operation. */
 function createEmptyProgramBlock(block: FunctionLogicBlock): FunctionTutorProgramBlock {
   return {
@@ -462,7 +524,6 @@ function createEmptyProgramBlock(block: FunctionLogicBlock): FunctionTutorProgra
     evidence: [createEvidence(block.filePath, block.range, "fallback", block.confidence, "Function Logic source block.")]
   };
 }
-
 /** Registers a local only once, preserving Function Logic IDs when available. */
 function ensureBinding(
   name: string,
@@ -477,7 +538,6 @@ function ensureBinding(
   programBindings.push({ bindingId, name, kind, certainty: "inferred" });
   return bindingId;
 }
-
 /** Collects direct parameter predicates with an explicit stack, not parser recursion. */
 function collectConstraints(
   sourceFile: ts.SourceFile,
@@ -499,8 +559,10 @@ function collectConstraints(
       const block = findMatchingLogicBlock(sourceFile, expression, analysis.blocks, "condition")
         ?? findMatchingLogicBlock(sourceFile, expression, analysis.blocks, "loop");
       if (block) {
-        const constraint = readConstraint(sourceFile, expression, block.id, parameterByName);
-        if (constraint) constraints.push(constraint);
+        for (const atomic of collectFunctionTutorAtomicConditions(expression)) {
+          const constraint = readConstraint(sourceFile, atomic, block.id, parameterByName);
+          if (constraint && constraints.length < 64) constraints.push(constraint);
+        }
       }
     }
     const children = collectTutorStatementChildren(node);
@@ -508,7 +570,6 @@ function collectConstraints(
   }
   return constraints;
 }
-
 /** Converts bare/null/scalar parameter predicates to candidate-domain constraints. */
 function readConstraint(
   sourceFile: ts.SourceFile,
@@ -537,9 +598,9 @@ function readConstraint(
   if (operand.kind === "unknown") return undefined;
   const operator = binaryConstraintOperator(expression.operatorToken.kind, Boolean(right));
   if (!operator) return undefined;
-  return createConstraint(sourceFile, expression, blockId, parameterRef.parameter, parameterRef.path, operator, operand);
+  const normalized = normalizeFunctionTutorLengthConstraint(parameterRef.parameter, parameterRef.path, operator, operand);
+  return createConstraint(sourceFile, expression, blockId, parameterRef.parameter, normalized.path, normalized.operator, operand);
 }
-
 /** Creates stable constraint identity from source location and parameter identity. */
 function createConstraint(
   sourceFile: ts.SourceFile,
@@ -563,7 +624,6 @@ function createConstraint(
     evidence: [evidence]
   };
 }
-
 /** Resolves one identifier or direct property chain to a declared parameter. */
 function readParameterReference(
   expression: ts.Expression,
@@ -576,97 +636,33 @@ function readParameterReference(
   const member = readBindingMember(expression, new Map<string, string>(
     [...parameterByName.values()].flatMap((parameter) => parameter.bindingId ? [[parameter.name, parameter.bindingId]] : [])
   ));
-  if (!member) return undefined;
+  if (!member || member.path.some((part) => !isFunctionTutorSafeObjectKey(part))) return undefined;
   const parameter = [...parameterByName.values()].find((candidate) => candidate.bindingId === member.bindingId);
   return parameter ? { parameter, path: member.path } : undefined;
 }
-
 /** Reads an identifier/property chain without traversing arbitrary expressions. */
 function readBindingMember(
   expression: ts.Expression,
   bindingsByName: Map<string, string>
-): { bindingId: string; path: string[] } | undefined {
-  const path: string[] = [];
+): { bindingId: string; path: string[]; segments: Array<{ kind: "static"; key: string } | { kind: "binding"; bindingId: string }> } | undefined {
+  const segments: Array<{ kind: "static"; key: string } | { kind: "binding"; bindingId: string }> = [];
   let current: ts.Expression = expression;
-  while (ts.isPropertyAccessExpression(current)) {
-    path.unshift(current.name.text);
+  while (ts.isPropertyAccessExpression(current) || ts.isElementAccessExpression(current)) {
+    if (ts.isPropertyAccessExpression(current)) { segments.unshift({ kind: "static", key: current.name.text }); current = current.expression; continue; }
+    const key = current.argumentExpression;
+    if (!key) return undefined;
+    if (ts.isIdentifier(key)) {
+      const keyBindingId = bindingsByName.get(key.text); if (!keyBindingId) return undefined;
+      segments.unshift({ kind: "binding", bindingId: keyBindingId });
+    } else if (ts.isStringLiteral(key) || ts.isNoSubstitutionTemplateLiteral(key) || ts.isNumericLiteral(key)) {
+      segments.unshift({ kind: "static", key: ts.isNumericLiteral(key) ? String(Number(key.text)) : key.text });
+    } else return undefined;
     current = current.expression;
   }
-  if (!ts.isIdentifier(current)) return undefined;
-  const bindingId = bindingsByName.get(current.text);
-  return bindingId ? { bindingId, path } : undefined;
+  if (!ts.isIdentifier(current) && current.kind !== ts.SyntaxKind.ThisKeyword) return undefined;
+  const bindingId = bindingsByName.get(ts.isIdentifier(current) ? current.text : "this");
+  return bindingId ? { bindingId, path: segments.every((part) => part.kind === "static") ? segments.map((part) => part.key) : [], segments } : undefined;
 }
-
-/**
- * Converts a finite expression subset into IR. Recursive descent is bounded by
- * MAX_EXPRESSION_DEPTH and AST nodes are acyclic; unsupported forms terminate
- * as explicit unknowns instead of evaluating source text.
- */
-function toExpression(
-  expression: ts.Expression,
-  sourceFile: ts.SourceFile,
-  bindingsByName: Map<string, string>,
-  depth = 0
-): FunctionTutorExpression {
-  if (depth >= MAX_EXPRESSION_DEPTH) return { kind: "unsupported", reason: "depth-budget", summary: "Expression nesting exceeds the Tutor limit." };
-  const staticValue = readStaticValue(expression, sourceFile);
-  if (staticValue.kind !== "unknown") return { kind: "literal", value: staticValue };
-  if (ts.isIdentifier(expression)) {
-    const bindingId = bindingsByName.get(expression.text);
-    return bindingId
-      ? { kind: "binding", bindingId }
-      : { kind: "unsupported", reason: "ambiguous-binding", summary: `Untracked binding ${expression.text}.` };
-  }
-  const member = readBindingMember(expression, bindingsByName);
-  if (member) return { kind: "member", object: { kind: "binding", bindingId: member.bindingId }, path: member.path, optional: false };
-  if (ts.isParenthesizedExpression(expression)) return toExpression(expression.expression, sourceFile, bindingsByName, depth + 1);
-  if (ts.isPrefixUnaryExpression(expression)) {
-    const operator = expression.operator === ts.SyntaxKind.ExclamationToken ? "not"
-      : expression.operator === ts.SyntaxKind.PlusToken ? "plus"
-        : expression.operator === ts.SyntaxKind.MinusToken ? "minus" : undefined;
-    return operator
-      ? { kind: "unary", operator, operand: toExpression(expression.operand, sourceFile, bindingsByName, depth + 1) }
-      : { kind: "unsupported", reason: "unsupported-expression", summary: "Unsupported unary expression." };
-  }
-  if (ts.isTypeOfExpression(expression)) return { kind: "unary", operator: "typeof", operand: toExpression(expression.expression, sourceFile, bindingsByName, depth + 1) };
-  if (ts.isBinaryExpression(expression)) {
-    const operator = binaryExpressionOperator(expression.operatorToken.kind);
-    if (!operator) return { kind: "unsupported", reason: "unsupported-expression", summary: "Unsupported binary expression." };
-    return {
-      kind: "binary",
-      operator,
-      left: toExpression(expression.left, sourceFile, bindingsByName, depth + 1),
-      right: toExpression(expression.right, sourceFile, bindingsByName, depth + 1)
-    };
-  }
-  if (ts.isConditionalExpression(expression)) return {
-    kind: "conditional",
-    condition: toExpression(expression.condition, sourceFile, bindingsByName, depth + 1),
-    whenTrue: toExpression(expression.whenTrue, sourceFile, bindingsByName, depth + 1),
-    whenFalse: toExpression(expression.whenFalse, sourceFile, bindingsByName, depth + 1)
-  };
-  if (ts.isArrayLiteralExpression(expression)) return {
-    kind: "array",
-    items: expression.elements.slice(0, 8).map((element) => ts.isExpression(element)
-      ? toExpression(element, sourceFile, bindingsByName, depth + 1)
-      : { kind: "unsupported", reason: "unsupported-expression", summary: "Unsupported array spread." })
-  };
-  if (ts.isObjectLiteralExpression(expression)) return {
-    kind: "object",
-    entries: expression.properties.slice(0, 8).flatMap((property) => {
-      if (!ts.isPropertyAssignment(property)) return [];
-      const key = readPropertyName(property.name);
-      return key && isFunctionTutorSafeObjectKey(key)
-        ? [{ key, value: toExpression(property.initializer, sourceFile, bindingsByName, depth + 1) }]
-        : [];
-    })
-  };
-  if (ts.isCallExpression(expression) || ts.isNewExpression(expression)) {
-    return { kind: "unsupported", reason: "dynamic-call", summary: "Calls are not executed by Function Guide static input cases." };
-  }
-  return { kind: "unsupported", reason: "unsupported-expression", summary: "Unsupported source expression." };
-}
-
 /** Reads source literals and bounded literal containers without any evaluation. */
 function readStaticValue(node: ts.Node, sourceFile: ts.SourceFile): FunctionTutorStaticValue {
   if (node.kind === ts.SyntaxKind.TrueKeyword) return { kind: "boolean", value: true };
@@ -700,26 +696,12 @@ function readStaticValue(node: ts.Node, sourceFile: ts.SourceFile): FunctionTuto
   }
   return createFunctionTutorUnknown("not-inferred", "The expression is not a safe static literal.");
 }
-
 /** Reads an own property label from literal syntax only. */
 function readPropertyName(name: ts.PropertyName): string | undefined {
   if (ts.isIdentifier(name) || ts.isStringLiteral(name) || ts.isNumericLiteral(name)) return name.text;
   if (ts.isComputedPropertyName(name) && (ts.isStringLiteral(name.expression) || ts.isNumericLiteral(name.expression))) return name.expression.text;
   return undefined;
 }
-
-function binaryExpressionOperator(kind: ts.SyntaxKind): Extract<FunctionTutorExpression, { kind: "binary" }>["operator"] | undefined {
-  const byKind = new Map<ts.SyntaxKind, Extract<FunctionTutorExpression, { kind: "binary" }>["operator"]>([
-    [ts.SyntaxKind.EqualsEqualsToken, "eq"], [ts.SyntaxKind.EqualsEqualsEqualsToken, "strict-eq"],
-    [ts.SyntaxKind.ExclamationEqualsToken, "neq"], [ts.SyntaxKind.ExclamationEqualsEqualsToken, "strict-neq"],
-    [ts.SyntaxKind.LessThanToken, "lt"], [ts.SyntaxKind.LessThanEqualsToken, "lte"],
-    [ts.SyntaxKind.GreaterThanToken, "gt"], [ts.SyntaxKind.GreaterThanEqualsToken, "gte"],
-    [ts.SyntaxKind.PlusToken, "add"], [ts.SyntaxKind.MinusToken, "subtract"], [ts.SyntaxKind.AsteriskToken, "multiply"],
-    [ts.SyntaxKind.SlashToken, "divide"], [ts.SyntaxKind.PercentToken, "modulo"], [ts.SyntaxKind.InKeyword, "in"]
-  ]);
-  return byKind.get(kind);
-}
-
 function binaryConstraintOperator(kind: ts.SyntaxKind, reverse: boolean): FunctionTutorConstraint["operator"] | undefined {
   const base = new Map<ts.SyntaxKind, FunctionTutorConstraint["operator"]>([
     [ts.SyntaxKind.EqualsEqualsToken, "eq"], [ts.SyntaxKind.EqualsEqualsEqualsToken, "eq"],
@@ -730,13 +712,11 @@ function binaryConstraintOperator(kind: ts.SyntaxKind, reverse: boolean): Functi
   if (!base || !reverse) return base;
   return base === "lt" ? "gt" : base === "lte" ? "gte" : base === "gt" ? "lt" : base === "gte" ? "lte" : base;
 }
-
 function isAssignmentOperator(kind: ts.SyntaxKind): boolean {
   return kind === ts.SyntaxKind.EqualsToken || kind === ts.SyntaxKind.PlusEqualsToken
     || kind === ts.SyntaxKind.MinusEqualsToken || kind === ts.SyntaxKind.AsteriskEqualsToken
     || kind === ts.SyntaxKind.SlashEqualsToken;
 }
-
 function assignmentOperator(kind: ts.SyntaxKind): "set" | "add" | "subtract" | "multiply" | "divide" {
   if (kind === ts.SyntaxKind.PlusEqualsToken) return "add";
   if (kind === ts.SyntaxKind.MinusEqualsToken) return "subtract";
@@ -744,7 +724,6 @@ function assignmentOperator(kind: ts.SyntaxKind): "set" | "add" | "subtract" | "
   if (kind === ts.SyntaxKind.SlashEqualsToken) return "divide";
   return "set";
 }
-
 function findMatchingLogicBlock(
   sourceFile: ts.SourceFile,
   node: ts.Node,
@@ -755,7 +734,6 @@ function findMatchingLogicBlock(
   return blocks.filter((block) => block.kind === kind && rangeOverlaps(range, block.range))
     .sort((left, right) => rangeArea(left.range) - rangeArea(right.range) || left.id.localeCompare(right.id))[0];
 }
-
 function rangeOverlaps(left: SourceRange, right: SourceRange | undefined): boolean {
   if (!right) return true;
   const leftStart = (left.startLine * 1_000_000) + left.startCharacter;
@@ -764,17 +742,14 @@ function rangeOverlaps(left: SourceRange, right: SourceRange | undefined): boole
   const rightEnd = (right.endLine * 1_000_000) + right.endCharacter;
   return leftStart <= rightEnd && rightStart <= leftEnd;
 }
-
 function rangeArea(range: SourceRange): number {
   return ((range.endLine - range.startLine) * 1_000_000) + (range.endCharacter - range.startCharacter);
 }
-
 function readExecutionKind(functionNode: FunctionLikeWithBody): FunctionTutorDeclarationAnalysis["executionKind"] {
   const async = Boolean(ts.getModifiers(functionNode)?.some((modifier) => modifier.kind === ts.SyntaxKind.AsyncKeyword));
   const generator = Boolean(functionNode.asteriskToken);
   return async && generator ? "async-generator" : async ? "async" : generator ? "generator" : "sync";
 }
-
 function createEvidence(
   filePath: string,
   range: SourceRange,

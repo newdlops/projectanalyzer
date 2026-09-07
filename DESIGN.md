@@ -1,3 +1,63 @@
+# Function reading workspace
+
+## Design contract — September 2026
+
+Developers opening an unfamiliar function should find its starting point, key
+decisions, calls, and exits before learning graph controls. The primary action
+is selecting a readable source step and seeing that same step on the graph and
+in its evidence panel. This is a substantial information-hierarchy improvement
+to the existing VS Code product UI, using its existing native DOM components.
+
+- **Hierarchy:** function name and source location → compact graph controls →
+  source-order outline beside the canvas → selected-code evidence. Values and
+  scenarios, and function-level information, each have their own labeled tab in
+  the Inspector. Function Guide remains a separate, mutually exclusive reading
+  disclosure. No calculations begin merely by opening a reading tab.
+- **Outline:** a bounded list of the actual displayed blocks, with ordinal,
+  semantic kind, source label, nesting, and textual confidence. Local filters
+  for decisions, calls, and exits change only the list. Selecting a row reveals
+  the existing graph block; Previous/Next follow the displayed source outline,
+  not a claimed execution path. Branch choices remain explicit graph actions.
+- **Density and typography:** compact editor density, UI font for navigation
+  and explanation, editor monospace for source. Titles stay subordinate to
+  source content. Use 4/8/12/16px spacing, existing 3–7px control radii, 1px theme
+  borders, and flat surfaces without decorative elevation or new fonts.
+- **Color:** VS Code foreground/background, list selection, focus, and existing
+  semantic graph tokens. Kind and confidence are also written in text; no
+  meaning relies on color. Selected navigation uses a visible border and full
+  contrast text in both light and dark themes.
+- **Responsive:** support 320px minimum width. On desktop the outline occupies
+  a compact left column, leaving the graph primary. Below 1040px it becomes a
+  collapsible reading list above the canvas; below 840px the Inspector stacks
+  below it. All supporting regions scroll independently, long source wraps,
+  and page-level horizontal overflow is unacceptable.
+- **Interaction:** visible keyboard focus, native buttons, labeled tablists
+  with Arrow/Home/End navigation, a single current outline item, retained
+  per-session tab/filter state, and a readable no-match state. Opening a tab
+  preserves values, branch choices, graph layout, and source authority. Direct
+  graph selection returns the Inspector to selected-code evidence. Guide input
+  handoff opens the Values tab. Idle, pending, error, empty, disabled, selected,
+  focused, long-text, and dense states must remain usable.
+- **Motion:** selection is immediate; camera changes occur only for explicit
+  outline navigation. No new autoplay or animated decoration. Existing reduced
+  motion and forced-colors behavior applies.
+- **Avoid:** one endless panel of every tool, duplicated static ledgers, legends
+  competing with the reading task, invented source summaries or metrics, and
+  presenting source order as runtime order.
+
+## Acceptance checks
+
+1. A first-time reader can start at the entry, jump to a decision or exit, and
+   inspect exact source without editing inputs or sending an implicit Host request.
+2. Outline, graph selection, and evidence remain synchronized; filters and tab
+   changes do not mutate graph meaning or start scenario/playback work.
+3. Values, Guide handoff, branch choices, source actions, and child attachment
+   still work through the existing controllers and opaque protocol identities.
+4. Korean/English refresh retains selection, focus, tab, filter, and values.
+5. Verify real generated Webview HTML at 390×844, 768×1024, and 1440×900;
+   exercise keyboard, a dense function, long labels, light/dark themes, and
+   empty/filtered states independently of compile/unit checks.
+
 # Function Logic Value-Flow Playback
 
 ## User and task
@@ -32,19 +92,74 @@ route; it never turns every node into an animated card or hides confidence.
   stops playback and returns it to the START frame.
 - Empty and no-route states explain why playback is unavailable. Inferred hops
   remain dashed and are labeled as inferred.
+- Values offers one explicit **Use recommended values** action when bounded
+  `logic.tutor` seeds or supported declared parameter types provide serializable
+  inputs. It chooses the first all-known ranked seed, otherwise the first
+  partial-known seed, preserves its known source/default/literal values, and
+  completes only missing or unknown values with conservative declared-type
+  representatives. Same-file typed arrays receive one supported element,
+  tuples retain supported positions, and complete required object shapes use
+  literal-first leaves or `"sample"`, `0`, and `false`; broad unshaped arrays
+  and objects remain explicit `[]`/`{}` fallbacks. It
+  maps only by parameter binding identity and reports source, certainty,
+  type-completed values, and remaining unavailable values. It never starts
+  playback or executes source.
+- Type representatives are derived from direct primitives/collections plus a
+  bounded same-file TypeScript syntax pass for aliases, interfaces, readonly
+  arrays, compatible unions, and object intersections. Imported or cyclic
+  types stay unknown rather than being guessed.
+- Required object properties are expanded to a bounded two-level representative
+  shape so member-based calculations can start from type-valid JSON. Optional
+  members are omitted; imported, cyclic, callable, unknown, or incomplete
+  required shapes stay unavailable rather than being fabricated. Candidate
+  order remains source-first and structurally deduplicated.
+- Direct, safe parameter member predicates retain their typed field path. Their
+  satisfying and non-satisfying boundary values are written back into a complete
+  declared object representative instead of replacing the parameter with a
+  scalar. Logical conditions retain each atomic field predicate, and typed
+  string/array `.length` predicates produce bounded container values. When a
+  parameter has no declared type, a direct safe member predicate may establish
+  a bounded object shape; ambiguous untyped `.length` access stays unavailable.
 
 ## Visual and motion rules
+
+The playback card includes a compact wrapping variable-token board. It keeps
+one first-occurrence-ordered token per opaque binding/field identity, updates
+it from the latest arrived `before → after` fact, and leaves future facts
+pending. Complete identity/value text wraps without page overflow; only a
+known arrived after value uses the semantic modified/link foreground. Locale
+refresh and manual, automatic, and reduced-motion playback share these facts
+without adding a scheduler.
 
 - Reuse VS Code semantic colors: blue/link for tracked flow, yellow for sinks,
   and the existing warning/error colors only for their semantic states.
 - Controls are compact, keyboard reachable, visibly focused, and grouped with
   a live status announcement.
-- Motion is bounded slow (760 ms) path travel with an ease-out curve. The labeled
-  `name = value` token travels
+- Motion uses bounded, distance-aware 1.4–2.8 second path travel plus a readable
+  0.65–0.9 second semantic dwell. The larger labeled `name = value` token travels
   only along an already-existing lexical SVG hop; derived/write-only frames
   highlight their node without inventing a semantic edge. Mutations receive a
   one-shot orange `Δ` ring and expose `before → after` plus confidence in text.
-- `prefers-reduced-motion` replaces travel with an immediate active-hop state.
+- The token is a canvas-top foreground layer above edges and nodes. At a
+  source-backed value transition, a node-anchored plaque states ordered
+  `before/input → target operator expression → after/result`, confidence, and an
+  explicit unknown reason where the Scenario data has one; it never invents a
+  runtime value or operation.
+- During an armed Play/Replay pass, translation-only camera follow keeps the
+  token in the central half of the visible viewport. Pointer/trackpad pan,
+  wheel or keyboard zoom, Center, and Fit immediately turn follow off for that
+  pass while controls remain usable; a new ready/stopped Play pass re-arms it.
+- Pointer and trackpad pan collect their final screen-space transform into one
+  animation-frame paint. That flush updates only canvas/grid paint state; it
+  does not relayout, refresh graph data, write toolbar copy, or message the Host.
+- `prefers-reduced-motion` replaces token/camera travel with the identical
+  ordered textual beats, active hop, confidence, START/Δ/sink semantics, and
+  controls.
+- Path length, bounded point samples, cadence, and camera safe-zone baseline
+  are captured at transition start. Per-frame work only interpolates cached
+  numbers and paints the foreground/canvas transform; it does not read SVG
+  geometry, rebuild DOM/layout, rewrite locale/toolbar copy, persist state, or
+  message the Host.
 - Only the active frame and, where present, its lexical hop endpoints receive
   transient emphasis; no continuous or decorative loop is used. Reduced motion
   and forced colors retain START, `Δ`, status, and manual controls while
@@ -60,7 +175,9 @@ route; it never turns every node into an animated card or hides confidence.
   Setting: `ko`/`en` override explicitly, while `auto` resolves from the VS
   Code display language (`ko`/`ko-*` is Korean; all other/missing values are
   English). The Host updates a ready card in place without playback work or a
-  graph rebuild. Source identifiers and carried values remain unchanged.
+  graph rebuild. Source identifiers and carried values remain unchanged. A
+  settled transient calculation plaque is reformatted into the resolved locale
+  in place; this copy-only pass never advances playback or moves the camera.
 
 ## Responsive and state requirements
 
@@ -86,24 +203,26 @@ debugger: source is never executed and uncertainty remains visible.
 
 ## Information and interaction contract
 
-- The graph header groups controls by **Show**, **View**, and **Read**. Its
-  explicit **Function Guide** and **Inspector** controls are mutually exclusive
-  disclosures with `aria-expanded`; neither is a fifth graph lens or uses
+- The graph header groups controls by **View** and **Read**, followed by a
+  native **Graph key** disclosure for exact/inferred paths, choices,
+  value flow/change, calls, and outcomes. **Function Guide** and **Details**
+  remain mutually exclusive disclosures with `aria-expanded`; neither uses
   pressed state. Repeating the active control closes the reading panel.
-- The reading panel has two exclusive modes. Inspector shows the selected block;
+- The reading panel has two exclusive modes. Inspector groups selected code,
+  values/paths, and function information in three retained tabs;
   Function Guide shows **At a Glance** and five stable questions: codebase fit,
   inputs, path decisions, work/calls, and outcomes. Opening or changing a Guide
-  question does not move the viewport, select a block, change a lens, open
+  question does not move the viewport, select a block, change graph semantics, open
   source, alter branch/value state, start playback, or calculate scenarios.
 - Each answer contains a deterministic claim, source-backed facts, certainty,
   source basis, and an explicit **Show on Graph** or **Open Source** action when
-  matching evidence exists. Only those explicit actions may change the graph
-  lens, selection, or viewport.
-- **Static Input Cases** is a lazy disclosure within the Guide. Its bounded
+  matching evidence exists. **Show on Graph** changes selection/emphasis and
+  viewport only; it never replaces graph semantics.
+- **Source Path Scenarios** is a lazy disclosure within the Guide. Its bounded
   interpreter starts only when opened, exposes idle/running/paused/complete
   status locally, pauses when the Guide closes, and never executes source.
-  **Load Inputs & Open Values** transfers known literals only, switches to the
-  existing Values lens, then opens the editable Scenario values destination.
+  **Load Inputs & Open Values** transfers known literals only, then opens the
+  editable Scenario destination in the Inspector's Values & paths tab.
 - Closing the Guide clears Guide attention and scenario preview but preserves
   branch choices, value playback, manual values, per-session reading state, and
   all non-Guide graph state.
@@ -125,3 +244,84 @@ debugger: source is never executed and uncertainty remains visible.
   beside each case/detail and use two- or three-column tables that do not create
   page-level horizontal scrolling. Guide attention uses the shared comprehension
   projection. Coarse-pointer targets are at least 44px.
+
+## Interprocedural Scenario values
+
+The existing Values rows remain the sole status surface. A bounded TS/JS direct
+call result updates those rows using the existing calculation/unknown rendering;
+localized finite boundary descriptors wrap in the existing detail treatment.
+The browser only consumes opaque bundled programs and call IDs. It uses an
+iterative tagged frame stack for program, expression, and call resumption, so
+input edits recompute locally without source execution, Host traffic, or changes
+to the graph snapshot. Payload v3 additionally marks an await boundary and
+statically decided optional disposition. A bare async call stays partial; an
+awaited exact local async program may contribute its bounded return value.
+The evaluator never resolves names in the browser. Method/constructor and
+generator support remains limited to opaque Host-proven programs, prototype-free
+own data, zero-argument iterator `next`, and the shared depth/work budgets.
+
+## Shared Scenario Workspace
+
+Values is the primary Scenario Workspace for the selected root function. Its
+user-visible unit is one reachable **path scenario**, not merely one input seed.
+The semantic four-column table shows scenario, path conditions, expected
+effects/outcome, and evidence/gaps; recommended parameter inputs remain named
+supporting evidence in the selected row's detail. Evaluated paths are listed
+individually. When concrete evaluation is unavailable, a bounded graph planner
+may enumerate source-backed condition choices and reachable effects as explicit
+symbolic scenarios. It never claims concrete values for those symbolic paths.
+
+Each path row has a sibling **Apply & Play** action after the four data columns:
+it selects and previews that exact seed/path pair, then applies only its
+deterministic branch edges through the existing single playback scheduler.
+Function Guide may disclose the same rows, selection, and calculation state,
+but never creates a second calculation or independently applies values. Status
+is textual and polite: idle, calculating, paused, ready, partial, error, and
+empty remain explicit static-analysis states.
+
+Row selection and keyboard movement remain preview-only. A row action is
+disabled with a textual reason until it has an evaluated path; the currently
+playing, paused, or completed story is labeled in that row, prevents a second
+start while active, and offers Replay after completion. The shared Flow playback
+card also exposes a non-persistent native **Playback speed / 재생 속도** select:
+`0.5×`, `1×` (the base cadence), `1.5×`, and `2×`. It is disabled only while
+automatic progression is active. The selected multiplier divides both real-hop
+remaining duration and textual-beat dwell, survives locale refresh for the card
+lifetime, and has no Host or settings side effect. Reduced motion still uses
+the same ordered textual beats; speed only affects their dwell cadence.
+
+Selecting a row or path is preview-only: it may focus resolved graph evidence
+without changing editable inputs, branch choices, selected graph block,
+viewport, playback, or Host state. **Apply Inputs** writes only known parameter
+binding identities. **Apply & Play** additionally applies only deterministic
+branch choices, remembers just those previous choices for restoration, and
+then starts the selected bounded story. Manual input or branch edits stop that
+story and mark the workspace Custom/Modified; a later selection never silently
+reapplies it.
+
+The story begins with one scenario START beat, then follows retained evaluator
+occurrence order through every bounded loop decision and visit, reachable
+calculations, selected decisions, value changes, calls/effects, and the terminal
+result. Every evaluated mutation remains one wrapped `variable: before → after`
+semantic beat even when it has no visible hop; optional spatial travel is
+suppressed for reduced motion while Play, Previous, and Next retain this exact
+textual order. Evaluated transitions may add concrete before/after values;
+symbolic beats retain source expressions and inferred confidence instead of
+inventing values. A single foreground token travels only on a real, exact,
+visible, non-dimmed lexical hop for the same binding. Cross-binding, derived,
+unknown, inferred, or disconnected records use the existing discrete
+calculation plaque and do not invent an edge. Values/Guide switching retains
+the session but pauses work and stops motion when neither scenario surface is
+active; relayout and locale refresh retain state without resuming it. Wide
+tables expose four semantic columns plus an action column; narrow layouts stack
+labeled cells without page-level horizontal scrolling.
+
+For a function with two independent boolean decisions, the Workspace must make
+the four reachable true/false combinations discoverable when inputs or external
+state do not decide them. Selecting each row must highlight its exact branch
+edges, identify the calls/effects reached on that path, and play a story that
+contains those decisions and effects. A multiline Python signature must retain
+its declared parameter types. Assignment expressions such as `name := value`
+must appear as value changes, and helper names beginning with `bulk_delete` must
+retain possible-effect styling. Unsupported concrete evaluation remains a
+visible gap and must not collapse the path catalog to a misleading single row.

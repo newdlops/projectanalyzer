@@ -13,7 +13,9 @@ import {
 import { getFunctionLogicViewportStyles } from "./viewport";
 import { getFunctionLogicComprehensionStyles } from "./comprehension";
 import { getFunctionTutorStyles } from "./tutor";
+import { getFunctionLogicScenarioWorkspaceStyles } from "./scenarioWorkspace";
 import { getCodeSnippetStyles } from "../codePresentation";
+import { getFunctionReadingStyles } from "./reading";
 
 /** Returns CSS for graph nodes, routed edges, lanes, and selection evidence. */
 export function getFunctionLogicGraphStyles(): string {
@@ -24,6 +26,8 @@ export function getFunctionLogicGraphStyles(): string {
     ${getFunctionLogicViewportStyles()}
     ${getFunctionLogicComprehensionStyles()}
     ${getFunctionTutorStyles()}
+    ${getFunctionLogicScenarioWorkspaceStyles()}
+    ${getFunctionReadingStyles()}
 
 
     .logic-signature {

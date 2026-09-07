@@ -32,13 +32,13 @@ const edges: FunctionLogicAttentionEdge[] = [
   { id: "loop-eval", sourceId: "eval-member", targetId: "eval", kind: "next" }
 ];
 
-test("keeps Flow context and makes the selected neighbourhood related", () => {
+test("keeps integrated context and makes the selected neighbourhood related", () => {
   const projection = createFunctionLogicAttentionProjection(blocks, edges, createState({ selectedBlockId: "left" }));
 
   assert.equal(projection.nodeLevelById.get("left"), "active");
   assert.equal(projection.nodeLevelById.get("condition"), "related");
   assert.equal(projection.nodeLevelById.get("effect"), "related");
-  assert.equal(projection.nodeLevelById.get("right"), "context");
+  assert.equal(projection.nodeLevelById.get("right"), "related");
 });
 
 test("preserves an explicitly selected node outside the current branch", () => {
@@ -52,15 +52,13 @@ test("preserves an explicitly selected node outside the current branch", () => {
   assert.equal(projection.edgeLevelById.get("condition-right"), "related");
 });
 
-test("does not foreground a Values route until a binding is selected", () => {
-  const withoutBinding = createFunctionLogicAttentionProjection(blocks, edges, createState({ lens: "values" }));
-  const withBinding = createFunctionLogicAttentionProjection(blocks, edges, createState({
-    lens: "values",
-    selectedBindingId: "total"
-  }));
+test("foregrounds control, value, call, and effect semantics concurrently", () => {
+  const projection = createFunctionLogicAttentionProjection(blocks, edges, createState({ selectedBindingId: "total" }));
 
-  assert.equal(withoutBinding.nodeLevelById.get("left"), "context");
-  assert.equal(withBinding.nodeLevelById.get("left"), "related");
+  assert.equal(projection.nodeLevelById.get("condition"), "related");
+  assert.equal(projection.nodeLevelById.get("left"), "related");
+  assert.equal(projection.nodeLevelById.get("right"), "related");
+  assert.equal(projection.nodeLevelById.get("effect"), "related");
 });
 
 test("gives a playback endpoint priority over a different selected node", () => {
@@ -115,8 +113,7 @@ test("uses an explicit embedded boundary identity when virtual nodes have anothe
 
 test("preserves reader state within a session and resets only for a new graph", () => {
   const initial = createFunctionLogicComprehensionState("graph-a");
-  const values = reduceFunctionLogicComprehensionState(initial, { type: "set-lens", lens: "values" });
-  const selected = reduceFunctionLogicComprehensionState(values, {
+  const selected = reduceFunctionLogicComprehensionState(initial, {
     type: "select-binding",
     bindingId: "total"
   });
@@ -126,7 +123,7 @@ test("preserves reader state within a session and resets only for a new graph", 
     edgeId: "condition-left"
   });
 
-  assert.equal(values.selectedBindingId, undefined);
+  assert.equal(initial.selectedBindingId, undefined);
   assert.equal(chosen.branchChoiceEdgeIdsBySourceId.get("condition"), "condition-left");
   assert.equal(reduceFunctionLogicComprehensionState(chosen, {
     type: "reset-session",
@@ -136,7 +133,6 @@ test("preserves reader state within a session and resets only for a new graph", 
     type: "reset-session",
     sessionKey: "graph-b"
   });
-  assert.equal(reset.lens, "flow");
   assert.equal(reset.selectedBindingId, undefined);
   assert.equal(reset.branchChoiceEdgeIdsBySourceId.size, 0);
 });
@@ -146,7 +142,6 @@ function createState(overrides: Partial<FunctionLogicComprehensionState> = {}): 
   return {
     sessionKey: "test",
     view: "map",
-    lens: "flow",
     branchChoiceEdgeIdsBySourceId: new Map(),
     inspectorOpen: true,
     playback: { status: "idle", activeHopIndex: 0 },

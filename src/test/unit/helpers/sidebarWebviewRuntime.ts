@@ -9,6 +9,9 @@ import assert from "node:assert/strict";
 /** Minimal sidebar runtime surface exposed to generated-script tests. */
 export type SidebarWebviewRuntime = {
   click(elementId: string): void;
+  /** Returns and flushes queued animation-frame callbacks when controlled frames are enabled. */
+  flushAnimationFrames(): void;
+  pendingAnimationFrameCount(): number;
   clickByTitle(title: string): void;
   /** Exercises a currently attached repeated control without relying on translated text. */
   clickRenderedByClassNth(elementId: string, className: string, index: number): void;
@@ -82,10 +85,14 @@ export type SidebarWebviewRuntime = {
 };
 
 /** Installs the small DOM and VS Code API surface used by the sidebar script. */
-export function installSidebarWebviewRuntime(initialWebviewState?: unknown): SidebarWebviewRuntime {
+export function installSidebarWebviewRuntime(
+  initialWebviewState?: unknown,
+  options?: { controlledAnimationFrames?: boolean }
+): SidebarWebviewRuntime {
   const previousWindow = Reflect.get(globalThis, "window");
   const previousDocument = Reflect.get(globalThis, "document");
   const previousRequestAnimationFrame = Reflect.get(globalThis, "requestAnimationFrame");
+  const previousCancelAnimationFrame = Reflect.get(globalThis, "cancelAnimationFrame");
   const previousAcquireVsCodeApi = Reflect.get(globalThis, "acquireVsCodeApi");
   const messages: Array<{ type: string; payload: unknown }> = [];
   const textValues: string[] = [];
@@ -95,6 +102,22 @@ export function installSidebarWebviewRuntime(initialWebviewState?: unknown): Sid
   let generatedElementId = 0;
   let webviewState = initialWebviewState;
   let focusedElementId: string | undefined;
+  let nextAnimationFrameId = 1;
+  const pendingAnimationFrames = new Map<number, FrameRequestCallback>();
+  /** Uses synchronous frames by default; targeted tests can explicitly control a queued frame. */
+  const requestAnimationFrame = (callback: FrameRequestCallback) => {
+    if (!options?.controlledAnimationFrames) {
+      callback(0);
+      return 0;
+    }
+    const id = nextAnimationFrameId;
+    nextAnimationFrameId += 1;
+    pendingAnimationFrames.set(id, callback);
+    return id;
+  };
+  const cancelAnimationFrame = (id: number) => {
+    pendingAnimationFrames.delete(id);
+  };
 
   /** Returns one persistent fake element because listeners attach by identity. */
   const getOrCreateElement = (id: string): SidebarFakeElement => {
@@ -216,9 +239,23 @@ export function installSidebarWebviewRuntime(initialWebviewState?: unknown): Sid
         if (name === "class") {
           element.className = value;
         }
+        if (name === "id") element.id = value;
       }
     };
 
+    // DOM IDs may be assigned after creation (e.g. ARIA tab/panel pairs).
+    // Keep event identity attached to the same element after that assignment.
+    let domId = id;
+    Object.defineProperty(element, "id", {
+      configurable: true,
+      get() { return domId; },
+      set(value: string) {
+        domId = String(value);
+        attributes.set("id", domId);
+        elements.set(domId, element);
+        elementListeners.set(domId, listeners);
+      }
+    });
     Object.defineProperty(element, "textContent", {
       configurable: true,
       get() {
@@ -248,8 +285,7 @@ export function installSidebarWebviewRuntime(initialWebviewState?: unknown): Sid
       windowListeners.set(type, handler);
     },
     requestAnimationFrame(callback: FrameRequestCallback) {
-      callback(0);
-      return 0;
+      return requestAnimationFrame(callback);
     }
   });
   Reflect.set(globalThis, "document", {
@@ -278,9 +314,9 @@ export function installSidebarWebviewRuntime(initialWebviewState?: unknown): Sid
     }
   });
   Reflect.set(globalThis, "requestAnimationFrame", (callback: FrameRequestCallback) => {
-    callback(0);
-    return 0;
+    return requestAnimationFrame(callback);
   });
+  Reflect.set(globalThis, "cancelAnimationFrame", cancelAnimationFrame);
   Reflect.set(globalThis, "acquireVsCodeApi", () => ({
     getState() {
       return webviewState;
@@ -294,6 +330,14 @@ export function installSidebarWebviewRuntime(initialWebviewState?: unknown): Sid
   }));
 
   return {
+    flushAnimationFrames() {
+      const pending = [...pendingAnimationFrames.values()];
+      pendingAnimationFrames.clear();
+      for (const callback of pending) callback(16);
+    },
+    pendingAnimationFrameCount() {
+      return pendingAnimationFrames.size;
+    },
     click(elementId) {
       const handlers = elementListeners.get(elementId)?.get("click") ?? [];
       assert.ok(handlers.length > 0, `missing click handler for ${elementId}`);
@@ -474,6 +518,7 @@ export function installSidebarWebviewRuntime(initialWebviewState?: unknown): Sid
       restoreGlobal("window", previousWindow);
       restoreGlobal("document", previousDocument);
       restoreGlobal("requestAnimationFrame", previousRequestAnimationFrame);
+      restoreGlobal("cancelAnimationFrame", previousCancelAnimationFrame);
       restoreGlobal("acquireVsCodeApi", previousAcquireVsCodeApi);
     },
     setRenderedScrollByClass(elementId, className, scroll) {

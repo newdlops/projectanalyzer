@@ -328,9 +328,9 @@ test("Function Logic keeps a large graph surface and modular adjacent inspector 
   );
 
   assert.match(renderer, /getFunctionLogicInspectorBrowserSource/u);
-  assert.match(renderer, /inspector\.attachViewport\(viewport\)/u);
+  assert.match(renderer, /inspector\.attachViewport\(reading\.element\)/u);
   assert.match(renderer, /inspector\.registerGuide\(tutorRendering\)/u);
-  assert.match(renderer, /inspector\.appendSections\(/u);
+  assert.match(renderer, /inspector\.appendSectionsTo\("values"/u);
   assert.match(renderer, /valueFlowRendering\?\.valuePreviewEditor/u);
   assert.match(renderer, /valueFlowRendering\?\.scenarioTrace/u);
   assert.match(renderer, /valueFlowRendering\?\.toolbar/u);
@@ -342,7 +342,7 @@ test("Function Logic keeps a large graph surface and modular adjacent inspector 
   assert.match(inspector, /open: wideQuery \? wideQuery\.matches : true/u);
   assert.match(
     inspector,
-    /inspectContent\.replaceChildren\(\.\.\.available, \.\.\.inspectContent\.children\)/u
+    /inspectContent\.append\(\.\.\.tabs\.panels\.values\(\)\)/u
   );
   assert.match(inspectorStyles, /display: grid/u);
   assert.match(inspectorStyles, /grid-template-columns: minmax\(0, 1fr\) 0/u);

@@ -32,7 +32,7 @@ export function getFunctionLogicScenarioObjectWriteBrowserSource(): string {
           origins
         );
       }
-      const path = parseFunctionLogicScenarioPath(String(change.target || "").trim());
+      const path = readFunctionLogicScenarioPropertyPath(change);
       if (!path || path.segments.length === 0) {
         return createFunctionLogicScenarioUnknown(createFunctionLogicScenarioReason("scenario-reason-member-path"), origins);
       }
@@ -128,7 +128,7 @@ export function getFunctionLogicScenarioObjectWriteBrowserSource(): string {
       context
     ) {
       if (!rootState || rootState.kind !== "known") return rootState;
-      const path = parseFunctionLogicScenarioPath(String(change.target || "").trim());
+      const path = readFunctionLogicScenarioPropertyPath(change);
       if (!path || path.segments.length === 0) return rootState;
       const resolved = resolveFunctionLogicScenarioWriteKeys(
         path.segments,
@@ -167,7 +167,9 @@ export function getFunctionLogicScenarioObjectWriteBrowserSource(): string {
       const keys = [];
       let combinedOrigins = normalizeFunctionLogicScenarioOrigins(origins);
       for (const segment of segments) {
-        const keyState = segment.kind === "dynamic"
+        const keyState = segment.kind === "binding"
+          ? (environment.get(segment.bindingId) || createFunctionLogicScenarioUnset(createFunctionLogicScenarioReason("scenario-reason-binding-empty"), [segment.bindingId]))
+          : segment.kind === "dynamic"
           ? resolveFunctionLogicScenarioBindingState(segment.value, environment, context)
           : createFunctionLogicScenarioKnown(segment.value, []);
         combinedOrigins = normalizeFunctionLogicScenarioOrigins([
@@ -186,6 +188,34 @@ export function getFunctionLogicScenarioObjectWriteBrowserSource(): string {
         keys.push(keyState.value);
       }
       return { keys, origins: combinedOrigins };
+    }
+
+    /** Reads projected opaque segments first; legacy source text remains a fallback. */
+    function readFunctionLogicScenarioPropertyPath(change) {
+      const reference = change?.valueRef;
+      if (reference?.segments?.length) {
+        return {
+          base: reference.rootBindingId,
+          segments: reference.segments.map((segment) => segment.kind === "binding"
+            ? { kind: "binding", bindingId: segment.bindingId }
+            : { kind: "literal", value: segment.key })
+        };
+      }
+      return parseFunctionLogicScenarioPath(String(change?.target || "").trim());
+    }
+
+    /** Reifies a dynamic key only after its Scenario binding is known and safe. */
+    function resolveFunctionLogicScenarioPropertyValueRef(change, environment, context) {
+      if (!change?.valueRef) return undefined;
+      const path = readFunctionLogicScenarioPropertyPath(change);
+      if (!path?.segments?.length) return undefined;
+      const resolved = resolveFunctionLogicScenarioWriteKeys(path.segments, environment, context, []);
+      if (resolved.errorDescriptor) return undefined;
+      return {
+        ...change.valueRef,
+        path: resolved.keys.map((key) => String(key)),
+        segments: resolved.keys.map((key) => ({ kind: "static", key: String(key) }))
+      };
     }
 
     /** Clones only containers on the selected path; no recursive heap walk occurs. */
@@ -292,6 +322,52 @@ export function getFunctionLogicScenarioObjectWriteBrowserSource(): string {
       return Reflect.deleteProperty(container, key)
         ? {}
         : { errorDescriptor: createFunctionLogicScenarioReason("scenario-reason-object-delete") };
+    }
+
+    /**
+     * Applies a projected Tutor member operation without mutating the shared
+     * environment object. Tutor paths are already parser-proven static keys.
+     */
+    function applyFunctionLogicScenarioTutorMemberChange(previousRoot, path, operator, value) {
+      const origins = previousRoot?.origins || [];
+      if (!previousRoot || previousRoot.kind !== "known" || !Array.isArray(path) || path.length === 0
+        || path.length > MAX_LOGIC_SCENARIO_MEMBER_WRITE_DEPTH
+        || path.some((key) => FUNCTION_LOGIC_SCENARIO_BLOCKED_KEYS.has(String(key)))) {
+        return { root: createFunctionLogicScenarioUnknown(createFunctionLogicScenarioReason("scenario-reason-receiver-unknown"), origins) };
+      }
+      const prepared = prepareFunctionLogicScenarioObjectWrite(previousRoot.value, path);
+      if (prepared.errorDescriptor) return { root: createFunctionLogicScenarioUnknown(prepared.errorDescriptor, origins) };
+      const before = readFunctionLogicScenarioOwnData(prepared.originalParent, prepared.key, origins);
+      if (before.kind !== "known") return { root: before, before };
+      if (operator === "delete") {
+        const deleted = deleteFunctionLogicScenarioOwnData(prepared.parent, prepared.key);
+        return deleted.errorDescriptor
+          ? { root: createFunctionLogicScenarioUnknown(deleted.errorDescriptor, origins), before }
+          : { root: createFunctionLogicScenarioKnown(prepared.root, origins), before, after: createFunctionLogicScenarioUnset(createFunctionLogicScenarioReason("scenario-reason-value-deleted"), origins) };
+      }
+      const next = operator === "set" ? value : applyFunctionLogicScenarioBinary(
+        operator === "increment" ? "+" : operator === "decrement" ? "-" : operator,
+        before,
+        operator === "increment" || operator === "decrement" ? createFunctionLogicScenarioKnown(1, []) : value
+      );
+      if (!next || next.kind !== "known") return { root: next || createFunctionLogicScenarioUnknown(createFunctionLogicScenarioReason("scenario-reason-value-unknown"), origins), before, after: next };
+      const written = writeFunctionLogicScenarioOwnData(prepared.parent, prepared.key, next.value);
+      if (written.errorDescriptor) return { root: createFunctionLogicScenarioUnknown(written.errorDescriptor, origins), before };
+      return { root: createFunctionLogicScenarioKnown(prepared.root, [...origins, ...(next.origins || [])]), before, after: next };
+    }
+
+    /** Resolves projected binding-backed Tutor keys without name dispatch. */
+    function resolveFunctionLogicScenarioTutorMemberPath(target, environment) {
+      const segments = target?.segments;
+      if (!segments?.length) return Array.isArray(target?.path) && target.path.length ? target.path : undefined;
+      const path = [];
+      for (const segment of segments) {
+        const key = segment.kind === "binding" ? environment.get(segment.bindingId) : createFunctionLogicScenarioKnown(segment.key, []);
+        if (!key || key.kind !== "known" || (typeof key.value !== "string" && !(typeof key.value === "number" && Number.isInteger(key.value)))) return undefined;
+        if (FUNCTION_LOGIC_SCENARIO_BLOCKED_KEYS.has(String(key.value))) return undefined;
+        path.push(String(key.value));
+      }
+      return path;
     }
   `;
 }

@@ -7,7 +7,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
-  getFunctionLogicScenarioEvaluatorBrowserSource
+  getFunctionLogicScenarioEvaluatorBrowserSource,
+  getFunctionLogicScenarioTraceBrowserSource
 } from "../../webview/codeFlow/valuePreview";
 
 type ScenarioState = {
@@ -30,6 +31,7 @@ type ScenarioCalculation = {
       targetName: string;
       before: ScenarioState;
       after: ScenarioState;
+      valueRef?: { rootBindingId: string; path: string[] };
     }>;
   }>;
   inputStateByBindingId: Map<string, ScenarioState>;
@@ -40,7 +42,8 @@ type ScenarioEvaluator = {
   calculate(
     logic: Record<string, unknown>,
     nodes: Map<string, FakeClassRecord>,
-    edges: Map<string, { path: FakeClassRecord }>
+    edges: Map<string, { path: FakeClassRecord }>,
+    scenarioIdentity?: { resolveScenarioBindingId?(id: string): string | undefined }
   ): ScenarioCalculation;
   createContext(bindings: Array<Record<string, unknown>>): unknown;
   evaluate(expression: string, environment: Map<string, ScenarioState>, context: unknown): ScenarioState;
@@ -68,6 +71,13 @@ test("parses bounded JSON and scalar Scenario inputs without dynamic execution",
   });
   assert.equal(evaluator.parse("'hello'", "input").value, "hello");
   assert.equal(evaluator.parse("True", "input").value, true);
+});
+
+test("formats canonical Scenario field segments in emitted browser source", () => {
+  const format = new Function(`${getFunctionLogicScenarioTraceBrowserSource()}; return formatFunctionLogicScenarioCanonicalFieldSegment;`)() as (key: string) => string;
+  assert.equal(format("1"), "[1]");
+  assert.equal(format("01"), '["01"]');
+  assert.equal(format("key"), ".key");
 });
 
 test("calculates complex booleans, nested ternaries, assignments, and updates", () => {
@@ -148,6 +158,126 @@ test("leaves calls and unsupported runtime behavior explicitly unknown", () => {
 
   const unsupportedOperator = evaluator.evaluate("input <<", environment, evaluator.createContext(bindings));
   assert.equal(unsupportedOperator.reasonDescriptor?.key, "scenario-reason-expression-operator-end");
+});
+
+test("evaluates opaque direct and two-level Scenario calls without Host or source execution", () => {
+  const previews = new Map([["input", "4"]]);
+  const evaluator = loadScenarioEvaluator(previews);
+  const literal = (value: number) => ({ kind: "literal", value: { kind: "number", value } });
+  const binding = (bindingId: string) => ({ kind: "binding", bindingId });
+  const call = (callId: string, argument: Record<string, unknown>) => ({ kind: "direct-call", calleeName: "display-only", callId, certainty: "exact", arguments: [argument] });
+  const program = (id: string, parameter: string, result: string, value: Record<string, unknown>, returnValue: Record<string, unknown>) => ({
+    id, executionKind: "sync", confidence: "exact", entryBlockId: `${id}-entry`,
+    bindings: [{ bindingId: parameter, parameterId: `${id}-parameter`, parameterIndex: 0, name: "value", kind: "parameter", certainty: "exact" }, { bindingId: result, name: "result", kind: "local", certainty: "exact" }],
+    blocks: [{ blockId: `${id}-entry`, kind: "entry", label: "", evidenceTokens: [], operations: [{ kind: "define", bindingId: result, value }], terminal: { kind: "return", value: returnValue } }], edges: []
+  });
+  const leaf = program("leaf", "leaf-input", "leaf-result", { kind: "binary", operator: "add", left: binding("leaf-input"), right: literal(1) }, binding("leaf-result"));
+  const helper = program("helper", "helper-input", "helper-result", call("helper-leaf", binding("helper-input")), binding("helper-result"));
+  const root = program("root", "input", "result", call("root-helper", binding("input")), binding("result"));
+  const logic = { valueBindings: [{ id: "input", name: "input", kind: "parameter", confidence: "exact" }], blocks: [], edges: [], tutor: { programBundle: { rootProgramId: "root", programs: [root, helper, leaf], links: [{ callerProgramId: "root", calleeProgramId: "helper", callId: "root-helper" }, { callerProgramId: "helper", calleeProgramId: "leaf", callId: "helper-leaf" }], omittedLinks: [] } } };
+  const calculation = evaluator.calculate(logic, new Map(), new Map());
+  assert.equal(calculation.recordsByBlockId.get("root-entry")?.after.get("result")?.value, 5);
+  previews.set("input", "8");
+  assert.equal(evaluator.calculate(logic, new Map(), new Map()).recordsByBlockId.get("root-entry")?.after.get("result")?.value, 9);
+});
+
+test("loop occurrence order retains each bounded visit, mutation, exit, and continuation", () => {
+  const evaluator = loadScenarioEvaluator(new Map());
+  const literal = (value: number) => ({ kind: "literal", value: { kind: "number", value } });
+  const binding = (bindingId: string) => ({ kind: "binding", bindingId });
+  const root = {
+    id: "root", executionKind: "sync", entryBlockId: "entry",
+    bindings: [{ bindingId: "i", name: "i", kind: "local", certainty: "exact" }],
+    blocks: [
+      { blockId: "entry", operations: [{ kind: "define", bindingId: "i", value: literal(0) }] },
+      { blockId: "loop", decision: { expression: { kind: "binary", operator: "lt", left: binding("i"), right: literal(2) }, outcomes: [{ edgeId: "loop-body", matches: "true" }, { edgeId: "loop-exit", matches: "false" }] }, operations: [] },
+      { blockId: "body", operations: [{ kind: "increment", target: { kind: "binding", bindingId: "i" }, delta: 1 }] },
+      { blockId: "after", operations: [], terminal: { kind: "return", value: binding("i") } }
+    ],
+    edges: [
+      { edgeId: "entry-loop", sourceBlockId: "entry", targetBlockId: "loop", kind: "next" },
+      { edgeId: "loop-body", sourceBlockId: "loop", targetBlockId: "body", kind: "true" },
+      { edgeId: "body-loop", sourceBlockId: "body", targetBlockId: "loop", kind: "next" },
+      { edgeId: "loop-exit", sourceBlockId: "loop", targetBlockId: "after", kind: "false" }
+    ]
+  };
+  const logic = { valueBindings: [], blocks: [], edges: [], tutor: { programBundle: { rootProgramId: "root", programs: [root], links: [], omittedLinks: [] } } };
+  const path = (evaluator.calculate(logic, new Map(), new Map()) as ScenarioCalculation & { scenarioPaths: Array<{ occurrences: Array<{ blockId: string; selectedEdgeId?: string; transitions: Array<{ before: ScenarioState; after: ScenarioState }> }> }> }).scenarioPaths[0];
+
+  assert.deepEqual(path.occurrences.map((occurrence) => occurrence.blockId), ["entry", "loop", "body", "loop", "body", "loop", "after"]);
+  assert.deepEqual(path.occurrences.map((occurrence) => occurrence.selectedEdgeId), ["entry-loop", "loop-body", "body-loop", "loop-body", "body-loop", "loop-exit", undefined]);
+  assert.deepEqual(path.occurrences.filter((occurrence) => occurrence.blockId === "body").map((occurrence) => [occurrence.transitions[0].before.value, occurrence.transitions[0].after.value]), [[0, 1], [1, 2]]);
+});
+
+test("seeds raw root programs from exactly resolved visible Scenario inputs", () => {
+  const previews = new Map([["visible-input", "false"]]);
+  const evaluator = loadScenarioEvaluator(previews);
+  const root = {
+    id: "root", executionKind: "sync", entryBlockId: "raw-entry",
+    bindings: [{ bindingId: "raw-input", parameterId: "root-param", parameterIndex: 0 }],
+    blocks: [{ blockId: "raw-entry", operations: [], terminal: { kind: "return", value: { kind: "binding", bindingId: "raw-input" } } }], edges: []
+  };
+  const logic = { valueBindings: [{ id: "visible-input", name: "input", kind: "parameter", confidence: "exact" }], blocks: [], edges: [], tutor: { programBundle: { rootProgramId: "root", programs: [root], links: [], omittedLinks: [] } } };
+  const resolve = { resolveScenarioBindingId: (id: string) => id === "raw-input" ? "visible-input" : undefined };
+  const exact = evaluator.calculate(logic, new Map(), new Map(), resolve) as ScenarioCalculation & { scenarioPaths: Array<{ terminal: { value?: { value?: unknown } } }> };
+  assert.equal(exact.inputStateByBindingId.get("raw-input")?.value, false);
+  assert.equal(exact.scenarioPaths[0].terminal.value?.value, false);
+
+  const missing = evaluator.calculate(logic, new Map(), new Map(), { resolveScenarioBindingId: () => undefined }) as ScenarioCalculation & { scenarioPaths: Array<{ terminal: { value?: { kind?: string } } }> };
+  assert.equal(missing.inputStateByBindingId.get("raw-input")?.kind, "unknown");
+  assert.equal(missing.scenarioPaths[0].terminal.value?.kind, "unknown");
+
+  const collidedRoot = { ...root, bindings: [...root.bindings, { bindingId: "raw-other", parameterId: "other", parameterIndex: 1 }] };
+  const collided = evaluator.calculate({ ...logic, tutor: { programBundle: { ...logic.tutor.programBundle, programs: [collidedRoot] } } }, new Map(), new Map(), { resolveScenarioBindingId: () => "visible-input" });
+  assert.equal(collided.inputStateByBindingId.get("raw-input")?.kind, "unknown");
+});
+
+test("selects opaque root decision edges from direct and nested call return values", () => {
+  const previews = new Map([["input", "true"]]);
+  const evaluator = loadScenarioEvaluator(previews);
+  const literal = (value: boolean) => ({ kind: "literal", value: { kind: "boolean", value } });
+  const binding = (bindingId: string) => ({ kind: "binding", bindingId });
+  const call = (callId: string, argument: Record<string, unknown>) => ({ kind: "direct-call", calleeName: "display-only", callId, certainty: "exact", arguments: [argument] });
+  const leaf = { id: "leaf", executionKind: "sync", entryBlockId: "leaf-entry", bindings: [{ bindingId: "leaf-input", parameterId: "leaf-param", parameterIndex: 0 }], blocks: [{ blockId: "leaf-entry", operations: [], terminal: { kind: "return", value: binding("leaf-input") } }], edges: [] };
+  const helper = { id: "helper", executionKind: "sync", entryBlockId: "helper-entry", bindings: [{ bindingId: "helper-input", parameterId: "helper-param", parameterIndex: 0 }], blocks: [{ blockId: "helper-entry", operations: [], terminal: { kind: "return", value: call("helper-leaf", binding("helper-input")) } }], edges: [] };
+  const root = { id: "root", executionKind: "sync", entryBlockId: "root-entry", bindings: [{ bindingId: "input", parameterId: "root-param", parameterIndex: 0 }], blocks: [{ blockId: "root-entry", operations: [], decision: { expression: call("root-helper", binding("input")), outcomes: [{ edgeId: "root-true", matches: "true" }, { edgeId: "root-false", matches: "false" }] } }, { blockId: "true-terminal", operations: [], terminal: { kind: "return", value: literal(true) } }, { blockId: "false-terminal", operations: [], terminal: { kind: "return", value: literal(false) } }], edges: [{ edgeId: "root-true", sourceBlockId: "root-entry", targetBlockId: "true-terminal", kind: "true" }, { edgeId: "root-false", sourceBlockId: "root-entry", targetBlockId: "false-terminal", kind: "false" }] };
+  const logic = { valueBindings: [{ id: "input", name: "input", kind: "parameter", confidence: "exact" }], blocks: [], edges: [], tutor: { programBundle: { rootProgramId: "root", programs: [root, helper, leaf], links: [{ callerProgramId: "root", calleeProgramId: "helper", callId: "root-helper" }, { callerProgramId: "helper", calleeProgramId: "leaf", callId: "helper-leaf" }], omittedLinks: [] } } };
+  const truePath = (evaluator.calculate(logic, new Map(), new Map()) as ScenarioCalculation & { scenarioPaths: Array<{ edgeIds: string[]; blockIds: string[]; terminal: { kind: string } }> }).scenarioPaths[0];
+  assert.deepEqual(truePath.edgeIds, ["root-true"]);
+  assert.deepEqual(truePath.blockIds, ["root-entry", "true-terminal"]);
+  assert.equal(truePath.terminal.kind, "return");
+  previews.set("input", "false");
+  const falsePath = (evaluator.calculate(logic, new Map(), new Map()) as ScenarioCalculation & { scenarioPaths: Array<{ edgeIds: string[]; blockIds: string[]; terminal: { kind: string } }> }).scenarioPaths[0];
+  assert.deepEqual(falsePath.edgeIds, ["root-false"]);
+  assert.deepEqual(falsePath.blockIds, ["root-entry", "false-terminal"]);
+});
+
+test("requires await for async children and short-circuits a statically absent optional call", () => {
+  const evaluator = loadScenarioEvaluator(new Map());
+  const literal = (value: boolean) => ({ kind: "literal", value: { kind: "boolean", value } });
+  const asyncChild = { id: "async-child", executionKind: "async", entryBlockId: "child-entry", bindings: [], blocks: [{ blockId: "child-entry", operations: [], terminal: { kind: "return", value: literal(true) } }], edges: [] };
+  const awaited = { id: "root", executionKind: "sync", entryBlockId: "root-entry", bindings: [], blocks: [{ blockId: "root-entry", operations: [], terminal: { kind: "return", value: { kind: "await", operand: { kind: "direct-call", calleeName: "display", callId: "awaited", certainty: "exact", arguments: [] } } } }], edges: [] };
+  const bare = { ...awaited, id: "bare", blocks: [{ blockId: "root-entry", operations: [], terminal: { kind: "return", value: { kind: "direct-call", calleeName: "display", callId: "bare", certainty: "exact", arguments: [] } } }] };
+  const absent = { ...awaited, id: "absent", blocks: [{ blockId: "root-entry", operations: [], terminal: { kind: "return", value: { kind: "direct-call", calleeName: "display", invocationKind: "optional-direct", optionalDisposition: "absent", certainty: "exact", arguments: [{ kind: "unsupported", reason: "dynamic-call", summary: "must not run" }] } } }] };
+  const run = (root: Record<string, unknown>, links: Array<Record<string, string>> = []) => {
+    return evaluator.calculate({ valueBindings: [], tutor: { programBundle: { rootProgramId: String(root.id), programs: [root, asyncChild], links, omittedLinks: [] } } }, new Map(), new Map()) as unknown as ScenarioCalculation & { scenarioPaths: Array<{ terminal: { value?: { value?: unknown; kind: string } } }> };
+  };
+  assert.equal(run(awaited, [{ callerProgramId: "root", calleeProgramId: "async-child", callId: "awaited" }]).scenarioPaths[0].terminal.value?.value, true);
+  assert.equal(run(bare, [{ callerProgramId: "bare", calleeProgramId: "async-child", callId: "bare" }]).scenarioPaths[0].terminal.value?.kind, "unknown");
+  assert.equal(run(absent).scenarioPaths[0].terminal.value?.kind, "undefined");
+});
+
+test("creates dormant synchronous iterators and consumes bounded next values without root child records", () => {
+  const evaluator = loadScenarioEvaluator(new Map());
+  const generator = { id: "generator", executionKind: "generator", entryBlockId: "g", bindings: [], generatorYields: [{ kind: "literal", value: { kind: "number", value: 2 } }, { kind: "literal", value: { kind: "number", value: 3 } }], generatorReturn: { kind: "literal", value: { kind: "number", value: 4 } }, blocks: [{ blockId: "g", operations: [] }], edges: [] };
+  const next = (bindingId: string) => ({ kind: "direct-call", calleeName: "display", invocationKind: "iterator-next", receiver: { kind: "binding", bindingId }, certainty: "exact", arguments: [] });
+  const root = { id: "root", executionKind: "sync", entryBlockId: "entry", bindings: [], blocks: [{ blockId: "entry", operations: [{ kind: "define", bindingId: "iterator", value: { kind: "direct-call", calleeName: "display", callId: "make", certainty: "exact", arguments: [] } }, { kind: "define", bindingId: "first", value: next("iterator") }, { kind: "define", bindingId: "second", value: next("iterator") }, { kind: "define", bindingId: "returned", value: next("iterator") }, { kind: "define", bindingId: "exhausted", value: next("iterator") }], terminal: { kind: "return", value: { kind: "member", object: { kind: "binding", bindingId: "exhausted" }, path: ["done"], optional: false } } }], edges: [] };
+  const calculation = evaluator.calculate({ valueBindings: [], tutor: { programBundle: { rootProgramId: "root", programs: [root, generator], links: [{ callerProgramId: "root", calleeProgramId: "generator", callId: "make" }], omittedLinks: [] } } }, new Map(), new Map());
+  const after = calculation.recordsByBlockId.get("entry")?.after;
+  assert.equal((after?.get("first")?.value as { value: number }).value, 2); assert.equal((after?.get("first")?.value as { done: boolean }).done, false);
+  assert.equal((after?.get("second")?.value as { value: number }).value, 3); assert.equal((after?.get("second")?.value as { done: boolean }).done, false);
+  assert.equal((after?.get("returned")?.value as { value: number }).value, 4); assert.equal((after?.get("returned")?.value as { done: boolean }).done, true);
+  assert.equal((after?.get("exhausted")?.value as { value: undefined }).value, undefined); assert.equal((after?.get("exhausted")?.value as { done: boolean }).done, true);
 });
 
 test("calculates immediate code text but never enters defined or deferred text", () => {
@@ -250,6 +380,15 @@ test("calculates nested JSON field writes, dynamic indexes, and deletes immutabl
   assert.equal(statusTransition?.targetName, 'payload["status"]');
   assert.equal(statusTransition?.before.value, "new");
   assert.equal(statusTransition?.after.value, "ready");
+  const itemTransition = calculation.recordsByBlockId.get("item")?.transitions[0];
+  assert.equal(itemTransition?.before.value, 6);
+  assert.equal(itemTransition?.after.value, 7);
+  assert.deepEqual(itemTransition?.valueRef, {
+    rootBindingId: "payload",
+    path: ["items", "1"],
+    displayPath: "payload.items[index]",
+    segments: [{ kind: "static", key: "items" }, { kind: "static", key: "1" }]
+  });
   const deleteTransition = calculation.recordsByBlockId.get("delete")?.transitions[0];
   assert.equal(deleteTransition?.targetName, "payload.stale");
   assert.equal(deleteTransition?.before.value, true);
@@ -454,7 +593,15 @@ function createObjectFieldCalculationLogic(): Record<string, unknown> {
     }, {
       id: "item",
       kind: "mutation",
-      valueChanges: [propertyChange("payload.items[index]", "update", "++")]
+      valueChanges: [{
+        ...propertyChange("payload.items[index]", "update", "++"),
+        valueRef: {
+          rootBindingId: "payload",
+          path: [],
+          displayPath: "payload.items[index]",
+          segments: [{ kind: "static", key: "items" }, { kind: "binding", bindingId: "index" }]
+        }
+      }]
     }, {
       id: "delete",
       kind: "mutation",

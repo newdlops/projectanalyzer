@@ -36,6 +36,17 @@ export function createFunctionTutorPayload(
   model: FunctionTutorBuildModel,
   context: FunctionTutorProjectionContext
 ): FunctionTutorPayload | undefined {
+  // Host-only source locations are converted into one opaque call identity before
+  // expression projection. The browser can join a call only by this identity.
+  const scenarioCallByLocation = new Map<string, string>();
+  for (const link of [...(model.scenarioBundle?.links ?? []), ...(model.scenarioBundle?.omitted ?? [])]) {
+    scenarioCallByLocation.set(
+      `${link.callerProgramId}:${link.callStartLine}:${link.callStartCharacter}`,
+      opaqueTutorIdentity(context, "scenario-call", `${link.callerProgramId}:${link.callStartLine}:${link.callStartCharacter}`)
+    );
+  }
+  const resolveScenarioCallId = (programNodeId: string, range: Pick<SourceRange, "startLine" | "startCharacter">) =>
+    scenarioCallByLocation.get(`${programNodeId}:${range.startLine}:${range.startCharacter}`);
   const parameterIds = new Map<string, string>();
   for (const parameter of model.declaration.parameters) {
     parameterIds.set(parameter.id, `function-tutor-parameter:${createContentHash(`${context.flowId}\0${parameter.id}`).slice(0, 32)}`);
@@ -74,6 +85,7 @@ export function createFunctionTutorPayload(
   const projectedGaps = model.gaps.map(projectGap);
   const projectedContext = projectCodebaseContext(model, context, evidenceTokens);
   const projectedGuide = projectGuidePlan(model, context, evidenceTokens);
+  const rootContinuationIds = new Map((model.declaration.program.continuations ?? []).map((item) => [item.id, opaqueTutorIdentity(context, "scenario-continuation", `${model.declaration.functionNode.id}:${item.id}`)]));
   const projectedBlocks = model.declaration.program.blocks.flatMap((block) => {
     const blockId = context.blockIds.get(block.blockId);
     if (!blockId) return [];
@@ -81,9 +93,10 @@ export function createFunctionTutorPayload(
       blockId,
       kind: block.kind,
       label: block.label,
-      operations: block.operations.flatMap((operation) => projectOperation(operation, context.bindingIds)),
+      operations: block.operations.flatMap((operation) => projectOperation(operation, context.bindingIds, (range) => resolveScenarioCallId(model.declaration.functionNode.id, range))),
       decision: block.decision ? {
-        expression: projectExpression(block.decision.expression, context.bindingIds),
+        expression: projectExpression(block.decision.expression, context.bindingIds, (range) => resolveScenarioCallId(model.declaration.functionNode.id, range)),
+        continuationId: block.decision.continuationId ? rootContinuationIds.get(block.decision.continuationId) : undefined,
         outcomes: block.decision.outcomes.flatMap((outcome) => {
           const edgeId = context.edgeIds.get(outcome.edgeId);
           return edgeId ? [{ edgeId, label: outcome.label, matches: outcome.matches }] : [];
@@ -91,18 +104,112 @@ export function createFunctionTutorPayload(
       } : undefined,
       terminal: block.terminal ? {
         kind: block.terminal.kind,
+        continuationId: "continuationId" in block.terminal && block.terminal.continuationId ? rootContinuationIds.get(block.terminal.continuationId) : undefined,
         value: "value" in block.terminal && block.terminal.value
-          ? projectExpression(block.terminal.value, context.bindingIds)
+          ? projectExpression(block.terminal.value, context.bindingIds, (range) => resolveScenarioCallId(model.declaration.functionNode.id, range))
           : undefined
       } : undefined,
+      continuationSupplyId: block.continuationSupplyId ? rootContinuationIds.get(block.continuationSupplyId) : undefined,
       embeddedRelation: block.embeddedRelation,
       evidenceTokens: evidenceTokens(block.evidence)
     }];
   });
   const entryBlockId = context.blockIds.get(model.declaration.program.entryBlockId);
   if (!entryBlockId) return undefined;
+  const projectedProgram = {
+    entryBlockId,
+    blocks: projectedBlocks,
+    edges: model.declaration.program.edges.flatMap((edge) => {
+      const edgeId = context.edgeIds.get(edge.edgeId);
+      const sourceBlockId = context.blockIds.get(edge.sourceBlockId);
+      const targetBlockId = context.blockIds.get(edge.targetBlockId);
+      return edgeId && sourceBlockId && targetBlockId ? [{ edgeId, sourceBlockId, targetBlockId, kind: edge.kind, label: edge.label, certainty: edge.certainty }] : [];
+    }),
+    bindings: model.declaration.program.bindings.flatMap((binding) => {
+      const bindingId = context.bindingIds.get(binding.bindingId);
+      const parameter = binding.parameterId ? model.declaration.parameters.find((item) => item.id === binding.parameterId) : undefined;
+      return bindingId ? [{ bindingId, parameterId: binding.parameterId ? parameterIds.get(binding.parameterId) : undefined, parameterIndex: parameter?.index, name: binding.name, kind: binding.kind, certainty: binding.certainty }] : [];
+    }),
+    generatorYields: model.declaration.program.generatorYields?.map((value) => projectExpression(value, context.bindingIds, (range) => resolveScenarioCallId(model.declaration.functionNode.id, range))),
+    generatorReturn: model.declaration.program.generatorReturn ? projectExpression(model.declaration.program.generatorReturn, context.bindingIds, (range) => resolveScenarioCallId(model.declaration.functionNode.id, range)) : undefined
+    , continuations: (model.declaration.program.continuations ?? []).map((item) => ({ id: rootContinuationIds.get(item.id)!, predicate: item.predicate, select: projectExpression(item.select, context.bindingIds, (range) => resolveScenarioCallId(model.declaration.functionNode.id, range)), supply: projectExpression(item.supply, context.bindingIds, (range) => resolveScenarioCallId(model.declaration.functionNode.id, range)) }))
+  };
+  const rootProgramId = opaqueTutorIdentity(context, "scenario-program", model.declaration.functionNode.id);
+  // A malformed bundle cannot be repaired in the browser without guessing
+  // identities. Preserve the regular Tutor payload and fail closed instead.
+  const hasValidScenarioBundle = model.scenarioBundle?.rootNodeId === model.declaration.functionNode.id;
+  const programIdByNodeId = new Map((model.scenarioBundle?.declarations ?? []).map((declaration) => [
+    declaration.functionNode.id,
+    opaqueTutorIdentity(context, "scenario-program", declaration.functionNode.id)
+  ]));
+  const opaqueLinks = hasValidScenarioBundle ? (model.scenarioBundle?.links ?? []).map((link) => ({
+    callerProgramId: programIdByNodeId.get(link.callerProgramId) ?? rootProgramId,
+    calleeProgramId: link.calleeProgramId ? programIdByNodeId.get(link.calleeProgramId) : undefined,
+    callId: resolveScenarioCallId(link.callerProgramId, { startLine: link.callStartLine, startCharacter: link.callStartCharacter })!
+  })) : [];
+  const projectChildProgram = (declaration: FunctionTutorBuildModel["declaration"]) => {
+    const nodeId = declaration.functionNode.id;
+    const bindingIds = new Map(declaration.program.bindings.map((binding) => [
+      binding.bindingId,
+      opaqueTutorIdentity(context, "scenario-binding", `${nodeId}:${binding.bindingId}`)
+    ]));
+    const parameterIds = new Map(declaration.parameters.map((parameter) => [
+      parameter.id,
+      opaqueTutorIdentity(context, "scenario-parameter", `${nodeId}:${parameter.id}`)
+    ]));
+    const blockIds = new Map(declaration.program.blocks.map((block) => [
+      block.blockId,
+      opaqueTutorIdentity(context, "scenario-block", `${nodeId}:${block.blockId}`)
+    ]));
+    const edgeIds = new Map(declaration.program.edges.map((edge) => [
+      edge.edgeId,
+      opaqueTutorIdentity(context, "scenario-edge", `${nodeId}:${edge.edgeId}`)
+    ]));
+    const continuationIds = new Map((declaration.program.continuations ?? []).map((item) => [item.id, opaqueTutorIdentity(context, "scenario-continuation", `${nodeId}:${item.id}`)]));
+    return {
+      id: programIdByNodeId.get(nodeId)!, executionKind: declaration.executionKind,
+      confidence: "exact" as const,
+      entryBlockId: blockIds.get(declaration.program.entryBlockId)!,
+      blocks: declaration.program.blocks.map((block) => ({
+        blockId: blockIds.get(block.blockId)!, kind: block.kind, label: block.label,
+        operations: block.operations.flatMap((operation) => projectOperation(operation, bindingIds, (range) => resolveScenarioCallId(nodeId, range))),
+        decision: block.decision ? { expression: projectExpression(block.decision.expression, bindingIds, (range) => resolveScenarioCallId(nodeId, range)), continuationId: block.decision.continuationId ? continuationIds.get(block.decision.continuationId) : undefined, outcomes: block.decision.outcomes.map((outcome) => ({ edgeId: edgeIds.get(outcome.edgeId)!, label: outcome.label, matches: outcome.matches })) } : undefined,
+        terminal: block.terminal ? { kind: block.terminal.kind, continuationId: "continuationId" in block.terminal && block.terminal.continuationId ? continuationIds.get(block.terminal.continuationId) : undefined, value: "value" in block.terminal && block.terminal.value ? projectExpression(block.terminal.value, bindingIds, (range) => resolveScenarioCallId(nodeId, range)) : undefined } : undefined,
+        continuationSupplyId: block.continuationSupplyId ? continuationIds.get(block.continuationSupplyId) : undefined,
+        embeddedRelation: block.embeddedRelation, evidenceTokens: []
+      })),
+      edges: declaration.program.edges.map((edge) => ({ edgeId: edgeIds.get(edge.edgeId)!, sourceBlockId: blockIds.get(edge.sourceBlockId)!, targetBlockId: blockIds.get(edge.targetBlockId)!, kind: edge.kind, label: edge.label, certainty: edge.certainty })),
+      bindings: declaration.program.bindings.map((binding) => ({ bindingId: bindingIds.get(binding.bindingId)!, parameterId: binding.parameterId ? parameterIds.get(binding.parameterId) : undefined, parameterIndex: binding.parameterId ? declaration.parameters.find((parameter) => parameter.id === binding.parameterId)?.index : undefined, name: binding.name, kind: binding.kind, certainty: binding.certainty })),
+      generatorYields: declaration.program.generatorYields?.map((value) => projectExpression(value, bindingIds, (range) => resolveScenarioCallId(nodeId, range))),
+      generatorReturn: declaration.program.generatorReturn ? projectExpression(declaration.program.generatorReturn, bindingIds, (range) => resolveScenarioCallId(nodeId, range)) : undefined,
+      continuations: (declaration.program.continuations ?? []).map((item) => ({ id: continuationIds.get(item.id)!, predicate: item.predicate, select: projectExpression(item.select, bindingIds, (range) => resolveScenarioCallId(nodeId, range)), supply: projectExpression(item.supply, bindingIds, (range) => resolveScenarioCallId(nodeId, range)) }))
+    };
+  };
+  const catalogProgramById = new Map((model.declaration.scenarioCatalog?.programs ?? []).map((program) => [program.id, program]));
+  const candidateBundle = hasValidScenarioBundle ? {
+    rootProgramId,
+    // Root graph identities are the exact Function Logic projection once;
+    // only child programs receive scenario-private identities.
+    programs: [{ id: rootProgramId, executionKind: model.declaration.executionKind, confidence: "exact" as const, ...projectedProgram }, ...(model.scenarioBundle!.declarations || []).filter((declaration) => declaration.functionNode.id !== model.scenarioBundle!.rootNodeId).map((declaration) => {
+      const projected = projectChildProgram(declaration);
+      const record = catalogProgramById.get(declaration.functionNode.id);
+      return record ? {
+        ...projected,
+        ownerId: record.ownerId ? opaqueTutorIdentity(context, "scenario-owner", record.ownerId) : undefined,
+        thisBindingId: record.thisBindingId ? opaqueTutorIdentity(context, "scenario-binding", `${declaration.functionNode.id}:${record.thisBindingId}`) : undefined,
+        invocationRole: record.invocationRole,
+        fieldInitializers: record.fieldInitializers.map((field) => ({ key: field.key, value: projectExpression(field.value, new Map()) }))
+      } : projected;
+    })],
+    links: opaqueLinks,
+    omittedLinks: model.scenarioBundle!.omitted.map((item) => ({ callerProgramId: programIdByNodeId.get(item.callerProgramId) ?? rootProgramId, callId: resolveScenarioCallId(item.callerProgramId, { startLine: item.callStartLine, startCharacter: item.callStartCharacter }), reason: item.reason ?? "unsupported" }))
+  } : undefined;
+  // Hard stop before delivery: no partial byte truncation can alter JSON syntax.
+  const programBundle = candidateBundle && JSON.stringify(candidateBundle).length <= 96 * 1024
+    ? candidateBundle
+    : candidateBundle ? { rootProgramId, programs: [], omittedLinks: [{ callerProgramId: rootProgramId, reason: "payload-budget" as const }] } : undefined;
   return {
-    version: 2,
+    version: 3,
     fingerprint: createContentHash(JSON.stringify({
       functionId: context.flowId,
       documentation: model.context.documentation?.summary,
@@ -146,33 +253,8 @@ export function createFunctionTutorPayload(
       evidenceTokens: evidenceTokens(seed.evidence),
       gapIds: seed.gaps.map((gap, index) => projectGap(gap, index).id)
     })),
-    program: {
-      entryBlockId,
-      blocks: projectedBlocks,
-      edges: model.declaration.program.edges.flatMap((edge) => {
-        const edgeId = context.edgeIds.get(edge.edgeId);
-        const sourceBlockId = context.blockIds.get(edge.sourceBlockId);
-        const targetBlockId = context.blockIds.get(edge.targetBlockId);
-        return edgeId && sourceBlockId && targetBlockId ? [{
-          edgeId,
-          sourceBlockId,
-          targetBlockId,
-          kind: edge.kind,
-          label: edge.label,
-          certainty: edge.certainty
-        }] : [];
-      }),
-      bindings: model.declaration.program.bindings.flatMap((binding) => {
-        const bindingId = context.bindingIds.get(binding.bindingId);
-        return bindingId ? [{
-          bindingId,
-          parameterId: binding.parameterId ? parameterIds.get(binding.parameterId) : undefined,
-          name: binding.name,
-          kind: binding.kind,
-          certainty: binding.certainty
-        }] : [];
-      })
-    },
+    program: projectedProgram,
+    ...(programBundle ? { programBundle } : {}),
     evidence: [...evidenceByToken.values()],
     gaps: projectedGaps,
     summary: {
@@ -314,45 +396,73 @@ function opaqueTutorIdentity(context: FunctionTutorProjectionContext, kind: stri
 
 function projectOperation(
   operation: FunctionTutorOperation,
-  bindingIds: ReadonlyMap<string, string>
+  bindingIds: ReadonlyMap<string, string>,
+  resolveCallId?: (range: SourceRange) => string | undefined
 ): FunctionTutorOperationPayload[] {
   if (operation.kind === "define") {
     const bindingId = bindingIds.get(operation.bindingId);
-    return bindingId ? [{ kind: "define" as const, bindingId, value: projectExpression(operation.value, bindingIds) }] : [];
+    return bindingId ? [{ kind: "define" as const, bindingId, value: projectExpression(operation.value, bindingIds, resolveCallId) }] : [];
   }
   if (operation.kind === "assign") {
     const target = projectTarget(operation.target, bindingIds);
-    return target ? [{ kind: "assign" as const, target, value: projectExpression(operation.value, bindingIds), operator: operation.operator }] : [];
+    return target ? [{ kind: "assign" as const, target, value: projectExpression(operation.value, bindingIds, resolveCallId), operator: operation.operator }] : [];
   }
   if (operation.kind === "increment") {
     const target = projectTarget(operation.target, bindingIds);
     return target ? [{ kind: "increment" as const, target, delta: operation.delta }] : [];
   }
+  if (operation.kind === "delete") {
+    const target = projectTarget(operation.target, bindingIds);
+    return target ? [{ kind: "delete" as const, target }] : [];
+  }
   return [operation];
 }
 
-function projectTarget(target: FunctionTutorAssignmentTarget, bindingIds: ReadonlyMap<string, string>) {
+function projectTarget(target: FunctionTutorAssignmentTarget, bindingIds: ReadonlyMap<string, string>): { kind: "binding" | "member"; bindingId: string; path?: string[]; segments?: Array<{ kind: "static"; key: string } | { kind: "binding"; bindingId: string }> } | undefined {
   const bindingId = bindingIds.get(target.bindingId);
-  return bindingId ? target.kind === "binding"
-    ? { kind: "binding" as const, bindingId }
-    : { kind: "member" as const, bindingId, path: target.path ?? [] }
-    : undefined;
+  if (!bindingId) return undefined;
+  if (target.kind === "binding") return { kind: "binding", bindingId };
+  const segments: Array<{ kind: "static"; key: string } | { kind: "binding"; bindingId: string }> = [];
+  for (const segment of target.segments || []) {
+    if (segment.kind === "static") segments.push(segment);
+    else { const projected = bindingIds.get(segment.bindingId); if (!projected) return undefined; segments.push({ kind: "binding", bindingId: projected }); }
+  }
+  return { kind: "member", bindingId, path: target.path ?? [], ...(segments.length ? { segments } : {}) };
 }
 
-function projectExpression(expression: FunctionTutorExpression, bindingIds: ReadonlyMap<string, string>): FunctionTutorExpressionPayload {
+function projectExpression(expression: FunctionTutorExpression, bindingIds: ReadonlyMap<string, string>, resolveCallId?: (range: SourceRange) => string | undefined): FunctionTutorExpressionPayload {
   if (expression.kind === "literal") return { kind: "literal", value: projectStaticValue(expression.value) };
   if (expression.kind === "binding") return bindingIds.has(expression.bindingId)
     ? { kind: "binding", bindingId: bindingIds.get(expression.bindingId)! }
     : { kind: "unsupported", reason: "ambiguous-binding", summary: "A binding is unavailable in this static payload." };
+  if (expression.kind === "owner-reference") return { kind: "object", entries: [] };
   if (expression.kind === "member") return {
-    kind: "member", object: projectExpression(expression.object, bindingIds), path: expression.path, optional: expression.optional
+    kind: "member", object: projectExpression(expression.object, bindingIds, resolveCallId), path: expression.path, optional: expression.optional
   };
-  if (expression.kind === "unary") return { kind: "unary", operator: expression.operator, operand: projectExpression(expression.operand, bindingIds) };
-  if (expression.kind === "binary") return { kind: "binary", operator: expression.operator, left: projectExpression(expression.left, bindingIds), right: projectExpression(expression.right, bindingIds) };
-  if (expression.kind === "logical") return { kind: "logical", operator: expression.operator, members: expression.members.map((member) => projectExpression(member, bindingIds)) };
-  if (expression.kind === "conditional") return { kind: "conditional", condition: projectExpression(expression.condition, bindingIds), whenTrue: projectExpression(expression.whenTrue, bindingIds), whenFalse: projectExpression(expression.whenFalse, bindingIds) };
-  if (expression.kind === "array") return { kind: "array", items: expression.items.map((item) => projectExpression(item, bindingIds)) };
-  if (expression.kind === "object") return { kind: "object", entries: expression.entries.map((entry) => ({ key: entry.key, value: projectExpression(entry.value, bindingIds) })) };
+  if (expression.kind === "unary") return { kind: "unary", operator: expression.operator, operand: projectExpression(expression.operand, bindingIds, resolveCallId) };
+  if (expression.kind === "binary") return { kind: "binary", operator: expression.operator, left: projectExpression(expression.left, bindingIds, resolveCallId), right: projectExpression(expression.right, bindingIds, resolveCallId) };
+  if (expression.kind === "logical") return { kind: "logical", operator: expression.operator, members: expression.members.map((member) => projectExpression(member, bindingIds, resolveCallId)) };
+  if (expression.kind === "conditional") return { kind: "conditional", condition: projectExpression(expression.condition, bindingIds, resolveCallId), whenTrue: projectExpression(expression.whenTrue, bindingIds, resolveCallId), whenFalse: projectExpression(expression.whenFalse, bindingIds, resolveCallId) };
+  if (expression.kind === "array") return { kind: "array", items: expression.items.map((item) => projectExpression(item, bindingIds, resolveCallId)) };
+  if (expression.kind === "object") return { kind: "object", entries: expression.entries.map((entry) => ({ key: entry.key, value: projectExpression(entry.value, bindingIds, resolveCallId) })) };
+  if (expression.kind === "await") return { kind: "await", operand: projectExpression(expression.operand, bindingIds, resolveCallId) };
+  if (expression.kind === "direct-call") return {
+    kind: "direct-call",
+    calleeName: expression.calleeName,
+    arguments: expression.arguments.map((argument) => projectExpression(argument, bindingIds, resolveCallId)),
+    certainty: expression.certainty,
+    invocationKind: expression.invocationKind,
+    receiver: expression.receiver ? projectExpression(expression.receiver, bindingIds, resolveCallId) : undefined,
+    optionalDisposition: expression.optionalDisposition,
+    requiresAwait: expression.requiresAwait,
+    ...(resolveCallId?.(expression.callRange) ? { callId: resolveCallId(expression.callRange) } : {})
+  };
+  if (expression.kind === "construct") return {
+    kind: "construct", className: expression.className,
+    arguments: expression.arguments.map((argument) => projectExpression(argument, bindingIds, resolveCallId)),
+    certainty: expression.certainty,
+    ...(resolveCallId?.(expression.callRange) ? { callId: resolveCallId(expression.callRange) } : {})
+  };
   return expression;
 }
 

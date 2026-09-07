@@ -26,23 +26,38 @@ export type FunctionTutorExpressionPayload =
   | { kind: "literal"; value: FunctionTutorStaticValuePayload }
   | { kind: "binding"; bindingId: string }
   | { kind: "member"; object: FunctionTutorExpressionPayload; path: string[]; optional: boolean }
-  | { kind: "unary"; operator: "not" | "plus" | "minus" | "typeof"; operand: FunctionTutorExpressionPayload }
+  | { kind: "unary"; operator: "not" | "plus" | "minus" | "typeof" | "non-nullish"; operand: FunctionTutorExpressionPayload }
   | { kind: "binary"; operator: string; left: FunctionTutorExpressionPayload; right: FunctionTutorExpressionPayload }
   | { kind: "logical"; operator: "and" | "or" | "nullish"; members: FunctionTutorExpressionPayload[] }
   | { kind: "conditional"; condition: FunctionTutorExpressionPayload; whenTrue: FunctionTutorExpressionPayload; whenFalse: FunctionTutorExpressionPayload }
   | { kind: "array"; items: FunctionTutorExpressionPayload[] }
   | { kind: "object"; entries: Array<{ key: string; value: FunctionTutorExpressionPayload }> }
+  | { kind: "await"; operand: FunctionTutorExpressionPayload }
+  /** Call target selection is Host-owned; this name is display-only compatibility data. */
+  | {
+      kind: "direct-call"; calleeName: string; arguments: FunctionTutorExpressionPayload[];
+      certainty: FunctionTutorPayloadCertainty; callId?: string; calleeProgramId?: string;
+      invocationKind?: "direct" | "method" | "optional-direct" | "optional-method" | "iterator-next";
+      receiver?: FunctionTutorExpressionPayload;
+      /** Host-proven presence prevents argument evaluation when absent. */
+      optionalDisposition?: "present" | "absent" | "unknown";
+      requiresAwait?: boolean;
+      ownerId?: string;
+    }
+  | { kind: "construct"; className: string; arguments: FunctionTutorExpressionPayload[]; certainty: FunctionTutorPayloadCertainty; callId?: string }
   | { kind: "unsupported"; reason: string; summary: string };
 
 export type FunctionTutorOperationPayload =
   | { kind: "define"; bindingId: string; value: FunctionTutorExpressionPayload }
-  | { kind: "assign"; target: { kind: "binding" | "member"; bindingId: string; path?: string[] }; value: FunctionTutorExpressionPayload; operator: "set" | "add" | "subtract" | "multiply" | "divide" }
-  | { kind: "increment"; target: { kind: "binding" | "member"; bindingId: string; path?: string[] }; delta: 1 | -1 }
+  | { kind: "assign"; target: { kind: "binding" | "member"; bindingId: string; path?: string[]; segments?: Array<{ kind: "static"; key: string } | { kind: "binding"; bindingId: string }> }; value: FunctionTutorExpressionPayload; operator: "set" | "add" | "subtract" | "multiply" | "divide" }
+  | { kind: "increment"; target: { kind: "binding" | "member"; bindingId: string; path?: string[]; segments?: Array<{ kind: "static"; key: string } | { kind: "binding"; bindingId: string }> }; delta: 1 | -1 }
+  | { kind: "delete"; target: { kind: "binding" | "member"; bindingId: string; path?: string[]; segments?: Array<{ kind: "static"; key: string } | { kind: "binding"; bindingId: string }> } }
   | { kind: "effect"; effectKind: "call" | "render" | "event" | "external-write" | "yield"; summary: string; certainty: FunctionTutorPayloadCertainty }
   | { kind: "unsupported"; summary: string; reason: string };
 
 export type FunctionTutorPayload = {
-  version: 2;
+  /** v3 adds invocation semantics; v2 readers remain valid because fields are optional. */
+  version: 2 | 3;
   fingerprint: string;
   /** Existing opaque Function Logic flow identity, never a raw graph node ID. */
   functionId: string;
@@ -53,6 +68,8 @@ export type FunctionTutorPayload = {
   parameters: FunctionTutorParameterPayload[];
   seeds: FunctionTutorScenarioSeedPayload[];
   program: FunctionTutorProgramPayload;
+  /** Optional bounded call interpretation input; absence preserves legacy intra-function evaluation. */
+  programBundle?: FunctionTutorScenarioProgramBundlePayload;
   evidence: FunctionTutorEvidencePayload[];
   gaps: FunctionTutorGapPayload[];
   summary: {
@@ -219,9 +236,11 @@ export type FunctionTutorProgramPayload = {
     operations: FunctionTutorOperationPayload[];
     decision?: {
       expression: FunctionTutorExpressionPayload;
+      continuationId?: string;
       outcomes: Array<{ edgeId: string; label: string; matches: "true" | "false" | "case" | "default" | "exception" | "loop-exit" }>;
     };
-    terminal?: { kind: "return" | "throw" | "break" | "continue" | "exit"; value?: FunctionTutorExpressionPayload };
+    terminal?: { kind: "return" | "throw" | "break" | "continue" | "exit"; value?: FunctionTutorExpressionPayload; continuationId?: string };
+    continuationSupplyId?: string;
     embeddedRelation?: "immediate" | "defines" | "deferred";
     evidenceTokens: CodeFlowEvidenceToken[];
   }>;
@@ -233,7 +252,30 @@ export type FunctionTutorProgramPayload = {
     label?: string;
     certainty: FunctionTutorPayloadCertainty;
   }>;
-  bindings: Array<{ bindingId: string; parameterId?: string; name: string; kind: "parameter" | "local" | "constant"; certainty: FunctionTutorPayloadCertainty }>;
+  bindings: Array<{ bindingId: string; parameterId?: string; parameterIndex?: number; name: string; kind: "parameter" | "local" | "constant"; certainty: FunctionTutorPayloadCertainty }>;
+  generatorYields?: FunctionTutorExpressionPayload[];
+  generatorReturn?: FunctionTutorExpressionPayload;
+  continuations?: Array<{ id: string; predicate: "truthy" | "non-nullish"; select: FunctionTutorExpressionPayload; supply: FunctionTutorExpressionPayload }>;
+  ownerId?: string;
+  thisBindingId?: string;
+  invocationRole?: "function" | "method" | "constructor" | "object-method" | "static-method";
+  /** Safe own fields installed before a projected constructor body runs. */
+  fieldInitializers?: Array<{ key: string; value: FunctionTutorExpressionPayload }>;
+};
+
+/**
+ * Snapshot-local Scenario programs. Program IDs and callee links are opaque;
+ * the browser receives no source range, path, graph node, or name resolver.
+ */
+export type FunctionTutorScenarioProgramBundlePayload = {
+  rootProgramId: string;
+  programs: Array<FunctionTutorProgramPayload & {
+    id: string;
+    executionKind: "sync" | "async" | "generator" | "async-generator";
+    confidence: FunctionTutorPayloadCertainty;
+  }>;
+  links?: Array<{ callerProgramId: string; calleeProgramId?: string; callId: string }>;
+  omittedLinks: Array<{ callerProgramId: string; callId?: string; reason: "unresolved" | "ambiguous" | "cycle" | "depth-budget" | "program-budget" | "block-budget" | "payload-budget" | "unsupported" }>;
 };
 
 export type FunctionTutorEvidencePayload = {

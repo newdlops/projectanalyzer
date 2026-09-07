@@ -17,6 +17,7 @@ export function getFunctionLogicValuePreviewStyles(): string {
       min-width: 0;
       align-items: start;
       justify-content: space-between;
+      flex-wrap: wrap;
       gap: 8px;
       padding: 8px;
     }
@@ -39,6 +40,7 @@ export function getFunctionLogicValuePreviewStyles(): string {
     }
 
     .logic-value-preview-clear-all,
+    .logic-value-preview-recommend,
     .logic-value-preview-clear {
       flex: 0 0 auto;
       color: var(--vscode-button-secondaryForeground);
@@ -52,6 +54,17 @@ export function getFunctionLogicValuePreviewStyles(): string {
       min-height: 23px;
       padding: 2px 6px;
       font-size: var(--logic-font-tiny);
+    }
+
+    .logic-value-preview-recommend {
+      min-height: 23px;
+      padding: 2px 6px;
+      color: var(--vscode-button-foreground);
+      background: var(--vscode-button-background);
+      border: 1px solid var(--vscode-button-border, var(--vscode-panel-border));
+      border-radius: 3px;
+      font-size: var(--logic-font-tiny);
+      overflow-wrap: anywhere;
     }
 
     .logic-value-preview-columns,
@@ -178,6 +191,7 @@ export function getFunctionLogicValuePreviewStyles(): string {
     }
 
     .logic-value-preview-input:focus,
+    .logic-value-preview-recommend:focus-visible,
     .logic-value-preview-clear-all:focus-visible,
     .logic-value-preview-clear:focus-visible {
       border-color: var(--vscode-focusBorder);

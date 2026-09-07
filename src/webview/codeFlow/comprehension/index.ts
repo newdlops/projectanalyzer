@@ -16,6 +16,5 @@ export type {
   FunctionLogicComprehensionEvent,
   FunctionLogicComprehensionState,
   FunctionLogicComprehensionView,
-  FunctionLogicLens,
   FunctionLogicPlaybackState
 } from "./types";

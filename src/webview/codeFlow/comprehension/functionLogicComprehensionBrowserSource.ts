@@ -1,12 +1,13 @@
 /**
  * Browser adapter for the Function Logic comprehension state. It batches
- * attention attributes in one frame and keeps lens controls DOM-local.
+ * integrated attention attributes in one frame and keeps the static legend
+ * DOM-local without changing graph semantics.
  */
 
 import { getFunctionLogicAttentionProjectionBrowserSource } from "./functionLogicAttentionProjection";
 import { getFunctionLogicComprehensionStateBrowserSource } from "./functionLogicComprehensionState";
 
-/** Returns CSP-safe lens controls and central attention DOM adapter helpers. */
+/** Returns CSP-safe integrated attention and legend DOM adapter helpers. */
 export function getFunctionLogicComprehensionBrowserSource(): string {
   return /* js */ `
     ${getFunctionLogicAttentionProjectionBrowserSource()}
@@ -131,7 +132,6 @@ export function getFunctionLogicComprehensionBrowserSource(): string {
         setEmbeddedFocus(boundaryId) { dispatch({ type: "set-embedded-focus", boundaryId }); },
         setGuideFocus(focus) { dispatch({ type: "set-guide-focus", primaryBlockId: focus?.primaryBlockId, blockIds: focus?.blockIds || [], edgeIds: focus?.edgeIds || [] }); },
         clearGuideFocus() { dispatch({ type: "clear-guide-focus" }); },
-        setLens(lens) { dispatch({ type: "set-lens", lens }); },
         subscribe(listener) { listeners.add(listener); return () => listeners.delete(listener); },
         refresh,
         /** Notifies retained toolbar/legend/ledger subscribers after a locale change. */
@@ -139,114 +139,25 @@ export function getFunctionLogicComprehensionBrowserSource(): string {
       };
     }
 
-    /** Builds four compact reader-question controls above the graph canvas. */
-    function createFunctionLogicLensToolbar(controller) {
-      const toolbar = document.createElement("div");
-      const label = document.createElement("span");
-      const buttons = new Map();
-      toolbar.className = "logic-lens-toolbar";
-      toolbar.setAttribute("role", "group");
-      toolbar.setAttribute("aria-label", projectAnalyzerText("reading-lens"));
-      label.className = "logic-lens-label";
-      label.textContent = projectAnalyzerText("show");
-      toolbar.append(label);
-      for (const descriptor of [
-        ["flow", "lens-flow", "lens-flow-help"],
-        ["values", "lens-values", "lens-values-help"],
-        ["calls", "lens-calls", "lens-calls-help"],
-        ["effects", "lens-effects", "lens-effects-help"]
-      ]) {
-        const [lens, text, title] = descriptor;
-        const button = document.createElement("button");
-        button.type = "button";
-        button.className = "logic-lens-button";
-        button.textContent = projectAnalyzerText(text);
-        button.title = projectAnalyzerText(title);
-        button.setAttribute("aria-pressed", lens === controller.getState().lens ? "true" : "false");
-        button.addEventListener("click", () => controller.setLens(lens));
-        toolbar.append(button);
-        buttons.set(lens, button);
-      }
-      controller.subscribe((readerState) => {
-        toolbar.setAttribute("aria-label", projectAnalyzerText("reading-lens"));
-        label.textContent = projectAnalyzerText("show");
-        for (const [lens, button] of buttons) {
-          const descriptor = {
-            flow: ["lens-flow", "lens-flow-help"], values: ["lens-values", "lens-values-help"],
-            calls: ["lens-calls", "lens-calls-help"], effects: ["lens-effects", "lens-effects-help"]
-          }[lens];
-          button.textContent = projectAnalyzerText(descriptor[0]);
-          button.title = projectAnalyzerText(descriptor[1]);
-          button.setAttribute("aria-pressed", lens === readerState.lens ? "true" : "false");
-        }
-      });
-      return toolbar;
-    }
-
-    /** Keeps the header legend limited to the semantics of the active reader lens. */
-    function createFunctionLogicLensLegend(controller) {
+    /** Renders a non-interactive legend for semantics shown together in one graph. */
+    function createFunctionLogicIntegratedLegend() {
+      const disclosure = document.createElement("details");
+      const summary = document.createElement("summary");
       const legend = document.createElement("div");
-      const descriptorsByLens = {
-        flow: [["legend-solid-exact", "exact"], ["legend-dashed-inferred", "inferred"], ["legend-choose-path", "choice"]],
-        values: [["legend-value-changed", "value-change"], ["legend-declaration-use", "value-flow"], ["legend-dashed-inferred", "inferred"]],
-        calls: [["legend-solid-immediate-call", "exact"], ["legend-dashed-deferred", "event"], ["legend-defined-not-invoked", "callable"]],
-        effects: [["legend-mutation", "value-change"], ["legend-return-throw", "event"], ["legend-dashed-inferred", "inferred"]]
-      };
-      const render = (readerState) => {
+      disclosure.className = "logic-graph-key";
+      disclosure.append(summary, legend);
+      const render = () => {
+        summary.textContent = projectAnalyzerText("reading-legend");
         clearElement(legend);
-        for (const [text, className] of descriptorsByLens[readerState.lens]) {
+        for (const [text, className] of [["legend-solid-exact", "exact"], ["legend-dashed-inferred", "inferred"], ["legend-choose-path", "choice"], ["legend-declaration-use", "value-flow"], ["legend-value-changed", "value-change"], ["legend-solid-immediate-call", "callable"], ["legend-return-throw", "event"]]) {
           legend.append(createBadge(projectAnalyzerText(text), "logic-legend " + className));
         }
       };
       legend.className = "logic-graph-legend";
-      controller.subscribe(render);
-      render(controller.getState());
-      return legend;
+      render();
+      disclosure.refreshLanguage = render;
+      return disclosure;
     }
 
-    /**
-     * Renders a bounded, layout-ordered reading aid that shares the graph's
-     * selected node. It intentionally describes possible static structure,
-     * never an observed runtime trace.
-     */
-    function createFunctionLogicStaticFlowLedger(logic, controller) {
-      const section = document.createElement("section");
-      const orderedBlocks = logic.layout.nodes.slice()
-        .sort((left, right) => left.rank - right.rank || left.lane - right.lane || left.x - right.x || left.blockId.localeCompare(right.blockId))
-        .map((layout) => logic.blocks.find((block) => block.id === layout.blockId))
-        .filter(Boolean);
-      const render = (readerState) => {
-        clearElement(section);
-        const heading = document.createElement("strong");
-        const detail = document.createElement("p");
-        const list = document.createElement("ol");
-        const selectedIndex = Math.max(0, orderedBlocks.findIndex((block) => block.id === readerState.selectedBlockId));
-        const start = Math.max(0, Math.min(selectedIndex - 2, Math.max(0, orderedBlocks.length - 5)));
-        heading.textContent = projectAnalyzerText("static-ledger");
-        detail.textContent = projectAnalyzerText("possible-static");
-        list.className = "logic-static-ledger-list";
-        for (const block of orderedBlocks.slice(start, start + 5)) {
-          const item = document.createElement("li");
-          const button = document.createElement("button");
-          const kind = document.createElement("span");
-          const label = document.createElement("strong");
-          button.type = "button";
-          button.className = "logic-static-ledger-step";
-          button.title = projectAnalyzerText("select-static-step", { label: formatLogicBlockLabel(block) });
-          button.setAttribute("aria-current", block.id === readerState.selectedBlockId ? "step" : "false");
-          kind.textContent = formatLogicKind(block.kind);
-          label.textContent = formatLogicBlockLabel(block);
-          button.append(kind, label);
-          button.addEventListener("click", () => controller.activateBlock(block.id, true));
-          item.append(button);
-          list.append(item);
-        }
-        section.append(heading, detail, list);
-      };
-      section.className = "logic-static-ledger";
-      controller.subscribe(render);
-      render(controller.getState());
-      return section;
-    }
   `;
 }

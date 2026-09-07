@@ -125,8 +125,12 @@ dedicated Function Visualizer tab with a bounded control-flow graph:
   and child-attachment callsite preservation
 - a right-side **Inspector** drawer that consumes its own layout column instead
   of covering the graph, and moves to a separate row below it at narrow widths
-- the current signature, Start/Choose/Do/Finish guide, selected-block evidence,
-  value tools, and callees inside the fixed-height, independently scrollable Inspector
+- a **Read the function** source outline with numbered steps, branch/call/exit
+  filters, and Previous/Next navigation; selecting a step reveals that same
+  block on the graph and opens its evidence, without changing branch choices
+- three Inspector tabs: **Understand code**, **Values & paths**, and **Function
+  info**. Each preserves inputs and scroll position; leaving Values pauses its
+  calculation and playback. Opening a tab never starts a scenario automatically
 - statement nodes arranged in top-to-bottom execution ranks
 - content-sized node boxes that preserve complete source labels, values, and
   child-function names by wrapping instead of adding ellipses
@@ -143,20 +147,27 @@ dedicated Function Visualizer tab with a bounded control-flow graph:
   short quadratic declaration → use → use → sink hops, including independent branch
   arms, branch joins, and loop-carried definitions without hiding control edges;
   dotted consume paths and double/striped sink cues remain distinguishable without color
-- a Debug Variables-style `Name` / `Scenario input` table in the **Values** lens
+- a Debug Variables-style `Name` / `Scenario input` table in the integrated Inspector
   for entering session-only JSON/scalar parameter values or local/constant definition
   overrides; a long variable list scrolls inside the table instead of collapsing it;
   if analysis misses a binding, add a `CUSTOM` variable by name and value
 - a **Function Guide** disclosure in the Function Logic Inspector that explains five
   fixed source-backed questions: codebase role, inputs, path-changing decisions,
   work/calls, and outcomes; it never moves the graph until **Show on Graph** is chosen
-- lazy **Static Input Cases** under that guide, with statically inferred inputs,
-  possible outcomes, certainty, and tracked value transitions; **Load Inputs into
-  Values** copies only known values into the existing Values editor
+- lazy **Source Path Scenarios** under that guide, with statically inferred inputs,
+  possible outcomes, certainty, and tracked value transitions; **Load Inputs & Open
+  Values** copies only known values into the existing editor and opens its tab
+- a path-centric **Scenario Workspace** in Values that lists every reachable path as
+  its own row with path conditions, expected effects, evidence gaps, and named input
+  evidence; when values cannot be evaluated, bounded symbolic rows preserve source
+  choices without pretending that unknown values are concrete
+- row-specific **Apply & Play** stories that follow START → calculations and writes →
+  selected decisions → external effects → result, moving the visible token along an
+  exact graph edge when available and keeping textual camera-follow beats otherwise
 - a bounded **Scenario calculation** directly below that table, showing selected and
   transitively derived values through `DEFINED`, `CALCULATED`, `UPDATED`, `CONSUME`,
   and `SINK` steps, including `before → after` results
-- clickable scenario-value names that select the shared value-flow lens and
+- clickable scenario-value names that select the shared value-flow relation and
   highlight the matching label, definition/use graph nodes, and arrows
 - a wide-editor default Inspector that preserves an explicit close choice through
   relayouts of that root graph; narrower editors begin graph-first and expose the
@@ -354,7 +365,8 @@ relation. The projection and visual routing use bounded iterative CFG walks and
 follows the currently selected `true`/`false`/`case` scenario by dimming value
 arrows whose endpoints are outside that choice.
 
-The Scenario value editor is always available at the top of the Inspector. Its rows
+The Scenario value editor is available at the top of the Inspector's **Values &
+paths** tab. Its rows
 retain their intrinsic height, and the variable list uses a bounded inner scroll so
 selected-block evidence cannot collapse or push the editor out of view.
 Analyzer-backed parameters, locals, and constants appear automatically; when a

@@ -51,6 +51,41 @@ export type FunctionLogicResizeTransformInput = {
   nextViewportHeight: number;
 };
 
+/** Cached safe-region input for a single playback camera-follow pass. */
+export type FunctionLogicViewportSafeZoneInput = {
+  transform: FunctionLogicViewportTransform;
+  worldPoint: { x: number; y: number };
+  viewportWidth: number;
+  viewportHeight: number;
+  /** Fractional inset on every side; .25 keeps the central half safe. */
+  inset?: number;
+};
+
+/**
+ * Translates, but never zooms, so a world point remains in the central safe
+ * region. The formula is pure so transition-start geometry can be cached and
+ * each animation frame only interpolates numbers.
+ */
+export function createFunctionLogicSafeZoneFollowTransform(
+  input: FunctionLogicViewportSafeZoneInput
+): FunctionLogicViewportTransform {
+  const current = normalizeFunctionLogicViewportTransform(input.transform);
+  const width = Math.max(1, input.viewportWidth);
+  const height = Math.max(1, input.viewportHeight);
+  const inset = Math.min(0.49, Math.max(0, input.inset ?? 0.25));
+  const pointX = input.worldPoint.x * current.scale + current.x;
+  const pointY = input.worldPoint.y * current.scale + current.y;
+  const left = width * inset;
+  const right = width * (1 - inset);
+  const top = height * inset;
+  const bottom = height * (1 - inset);
+  return normalizeFunctionLogicViewportTransform({
+    scale: current.scale,
+    x: current.x + (pointX < left ? left - pointX : pointX > right ? right - pointX : 0),
+    y: current.y + (pointY < top ? top - pointY : pointY > bottom ? bottom - pointY : 0)
+  });
+}
+
 /** Restricts arbitrary wheel/button zoom to a finite supported range. */
 export function clampFunctionLogicScale(scale: number): number {
   if (!Number.isFinite(scale)) return 1;
@@ -203,6 +238,7 @@ export function getFunctionLogicViewportGeometryBrowserSource(): string {
     createFunctionLogicFitScale,
     createFitFunctionLogicViewportTransform,
     createFunctionLogicFocalZoom,
-    resizeFunctionLogicViewportTransform
+    resizeFunctionLogicViewportTransform,
+    createFunctionLogicSafeZoneFollowTransform
   ].map((value) => typeof value === "string" ? value : value.toString()).join("\n");
 }

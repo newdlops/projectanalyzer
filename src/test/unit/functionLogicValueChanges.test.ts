@@ -57,6 +57,40 @@ test("reuses the value-change contract for JavaScript", () => {
   assert.equal(analysis.summary.valueChangeCount, 2);
 });
 
+test("canonicalizes direct dot and quoted-bracket field evidence", () => {
+  const analysis = analyzeValueChanges(
+    "typescript",
+    "/workspace/src/canonical-fields.ts",
+    "update",
+    0,
+    "function update(payload: { status?: string }) { payload.status = \"ready\"; payload[\"status\"] = \"done\"; }"
+  );
+  const changes = analysis.blocks.flatMap((block) => block.valueChanges ?? [])
+    .filter((change) => change.operation === "assign");
+  assert.deepEqual(changes.map((change) => change.fieldRef && ({ rootName: change.fieldRef.rootName, path: change.fieldRef.path })), [
+    { rootName: "payload", path: ["status"] },
+    { rootName: "payload", path: ["status"] }
+  ]);
+});
+
+test("retains a simple dynamic bracket binding without claiming its runtime key", () => {
+  const analysis = analyzeValueChanges(
+    "typescript",
+    "/workspace/src/dynamic-fields.ts",
+    "update",
+    0,
+    "function update(payload: Record<string, boolean>, key: string) { payload[key] = true; }"
+  );
+  const change = requireChange(analysis, "payload[key]", "assign");
+  assert.deepEqual(change.fieldRef, {
+    rootName: "payload",
+    path: [],
+    segments: [
+      { kind: "binding", bindingName: "key" }
+    ]
+  });
+});
+
 test("expands JavaScript object literals and Object.assign into field paths", () => {
   const analysis = analyzeValueChanges(
     "typescript",

@@ -21,6 +21,9 @@ import {
 } from "./valuePreview";
 import { getFunctionLogicViewportBrowserSource } from "./viewport";
 import { getFunctionTutorBrowserSource, getFunctionTutorIntegrationBrowserSource } from "./tutor";
+import { getFunctionLogicScenarioWorkspaceBrowserSource } from "./scenarioWorkspace";
+import { getFunctionLogicScenarioEvaluationBrowserSource } from "./scenarioEvaluation";
+import { getFunctionReadingBrowserSource } from "./reading";
 /** Returns browser functions for rendering the function-local control graph. */
 export function getFunctionLogicBrowserSource(): string {
   return /* js */ `
@@ -33,9 +36,12 @@ export function getFunctionLogicBrowserSource(): string {
     ${getFunctionLogicBranchChoicesBrowserSource()}
     ${getFunctionLogicValuePreviewBrowserSource()}
     ${getFunctionLogicScenarioEvaluatorBrowserSource()}
+    ${getFunctionLogicScenarioEvaluationBrowserSource()}
+    ${getFunctionLogicScenarioWorkspaceBrowserSource()}
     ${getFunctionLogicScenarioTraceBrowserSource()}
     ${getFunctionLogicDataFlowBrowserSource()}
     ${getFunctionLogicInspectorBrowserSource()}
+    ${getFunctionReadingBrowserSource()}
     ${getFunctionLogicSelectionBrowserSource()}
     ${getFunctionLogicComprehensionBrowserSource()}
     ${getFunctionLogicGraphHeaderBrowserSource()}
@@ -44,6 +50,7 @@ export function getFunctionLogicBrowserSource(): string {
     ${getFunctionTutorIntegrationBrowserSource()}
     /** Disposes the active viewport controller before its graph DOM is removed. */
     function disposeActiveFunctionLogicViewport() {
+      state.activeLogicGraphRendering?.dispose?.();
       state.activeLogicGraphRendering = undefined;
       state.activeLogicValueFlowRendering?.dispose?.();
       state.activeLogicValueFlowRendering = undefined;
@@ -77,6 +84,9 @@ export function getFunctionLogicBrowserSource(): string {
     function createFunctionLogicGraph(logic, graphContext) {
       const blocksById = new Map(logic.blocks.map((block) => [block.id, block]));
       const edgesById = new Map(logic.edges.map((edge) => [edge.id, edge]));
+      // Direct renderers retain only exact analyzer binding identities; compound
+      // renderers supply their verified adapter through graphContext instead.
+      const valueBindingsById = new Map((logic.valueBindings || []).map((binding) => [binding.id, binding]));
       const outgoingBySourceId = createOutgoingLogicEdgeIndex(logic.edges);
       const connectedEdgeIdsByBlockId = createConnectedLogicEdgeIndex(logic.edges);
       const nodeLayoutsByBlockId = new Map(
@@ -105,6 +115,9 @@ export function getFunctionLogicBrowserSource(): string {
       });
       let selectionGraphContext = {
         ...(graphContext || {}),
+        resolveScenarioBindingId: graphContext?.resolveScenarioBindingId || ((bindingId) => valueBindingsById.has(bindingId) ? bindingId : undefined),
+        resolveScenarioBlockId: graphContext?.resolveScenarioBlockId || ((blockId) => blocksById.has(blockId) ? blockId : undefined),
+        resolveScenarioEdgeId: graphContext?.resolveScenarioEdgeId || ((edgeId) => edgesById.has(edgeId) ? edgeId : undefined),
         isBodyOwner: (blockId) => compoundOwnerIds.has(blockId),
         focusBody: (blockId) => bodyFocusController.focus(blockId)
       };
@@ -127,6 +140,7 @@ export function getFunctionLogicBrowserSource(): string {
           edgeRendering.elementsById
         );
         if (valueFlowRendering) valueFlowRendering.resetPlayback();
+        valueFlowRendering?.scenarioWorkspaceSession?.markModified();
         const selectedBlockId = edge?.sourceId || state.selectedLogicBlockId || rootBlock.id;
         selectLogicGraphNode(
           selectedBlockId,
@@ -158,6 +172,7 @@ export function getFunctionLogicBrowserSource(): string {
           edgeRendering.elementsById
         );
         if (valueFlowRendering) valueFlowRendering.resetPlayback();
+        valueFlowRendering?.scenarioWorkspaceSession?.markModified();
         selectLogicGraphNode(
           sourceBlockId || row.targetBlockId,
           nodeButtonsById,
@@ -211,18 +226,6 @@ export function getFunctionLogicBrowserSource(): string {
         );
       };
       comprehension.setNodeActivation(activateLogicBlock);
-      comprehension.subscribe((readerState) => inspector.setLens(readerState.lens)); inspector.setLens(comprehension.getState().lens);
-      valueFlowRendering = createFunctionLogicValueFlowRendering(
-        logic,
-        nodeLayoutsByBlockId,
-        nodeButtonsById,
-        edgeRendering.elementsById,
-        choiceSessionKey,
-        (bindingId) => {
-          comprehension.setLens("values");
-          comprehension.selectBinding(bindingId || undefined);
-        }
-      );
       const readTransform = graphContext && graphContext.readViewportTransform
         ? graphContext.readViewportTransform
         : () => state.logicGraphViewportTransform;
@@ -240,8 +243,32 @@ export function getFunctionLogicBrowserSource(): string {
         readTransform,
         writeTransform
       });
+      valueFlowRendering = createFunctionLogicValueFlowRendering(
+        logic,
+        nodeLayoutsByBlockId,
+        nodeButtonsById,
+        edgeRendering.elementsById,
+        choiceSessionKey,
+        (bindingId) => {
+          comprehension.selectBinding(bindingId || undefined);
+        },
+        viewportController,
+        (path) => {
+          const prior = setFunctionLogicScenarioBranchChoices(choiceSessionKey, logic.edges, (path?.edgeIds || []).map(selectionGraphContext.resolveScenarioEdgeId).filter(Boolean));
+          if (prior.size === 0) return;
+          branchChoices = readFunctionLogicBranchChoices(choiceSessionKey, logic.edges);
+          applyFunctionLogicBranchChoicePresentation(logic.blocks, logic.edges, branchChoices, nodeButtonsById, edgeRendering.elementsById);
+          return prior;
+        },
+        (prior) => {
+          branchChoices = restoreFunctionLogicScenarioBranchChoices(choiceSessionKey, logic.edges, prior);
+          applyFunctionLogicBranchChoicePresentation(logic.blocks, logic.edges, branchChoices, nodeButtonsById, edgeRendering.elementsById);
+        },
+        selectionGraphContext
+      );
       const tutorRendering = createFunctionTutorIntegration(
-        logic, comprehension, valueFlowRendering, viewportController, inspector);
+        logic, comprehension, valueFlowRendering, viewportController, inspector,
+        valueFlowRendering?.scenarioWorkspaceSession);
       const hasJsxFlow = logic.blocks.some((block) => block.kind === "render");
       const hasEventFlow = logic.blocks.some((block) => block.kind === "event");
       const hasRenderFlow = hasJsxFlow || hasEventFlow;
@@ -257,13 +284,14 @@ export function getFunctionLogicBrowserSource(): string {
                 ? projectAnalyzerText("graph-control-jsx-event")
                 : hasJsxFlow ? projectAnalyzerText("graph-control-jsx") : projectAnalyzerText("graph-control-event"))
           : (hasValueFlow || hasValueChanges ? projectAnalyzerText("control-value-flow") : projectAnalyzerText("control-paths")));
+      const reading = createFunctionReadingSurface(logic, choiceSessionKey, viewport, comprehension, viewportController, inspector);
       const graphHeader = createLogicGraphHeader(
         viewportController,
         inspector.toggle,
-        createFunctionLogicLensToolbar(comprehension),
-        createFunctionLogicLensLegend(comprehension),
+        createFunctionLogicIntegratedLegend(),
         graphTitle,
-        tutorRendering?.toggle
+        tutorRendering?.toggle,
+        reading.toggle
       );
       graph.className = "logic-graph";
       viewport.className = "logic-graph-viewport";
@@ -305,6 +333,9 @@ export function getFunctionLogicBrowserSource(): string {
         comprehension.registerNode(block.id, node);
         canvas.append(node);
       }
+      // Value-story foreground stays above every node and edge without changing layout geometry.
+      if (valueFlowRendering?.foreground) canvas.append(valueFlowRendering.foreground);
+      if (valueFlowRendering?.calculationPlaque) canvas.append(valueFlowRendering.calculationPlaque);
       canvas.append(edgeChoiceLayer);
       bodyFocusController.refresh();
       comprehension.refresh();
@@ -318,20 +349,19 @@ export function getFunctionLogicBrowserSource(): string {
       if (valueFlowRendering) valueFlowRendering.refresh();
       stage.append(canvas);
       viewport.append(stage);
-      inspector.attachViewport(viewport);
+      inspector.attachViewport(reading.element);
       inspector.registerGuide(tutorRendering);
-      const staticLedger = createFunctionLogicStaticFlowLedger(logic, comprehension);
       const calleeExplorer = createLogicCalleeExplorer(logic.callees || [], logic.omittedCalleeCount || 0);
       const signature = createLogicSignature(logic.signature);
-      inspector.appendSections(
+      inspector.appendSectionsTo("values",
         valueFlowRendering?.valuePreviewEditor,
+        valueFlowRendering?.scenarioWorkspace,
         valueFlowRendering?.scenarioTrace,
         valueFlowRendering?.playback,
-        valueFlowRendering?.toolbar,
-        staticLedger,
-        calleeExplorer,
-        signature
+        valueFlowRendering?.toolbar
       );
+      inspector.appendSectionsTo("info", signature, calleeExplorer);
+      inspector.onValuesVisibilityChange((visible) => valueFlowRendering?.setVisible(visible));
       graph.append(graphHeader);
       graph.append(bodyFocusController.navigation);
       graph.append(inspector.workspace);
@@ -339,7 +369,7 @@ export function getFunctionLogicBrowserSource(): string {
       const preferredBlock = blocksById.get(
         graphContext ? graphContext.selectedBlockId : state.selectedLogicBlockId
       )
-        || logic.blocks.find((block) => ["condition", "loop", "switch"].includes(block.kind))
+        || logic.blocks.find((block) => block.kind === "entry")
         || logic.blocks[0];
       selectLogicGraphNode(
         preferredBlock.id,
@@ -364,6 +394,7 @@ export function getFunctionLogicBrowserSource(): string {
         nodeButtonsById,
         nodeLayoutsByBlockId,
         valueFlowRendering,
+        dispose() { reading.dispose(); },
         /** Rewrites retained locale copy without rebuilding graph geometry or state. */
         updateLanguage(language) {
           edgeRendering.svg.setAttribute("aria-label", projectAnalyzerText("control-paths"));
@@ -389,14 +420,18 @@ export function getFunctionLogicBrowserSource(): string {
             if (!block) continue;
             button.refreshLanguage?.();
           }
-          valueFlowRendering?.updateLanguage(language);
           bodyFocusController.refresh();
           graphHeader.refreshLanguage?.();
+          reading.refreshLanguage();
           signature.refreshLanguage?.();
           calleeExplorer?.refreshLanguage?.();
           inspector.refreshLanguage?.();
           comprehension.refreshLanguage?.();
           viewportController.refreshLanguage?.();
+          // Values owns richer transient playback/session state. Refresh the
+          // retained graph chrome first so a bounded Values-only failure cannot
+          // strand the Inspector, ledger, Guide, or ARIA controls in one locale.
+          valueFlowRendering?.updateLanguage(language);
           const retainedSelection = blocksById.get(state.selectedLogicBlockId || preferredBlock.id);
           if (retainedSelection) {
             renderLogicSelection(retainedSelection, outgoingBySourceId.get(retainedSelection.id) || [], blocksById, inspector.selectionPanel, selectionGraphContext, applyBranchChoice, applyConditionCase, branchChoices);
@@ -406,18 +441,6 @@ export function getFunctionLogicBrowserSource(): string {
           // graph state, but this locale pass must be completely side-effect free.
         }
       };
-    }
-    /** Creates the compact current-function header above the graph. */
-    function createLogicSignature(signatureText) {
-      const signature = document.createElement("div");
-      const signatureLabel = document.createElement("span");
-      const signatureCode = document.createElement("code");
-      signature.className = "logic-signature";
-      signatureLabel.textContent = projectAnalyzerText("function-signature");
-      signatureCode.textContent = signatureText;
-      signature.append(signatureLabel, signatureCode);
-      signature.refreshLanguage = () => { signatureLabel.textContent = projectAnalyzerText("function-signature"); };
-      return signature;
     }
 
     /** Draws every routed edge and label behind the interactive HTML nodes. */
@@ -758,28 +781,5 @@ export function getFunctionLogicBrowserSource(): string {
     function formatLogicBlockLabel(block) { return block?.presentation ? projectAnalyzerText(block.presentation.labelKey, block.presentation.labelParams) : String(block?.label || block?.kind || ""); }
     function formatLogicBlockDetail(block) { return block?.presentation ? projectAnalyzerText(block.presentation.detailKey, block.presentation.detailParams) : String(block?.detail || ""); }
 
-    /** Summarizes internal logic rather than call-graph size. */
-    function createFunctionLogicSummaryText(logic) {
-      const summary = logic.summary;
-      const parts = [projectAnalyzerText("logic-block-count", { count: summary.blockCount })];
-      if (summary.branchCount) parts.push(projectAnalyzerText("summary-branches", { count: summary.branchCount }));
-      if (summary.loopCount) parts.push(projectAnalyzerText("summary-loops", { count: summary.loopCount }));
-      const renderCount = logic.blocks.filter((block) => block.kind === "render").length;
-      const eventCount = logic.blocks.filter((block) => block.kind === "event").length;
-      if (renderCount) parts.push(projectAnalyzerText("summary-jsx-steps", { count: renderCount }));
-      if (eventCount) parts.push(projectAnalyzerText("summary-event-bindings", { count: eventCount }));
-      if (summary.effectCount) parts.push(projectAnalyzerText("summary-effects", { count: summary.effectCount }));
-      if (summary.valueChangeCount) parts.push(
-        projectAnalyzerText("summary-value-changes", { count: summary.valueChangeCount })
-      );
-      else if (summary.mutationCount) parts.push(
-        projectAnalyzerText("summary-mutations", { count: summary.mutationCount })
-      );
-      const bindingCount = (logic.valueBindings || []).length;
-      if (bindingCount) parts.push(
-        projectAnalyzerText("tracked-binding-count", { count: bindingCount })
-      );
-      return parts.join(" · ");
-    }
   `;
 }

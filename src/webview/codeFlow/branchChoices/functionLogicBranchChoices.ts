@@ -222,6 +222,25 @@ export function getFunctionLogicBranchChoicesBrowserSource(): string {
       return functionLogicBranchChoices;
     }
 
+    /** Sets only verified scenario decision edges and returns their prior choices for restoration. */
+    function setFunctionLogicScenarioBranchChoices(sessionKey, edges, choiceEdgeIds) {
+      const choices = readFunctionLogicBranchChoices(sessionKey, edges);
+      const edgesById = new Map(edges.filter(isFunctionLogicBranchChoiceEdge).map((edge) => [edge.id, edge]));
+      const next = new Map(choices); const prior = new Map();
+      for (const edgeId of choiceEdgeIds || []) {
+        const edge = edgesById.get(edgeId); if (!edge) continue;
+        prior.set(edge.sourceId, choices.get(edge.sourceId)); next.set(edge.sourceId, edge.id);
+      }
+      functionLogicBranchChoices = next; return prior;
+    }
+
+    /** Restores only scenario-touched decision sources, preserving unrelated manual choices. */
+    function restoreFunctionLogicScenarioBranchChoices(sessionKey, edges, prior) {
+      const choices = readFunctionLogicBranchChoices(sessionKey, edges); const next = new Map(choices);
+      for (const [sourceId, edgeId] of prior || []) { if (edgeId) next.set(sourceId, edgeId); else next.delete(sourceId); }
+      functionLogicBranchChoices = pruneFunctionLogicBranchChoices(next, edges); return functionLogicBranchChoices;
+    }
+
     /** Clears every selected outcome without replacing the graph DOM. */
     function clearFunctionLogicBranchChoiceSession(sessionKey) {
       functionLogicBranchChoiceSessionKey = sessionKey;

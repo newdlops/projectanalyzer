@@ -72,7 +72,13 @@ test("projects internal logic with opaque evidence and known entrypoint origins"
       operation: "assign",
       operator: "=",
       value: "'saving'",
-      confidence: "exact"
+      confidence: "exact",
+      valueRef: {
+        rootBindingId: (detail.logic?.valueBindings?.find((binding) => binding.name === "order")?.id) as string,
+        path: ["status"],
+        displayPath: "order.status",
+        segments: [{ kind: "static", key: "status" }]
+      }
     }
   );
   assert.equal(detail.logic?.summary.valueChangeCount, 1);
@@ -117,6 +123,31 @@ test("projects internal logic with opaque evidence and known entrypoint origins"
   assert.equal(detail.logic?.omittedCalleeCount, 0);
   assert.match(detail.subtitle, /src\/orders\.ts:1/u);
   assert.doesNotMatch(JSON.stringify(detail), /\/workspace/u);
+});
+
+test("projects a dynamic field key through only its opaque Scenario binding", () => {
+  const filePath = "/workspace/src/dynamic-fields.ts";
+  const node = createHandlerNode(filePath);
+  const graph = createGraph({ files: [filePath], callables: [node] });
+  const analysis = analyzeFunctionLogic({
+    functionNode: node,
+    sourceText: "export function handler(payload: Record<string, boolean>, key: string) { payload[key] = true; return payload; }"
+  });
+  const detail = createFunctionLogicCodeFlowDetail(
+    graph, createFlowIndex(graph.version, []), node, analysis, "sidebar-snapshot:logic:dynamic",
+    (path, range) => `code-evidence:${createContentHash(`${path}:${range.startLine}`)}` as CodeFlowEvidenceToken,
+    (nodeId) => `source-node:${createContentHash(nodeId)}` as SourceNodeToken
+  );
+  const payload = detail.logic?.valueBindings?.find((binding) => binding.name === "payload");
+  const key = detail.logic?.valueBindings?.find((binding) => binding.name === "key");
+  const ref = detail.logic?.blocks.flatMap((block) => block.valueChanges ?? [])
+    .find((change) => change.target === "payload[key]")?.valueRef;
+  assert.deepEqual(ref, {
+    rootBindingId: payload?.id,
+    path: [],
+    displayPath: "payload[key]",
+    segments: [{ kind: "binding", bindingId: key?.id }]
+  });
 });
 
 test("projects complete graph-box text and sizes its node for wrapped content", () => {

@@ -78,7 +78,8 @@ export function collectTypeScriptExpressionValueChanges(
         operation,
         operator: sourceText(sourceFile, node.operatorToken),
         value: sourceText(sourceFile, node.right),
-        confidence: "exact"
+        confidence: "exact",
+        fieldRef: readStaticFieldReference(node.left)
       }));
       if (operation === "assign") {
         values.push(...collectTypeScriptObjectLiteralFieldChanges(
@@ -94,7 +95,8 @@ export function collectTypeScriptExpressionValueChanges(
         targetKind: classifyFunctionLogicValueTarget(sourceText(sourceFile, node.operand)),
         operation: "update",
         operator: ts.tokenToString(node.operator) ?? "update",
-        confidence: "exact"
+        confidence: "exact",
+        fieldRef: readStaticFieldReference(node.operand)
       }));
     } else if (ts.isDeleteExpression(node)) {
       values.push(createFunctionLogicValueChange({
@@ -102,7 +104,8 @@ export function collectTypeScriptExpressionValueChanges(
         targetKind: classifyFunctionLogicValueTarget(sourceText(sourceFile, node.expression)),
         operation: "delete",
         operator: "delete",
-        confidence: "exact"
+        confidence: "exact",
+        fieldRef: readStaticFieldReference(node.expression)
       }));
     } else if (ts.isCallExpression(node)) {
       values.push(createReceiverCallChange(sourceFile, node));
@@ -279,4 +282,42 @@ function getImmediateChildren(node: ts.Node): ts.Node[] {
 /** Reads complete source expression text without changing its static meaning. */
 function sourceText(sourceFile: ts.SourceFile, node: ts.Node): string {
   return normalizeValueChangeText(node.getText(sourceFile));
+}
+
+/**
+ * Decodes only direct own-property paths without evaluating a computed key.
+ * Quoted brackets and dot spelling intentionally produce the same segments.
+ */
+function readStaticFieldReference(expression: ts.Expression): { rootName: string; path: string[]; segments: Array<{ kind: "static"; key: string } | { kind: "binding"; bindingName: string }> } | undefined {
+  const segments: Array<{ kind: "static"; key: string } | { kind: "binding"; bindingName: string }> = [];
+  let current: ts.Expression = expression;
+  while (ts.isPropertyAccessExpression(current) || ts.isElementAccessExpression(current)) {
+    if (ts.isPropertyAccessExpression(current)) {
+      if (isUnsafeFieldKey(current.name.text)) return undefined;
+      segments.unshift({ kind: "static", key: current.name.text });
+      current = current.expression;
+      continue;
+    }
+    const key = current.argumentExpression;
+    if (!key) return undefined;
+    if (ts.isIdentifier(key)) {
+      segments.unshift({ kind: "binding", bindingName: key.text });
+    } else if (ts.isStringLiteral(key) || ts.isNoSubstitutionTemplateLiteral(key) || ts.isNumericLiteral(key)) {
+      const decoded = ts.isNumericLiteral(key) ? String(Number(key.text)) : key.text;
+      if (isUnsafeFieldKey(decoded)) return undefined;
+      segments.unshift({ kind: "static", key: decoded });
+    } else return undefined;
+    current = current.expression;
+  }
+  const path = segments.every((segment) => segment.kind === "static")
+    ? segments.map((segment) => segment.key)
+    : [];
+  return ts.isIdentifier(current) && segments.length > 0
+    ? { rootName: current.text, path, segments }
+    : undefined;
+}
+
+/** Keeps prototype-sensitive fields out of exact Scenario ownership. */
+function isUnsafeFieldKey(key: string): boolean {
+  return key === "__proto__" || key === "prototype" || key === "constructor";
 }

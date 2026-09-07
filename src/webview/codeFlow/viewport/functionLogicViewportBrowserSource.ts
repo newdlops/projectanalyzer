@@ -30,6 +30,11 @@ export function getFunctionLogicViewportBrowserSource(): string {
       let viewportWidth = 0;
       let viewportHeight = 0;
       let announcementTimer;
+      // Continuous pan keeps its newest logical transform here until one paint frame.
+      let pendingPanTransform;
+      let pendingPanFrame;
+      // A pass is explicitly armed by Playback and remains off after any user view action.
+      let autoFollow;
 
       /** Reads concrete dimensions after the graph has entered the document. */
       function readViewportSize() {
@@ -52,7 +57,7 @@ export function getFunctionLogicViewportBrowserSource(): string {
       }
 
       /** Applies one transform and records it in the owning graph session. */
-      function commit(nextTransform, announce) {
+      function commit(nextTransform, announce, paintOnly) {
         transform = normalizeFunctionLogicViewportTransform(nextTransform);
         canvas.style.setProperty(
           "transform",
@@ -62,8 +67,64 @@ export function getFunctionLogicViewportBrowserSource(): string {
         viewport.style.setProperty("--logic-grid-size", gridSize + "px");
         viewport.style.setProperty("--logic-grid-x", transform.x + "px");
         viewport.style.setProperty("--logic-grid-y", transform.y + "px");
+        // Pan must not rewrite retained toolbar/localized DOM or session state per input event.
+        if (!paintOnly && options.writeTransform) options.writeTransform({ ...transform });
+        if (!paintOnly) updateControls(Boolean(announce));
+      }
+
+      /** Flushes the final coalesced pan once; no layout read or Host work occurs here. */
+      function flushPendingPan() {
+        pendingPanFrame = undefined;
+        if (!pendingPanTransform) return;
+        const next = pendingPanTransform;
+        pendingPanTransform = undefined;
+        commit(next, false, true);
+        // Persist once per visual frame so a later rebuild restores the actual pan.
         if (options.writeTransform) options.writeTransform({ ...transform });
-        updateControls(Boolean(announce));
+      }
+
+      /** Coalesces high-frequency pointer and trackpad translation into one compositor paint. */
+      function queuePan(nextTransform) {
+        pendingPanTransform = nextTransform;
+        if (pendingPanFrame !== undefined) return;
+        pendingPanFrame = requestAnimationFrame(flushPendingPan);
+      }
+
+      /** Makes a pending pan visible before a semantic transform supersedes it. */
+      function settlePendingPan() {
+        if (pendingPanFrame !== undefined && typeof cancelAnimationFrame === "function") {
+          cancelAnimationFrame(pendingPanFrame);
+        }
+        flushPendingPan();
+      }
+
+      /** Stops camera ownership without changing the independently controllable playback. */
+      function cancelAutoFollow() {
+        autoFollow = undefined;
+      }
+
+      /** Arms one translation-only camera pass using a stable transition-start viewport. */
+      function beginAutoFollow() {
+        if (!transform) return;
+        const size = readViewportSize();
+        autoFollow = { viewportWidth: size.width, viewportHeight: size.height, scale: transform.scale };
+      }
+
+      /** Paints a cached token point into the central half without persistence or toolbar work. */
+      function followWorldPoint(point) {
+        if (!autoFollow || !transform || !point || transform.scale !== autoFollow.scale) return;
+        const next = createFunctionLogicSafeZoneFollowTransform({
+          transform, worldPoint: point,
+          viewportWidth: autoFollow.viewportWidth,
+          viewportHeight: autoFollow.viewportHeight,
+          inset: 0.25
+        });
+        if (next.x !== transform.x || next.y !== transform.y) commit(next, false, true);
+      }
+
+      /** Settles the camera at transition boundaries, avoiding per-frame session writes. */
+      function settleAutoFollow() {
+        if (autoFollow && transform && options.writeTransform) options.writeTransform({ ...transform });
       }
 
       /** Keeps toolbar labels and accessible zoom state synchronized. */
@@ -128,6 +189,8 @@ export function getFunctionLogicViewportBrowserSource(): string {
         resizeObserver = undefined;
         if (announcementTimer !== undefined) clearTimeout(announcementTimer);
         announcementTimer = undefined;
+        settlePendingPan();
+        cancelAutoFollow();
       }
 
       /** Returns a defensive copy for graph-rebuild anchor preservation. */
@@ -138,12 +201,15 @@ export function getFunctionLogicViewportBrowserSource(): string {
       /** Restores an explicit transform without synthesizing scroll boundaries. */
       function setTransform(nextTransform, announce) {
         if (!nextTransform) return;
+        cancelAutoFollow();
         commit(nextTransform, announce);
       }
 
       /** Preserves the viewport-center world point while changing scale. */
       function zoomTo(nextScale, focalX, focalY, announce) {
         if (!transform) return;
+        cancelAutoFollow();
+        settlePendingPan();
         const size = readViewportSize();
         commit(createFunctionLogicFocalZoom({
           ...geometry(),
@@ -179,16 +245,20 @@ export function getFunctionLogicViewportBrowserSource(): string {
       /** Moves the world freely in screen space with only a numeric safety bound. */
       function panBy(deltaX, deltaY) {
         if (!transform) return;
-        commit({
-          scale: transform.scale,
-          x: transform.x + deltaX,
-          y: transform.y + deltaY
-        }, false);
+        cancelAutoFollow();
+        const base = pendingPanTransform || transform;
+        queuePan({
+          scale: base.scale,
+          x: base.x + deltaX,
+          y: base.y + deltaY
+        });
       }
 
       /** Centers the graph without changing its current zoom. */
       function center() {
         if (!transform) return;
+        cancelAutoFollow();
+        settlePendingPan();
         commit(createCenteredFunctionLogicViewportTransform(
           geometry(),
           transform.scale
@@ -197,12 +267,15 @@ export function getFunctionLogicViewportBrowserSource(): string {
 
       /** Fits and centers the complete graph using both viewport dimensions. */
       function fit() {
+        cancelAutoFollow();
+        settlePendingPan();
         commit(createFitFunctionLogicViewportTransform(geometry()), true);
       }
 
       /** Reveals explicit Guide evidence without changing graph focus or lens state. */
       function revealBlocks(blockIds, options) {
         if (!transform || !Array.isArray(blockIds) || blockIds.length === 0) return;
+        cancelAutoFollow();
         const requested = new Set(blockIds);
         const nodes = (layout.nodes || []).filter((node) => requested.has(node.blockId));
         if (nodes.length === 0) return;
@@ -268,6 +341,7 @@ export function getFunctionLogicViewportBrowserSource(): string {
           : undefined;
         if (event.button !== 1 && (event.button !== 0 || interactive)) return;
         if (!transform) return;
+        cancelAutoFollow();
         pan = {
           pointerId: event.pointerId,
           startX: event.clientX,
@@ -283,7 +357,7 @@ export function getFunctionLogicViewportBrowserSource(): string {
       /** Applies captured pointer movement directly to the transform. */
       function handlePointerMove(event) {
         if (!pan || pan.pointerId !== event.pointerId) return;
-        commit({
+        queuePan({
           scale: transform.scale,
           x: pan.x + event.clientX - pan.startX,
           y: pan.y + event.clientY - pan.startY
@@ -300,6 +374,7 @@ export function getFunctionLogicViewportBrowserSource(): string {
         }
         pan = undefined;
         viewport.classList.remove("panning");
+        settlePendingPan();
       }
 
       /** Provides graph-local zoom, Center, and Fit shortcuts. */
@@ -358,6 +433,10 @@ export function getFunctionLogicViewportBrowserSource(): string {
         center,
         fit,
         revealBlocks,
+        beginAutoFollow,
+        followWorldPoint,
+        settleAutoFollow,
+        cancelAutoFollow,
         attachControls,
         /** Rewrites retained controls without committing a viewport transform. */
         refreshLanguage() { updateControls(false); }

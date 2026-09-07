@@ -4,6 +4,7 @@
 .vscode/**
 .vscode-test/**
 .codex/**
+.plan/**
 .codeidx/**
 .portmanager/**
 .lh/**

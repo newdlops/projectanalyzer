@@ -13,7 +13,8 @@ export function getFunctionLogicScenarioTraceBrowserSource(): string {
     function createFunctionLogicScenarioTrace(
       logic,
       nodeButtonsById,
-      controlEdgeElementsById
+      controlEdgeElementsById,
+      scenarioIdentity
     ) {
       const section = document.createElement("section");
       const header = document.createElement("div");
@@ -39,6 +40,11 @@ export function getFunctionLogicScenarioTraceBrowserSource(): string {
 
       /** Recalculates the selected branch after input, selection, or choice changes. */
       function refresh() {
+        // Locale refresh retains the selected binding and rows; only owned
+        // landmark/header copy is rewritten before the existing progression.
+        section.setAttribute("aria-label", projectAnalyzerText("scenario-trace-region"));
+        title.textContent = projectAnalyzerText("scenario-calculation");
+        hint.textContent = projectAnalyzerText("scenario-calculation-hint");
         const binding = readFunctionLogicScenarioEditableBindings(
           logic.valueBindings || []
         ).find((candidate) =>
@@ -52,7 +58,7 @@ export function getFunctionLogicScenarioTraceBrowserSource(): string {
           return;
         }
         const progression = readFunctionLogicScenarioPlaybackFrames(
-          logic, binding, nodeButtonsById, controlEdgeElementsById
+          logic, binding, nodeButtonsById, controlEdgeElementsById, scenarioIdentity
         );
         const calculation = progression.calculation;
         const orderedRecords = progression.orderedRecords;
@@ -110,7 +116,7 @@ export function getFunctionLogicScenarioTraceBrowserSource(): string {
             .find((candidate) => candidate.id === bindingId);
           return binding
             ? readFunctionLogicScenarioPlaybackFrames(
-                logic, binding, nodeButtonsById, controlEdgeElementsById
+                logic, binding, nodeButtonsById, controlEdgeElementsById, scenarioIdentity
               ).frames
             : [];
         }
@@ -121,8 +127,9 @@ export function getFunctionLogicScenarioTraceBrowserSource(): string {
      * Produces the one source-backed, bounded frame sequence shared by the
      * Scenario list and playback. No graph relation is created by this helper.
      */
-    function readFunctionLogicScenarioPlaybackFrames(logic, binding, nodeButtonsById, edgeElementsById) {
-      const calculation = calculateFunctionLogicScenario(logic, nodeButtonsById, edgeElementsById);
+    function readFunctionLogicScenarioPlaybackFrames(logic, binding, nodeButtonsById, edgeElementsById, scenarioIdentity) {
+      const rawCalculation = calculateFunctionLogicScenario(logic, nodeButtonsById, edgeElementsById, scenarioIdentity);
+      const calculation = projectFunctionLogicScenarioCalculation(logic, rawCalculation, scenarioIdentity);
       const orderedRecords = collectFunctionLogicScenarioBlockRecords(logic, calculation);
       return {
         calculation,
@@ -130,6 +137,74 @@ export function getFunctionLogicScenarioTraceBrowserSource(): string {
         frames: collectFunctionLogicScenarioPlaybackFrames(binding, orderedRecords, calculation)
           .slice(0, MAX_LOGIC_SCENARIO_TRACE_STEPS)
       };
+    }
+
+    /**
+     * Projects only exact root-program identities into the visible graph.
+     * Evaluation remains keyed by opaque raw IDs; this boundary refuses absent
+     * or aliased resolver results rather than guessing a visible target.
+     */
+    function projectFunctionLogicScenarioCalculation(logic, calculation, scenarioIdentity) {
+      const visibleBindings = new Map((logic.valueBindings || []).map((binding) => [binding.id, binding]));
+      const visibleBlocks = new Map((logic.blocks || []).map((block) => [block.id, block]));
+      const root = (logic.tutor?.programBundle?.programs || []).find((program) => program.id === logic.tutor?.programBundle?.rootProgramId);
+      // Legacy snapshots already execute against visible graph identities.
+      // Preserve that direct contract rather than projecting an absent bundle.
+      if (!root) return calculation;
+      // Parameters seed raw execution, while locals must still cross this
+      // boundary to render their root-program transitions and trace frames.
+      const rawBindingIds = (root.bindings || []).map((binding) => binding.bindingId);
+      const rawBlockIds = root ? (root.blocks || []).map((block) => block.blockId) : [...visibleBlocks.keys()];
+      const bindingMap = createFunctionLogicScenarioVisibleTraceIdentityMap(rawBindingIds, visibleBindings, scenarioIdentity?.resolveScenarioBindingId);
+      const blockMap = createFunctionLogicScenarioVisibleTraceIdentityMap(rawBlockIds, visibleBlocks, scenarioIdentity?.resolveScenarioBlockId);
+      const inputStateByBindingId = new Map();
+      for (const [rawId, state] of calculation.inputStateByBindingId || []) {
+        const visibleId = bindingMap.get(rawId); if (visibleId) inputStateByBindingId.set(visibleId, state);
+      }
+      const recordsByBlockId = new Map();
+      for (const [rawBlockId, record] of calculation.recordsByBlockId || []) {
+        const visibleBlockId = blockMap.get(rawBlockId); if (!visibleBlockId) continue;
+        const before = projectFunctionLogicScenarioTraceEnvironment(record.before, bindingMap);
+        const after = projectFunctionLogicScenarioTraceEnvironment(record.after, bindingMap);
+        const transitions = (record.transitions || []).flatMap((transition) => {
+          const targetBindingId = bindingMap.get(transition.targetBindingId);
+          if (!targetBindingId) return [];
+          const rootBindingId = transition.valueRef?.rootBindingId ? bindingMap.get(transition.valueRef.rootBindingId) : undefined;
+          const segments = transition.valueRef?.segments?.map((segment) => segment.kind === "binding"
+            ? (bindingMap.get(segment.bindingId) ? { kind: "binding", bindingId: bindingMap.get(segment.bindingId) } : undefined)
+            : segment).filter(Boolean);
+          const visibleOwner = rootBindingId ? visibleBindings.get(rootBindingId) : undefined;
+          const resolvedPath = transition.valueRef?.path || [];
+          const targetName = visibleOwner && resolvedPath.length
+            ? visibleOwner.name + resolvedPath.map(formatFunctionLogicScenarioCanonicalFieldSegment).join("")
+            : transition.targetName;
+          return [{ ...transition, blockId: visibleBlockId, targetBindingId, targetName,
+            ...(transition.valueRef && rootBindingId ? { valueRef: { ...transition.valueRef, rootBindingId, ...(segments ? { segments } : {}) } } : {}),
+            dependencyBindingIds: (transition.dependencyBindingIds || []).map((id) => bindingMap.get(id)).filter(Boolean) }];
+        });
+        recordsByBlockId.set(visibleBlockId, { ...record, before, after, transitions });
+      }
+      return { ...calculation, inputStateByBindingId, recordsByBlockId };
+    }
+
+    function projectFunctionLogicScenarioTraceEnvironment(environment, identityMap) {
+      const projected = new Map();
+      for (const [rawId, state] of environment || []) { const visibleId = identityMap.get(rawId); if (visibleId) projected.set(visibleId, state); }
+      return projected;
+    }
+
+    /** Uses array-index notation only for canonical non-negative integer segments. */
+    function formatFunctionLogicScenarioCanonicalFieldSegment(key) {
+      if (/^[A-Za-z_$][A-Za-z0-9_$]*$/u.test(key)) return "." + key;
+      if (/^(?:0|[1-9][0-9]*)$/u.test(key)) return "[" + key + "]";
+      return "[" + JSON.stringify(key) + "]";
+    }
+
+    function createFunctionLogicScenarioVisibleTraceIdentityMap(rawIds, visibleById, resolve) {
+      const candidates = new Map();
+      for (const rawId of rawIds || []) { const visibleId = resolve ? resolve(rawId) : (visibleById.has(rawId) ? rawId : undefined); if (visibleId && visibleById.has(visibleId)) { const entries = candidates.get(visibleId) || []; entries.push(rawId); candidates.set(visibleId, entries); } }
+      const mapped = new Map(); for (const [visibleId, rawIdsForVisible] of candidates) if (rawIdsForVisible.length === 1) mapped.set(rawIdsForVisible[0], visibleId);
+      return mapped;
     }
 
     /** Collects final fixed-point block records in deterministic graph order. */
@@ -208,7 +283,7 @@ export function getFunctionLogicScenarioTraceBrowserSource(): string {
           });
         }
         for (const transition of relevantTransitions) {
-          const initialized = transition.before.kind === "unset"
+          const initialized = !transition.before || transition.before.kind === "unset"
             || transition.kind === "override";
           // The initial definition/override is represented by the single START
           // frame above; emitting it again would make it look like a mutation.

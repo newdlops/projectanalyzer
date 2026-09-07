@@ -5,6 +5,8 @@
  */
 
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import test from "node:test";
 import {
   analyzeFunctionLogic,
@@ -53,6 +55,20 @@ test("tracks TypeScript parameters, locals, constants, and branch-reaching defin
       && flow.targetBlockId === returnBlock.id
       && flow.targetUsage === "sink"
   ));
+});
+
+test("scenarioMotion fixture exposes ordered same-binding exact lexical hops", () => {
+  const source = readFileSync(resolve(process.cwd(), "src/test/fixtures/functionLogic/scenario_call_condition.ts"), "utf8");
+  const declarationLine = source.slice(0, source.indexOf("function scenarioMotion")).split("\n").length - 1;
+  const analysis = analyzeFunctionLogic({
+    functionNode: createFunctionNode("typescript", "/workspace/src/scenario_call_condition.ts", "scenarioMotion", "scenarioMotion", declarationLine, 16), sourceText: source
+  });
+  const score = assertBinding(analysis, "score", "local", "exact");
+  const scoreChanges = analysis.blocks.flatMap((block) => (block.valueChanges || []).filter((change) => change.target === "score").map((change) => ({ block, change })));
+  assert.deepEqual(scoreChanges.map(({ change }) => change.value), ["input ? 1 : 0", "score + 2", "score * 3"]);
+  const middleToLast = (analysis.valueFlows || []).find((flow) => flow.bindingId === score.id
+    && flow.sourceBlockId === scoreChanges[1]?.block.id && flow.targetBlockId === scoreChanges[2]?.block.id);
+  assert.equal(middleToLast?.confidence, "exact");
 });
 
 test("distinguishes internal TypeScript consumes from call, storage, and return sinks", () => {

@@ -9,6 +9,7 @@ export {
   createFitFunctionLogicViewportTransform,
   createFunctionLogicFitScale,
   createFunctionLogicFocalZoom,
+  createFunctionLogicSafeZoneFollowTransform,
   getFunctionLogicViewportGeometryBrowserSource,
   normalizeFunctionLogicViewportTransform,
   resizeFunctionLogicViewportTransform,
@@ -21,6 +22,7 @@ export {
 export type {
   FunctionLogicFocalZoomInput,
   FunctionLogicResizeTransformInput,
+  FunctionLogicViewportSafeZoneInput,
   FunctionLogicViewportGeometry,
   FunctionLogicViewportTransform
 } from "./functionLogicViewportGeometry";

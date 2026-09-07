@@ -1,6 +1,6 @@
 /**
  * Iterative, deterministic Function Logic attention projection. It combines
- * branch reachability, reader lens, selection, focus frames, and value
+ * branch reachability, integrated semantics, selection, focus frames, and value
  * playback into one visual priority so feature modules never own opacity.
  */
 
@@ -100,26 +100,21 @@ function collectFunctionLogicEmbeddedFocusMembers(
   return members;
 }
 
-/** Identifies blocks that answer the active semantic reader question. */
-function isFunctionLogicLensRelevant(
+/** Identifies all semantics that remain concurrently meaningful in the unified view. */
+function isFunctionLogicSemanticallyRelevant(
   block: FunctionLogicAttentionBlock,
   state: FunctionLogicComprehensionState
 ): boolean {
-  if (state.lens === "flow") {
-    return ["entry", "condition", "loop", "switch", "try", "return", "throw", "exit"]
-      .includes(block.kind);
-  }
-  if (state.lens === "values") {
-    return Boolean(state.selectedBindingId
-      ? block.valueAccesses?.some((access) => access.bindingId === state.selectedBindingId)
-      : block.valueChanges?.length);
-  }
-  if (state.lens === "calls") {
-    return Boolean(block.drillTargets?.length)
-      || ["call", "callable", "render", "event", "embedded"].includes(block.kind);
-  }
-  return Boolean(block.valueChanges?.length)
+  const control = ["entry", "condition", "loop", "switch", "try", "return", "throw", "exit"]
+    .includes(block.kind);
+  const selectedValue = Boolean(state.selectedBindingId
+    && block.valueAccesses?.some((access) => access.bindingId === state.selectedBindingId));
+  const value = selectedValue || Boolean(block.valueChanges?.length);
+  const call = Boolean(block.drillTargets?.length)
+    || ["call", "callable", "render", "event", "embedded"].includes(block.kind);
+  const effect = Boolean(block.valueChanges?.length)
     || ["effect", "mutation", "return", "throw"].includes(block.kind);
+  return control || value || call || effect;
 }
 
 /** Raises one node's level only when the proposed semantic priority is stronger. */
@@ -168,8 +163,8 @@ export function createFunctionLogicAttentionProjection(
     const level: FunctionLogicAttentionLevel = reachable && withinFocus ? "context" : "muted";
     nodeLevelById.set(block.id, level);
     reasonByNodeId.set(block.id, !reachable ? "branch-excluded" : withinFocus ? "graph-context" : "focus-outside");
-    if (reachable && withinFocus && isFunctionLogicLensRelevant(block, state)) {
-      raiseFunctionLogicNodeAttention(nodeLevelById, reasonByNodeId, block.id, "related", "lens-relevant");
+    if (reachable && withinFocus && isFunctionLogicSemanticallyRelevant(block, state)) {
+      raiseFunctionLogicNodeAttention(nodeLevelById, reasonByNodeId, block.id, "related", "semantic-relevant");
     }
   }
 
@@ -247,7 +242,7 @@ export function getFunctionLogicAttentionProjectionBrowserSource(): string {
     ${createFunctionLogicAttentionIndex.toString()}
     ${collectFunctionLogicFocusMembers.toString()}
     ${collectFunctionLogicEmbeddedFocusMembers.toString()}
-    ${isFunctionLogicLensRelevant.toString()}
+    ${isFunctionLogicSemanticallyRelevant.toString()}
     ${raiseFunctionLogicNodeAttention.toString()}
     ${createFunctionLogicAttentionProjection.toString()}
   `;

@@ -127,6 +127,17 @@ export function getFunctionLogicDataFlowStyles(): string {
       box-shadow: 0 0 0 2px color-mix(in srgb, var(--vscode-charts-blue) 35%, transparent);
     }
 
+    .logic-graph-node.scenario-workspace-preview {
+      outline: 2px solid var(--vscode-focusBorder);
+      outline-offset: 2px;
+    }
+
+    .logic-control-edge.scenario-workspace-preview,
+    .logic-edge-path.scenario-workspace-preview {
+      stroke: var(--vscode-focusBorder);
+      stroke-width: 3px;
+    }
+
     .logic-graph-node.data-flow-definition {
       box-shadow:
         inset 0 3px 0 var(--vscode-charts-blue, var(--vscode-focusBorder)),

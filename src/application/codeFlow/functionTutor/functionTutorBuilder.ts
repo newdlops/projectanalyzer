@@ -31,6 +31,8 @@ import type {
 } from "./types";
 import { collectFunctionTutorCodebaseContext } from "./functionTutorContextCollector";
 import { buildFunctionTutorGuide } from "./functionTutorGuidePlanner";
+import { createFunctionTutorConstraintRecommendations } from "./functionTutorInputRecommendations";
+import { buildScenarioProgramBundle } from "./scenarioProgramBundle";
 
 const MAX_INCOMING_CALLSITES = 8;
 const MAX_CALLER_FILES = 6;
@@ -50,6 +52,9 @@ export type FunctionTutorBuildInput = {
 
 /** Builds one deterministic, bounded model that is ready for opaque projection. */
 export async function buildFunctionTutorModel(input: FunctionTutorBuildInput): Promise<FunctionTutorBuildModel> {
+  const scenarioBundle = input.declaration.language === "typescript" || input.declaration.language === "javascript"
+    ? await buildScenarioProgramBundle(input.graph, input.declaration, input.readSourceText)
+    : undefined;
   const callsiteResult = await collectCallsiteTuples(input);
   const candidatesByParameter = createCandidateDomains(input.declaration, callsiteResult.tuples);
   const objectives = createObjectives(input.declaration);
@@ -79,6 +84,7 @@ export async function buildFunctionTutorModel(input: FunctionTutorBuildInput): P
     seeds,
     context,
     guide,
+    scenarioBundle,
     availability: guide.summary.readyChapterCount > 0
       ? guide.summary.partialChapterCount > 0 || guide.summary.unavailableChapterCount > 0 ? "partial" : "ready"
       : "unavailable",
@@ -197,7 +203,11 @@ function createCandidateDomains(
       evidence: parameter.declarationEvidence.filter((evidence) => evidence.kind === "parameter-type")
     });
     for (const constraint of declaration.constraints.filter((candidate) => candidate.parameterId === parameter.id)) {
-      for (const value of createConstraintValues(parameter, constraint.operator, constraint.operand)) {
+      for (const value of createFunctionTutorConstraintRecommendations(
+        parameter,
+        constraint,
+        candidates.map((candidate) => candidate.value)
+      )) {
         appendCandidate(candidates, {
           id: createCandidateId(parameter.id, value, "constraint-boundary"),
           parameterId: parameter.id,
@@ -235,37 +245,102 @@ function appendCandidate(candidates: FunctionTutorInputCandidate[], candidate: F
   if (candidates.length < MAX_CANDIDATES) candidates.push(candidate);
 }
 
-/** Produces only boundary neighbours that can distinguish the direct predicate. */
-function createConstraintValues(
-  parameter: FunctionTutorParameterFact,
-  operator: string,
-  operand: FunctionTutorStaticValue | undefined
-): FunctionTutorStaticValue[] {
-  if (operator === "truthy" || operator === "falsy") return [{ kind: "boolean", value: false }, { kind: "boolean", value: true }];
-  if (!operand) return [];
-  if (operand.kind === "number") {
-    const value = operand.value;
-    if (operator === "eq" || operator === "neq") return [{ kind: "number", value }, { kind: "number", value: value + 1 }];
-    return [{ kind: "number", value: value - 1 }, { kind: "number", value }, { kind: "number", value: value + 1 }];
-  }
-  if (operand.kind === "string" || operand.kind === "boolean" || operand.kind === "null" || operand.kind === "undefined") {
-    const opposite = operand.kind === "boolean" ? { kind: "boolean" as const, value: !operand.value }
-      : operand.kind === "string" ? { kind: "string" as const, value: operand.value === "" ? "sample" : "" }
-        : createFunctionTutorUnknown("not-inferred", "Opposite literal is not safely known.");
-    return [operand, opposite];
-  }
-  return parameter.typeKind === "array" ? [{ kind: "array", items: [], truncated: false }] : [];
-}
-
 /** Adds non-semantic, clearly-inferred representatives only when no stronger fact exists. */
 function createTypeRepresentatives(parameter: FunctionTutorParameterFact): FunctionTutorStaticValue[] {
+  // A complete analyzer-owned shape is more useful than the broad fallback,
+  // but source/default/literal/constraint candidates have already won above.
+  if (parameter.typeRepresentative && !isTruncatedTypeRepresentative(parameter.typeRepresentative)) {
+    return [parameter.typeRepresentative];
+  }
   switch (parameter.typeKind) {
     case "boolean": return [{ kind: "boolean", value: false }, { kind: "boolean", value: true }];
     case "number": return [{ kind: "number", value: 0 }, { kind: "number", value: 1 }, { kind: "number", value: -1 }];
     case "string": return [{ kind: "string", value: "" }, { kind: "string", value: "sample" }];
     case "array": case "tuple": return [{ kind: "array", items: [], truncated: false }];
-    case "object": return [{ kind: "object", entries: [], truncated: false }];
+    case "object": {
+      const shaped = createObjectTypeRepresentative(parameter);
+      const empty = { kind: "object" as const, entries: [], truncated: false };
+      return shaped.entries.length > 0 ? [shaped, empty] : [shaped];
+    }
     default: return parameter.optional ? [{ kind: "undefined" }] : [];
+  }
+}
+
+/** Rejects incomplete declared trees rather than quietly applying partial input. */
+function isTruncatedTypeRepresentative(value: FunctionTutorStaticValue): boolean {
+  const pending = [value];
+  while (pending.length > 0) {
+    const current = pending.pop()!;
+    if ((current.kind === "array" || current.kind === "object") && current.truncated) return true;
+    if (current.kind === "array") pending.push(...current.items);
+    if (current.kind === "object") pending.push(...current.entries.map((entry) => entry.value));
+  }
+  return false;
+}
+
+type TypeRepresentativeNode = {
+  children: Map<string, TypeRepresentativeNode>;
+  value?: FunctionTutorStaticValue;
+  truncated: boolean;
+};
+
+/** Builds a deterministic two-level object example from required member facts. */
+function createObjectTypeRepresentative(parameter: FunctionTutorParameterFact): FunctionTutorStaticValue & { kind: "object" } {
+  const root: TypeRepresentativeNode = { children: new Map(), truncated: false };
+  for (const fact of parameter.memberFacts) {
+    if (fact.optional || fact.path.length === 0 || fact.path.length > 2) continue;
+    const value = createMemberTypeRepresentative(fact);
+    if (!value) {
+      root.truncated = true;
+      continue;
+    }
+    let node = root;
+    for (const part of fact.path) {
+      const child = node.children.get(part) ?? { children: new Map(), truncated: false };
+      node.children.set(part, child);
+      node = child;
+    }
+    node.value = value;
+  }
+  const values = new Map<TypeRepresentativeNode, FunctionTutorStaticValue>();
+  const pending: Array<{ node: TypeRepresentativeNode; expanded: boolean }> = [{ node: root, expanded: false }];
+  while (pending.length > 0) {
+    const frame = pending.pop()!;
+    if (!frame.expanded) {
+      pending.push({ ...frame, expanded: true });
+      for (const child of [...frame.node.children.values()].reverse()) pending.push({ node: child, expanded: false });
+      continue;
+    }
+    if (frame.node.children.size === 0 && frame.node.value) {
+      values.set(frame.node, frame.node.value);
+      continue;
+    }
+    const entries: Array<{ key: string; value: FunctionTutorStaticValue }> = [];
+    let truncated = frame.node.truncated;
+    for (const [key, child] of frame.node.children) {
+      const childValue = values.get(child);
+      if (childValue) entries.push({ key, value: childValue });
+      else truncated = true;
+    }
+    values.set(frame.node, { kind: "object", entries, truncated });
+  }
+  return values.get(root) as FunctionTutorStaticValue & { kind: "object" };
+}
+
+/** Chooses one conservative value for a required object member. */
+function createMemberTypeRepresentative(
+  fact: FunctionTutorParameterFact["memberFacts"][number]
+): FunctionTutorStaticValue | undefined {
+  if (fact.literalValues.length > 0) return fact.literalValues[0];
+  switch (fact.typeKind) {
+    case "boolean": return { kind: "boolean", value: false };
+    case "number": return { kind: "number", value: 0 };
+    case "string": return { kind: "string", value: "" };
+    case "null": return { kind: "null" };
+    case "undefined": return { kind: "undefined" };
+    case "array": case "tuple": return { kind: "array", items: [], truncated: false };
+    case "object": return { kind: "object", entries: [], truncated: false };
+    default: return undefined;
   }
 }
 
@@ -304,10 +379,13 @@ function createScenarioSeeds(
   const baseline = createBaselineSeed(declaration, candidatesByParameter, seeds.length + 1);
   appendSeed(seeds, seen, baseline);
   for (const constraint of declaration.constraints) {
-    const values = createConstraintValues(
-      declaration.parameters.find((parameter) => parameter.id === constraint.parameterId) ?? declaration.parameters[0],
-      constraint.operator,
-      constraint.operand
+    const parameter = declaration.parameters.find((candidate) => candidate.id === constraint.parameterId);
+    if (!parameter) continue;
+    const baselineValue = baseline.inputs.find((input) => input.parameterId === constraint.parameterId)?.value;
+    const values = createFunctionTutorConstraintRecommendations(
+      parameter,
+      constraint,
+      baselineValue ? [baselineValue] : []
     );
     for (let index = 0; index < Math.min(2, values.length); index += 1) {
       const variant = cloneSeedWithInput(baseline, constraint.parameterId, values[index], `tutor-objective:${index === 0 ? "true" : "false"}:${constraint.id}`);
@@ -345,7 +423,10 @@ function createBaselineSeed(
   ordinal: number
 ): FunctionTutorScenarioSeed {
   const inputs = declaration.parameters.map((parameter) => {
-    const candidate = candidatesByParameter.get(parameter.id)?.[0];
+    const candidates = candidatesByParameter.get(parameter.id) ?? [];
+    // A dynamic callsite is useful evidence, but its unknown argument must not
+    // hide a safe default/literal/type representative in the baseline case.
+    const candidate = candidates.find((item) => item.value.kind !== "unknown") ?? candidates[0];
     return {
       parameterId: parameter.id,
       value: candidate?.value ?? createFunctionTutorUnknown("not-inferred"),

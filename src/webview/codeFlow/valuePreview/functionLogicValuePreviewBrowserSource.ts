@@ -102,6 +102,7 @@ export function getFunctionLogicValuePreviewBrowserSource(): string {
       const title = document.createElement("strong");
       const hint = document.createElement("span");
       const clearAll = document.createElement("button");
+      const recommend = document.createElement("button");
       const columns = document.createElement("div");
       const nameColumn = document.createElement("span");
       const valueColumn = document.createElement("span");
@@ -121,11 +122,15 @@ export function getFunctionLogicValuePreviewBrowserSource(): string {
       let omittedState;
       let emptyState;
       let selectedBindingId = "";
+      let recommendedTutor;
 
       /** Stores semantic feedback so a locale pass can reformat it in place. */
       function setAddStatus(key, params, error) {
         addStatusPresentation = key ? { key, params } : undefined;
-        addStatus.textContent = key ? projectAnalyzerText(key, params) : "";
+        const localized = key === "scenario-recommend-loaded" && params
+          ? { ...params, source: projectAnalyzerText("tutor-seed-" + params.seedSource, { ordinal: params.seedOrdinal }), certainty: projectAnalyzerText(params.seedCertainty) }
+          : params;
+        addStatus.textContent = key ? projectAnalyzerText(key, localized) : "";
         addStatus.classList.toggle("error", Boolean(error));
       }
 
@@ -140,6 +145,11 @@ export function getFunctionLogicValuePreviewBrowserSource(): string {
       clearAll.className = "logic-value-preview-clear-all";
       clearAll.textContent = projectAnalyzerText("clear-values");
       clearAll.title = projectAnalyzerText("clear-scenario-values");
+      recommend.type = "button";
+      recommend.className = "logic-value-preview-recommend";
+      recommend.textContent = projectAnalyzerText("scenario-recommend-values");
+      recommend.title = projectAnalyzerText("scenario-recommend-values-title");
+      recommend.setAttribute("aria-label", recommend.title);
       columns.className = "logic-value-preview-columns";
       nameColumn.textContent = projectAnalyzerText("name");
       valueColumn.textContent = projectAnalyzerText("scenario-input");
@@ -148,6 +158,7 @@ export function getFunctionLogicValuePreviewBrowserSource(): string {
       manualRows.className = "logic-value-preview-manual-rows";
       addPanel.className = "logic-value-preview-add";
       addName.type = "text";
+      addName.name = "scenario-variable-name";
       addName.className = "logic-value-preview-input logic-value-preview-variable-name";
       addName.maxLength = MAX_LOGIC_MANUAL_SCENARIO_NAME_LENGTH;
       addName.placeholder = projectAnalyzerText("scenario-variable-placeholder");
@@ -156,6 +167,7 @@ export function getFunctionLogicValuePreviewBrowserSource(): string {
       addName.title = projectAnalyzerText("scenario-variable-name");
       addName.setAttribute("aria-label", addName.title);
       addValue.type = "text";
+      addValue.name = "scenario-variable-value";
       addValue.className = "logic-value-preview-input logic-value-preview-variable-value";
       addValue.maxLength = MAX_LOGIC_VALUE_PREVIEW_LENGTH;
       addValue.placeholder = projectAnalyzerText("scenario-value-placeholder");
@@ -207,6 +219,7 @@ export function getFunctionLogicValuePreviewBrowserSource(): string {
         scope.hidden = !scope.textContent;
         editor.className = "logic-value-preview-input-cell";
         input.type = "text";
+        input.name = "scenario-value-" + binding.id;
         input.className = "logic-value-preview-input";
         input.value = rawValue || "";
         input.maxLength = MAX_LOGIC_VALUE_PREVIEW_LENGTH;
@@ -362,6 +375,120 @@ export function getFunctionLogicValuePreviewBrowserSource(): string {
         if (onValueChanged) onValueChanged("");
       });
 
+      /** Applies one deterministic Tutor seed, completing unknowns from declared broad types. */
+      function applyRecommendedInputs() {
+        const tutor = recommendedTutor;
+        const parameters = tutor?.parameters || [];
+        const typeSeed = {
+          id: "browser-type-representative",
+          ordinal: 1,
+          source: "type",
+          certainty: "inferred",
+          inputs: []
+        };
+        // Always retain a type-only candidate. It makes the action useful for
+        // partial/older payloads while ranked source-backed seeds still win.
+        const candidates = [...(tutor?.seeds || []), typeSeed].map((seed) => {
+          const inputByParameterId = new Map(
+            (seed.inputs || []).map((input) => [input.parameterId, input])
+          );
+          const serializable = parameters.flatMap((parameter) => {
+            const input = inputByParameterId.get(parameter.id);
+            if (input?.omitted) return [];
+            const seedValue = input?.value;
+            if (isFunctionLogicRecommendedInputSerializable(seedValue)) {
+              const value = functionTutorScenarioInputText(seedValue);
+              if (value !== undefined) return [{
+                parameterId: parameter.id,
+                value,
+                fromType: seed.source === "type"
+              }];
+            }
+            const typeValue = createFunctionLogicRecommendedTypeValue(parameter);
+            const value = functionTutorScenarioInputText(typeValue);
+            return value === undefined ? [] : [{ parameterId: parameter.id, value, fromType: true }];
+          });
+          const known = serializable.length;
+          const allKnown = parameters.length > 0 && known === parameters.length;
+          return { seed, serializable, known, allKnown };
+        }).filter((candidate) => candidate.known > 0);
+        const selected = candidates.find((candidate) => candidate.allKnown) || candidates[0];
+        if (!selected) {
+          setAddStatus("scenario-recommend-unavailable");
+          return;
+        }
+        const bindingIdByParameterId = new Map(
+          parameters.filter((parameter) => parameter.bindingId)
+            .map((parameter) => [parameter.id, parameter.bindingId])
+        );
+        // Older/partial parameter projections can omit bindingId, while the same
+        // opaque Tutor program retains the exact parameter-to-binding relation.
+        for (const binding of tutor?.program?.bindings || []) {
+          if (binding.parameterId && binding.bindingId && !bindingIdByParameterId.has(binding.parameterId)) {
+            bindingIdByParameterId.set(binding.parameterId, binding.bindingId);
+          }
+        }
+        /** Resolves a source binding through the Visualizer's existing compound identity only when unique. */
+        function resolveVisibleBindingId(sourceBindingId) {
+          const matching = bindings.filter((binding) => binding.id === sourceBindingId
+            || (binding.id.startsWith("compound-binding:")
+              && binding.id.endsWith(":" + sourceBindingId)));
+          return matching.length === 1 ? matching[0].id : undefined;
+        }
+        let filled = 0;
+        let typeFilled = 0;
+        for (const record of selected.serializable) {
+          const bindingId = resolveVisibleBindingId(
+            bindingIdByParameterId.get(record.parameterId)
+          );
+          if (!bindingId || !inputsByBindingId.has(bindingId)) continue;
+          functionLogicValuePreviewByBindingId.set(bindingId, record.value);
+          inputsByBindingId.get(bindingId).value = record.value;
+          refreshFunctionLogicValuePreviewElements(bindingId);
+          filled += 1;
+          if (record.fromType) typeFilled += 1;
+        }
+        const unknown = Math.max(0, parameters.length - filled);
+        const certainty = typeFilled > 0 ? "inferred"
+          : selected.seed.certainty === "exact" || selected.seed.certainty === "inferred"
+          ? selected.seed.certainty
+          : "unknown";
+        setAddStatus("scenario-recommend-loaded", {
+          count: filled,
+          typeCount: typeFilled,
+          seedSource: selected.seed.source,
+          seedOrdinal: selected.seed.ordinal,
+          seedCertainty: certainty,
+          unknown
+        });
+        if (onValueChanged) onValueChanged("");
+      }
+
+      /** Creates only JSON/scalar representatives that are valid for the projected broad type. */
+      function createFunctionLogicRecommendedTypeValue(parameter) {
+        switch (parameter?.typeKind) {
+          case "boolean": return { kind: "boolean", value: false };
+          case "number": return { kind: "number", value: 0 };
+          case "string": return { kind: "string", value: "" };
+          case "null": return { kind: "null" };
+          case "undefined": return { kind: "undefined" };
+          case "array": case "tuple": return { kind: "array", items: [], truncated: false };
+          case "object": return { kind: "object", entries: [], truncated: false };
+          default: return parameter?.optional ? { kind: "undefined" } : undefined;
+        }
+      }
+
+      /** Accepts only the projected literal tree that the safe text serializer can faithfully preserve. */
+      function isFunctionLogicRecommendedInputSerializable(value) {
+        if (!value || value.kind === "unknown" || value.kind === "enum") return false;
+        if (["undefined", "null", "boolean", "number", "string"].includes(value.kind)) return true;
+        if (value.kind === "array") return (value.items || []).every(isFunctionLogicRecommendedInputSerializable);
+        if (value.kind === "object") return (value.entries || []).every((entry) =>
+          isFunctionLogicRecommendedInputSerializable(entry.value));
+        return false;
+      }
+      recommend.addEventListener("click", () => applyRecommendedInputs());
+
       /** Synchronizes every row with the shared graph/scenario selection. */
       function applySelectedBinding() {
         for (const [candidateId, record] of labelRecordsByBindingId) {
@@ -380,7 +507,7 @@ export function getFunctionLogicValuePreviewBrowserSource(): string {
         omittedState = omitted;
       }
       heading.append(title, hint);
-      header.append(heading, clearAll);
+      header.append(heading, recommend, clearAll);
       columns.append(nameColumn, valueColumn);
       addPanel.append(addName, addValue, add, addStatus);
       rows.append(trackedRows, manualRows);
@@ -403,6 +530,21 @@ export function getFunctionLogicValuePreviewBrowserSource(): string {
             if (input) input.value = value;
             refreshFunctionLogicValuePreviewElements(binding.id);
           }
+        },
+        /** Applies only resolved analyzer binding identities; unknown identities are skipped. */
+        loadKnownInputsByBindingId(valuesByBindingId) {
+          for (const [bindingId, value] of valuesByBindingId || []) {
+            if (!inputsByBindingId.has(bindingId) || value === undefined) continue;
+            functionLogicValuePreviewByBindingId.set(bindingId, value);
+            const input = inputsByBindingId.get(bindingId);
+            if (input) input.value = value;
+            refreshFunctionLogicValuePreviewElements(bindingId);
+          }
+          if (onValueChanged) onValueChanged("");
+        },
+        /** Lets the explicit Values action combine one ranked seed with declared type representatives. */
+        setRecommendedInputs(tutor) {
+          recommendedTutor = tutor;
         },
         /** Focuses the first transferred value and leaves a visible local status. */
         focusKnownInputs(names, message) {
@@ -427,6 +569,9 @@ export function getFunctionLogicValuePreviewBrowserSource(): string {
           hint.textContent = projectAnalyzerText("scenario-help");
           clearAll.textContent = projectAnalyzerText("clear-values");
           clearAll.title = projectAnalyzerText("clear-scenario-values");
+          recommend.textContent = projectAnalyzerText("scenario-recommend-values");
+          recommend.title = projectAnalyzerText("scenario-recommend-values-title");
+          recommend.setAttribute("aria-label", recommend.title);
           nameColumn.textContent = projectAnalyzerText("name");
           valueColumn.textContent = projectAnalyzerText("scenario-input");
           addName.placeholder = projectAnalyzerText("scenario-variable-placeholder");

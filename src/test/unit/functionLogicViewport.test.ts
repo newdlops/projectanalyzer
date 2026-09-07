@@ -13,6 +13,7 @@ import {
   createFitFunctionLogicViewportTransform,
   createFunctionLogicFitScale,
   createFunctionLogicFocalZoom,
+  createFunctionLogicSafeZoneFollowTransform,
   getFunctionLogicViewportGeometryBrowserSource,
   resizeFunctionLogicViewportTransform,
   FUNCTION_LOGIC_MAX_PAN,
@@ -108,6 +109,17 @@ test("focal zoom and resize preserve their intended world coordinates", () => {
   const oldCenterWorldY = (180 - focal.y) / focal.scale;
   assert.ok(Math.abs((210 - resized.x) / resized.scale - oldCenterWorldX) <= epsilon);
   assert.ok(Math.abs((150 - resized.y) / resized.scale - oldCenterWorldY) <= epsilon);
+});
+
+test("safe-zone follow translates only enough to retain a token in the central half", () => {
+  assert.deepEqual(createFunctionLogicSafeZoneFollowTransform({
+    transform: { scale: 1, x: 0, y: 0 }, worldPoint: { x: 700, y: 300 },
+    viewportWidth: 800, viewportHeight: 600
+  }), { scale: 1, x: -100, y: 0 });
+  assert.deepEqual(createFunctionLogicSafeZoneFollowTransform({
+    transform: { scale: 1.25, x: -100, y: 0 }, worldPoint: { x: 400, y: 240 },
+    viewportWidth: 800, viewportHeight: 600
+  }), { scale: 1.25, x: -100, y: 0 });
 });
 
 test("serializes the exact viewport geometry without module bindings", () => {

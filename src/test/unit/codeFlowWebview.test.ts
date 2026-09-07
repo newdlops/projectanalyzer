@@ -368,7 +368,7 @@ test("Function Guide explains codebase context through an accessible disclosure 
     const rendered = runtime.getRenderedText("flow-steps").join("\n");
     assert.ok(rendered.includes("Understand This Function"));
     assert.ok(rendered.includes("Where Does It Fit?"));
-    assert.ok(rendered.includes("Static Input Cases"));
+    assert.ok(rendered.includes("Source Path Scenarios"));
     assert.equal(runtime.getRenderedAttributeByTitle("flow-steps", "Open a source-backed guide to this function and its codebase context", "aria-expanded"), "true");
     assert.equal(runtime.getRenderedAttributeByClass("flow-steps", "logic-inspector-toggle", "aria-expanded"), "false");
     runtime.clickByTitle("Open a source-backed guide to this function and its codebase context");
@@ -402,7 +402,7 @@ test("Function Guide relocalizes in place without requesting graph work", () => 
 
     runtime.dispatchMessage({ type: "ui/language", payload: { language: "ko" } });
     assert.ok(runtime.getRenderedText("flow-steps").includes("함수 가이드"));
-    assert.ok(runtime.textValues.includes("정적 입력 사례 · 1개"));
+    assert.ok(runtime.textValues.includes("소스 경로 시나리오 · 1개"));
     const koreanNodeAria = runtime.getRenderedAttributeByClass(
       "flow-steps", "logic-graph-node", "aria-label"
     ) ?? "";
@@ -439,7 +439,7 @@ test("Function Guide retains semantic reading, Values, and graph state through l
     runtime.setRenderedOpenByClassNth("flow-steps", "logic-guide-scenarios", 0, true);
     await new Promise((resolve) => setTimeout(resolve, 0));
     runtime.clickRenderedByClassNth("flow-steps", "logic-guide-scenario-select", 0);
-    runtime.clickByTitle("Load selected static inputs into Scenario values");
+    runtime.clickByTitle("Load the selected scenario inputs into Values");
     runtime.clickByTitle("Open a source-backed guide to this function and its codebase context");
     runtime.focusRenderedByClassNth("flow-steps", "logic-guide-action", 1);
 

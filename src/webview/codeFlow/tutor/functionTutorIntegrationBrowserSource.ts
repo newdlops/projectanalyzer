@@ -2,7 +2,7 @@
 
 export function getFunctionTutorIntegrationBrowserSource(): string {
   return /* js */ `
-    function createFunctionTutorIntegration(logic, comprehension, valueFlowRendering, viewportController, inspector) {
+    function createFunctionTutorIntegration(logic, comprehension, valueFlowRendering, viewportController, inspector, scenarioWorkspace) {
       function applyGuideFocus(chapter) {
         comprehension.setGuideFocus({
           primaryBlockId: chapter?.primaryBlockId,
@@ -11,10 +11,10 @@ export function getFunctionTutorIntegrationBrowserSource(): string {
         });
       }
       return createFunctionTutorPanel(logic, {
+        scenarioWorkspace,
         onGuideFocus(chapter) { applyGuideFocus(chapter); },
         onShowGraph(chapter) {
           if (!chapter) return;
-          comprehension.setLens(chapter.preferredLens || "flow");
           // "Show on Graph" is the sole Guide action allowed to change selection.
           // It deliberately keeps keyboard focus in the Guide, so reading is not interrupted.
           if (chapter.primaryBlockId) comprehension.activateBlock(chapter.primaryBlockId, false);
@@ -36,12 +36,11 @@ export function getFunctionTutorIntegrationBrowserSource(): string {
             loadedValuesByName.set(parameter.name, valueText);
             loadedNames.push(parameter.name);
           }
-          comprehension.setLens("values");
           valueFlowRendering?.loadKnownInputs(loadedValuesByName);
           valueFlowRendering?.refresh();
-          // Values is an explicit handoff: preserve the Guide state while
+          // Preserve Guide state while
           // placing the editable destination and its confirmation in view.
-          inspector?.openInspect();
+          inspector?.openInspect("values");
           valueFlowRendering?.focusKnownInputs(
             loadedNames,
             { key: "loaded-static-inputs", params: { count: loadedNames.length } }

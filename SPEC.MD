@@ -228,7 +228,7 @@ literal union, direct branch constraint, Function Logic을 bounded하게 결합�
 raw path/analyzer ID 대신 기존 opaque flow/block/edge/binding/evidence token만 받는다.
 Guide는 코드베이스 위치, 입력, 결정, 작업/호출, 종료의 5개 고정 질문을 항상
 ready/partial/unavailable 상태로 제공하며, claim마다 exact/inferred/unknown과 source
-basis를 보존한다. `Static Input Cases`는 Guide 내부에서만 lazy하게 JSON expression IR을
+basis를 보존한다. `Source Path Scenarios`는 Guide 내부에서만 lazy하게 JSON expression IR을
 해석한다. 서로 다른 callsite의 인자를 섞지 않고 uncertain/dynamic 값은 unknown 및 gap으로
 남긴다. scenario interpreter는 path 8, step 240, loop block 3회 상한을 지키고 제한에
 닿은 결과를 normal return으로 표시하지 않는다. TypeScript/JavaScript는 compiler AST
@@ -316,6 +316,18 @@ type FunctionLogicEdge = {
 block의 source 순서는 presentation order이며 실제 runtime 순서를 의미하지 않는다.
 실행 가능성은 block 사이의 edge로 표현한다. effect는 이름 기반 추론일 수 있으므로
 `inferred`를 유지하고 사용자가 callee source에서 검증하게 한다.
+
+Scenario bundle payload v3 is additive to v2. It carries opaque call IDs plus
+explicit await/optional invocation metadata; no source range, graph identity,
+or browser-side name lookup is exposed. Source code is never executed: the
+single bounded browser interpreter only consumes static programs. Awaited exact
+local async calls, dormant synchronous generators consumed by zero-argument
+`next()`, stable local methods, statically present/absent optional calls, and
+plain non-derived constructors may be represented. Dynamic dispatch, unknown
+optional presence, inheritance, async generators, iterator arguments, and
+constructor/proxy/accessor behavior remain partial gaps. Scenarios retain the
+existing 4-depth, 12-program, 360-block, 96-KiB, 600-expression, 1,200-work,
+three-loop-visit, eight-path limits and cap generator yields at 24.
 
 value change는 statement label을 다시 보여 주는 문자열이 아니라 변경 target을 별도
 evidence로 보존한다. 대입, 증감, 삭제, 초기화, loop binding은 `exact`이며 source에 적힌
@@ -712,9 +724,10 @@ scroll하고 긴 evidence가 graph canvas의 크기나 위치를 밀어내지 �
 
 선택 함수에서는 같은 위치에 다음 요소를 제공한다.
 
-- right-side Inspector drawer 안의 `Start -> Choose -> Do -> Finish` 네 단계 읽기 프레임과
-  실제 block counter 기반 설명
-- Inspector drawer 안의 현재 함수 signature
+- graph 옆 `함수 따라 읽기` 목차에서 소스 순서와 실제 block counter를 보존하며
+  전체/분기/호출/종료 필터와 이전/다음 이동을 제공한다. 1039px 이하에서는 graph 위에서 접고 펼친다.
+- Inspector의 `코드 이해`/`값과 경로`/`함수 정보` tab으로 선택 근거, 입력 실험, 함수 선언과
+  연결 대상을 분리하고 현재 함수 signature는 `함수 정보`에 배치한다.
 - 위에서 아래로 진행하는 control-flow rank
 - 같은 rank에서 좌우로 분리되는 branch lane
 - label, source detail, branch/callee badge 길이에 따라 달라지는 node width/height
@@ -744,10 +757,64 @@ scroll하고 긴 evidence가 graph canvas의 크기나 위치를 밀어내지 �
   표시한다. declaration/use/sink를 짧게 이어 control edge의 중앙 channel과 구분하고, consume은
   dotted cue, sink는 double/striped cue와 텍스트로 구분하며 branch choice 밖 endpoint를 가진
   value hop은 control choice와 함께 흐리게 처리
-- 모든 Function Logic Inspector에 항상 존재하는 Debug Variables 유사
+- 모든 Function Logic Inspector의 `값과 경로` tab에 존재하는 Debug Variables 유사
   `Name`/`Scenario input` editor에서 parameter별 JSON/scalar 입력 또는 local/constant
   definition override를 입력하고 같은 binding의 graph/selection access row에 즉시 표시
-- editor는 Inspector의 최상단 non-shrinking row에 배치한다. analyzer binding row가 많으면
+- bounded `logic.tutor` seed 또는 지원되는 선언 parameter type이 있으면 Values의 명시적 추천
+  action은 ranked first all-known serializable seed(없으면 first partial-known)를 기준으로 삼는다.
+  seed의 known source/default/literal 값은 보존하고 missing/unknown만 보수적 declared-type
+  representative로 보완한다. same-file typed array는 지원되는 element 하나를, tuple은 지원되는
+  position을, complete required object shape은 literal-first 또는 `"sample"`/`0`/`false` leaf를
+  사용하고 broad unshaped array/object만 명시적 `[]`/`{}` fallback을 사용한다. parameter `bindingId`만
+  채운다. source/certainty/type 보완 수/남은 unavailable 수를 표시하고 source 실행, Host message,
+  branch 자동 선택, playback 자동 시작은 없다. callable/unknown 및 실제 값을 모르는 enum이나
+  literal union에는 임의 값을 만들지 않는다.
+- TypeScript type 추천은 direct primitive/collection과 같은 파일의 alias/interface, readonly
+  array, 호환 union, object intersection만 최대 depth/step/cycle guard 안에서 broad type으로
+  정규화한다. imported type과 cyclic alias는 임의 해석하지 않고 unknown으로 유지한다.
+- object parameter의 required property는 최대 2단계의 type-shaped JSON 대표값으로 만들고
+  optional property는 생략한다. imported/cyclic/callable/unknown 또는 incomplete required shape은
+  unavailable로 남기며 실행 가능한 가짜 값을 만들지 않는다. source order, first evidence precedence,
+  structural deduplication, seed identity는 identical build에서 결정적이다.
+- direct safe member predicate는 parameter의 typed field path를 보존하고, 해당 field의 true/false
+  boundary value만 complete declared object representative에 반영한다. object parameter 전체를 scalar
+  leaf로 대체하지 않는다. `&&`/`||` 조건의 atomic field predicate를 source order로 수집하며 typed
+  string/array의 `.length` 조건은 bounded container value로 변환한다. 선언 타입이 없더라도 direct
+  safe member predicate는 bounded object shape의 근거가 될 수 있지만, untyped `.length`처럼
+  container kind가 모호한 경우에는 추측하지 않는다.
+- Values는 root graph session과 opaque Tutor fingerprint별 browser-local Scenario Workspace를
+  lazy로 연다. 사용자에게 보이는 row 단위는 input seed가 아니라 도달 가능한 path scenario다.
+  Scenario/경로 조건/예상 효과·outcome/confidence·gap 네 data column과 별도 action column,
+  선택 detail의 이름 있는 추천 input을 제공하며 idle/calculating/paused/ready/partial/error/empty
+  상태를 텍스트와 polite live status로 유지한다. 평가가 concrete path를 만들지 못하면 bounded
+  graph planner가 source-backed 조건 선택과 도달 효과만 symbolic scenario로 열거할 수 있지만,
+  이때 실제로 계산하지 않은 parameter·중간값·반환값을 concrete value로 표시하지 않는다.
+  row/path selection은 resolved evidence preview만 바꾸며 input, branch choice, graph block
+  selection, viewport, playback, Host state를 바꾸지 않는다.
+- Apply Inputs는 known parameter binding identity만 쓰고, Apply & Play는 deterministic으로
+  resolved된 scenario branch edge만 별도 snapshot과 함께 적용한다. unrelated choice는
+  보존하고 touched prior choice를 restore할 수 있다. manual input/branch edit는 story를
+  cancel하고 Custom/Modified로 표시한다. Scenario frame은 START 뒤 ordered transition이며
+  same-binding exact visible lexical hop만 travel한다. Evaluator가 보존한 root block occurrence
+  순서(반복 decision, 각 iteration body 변경, 반복/exit, continuation)를 그대로 frame으로
+  투영하며, 알려진 mutation은 축약 없이 `variable: before → after`로 wrapping status/plaque에
+  한 beat씩 표시한다. 나머지는 synthetic edge 없이 discrete calculation beat로 표시하며 reduced
+  motion에서도 Play/Previous/Next의 동일한 textual order를 유지한다.
+- 각 seed의 평가·symbolic path는 모두 독립 row가 되고 네 data column 뒤에 sibling
+  Apply & Play action을 둔다. action은 그 row의 exact seed/path index를 preview한 뒤 기존 단일
+  scheduler에 전달한다. 일반 row 선택과 keyboard 이동은 preview-only이며 path가 없는 row
+  action은 이유와 함께 disabled다. active/paused/completed story는 localized row text로 드러내며
+  active 중 재시작은 막고 complete 뒤 Replay를 제공한다. symbolic story는 START 입력 증거,
+  source order의 계산·값 변경, 선택한 조건 결과, 도달한 외부 효과, terminal 결과를 차례로
+  보여준다. 인접 block의 visible exact control/value edge가 있을 때만 token이 그 edge를 이동하고,
+  그렇지 않으면 synthetic edge 없이 camera가 다음 source beat로 이동한다.
+- Playback card는 browser-local native `Playback speed / 재생 속도` select로 `0.5×`, base
+  `1×`, `1.5×`, `2×`만 허용한다. automatic transition/dwell 동안만 disabled이고, multiplier는
+  remaining exact-hop duration 및 dwell을 나눈다. 변경은 start/reset/advance를 만들지 않으며
+  card locale refresh에는 남지만 Host, workspace setting, persisted state에는 기록하지 않는다.
+  reduced motion은 motion 없이 동일 ordered textual beat를 보존하고 speed는 남은 dwell cadence에만
+  영향을 준다.
+- editor는 Inspector의 `값과 경로` tab 최상단 non-shrinking row에 배치한다. analyzer binding row가 많으면
   variable list 내부만 bounded scroll하고, selected-block evidence가 길어도 editor를 압축하거나
   초기 viewport 밖으로 밀어내지 않는다.
 - analyzer binding이 0개이거나 일부 이름을 놓친 경우에도 사용자가 lexical identifier 이름과
@@ -791,9 +858,15 @@ scroll하고 긴 evidence가 graph canvas의 크기나 위치를 밀어내지 �
   graph-adjacent right-side Inspector drawer
 - wide editor의 새 root graph는 Inspector를 열고, 좁은 editor는 graph-first로 시작하며 사용자의
   open/close 선택은 같은 root relayout 동안 유지
-- selected summary와 source action은 모든 lens의 첫 Inspector section으로 유지한다. Scenario value
-  editor와 binding selector는 Values lens에서, callee 목록은 Calls lens에서만 공개한다. 긴 scenario
-  variable list는 editor 내부에서 별도로 bounded scroll한다.
+- selected summary와 source action은 Inspector의 `코드 이해` tab 첫 section으로 유지한다.
+  Scenario value editor와 binding selector/playback은 `값과 경로`, callee 목록과 signature는
+  `함수 정보`에 배치하며 tab별 scroll position과 mounted input identity를 보존한다.
+  static flow ledger는 source-order 목차로 대체한다. binding이 없으면 editable Scenario empty
+  state는 유지하고 selector/playback은 숨긴다. callee가 없으면 빈 호출 surface를 만들지 않는다.
+  긴 scenario variable list는 editor 내부에서 별도로 bounded scroll한다. Scenario 계산은 graph
+  mount나 tab/locale 변경이 아니라 Workspace의 첫 직접 focus/pointer interaction에서 시작한다.
+  `값과 경로`가 숨겨지면 해당 계산 consumer를 해제하고 playback을 일시정지하며 graph disposal에서
+  나머지 자원을 해제한다. Function Guide는 별도 exclusive drawer mode를 유지한다.
 - desktop에서는 graph와 별도 column, 작은 화면에서는 graph 아래 별도 row, 명시적 toggle/close,
   `Escape`, `aria-expanded`/`aria-hidden`/`inert` 상태
 - child function attachment로 graph를 다시 그려도 같은 root에서는 drawer open 상태 유지
@@ -1139,17 +1212,39 @@ Webview는 Project Graph, 파일 시스템, VS Code API에 직접 접근하지 �
 
 - graph viewport를 덮지 않는 right-side grid column과 반응형 below-graph row
 - graph와 drawer의 bounded fixed height 및 drawer body의 독립 vertical scroll
-- selected block evidence, value binding selector, signature, reading guide, direct callee surface 구성
-- 모든 새 session의 discoverable 기본 open과 root/session별 사용자 open-state 유지,
-  relayout-safe DOM 재생성
+- `코드 이해`, `값과 경로`, `함수 정보`의 세 tab으로 selected block evidence,
+  Scenario/값 도구, signature/direct callee를 구분한다. panel DOM은 유지하며 tab 전환은
+  입력값, branch choice, graph selection, Host state를 바꾸거나 계산을 시작하지 않는다.
+- 1040px 이상에서 기본 open, 좁은 화면에서는 명시적 `상세 보기`로 열고 840px 미만에서는
+  graph 아래로 쌓는다. root/session별 open-state, tab, tab별 scroll position을 보존한다.
+- direct graph/목차 selection은 `코드 이해`로, Guide의 input handoff는 `값과 경로`로 연다.
+  Values를 떠나면 재생과 해당 scenario consumer를 일시정지하며 복귀는 자동 재개하지 않는다.
 - keyboard toggle/close, Escape dismissal, `aria-expanded`/`aria-hidden`, closed-state `inert`
 - analyzer, protocol, VS Code API에 의존하지 않는 browser-only public composition surface
 
+#### `webview/codeFlow/reading`
+
+- public `createFunctionReadingOutline`, `getFunctionReadingBrowserSource`,
+  `getFunctionReadingStyles`로 source-order model과 DOM/CSS composition을 제공한다.
+- 전달된 function별 source emission 순서에서 실제 graph node가 있는 unique block만
+  최대 400개 보존한다. 순번, kind, depth, source line, confidence, child function label을
+  표시하고 초과 개수를 명시한다. layout rank를 runtime 실행 순서로 해석하지 않는다.
+- 전체/분기/호출/종료 필터와 이전/다음 탐색은 목차에만 적용한다. 분기는 condition/loop/
+  switch/try, 호출은 call/effect/render/event 또는 concrete drill target을 가진 block,
+  종료는 return/throw/exit다. count는 표시된 block 수이며 runtime path 수가 아니다.
+- 목차를 선택하면 공용 comprehension selection, Inspector, viewport reveal API를 사용한다.
+  branch/입력값/소스 실행/Host message는 자동 변경하지 않으며 raw analyzer identity도 해석하지 않는다.
+- desktop에서는 graph 왼쪽, 1040px 미만에서는 기본 접힌 위쪽 목록으로 제공한다.
+  list는 독립 scroll, roving tab stop, Arrow/Home/End, no-match 상태를 제공한다.
+  locale refresh는 기존 버튼과 selection/filter/focus를 보존한다.
+- 초기 선택은 entry block이며, 중복되던 5행 Static Flow Ledger를 이 목차로 대체한다.
+  기호 안내는 native details로 필요할 때 펼친다.
+
 #### `webview/codeFlow/valuePreview`
 
-- parameter/local/constant 및 user-added `CUSTOM` variable용 Values lens 표시 bounded
+- parameter/local/constant 및 user-added `CUSTOM` variable용 integrated Inspector bounded
   `Name`/`Scenario input` editor
-- Values lens에서 selected summary 다음에 배치하고 intrinsic row height를 보존하며, tracked/manual
+- Inspector의 `값과 경로` tab 첫 부분에 배치하고 intrinsic row height를 보존하며, tracked/manual
   row 목록만 내부 scroll시켜 선택 block evidence의 크기와 무관하게 editor를 보이게 하는 layout contract
 - analyzer binding이 없어도 lexical identifier와 초기값을 직접 추가하고, 이후 동일 이름의
   단일 analyzer binding이 나타나면 session value를 실제 binding으로 승격하는 fallback contract
@@ -1169,7 +1264,7 @@ Webview는 Project Graph, 파일 시스템, VS Code API에 직접 접근하지 �
   derived/write frame은 새 semantic edge를 만들지 않는다.
 - call/constructor/getter/source mutation/Host message/branch 자동 선택이 없는 browser-only 경계;
   input/branch/session 변경은 pending playback timer와 transient change effect를 취소하고
-  START로 reset하며 graph selection, pan/zoom, source navigation, Inspector/lens 상태는 변경하지 않음
+  START로 reset하며 graph selection, pan/zoom, source navigation, Inspector 상태는 변경하지 않음
 - 그래프 render/선택은 START ready 상태에서 scheduler 없이 정지한다. Play/Replay만 진행을
   시작하며 transition은 하나의 취소 가능한 handle과 path당 lazy 32-point SVG cache를 사용한다.
   pause/reset/deselect/branch/session/graph disposal/document hidden은 즉시 취소하고 hidden 상태는
@@ -1334,6 +1429,14 @@ Webview는 Project Graph, 파일 시스템, VS Code API에 직접 접근하지 �
   900 definition-to-use relation을 유지하고 추가 fact/relation은 gap count로 보고
 - 선택 binding의 visual value routing은 최대 1,500 nearest-use quadratic hop을 유지하며
   predecessor 탐색에 visited set과 최대 depth를 적용
+- Value playback uses only visible exact lexical SVG hops. Each hop caches bounded
+  point samples and a distance-derived 1.4–2.8 second cadence before animation;
+  missing, hidden, or dimmed geometry arrives discretely without synthesizing an
+  edge. A foreground token and source-backed `before/input → operation → result`
+  plaque sit above graph nodes. An armed pass follows through the viewport's
+  central half by translation only, and any direct pan, zoom, Center, or Fit
+  cancels that pass's follow without changing playback. Reduced motion keeps the
+  same textual ordering, confidence, START/Δ/sink semantics, and controls.
 - graph node의 lexical access row는 최대 8개만 렌더링하고 정확한 추가 row 수와 전체 retained
   binding selector를 별도로 제공
 - scenario value editor는 최대 120 binding/값당 240자, 선택 progression은 최대 80 access step으로 제한
@@ -1693,7 +1796,22 @@ Product Reset MVP는 다음 조건을 모두 만족할 때 완료된다.
 - 관련 unit, protocol validation, Webview 테스트가 통과함
 - README와 package description이 새 제품 약속을 반영함
 
-## 18. Open Questions
+## 18. Bounded Scenario Call Interpretation
+
+Values Scenario can additionally interpret a Host-issued, JSON-only bundle of
+synchronous TypeScript/JavaScript free-function programs. Calls are joined only
+through opaque call IDs; the Webview receives no source text, file path, range,
+graph identity, or name-based resolver. Evaluation uses typed define/assign/
+return evidence rather than block labels or display statements, and recomputes
+from fresh input state without messaging the Host.
+
+The interpreter is bounded to call depth 4, 12 bundled programs, 360 blocks,
+96 KiB payload, 600 expression items, 1,200 work items, and three visits per
+loop block. Dynamic/ambiguous/unresolved calls, cycles, async/generator bodies,
+effects, unsupported expressions, and budget exhaustion remain unknown with a
+finite localized boundary reason; they are never executed or guessed.
+
+## 19. Open Questions
 
 - 최종 제품명에서 `Analyzer`를 유지할지 `Flow` 중심 이름으로 바꿀지
 - decision/effect stage를 어느 수준의 evidence부터 자동 부여할지

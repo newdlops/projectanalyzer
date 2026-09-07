@@ -71,6 +71,16 @@ export type FunctionLogicValueChangePayload = {
   operator: string;
   value?: string;
   confidence: FunctionLogicPayloadConfidence;
+  /**
+   * Opaque owner plus decoded static own-key path. This is additive evidence;
+   * display text remains available for unresolved/dynamic source spellings.
+   */
+  valueRef?: {
+    rootBindingId: string;
+    path: string[];
+    displayPath: string;
+    segments?: Array<{ kind: "static"; key: string } | { kind: "binding"; bindingId: string }>;
+  };
 };
 
 /** Browser-visible lexical binding categories for static value flow. */

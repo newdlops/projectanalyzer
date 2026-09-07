@@ -9,6 +9,7 @@ import type {
   FunctionLogicBlockKind,
   FunctionLogicEdgeKind
 } from "../functionLogic";
+import type { FunctionTutorScenarioCatalog } from "./scenario/types";
 
 /** JSON-safe bounded values understood by the Tutor interpreter. */
 export type FunctionTutorStaticValue =
@@ -135,6 +136,8 @@ export type FunctionTutorParameterFact = {
   rest: boolean;
   defaultValue?: FunctionTutorStaticValue;
   literalValues: FunctionTutorStaticValue[];
+  /** Same-file, bounded declared-shape example; it is never a runtime observation. */
+  typeRepresentative?: FunctionTutorStaticValue;
   memberFacts: FunctionTutorMemberFact[];
   declarationEvidence: FunctionTutorEvidence[];
   gaps: FunctionTutorGap[];
@@ -144,8 +147,10 @@ export type FunctionTutorParameterFact = {
 export type FunctionTutorExpression =
   | { kind: "literal"; value: FunctionTutorStaticValue }
   | { kind: "binding"; bindingId: string }
+  /** Opaque Host-owned class/object receiver; projection never includes its source name. */
+  | { kind: "owner-reference"; ownerId: string }
   | { kind: "member"; object: FunctionTutorExpression; path: string[]; optional: boolean }
-  | { kind: "unary"; operator: "not" | "plus" | "minus" | "typeof"; operand: FunctionTutorExpression }
+  | { kind: "unary"; operator: "not" | "plus" | "minus" | "typeof" | "non-nullish"; operand: FunctionTutorExpression }
   | {
       kind: "binary";
       operator: "eq" | "neq" | "strict-eq" | "strict-neq" | "lt" | "lte" | "gt" | "gte"
@@ -157,6 +162,21 @@ export type FunctionTutorExpression =
   | { kind: "conditional"; condition: FunctionTutorExpression; whenTrue: FunctionTutorExpression; whenFalse: FunctionTutorExpression }
   | { kind: "array"; items: FunctionTutorExpression[] }
   | { kind: "object"; entries: Array<{ key: string; value: FunctionTutorExpression }> }
+  /** Await is explicit: async programs are never entered by a bare call. */
+  | { kind: "await"; operand: FunctionTutorExpression }
+  /** A parser-range-backed invocation. Resolution and receiver identity are Host work. */
+  | {
+      kind: "direct-call";
+      calleeName: string;
+      arguments: FunctionTutorExpression[];
+      callRange: SourceRange;
+      certainty: FunctionTutorCertainty;
+      invocationKind?: "direct" | "method" | "optional-direct" | "optional-method" | "iterator-next";
+      receiver?: FunctionTutorExpression;
+      optionalDisposition?: "present" | "absent" | "unknown";
+      requiresAwait?: boolean;
+    }
+  | { kind: "construct"; className: string; arguments: FunctionTutorExpression[]; callRange: SourceRange; certainty: FunctionTutorCertainty }
   | { kind: "unsupported"; reason: FunctionTutorUnknownReason; summary: string };
 
 /** Direct predicate on one parameter or its bounded own-member path. */
@@ -175,7 +195,7 @@ export type FunctionTutorConstraint = {
 /** One source-level write target handled by the bounded interpreter. */
 export type FunctionTutorAssignmentTarget =
   | { kind: "binding"; bindingId: string }
-  | { kind: "member"; bindingId: string; path: string[] };
+  | { kind: "member"; bindingId: string; path: string[]; segments?: Array<{ kind: "static"; key: string } | { kind: "binding"; bindingId: string }> };
 
 /** A source-ordered static operation attached to one Function Logic block. */
 export type FunctionTutorOperation =
@@ -187,12 +207,15 @@ export type FunctionTutorOperation =
       operator: "set" | "add" | "subtract" | "multiply" | "divide";
     }
   | { kind: "increment"; target: FunctionTutorAssignmentTarget; delta: 1 | -1 }
+  | { kind: "delete"; target: FunctionTutorAssignmentTarget }
   | { kind: "effect"; effectKind: "call" | "render" | "event" | "external-write" | "yield"; summary: string; certainty: FunctionTutorCertainty }
   | { kind: "unsupported"; summary: string; reason: FunctionTutorUnknownReason };
 
 /** An analyzer-visible decision and its already-constructed control edges. */
 export type FunctionTutorDecision = {
   expression: FunctionTutorExpression;
+  /** Host-only join to a source-proven logical-return continuation. */
+  continuationId?: string;
   outcomes: Array<{
     edgeId: string;
     label: string;
@@ -202,7 +225,7 @@ export type FunctionTutorDecision = {
 
 /** Terminal source statement attached to a static block. */
 export type FunctionTutorTerminal =
-  | { kind: "return"; value?: FunctionTutorExpression }
+  | { kind: "return"; value?: FunctionTutorExpression; continuationId?: string }
   | { kind: "throw"; value?: FunctionTutorExpression }
   | { kind: "break" }
   | { kind: "continue" }
@@ -215,6 +238,21 @@ export type FunctionTutorProgram = {
   edges: FunctionTutorProgramEdge[];
   bindings: FunctionTutorProgramBinding[];
   gaps: FunctionTutorGap[];
+  /** Ordered sync-generator suspension values, retained without source text. */
+  generatorYields?: FunctionTutorExpression[];
+  generatorReturn?: FunctionTutorExpression;
+  /** A bounded select/supply hand-off for a top-level logical return. */
+  continuations?: FunctionTutorLogicalReturnContinuation[];
+};
+
+export type FunctionTutorLogicalReturnContinuation = {
+  id: string;
+  predicate: "truthy" | "non-nullish";
+  select: FunctionTutorExpression;
+  supply: FunctionTutorExpression;
+  decisionBlockId: string;
+  supplyBlockId: string;
+  returnBlockId: string;
 };
 
 export type FunctionTutorProgramBlock = {
@@ -224,6 +262,8 @@ export type FunctionTutorProgramBlock = {
   operations: FunctionTutorOperation[];
   decision?: FunctionTutorDecision;
   terminal?: FunctionTutorTerminal;
+  /** The right operand is evaluated only if this existing CFG block is reached. */
+  continuationSupplyId?: string;
   embeddedRelation?: "immediate" | "defines" | "deferred";
   evidence: FunctionTutorEvidence[];
 };
@@ -279,6 +319,8 @@ export type FunctionTutorDeclarationAnalysis = {
   program: FunctionTutorProgram;
   gaps: FunctionTutorGap[];
   documentation?: FunctionTutorDocumentationFact;
+  /** Host-only exact lexical callable catalog; it is never protocol-projected. */
+  scenarioCatalog?: FunctionTutorScenarioCatalog;
 };
 
 /** Host-provided caller context passed to one language-specific extractor. */

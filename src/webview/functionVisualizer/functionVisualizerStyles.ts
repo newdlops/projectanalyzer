@@ -40,9 +40,8 @@ export function getFunctionVisualizerStyles(): string {
       gap: 12px;
       margin: -8px calc(-1 * clamp(12px, 1.8vw, 28px)) 8px;
       padding: 6px clamp(12px, 1.8vw, 28px);
-      background: color-mix(in srgb, var(--vscode-editor-background) 94%, transparent);
+      background: var(--vscode-editor-background);
       border-bottom: 1px solid var(--vscode-panel-border);
-      backdrop-filter: blur(10px);
     }
 
     .visualizer-topbar[hidden] { display: none; }
@@ -218,6 +217,12 @@ export function getFunctionVisualizerStyles(): string {
       text-align: center;
     }
 
+    .visualizer-empty-content { display: grid; justify-items: start; gap: 12px; max-width: 56ch; text-align: left; overflow-wrap: anywhere; }
+    .visualizer-empty-content strong { color: var(--vscode-foreground); font-size: 1.05rem; }
+    .visualizer-empty-content p { margin: 0; line-height: 1.6; }
+    .visualizer-retry[hidden] { display: none; }
+    .visualizer-retry:hover:not(:disabled) { background: var(--vscode-button-hoverBackground); }
+
     .flow-badge {
       display: inline-flex;
       align-items: center;
@@ -321,7 +326,7 @@ export function getFunctionVisualizerStyles(): string {
       .semantics-note { grid-row: 5; }
     }
 
-    @media (min-width: 721px) {
+    @media (min-width: 840px) {
       .visualizer-shell .logic-graph-workspace.inspector-open {
         grid-template-columns: minmax(0, 1fr) clamp(300px, 31vw, 430px);
       }

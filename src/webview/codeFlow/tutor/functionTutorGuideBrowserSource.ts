@@ -21,7 +21,15 @@ export function getFunctionTutorGuideBrowserSource(): string {
       const chapters = tutor.guide?.chapters || []; const questionButtons = [];
       let active = false; let chapterIndex = Math.max(0, chapters.findIndex((chapter) => chapter.id === tutor.guide?.initialChapterId));
       let scenariosOpen = false; let scenarioPhase = "idle"; let scenarioIndex = 0; let scenarioGeneration = 0;
-      const resultsBySeed = new Map(); const errorsBySeed = new Map(); let selectedSeedId; let selectedPathIndex = 0;
+      // Values and Guide consume this single root-scoped model. Fallback keeps
+      // older projections readable while no Tutor workspace is available.
+      const workspace = callbacks?.scenarioWorkspace;
+      const resultsBySeed = workspace?.read().results || new Map(); const errorsBySeed = workspace?.read().errors || new Map();
+      let selectedSeedId = workspace?.read().selectedSeedId; let selectedPathIndex = workspace?.read().selectedPathIndex || 0;
+      const unsubscribeWorkspace = workspace?.subscribe(() => {
+        selectedSeedId = workspace.read().selectedSeedId; selectedPathIndex = workspace.read().selectedPathIndex || 0;
+        if (scenariosOpen) renderScenarios();
+      });
       // These maps hold only semantic UI affordances. They are deliberately
       // independent of translated labels so a locale refresh can replace a
       // bounded subtree without changing what the reader had opened or focused.
@@ -89,6 +97,7 @@ export function getFunctionTutorGuideBrowserSource(): string {
 
       /** Starts or resumes bounded scenario calculation without source execution. */
       function startScenarioCalculation() {
+        if (workspace) { workspace.acquire(); scenarioPhase = workspace.read().phase; renderScenarios(); return; }
         if (!scenariosOpen || scenarioPhase === "running" || scenarioPhase === "complete" || scenarioPhase === "complete-with-errors") return;
         if (!tutor.seeds?.length) { scenarioPhase = "complete"; renderScenarios(); return; }
         scenarioPhase = "running"; const generation = ++scenarioGeneration; renderScenarios();
@@ -101,7 +110,10 @@ export function getFunctionTutorGuideBrowserSource(): string {
             renderScenarios(); return;
           }
           const seed = tutor.seeds[scenarioIndex];
-          try { resultsBySeed.set(seed.id, functionTutorRunScenario(tutor, seed)); }
+          try {
+            const evaluated = functionTutorRunScenario(tutor, seed);
+            resultsBySeed.set(seed.id, functionTutorResolveScenarioPaths(tutor, seed, evaluated));
+          }
           catch (error) { errorsBySeed.set(seed.id, { key: "static-case-failed" }); }
           scenarioIndex += 1; renderScenarios(); setTimeout(runNext, 0);
         };
@@ -117,22 +129,25 @@ export function getFunctionTutorGuideBrowserSource(): string {
 
       function createFunctionGuideScenarios() {
         const details = document.createElement("details"); const summary = document.createElement("summary"); const body = document.createElement("div");
-        const seeds = tutor.seeds || []; const completed = resultsBySeed.size + errorsBySeed.size;
+        const workspaceState = workspace?.read(); const seeds = tutor.seeds || []; const completed = resultsBySeed.size + errorsBySeed.size;
+        const rows = readFunctionTutorScenarioRows(workspaceState || { results: resultsBySeed }, seeds);
+        scenarioPhase = workspaceState?.phase || scenarioPhase;
         details.className = "logic-guide-scenarios"; details.dataset.guideKey = "scenarios"; details.open = scenariosOpen;
-        details.setAttribute("aria-busy", scenarioPhase === "running" ? "true" : "false");
-        summary.textContent = projectAnalyzerText("static-input-cases", { count: seeds.length });
+        details.setAttribute("aria-busy", scenarioPhase === "running" || scenarioPhase === "calculating" ? "true" : "false");
+        summary.textContent = projectAnalyzerText("static-input-cases", { count: rows.filter((row) => row.path).length || seeds.length });
         summary.title = projectAnalyzerText("open-static-input-cases"); body.className = "logic-guide-scenario-body";
         details.append(summary, body);
         details.addEventListener("toggle", () => {
           scenariosOpen = details.open;
           if (scenariosOpen) startScenarioCalculation();
+          else if (workspace) workspace.release();
           else if (scenarioPhase === "running") { scenarioPhase = "paused"; scenarioGeneration += 1; }
         });
         if (!scenariosOpen) { body.append(createFunctionGuideEmpty(projectAnalyzerText("calculate-static-cases"))); return details; }
         const progress = document.createElement("p"); progress.className = "logic-guide-scenario-progress";
         progress.textContent = scenarioPhase === "idle" ? projectAnalyzerText("static-cases-ready")
           : scenarioPhase === "paused" ? projectAnalyzerText("calculation-paused")
-            : scenarioPhase === "running" ? projectAnalyzerText("calculating-static-cases", { completed: completed, total: seeds.length })
+            : scenarioPhase === "running" || scenarioPhase === "calculating" ? projectAnalyzerText("calculating-static-cases", { completed: completed, total: seeds.length })
               : scenarioPhase === "complete-with-errors" ? projectAnalyzerText("static-cases-errors", { count: completed })
                 : projectAnalyzerText("static-cases-complete", { count: completed });
         body.append(progress);
@@ -140,40 +155,41 @@ export function getFunctionTutorGuideBrowserSource(): string {
         if (!selectedSeedId) selectedSeedId = seeds[0].id;
         const table = document.createElement("table"); const caption = document.createElement("caption"); const head = document.createElement("thead"); const headerRow = document.createElement("tr"); const tableBody = document.createElement("tbody");
         table.className = "logic-guide-scenario-table"; caption.textContent = projectAnalyzerText("possible-static-input-cases");
-        for (const label of [projectAnalyzerText("case"), projectAnalyzerText("possible-outcome")]) { const cell = document.createElement("th"); cell.scope = "col"; cell.textContent = label; headerRow.append(cell); }
+        const columnKeys = ["scenario", "path-conditions", "expected-effects", "evidence"];
+        for (const key of columnKeys) { const cell = document.createElement("th"); cell.scope = "col"; cell.textContent = projectAnalyzerText(key); headerRow.append(cell); }
         head.append(headerRow);
-        for (let seedIndex = 0; seedIndex < seeds.length; seedIndex += 1) {
-          const seed = seeds[seedIndex]; const row = document.createElement("tr"); const title = document.createElement("th"); const select = document.createElement("button");
-          const result = resultsBySeed.get(seed.id); const error = errorsBySeed.get(seed.id); const primary = result?.[0]; const selected = seed.id === selectedSeedId;
-          const seedTitle = formatTutorSeedTitle(seed); select.type = "button"; select.className = "logic-guide-scenario-select" + (selected ? " selected" : ""); select.dataset.guideKey = "scenario-seed:" + seed.id; select.textContent = seedTitle;
-          select.title = projectAnalyzerText("preview-static-case", { title: seedTitle }); select.setAttribute("aria-current", selected ? "true" : "false"); select.tabIndex = selected ? 0 : -1;
-          select.addEventListener("click", () => { selectedSeedId = seed.id; selectedPathIndex = 0; if (primary) callbacks?.onScenarioPreview?.(primary); renderScenarios(); });
+        for (let rowIndex = 0; rowIndex < rows.length; rowIndex += 1) {
+          const item = rows[rowIndex]; const seed = item.seed; const path = item.path; const row = document.createElement("tr"); const title = document.createElement("th"); const select = document.createElement("button");
+          const error = errorsBySeed.get(seed.id); const selected = seed.id === selectedSeedId && item.pathIndex === selectedPathIndex;
+          const scenarioTitle = path?.scenario ? functionTutorScenarioTitle(path, item.pathIndex + 1) : formatTutorSeedTitle(seed);
+          title.scope = "row"; title.dataset.label = projectAnalyzerText(columnKeys[0]);
+          select.type = "button"; select.className = "logic-guide-scenario-select" + (selected ? " selected" : ""); select.dataset.guideKey = "scenario-path:" + seed.id + ":" + item.pathIndex; select.textContent = scenarioTitle;
+          select.title = projectAnalyzerText("preview-static-case", { title: scenarioTitle }); select.setAttribute("aria-current", selected ? "true" : "false"); select.tabIndex = selected ? 0 : -1;
+          select.addEventListener("click", () => { selectedSeedId = seed.id; selectedPathIndex = item.pathIndex; workspace?.select(seed.id, item.pathIndex); if (path) callbacks?.onScenarioPreview?.(path); renderScenarios(); });
           select.addEventListener("keydown", (event) => {
-            let nextIndex; if (event.key === "ArrowDown") nextIndex = (seedIndex + 1) % seeds.length;
-            else if (event.key === "ArrowUp") nextIndex = (seedIndex + seeds.length - 1) % seeds.length;
-            else if (event.key === "Home") nextIndex = 0; else if (event.key === "End") nextIndex = seeds.length - 1; else return;
-            event.preventDefault(); selectedSeedId = seeds[nextIndex].id; selectedPathIndex = 0; const path = resultsBySeed.get(selectedSeedId)?.[0]; if (path) callbacks?.onScenarioPreview?.(path); renderScenarios();
+            let nextIndex; if (event.key === "ArrowDown") nextIndex = (rowIndex + 1) % rows.length;
+            else if (event.key === "ArrowUp") nextIndex = (rowIndex + rows.length - 1) % rows.length;
+            else if (event.key === "Home") nextIndex = 0; else if (event.key === "End") nextIndex = rows.length - 1; else return;
+            event.preventDefault(); const next = rows[nextIndex]; selectedSeedId = next.seed.id; selectedPathIndex = next.pathIndex; workspace?.select(selectedSeedId, selectedPathIndex); if (next.path) callbacks?.onScenarioPreview?.(next.path); renderScenarios();
           });
-          title.scope = "row"; title.append(select);
-          const outcome = document.createElement("td"); const certainty = createFunctionGuideCertainty(seed.certainty);
-          outcome.append(document.createTextNode(error ? projectAnalyzerText(error.key, error.params) : !result ? projectAnalyzerText("calculating") : functionTutorScenarioOutcomeText(primary)), certainty);
-          row.append(title, outcome); tableBody.append(row);
+          title.append(select);
+          const condition = document.createElement("td"); condition.dataset.label = projectAnalyzerText(columnKeys[1]); condition.textContent = path ? functionTutorScenarioConditionText(path) : projectAnalyzerText(scenarioPhase === "idle" ? "scenario-workspace-idle" : "scenario-workspace-partial");
+          const outcome = document.createElement("td"); outcome.dataset.label = projectAnalyzerText(columnKeys[2]); outcome.textContent = error ? projectAnalyzerText("scenario-workspace-error") : !path ? projectAnalyzerText(scenarioPhase === "idle" ? "scenario-workspace-idle" : "scenario-workspace-partial") : path.scenario ? functionTutorScenarioEffectText(path) : functionTutorScenarioOutcomeText(path);
+          const evidence = document.createElement("td"); const certainty = path?.certainty === "exact" || path?.certainty === "inferred" ? path.certainty : seed.certainty === "exact" || seed.certainty === "inferred" ? seed.certainty : "unknown"; evidence.dataset.label = projectAnalyzerText(columnKeys[3]); evidence.textContent = projectAnalyzerText(path?.symbolic ? "scenario-symbolic" : certainty);
+          row.append(title, condition, outcome, evidence); tableBody.append(row);
         }
         table.append(caption, head, tableBody); body.append(table);
         const selected = seeds.find((seed) => seed.id === selectedSeedId) || seeds[0]; const paths = selected ? resultsBySeed.get(selected.id) : undefined;
         if (!selected || !paths?.length) return details;
         if (selectedPathIndex >= paths.length) selectedPathIndex = 0;
         const path = paths[selectedPathIndex]; const detail = document.createElement("section"); const detailHeading = document.createElement("h4"); const inputs = document.createElement("dl");
-        detail.className = "logic-guide-scenario-detail"; detailHeading.textContent = formatTutorSeedTitle(selected); detail.append(detailHeading);
-        for (const input of selected.inputs) { const term = document.createElement("dt"); const definition = document.createElement("dd"); term.textContent = tutor.parameters.find((parameter) => parameter.id === input.parameterId)?.name || projectAnalyzerText("input"); definition.textContent = functionTutorValueText(input.value); inputs.append(term, definition); }
+        detail.className = "logic-guide-scenario-detail"; detailHeading.textContent = path.scenario ? functionTutorScenarioTitle(path, selectedPathIndex + 1) : formatTutorSeedTitle(selected); detail.append(detailHeading);
+        if (path.symbolic) { const note = document.createElement("p"); note.className = "logic-guide-scenario-description"; note.textContent = projectAnalyzerText("scenario-symbolic-note"); detail.append(note); }
+        for (const input of selected.inputs) { const term = document.createElement("dt"); const definition = document.createElement("dd"); const parameter = tutor.parameters.find((candidate) => candidate.id === input.parameterId); term.textContent = parameter ? parameter.name + (parameter.typeText ? " · " + parameter.typeText : "") : projectAnalyzerText("input"); term.setAttribute("translate", "no"); definition.textContent = functionTutorValueText(input.value); inputs.append(term, definition); }
         detail.append(inputs, createFunctionGuideCertainty(selected.certainty));
         const description = document.createElement("p"); description.className = "logic-guide-scenario-description"; description.textContent = projectAnalyzerText("possible-static-path", { suffix: path.limited ? projectAnalyzerText("safety-bound") : "." }); detail.append(description);
-        if (paths.length > 1) {
-          const label = document.createElement("label"); const select = document.createElement("select"); const pathId = panelId + "-path";
-          label.textContent = projectAnalyzerText("possible-path"); label.htmlFor = pathId; select.id = pathId; select.dataset.guideKey = "scenario-path:" + selected.id;
-          for (let index = 0; index < paths.length; index += 1) { const option = document.createElement("option"); option.value = String(index); option.textContent = projectAnalyzerText("path", { count: index + 1, suffix: paths[index].limited ? projectAnalyzerText("bounded") : "" }); select.append(option); }
-          select.value = String(selectedPathIndex); select.addEventListener("change", () => { selectedPathIndex = Number(select.value) || 0; callbacks?.onScenarioPreview?.(paths[selectedPathIndex]); renderScenarios(); }); detail.append(label, select);
-        }
+        const decisions = path.scenario?.decisions || []; if (decisions.length) { const heading = document.createElement("h5"); const list = document.createElement("ol"); heading.textContent = projectAnalyzerText("path-conditions"); for (const decision of decisions) { const item = document.createElement("li"); item.textContent = decision.label + " → " + projectAnalyzerText("scenario-outcome-" + decision.outcome); list.append(item); } detail.append(heading, list); }
+        const effects = path.scenario?.effects || []; if (path.scenario) { const heading = document.createElement("h5"); const list = document.createElement("ol"); heading.textContent = projectAnalyzerText("expected-effects"); if (!effects.length) { const item = document.createElement("li"); item.textContent = projectAnalyzerText("scenario-effect-none"); list.append(item); } else for (const effect of effects) { const item = document.createElement("li"); item.textContent = effect.label; list.append(item); } detail.append(heading, list); }
         const known = selected.inputs.filter((input) => input.value.kind !== "unknown"); const load = document.createElement("button");
         load.type = "button"; load.className = "logic-guide-action"; load.dataset.guideKey = "scenario-load-inputs:" + selected.id; load.textContent = projectAnalyzerText("load-inputs"); load.title = projectAnalyzerText("load-static-inputs"); load.disabled = known.length === 0;
         load.addEventListener("click", () => { callbacks?.onLoadInputs?.(selected); setStatus("loaded-known-inputs", { count: known.length, allKnown: known.length === selected.inputs.length }); }); detail.append(load);
@@ -194,6 +210,8 @@ export function getFunctionTutorGuideBrowserSource(): string {
         /** Called only by the Inspector mode controller. */
         setActive(nextActive) {
           active = Boolean(nextActive); section.hidden = !active;
+          if (active && scenariosOpen) workspace?.acquire();
+          if (!active) workspace?.release();
           if (active && scenariosOpen && scenarioPhase === "paused") startScenarioCalculation();
           if (!active) { if (scenarioPhase === "running") { scenarioPhase = "paused"; scenarioGeneration += 1; } callbacks?.onClearGuideFocus?.(); callbacks?.onClearScenarioPreview?.(); }
         },
@@ -210,14 +228,18 @@ export function getFunctionTutorGuideBrowserSource(): string {
           // semantic state and never touch graph, playback, or Host state.
           renderChapter();
           renderScenarios();
+        },
+        dispose() {
+          unsubscribeWorkspace?.(); workspace?.release();
         }
       };
     }
 
     function functionTutorScenarioOutcomeText(path) {
       if (!path) return projectAnalyzerText("calculating");
+      if (path.scenario) return functionTutorScenarioEffectText(path);
       if (path.terminal?.kind === "return") return projectAnalyzerText("may-return", { value: functionTutorValueText(path.terminal.value) });
-      return path.terminal?.kind ? projectAnalyzerText("may", { value: projectAnalyzerText("tutor-terminal-" + path.terminal.kind) }) : projectAnalyzerText("possible-path");
+      return path.terminal?.kind ? projectAnalyzerText("scenario-terminal-" + path.terminal.kind) : projectAnalyzerText("possible-path");
     }
     function createFunctionGuideCertainty(value) { const badge = document.createElement("span"); const normalized = value === "exact" || value === "inferred" ? value : "unknown"; badge.className = "flow-badge confidence " + normalized + " logic-guide-certainty"; badge.textContent = projectAnalyzerText(normalized); return badge; }
 

@@ -32,7 +32,8 @@ export function createFunctionLogicValueChange(
     operation: input.operation,
     operator,
     value,
-    confidence: input.confidence
+    confidence: input.confidence,
+    ...(input.fieldRef ? { fieldRef: input.fieldRef } : {})
   };
 }
 
@@ -52,7 +53,9 @@ export function finalizeFunctionLogicValueChanges(
       value.operation,
       value.operator,
       value.value ?? "",
-      value.confidence
+      value.confidence,
+      value.fieldRef?.rootName ?? "",
+      value.fieldRef?.path.join("\0") ?? ""
     ].join("\0");
     if (seen.has(key)) {
       continue;

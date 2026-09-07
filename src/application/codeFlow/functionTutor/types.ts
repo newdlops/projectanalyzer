@@ -11,6 +11,7 @@ import type {
   FunctionTutorGap,
   FunctionTutorStaticValue
 } from "../../../analyzer/functionTutor";
+import type { ScenarioProgramBundle } from "./scenarioProgramBundle";
 import type { FunctionTutorFactPresentationKey, FunctionTutorSemanticPresentationKey, PresentationParams } from "../../../localization/presentationDescriptors";
 import type { FunctionLogicAnalysis } from "../../../analyzer/functionLogic";
 import type {
@@ -220,6 +221,8 @@ export type FunctionTutorBuildModel = {
   seeds: FunctionTutorScenarioSeed[];
   context: FunctionTutorCodebaseContext;
   guide: FunctionTutorGuidePlan;
+  /** Host-only resolved bundle; projection replaces all identities before delivery. */
+  scenarioBundle?: ScenarioProgramBundle;
   availability: FunctionTutorGuideChapterStatus;
   gaps: FunctionTutorGap[];
   summary: {

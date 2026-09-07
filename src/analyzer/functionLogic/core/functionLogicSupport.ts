@@ -153,6 +153,6 @@ function unavailableGapKey(code: FunctionLogicGap["code"]): NonNullable<Function
 /** Conservative naming cue used only to style possible external/state effects. */
 export function isPotentialFunctionEffectCall(value: string): boolean {
   const segment = value.split(".").at(-1)?.toLowerCase() ?? value.toLowerCase();
-  return /^(?:add|append|apply|bulk[_-]?(?:create|update)|commit|create|delete|dispatch|emit|enqueue|execute|insert|log|notify|persist|post|publish|put|remove|save|send|set|store|update|write)/u
+  return /^(?:add|append|apply|bulk[_-]?(?:create|delete|remove|update)|commit|create|delete|dispatch|emit|enqueue|execute|insert|log|notify|persist|post|publish|put|remove|save|send|set|store|update|write)/u
     .test(segment);
 }

@@ -40,7 +40,7 @@ export function getCodeFlowBrowserSource(): string {
       logicGraphViewportTransform: undefined,
       activeLogicViewportController: undefined,
       activeLogicValueFlowRendering: undefined,
-      uiLanguage: "en",
+      uiLanguage: document.documentElement.lang === "ko" ? "ko" : "en",
       moduleFlowOpening: false,
       retainedStatus: undefined,
       statusPresentation: undefined,
