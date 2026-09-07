@@ -14,13 +14,13 @@ export function getFunctionLogicComprehensionStyles(): string {
       transition: opacity 120ms ease-out;
     }
 
+    /* Reading keeps the full graph legible; only explicit focus/path exclusions fade. */
     .logic-graph-node[data-attention="related"],
     .logic-edge[data-attention="related"],
-    .logic-edge-label[data-attention="related"] { opacity: 1; }
-
-    .logic-graph-node[data-attention="context"] { opacity: 0.78; }
+    .logic-edge-label[data-attention="related"],
+    .logic-graph-node[data-attention="context"],
     .logic-edge[data-attention="context"],
-    .logic-edge-label[data-attention="context"] { opacity: 0.62; }
+    .logic-edge-label[data-attention="context"] { opacity: 1; }
 
     .logic-graph-node[data-attention="muted"] { opacity: 0.42; }
     .logic-edge[data-attention="muted"],

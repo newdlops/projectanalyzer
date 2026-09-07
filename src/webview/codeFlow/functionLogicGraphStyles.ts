@@ -238,11 +238,6 @@ export function getFunctionLogicGraphStyles(): string {
       vector-effect: non-scaling-stroke;
     }
 
-    .logic-edge.dimmed,
-    .logic-edge-label.dimmed {
-      opacity: 0.28;
-    }
-
     .logic-edge.active {
       opacity: 1;
       stroke-width: 2.6;
@@ -700,7 +695,17 @@ export function getFunctionLogicGraphStyles(): string {
         border-color: CanvasText;
       }
 
-      .logic-edge,
+      .logic-graph-node.selected {
+        outline: 2px solid Highlight;
+        outline-offset: 2px;
+      }
+
+      /* Routed paths stay open; filling them covers the graph with polygons. */
+      .logic-edge {
+        stroke: CanvasText;
+        fill: none;
+      }
+
       .logic-arrow-head {
         stroke: CanvasText;
         fill: CanvasText;

@@ -1,8 +1,9 @@
 /** Source outline invariants and retained Inspector interaction regression tests. */
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createFunctionReadingOutline, type FunctionReadingBlock } from "../../webview/codeFlow/reading";
+import { createFunctionReadingOutline, getFunctionReadingBrowserSource, type FunctionReadingBlock } from "../../webview/codeFlow/reading";
 import { getFunctionLogicInspectorBrowserSource } from "../../webview/codeFlow/inspector";
+import { getFunctionLogicViewportBrowserSource } from "../../webview/codeFlow/viewport";
 import { getBrowserLocalizationSource } from "../../localization/browserCatalog";
 import { installSidebarWebviewRuntime } from "./helpers/sidebarWebviewRuntime";
 
@@ -39,6 +40,90 @@ test("outline exposes its bound and counts only listed steps", () => {
   assert.equal(outline.counts.calls, 400);
   assert.equal(outline.omittedCount, 50);
   assert.deepEqual(createFunctionReadingOutline({ blocks: [], layout: { nodes: [] } }).rows, []);
+});
+
+/** Couples the real outline and viewport around selection/Inspector boundary stubs. */
+function mountReadingViewport() {
+  return new Function(`${getBrowserLocalizationSource()}
+    const formatLogicBlockLabel = (block) => block.label;
+    const formatLogicKind = (kind) => kind;
+    ${getFunctionLogicViewportBrowserSource()}
+    ${getFunctionReadingBrowserSource()}
+    const viewport = document.createElement("div");
+    const canvas = document.createElement("div");
+    viewport.append(canvas);
+    const blocks = ["entry", "large", "exit"].map((id) => ({
+      id, label: id, detail: id, depth: 0, confidence: "exact",
+      kind: id === "large" ? "operation" : id
+    }));
+    const layout = { width: 2000, height: 4000, nodes: [
+      { blockId: "entry", x: 100, y: 50, width: 160, height: 40 },
+      { blockId: "large", x: 800, y: 1500, width: 1000, height: 1800 },
+      { blockId: "exit", x: 100, y: 3600, width: 160, height: 40 }
+    ] };
+    const camera = createFunctionLogicViewportController({ viewport, canvas, layout });
+    let readerState = { selectedBlockId: "entry" };
+    const listeners = new Set();
+    const controller = {
+      getState: () => readerState,
+      subscribe(listener) { listeners.add(listener); return () => listeners.delete(listener); },
+      activateBlock(selectedBlockId) {
+        readerState = { selectedBlockId };
+        for (const listener of listeners) listener(readerState);
+      }
+    };
+    const surface = createFunctionReadingSurface(
+      { blocks, layout }, "reading-viewport-test", viewport, controller, camera, { openInspect() {} }
+    );
+    document.getElementById("flow-steps").append(surface.element, surface.toggle);
+    camera.initialize();
+    return { camera, controller, surface };
+  `)();
+}
+
+test("source reading keeps reader zoom and reveals the start of oversized statements", () => {
+  const runtime = installSidebarWebviewRuntime();
+  try {
+    const { camera, controller } = mountReadingViewport();
+    for (const scale of [0.67, 1, 1.25]) {
+      camera.setTransform({ scale, x: 0, y: 0 });
+      runtime.clickRenderedByClassNth("flow-steps", "logic-reading-step", 1);
+      const selected = camera.getTransform();
+      assert.equal(selected.scale, scale);
+      assert.equal(selected.x + 800 * scale, 32);
+      assert.equal(selected.y + 1500 * scale, 32);
+      runtime.clickRenderedByClassNth("flow-steps", "logic-reading-next", 0);
+      assert.equal(controller.getState().selectedBlockId, "exit");
+      assert.equal(camera.getTransform().scale, scale);
+      runtime.clickRenderedByClassNth("flow-steps", "logic-reading-previous", 0);
+      assert.deepEqual(camera.getTransform(), selected);
+      runtime.keydownByTitle("large", "Home");
+      assert.equal(controller.getState().selectedBlockId, "entry");
+      runtime.keydownByTitle("entry", "End");
+      assert.equal(controller.getState().selectedBlockId, "exit");
+      assert.equal(camera.getTransform().scale, scale);
+    }
+    assert.equal(runtime.messages.length, 0);
+  } finally { runtime.restore(); }
+});
+
+test("visible reading steps keep the camera still, while evidence fitting remains available", () => {
+  const runtime = installSidebarWebviewRuntime();
+  try {
+    const { camera } = mountReadingViewport();
+    const initial = { scale: 1.25, x: 0, y: 0 };
+    camera.setTransform(initial);
+    runtime.clickRenderedByClassNth("flow-steps", "logic-reading-step", 0);
+    assert.deepEqual(camera.getTransform(), initial);
+    camera.revealBlocks(["missing"], { preserveScale: true });
+    camera.revealBlocks([], { preserveScale: true });
+    assert.deepEqual(camera.getTransform(), initial);
+    camera.revealBlocks(["large"]);
+    assert.ok(camera.getTransform().scale < initial.scale);
+    const fitted = camera.getTransform();
+    assert.ok(fitted.x + 800 * fitted.scale >= 32);
+    assert.ok(fitted.y + 1500 * fitted.scale >= 32 - 1e-9);
+  } finally { runtime.restore(); }
 });
 
 /** Mounts the production Inspector in the small event-aware runtime. */

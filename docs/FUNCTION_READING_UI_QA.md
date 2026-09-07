@@ -93,6 +93,38 @@ user-data/extensions 디렉터리에 설치했고, 기본 설치 목록에서
 실행 권한도 확인했다. UI 70개와 패키징 스크립트 12개 테스트는 통과했으며 앞서 기록한
 전체 테스트 실패 5건은 수정하지 않았다.
 
+## 0.0.1090 선택 시 흐림 회귀 수정
+
+목차에서 큰 선언문을 선택할 때 전체 그래프 배율이 자동으로 줄어드는 현상을 재현했다.
+94단계 fixture에서 1440px 화면은 100% → 약 47%, 768px는 약 33%, 390px는 약 24%로
+바뀌었다. 별도로 일반 선택이 주변 edge/label을 불투명도 0.28로, 일부 context node를
+0.78로 표시하는 것도 확인했다.
+
+목차와 한눈에 이해의 명시적 source 이동은 배율을 유지한다. 큰 block은 첫 줄이 보이도록
+이동하며 기존 Fit 기능은 전체 보기에 사용할 수 있다. 일반 읽기에서는 node/edge/label의
+불투명도를 1로 유지하고 선택 테두리와 연결선 굵기로 현재 위치를 구분한다. 명시적인 분기
+선택과 본문 focus의 제외 표시는 유지한다. 고대비 테마의 SVG 연결선이 면으로 채워져
+그래프를 가리던 문제도 수정하고 선택 node에 시스템 Highlight 외곽선을 표시했다.
+
+- 관련 unit 70/70, 패키징 스크립트 12/12, TypeScript check/compile, release metadata 통과.
+- 실제 production HTML을 새 Playwright Chromium에서 1440×900, 768×1024, 390×844로 검증.
+  앱 내 Browser는 연결 가능한 브라우저가 없어 사용하지 못했다.
+- 일반 함수와 94단계 함수에서 펼치기, 행 선택, 이전/다음, End 이동 후 computed opacity 1과
+  배율 100% 유지 확인. 사용자가 확대 버튼으로 지정한 125%도 목차와 overview 이동에서 유지.
+- 직접 분기 선택 시 제외 경로 표시와 reset 복구, 필터/빈 결과, 키보드, 언어 전환, 값 보존,
+  Scenario 재생/일시정지, Guide, 로딩/오류/복구 확인. 문서 가로 넘침과 브라우저 오류 없음.
+- 밝은 테마 및 forced colors/reduced motion 스크린샷 검토. 고대비의 일반/선택 연결선은
+  computed `fill: none`이며 선택 node의 외곽선이 보임을 확인.
+
+이번 수정은 관련 테스트에 한정하여 검증했고 전체 suite 및 Rust 테스트는 재실행하지 않았다.
+앞서 기록한 전체 suite의 기존 실패 5건은 이번 수정 범위에 포함하지 않는다. 재현 자료와
+최종 결과는 같은 임시 QA 폴더의 `before-contrast-results.json`, `fixed-contrast-results.json`,
+`reading-regression.log`, `fixed-*-contrast.png`, `1440-forced-colors*.png`에 보존했다.
+
+`function-analysis-0.0.1090-darwin-arm64.vsix`는 410개 파일, archive 3.20 MiB,
+unpacked 13.48 MiB로 패키지 검사를 통과했다. 기본 VS Code에 설치했고 설치 manifest의
+버전 `0.0.1090`과 수정한 읽기/viewport/강조/고대비 관련 8개 모듈의 빌드 출력 일치를 확인했다.
+
 ## 확인하지 않은 경계
 
 실제 VS Code Extension Development Host에서의 웹뷰 연결, 소스 editor reveal 및 장식,

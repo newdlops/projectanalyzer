@@ -732,6 +732,9 @@ scroll하고 긴 evidence가 graph canvas의 크기나 위치를 밀어내지 �
   실제 runtime scheduling·SQL 관찰과 구분한다. 기본 접힘과 locale 전환 시 상태를 보존한다.
 - graph 옆 `함수 따라 읽기` 목차에서 소스 순서와 실제 block counter를 보존하며
   전체/분기/호출/종료 필터와 이전/다음 이동을 제공한다. 1039px 이하에서는 graph 위에서 접고 펼친다.
+  목차와 한눈에 이해의 source 이동은 현재 배율을 유지하고, 화면보다 큰 block은 시작 부분을
+  표시한다. 일반 선택에서 주변 node/edge/label의 불투명도를 낮추지 않으며 선택 강조는
+  테두리와 선 굵기로 제공한다. 명시적인 본문 focus와 분기 제외 표시는 별도로 유지한다.
 - Inspector의 `코드 이해`/`값과 경로`/`함수 정보` tab으로 선택 근거, 입력 실험, 함수 선언과
   연결 대상을 분리하고 현재 함수 signature는 `함수 정보`에 배치한다.
 - 위에서 아래로 진행하는 control-flow rank

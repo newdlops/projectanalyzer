@@ -266,7 +266,7 @@ test("keeps the source outline synchronized with graph selection", () => {
   try {
     new Function(requireFunctionVisualizerScript())();
     runtime.dispatchMessage(createSessionMessage());
-    runtime.dispatchMessage(createCalculatedScenarioDetail());
+    runtime.dispatchMessage(createCalculatedScenarioDetail(true));
 
     assert.equal(runtime.countRenderedByClass("flow-steps", "logic-reading-outline"), 1);
     assert.ok(runtime.getRenderedText("flow-steps").includes(
@@ -278,6 +278,13 @@ test("keeps the source outline synchronized with graph selection", () => {
       "total += 2; · src/root.ts:4",
       "aria-current"
     ), "step");
+    assert.equal(runtime.countRenderedByClass("flow-steps", "logic-edge"), 3);
+    for (const className of ["logic-edge", "logic-edge-label"]) {
+      const elements = Array.from({ length: 3 }, (_, index) => Reflect.get(globalThis, "document")
+        .getElementById(runtime.getRenderedIdentityByClassNth("flow-steps", className, index)));
+      assert.ok(elements.every((element) => element?.classList.contains("dimmed") === false));
+      assert.ok(elements.some((element) => element?.classList.contains("active")));
+    }
     assert.equal(runtime.getRenderedAttributeByTitle(
       "flow-steps",
       "Select logic · total += 2;",
@@ -1653,7 +1660,7 @@ function createFunctionDetail(
 }
 
 /** Creates a multi-block Scenario whose values are fully source-calculable. */
-function createCalculatedScenarioDetail(): unknown {
+function createCalculatedScenarioDetail(withLayoutEdges = false): unknown {
   const bindings = [{
     id: "scenario-input",
     name: "input",
@@ -1802,7 +1809,13 @@ function createCalculatedScenarioDetail(): unknown {
             rank: index,
             lane: 0
           })),
-          edges: []
+          edges: withLayoutEdges ? edges.map((edge, index) => ({
+            edgeId: edge.id,
+            points: [{ x: 180, y: 96 + index * 100 }, { x: 180, y: 120 + index * 100 }],
+            labelX: 185,
+            labelY: 108 + index * 100,
+            route: "forward"
+          })) : []
         },
         summary: {
           blockCount: blocks.length,

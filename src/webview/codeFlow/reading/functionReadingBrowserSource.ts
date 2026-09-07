@@ -116,7 +116,7 @@ export function getFunctionReadingBrowserSource(): string {
         // Wait for the drawer's new grid width before measuring the visible graph.
         if (revealFrame !== undefined) cancelAnimationFrame(revealFrame);
         revealFrame = requestAnimationFrame(() => {
-          if (!disposed) viewportController.revealBlocks([blockId], { announce: false });
+          if (!disposed) viewportController.revealBlocks([blockId], { announce: false, preserveScale: true });
         });
       }
 

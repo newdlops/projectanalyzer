@@ -142,7 +142,11 @@ export function getFunctionLogicBranchChoiceStyles(): string {
     }
 
     @media (forced-colors: active) {
-      .logic-edge.choice-selected,
+      .logic-edge.choice-selected {
+        stroke: Highlight;
+        fill: none;
+      }
+
       .logic-edge-label.choice-selected,
       .logic-choice-summary,
       .logic-transfer-choice.selected {

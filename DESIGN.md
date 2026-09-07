@@ -57,6 +57,9 @@ to the existing VS Code product UI, using its existing native DOM components.
   for decisions, calls, and exits change only the list. Selecting a row reveals
   the existing graph block; Previous/Next follow the displayed source outline,
   not a claimed execution path. Branch choices remain explicit graph actions.
+  Reading keeps the current zoom and aligns an oversized block to its source
+  header. Graph context stays opaque; selected borders and stronger connecting
+  strokes provide emphasis. Fading is reserved for explicit focus/path exclusions.
 - **Density and typography:** compact editor density, UI font for navigation
   and explanation, editor monospace for source. Titles stay subordinate to
   source content. Use 4/8/12/16px spacing, existing 3–7px control radii, 1px theme
@@ -96,6 +99,9 @@ to the existing VS Code product UI, using its existing native DOM components.
 5. Verify real generated Webview HTML at 390×844, 768×1024, and 1440×900;
    exercise keyboard, a dense function, long labels, light/dark themes, and
    empty/filtered states independently of compile/unit checks.
+6. Opening the outline and navigating by row, Previous/Next or keyboard preserve
+   graph contrast and reader zoom, including blocks taller/wider than the viewport.
+   Explicit branch exclusion and reset still work independently of reading.
 
 # Function Logic Value-Flow Playback
 

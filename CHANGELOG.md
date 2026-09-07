@@ -4,6 +4,18 @@ All notable user-visible changes to Project Analyzer: Code Flow are recorded in
 this file. The changelog starts with the first distribution-documented build;
 earlier local development builds were not tracked here.
 
+## 0.0.1090 - 2026-09-07
+
+### Fixed
+
+- **Read the function** and overview source actions preserve the reader's zoom.
+  Oversized statements reveal their start instead of shrinking the entire graph.
+- Selecting a step keeps surrounding nodes, connections and labels at full opacity.
+  Selected borders and stronger connections provide emphasis; explicit branch
+  exclusions and body focus retain their existing behavior.
+- High-contrast themes keep routed connections unfilled and show a clear outline
+  around the selected block.
+
 ## 0.0.1089 - 2026-09-07
 
 ### Added

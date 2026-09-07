@@ -55,7 +55,7 @@ export function getFunctionUnderstandingBrowserSource(): string {
         if (revealFrame !== undefined) cancelAnimationFrame(revealFrame);
         revealFrame = requestAnimationFrame(() => {
           if (!disposed) {
-            viewportController.revealBlocks([blockId], { announce: false });
+            viewportController.revealBlocks([blockId], { announce: false, preserveScale: true });
             inspector.workspace.scrollIntoView?.({ block: "nearest", behavior: "auto" });
           }
         });

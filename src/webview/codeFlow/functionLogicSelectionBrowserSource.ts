@@ -38,9 +38,7 @@ export function getFunctionLogicSelectionBrowserSource(): string {
       for (const [edgeId, edgeElements] of edgeElementsById) {
         const active = connectedEdgeIds.has(edgeId);
         edgeElements.path.classList.toggle("active", active);
-        edgeElements.path.classList.toggle("dimmed", !active);
         edgeElements.label.classList.toggle("active", active);
-        edgeElements.label.classList.toggle("dimmed", !active);
       }
       renderLogicSelection(
         selected,

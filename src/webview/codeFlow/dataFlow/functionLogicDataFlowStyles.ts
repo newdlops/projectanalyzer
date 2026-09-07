@@ -237,7 +237,11 @@ export function getFunctionLogicDataFlowStyles(): string {
         border-color: CanvasText;
       }
 
-      .logic-data-flow-edge,
+      .logic-data-flow-edge {
+        stroke: Highlight;
+        fill: none;
+      }
+
       .logic-data-flow-arrow-head {
         stroke: Highlight;
         fill: Highlight;

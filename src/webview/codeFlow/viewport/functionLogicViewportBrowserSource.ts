@@ -279,7 +279,7 @@ export function getFunctionLogicViewportBrowserSource(): string {
         commit(createFitFunctionLogicViewportTransform(geometry()), true);
       }
 
-      /** Reveals explicit Guide evidence without changing graph focus or lens state. */
+      /** Reveals evidence; preserveScale keeps source reading at the reader's zoom. */
       function revealBlocks(blockIds, options) {
         if (!transform || !Array.isArray(blockIds) || blockIds.length === 0) return;
         cancelAutoFollow();
@@ -300,16 +300,20 @@ export function getFunctionLogicViewportBrowserSource(): string {
         const boundsWidth = Math.max(1, right - left);
         const boundsHeight = Math.max(1, bottom - top);
         let scale = transform.scale;
-        if (boundsWidth * scale + padding * 2 > size.width || boundsHeight * scale + padding * 2 > size.height) {
+        if (!options?.preserveScale && (boundsWidth * scale + padding * 2 > size.width || boundsHeight * scale + padding * 2 > size.height)) {
           scale = Math.min(0.9, Math.max(FUNCTION_LOGIC_MIN_SCALE, Math.min(
             (size.width - padding * 2) / boundsWidth,
             (size.height - padding * 2) / boundsHeight
           )));
         }
+        const centeredX = (size.width - boundsWidth * scale) / 2;
+        const centeredY = (size.height - boundsHeight * scale) / 2;
+        // Oversized source blocks start at their header instead of shrinking all
+        // graph text or centering the reader in the middle of a long statement.
         commit({
           scale,
-          x: (size.width - boundsWidth * scale) / 2 - left * scale,
-          y: (size.height - boundsHeight * scale) / 2 - top * scale
+          x: (options?.preserveScale ? Math.max(padding, centeredX) : centeredX) - left * scale,
+          y: (options?.preserveScale ? Math.max(padding, centeredY) : centeredY) - top * scale
         }, Boolean(options?.announce));
       }
 
