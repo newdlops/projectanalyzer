@@ -1,6 +1,8 @@
 /** Public static-function-tutor analyzer surface. */
 
 export { analyzeFunctionTutorDeclaration } from "./functionTutorAnalyzer";
+export { evaluateFunctionTutorInputs } from "./inputEvaluation";
+export type { FunctionTutorInputEvaluation } from "./inputEvaluation";
 export { createUnavailableFunctionTutorDeclaration } from "./functionTutorUnavailable";
 export { analyzeTypeScriptTutorCallsite as analyzeFunctionTutorCallsite } from "./typescriptTutorCallsiteAdapter";
 export type {

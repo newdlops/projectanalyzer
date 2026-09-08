@@ -9,7 +9,8 @@ import type {
   FunctionTutorDeclarationAnalysis,
   FunctionTutorEvidence,
   FunctionTutorGap,
-  FunctionTutorStaticValue
+  FunctionTutorStaticValue,
+  FunctionTutorInputEvaluation
 } from "../../../analyzer/functionTutor";
 import type { ScenarioProgramBundle } from "./scenarioProgramBundle";
 import type { FunctionFrameworkBehavior } from "../../../analyzer/frameworkBehavior";
@@ -50,7 +51,7 @@ export type FunctionTutorScenarioSeed = {
   id: string;
   ordinal: number;
   title: string;
-  source: "callsite" | "default" | "branch" | "type" | "mixed";
+  source: "callsite" | "default" | "branch" | "type" | "mixed" | "model";
   certainty: FunctionTutorCertainty;
   inputs: Array<{
     parameterId: string;
@@ -62,6 +63,14 @@ export type FunctionTutorScenarioSeed = {
   objectiveIds: string[];
   evidence: FunctionTutorEvidence[];
   gaps: FunctionTutorGap[];
+  /** Source targets motivate an input; only evaluation records reached outcomes. */
+  quality?: {
+    purpose: "caller" | "baseline" | "boundary" | "model";
+    reason?: string;
+    assumptions?: string[];
+    targetBlockIds: string[];
+    evaluation: FunctionTutorInputEvaluation;
+  };
 };
 
 /** A source-owned parent of the selected callable, stored before opaque projection. */

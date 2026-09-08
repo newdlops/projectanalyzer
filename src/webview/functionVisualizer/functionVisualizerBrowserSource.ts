@@ -57,6 +57,7 @@ export function getFunctionVisualizerBrowserSource(): string {
     window.addEventListener("message", (event) => {
       const message = event.data;
       if (!message || typeof message.type !== "string") return;
+      if (message.type === "codeFlow/scenarioInputsLoaded") { acceptScenarioInputsResponse(message.payload); return; }
 
       if (message.type === "ui/language") {
         const language = message.payload?.language === "ko" ? "ko" : "en";

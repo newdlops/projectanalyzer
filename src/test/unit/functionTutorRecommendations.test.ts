@@ -70,9 +70,9 @@ test("context-backed recommended values trace typed object fields", async () => 
     .map((candidate) => candidate.value);
   assert.ok(payloadCandidates.length >= 6);
   assert.ok(payloadCandidates.every((value) => value.kind === "object"), "member boundaries must remain complete object inputs");
-  assert.deepEqual(uniqueScalars(payloadCandidates, ["profile", "score"]), [9, 10]);
+  assert.deepEqual(uniqueScalars(payloadCandidates, ["profile", "score"]), [9, 10, 11]);
   assert.deepEqual(uniqueScalars(payloadCandidates, ["profile", "mode"]), ["free", "pro"]);
-  assert.deepEqual(uniqueLengths(payloadCandidates, ["items"]), [1, 2]);
+  assert.deepEqual(uniqueLengths(payloadCandidates, ["items"]), [0, 1, 2]);
   assert.deepEqual(uniqueScalars(payloadCandidates, ["enabled"]), [false, true]);
 
   const metadataCandidates = (model.candidatesByParameter.get(metadata.id) ?? [])

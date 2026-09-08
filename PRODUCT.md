@@ -76,9 +76,13 @@ source-backed 시각화로 바꾸어 개발자가 직접 읽고 검증하도록 
 - **Function Guide**는 선택한 함수의 source documentation, owner 구조,
   architecture evidence, bounded entrypoint/direct caller/callee relation, Function Logic을
   결합해 코드베이스 위치·입력·결정·작업·종료를 5개 질문으로 안내한다. 기존의 static
-  input case 비교는 그 안의 progressive-disclosure 도구이며, LLM, network, token,
-  source execution은 사용하지 않는다. 불확실한 값·지원하지 않는 연산·budget은 gap으로
-  보인다.
+  input case 비교는 로컬 정적 분석으로 동작한다. 불확실한 값·지원하지 않는 연산·budget은
+  gap으로 보인다.
+- **AI 에지케이스 제안**은 사용자가 직접 요청할 때 선택한 VS Code 모델에 함수 인터페이스,
+  선택 함수와 최대 4개 호출부의 코드, 조건과 기존 입력을 전달한다. 일반적인 대표값보다
+  경계·복합 조건·예외·인자 간 관계를 설명하는 값을 제안하고, 알려진 타입과 정적 경로로
+  검증한다. 제안 이유·모델의 가정·확인한 범위를 구분하며 입력 적용은 별도 동작이다.
+  모델이 없어도 기존 로컬 분석은 사용할 수 있고, 프로젝트 소스 코드는 실행하지 않는다.
 - graph는 설정과 분석 budget으로 제한한다. 전체 repository graph를 Function
   Logic 기본 화면으로 렌더링하지 않는다.
 - graph traversal과 hierarchy 계산은 queue/stack, visited set, depth/node budget을

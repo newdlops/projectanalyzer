@@ -253,9 +253,21 @@ export function createFunctionTutorPayload(
           evidenceTokens: evidenceTokens(input.evidence)
         }] : [];
       }),
-      objectiveIds: seed.objectiveIds,
+      objectiveIds: seed.objectiveIds.map((id) => opaqueTutorIdentity(context, "objective", id)),
       evidenceTokens: evidenceTokens(seed.evidence),
-      gapIds: seed.gaps.map((gap, index) => projectGap(gap, index).id)
+      gapIds: seed.gaps.map((gap, index) => projectGap(gap, index).id),
+      quality: seed.quality ? {
+        purpose: seed.quality.purpose,
+        reason: seed.quality.reason,
+        assumptions: seed.quality.assumptions,
+        targetBlockIds: seed.quality.targetBlockIds.flatMap((id) => context.blockIds.get(id) ?? []),
+        checkedBlockIds: seed.quality.evaluation.blockIds.flatMap((id) => context.blockIds.get(id) ?? []),
+        checkedEdgeIds: seed.quality.evaluation.edgeIds.flatMap((id) => context.edgeIds.get(id) ?? []),
+        branchCount: new Set(seed.quality.evaluation.decisions.map((item) => item.edgeId)).size,
+        terminalKind: seed.quality.evaluation.terminal?.kind,
+        status: seed.quality.evaluation.status,
+        gapReason: seed.quality.evaluation.reason
+      } : undefined
     })),
     program: projectedProgram,
     ...(programBundle ? { programBundle } : {}),

@@ -15,6 +15,10 @@ import {
   buildFunctionTutorModel
 } from "../../application/codeFlow";
 import { analyzeFunctionLogic } from "../../analyzer/functionLogic";
+import { createScenarioInputPrompt, parseScenarioInputSuggestions, ScenarioInputError, type ScenarioInputProvider } from "../../application/scenarioInputs";
+import type { FunctionTutorBuildModel } from "../../application/codeFlow/functionTutor";
+import type { FunctionTutorPayload } from "../../protocol/functionTutor";
+import type { ScenarioInputsRequest, ScenarioInputsResponse } from "../../protocol/scenarioInputs";
 import {
   analyzeFunctionTutorDeclaration,
   createUnavailableFunctionTutorDeclaration
@@ -46,6 +50,7 @@ export type CodeFlowHostDeliveryDependencies = {
   logger: ProjectAnalyzerLogger;
   getUiLanguage(): UiLanguage;
   projectionOptions?: SymbolCodeFlowProjectionOptions;
+  scenarioInputProvider?: ScenarioInputProvider;
   readSourceText(filePath: string): Promise<string | undefined>;
   openEvidenceLocation(location: CodeFlowEvidenceLocation): Promise<void>;
   postMessage(message: ExtensionResponse): Promise<void>;
@@ -59,7 +64,78 @@ type ActiveCodeFlowGraph = {
 
 /** Publishes entrypoint catalogs and bounded flow details for the active graph. */
 export class CodeFlowHostDelivery {
+  /** Only recently delivered functions can authorize model context collection. */
+  private readonly inputContexts = new Map<string, {
+    graphVersion: string; model: FunctionTutorBuildModel; sourceText: string;
+    project(model: FunctionTutorBuildModel): FunctionTutorPayload;
+    lastRequestId: number;
+  }>();
+  private pendingInputs?: { request: ScenarioInputsRequest; controller: AbortController };
+
   public constructor(private readonly dependencies: CodeFlowHostDeliveryDependencies) {}
+
+  /** Cancels in-flight context/model work when its owning panel or root expires. */
+  public clearScenarioInputs(): void {
+    this.pendingInputs?.controller.abort(); this.pendingInputs = undefined; this.inputContexts.clear();
+  }
+
+  public cancelScenarioInputs(request: ScenarioInputsRequest): void {
+    const pending = this.pendingInputs;
+    if (pending && pending.request.graphVersion === request.graphVersion && pending.request.flowId === request.flowId
+      && pending.request.requestId === request.requestId) pending.controller.abort();
+  }
+
+  /** Handles one explicit suggestion action without replacing graph, selection or input state. */
+  public async requestScenarioInputs(request: ScenarioInputsRequest): Promise<void> {
+    const entry = this.inputContexts.get(request.flowId);
+    const send = (result: Omit<ScenarioInputsResponse, keyof ScenarioInputsRequest>): Promise<void> =>
+      this.dependencies.postMessage({ type: "codeFlow/scenarioInputsLoaded", payload: { ...request, ...result } });
+    if (!entry || entry.graphVersion !== request.graphVersion || !this.resolveActiveGraph(request.graphVersion)) {
+      await send({ status: "stale" }); return;
+    }
+    // Duplicate/replayed browser events cannot create another billed request.
+    if (request.requestId <= entry.lastRequestId) return;
+    entry.lastRequestId = request.requestId;
+    const provider = this.dependencies.scenarioInputProvider;
+    if (!provider) { await send({ status: "unavailable" }); return; }
+    const slots = Math.max(0, 8 - entry.model.seeds.filter((seed) => seed.source === "model").length);
+    if (!slots) { await send({ status: "empty", seeds: [] }); return; }
+    this.pendingInputs?.controller.abort();
+    const controller = new AbortController();
+    const pending = { request, controller }; this.pendingInputs = pending;
+    let timedOut = false;
+    const timer = setTimeout(() => { timedOut = true; controller.abort(); }, 120000);
+    let onAbort: () => void = () => {};
+    const cancelled = new Promise<never>((_resolve, reject) => {
+      onAbort = () => reject(new ScenarioInputError(timedOut ? "timeout" : "cancelled"));
+      controller.signal.addEventListener("abort", onAbort, { once: true });
+    });
+    try {
+      const language = this.dependencies.getUiLanguage();
+      const run = async () => {
+        const prompt = await createScenarioInputPrompt(entry.model, entry.sourceText, this.dependencies.readSourceText, language);
+        if (controller.signal.aborted) throw new ScenarioInputError("cancelled");
+        return provider.suggest(prompt, language, controller.signal);
+      };
+      const response = await Promise.race([run(), cancelled]);
+      if (controller.signal.aborted || this.pendingInputs !== pending || this.inputContexts.get(request.flowId) !== entry
+        || !this.resolveActiveGraph(request.graphVersion)) return;
+      const result = parseScenarioInputSuggestions(response.text, entry.model);
+      const seeds = result.seeds.slice(0, slots);
+      const projected = seeds.length ? entry.project({ ...entry.model, seeds }).seeds : [];
+      // Keep earlier inputs in context so retries can seek genuinely new cases.
+      entry.model = { ...entry.model, seeds: [...entry.model.seeds, ...seeds] };
+      await send({ status: projected.length ? "ready" : "empty", modelName: response.modelName.slice(0, 100), seeds: projected,
+        rejected: result.rejected + result.seeds.length - seeds.length });
+    } catch (error) {
+      if (this.inputContexts.get(request.flowId) === entry && this.resolveActiveGraph(request.graphVersion)) {
+        await send({ status: error instanceof ScenarioInputError ? error.code : "failed" });
+      }
+    } finally {
+      clearTimeout(timer); controller.signal.removeEventListener("abort", onAbort);
+      if (this.pendingInputs === pending) this.pendingInputs = undefined;
+    }
+  }
 
   /** Sends the first bounded catalog immediately after a new graph shell. */
   public async publishInitial(graph: ProjectGraph, graphVersion: string): Promise<void> {
@@ -183,6 +259,8 @@ export class CodeFlowHostDelivery {
   ): Promise<void> {
     const insights = this.dependencies.insightCache.get(active.graph);
     const sourceText = sourceSnapshot ?? await this.dependencies.readSourceText(node.filePath);
+    const readSnapshotSource = async (filePath: string): Promise<string | undefined> => filePath === node.filePath
+      ? sourceText : this.dependencies.readSourceText(filePath);
     const analysis = analyzeFunctionLogic({
       functionNode: node,
       sourceText,
@@ -202,7 +280,7 @@ export class CodeFlowHostDelivery {
         architectureIndex: insights.functionArchitecture,
         semanticFlows: insights.semanticFlows,
         functionIndex: insights.functionIndex,
-        readSourceText: this.dependencies.readSourceText
+        readSourceText: readSnapshotSource
       });
     } catch (error) {
       // A parser edge case must not suppress the Guide. Reuse Function Logic's
@@ -222,7 +300,7 @@ export class CodeFlowHostDelivery {
         architectureIndex: insights.functionArchitecture,
         semanticFlows: insights.semanticFlows,
         functionIndex: insights.functionIndex,
-        readSourceText: this.dependencies.readSourceText
+        readSourceText: readSnapshotSource
       });
     }
     const payload = createFunctionLogicCodeFlowDetail(
@@ -236,6 +314,17 @@ export class CodeFlowHostDelivery {
       this.dependencies.projectionOptions?.originLimit,
       tutorModel
     );
+    if (payload.logic?.tutor && sourceText && this.dependencies.scenarioInputProvider) {
+      for (const [id, entry] of this.inputContexts) if (entry.graphVersion !== active.version) this.inputContexts.delete(id);
+      payload.logic.tutor.inputSuggestions = { available: tutorModel.declaration.parameters.length > 0 && tutorModel.declaration.parameters.length <= 16 };
+      this.inputContexts.set(payload.id, {
+        graphVersion: active.version, model: tutorModel, sourceText, lastRequestId: -1,
+        project: (model) => createFunctionLogicCodeFlowDetail(active.graph, insights.semanticFlows, node, analysis, active.version,
+          (filePath, range) => this.dependencies.evidenceTokens.createToken(filePath, range),
+          (nodeId) => this.dependencies.sourceNodeTokens.createToken(nodeId), this.dependencies.projectionOptions?.originLimit, model).logic!.tutor!
+      });
+      while (this.inputContexts.size > 8) this.inputContexts.delete(this.inputContexts.keys().next().value!);
+    }
     this.dependencies.logger.debug("codeFlow.detail.functionLogic", {
       blocks: analysis.blocks.length,
       edges: analysis.edges.length,

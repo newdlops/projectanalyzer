@@ -140,6 +140,7 @@ export function getCodeFlowBrowserSource(): string {
 
     window.addEventListener("message", (event) => {
       const message = event.data;
+      if (message?.type === "codeFlow/scenarioInputsLoaded") { acceptScenarioInputsResponse(message.payload); return; }
 
       if (message.type === "ui/language") {
         state.uiLanguage = message.payload?.language === "ko" ? "ko" : "en";

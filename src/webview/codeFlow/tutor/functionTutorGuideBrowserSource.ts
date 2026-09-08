@@ -305,7 +305,7 @@ export function getFunctionTutorGuideBrowserSource(): string {
     }
     function createFunctionGuideFact(fact) { const item = document.createElement("li"); const claim = document.createElement("strong"); const detail = document.createElement("span"); claim.textContent = formatTutorFactLabel(fact); detail.textContent = fact.presentationKey ? projectAnalyzerText(fact.presentationKey) : fact.detail; item.append(claim, detail, createFunctionGuideCertainty(fact.certainty)); return item; }
     function formatTutorFactLabel(fact) { if (!fact?.labelPresentationKey) return fact?.label || ""; const values = { ...(fact.labelPresentationParams || {}) }; if (fact.labelPresentationKey === "tutor-label-owner") values.kind = projectAnalyzerText(values.kind); if (fact.labelPresentationKey === "tutor-label-architecture") values.layer = functionTutorArchitectureLayerText(values.layer); return projectAnalyzerText(fact.labelPresentationKey, values); }
-    function formatTutorSeedTitle(seed) { return projectAnalyzerText("tutor-seed-" + seed.source, { ordinal: seed.ordinal }); }
+    function formatTutorSeedTitle(seed) { return projectAnalyzerText("tutor-seed-" + seed.source, { ordinal: seed.ordinal }) + (seed.source === "model" ? " · " + seed.title : ""); }
     function functionTutorArchitectureLayerText(layer) { return projectAnalyzerText("architecture-" + layer); }
     function formatTutorQuestion(chapter) { return chapter.questionKey ? projectAnalyzerText("tutor-question-" + chapter.questionKey) : chapter.question; }
     function formatTutorAnswer(chapter) { if (!chapter.answerKey) return chapter.answer?.text || projectAnalyzerText("no-static-answer"); const c = chapter.answer?.counts || {}; return projectAnalyzerText("tutor-answer-" + chapter.answerKey, c); }

@@ -4,6 +4,7 @@
  */
 
 import * as vscode from "vscode";
+import { createScenarioInputModelProvider } from "../../vscode/scenarioInputModelProvider";
 import { CodeFlowInsightCache } from "../../application/codeFlow";
 import type { CodeFlowSelectSourceRequest } from "../../protocol/codeFlow";
 import type { ExtensionResponse, WebviewRequest } from "../../protocol/messages";
@@ -83,6 +84,7 @@ export class FunctionVisualizerPanelProvider {
       getUiLanguage: () => this.uiLanguage,
       projectionOptions: dependencies.config.codeFlow,
       readSourceText,
+      scenarioInputProvider: createScenarioInputModelProvider(),
       openEvidenceLocation: ({ filePath, range }) =>
         dependencies.sourceHighlighter.revealRange(filePath, range),
       postMessage: (message) => this.postMessage(message)
@@ -144,6 +146,8 @@ export class FunctionVisualizerPanelProvider {
 
   /** Handles only the shared requests meaningful inside this focused panel. */
   private async handleMessage(message: WebviewRequest): Promise<void> {
+    if (message.type === "codeFlow/requestScenarioInputs") { await this.codeFlowDelivery.requestScenarioInputs(message.payload); return; }
+    if (message.type === "codeFlow/cancelScenarioInputs") { this.codeFlowDelivery.cancelScenarioInputs(message.payload); return; }
     this.dependencies.logger.debug("functionVisualizer.message", { type: message.type });
     switch (message.type) {
       case "ui/ready":
@@ -197,6 +201,7 @@ export class FunctionVisualizerPanelProvider {
     // Every explicit root is a new browser session, even when it reuses the
     // exact graph object. This makes late child responses stale by construction.
     this.graphDelivery.clear();
+    this.codeFlowDelivery.clearScenarioInputs();
     const activation = this.graphDelivery.activate(request.graph);
     this.insightCache.clear();
     this.sourceNodeTokens.activate(activation.snapshot.version, request.graph);
@@ -234,6 +239,7 @@ export class FunctionVisualizerPanelProvider {
 
   /** Drops snapshot authority when the editor tab is closed. */
   private disposePanelState(): void {
+    this.codeFlowDelivery.clearScenarioInputs();
     this.panel = undefined;
     this.webviewReady = false;
     this.pendingVisualization = undefined;

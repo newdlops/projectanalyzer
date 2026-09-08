@@ -178,6 +178,11 @@ dedicated Function Visualizer tab with a bounded control-flow graph:
   its own row with path conditions, expected effects, evidence gaps, and named input
   evidence; when values cannot be evaluated, bounded symbolic rows preserve source
   choices without pretending that unknown values are concrete
+- boundary-focused input recommendations that preserve earlier guards and required
+  interface fields, with checked branch outcomes and an explanation of each case
+- optional **Suggest AI edge cases** in **Values & paths**: choose a connected VS Code
+  model to analyze the selected function, interface and up to four caller snippets;
+  review validated suggestions and their assumptions before explicitly applying inputs
 - row-specific **Apply & Play** stories that follow START → calculations and writes →
   selected decisions → external effects → result, moving the visible token along an
   exact graph edge when available and keeping textual camera-follow beats otherwise
@@ -428,13 +433,24 @@ source documentation, owner chain, existing architecture and semantic-flow index
 direct callers/callees, Function Logic blocks, and bounded static input cases into
 five fixed questions. It samples a bounded set of graph-backed callsites, declaration
 defaults, literal types, and direct branch boundaries; it never combines argument
-values from different calls. Its browser interpreter consumes a JSON expression IR
-only—there is no LLM request, network request, `eval`, `Function`, or source-code
-execution. TypeScript/JavaScript get AST facts; Python and Java additionally derive
+values from different calls and label them as an observed tuple. Its browser
+interpreter consumes JSON expression IR without executing project source. The
+default analysis runs locally without model requests. The optional **Suggest AI
+edge cases** action sends bounded context to a user-selected VS Code language model;
+opening a function or changing language never triggers that request.
+TypeScript/JavaScript get AST facts; Python and Java additionally derive
 simple declaration-header types/defaults and direct comparisons; F#/OCaml/Elixir
 retain only safe declaration/binding facts. Unknown calls, aliases, unsupported
 writes, loop/path limits, and language limits stay visible as gaps. Static Input
 Cases are finite possible scenarios, never runtime traces.
+
+Input quality is assessed using reached branch outcomes, early returns and exceptions,
+not the number of generated values. A bounded checker evaluates supported TS/JS
+paths; unsupported operations and external state remain partial. AI suggestions
+must fit the known interface and preserve complete argument tuples. Duplicate values
+and ordinary values with no new checked behavior are rejected. This is not exhaustive
+path coverage or full TypeScript type checking. See
+[Scenario input quality](docs/SCENARIO_INPUT_QUALITY.md) for model context, limits and validation.
 
 F#/OCaml/Elixir model `|>` as exact sequential evaluation, preserving complete
 input and stage text plus each language's argument-insertion direction. Named

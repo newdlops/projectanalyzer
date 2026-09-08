@@ -17,6 +17,7 @@ import type {
   FunctionExplorerSearchPayload
 } from "./functionExplorer";
 import type { FunctionVisualizerSessionPayload } from "./functionVisualizer";
+import type { ScenarioInputsResponse } from "./scenarioInputs";
 import type {
   ModuleFlowDetailPayload,
   ModuleFlowExpandPayload,
@@ -132,6 +133,7 @@ export type ExtensionResponse =
   | { type: "codeFlow/catalogLoaded"; payload: CodeFlowCatalogPayload }
   | { type: "codeFlow/detailLoaded"; payload: CodeFlowDetailPayload }
   | { type: "codeFlow/detailFailed"; payload: CodeFlowFailurePayload }
+  | { type: "codeFlow/scenarioInputsLoaded"; payload: ScenarioInputsResponse }
   | { type: "functionVisualizer/sessionLoaded"; payload: FunctionVisualizerSessionPayload }
   | { type: "function/indexLoaded"; payload: FunctionExplorerPayload }
   | { type: "function/searchLoaded"; payload: FunctionExplorerSearchPayload }

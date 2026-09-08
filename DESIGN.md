@@ -1,5 +1,26 @@
 # Function reading workspace
 
+## Scenario input quality — September 2026
+
+Scenario inputs should explain a distinct behavior: a source boundary, an early
+return or exception, a compound guard, or a concrete caller's complete argument
+tuple. Collect candidates before selecting a bounded set by newly demonstrated
+control outcomes. A candidate's intended target is not evidence of reaching it.
+Keep partial evaluation and external-state assumptions visible.
+
+Within the existing Values scenario workspace, show why each input is useful and
+which source path was checked. Add an explicit AI input suggestion action using
+a reader-selected VS Code language model. Send only the selected function and
+bounded caller/interface context on that action. Model proposals are data: validate
+their shape, preserve their origin, and evaluate supported control flow before
+ranking. Never execute application source or silently replace edited inputs.
+
+Acceptance: boundary equality and both sides, late/deep/compound guards, caller
+tuple correlation, duplicate rejection, malformed/model-absent/cancelled/error
+states, stale-response rejection, and clear partial results. Preserve current
+zoom, graph selection, edited inputs and locale focus. Verify the real generated
+Webview at 390×844, 768×1024 and 1440×900, including dense recommendations.
+
 ## Understanding and framework behavior
 
 The opening question is now “What comes in, what changes the path, and what

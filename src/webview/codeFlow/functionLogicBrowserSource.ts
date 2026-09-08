@@ -22,6 +22,7 @@ import {
 import { getFunctionLogicViewportBrowserSource } from "./viewport";
 import { getFunctionTutorBrowserSource, getFunctionTutorIntegrationBrowserSource } from "./tutor";
 import { getFunctionLogicScenarioWorkspaceBrowserSource } from "./scenarioWorkspace";
+import { getScenarioInputsBrowserSource } from "./scenarioInputsBrowserSource";
 import { getFunctionLogicScenarioEvaluationBrowserSource } from "./scenarioEvaluation";
 import { getFunctionReadingBrowserSource } from "./reading";
 import { getFunctionUnderstandingBrowserSource } from "./understanding";
@@ -39,6 +40,7 @@ export function getFunctionLogicBrowserSource(): string {
     ${getFunctionLogicScenarioEvaluatorBrowserSource()}
     ${getFunctionLogicScenarioEvaluationBrowserSource()}
     ${getFunctionLogicScenarioWorkspaceBrowserSource()}
+    ${getScenarioInputsBrowserSource()}
     ${getFunctionLogicScenarioTraceBrowserSource()}
     ${getFunctionLogicDataFlowBrowserSource()}
     ${getFunctionLogicInspectorBrowserSource()}

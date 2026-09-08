@@ -58,6 +58,8 @@ export type FunctionTutorOperationPayload =
   | { kind: "unsupported"; summary: string; reason: string };
 
 export type FunctionTutorPayload = {
+  /** Offered only by a Host with a user-initiated model provider. */
+  inputSuggestions?: { available: boolean };
   /** v3 adds invocation semantics; v2 readers remain valid because fields are optional. */
   version: 2 | 3;
   fingerprint: string;
@@ -216,7 +218,7 @@ export type FunctionTutorScenarioSeedPayload = {
   id: string;
   ordinal: number;
   title: string;
-  source: "callsite" | "default" | "branch" | "type" | "mixed";
+  source: "callsite" | "default" | "branch" | "type" | "mixed" | "model";
   certainty: FunctionTutorPayloadCertainty;
   inputs: Array<{
     parameterId: string;
@@ -228,6 +230,18 @@ export type FunctionTutorScenarioSeedPayload = {
   objectiveIds: string[];
   evidenceTokens: CodeFlowEvidenceToken[];
   gapIds: string[];
+  quality?: {
+    purpose: "caller" | "baseline" | "boundary" | "model";
+    reason?: string;
+    assumptions?: string[];
+    targetBlockIds: string[];
+    checkedBlockIds: string[];
+    checkedEdgeIds: string[];
+    branchCount: number;
+    terminalKind?: string;
+    status: "verified" | "partial";
+    gapReason?: string;
+  };
 };
 
 export type FunctionTutorProgramPayload = {

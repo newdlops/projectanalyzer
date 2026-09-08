@@ -4,6 +4,34 @@ All notable user-visible changes to Project Analyzer: Code Flow are recorded in
 this file. The changelog starts with the first distribution-documented build;
 earlier local development builds were not tracked here.
 
+## 0.0.1091 - 2026-09-08
+
+### Added
+
+- Boundary-focused scenario inputs combine interface fields and earlier guards,
+  then prioritize newly checked branches, returns and exceptions. Exact thresholds
+  and both sides stay eligible before the display limit is applied.
+- **Suggest AI edge cases** uses a user-selected VS Code language model with the
+  selected function, interface, framework facts and bounded caller context. Complete
+  tuples are validated, duplicates and ordinary repeated behavior are rejected, and
+  model assumptions remain separate from statically checked paths.
+- Suggestion loading, cancellation, retry and unavailable states preserve edited
+  inputs and the graph. Applying a suggestion is an explicit action.
+
+### Fixed
+
+- Compound and nested conditions map to their original CFG predicates so checking
+  an inner branch cannot silently skip the outer guard.
+- Scenario detail actions retain their shared session when applying inputs or
+  restoring prior choices; completed AI requests restore keyboard focus.
+
+### Known limitations
+
+- The bounded TS/JS input checker does not establish every feasible path or run
+  project code. External behavior and other languages remain partial. AI requires
+  a configured VS Code model. See [scope and verification](docs/SCENARIO_INPUT_QUALITY.md).
+- The five existing full-suite failures documented in 0.0.1088 remain.
+
 ## 0.0.1090 - 2026-09-07
 
 ### Fixed

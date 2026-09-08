@@ -92,7 +92,14 @@ export function getFunctionLogicScenarioPathPlannerBrowserSource(): string {
     /** Uses symbolic paths only when concrete inputs cannot determine a useful route. */
     function functionTutorResolveScenarioPaths(tutor, seed, evaluatedPaths) {
       const evaluated = evaluatedPaths || [];
-      const planned = functionTutorPlanSymbolicPaths(tutor);
+      // Remove symbolic combinations that contradict an independently checked
+      // input prefix. Unchecked later branches remain explicitly symbolic.
+      const checked = new Set(seed?.quality?.checkedEdgeIds || []);
+      const planned = functionTutorPlanSymbolicPaths(tutor).filter((path) => {
+        const selected = new Map((path.scenario?.decisions || []).map((decision) => [decision.blockId, decision.edgeId]));
+        return (tutor?.program?.edges || []).every((edge) => !checked.has(edge.edgeId)
+          || !selected.has(edge.sourceBlockId) || selected.get(edge.sourceBlockId) === edge.edgeId);
+      });
       const evaluatorHasStory = evaluated.some((path) => !path?.limited || (path?.transitions || []).length > 0);
       // A mixed seed can be labelled inferred even when one or more individual
       // parameters remain unknown. In that case a single evaluator route is not

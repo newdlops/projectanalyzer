@@ -14,7 +14,7 @@ import {
   isFunctionTutorSafeObjectKey
 } from "../../../analyzer/functionTutor/staticValue";
 
-const MAX_RECOMMENDED_MEMBER_DEPTH = 2;
+const MAX_RECOMMENDED_MEMBER_DEPTH = 8;
 const MAX_RECOMMENDED_COLLECTION_LENGTH = 8;
 
 type FunctionTutorConstraint = FunctionTutorDeclarationAnalysis["constraints"][number];
@@ -186,7 +186,7 @@ function isScalarStaticValue(value: FunctionTutorStaticValue): boolean {
     || value.kind === "null" || value.kind === "undefined";
 }
 
-/** Creates the smallest numeric pair with true-case ordering preserved. */
+/** Includes equality and both sides; candidate order never asserts path coverage. */
 function createNumberComparisonPair(
   operator: FunctionTutorConstraint["operator"],
   value: number
@@ -195,12 +195,8 @@ function createNumberComparisonPair(
   const exact: FunctionTutorStaticValue = { kind: "number", value };
   const upper = offsetNumber(value, 1);
   switch (operator) {
-    case "eq": return upper ? [exact, upper] : [];
-    case "neq": return upper ? [upper, exact] : [];
-    case "lt": return lower ? [lower, exact] : [];
-    case "lte": return upper ? [exact, upper] : [];
-    case "gt": return upper ? [upper, exact] : [];
-    case "gte": return lower ? [exact, lower] : [];
+    case "eq": case "neq": case "lt": case "lte": case "gt": case "gte":
+      return [exact, lower, upper].filter((candidate): candidate is FunctionTutorStaticValue => Boolean(candidate));
     default: return [];
   }
 }
@@ -266,7 +262,7 @@ function createLengthBoundaryValues(
 function createLengthPair(
   operator: FunctionTutorConstraint["operator"],
   operand: number
-): [number, number] | undefined {
+): number[] | undefined {
   let pair: [number, number] | undefined;
   switch (operator) {
     case "length-eq": pair = [operand, operand === 0 ? 1 : 0]; break;
@@ -276,9 +272,8 @@ function createLengthPair(
     case "length-gte": pair = [operand, operand - 1]; break;
     default: return undefined;
   }
-  return pair.every((length) => length >= 0 && length <= MAX_RECOMMENDED_COLLECTION_LENGTH)
-    ? pair
-    : undefined;
+  return [...new Set([...pair, operand - 1, operand, operand + 1, 0, 1])]
+    .filter((length) => length >= 0 && length <= MAX_RECOMMENDED_COLLECTION_LENGTH);
 }
 
 function buildStringOfLength(currentValue: FunctionTutorStaticValue | undefined, length: number): string {

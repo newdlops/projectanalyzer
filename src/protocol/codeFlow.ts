@@ -7,6 +7,7 @@ import type { EdgeConfidence } from "../shared/types";
 import type { CodeFlowPresentationKey, FunctionLogicGapPresentationKey, PresentationParams } from "../localization/presentationDescriptors";
 import type { ArchitecturalLayerPayload } from "./functionArchitecture";
 import type { SourceNodeToken } from "./sourceNavigation";
+import type { ScenarioInputsRequest } from "./scenarioInputs";
 import type {
   CodeFlowOpenEvidenceRequest,
   FunctionLogicPayload
@@ -68,6 +69,8 @@ export type CodeFlowSelectSourceRequest = {
 
 /** Requests owned by the CodeFlow vertical slice. */
 export type CodeFlowRequest =
+  | { type: "codeFlow/requestScenarioInputs"; payload: ScenarioInputsRequest }
+  | { type: "codeFlow/cancelScenarioInputs"; payload: ScenarioInputsRequest }
   | { type: "codeFlow/catalog"; payload: CodeFlowCatalogRequest }
   | { type: "codeFlow/select"; payload: CodeFlowSelectRequest }
   | { type: "codeFlow/selectSource"; payload: CodeFlowSelectSourceRequest }

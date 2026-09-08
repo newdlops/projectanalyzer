@@ -129,6 +129,7 @@ export function getFunctionLogicDataFlowBrowserSource(): string {
       );
       const scenarioWorkspace = createFunctionLogicScenarioWorkspace(scenarioWorkspaceSession, {
         tutor: logic.tutor,
+        inputSuggestions: createScenarioInputSuggestions(logic.tutor, scenarioWorkspaceSession),
         onPreview(path) {
           for (const node of nodeButtonsById.values()) node.classList.remove("scenario-workspace-preview");
           for (const elements of controlEdgeElementsById.values()) elements.path?.classList.remove("scenario-workspace-preview");

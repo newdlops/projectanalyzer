@@ -4,6 +4,7 @@
  */
 
 import * as vscode from "vscode";
+import { createScenarioInputModelProvider } from "../vscode/scenarioInputModelProvider";
 import { localizeHost, type HostMessageKey } from "../localization/uiLanguage";
 import type { AnalysisBackend } from "../analyzer/core/analysisBackend";
 import { CodeFlowInsightCache } from "../application/codeFlow";
@@ -110,6 +111,7 @@ export class ExplorerViewProvider implements vscode.WebviewViewProvider {
   public constructor(private readonly dependencies: ExplorerViewProviderDependencies) {
     this.uiLanguage = dependencies.config.uiLanguage;
     this.codeFlowDelivery = new CodeFlowHostDelivery({
+      scenarioInputProvider: createScenarioInputModelProvider(),
       graphDelivery: this.graphDelivery,
       insightCache: this.codeFlowInsights,
       sourceNodeTokens: this.sourceNodeTokens,
@@ -137,6 +139,7 @@ export class ExplorerViewProvider implements vscode.WebviewViewProvider {
       // A previously resolved view may dispose after a newer instance opens.
       // Release only its own reference so the newer view remains deliverable.
       if (this.view === webviewView) {
+        this.codeFlowDelivery.clearScenarioInputs();
         this.view = undefined;
         this.webviewReady = false;
       }
@@ -201,6 +204,8 @@ export class ExplorerViewProvider implements vscode.WebviewViewProvider {
    * Handles typed Webview requests from the sidebar GUI.
    */
   private async handleMessage(message: WebviewRequest): Promise<void> {
+    if (message.type === "codeFlow/requestScenarioInputs") { await this.codeFlowDelivery.requestScenarioInputs(message.payload); return; }
+    if (message.type === "codeFlow/cancelScenarioInputs") { this.codeFlowDelivery.cancelScenarioInputs(message.payload); return; }
     this.dependencies.logger.debug("sidebar.message", { type: message.type });
 
     switch (message.type) {

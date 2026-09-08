@@ -50,6 +50,7 @@ import type {
   FunctionTutorStaticValue
 } from "./types";
 import { buildFunctionTutorScenarioCatalog } from "./scenario/catalog";
+import { findTutorPredicateBlocks, findMatchingLogicBlock, rangeOverlaps, rangeArea } from "./typescriptTutorBlockMapping";
 /** Adapts declaration-local helpers to the focused Scenario expression module. */
 function toExpression(expression: ts.Expression, sourceFile: ts.SourceFile, bindingsByName: Map<string, string>): FunctionTutorExpression {
   return toScenarioExpression(expression, { sourceFile, bindingsByName, readStaticValue, readBindingMember, readPropertyName, isSafeObjectKey: isFunctionTutorSafeObjectKey });
@@ -353,7 +354,18 @@ function collectProgramStatement(
                 : undefined;
   // Parser versions occasionally classify an async return as a plain operation;
   // retain the range-proven terminal rather than silently degrading to exit.
-  const block = findProgramBlockForNode(sourceFile, node, analysis.blocks, blocksById, expectedKind)
+  const predicate = ts.isIfStatement(node) ? node.expression : isLoopStatement(node) ? ts.isForStatement(node) ? node.condition : node.expression : undefined;
+  if (predicate) {
+    const mapped = findTutorPredicateBlocks(sourceFile, predicate, analysis.blocks);
+    if (mapped.length) {
+      for (const item of mapped) {
+        const target = blocksById.get(item.block.id);
+        if (target) target.decision = createDecision(sourceFile, item.expression, analysis, item.block.id, bindingsByName);
+      }
+      return;
+    }
+  }
+  const block = findProgramBlockForNode(sourceFile, predicate ?? node, analysis.blocks, blocksById, expectedKind)
     ?? (expectedKind ? findProgramBlockForNode(sourceFile, node, analysis.blocks, blocksById) : undefined);
   if (!block) return;
   if (ts.isIfStatement(node)) {
@@ -556,11 +568,13 @@ function collectConstraints(
         : ts.isForStatement(node) ? node.condition
           : undefined;
     if (expression) {
+      const predicates = findTutorPredicateBlocks(sourceFile, expression, analysis.blocks);
       const block = findMatchingLogicBlock(sourceFile, expression, analysis.blocks, "condition")
         ?? findMatchingLogicBlock(sourceFile, expression, analysis.blocks, "loop");
       if (block) {
         for (const atomic of collectFunctionTutorAtomicConditions(expression)) {
-          const constraint = readConstraint(sourceFile, atomic, block.id, parameterByName);
+          const mapped = predicates.find((item) => item.expression === atomic);
+          const constraint = readConstraint(sourceFile, atomic, mapped?.block.id ?? block.id, parameterByName);
           if (constraint && constraints.length < 64) constraints.push(constraint);
         }
       }
@@ -723,27 +737,6 @@ function assignmentOperator(kind: ts.SyntaxKind): "set" | "add" | "subtract" | "
   if (kind === ts.SyntaxKind.AsteriskEqualsToken) return "multiply";
   if (kind === ts.SyntaxKind.SlashEqualsToken) return "divide";
   return "set";
-}
-function findMatchingLogicBlock(
-  sourceFile: ts.SourceFile,
-  node: ts.Node,
-  blocks: FunctionLogicBlock[],
-  kind: string
-): FunctionLogicBlock | undefined {
-  const range = toSourceRange(sourceFile, node);
-  return blocks.filter((block) => block.kind === kind && rangeOverlaps(range, block.range))
-    .sort((left, right) => rangeArea(left.range) - rangeArea(right.range) || left.id.localeCompare(right.id))[0];
-}
-function rangeOverlaps(left: SourceRange, right: SourceRange | undefined): boolean {
-  if (!right) return true;
-  const leftStart = (left.startLine * 1_000_000) + left.startCharacter;
-  const leftEnd = (left.endLine * 1_000_000) + left.endCharacter;
-  const rightStart = (right.startLine * 1_000_000) + right.startCharacter;
-  const rightEnd = (right.endLine * 1_000_000) + right.endCharacter;
-  return leftStart <= rightEnd && rightStart <= leftEnd;
-}
-function rangeArea(range: SourceRange): number {
-  return ((range.endLine - range.startLine) * 1_000_000) + (range.endCharacter - range.startCharacter);
 }
 function readExecutionKind(functionNode: FunctionLikeWithBody): FunctionTutorDeclarationAnalysis["executionKind"] {
   const async = Boolean(ts.getModifiers(functionNode)?.some((modifier) => modifier.kind === ts.SyntaxKind.AsyncKeyword));
