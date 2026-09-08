@@ -15,7 +15,7 @@ import {
   buildFunctionTutorModel
 } from "../../application/codeFlow";
 import { analyzeFunctionLogic } from "../../analyzer/functionLogic";
-import { createScenarioInputPrompt, parseScenarioInputSuggestions, ScenarioInputError, type ScenarioInputProvider } from "../../application/scenarioInputs";
+import { parseScenarioInputSuggestions, ScenarioInputError, type ScenarioInputProvider } from "../../application/scenarioInputs";
 import type { FunctionTutorBuildModel } from "../../application/codeFlow/functionTutor";
 import type { FunctionTutorPayload } from "../../protocol/functionTutor";
 import type { ScenarioInputsRequest, ScenarioInputsResponse } from "../../protocol/scenarioInputs";
@@ -64,9 +64,9 @@ type ActiveCodeFlowGraph = {
 
 /** Publishes entrypoint catalogs and bounded flow details for the active graph. */
 export class CodeFlowHostDelivery {
-  /** Only recently delivered functions can authorize model context collection. */
+  /** Only recently delivered functions can authorize local training on their structured facts. */
   private readonly inputContexts = new Map<string, {
-    graphVersion: string; model: FunctionTutorBuildModel; sourceText: string;
+    graphVersion: string; model: FunctionTutorBuildModel;
     project(model: FunctionTutorBuildModel): FunctionTutorPayload;
     lastRequestId: number;
   }>();
@@ -93,7 +93,7 @@ export class CodeFlowHostDelivery {
     if (!entry || entry.graphVersion !== request.graphVersion || !this.resolveActiveGraph(request.graphVersion)) {
       await send({ status: "stale" }); return;
     }
-    // Duplicate/replayed browser events cannot create another billed request.
+    // Duplicate/replayed browser events cannot start another CPU training job.
     if (request.requestId <= entry.lastRequestId) return;
     entry.lastRequestId = request.requestId;
     const provider = this.dependencies.scenarioInputProvider;
@@ -113,20 +113,19 @@ export class CodeFlowHostDelivery {
     try {
       const language = this.dependencies.getUiLanguage();
       const run = async () => {
-        const prompt = await createScenarioInputPrompt(entry.model, entry.sourceText, this.dependencies.readSourceText, language);
         if (controller.signal.aborted) throw new ScenarioInputError("cancelled");
-        return provider.suggest(prompt, language, controller.signal);
+        return provider.suggest(entry.model, language, controller.signal);
       };
       const response = await Promise.race([run(), cancelled]);
       if (controller.signal.aborted || this.pendingInputs !== pending || this.inputContexts.get(request.flowId) !== entry
         || !this.resolveActiveGraph(request.graphVersion)) return;
-      const result = parseScenarioInputSuggestions(response.text, entry.model);
+      const result = parseScenarioInputSuggestions(response.text, entry.model, response.boundaries);
       const seeds = result.seeds.slice(0, slots);
       const projected = seeds.length ? entry.project({ ...entry.model, seeds }).seeds : [];
       // Keep earlier inputs in context so retries can seek genuinely new cases.
       entry.model = { ...entry.model, seeds: [...entry.model.seeds, ...seeds] };
       await send({ status: projected.length ? "ready" : "empty", modelName: response.modelName.slice(0, 100), seeds: projected,
-        rejected: result.rejected + result.seeds.length - seeds.length });
+        rejected: result.rejected + result.seeds.length - seeds.length, training: response.training });
     } catch (error) {
       if (this.inputContexts.get(request.flowId) === entry && this.resolveActiveGraph(request.graphVersion)) {
         await send({ status: error instanceof ScenarioInputError ? error.code : "failed" });
@@ -318,7 +317,7 @@ export class CodeFlowHostDelivery {
       for (const [id, entry] of this.inputContexts) if (entry.graphVersion !== active.version) this.inputContexts.delete(id);
       payload.logic.tutor.inputSuggestions = { available: tutorModel.declaration.parameters.length > 0 && tutorModel.declaration.parameters.length <= 16 };
       this.inputContexts.set(payload.id, {
-        graphVersion: active.version, model: tutorModel, sourceText, lastRequestId: -1,
+        graphVersion: active.version, model: tutorModel, lastRequestId: -1,
         project: (model) => createFunctionLogicCodeFlowDetail(active.graph, insights.semanticFlows, node, analysis, active.version,
           (filePath, range) => this.dependencies.evidenceTokens.createToken(filePath, range),
           (nodeId) => this.dependencies.sourceNodeTokens.createToken(nodeId), this.dependencies.projectionOptions?.originLimit, model).logic!.tutor!

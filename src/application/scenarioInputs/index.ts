@@ -1,3 +1,4 @@
 /** Public input-suggestion boundary: bounded context, provider contract, validated proposals. */
-export { createScenarioInputPrompt, parseScenarioInputSuggestions, ScenarioInputError } from "./scenarioInputSuggestions";
+export { parseScenarioInputSuggestions, ScenarioInputError } from "./scenarioInputSuggestions";
+export { createLocalNeuralScenarioProvider, createNeuralScenarioProblem } from "./localNeuralProvider";
 export type { ScenarioInputProvider, ScenarioInputProviderResult, ScenarioInputFailure } from "./scenarioInputSuggestions";

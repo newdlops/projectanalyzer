@@ -8,4 +8,9 @@ export type ScenarioInputsResponse = ScenarioInputsRequest & {
   modelName?: string;
   seeds?: FunctionTutorScenarioSeedPayload[];
   rejected?: number;
+  /** Numeric training diagnostics only; weights, labels and source identities stay in the Host. */
+  training?: {
+    trainingSamples: number; validationSamples: number; dimensions: number; heads: number; parameters: number;
+    epochs: number; initialLoss: number; finalLoss: number; validationError: number; evaluations: number;
+  };
 };

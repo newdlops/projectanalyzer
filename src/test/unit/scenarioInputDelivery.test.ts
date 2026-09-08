@@ -42,14 +42,14 @@ async function setup(provider: ScenarioInputProvider) {
 }
 
 test("model invocation is explicit, uses Host source context, and ignores repeated request IDs", async () => {
-  let calls = 0; let prompt = "";
-  const fixture = await setup({ suggest: async (context) => { calls += 1; prompt = context; return response; } });
+  let calls = 0; let functionName = "";
+  const fixture = await setup({ suggest: async (context) => { calls += 1; functionName = context.declaration.functionNode.name; return response; } });
   assert.equal(calls, 0);
   assert.equal(fixture.detail.payload.logic?.tutor?.inputSuggestions?.available, true);
   await fixture.delivery.requestScenarioInputs({ ...fixture.request, flowId: `code-flow:${"b".repeat(32)}` });
   assert.equal(calls, 0);
   await fixture.delivery.requestScenarioInputs(fixture.request);
-  assert.equal(calls, 1); assert.match(prompt, /externalPolicy/u);
+  assert.equal(calls, 1); assert.equal(functionName, "inspect");
   const reply = fixture.messages.at(-1);
   assert.ok(reply?.type === "codeFlow/scenarioInputsLoaded" && reply.payload.status === "ready");
   assert.equal(reply.payload.seeds?.[0].source, "model");
@@ -90,8 +90,9 @@ test("model errors produce finite retry states without leaking provider error te
   }
 });
 
-test("browser adds AI rows after an explicit request while retaining edits, selection and graph DOM", async () => {
-  const fixture = await setup({ suggest: async () => response });
+test("browser adds neural rows and training diagnostics while retaining edits, selection and graph DOM", async () => {
+  const fixture = await setup({ suggest: async () => ({ ...response, training: { trainingSamples: 320, validationSamples: 80,
+    dimensions: 1, heads: 1, parameters: 74, epochs: 240, initialLoss: 1, finalLoss: 0.01, validationError: 0.015, evaluations: 440 } }) });
   const runtime = installSidebarWebviewRuntime();
   try {
     const html = getFunctionVisualizerHtml({ webview: { cspSource: "vscode-webview:" } as never, nonce: "ai-test" });
@@ -114,10 +115,12 @@ test("browser adds AI rows after an explicit request while retaining edits, sele
     assert.equal(runtime.countRenderedByClass("flow-steps", "logic-scenario-workspace-row"), rowsBefore);
     runtime.dispatchMessage(reply);
     assert.equal(runtime.countRenderedByClass("flow-steps", "logic-scenario-workspace-row"), rowsBefore + 1);
+    assert.ok(runtime.getRenderedText("flow-steps").some((text) => text.includes("학습 320개 · 별도 검증 80개")));
     assert.equal(runtime.getRenderedIdentityByClassNth("flow-steps", "logic-graph-node", 0), graphIdentity);
     runtime.dispatchMessage({ type: "ui/language", payload: { language: "en" } });
     assert.equal(runtime.getRenderedValueByTitle("flow-steps", "Scenario input for PARAM x"), "1234");
     assert.ok(runtime.getRenderedText("flow-steps").some((text) => text.includes("Fixture model")));
+    assert.ok(runtime.getRenderedText("flow-steps").some((text) => text.includes("Training: 320 samples · Held out: 80 samples")));
     runtime.dispatchMessage(reply);
     assert.equal(runtime.countRenderedByClass("flow-steps", "logic-scenario-workspace-row"), rowsBefore + 1);
   } finally { fixture.delivery.clearScenarioInputs(); runtime.restore(); }

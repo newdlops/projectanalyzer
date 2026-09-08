@@ -243,27 +243,34 @@ write/call/alias는 추측하지 않는다.
 지원 IR을 확인하고 알 수 없는 호출·alias write·제어 연결·언어에는 partial과 중단 이유를
 남긴다. 확인하지 못한 분기는 도달 불가능하다는 증거가 아니다.
 
-`Values & paths`는 Host capability가 있을 때 명시적인 `AI 에지케이스 제안`을 제공한다.
-사용자가 고른 VS Code Language Model에 선택 함수 코드(9,000자), 최대 4개 호출부의
-주변 코드(각 1,800자), 인터페이스/default/문서/프레임워크 사실과 현재 입력/조건을 전달한다.
-전체 structured context는 42,000자, 매개변수는 16개까지 제한한다. 프로젝트 소스는 요청의
-data이고 실행하거나 모델 지시로 취급하지 않는다. 네트워크와 계정 동의는 해당 모델 및
-VS Code가 관리한다. 기본 분석과 화면 mount/locale/focus 동작은 모델을 호출하지 않는다.
+`Values & paths`는 `신경망으로 입력 찾기`를 제공한다. 함수별 자체 residual MLP를
+로컬 CPU에서 학습하며 외부 모델, 계정, 원문 전달을 사용하지 않는다. 완전한 호출부 인자
+조합과 선언된 입력 구조로 bounded 입력 공간을 만들고, 앞선 값 변경을 반영한 수치 비교
+피연산자의 차이를 학습한다. 도달하지 않은 분기는 학습 label이 없다. 기본 320개 학습 /
+80개 별도 검증, 최대 32차원·16개 비교식, hidden tanh 24개와 linear residual, Adam
+240 epoch를 사용한다. 학습에 사용하지 않은 표본의 정규화 평균 절대 오차를 표시하고
+개별 비교식 오차가 0.25를 넘으면 추천을 보류한다. 학습된 입력 기울기로 경계 근처를
+찾은 뒤 bounded 정적 보정과 경계 양쪽 검사를 수행한다. 신경망의 표본 수집·탐색 평가는
+요청당 1,400회까지이며, 설명과 Host 검증은 생성한 최대 4쌍을 추가로 검사한다.
+기본 분석과 화면 mount/locale/focus는 학습을 시작하지 않는다.
 
 요청 protocol은 `codeFlow/requestScenarioInputs`와 `codeFlow/cancelScenarioInputs`이며
 payload는 현재 graphVersion, opaque flowId, nonnegative safe requestId만 받는다.
 Host는 최근 전달한 함수 snapshot에만 요청을 허용하고 단일 pending 요청, 120초 timeout,
 취소, 중복 ID, graph/root 교체와 늦은 응답을 처리한다. 응답 `codeFlow/scenarioInputsLoaded`는
 ready/empty/unavailable/cancelled/denied/timeout/invalid-response/failed/stale 중 하나와
-새 model seed만 전달한다. raw path 및 analyzer identity를 Webview에 노출하지 않는다.
+새 model seed 및 숫자 학습 진단만 전달한다. raw path 및 analyzer identity, 신경망 가중치와
+학습 표본을 Webview에 노출하지 않는다.
 
 모델 응답은 최대 48,000자 JSON, 시나리오 8개, 문자열 1,024자, 배열/객체 32개,
 입력 depth 6으로 제한한다. 알려진 타입·literal union·필수 member shape와 전체 인자 조합을
 검사한다. 별도 정적 검사로 경로를 확인하고 이미 확인한 동작만 반복하는 일반값을 거른다.
-모델 origin은 inferred로 유지하고 추천 이유·가정·정적 확인 범위를 따로 표시한다. 원래
+같은 조건의 결과가 달라지는 입력 쌍은 Host가 다시 확인한 경우 경계 설명용으로 허용한다.
+한 번 추가한 경계를 반복 추천하지 않는다. 모델 origin은 inferred로 유지하고 추천 이유,
+달라진 입력, 계산된 조건값과 정적 확인 범위를 따로 표시한다. 원래
 입력/선택/재생 상태를 유지하며 사용자가 적용해야 값을 바꾼다. 모델 없는 상태와 재시도,
 취소, keyboard focus, 한국어/영어를 지원한다. 공개 모듈과 세부 한계는
-`docs/SCENARIO_INPUT_QUALITY.md`를 따른다.
+`docs/SCENARIO_INPUT_QUALITY.md`, `docs/NEURAL_SCENARIOS.md`를 따른다.
 
 ```ts
 type FunctionLogicLanguage =

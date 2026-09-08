@@ -180,9 +180,9 @@ dedicated Function Visualizer tab with a bounded control-flow graph:
   choices without pretending that unknown values are concrete
 - boundary-focused input recommendations that preserve earlier guards and required
   interface fields, with checked branch outcomes and an explanation of each case
-- optional **Suggest AI edge cases** in **Values & paths**: choose a connected VS Code
-  model to analyze the selected function, interface and up to four caller snippets;
-  review validated suggestions and their assumptions before explicitly applying inputs
+- optional **Find inputs with neural network** in **Values & paths**: train our small
+  function-specific network locally from typed inputs and calculated conditions;
+  review checked boundary pairs and held-out error before explicitly applying inputs
 - row-specific **Apply & Play** stories that follow START → calculations and writes →
   selected decisions → external effects → result, moving the visible token along an
   exact graph edge when available and keeping textual camera-follow beats otherwise
@@ -435,9 +435,10 @@ five fixed questions. It samples a bounded set of graph-backed callsites, declar
 defaults, literal types, and direct branch boundaries; it never combines argument
 values from different calls and label them as an observed tuple. Its browser
 interpreter consumes JSON expression IR without executing project source. The
-default analysis runs locally without model requests. The optional **Suggest AI
-edge cases** action sends bounded context to a user-selected VS Code language model;
-opening a function or changing language never triggers that request.
+default analysis runs locally. The optional **Find inputs with neural network**
+action trains a small CPU network and searches its learned numeric boundaries;
+opening a function or changing language never starts training. No external model
+or account is used. See [learning, verification and limits](docs/NEURAL_SCENARIOS.md).
 TypeScript/JavaScript get AST facts; Python and Java additionally derive
 simple declaration-header types/defaults and direct comparisons; F#/OCaml/Elixir
 retain only safe declaration/binding facts. Unknown calls, aliases, unsupported

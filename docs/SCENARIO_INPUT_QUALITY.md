@@ -1,6 +1,7 @@
 # Scenario input quality
 
-Updated for 0.0.1091, September 8, 2026.
+Updated for 0.0.1093, September 8, 2026. Current neural implementation and QA:
+[Local neural scenario inference](NEURAL_SCENARIOS.md).
 
 ## Reader workflow
 
@@ -9,10 +10,9 @@ The detail explains why its inputs matter and how many source branch outcomes
 were checked. Boundary cases appear before the retained caller/default baseline.
 **Apply Inputs** changes the current input editor; selecting a row only previews it.
 
-**Suggest AI edge cases** asks a connected VS Code language model for additional
-cases. Choose the model in VS Code, review the suggested title, reason, inputs and
-assumptions, then apply the case explicitly. No model is chosen automatically.
-The default analysis remains local and usable without a model.
+**Find inputs with neural network** trains a function-specific network locally on
+the CPU. Review the checked pair, changed input, calculated condition values and
+held-out error, then apply the case explicitly. There is no external model or account.
 
 The intent is explanatory value: a threshold, a conflicting flag combination,
 an early return, an exception, or a caller-specific invariant. A new arbitrary
@@ -22,7 +22,7 @@ For example, reaching `score >= 10 && tier === "pro" && enabled` requires those
 inputs together, while also passing any earlier guard. The planner retains the
 other interface fields, considers 9/10/11, and checks the complete tuple against
 the source-owned control flow. An external policy call stops static confirmation;
-an AI-proposed Unicode tag for that policy carries an explicit external assumption.
+the neural teacher does not manufacture a return value for that policy.
 
 ## Public modules and boundaries
 
@@ -30,8 +30,8 @@ an AI-proposed Unicode tag for that policy carries an explicit external assumpti
 | --- | --- |
 | `src/analyzer/functionTutor/inputEvaluation/` | `evaluateFunctionTutorInputs`, input assignment and evaluation types. Bounded pure interpretation of supported parser-owned IR. |
 | `src/application/codeFlow/functionTutor/` | Existing model builder plus `evaluateScenarioSeed` / `selectScenarioSeeds`. Candidate construction and coverage-based selection remain internal. |
-| `src/application/scenarioInputs/` | `createScenarioInputPrompt`, `parseScenarioInputSuggestions`, `ScenarioInputProvider`, finite `ScenarioInputError`. Context assembly and untrusted data validation. |
-| `src/vscode/scenarioInputModelProvider.ts` | `createScenarioInputModelProvider`. Explicit model selection, token sizing, response streaming and cancellation at the VS Code boundary. |
+| `src/application/scenarioInputs/` | `createLocalNeuralScenarioProvider`, `createNeuralScenarioProblem`, `parseScenarioInputSuggestions`, `ScenarioInputProvider`, finite `ScenarioInputError`. Typed problem adaptation and independently validated proposals. |
+| `src/analyzer/neuralScenarios/` | `inferNeuralScenarios` and problem/result/report types. Own dense network, backpropagation/Adam, typed codec and gradient search; internal weights stay request-local. |
 | `src/protocol/scenarioInputs.ts` | Bounded request correlation and finite response states. No source text supplied by the Webview. |
 | `src/webview/codeFlow/scenarioInputsBrowserSource.ts` | Explicit request controls and correlated replies. The shared Scenario Workspace owns input application and retained state. |
 
@@ -67,27 +67,19 @@ This also prevents an inner condition from replacing its overlapping outer guard
 Coverage counts distinct supported true/false outcomes, not source lines, tests
 executed, runtime frequency or all feasible paths. Remaining outcomes are
 unconfirmed; this does not prove they are unreachable. Python/Django and other
-non-TS/JS functions retain their existing analysis and AI context, with an explicit
+non-TS/JS functions retain their existing analysis and framework context, with an explicit
 language gap for this concrete input checker.
 
 ## Neural model context and validation
 
-Only an explicit request sends context. Opening a function, mounting controls,
-focusing the workspace, changing locale and inspecting rows send no model request.
-
-The prompt includes the selected source range (including column boundaries), up
-to 9,000 characters; up to four graph-backed caller neighborhoods of up to 1,800
-characters each; parameter type/default/literal/member/shape facts; available
-authored documentation and framework facts; guards and existing checked inputs.
-Caller neighborhoods include nearby argument construction, even when static
-callsite arguments remain unknown. This is context for inference, not constant
-propagation or proof that a dynamic caller supplies a particular value.
-
-The structured context is limited to 42,000 characters and 16 parameters. The
-adapter also checks the chosen model's token budget. Source, comments and
-documentation are untrusted prompt data. Host paths, analyzer identities and
-evidence capabilities are omitted from structured fields. Original code may
-itself contain authored strings, names or comments; it is sent as code context.
+Only an explicit request starts local training. Opening a function, mounting
+controls, focusing the workspace, changing locale and inspecting rows are inert.
+Typed interface facts, complete caller/planner tuples and parser-owned IR form
+the local training problem. Observations record reached numeric comparison values
+after previous assignments. Unreached comparisons have no label. The default
+320 training and 80 held-out examples are separate before normalization or fitting.
+Learned gradients estimate inputs; bounded static refinement confirms a boundary.
+See [network architecture, numeric domain and limitations](NEURAL_SCENARIOS.md).
 
 Model results must be JSON data, not executable code: at most 8 cases / 48,000
 characters, complete named argument tuples, optional/default omissions only,
@@ -99,14 +91,11 @@ This is bounded shape validation, not complete TypeScript structural subtyping.
 
 Accepted proposals are independently checked, then appended as inferred model
 cases. A model explanation cannot assert coverage or manufacture source evidence.
-Partially checked external cases can be retained for their stated domain rationale;
-the quality of that rationale still needs reader judgment. Neither this filter nor
-a neural model guarantees every edge case or that all accepted partial cases are
-useful. There is no custom-trained model or runtime fuzzing engine in this release.
-
-Model access, credentials, networking and account consent belong to the selected
-provider through the [VS Code Language Model API](https://code.visualstudio.com/api/extension-guides/ai/language-model).
-The extension does not configure a separate model endpoint or store API keys.
+The local provider only proposes pairs with different checked outcomes at a
+reached comparison. The Host checks both tuples again; a fabricated witness cannot
+bypass novelty filtering. A previously added neural boundary is not repeated.
+Later external effects remain partial. Neither the network nor the static teacher
+guarantees all edge cases. Weights and samples remain in memory for one request.
 
 ## Request and UI lifecycle
 
@@ -117,13 +106,16 @@ late responses after cancellation or context replacement. The browser independen
 checks correlation before accepting new seeds.
 
 The response can be ready, empty, unavailable, cancelled, denied, timeout,
-invalid-response, failed or stale. Up to eight AI cases are retained for a function
+invalid-response, failed or stale. Up to eight neural cases are retained for a function
 context. Loading disables the request action and exposes cancellation. Completion
 restores focus if the cancellation button disappears. Error states explain retry
-or model setup; existing rows, input edits, selection, snapshot, playback state and
+or unsupported input/condition context; existing rows, input edits, selection, snapshot, playback state and
 graph DOM remain intact. Locale changes update controls without issuing a request.
 
-## Verification
+## Historical verification — 0.0.1091
+
+The following records the earlier external-model implementation. Current local
+training and browser verification are in [NEURAL_SCENARIOS.md](NEURAL_SCENARIOS.md).
 
 Production source adapters, application projection and generated Webview were used
 for browser QA. The connected in-app Browser reported no available browser, so a

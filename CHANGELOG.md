@@ -4,6 +4,21 @@ All notable user-visible changes to Project Analyzer: Code Flow are recorded in
 this file. The changelog starts with the first distribution-documented build;
 earlier local development builds were not tracked here.
 
+## 0.0.1093 - 2026-09-08
+
+### Changed
+
+- Replaced the connected chat-model action with an own, function-specific neural
+  network trained locally on the CPU. A residual dense/tanh network learns input
+  to calculated comparison values using backpropagation and Adam; learned input
+  gradients guide boundary search. No account, model selection or source upload.
+- Neural scenarios show checked boundary pairs, the changed input, calculated
+  comparison operands, training/held-out counts and normalized prediction error.
+  Suggestions preserve current edits and playback until explicitly applied.
+- Numeric TS/JS inference stays bounded and cancellable. Unsupported external or
+  framework state remains unknown; poor held-out approximation yields no proposal.
+  Added reproducible learning, gradient, boundary and diagnostic corpus checks.
+
 ## 0.0.1092 - 2026-09-08
 
 ### Fixed

@@ -17,10 +17,11 @@ export function getScenarioInputsBrowserSource(): string {
       if (!tutor?.inputSuggestions?.available) return undefined;
       const element = document.createElement("section"); element.className = "logic-scenario-input-suggestions";
       const actions = document.createElement("div"); const requestButton = document.createElement("button"); const cancelButton = document.createElement("button");
-      const help = document.createElement("p"); const status = document.createElement("p");
+      const help = document.createElement("p"); const status = document.createElement("p"); const training = document.createElement("p");
       requestButton.type = "button"; requestButton.className = "logic-scenario-ai-request"; cancelButton.type = "button";
       help.className = "logic-scenario-ai-help"; status.className = "logic-scenario-ai-status"; status.setAttribute("role", "status"); status.setAttribute("aria-live", "polite");
-      actions.append(requestButton, cancelButton); element.append(actions, help, status);
+      training.className = "logic-scenario-ai-training";
+      actions.append(requestButton, cancelButton); element.append(actions, help, status, training);
       let phase = "idle"; let request; let details = {}; let disposed = false;
       function render() {
         requestButton.textContent = projectAnalyzerText("scenario-ai-action"); cancelButton.textContent = projectAnalyzerText("scenario-ai-cancel");
@@ -31,6 +32,12 @@ export function getScenarioInputsBrowserSource(): string {
         status.textContent = projectAnalyzerText("scenario-ai-" + phase, details)
           + (details.rejected ? " · " + projectAnalyzerText("scenario-ai-rejected", { count: details.rejected }) : "")
           + (limited ? " · " + projectAnalyzerText("scenario-ai-limit") : "");
+        training.hidden = !details.training;
+        const numberFormat = new Intl.NumberFormat(state.uiLanguage, { maximumFractionDigits: 3 });
+        training.textContent = details.training ? projectAnalyzerText("scenario-neural-training", {
+          training: numberFormat.format(details.training.training), validation: numberFormat.format(details.training.validation),
+          error: numberFormat.format(details.training.error)
+        }) : "";
       }
       function cancel() {
         if (!request) return;
@@ -51,7 +58,12 @@ export function getScenarioInputsBrowserSource(): string {
           if (nextPhase === "ready" && Array.isArray(payload.seeds) && payload.seeds.length <= 8) count = session.appendSeeds(payload.seeds);
           if (nextPhase === "ready" && !count) nextPhase = "empty";
           phase = nextPhase;
-          details = { count, model: String(payload.modelName || ""), rejected: Number(payload.rejected) || 0 }; render();
+          const report = payload.training;
+          const validReport = report && Number.isInteger(report.trainingSamples) && report.trainingSamples > 0 && report.trainingSamples <= 1400
+            && Number.isInteger(report.validationSamples) && report.validationSamples > 0 && report.validationSamples <= 1400
+            && typeof report.validationError === "number" && Number.isFinite(report.validationError) && report.validationError >= 0 && report.validationError <= 1000000;
+          details = { count, model: String(payload.modelName || "").slice(0, 100), rejected: Number(payload.rejected) || 0,
+            training: validReport ? { training: report.trainingSamples, validation: report.validationSamples, error: report.validationError } : undefined }; render();
           if (restoreFocus) { if (requestButton.disabled) { status.tabIndex = -1; status.focus(); } else requestButton.focus(); }
         } });
         phase = "pending"; details = {}; render();

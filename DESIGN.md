@@ -9,11 +9,13 @@ control outcomes. A candidate's intended target is not evidence of reaching it.
 Keep partial evaluation and external-state assumptions visible.
 
 Within the existing Values scenario workspace, show why each input is useful and
-which source path was checked. Add an explicit AI input suggestion action using
-a reader-selected VS Code language model. Send only the selected function and
-bounded caller/interface context on that action. Model proposals are data: validate
-their shape, preserve their origin, and evaluate supported control flow before
-ranking. Never execute application source or silently replace edited inputs.
+which source path was checked. The explicit **Find inputs with neural network**
+action trains a function-specific network locally from typed caller/planner tuples
+and calculated comparison values. Show training and held-out counts, prediction
+error, and the input/condition changes of a statically checked boundary pair.
+Validate shapes and preserve inferred origin. Never execute application source or
+silently replace edited inputs. The detailed contract is in
+[Local neural scenario inference](docs/NEURAL_SCENARIOS.md).
 
 Acceptance: boundary equality and both sides, late/deep/compound guards, caller
 tuple correlation, duplicate rejection, malformed/model-absent/cancelled/error

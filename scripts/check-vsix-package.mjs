@@ -15,8 +15,9 @@ const MAX_ZIP_COMMENT_BYTES = 65_535;
 export const PACKAGE_BUDGET = Object.freeze({
   archiveBytes: 15 * MEBIBYTE,
   unpackedBytes: 35 * MEBIBYTE,
-  // Framework syntax adapters, localization and reading UI remain separate runtime modules.
-  fileCount: 425,
+  // Local neural training, typed encoding and search add six net runtime modules;
+  // retain separate responsibilities with nine files of headroom over the prior cap.
+  fileCount: 434,
   singleFileBytes: 12 * MEBIBYTE
 });
 

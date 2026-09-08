@@ -12,3 +12,12 @@ export type FunctionTutorInputEvaluation = {
 };
 
 export type FunctionTutorInputAssignment = { parameterId: string; value: FunctionTutorStaticValue; omitted?: boolean };
+
+/** A reached numeric comparison, after prior operations; no label exists for an unreached block. */
+export type FunctionTutorDecisionObservation = {
+  blockId: string;
+  operator: string;
+  left: number;
+  right: number;
+  outcome: boolean;
+};

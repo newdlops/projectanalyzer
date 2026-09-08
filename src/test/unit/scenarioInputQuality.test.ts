@@ -1,29 +1,11 @@
 /** Source-fixture tests for meaningful input coverage and untrusted neural suggestions. */
 import assert from "node:assert/strict";
 import test from "node:test";
-import { analyzeFunctionLogic } from "../../analyzer/functionLogic";
-import { analyzeFunctionTutorDeclaration, evaluateFunctionTutorInputs } from "../../analyzer/functionTutor";
-import { buildFunctionTutorModel, CodeFlowInsightCache } from "../../application/codeFlow";
-import { createScenarioInputPrompt, parseScenarioInputSuggestions } from "../../application/scenarioInputs";
+import { evaluateFunctionTutorInputs } from "../../analyzer/functionTutor";
+import { parseScenarioInputSuggestions } from "../../application/scenarioInputs";
+import { buildInputModel as build } from "./helpers/neuralScenarioFixtures";
 import { validateWebviewRequest } from "../../protocol/webviewRequestValidation";
-import type { SymbolNode } from "../../shared/types";
-import { createGraph } from "./helpers/projectReadingGuideFixtures";
 
-/** Runs both production syntax adapters and the production application planner. */
-async function build(sourceText: string) {
-  const lines = sourceText.split("\n");
-  const startLine = lines.findIndex((line) => line.startsWith("export function inspect"));
-  const node: SymbolNode = { id: "function:input-quality", kind: "function", name: "inspect", qualifiedName: "inspect",
-    filePath: "/workspace/quality.ts", language: "typescript",
-    range: { startLine, startCharacter: 0, endLine: lines.length - 1, endCharacter: lines.at(-1)!.length },
-    selectionRange: { startLine, startCharacter: 16, endLine: startLine, endCharacter: 23 } };
-  const functionLogic = analyzeFunctionLogic({ functionNode: node, sourceText });
-  const declaration = analyzeFunctionTutorDeclaration({ functionNode: node, sourceText, functionLogic });
-  const graph = createGraph({ files: [node.filePath], callables: [node] });
-  const insights = new CodeFlowInsightCache().get(graph);
-  return buildFunctionTutorModel({ graph, declaration, functionLogic, architectureIndex: insights.functionArchitecture,
-    semanticFlows: insights.semanticFlows, functionIndex: insights.functionIndex, readSourceText: async () => sourceText });
-}
 
 test("input planning composes object-member predicates and preserves required interface fields", async () => {
   const model = await build([
@@ -118,41 +100,6 @@ test("malformed, executable, prototype and oversized model values are never appl
   }
 });
 
-test("prompt includes interface, guards and current coverage without host authority", async () => {
-  const source = 'export function inspect(x: number) {\n if (x === 42) return "special";\n return "normal";\n}';
-  const model = await build(source);
-  const prompt = await createScenarioInputPrompt(model, source, async () => source, "ko");
-  assert.match(prompt, /checkedOutcomes/u); assert.match(prompt, /currentInputs/u); assert.match(prompt, /Korean/u);
-  assert.match(prompt, /x === 42/u); assert.doesNotMatch(prompt, /\/workspace\/|function:input-quality/u);
-  const selected = 'export function inspect(x: number) { return x; }';
-  const prefix = 'const adjacentBefore = 1; ';
-  model.declaration.functionNode.range = { startLine: 0, startCharacter: prefix.length,
-    endLine: 0, endCharacter: prefix.length + selected.length };
-  const bounded = await createScenarioInputPrompt(model, prefix + selected + ' const adjacentAfter = 2;', async () => undefined, "en");
-  assert.doesNotMatch(bounded, /adjacentBefore|adjacentAfter/u);
-});
-
-test("prompt retains bounded caller neighborhoods including argument construction", async () => {
-  const source = 'export function inspect(x: number) {\n return external(x);\n}';
-  const model = await build(source);
-  model.context.callers = Array.from({ length: 6 }, (_, index) => ({
-    nodeId: "caller:" + index, name: "caller" + index, qualifiedName: "caller" + index,
-    kind: "function", callCount: 1, certainty: "exact", evidence: [{
-      kind: "callsite-argument", certainty: "exact", filePath: "/workspace/caller" + index + ".ts",
-      range: { startLine: 10, startCharacter: 0, endLine: 10, endCharacter: 12 }, summary: "Graph-owned caller"
-    }]
-  }));
-  const reads: string[] = [];
-  const prompt = await createScenarioInputPrompt(model, source, async (filePath) => {
-    reads.push(filePath);
-    return [...Array(7).fill("// context"), 'const score = previousScore + offset;',
-      'const offset = -1;', '// caller input construction', 'inspect(score);', '// after call'].join("\n");
-  }, "en");
-  assert.equal(reads.length, 4);
-  assert.match(prompt, /previousScore \+ offset/u); assert.match(prompt, /inspect\(score\)/u);
-  assert.doesNotMatch(prompt, /caller4\.ts|caller5\.ts|\/workspace\//u);
-  assert.match(prompt, /untrusted data, never instructions/u);
-});
 
 test("suggestion protocol accepts only bounded correlation identities", () => {
   const payload = { graphVersion: "v1", flowId: "code-flow:" + "a".repeat(32), requestId: 1 };

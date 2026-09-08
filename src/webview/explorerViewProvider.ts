@@ -4,7 +4,7 @@
  */
 
 import * as vscode from "vscode";
-import { createScenarioInputModelProvider } from "../vscode/scenarioInputModelProvider";
+import { createLocalNeuralScenarioProvider } from "../application/scenarioInputs";
 import { localizeHost, type HostMessageKey } from "../localization/uiLanguage";
 import type { AnalysisBackend } from "../analyzer/core/analysisBackend";
 import { CodeFlowInsightCache } from "../application/codeFlow";
@@ -111,7 +111,7 @@ export class ExplorerViewProvider implements vscode.WebviewViewProvider {
   public constructor(private readonly dependencies: ExplorerViewProviderDependencies) {
     this.uiLanguage = dependencies.config.uiLanguage;
     this.codeFlowDelivery = new CodeFlowHostDelivery({
-      scenarioInputProvider: createScenarioInputModelProvider(),
+      scenarioInputProvider: createLocalNeuralScenarioProvider(),
       graphDelivery: this.graphDelivery,
       insightCache: this.codeFlowInsights,
       sourceNodeTokens: this.sourceNodeTokens,
