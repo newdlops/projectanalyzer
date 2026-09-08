@@ -394,8 +394,18 @@ export function getFunctionLogicScenarioExpressionBrowserSource(): string {
         else if (operator === "<=") value = left.value <= right.value;
         else if (operator === ">") value = left.value > right.value;
         else if (operator === ">=") value = left.value >= right.value;
-        else if (operator === "==" || operator === "===") value = left.value === right.value;
-        else if (operator === "!=" || operator === "!==") value = left.value !== right.value;
+        else if (operator === "==" || operator === "!=") {
+          const leftObject = left.value !== null && typeof left.value === "object";
+          const rightObject = right.value !== null && typeof right.value === "object";
+          // Object-to-primitive equality can invoke user-defined conversion.
+          // Primitive coercion and reference equality have no such boundary.
+          if (leftObject !== rightObject && left.value != null && right.value != null) {
+            return createFunctionLogicScenarioUnknown(createFunctionLogicScenarioReason("scenario-reason-call-unsupported"), origins);
+          }
+          value = operator === "==" ? left.value == right.value : left.value != right.value;
+        }
+        else if (operator === "===") value = left.value === right.value;
+        else if (operator === "!==") value = left.value !== right.value;
         else if (operator === "&") value = left.value & right.value;
         else if (operator === "|") value = left.value | right.value;
         else if (operator === "^") value = left.value ^ right.value;

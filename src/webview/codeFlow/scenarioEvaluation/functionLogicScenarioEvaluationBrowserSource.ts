@@ -22,12 +22,7 @@ export function getFunctionLogicScenarioEvaluationBrowserSource(): string {
 
     /** Converts protocol static values without evaluating source text or display names. */
     function functionTutorScenarioStaticState(value) {
-      if (!value || value.kind === "unknown") return createFunctionLogicScenarioUnknown(createFunctionLogicScenarioReason("scenario-reason-call-unsupported"), []);
-      if (value.kind === "null") return createFunctionLogicScenarioKnown(null, []);
-      if (value.kind === "undefined") return createFunctionLogicScenarioKnown(undefined, []);
-      if (value.kind === "array") return createFunctionLogicScenarioKnown(value.items.map((item) => functionTutorScenarioStaticState(item).value), []);
-      if (value.kind === "object") return createFunctionLogicScenarioKnown(Object.fromEntries(value.entries.map((entry) => [entry.key, functionTutorScenarioStaticState(entry.value).value])), []);
-      return createFunctionLogicScenarioKnown(value.value, []);
+      return functionLogicScenarioProgramLiteral(value);
     }
   `;
 }

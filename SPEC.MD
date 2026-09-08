@@ -1318,7 +1318,8 @@ Webview는 Project Graph, 파일 시스템, VS Code API에 직접 접근하지 �
   public Scenario evaluator surface
 - token/operator/value stack 기반 arithmetic/comparison/boolean/nested ternary 계산과 own-data member read
 - 반복형 CFG worklist, immutable binding state, merge lattice, cycle/safety bound를 사용한 branch-aware 전파
-- graph rank 순서의 bounded 80-frame Scenario-backed value progression: explicit binding
+- program bundle의 실제 bounded occurrence 순서를 보존하는 80-frame Scenario-backed value progression
+  (legacy CFG snapshot만 graph rank fallback 사용): explicit binding
   selection은 definition block의 `START name = value`에서 시작하고 entered input,
   source-derived state, 또는 explicit unknown을 표시한다. `initialize`/assign/update/
   increment/delete 및 unsupported write/readwrite는 `before → after`와
@@ -1874,6 +1875,27 @@ The interpreter is bounded to call depth 4, 12 bundled programs, 360 blocks,
 loop block. Dynamic/ambiguous/unresolved calls, cycles, async/generator bodies,
 effects, unsupported expressions, and budget exhaustion remain unknown with a
 finite localized boundary reason; they are never executed or guessed.
+
+The program machine records immutable before/after environments for each root
+block occurrence. The Values trace and playback project those occurrences through
+the existing exact identity adapter; layout rank must not reorder repeated visits.
+Compound assignment captures the left value before the right expression and
+uses the declared operator. Known own-data writes propagate across aliases,
+nested containers, live expression references and caller argument environments.
+Return/decision expressions finish before their block snapshot is recorded.
+
+Object/array expressions preserve all supported members, including shorthand and
+derived values. Unknown children, spreads, accessors, sparse source literals,
+unresolved dynamic member reads and truncated containers cannot become complete
+known data. Primitive loose equality follows coercion; object-to-primitive
+conversion remains unsupported. The display preserves nested undefined, NaN,
+infinities and negative zero instead of serializing them to null or omitting them.
+
+Reference propagation uses iterative worklists with cycle guards: 64 invocation
+environments, data depth 16, at most 64 own fields/items, 512 conversion frames and
+1,024 alias-rewrite frames. Unsupported effects and failed writes conservatively
+invalidate current state and the final exact-result claim, preserving the earlier
+verified prefix. See [value inference](docs/VALUE_INFERENCE.md) for scope and QA.
 
 ## 19. Open Questions
 

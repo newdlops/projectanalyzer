@@ -428,6 +428,7 @@ function collectProgramStatement(
       });
     } else {
       const range = toSourceRange(sourceFile, node);
+      block.operations.push({ kind: "unsupported", reason: "unsupported-expression", summary: "This source expression has unsupported value or effect semantics." });
       gaps.push({
         kind: "unsupported-expression",
         blockId: block.blockId,
@@ -501,7 +502,7 @@ function createDecision(
   const outcomes = analysis.edges.filter((edge) => edge.sourceId === blockId).map((edge) => ({
     edgeId: edge.id,
     label: edge.label ?? edge.kind,
-    matches: edge.kind === "true" ? "true" as const
+    matches: edge.kind === "true" || edge.kind === "iterate" ? "true" as const
       : edge.kind === "false" ? "false" as const
         : edge.kind === "case" ? "case" as const
           : edge.kind === "exception" ? "exception" as const

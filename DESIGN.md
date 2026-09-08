@@ -328,6 +328,17 @@ own data, zero-argument iterator `next`, and the shared depth/work budgets.
 
 ## Shared Scenario Workspace
 
+Value progression retains the actual bounded evaluation order. Each mutation
+shows its source statement and immediate before/after values; repeated loop
+visits remain separate rows. Calls that update a shared object also update its
+aliases, while earlier rows keep their original snapshots. Unsupported behavior
+changes the current state to an explicit unknown with a reason. Special values
+such as nested `undefined`, `NaN`, infinities and `-0` must remain distinguishable.
+The existing Inspector, native variable controls, theme tokens, wrapped value
+text, polite live region and playback frames remain the presentation contract.
+Acceptance checks cover input edits, repeated mutations, caller/alias changes,
+unknown boundaries and the rendered trace at desktop, tablet and narrow widths.
+
 Values is the primary Scenario Workspace for the selected root function. Its
 user-visible unit is one reachable **path scenario**, not merely one input seed.
 The semantic four-column table shows scenario, path conditions, expected

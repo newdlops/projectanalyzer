@@ -18,10 +18,10 @@ export function getFunctionLogicScenarioTraceBrowserSource(): string {
     ) {
       const section = document.createElement("section");
       const header = document.createElement("div");
-      const title = document.createElement("strong");
+      const title = document.createElement("h3");
       const hint = document.createElement("span");
       const selection = document.createElement("div");
-      const rows = document.createElement("div");
+      const rows = document.createElement("ol");
       const omitted = document.createElement("p");
       let selectedBindingId = "";
 
@@ -32,6 +32,7 @@ export function getFunctionLogicScenarioTraceBrowserSource(): string {
       hint.textContent = projectAnalyzerText("scenario-calculation-hint");
       selection.className = "logic-scenario-trace-selection";
       rows.className = "logic-scenario-trace-rows";
+      rows.setAttribute("role", "list");
       rows.setAttribute("aria-live", "polite");
       omitted.className = "logic-scenario-trace-omitted";
       omitted.hidden = true;
@@ -85,7 +86,7 @@ export function getFunctionLogicScenarioTraceBrowserSource(): string {
           rows.append(createFunctionLogicScenarioStep(visibleSteps[index], index));
         }
         if (visibleSteps.length === 0) {
-          const empty = document.createElement("p");
+          const empty = document.createElement("li");
           empty.className = "logic-scenario-trace-empty";
           empty.textContent = projectAnalyzerText("no-reachable");
           rows.append(empty);
@@ -162,8 +163,8 @@ export function getFunctionLogicScenarioTraceBrowserSource(): string {
         const visibleId = bindingMap.get(rawId); if (visibleId) inputStateByBindingId.set(visibleId, state);
       }
       const recordsByBlockId = new Map();
-      for (const [rawBlockId, record] of calculation.recordsByBlockId || []) {
-        const visibleBlockId = blockMap.get(rawBlockId); if (!visibleBlockId) continue;
+      const projectRecord = (rawBlockId, record) => {
+        const visibleBlockId = blockMap.get(rawBlockId); if (!visibleBlockId) return undefined;
         const before = projectFunctionLogicScenarioTraceEnvironment(record.before, bindingMap);
         const after = projectFunctionLogicScenarioTraceEnvironment(record.after, bindingMap);
         const transitions = (record.transitions || []).flatMap((transition) => {
@@ -182,9 +183,16 @@ export function getFunctionLogicScenarioTraceBrowserSource(): string {
             ...(transition.valueRef && rootBindingId ? { valueRef: { ...transition.valueRef, rootBindingId, ...(segments ? { segments } : {}) } } : {}),
             dependencyBindingIds: (transition.dependencyBindingIds || []).map((id) => bindingMap.get(id)).filter(Boolean) }];
         });
-        recordsByBlockId.set(visibleBlockId, { ...record, before, after, transitions });
+        return { ...record, blockId: visibleBlockId, before, after, transitions };
+      };
+      for (const [rawBlockId, record] of calculation.recordsByBlockId || []) {
+        const projected = projectRecord(rawBlockId, record); if (projected) recordsByBlockId.set(projected.blockId, projected);
       }
-      return { ...calculation, inputStateByBindingId, recordsByBlockId };
+      const scenarioPaths = calculation.scenarioPaths?.map((path) => ({ ...path, occurrences: (path.occurrences || []).flatMap((record) => {
+        if (!record.before || !record.after) return [];
+        const projected = projectRecord(record.blockId, record); return projected ? [projected] : [];
+      }) }));
+      return { ...calculation, inputStateByBindingId, recordsByBlockId, ...(scenarioPaths ? { scenarioPaths } : {}) };
     }
 
     function projectFunctionLogicScenarioTraceEnvironment(environment, identityMap) {
@@ -207,8 +215,14 @@ export function getFunctionLogicScenarioTraceBrowserSource(): string {
       return mapped;
     }
 
-    /** Collects final fixed-point block records in deterministic graph order. */
+    /** Preserves executed occurrences; legacy CFG snapshots retain graph order. */
     function collectFunctionLogicScenarioBlockRecords(logic, calculation) {
+      const occurrences = calculation.scenarioPaths?.[0]?.occurrences;
+      if (occurrences?.some((item) => item.before && item.after)) {
+        const blocks = new Map(logic.blocks.map((block) => [block.id, block]));
+        return occurrences.flatMap((record, index) => blocks.has(record.blockId) && record.before && record.after
+          ? [{ block: blocks.get(record.blockId), index, record }] : []);
+      }
       const layoutByBlockId = new Map(
         (logic.layout?.nodes || []).map((layout) => [layout.blockId, layout])
       );
@@ -346,7 +360,7 @@ export function getFunctionLogicScenarioTraceBrowserSource(): string {
 
     /** Creates one calculated or consume/sink progression row. */
     function createFunctionLogicScenarioStep(step, index) {
-      const row = document.createElement("div");
+      const row = document.createElement("li");
       const sequence = document.createElement("span");
       const role = document.createElement("strong");
       const source = document.createElement("span");
@@ -389,10 +403,12 @@ export function getFunctionLogicScenarioTraceBrowserSource(): string {
             ? projectAnalyzerText("scenario-consume")
             : projectAnalyzerText("scenario-change");
       source.className = "logic-scenario-step-source";
+      source.translate = false;
       source.textContent = sourceText;
       valueLabel.className = "logic-scenario-step-value-label";
       valueLabel.textContent = projectAnalyzerText(isTransition ? "result" : "value");
       value.className = "logic-scenario-step-value";
+      value.translate = false;
       value.textContent = step.value;
       status.className = "logic-scenario-step-status";
       status.textContent = step.status || "";
@@ -403,6 +419,7 @@ export function getFunctionLogicScenarioTraceBrowserSource(): string {
 
     /** Formats an assignment without hiding the evaluated right-hand side. */
     function formatFunctionLogicScenarioCalculation(transition) {
+      if (transition.sourceLabel) return transition.sourceLabel;
       const expression = transition.expression ? " " + transition.expression : "";
       return transition.targetName + " " + transition.operator + expression;
     }

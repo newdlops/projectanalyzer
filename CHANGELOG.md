@@ -4,6 +4,32 @@ All notable user-visible changes to Project Analyzer: Code Flow are recorded in
 this file. The changelog starts with the first distribution-documented build;
 earlier local development builds were not tracked here.
 
+## 0.0.1092 - 2026-09-08
+
+### Fixed
+
+- Scenario compound assignments retain the immediate left value, evaluate the
+  right side, and apply the actual operator. Input dependencies follow derived
+  object/array members, shorthand fields and unary expressions.
+- Supported object writes update direct/nested aliases, live expression references
+  and caller arguments without rewriting earlier value snapshots. Mutations inside
+  return values and conditions appear at the source block that performed them.
+- Value progression preserves every bounded loop occurrence in evaluation order:
+  `1 → 4 → 7` remains visible instead of collapsing into one final block value.
+- Primitive loose equality preserves coercion and nullish boundaries. Value text
+  preserves nested `undefined`, `NaN`, infinities and negative zero.
+- Unresolved calls, unsupported effects, partial containers and cyclic writes stop
+  confirmation instead of displaying stale or incomplete data as a complete value.
+- Logical-return continuations now preserve the selected short-circuit result.
+
+### Known limitations
+
+- This is bounded TS/JS static interpretation under selected inputs, not runtime
+  execution or exhaustive path proof. External/framework effects and unsupported
+  language semantics remain explicit gaps. See [scope and QA](docs/VALUE_INFERENCE.md).
+- Four previously documented full-suite failures remain; the logical-return
+  continuation failure from the five-failure baseline is resolved.
+
 ## 0.0.1091 - 2026-09-08
 
 ### Added

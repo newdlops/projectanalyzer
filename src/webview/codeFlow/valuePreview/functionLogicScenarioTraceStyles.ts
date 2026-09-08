@@ -20,7 +20,7 @@ export function getFunctionLogicScenarioTraceStyles(): string {
       border-bottom: 1px solid var(--vscode-panel-border);
     }
 
-    .logic-scenario-trace-header strong { font-size: var(--logic-font-body); }
+    .logic-scenario-trace-header h3 { margin: 0; font-size: var(--logic-font-body); }
 
     .logic-scenario-trace-header span,
     .logic-scenario-trace-empty,
@@ -44,6 +44,9 @@ export function getFunctionLogicScenarioTraceStyles(): string {
 
     .logic-scenario-trace-rows {
       display: grid;
+      margin: 0;
+      padding: 0;
+      list-style: none;
       max-height: clamp(190px, 30vh, 320px);
       min-width: 0;
       overflow-x: hidden;

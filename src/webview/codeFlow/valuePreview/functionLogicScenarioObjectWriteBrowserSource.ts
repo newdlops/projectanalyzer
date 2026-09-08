@@ -338,7 +338,7 @@ export function getFunctionLogicScenarioObjectWriteBrowserSource(): string {
       const prepared = prepareFunctionLogicScenarioObjectWrite(previousRoot.value, path);
       if (prepared.errorDescriptor) return { root: createFunctionLogicScenarioUnknown(prepared.errorDescriptor, origins) };
       const before = readFunctionLogicScenarioOwnData(prepared.originalParent, prepared.key, origins);
-      if (before.kind !== "known") return { root: before, before };
+      if (before.kind !== "known" && operator !== "set" && operator !== "delete") return { root: before, before };
       if (operator === "delete") {
         const deleted = deleteFunctionLogicScenarioOwnData(prepared.parent, prepared.key);
         return deleted.errorDescriptor

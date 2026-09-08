@@ -11,7 +11,7 @@ export type ScenarioExpressionContext = {
   sourceFile: ts.SourceFile;
   bindingsByName: Map<string, string>;
   readStaticValue(node: ts.Node, sourceFile: ts.SourceFile): FunctionTutorStaticValue;
-  readBindingMember(expression: ts.Expression, bindings: Map<string, string>): { bindingId: string; path: string[] } | undefined;
+  readBindingMember(expression: ts.Expression, bindings: Map<string, string>): { bindingId: string; path: string[]; segments?: Array<{ kind: string }> } | undefined;
   readPropertyName(name: ts.PropertyName): string | undefined;
   isSafeObjectKey(key: string): boolean;
 };
@@ -20,21 +20,55 @@ export type ScenarioExpressionContext = {
 export function toScenarioExpression(expression: ts.Expression, context: ScenarioExpressionContext, depth = 0): FunctionTutorExpression {
   if (depth >= 12) return { kind: "unsupported", reason: "depth-budget", summary: "Expression nesting exceeds the Tutor limit." };
   const literal = context.readStaticValue(expression, context.sourceFile);
-  if (literal.kind !== "unknown") return { kind: "literal", value: literal };
+  // A container with unknown children is an expression, not a complete literal.
+  // Preserve each field's computation instead of dropping dynamic members.
+  // JSON transport would turn a numeric -0 literal into 0. Keep its unary IR
+  // so browser evaluation retains the sign and division/comparison semantics.
+  if (isCompleteScenarioLiteral(literal) && !(literal.kind === "number" && Object.is(literal.value, -0))
+    && !ts.isArrayLiteralExpression(expression) && !ts.isObjectLiteralExpression(expression)) return { kind: "literal", value: literal };
   if (ts.isIdentifier(expression)) { const bindingId = context.bindingsByName.get(expression.text); return bindingId ? { kind: "binding", bindingId } : { kind: "unsupported", reason: "ambiguous-binding", summary: `Untracked binding ${expression.text}.` }; }
   const member = context.readBindingMember(expression, context.bindingsByName);
-  if (member) return { kind: "member", object: { kind: "binding", bindingId: member.bindingId }, path: member.path, optional: false };
+  if (member) return member.segments?.some((segment) => segment.kind !== "static")
+    ? { kind: "unsupported", reason: "unsupported-expression", summary: "A dynamic member read needs a resolved index." }
+    : { kind: "member", object: { kind: "binding", bindingId: member.bindingId }, path: member.path, optional: false };
   if (ts.isParenthesizedExpression(expression) || ts.isAsExpression(expression) || ts.isTypeAssertionExpression(expression)) return toScenarioExpression(expression.expression, context, depth + 1);
   if (ts.isAwaitExpression(expression)) return { kind: "await", operand: toScenarioExpression(expression.expression, context, depth + 1) };
   if (ts.isPrefixUnaryExpression(expression)) { const operator = expression.operator === ts.SyntaxKind.ExclamationToken ? "not" : expression.operator === ts.SyntaxKind.PlusToken ? "plus" : expression.operator === ts.SyntaxKind.MinusToken ? "minus" : undefined; return operator ? { kind: "unary", operator, operand: toScenarioExpression(expression.operand, context, depth + 1) } : { kind: "unsupported", reason: "unsupported-expression", summary: "Unsupported unary expression." }; }
   if (ts.isTypeOfExpression(expression)) return { kind: "unary", operator: "typeof", operand: toScenarioExpression(expression.expression, context, depth + 1) };
   if (ts.isBinaryExpression(expression)) { const logical = expression.operatorToken.kind === ts.SyntaxKind.AmpersandAmpersandToken ? "and" : expression.operatorToken.kind === ts.SyntaxKind.BarBarToken ? "or" : expression.operatorToken.kind === ts.SyntaxKind.QuestionQuestionToken ? "nullish" : undefined; if (logical) return { kind: "logical", operator: logical, members: [toScenarioExpression(expression.left, context, depth + 1), toScenarioExpression(expression.right, context, depth + 1)] }; const operator = binaryOperator(expression.operatorToken.kind); return operator ? { kind: "binary", operator, left: toScenarioExpression(expression.left, context, depth + 1), right: toScenarioExpression(expression.right, context, depth + 1) } : { kind: "unsupported", reason: "unsupported-expression", summary: "Unsupported binary expression." }; }
   if (ts.isConditionalExpression(expression)) return { kind: "conditional", condition: toScenarioExpression(expression.condition, context, depth + 1), whenTrue: toScenarioExpression(expression.whenTrue, context, depth + 1), whenFalse: toScenarioExpression(expression.whenFalse, context, depth + 1) };
-  if (ts.isArrayLiteralExpression(expression)) return { kind: "array", items: expression.elements.slice(0, 8).map((item) => ts.isExpression(item) ? toScenarioExpression(item, context, depth + 1) : { kind: "unsupported", reason: "unsupported-expression", summary: "Unsupported array spread." }) };
-  if (ts.isObjectLiteralExpression(expression)) return { kind: "object", entries: expression.properties.slice(0, 8).flatMap((property) => { if (!ts.isPropertyAssignment(property)) return []; const key = context.readPropertyName(property.name); return key && context.isSafeObjectKey(key) ? [{ key, value: toScenarioExpression(property.initializer, context, depth + 1) }] : []; }) };
+  if (ts.isArrayLiteralExpression(expression)) {
+    if (expression.elements.length > 64 || expression.elements.some((item) => ts.isSpreadElement(item) || ts.isOmittedExpression(item))) return { kind: "unsupported", reason: "unsupported-expression", summary: "Array spread, sparse elements or size exceeds the supported data shape." };
+    return { kind: "array", items: expression.elements.map((item) => toScenarioExpression(item, context, depth + 1)) };
+  }
+  if (ts.isObjectLiteralExpression(expression)) {
+    const entries: Array<{ key: string; value: FunctionTutorExpression }> = [];
+    if (expression.properties.length > 64) return { kind: "unsupported", reason: "unsupported-expression", summary: "Object size exceeds the supported data shape." };
+    for (const property of expression.properties) {
+      if (!ts.isPropertyAssignment(property) && !ts.isShorthandPropertyAssignment(property)) return { kind: "unsupported", reason: "unsupported-expression", summary: "Object spread or accessor needs unsupported semantics." };
+      const key = context.readPropertyName(property.name);
+      if (!key || !context.isSafeObjectKey(key)) return { kind: "unsupported", reason: "unsupported-expression", summary: "Object key cannot be resolved safely." };
+      entries.push({ key, value: toScenarioExpression(ts.isPropertyAssignment(property) ? property.initializer : property.name, context, depth + 1) });
+    }
+    return { kind: "object", entries };
+  }
   if (ts.isCallExpression(expression)) return callExpression(expression, context, depth);
   if (ts.isNewExpression(expression) && ts.isIdentifier(expression.expression) && !expression.typeArguments) return { kind: "construct", className: expression.expression.text, arguments: (expression.arguments || []).map((argument) => toScenarioExpression(argument, context, depth + 1)), callRange: toSourceRange(context.sourceFile, expression), certainty: "exact" };
   return { kind: "unsupported", reason: ts.isNewExpression(expression) ? "dynamic-call" : "unsupported-expression", summary: ts.isNewExpression(expression) ? "The constructor target is not statically stable." : "Unsupported source expression." };
+}
+
+/** Rejects partial literal trees with an iterative, bounded visited-set check. */
+function isCompleteScenarioLiteral(root: FunctionTutorStaticValue): boolean {
+  const pending = [root]; const visited = new Set<FunctionTutorStaticValue>();
+  while (pending.length && visited.size < 512) {
+    const value = pending.pop()!;
+    if (visited.has(value)) continue;
+    visited.add(value);
+    if (value.kind === "unknown" || (value.kind === "array" || value.kind === "object") && value.truncated) return false;
+    if (value.kind === "array") pending.push(...value.items);
+    if (value.kind === "object") pending.push(...value.entries.map((entry) => entry.value));
+  }
+  return pending.length === 0;
 }
 
 function callExpression(expression: ts.CallExpression, context: ScenarioExpressionContext, depth: number): FunctionTutorExpression {
