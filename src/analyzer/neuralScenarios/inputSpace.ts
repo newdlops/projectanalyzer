@@ -2,6 +2,7 @@
 import type { FunctionTutorInputAssignment as Input, FunctionTutorStaticValue as Value } from "../functionTutor";
 import type { NeuralScenarioProblem } from "./types";
 import { collectNeuralInputEvidence, createNeuralStringDomain } from "./inputEvidence";
+import { createPythonRegexRuntime } from "../../shared/pythonScenario";
 
 type Dimension = { parameter: number; path: string[]; scale: number; choices?: Value[]; featureKind?: "text" | "collection"; textReferences?: string[]; numericElements?: boolean };
 export type NeuralInputSpace = {
@@ -51,7 +52,8 @@ export function createNeuralInputSpace(problem: NeuralScenarioProblem): NeuralIn
     const alternatives = [...problem.examples.flatMap((tuple) => tuple.filter((input) => input.parameterId === parameter.id && !input.omitted).map((input) => read(input.value, item.path))),
       ...(problem.domains.find((domain) => domain.parameterId === parameter.id)?.values ?? []).map((value) => read(value, item.path))].filter((value): value is Value => Boolean(value && isComplete(value)));
     if (item.value.kind === "string") {
-      const strings = createNeuralStringDomain(alternatives.flatMap((value) => value.kind === "string" ? [value.value] : []), evidence.get(parameter.id)!, parameter.name);
+      const strings = [...new Set([...(problem.declaration.program.python?.stringCandidates ?? []),
+        ...createNeuralStringDomain(alternatives.flatMap((value) => value.kind === "string" ? [value.value] : []), evidence.get(parameter.id)!, parameter.name)])].slice(0, problem.declaration.program.python ? 400 : 160);
       dimensions.push({ ...item, scale: 1, featureKind: "text", textReferences: strings.filter(Boolean).slice(0, 8), choices: strings.map((value) => ({ kind: "string", value })) }); continue;
     }
     if (item.value.kind === "array" && fact?.typeKind !== "tuple" && item.value.items.every((value) => !["array", "object"].includes(value.kind))) {
@@ -75,7 +77,10 @@ export function createNeuralInputSpace(problem: NeuralScenarioProblem): NeuralIn
     else if (item.value.kind === "array") queue.push(...item.value.items.map((value, index) => ({ ...item, value, path: [...item.path, String(index)] })));
   }
   if (!dimensions.length || dimensions.length > 32) return undefined;
-  const featureCount = dimensions.length + dimensions.reduce((sum, dimension) => sum + (dimension.featureKind === "text" ? 20 + (dimension.textReferences?.length ?? 0) : dimension.featureKind === "collection" ? 5 : 0), 0);
+  const pythonPatterns = problem.declaration.program.python?.regexPatterns ?? [];
+  const pythonRegex = createPythonRegexRuntime();
+  const pythonFeatureCount = problem.declaration.program.python ? 134 + pythonPatterns.length : 0;
+  const featureCount = dimensions.length + dimensions.reduce((sum, dimension) => sum + (dimension.featureKind === "text" ? 20 + (dimension.textReferences?.length ?? 0) + pythonFeatureCount : dimension.featureKind === "collection" ? 5 : 0), 0);
   if (featureCount > 192) return undefined;
   return {
     dimensions,
@@ -98,6 +103,20 @@ export function createNeuralInputSpace(problem: NeuralScenarioProblem): NeuralIn
             let distance = Math.abs(text.length - reference.length);
             for (let i = 0; i < Math.min(text.length, reference.length); i += 1) if (text[i] !== reference[i]) distance += 1;
             result.push(distance / lengthScale);
+          }
+          if (pythonFeatureCount) {
+            const digits = text.match(/[0-9]/gu) ?? [];
+            result.push(digits.length / 64, text.split(/\r\n|[\r\n]/u).length / 32);
+            // Position/category features retain fixed-width digit changes through separators and labels.
+            // They describe the input only; no validator outcome or teacher-calculated operand is encoded.
+            for (let index = 0; index < 12; index += 1) {
+              const digit = digits[index] === undefined ? -1 : Number(digits[index]);
+              result.push(digit < 0 ? 0 : (digit + 1) / 10);
+              for (let category = 0; category < 10; category += 1) result.push(digit === category ? 1 : 0);
+            }
+            for (const pattern of pythonPatterns) {
+              try { result.push(pythonRegex.matches(pattern, text).length / 32); } catch { result.push(0); }
+            }
           }
         } else if (dimension.featureKind === "collection" && value?.kind === "array") {
           result.push(value.items.length / 32);

@@ -20,8 +20,7 @@ const response: ScenarioInputProviderResult = { modelName: "Fixture model", text
 ] }) };
 
 /** Activates the same graph, token and model-provider boundaries as the extension panel. */
-async function setup(provider: ScenarioInputProvider) {
-  const sourceText = 'export function inspect(x: number) {\n return externalPolicy(x);\n}';
+async function setup(provider: ScenarioInputProvider, sourceText = 'export function inspect(x: number) {\n return externalPolicy(x);\n}') {
   const node: SymbolNode = { id: "function:delivery", name: "inspect", qualifiedName: "inspect", kind: "function", language: "typescript", filePath: "/workspace/delivery.ts",
     range: { startLine: 0, startCharacter: 0, endLine: 2, endCharacter: 1 },
     selectionRange: { startLine: 0, startCharacter: 16, endLine: 0, endCharacter: 23 } };
@@ -61,6 +60,35 @@ test("model invocation is explicit, uses Host source context, and ignores repeat
   const duplicate = fixture.messages.at(-1);
   assert.ok(duplicate?.type === "codeFlow/scenarioInputsLoaded" && duplicate.payload.status === "empty");
   fixture.delivery.clearScenarioInputs();
+});
+
+test("the first recommendation click requests inference and preserves edits or cancellation during the reply", async () => {
+  for (const mode of ["apply", "edit", "cancel"] as const) {
+    const fixture = await setup({ suggest: async () => ({ modelName: "Checked fixture", text: JSON.stringify({ scenarios: [{ title: "Negative boundary", reason: "Takes the negative guard", inputs: { x: -99 } }] }) }) }, 'export function inspect(x: number) {\n if (x < 0) return 1;\n return 0;\n}');
+    const runtime = installSidebarWebviewRuntime();
+    try {
+      const html = getFunctionVisualizerHtml({ webview: { cspSource: "vscode-webview:" } as never, nonce: "first-recommend" });
+      new Function(html.match(/<script nonce="first-recommend">([\s\S]*)<\/script>/u)![1])();
+      runtime.dispatchMessage({ type: "functionVisualizer/sessionLoaded", payload: { graphVersion: fixture.request.graphVersion, root: { sourceToken: fixture.rootToken, label: "inspect" } } });
+      runtime.dispatchMessage(structuredClone(fixture.detail));
+      runtime.inputByTitle("Scenario input for PARAM x", "1234");
+      assert.equal(runtime.messages.filter((message) => message.type === "codeFlow/requestScenarioInputs").length, 0);
+      runtime.clickRenderedByClassNth("flow-steps", "logic-value-preview-recommend", 0);
+      const request = runtime.messages.at(-1); assert.equal(request?.type, "codeFlow/requestScenarioInputs");
+      if (mode === "edit") runtime.inputByTitle("Scenario input for PARAM x", "5678");
+      if (mode === "cancel") runtime.clickRenderedByClassNth("flow-steps", "logic-value-preview-recommend", 0);
+      await fixture.delivery.requestScenarioInputs(request!.payload as ScenarioInputsRequest);
+      runtime.dispatchMessage(fixture.messages.at(-1)!);
+      await new Promise<void>((resolve) => setImmediate(resolve));
+      const value = runtime.getRenderedValueByTitle("flow-steps", "Scenario input for PARAM x");
+      // The response duplicates an already-checked negative branch, so the existing -1 case wins.
+      assert.equal(value, mode === "apply" ? "-1" : mode === "edit" ? "5678" : "1234");
+      if (mode === "apply") {
+        assert.ok(runtime.countRenderedByClass("flow-steps", "logic-scenario-workspace-detail-actions") > 0,
+          "first recommendation prepares a playable story before any workspace interaction");
+      }
+    } finally { fixture.delivery.clearScenarioInputs(); runtime.restore(); }
+  }
 });
 
 test("cancellation and expired roots discard late model output", async () => {

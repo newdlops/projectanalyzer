@@ -15,9 +15,9 @@ const MAX_ZIP_COMMENT_BYTES = 65_535;
 export const PACKAGE_BUDGET = Object.freeze({
   archiveBytes: 15 * MEBIBYTE,
   unpackedBytes: 35 * MEBIBYTE,
-  // Local neural training, typed encoding and search add six net runtime modules;
-  // retain separate responsibilities with nine files of headroom over the prior cap.
-  fileCount: 434,
+  // Python compilation, shared checking, curriculum and replay add ten runtime
+  // modules. Keep their boundaries explicit and retain three files of headroom.
+  fileCount: 446,
   singleFileBytes: 12 * MEBIBYTE
 });
 

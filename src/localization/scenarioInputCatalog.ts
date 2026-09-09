@@ -8,7 +8,9 @@ const en = {
   "scenario-ai-ready": "Added {count} suggestions · {model}",
   "scenario-ai-rejected": "Excluded {count} invalid, duplicate or redundant proposals.",
   "scenario-ai-empty": "No additional checked boundary pair was found within the search limits. This does not prove the remaining branches unreachable.",
-  "scenario-ai-unavailable": "Not enough supported condition values or complete inputs to train. Supports bounded TypeScript/JavaScript calculations; unsupported calls and framework state remain unknown.",
+  "scenario-ai-unavailable": "Not enough supported condition values or complete inputs to train. Supports bounded TypeScript, JavaScript and Python calculations; external calls and framework state remain unknown.",
+  "scenario-recommend-edited": "Suggestions are ready below. Your edits were kept; select a case to apply it.",
+  "scenario-recommend-neural-title": "Find and fill a checked input case using local neural analysis",
   "scenario-ai-denied": "Local inference could not start. Reopen the function and retry.",
   "scenario-ai-timeout": "Local inference exceeded its time limit. Try a smaller function.",
   "scenario-ai-invalid-response": "Generated inputs failed validation. Reopen the function and retry.",
@@ -32,7 +34,7 @@ const en = {
   "scenario-quality-gap-control-gap": "The next control transition is not resolved.",
   "scenario-quality-gap-loop-budget": "The bounded loop check stopped.",
   "scenario-quality-gap-step-budget": "The bounded path check stopped.",
-  "scenario-quality-gap-language-gap": "Concrete path checks currently cover TypeScript and JavaScript.",
+  "scenario-quality-gap-language-gap": "This language is outside the supported concrete path checker.",
   "tutor-seed-model": "Neural input · case {ordinal}"
 };
 const ko: Record<keyof typeof en, string> = {
@@ -44,7 +46,9 @@ const ko: Record<keyof typeof en, string> = {
   "scenario-ai-ready": "제안 {count}개 추가 · {model}",
   "scenario-ai-rejected": "형식 오류·중복·추가 설명력이 없는 제안 {count}개 제외",
   "scenario-ai-empty": "탐색 범위에서 추가 경계 입력 쌍을 찾지 못했습니다. 남은 분기에 도달할 수 없다는 뜻은 아닙니다.",
-  "scenario-ai-unavailable": "학습할 조건값이나 완전한 입력이 부족합니다. 현재 TypeScript·JavaScript의 제한된 계산을 지원하며, 지원하지 않는 호출과 프레임워크 상태는 미확인으로 남깁니다.",
+  "scenario-ai-unavailable": "학습할 조건값이나 완전한 입력이 부족합니다. TypeScript·JavaScript·Python의 제한된 계산을 지원하며, 외부 호출과 프레임워크 상태는 미확인으로 남깁니다.",
+  "scenario-recommend-edited": "아래에 추천 사례를 추가했습니다. 편집한 값은 유지했습니다. 적용할 사례를 선택하세요.",
+  "scenario-recommend-neural-title": "로컬 신경망으로 검증된 입력 사례를 찾아 채웁니다",
   "scenario-ai-denied": "로컬 추론을 시작하지 못했습니다. 함수를 다시 열어 시도하세요.",
   "scenario-ai-timeout": "로컬 추론 시간 한도를 넘었습니다. 더 작은 함수에서 시도하세요.",
   "scenario-ai-invalid-response": "생성한 입력이 유효성 검사를 통과하지 못했습니다. 함수를 다시 열어 시도하세요.",
@@ -68,7 +72,7 @@ const ko: Record<keyof typeof en, string> = {
   "scenario-quality-gap-control-gap": "다음 제어 흐름을 확정할 수 없습니다.",
   "scenario-quality-gap-loop-budget": "반복 분석 한도에 도달했습니다.",
   "scenario-quality-gap-step-budget": "경로 분석 한도에 도달했습니다.",
-  "scenario-quality-gap-language-gap": "구체적인 경로 검사는 현재 TypeScript와 JavaScript를 지원합니다.",
+  "scenario-quality-gap-language-gap": "이 언어는 구체적인 경로 검사기의 지원 범위 밖입니다.",
   "tutor-seed-model": "신경망 입력 · 사례 {ordinal}"
 };
 

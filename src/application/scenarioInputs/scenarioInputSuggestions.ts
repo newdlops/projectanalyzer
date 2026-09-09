@@ -36,7 +36,8 @@ export function parseScenarioInputSuggestions(text: string, model: FunctionTutor
       const input = tuple.find((item) => item.parameterId === parameter.id);
       return !input || input.omitted || !matchesParameter(input.value, parameter);
     }))) continue;
-    const outcomes = tuples.map((inputs) => evaluateFunctionTutorInputs(model.declaration, inputs).decisions.find((item) => item.blockId === boundary.blockId)?.outcome);
+    if (boundary.occurrence !== undefined && (!Number.isInteger(boundary.occurrence) || boundary.occurrence < 0 || boundary.occurrence > 2)) continue;
+    const outcomes = tuples.map((inputs) => evaluateFunctionTutorInputs(model.declaration, inputs).decisions.filter((item) => item.blockId === boundary.blockId)[boundary.occurrence ?? 0]?.outcome);
     if (outcomes[0] === undefined || outcomes[1] === undefined || outcomes[0] === outcomes[1]) continue;
     for (const inputs of tuples) checkedBoundaries.set(inputKey(inputs), boundary.blockId);
   }

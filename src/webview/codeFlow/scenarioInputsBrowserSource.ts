@@ -22,7 +22,7 @@ export function getScenarioInputsBrowserSource(): string {
       help.className = "logic-scenario-ai-help"; status.className = "logic-scenario-ai-status"; status.setAttribute("role", "status"); status.setAttribute("aria-live", "polite");
       training.className = "logic-scenario-ai-training";
       actions.append(requestButton, cancelButton); element.append(actions, help, status, training);
-      let phase = "idle"; let request; let details = {}; let disposed = false;
+      let phase = "idle"; let request; let details = {}; let disposed = false; let completion; let settle;
       function render() {
         requestButton.textContent = projectAnalyzerText("scenario-ai-action"); cancelButton.textContent = projectAnalyzerText("scenario-ai-cancel");
         help.textContent = projectAnalyzerText("scenario-ai-help");
@@ -44,9 +44,13 @@ export function getScenarioInputsBrowserSource(): string {
         scenarioInputRequests.delete(request.requestId);
         vscode.postMessage({ type: "codeFlow/cancelScenarioInputs", payload: request });
         request = undefined; phase = "cancelled"; details = {}; if (!disposed) render();
+        settle?.("cancelled"); settle = undefined; completion = undefined;
       }
-      requestButton.addEventListener("click", () => {
-        if (request || requestButton.disabled || !state.graph?.version) return;
+      /** Both explicit buttons share one correlated request and one cancellation lifecycle. */
+      function requestInputs() {
+        if (completion) return completion;
+        if (disposed || requestButton.disabled || !state.graph?.version) return Promise.resolve("unavailable");
+        completion = new Promise((resolve) => { settle = resolve; });
         request = { graphVersion: state.graph.version, flowId: tutor.functionId, requestId: ++nextScenarioInputRequestId };
         scenarioInputRequests.set(request.requestId, { request, accept(payload) {
           if (disposed || !request || request.requestId !== payload.requestId) return;
@@ -64,14 +68,23 @@ export function getScenarioInputsBrowserSource(): string {
             && typeof report.validationError === "number" && Number.isFinite(report.validationError) && report.validationError >= 0 && report.validationError <= 1000000;
           details = { count, model: String(payload.modelName || "").slice(0, 100), rejected: Number(payload.rejected) || 0,
             training: validReport ? { training: report.trainingSamples, validation: report.validationSamples, error: report.validationError } : undefined }; render();
+          settle?.(phase); settle = undefined; completion = undefined;
           if (restoreFocus) { if (requestButton.disabled) { status.tabIndex = -1; status.focus(); } else requestButton.focus(); }
         } });
         phase = "pending"; details = {}; render();
         vscode.postMessage({ type: "codeFlow/requestScenarioInputs", payload: request });
-      });
+        return completion;
+      }
+      requestButton.addEventListener("click", requestInputs);
       cancelButton.addEventListener("click", () => { cancel(); requestButton.focus(); });
       render();
-      return { element, refresh: render, dispose() { disposed = true; cancel(); } };
+      return { element, request: requestInputs, cancel, didApply(seed) {
+        // The recommendation button sits outside the workspace's focus boundary.
+        // Its explicit application must prepare the story before exposing playback.
+        session.acquire();
+        try { session.select(seed.id, 0); session.markApplied(); } finally { session.release(); }
+      },
+        isDisposed: () => disposed, refresh: render, dispose() { disposed = true; cancel(); } };
     }
   `;
 }

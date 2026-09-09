@@ -4,6 +4,19 @@ All notable user-visible changes to Project Analyzer: Code Flow are recorded in
 this file. The changelog starts with the first distribution-documented build;
 earlier local development builds were not tracked here.
 
+## 0.0.1095 - 2026-09-10
+
+### Fixed
+
+- The first **Use recommended values** click now runs local inference, applies a
+  checked case and prepares its path, explanation and playback. Cancellation, failed analysis and
+  edits made during training preserve the current inputs.
+- Python input analysis now follows bounded regex parsing, same-file pure
+  validation helpers, loops and value changes. Learned candidates include accepted,
+  rejected, duplicate and multiline inputs, with separate checks for later visits.
+- Python Values and Scenario playback share the Host's bounded interpreter.
+  Unsupported external behavior remains explicitly unknown.
+
 ## 0.0.1094 - 2026-09-09
 
 ### Improved

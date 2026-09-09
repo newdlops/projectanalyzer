@@ -4,6 +4,7 @@ import { stringifyFunctionTutorStaticValue } from "../staticValue";
 import { evaluateInputBinary, evaluateInputExpression, inputValueTruth, readInputMember, unknownInputValue, writeInputMember } from "./expression";
 import type { FunctionTutorDecisionObservation, FunctionTutorInputAssignment, FunctionTutorInputEvaluation } from "./types";
 import { observeInputDecision } from "./observation";
+import { evaluatePythonTutorInputs } from "./python";
 
 /** Interprets a bounded supported IR prefix, stopping at unknown effects or control. */
 export function evaluateFunctionTutorInputs(
@@ -11,6 +12,7 @@ export function evaluateFunctionTutorInputs(
   inputs: readonly FunctionTutorInputAssignment[],
   options: { maxSteps?: number; maxLoopVisits?: number; observeDecision?: (observation: FunctionTutorDecisionObservation) => void } = {}
 ): FunctionTutorInputEvaluation {
+  if (declaration.language === "python" && declaration.program.python) return evaluatePythonTutorInputs(declaration, inputs, options);
   const result: FunctionTutorInputEvaluation = { status: "partial", blockIds: [], edgeIds: [], decisions: [] };
   if (!["typescript", "javascript"].includes(declaration.language)) return { ...result, reason: "language-gap" };
   const program = declaration.program;

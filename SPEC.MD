@@ -264,6 +264,25 @@ residual을 가진다. 학습에 사용하지 않은 표본의 정규화 평균 
 요청당 1,400회까지이며, 설명과 Host 검증은 생성한 최대 4쌍을 추가로 검사한다.
 기본 분석과 화면 mount/locale/focus는 학습을 시작하지 않는다.
 
+Python은 parser가 만든 제한된 bytecode를 Host 입력 검사기와 Webview 값 재생에서
+공유한다. 작업 공간 Python을 실행하거나 import하지 않는다. 같은 파일의 순수 함수,
+지역 대입, if/for/while/continue, 한 단계 comprehension, 문자열 분리·결합,
+정수 계산·몫·나머지, 고정 길이 digit capture와 공백·선택 구분자·digit lookaround를
+지원한다. 외부 호출, 중첩/반복 regex group, backreference, Unicode 숫자 변환,
+mutable module collection 등은 미확인이다. 함수 8개·global 24개·bytecode 8,192 step·
+반복 32회와 명시적인 stack/visited budget을 적용한다.
+
+Python 문자열 후보는 정규식 형태와 최대 96회 사전 검사에서 찾은 비어 있지 않은
+반환 사례를 바탕으로 중복·여러 줄·표식 조합을 만든다. 이 검사도 1,400회 한도에 포함한다.
+후보는 최대 400개이며 digit 위치/범주와 regex match 수는 입력 특징이다.
+검증 함수의 반환값이나 계산된 조건 피연산자는 입력 특징에 넣지 않는다.
+첫 세 번의 분기를 별도 학습 대상으로 두며 witness는 동일한 반복 회차끼리 재검사한다.
+실제 검사한 수치·문자열·변경값만 설명하고 도달하지 않은 분기는 label로 사용하지 않는다.
+
+`추천 값 채우기`도 첫 클릭에서 동일한 신경망 요청을 시작한다. 완료하면 검증된 사례를
+채우고 해당 사례 설명을 선택한다. 대기 중에는 취소할 수 있고, 그 사이 편집한 값은
+덮어쓰지 않는다. 실패·지원 부족은 기존 값을 유지하며 상태를 보여 준다.
+
 요청 protocol은 `codeFlow/requestScenarioInputs`와 `codeFlow/cancelScenarioInputs`이며
 payload는 현재 graphVersion, opaque flowId, nonnegative safe requestId만 받는다.
 Host는 최근 전달한 함수 snapshot에만 요청을 허용하고 단일 pending 요청, 120초 timeout,

@@ -119,6 +119,28 @@ export function createFunctionTutorPayload(
   const entryBlockId = context.blockIds.get(model.declaration.program.entryBlockId);
   if (!entryBlockId) return undefined;
   const projectedProgram = {
+    python: model.declaration.program.python ? {
+      ...model.declaration.program.python,
+      entryBlockId: context.blockIds.get(model.declaration.program.python.entryBlockId)!,
+      root: opaqueTutorIdentity(context, "python-function", model.declaration.program.python.root),
+      functions: model.declaration.program.python.functions.map((fn) => ({
+        ...fn, id: opaqueTutorIdentity(context, "python-function", fn.id),
+        instructions: fn.instructions.map((instruction) => ({ ...instruction,
+          blockId: instruction.blockId ? context.blockIds.get(instruction.blockId) : undefined,
+          name: instruction.op === "call" && model.declaration.program.python!.functions.some((callee) => callee.id === instruction.name)
+            ? opaqueTutorIdentity(context, "python-function", instruction.name!) : instruction.name
+        }))
+      })),
+      bindings: model.declaration.program.python.bindings.flatMap((binding) => {
+        const bindingId = context.bindingIds.get(binding.bindingId);
+        return bindingId ? [{ ...binding, bindingId, parameterId: binding.parameterId ? parameterIds.get(binding.parameterId) : undefined }] : [];
+      }),
+      edges: model.declaration.program.python.edges.flatMap((edge) => {
+        const edgeId = context.edgeIds.get(edge.edgeId); const sourceBlockId = context.blockIds.get(edge.sourceBlockId); const targetBlockId = context.blockIds.get(edge.targetBlockId);
+        return edgeId && sourceBlockId && targetBlockId ? [{ ...edge, edgeId, sourceBlockId, targetBlockId }] : [];
+      }),
+      stringCandidates: [] // Candidate generation stays in the Host; only the program is needed for interactive replay.
+    } : undefined,
     entryBlockId,
     blocks: projectedBlocks,
     edges: model.declaration.program.edges.flatMap((edge) => {

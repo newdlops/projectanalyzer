@@ -30,20 +30,20 @@ export function findDiscreteNeuralBoundary(network: ScenarioNetwork, head: Margi
       .map((item) => [JSON.stringify(item.x), item])).values()];
     const observed: Array<{ sample: ObservedInput; value: Value; cost: number; margin: number }> = [];
     for (const candidate of candidates) {
-      const sample = observe(candidate.x); if (!sample?.observations.has(head.blockId)) continue;
+      const sample = observe(candidate.x); if (!sample?.observations.has(head.key ?? head.blockId)) continue;
       const value = candidate.value;
       const cost = value.kind === "string" ? value.value.length + (value.value.length === 0 ? 2 : 0)
         : value.kind === "array" ? value.items.length : 1;
-      const decision = sample.observations.get(head.blockId)!;
+      const decision = sample.observations.get(head.key ?? head.blockId)!;
       const margin = decision.left - decision.right;
       for (const opposite of observed) {
-        if (opposite.sample.observations.get(head.blockId)!.outcome === decision.outcome) continue;
+        if (opposite.sample.observations.get(head.key ?? head.blockId)!.outcome === decision.outcome) continue;
         // Compare lexicographically: boundary proximity, minimal change, then compact text.
         const score = [(Math.abs(margin) + Math.abs(opposite.margin)) / head.scale, changeSize(value, opposite.value), cost + opposite.cost];
         const different = score.findIndex((part, i) => part !== bestScore[i]);
         if (different >= 0 && score[different] < bestScore[different]) {
           bestScore = score;
-          best = { blockId: head.blockId, inputs: opposite.sample.inputs, neighbor: sample.inputs };
+          best = { blockId: head.blockId, occurrence: head.occurrence, inputs: opposite.sample.inputs, neighbor: sample.inputs };
         }
       }
       observed.push({ sample, value, cost, margin });

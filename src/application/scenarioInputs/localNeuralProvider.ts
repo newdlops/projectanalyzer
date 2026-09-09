@@ -21,11 +21,12 @@ export function createLocalNeuralScenarioProvider(): ScenarioInputProvider {
     catch (error) { if (signal.aborted) throw new ScenarioInputError("cancelled"); throw error; }
     if (!result) throw new ScenarioInputError("unavailable");
     const scenarios = result.boundaries.flatMap((boundary) => {
-      const label = model.declaration.program.blocks.find((block) => block.blockId === boundary.blockId)?.label.slice(0, 80) ?? "";
+      const label = (model.declaration.program.blocks.find((block) => block.blockId === boundary.blockId)?.label.slice(0, 80) ?? "")
+        + (boundary.occurrence ? language === "ko" ? ` (${boundary.occurrence + 1}번째 반복)` : ` (visit ${boundary.occurrence + 1})` : "");
       const difference = describeInputDifference(model, boundary.inputs, boundary.neighbor);
       const observations = [boundary.inputs, boundary.neighbor].map((inputs) => {
-        let observation: FunctionTutorDecisionObservation | undefined;
-        evaluateFunctionTutorInputs(model.declaration, inputs, { observeDecision(value) { if (value.blockId === boundary.blockId && !observation) observation = value; } });
+        let observation: FunctionTutorDecisionObservation | undefined; let occurrence = 0;
+        evaluateFunctionTutorInputs(model.declaration, inputs, { observeDecision(value) { if (value.blockId === boundary.blockId && occurrence++ === (boundary.occurrence ?? 0)) observation = value; } });
         return observation;
       });
       const outcomes = observations.map((item) => item ? `${item.leftValue ? displayValue(item.leftValue) : formatNumber(item.left)}${item.metric === "truthiness" ? "" : " / " + (item.rightValue ? displayValue(item.rightValue) : formatNumber(item.right))} (${language === "ko" ? item.outcome ? "참" : "거짓" : String(item.outcome)})` : "?");
@@ -48,7 +49,7 @@ export function createLocalNeuralScenarioProvider(): ScenarioInputProvider {
             : `A neural boundary confirmed by static checks. ${difference.name}: ${difference.values.join(" → ")}. Left / right operands of ${label}: ${outcomes.join(" → ")}.` };
       });
     });
-    return { modelName: "Local MLP · v2", text: JSON.stringify({ scenarios }), boundaries: result.boundaries, training: result.report };
+    return { modelName: "Local MLP · v3", text: JSON.stringify({ scenarios }), boundaries: result.boundaries, training: result.report };
   } };
 }
 

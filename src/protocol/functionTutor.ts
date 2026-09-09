@@ -11,6 +11,7 @@ import type {
 import type { FunctionTutorFactPresentationKey, FunctionTutorGapPresentationKey, FunctionTutorSemanticPresentationKey, PresentationParams } from "../localization/presentationDescriptors";
 
 import type { FunctionFrameworkBehaviorPayload } from "./frameworkBehavior";
+import type { PythonScenarioProgram } from "../shared/pythonScenario";
 
 export type FunctionTutorPayloadCertainty = "exact" | "inferred" | "unknown";
 export type FunctionTutorStaticValuePayload =
@@ -245,6 +246,7 @@ export type FunctionTutorScenarioSeedPayload = {
 };
 
 export type FunctionTutorProgramPayload = {
+  python?: PythonScenarioProgram;
   entryBlockId: string;
   blocks: Array<{
     blockId: string;

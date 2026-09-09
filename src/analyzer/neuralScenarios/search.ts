@@ -6,7 +6,7 @@ import type { NeuralBoundary } from "./types";
 import { findDiscreteNeuralBoundary } from "./discreteSearch";
 
 export type ObservedInput = { inputs: FunctionTutorInputAssignment[]; observations: Map<string, FunctionTutorDecisionObservation> };
-export type MarginHead = { blockId: string; mean: number; scale: number };
+export type MarginHead = { blockId: string; key?: string; occurrence?: number; mean: number; scale: number };
 
 /** Predictions choose the search point and coordinate; only the teacher can confirm an outcome. */
 export function findNeuralBoundary(
@@ -45,7 +45,7 @@ function refineCoordinate(x: number[], index: number, head: MarginHead, space: N
   observe: (x: number[]) => ObservedInput | undefined): NeuralBoundary | undefined {
   const scale = space.dimensions[index].scale;
   const probe = (value: number) => observe(x.map((original, i) => i === index ? Math.max(-1, Math.min(1, value)) : original));
-  const margin = (sample: ObservedInput | undefined) => { const observation = sample?.observations.get(head.blockId); return observation ? observation.left - observation.right : undefined; };
+  const margin = (sample: ObservedInput | undefined) => { const observation = sample?.observations.get(head.key ?? head.blockId); return observation ? observation.left - observation.right : undefined; };
   let low = 0; let high = 0; let lowMargin: number | undefined; let highMargin: number | undefined;
   for (const radius of [Math.max(2 / scale, 0.002), 0.02, 0.2]) {
     low = Math.max(-1, x[index] - radius); high = Math.min(1, x[index] + radius);
@@ -71,11 +71,11 @@ function refineCoordinate(x: number[], index: number, head: MarginHead, space: N
   const root = (exactRoot ?? (low + high) / 2) * scale;
   // Prefer exact/small-decimal and integer neighbors; never present raw optimizer noise.
   const values = [...new Set([Number(root.toFixed(6)), Math.round(root), Math.floor(root), Math.ceil(root), Math.floor(root) - 1, Math.ceil(root) + 1, ...(exactRoot === undefined ? [] : [root])])];
-  const samples = values.map((value) => probe(value / scale)).filter((sample): sample is ObservedInput => Boolean(sample?.observations.has(head.blockId)));
+  const samples = values.map((value) => probe(value / scale)).filter((sample): sample is ObservedInput => Boolean(sample?.observations.has(head.key ?? head.blockId)));
   for (let a = 0; a < samples.length; a += 1) {
     for (let b = a + 1; b < samples.length; b += 1) {
-      if (samples[a].observations.get(head.blockId)!.outcome !== samples[b].observations.get(head.blockId)!.outcome) {
-        return { blockId: head.blockId, inputs: samples[a].inputs, neighbor: samples[b].inputs };
+      if (samples[a].observations.get(head.key ?? head.blockId)!.outcome !== samples[b].observations.get(head.key ?? head.blockId)!.outcome) {
+        return { blockId: head.blockId, occurrence: head.occurrence, inputs: samples[a].inputs, neighbor: samples[b].inputs };
       }
     }
   }

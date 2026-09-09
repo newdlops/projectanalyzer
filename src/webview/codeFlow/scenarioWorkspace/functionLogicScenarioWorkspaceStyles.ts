@@ -51,6 +51,7 @@ export function getFunctionLogicScenarioWorkspaceStyles(): string {
     .logic-scenario-workspace-row-selector, .logic-scenario-workspace-play, .logic-scenario-workspace-detail button { touch-action:manipulation; }
     .logic-scenario-workspace-detail button:hover:not(:disabled) { background:var(--vscode-button-secondaryHoverBackground); }
     @container scenario-workspace (max-width: 560px) {
+      .logic-scenario-workspace-detail { grid-template-columns:minmax(0, 1fr); }
       .logic-scenario-workspace-table, .logic-scenario-workspace-table tbody, .logic-scenario-workspace-row, .logic-scenario-workspace-table th, .logic-scenario-workspace-table td { display:block; width:100%; box-sizing:border-box; }
       .logic-scenario-workspace-table thead { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); clip-path:inset(50%); white-space:nowrap; }
       .logic-scenario-workspace-row { padding:5px 0; border-bottom:1px solid var(--vscode-panel-border); }

@@ -17,6 +17,7 @@ import {
 } from "../functionLogic/typescriptFunctionLogicSyntax";
 import type { FunctionLikeWithBody } from "../functionLogic/typescriptFunctionLogicInternal";
 import { analyzeNonTypeScriptTutorDeclaration } from "./nonTypeScriptTutorAdapter";
+import { compilePythonScenario } from "../pythonScenarios";
 import { createUnavailableFunctionTutorDeclaration } from "./functionTutorUnavailable";
 import { analyzeFunctionTutorDocumentation } from "./documentation";
 import {
@@ -64,10 +65,13 @@ export function analyzeFunctionTutorDeclaration(
   }
   const language = getSupportedLanguage(input.functionNode);
   if (language === "unsupported") {
-    return withFunctionTutorDocumentation(
-      analyzeNonTypeScriptTutorDeclaration(input.functionNode, input.sourceText, input.functionLogic),
-      input.sourceText
-    );
+    const analysis = analyzeNonTypeScriptTutorDeclaration(input.functionNode, input.sourceText, input.functionLogic);
+    analysis.program.python = compilePythonScenario(analysis, input.sourceText, input.functionLogic);
+    if (analysis.program.python) {
+      analysis.gaps = analysis.gaps.filter((gap) => !gap.summary.startsWith("Non-TypeScript value writes"));
+      analysis.program.gaps = analysis.gaps.slice();
+    }
+    return withFunctionTutorDocumentation(analysis, input.sourceText);
   }
   const sourceFile = ts.createSourceFile(
     input.functionNode.filePath,

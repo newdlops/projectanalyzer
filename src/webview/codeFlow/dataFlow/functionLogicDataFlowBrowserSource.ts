@@ -108,6 +108,7 @@ export function getFunctionLogicDataFlowBrowserSource(): string {
       let activeScenarioSeedId = "";
       let activeScenarioPathIndex = 0;
       const scenarioWorkspaceSession = acquireFunctionLogicScenarioWorkspace(sessionKey, logic.tutor);
+      const inputSuggestions = createScenarioInputSuggestions(logic.tutor, scenarioWorkspaceSession);
       const valuePreviewRendering = createFunctionLogicValuePreviewEditor(
         bindings,
         logic.blocks,
@@ -120,7 +121,7 @@ export function getFunctionLogicDataFlowBrowserSource(): string {
         }
       );
       // Keep Tutor data browser-local until an explicit Guide action fills it.
-      valuePreviewRendering.setRecommendedInputs(logic.tutor);
+      valuePreviewRendering.setRecommendedInputs(logic.tutor, inputSuggestions);
       scenarioTraceRendering = createFunctionLogicScenarioTrace(
         logic,
         nodeButtonsById,
@@ -129,7 +130,7 @@ export function getFunctionLogicDataFlowBrowserSource(): string {
       );
       const scenarioWorkspace = createFunctionLogicScenarioWorkspace(scenarioWorkspaceSession, {
         tutor: logic.tutor,
-        inputSuggestions: createScenarioInputSuggestions(logic.tutor, scenarioWorkspaceSession),
+        inputSuggestions,
         onPreview(path) {
           for (const node of nodeButtonsById.values()) node.classList.remove("scenario-workspace-preview");
           for (const elements of controlEdgeElementsById.values()) elements.path?.classList.remove("scenario-workspace-preview");

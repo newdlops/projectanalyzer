@@ -92,6 +92,9 @@ export function getFunctionLogicScenarioPathPlannerBrowserSource(): string {
     /** Uses symbolic paths only when concrete inputs cannot determine a useful route. */
     function functionTutorResolveScenarioPaths(tutor, seed, evaluatedPaths) {
       const evaluated = evaluatedPaths || [];
+      // Python's bytecode owns its decisions; absent TS expression nodes are not an evaluation gap.
+      if (tutor?.program?.python && evaluated.length && evaluated.every((path) => !path.limited && path.scenario?.concrete)
+        && !(seed?.inputs || []).some((input) => input?.certainty === "unknown" || input?.value?.kind === "unknown")) return evaluated;
       // Remove symbolic combinations that contradict an independently checked
       // input prefix. Unchecked later branches remain explicitly symbolic.
       const checked = new Set(seed?.quality?.checkedEdgeIds || []);
@@ -159,6 +162,7 @@ export function getFunctionLogicScenarioPathPlannerBrowserSource(): string {
 
     /** Formats only calls/effects reachable through the selected choices. */
     function functionTutorScenarioEffectText(path) {
+      if (path?.scenario?.concrete && path.terminal?.kind === "return") return projectAnalyzerText("may-return", { value: functionTutorValueText(path.terminal.value) });
       const effects = path?.scenario?.effects || [];
       if (!effects.length) return projectAnalyzerText("scenario-effect-none");
       return effects.map((effect) => effect.label).join(" → ");

@@ -10,6 +10,7 @@ import type {
   FunctionLogicEdgeKind
 } from "../functionLogic";
 import type { FunctionTutorScenarioCatalog } from "./scenario/types";
+import type { PythonScenarioProgram } from "../../shared/pythonScenario";
 
 /** JSON-safe bounded values understood by the Tutor interpreter. */
 export type FunctionTutorStaticValue =
@@ -233,6 +234,7 @@ export type FunctionTutorTerminal =
 
 /** Browser-independent program assembled from one Function Logic analysis. */
 export type FunctionTutorProgram = {
+  python?: PythonScenarioProgram;
   entryBlockId: string;
   blocks: FunctionTutorProgramBlock[];
   edges: FunctionTutorProgramEdge[];

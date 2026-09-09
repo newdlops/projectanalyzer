@@ -22,6 +22,8 @@ export type NeuralTrainingReport = {
 };
 export type NeuralBoundary = {
   blockId: string;
+  /** Zero-based occurrence of a condition within the same bounded run. */
+  occurrence?: number;
   inputs: FunctionTutorInputAssignment[];
   neighbor: FunctionTutorInputAssignment[];
 };

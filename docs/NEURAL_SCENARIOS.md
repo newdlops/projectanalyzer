@@ -1,5 +1,78 @@
 # Local neural scenario inference
 
+## Python and first-click recommendations — September 10, 2026
+
+The 0.0.1094 change covered TS/JS only. Inspecting the actual installed function
+revealed a Python regex/validation pipeline and a second defect: **Use recommended
+values** never requested inference. Earlier browser QA clicked the separate neural
+button first, so it missed the reported path.
+
+The first recommendation click now starts local training, applies a checked case
+and prepares that case's path, explanation and playback without a second click
+inside the scenario list. It offers cancellation and preserves any
+edits made while awaiting the reply. Failure or missing support leaves inputs
+intact instead of filling `""` as a successful recommendation. Opening or focusing
+the view still never trains. The separate neural button adds cases without applying.
+
+`analyzer/pythonScenarios` exposes `compilePythonScenario`; its internal syntax
+helpers parse source with Lezer. `shared/pythonScenario` exposes the portable
+bytecode contracts, a bounded regex grammar, and a closure-free iterative runtime
+shared by Host checking and CSP-compatible browser replay. Application projection
+replaces graph and function identities with snapshot-local IDs. No workspace
+module is imported or executed, and no external model/service is used.
+
+Supported examples include same-file pure helpers, local assignment, if/for/while,
+continue/break, single-loop comprehensions, splitlines/join, ASCII digit conversion,
+integer arithmetic/floor/modulo and bounded regex captures. External calls,
+mutable module collections, unsupported syntax/regex, Unicode digit conversion,
+recursive calls and exhausted budgets stay partial. This is a deliberately small
+Python evaluator, not Python compatibility or complete path coverage.
+
+Regex-shaped candidates now include separator and digit changes. Up to 96 teacher
+checks seed a curriculum of duplicate, multiline and labeled inputs, counted within
+the existing 1,400-check limit. The corpus is split before weight fitting. Digit
+position/category and regex-match features describe inputs only; validator returns
+and calculated operands remain labels. The first three occurrences of a condition
+have separate heads and independently checked witnesses, so a second-visit duplicate
+cannot be reported as a first-visit result. Poor held-out heads remain excluded.
+
+The regex grammar accepts concatenation, nonnested capturing groups, fixed digit
+counts, optional literal separators, whitespace runs and one-character negative
+digit lookarounds. Its explicit search stack has a 32,768-work-item limit. Bytecode
+uses at most 8 functions, 24 globals, 8,192 primitive steps and 32 iterations. Input
+strings remain at most 512 code units; Python codepoint length is evaluated separately.
+
+The generic committed fixture uses product codes with a checksum and label priority.
+The user's actual source was inspected and checked locally; it is not copied into
+the repository.
+
+### Verification record — 0.0.1095
+
+- TypeScript unit suite: 695 tests, 691 passed. The same four existing failures
+  remain: dynamic callsite type baseline, nested declared-object representatives,
+  advanced private Scenario calls and the source-reveal architecture expectation.
+  Rust analyzer: 82 passed. Package tools: 12 passed. Compilation and whitespace
+  checks passed. The VSIX contains 443 files, 3.27 MiB archived and 13.71 MiB
+  unpacked; archive/unpacked budgets and dependencies are unchanged.
+- Real generated webview and local training in Chromium at 1440×900, 768×1024
+  and 390×844: the first recommendation click fills a nonempty multiline input
+  and prepares a concrete return and enabled playback before any scenario-list
+  interaction. Applying/playing a case, preserving concurrent edits, cancellation,
+  keyboard activation, completion focus and no document/detail overflow passed.
+  Page errors: zero. Screenshots were separately inspected, including the narrow
+  stacked detail layout and calculated array changes.
+- The in-app Browser reported no available connection; standalone Chromium
+  substituted only VS Code message transport. Impeccable's mechanical audit
+  reported no findings; manual Web Interface Guidelines review retained native
+  controls, visible focus, polite status and wrapping. A screen-reader session
+  is not claimed.
+- The final 0.0.1095 VSIX was installed in official VS Code and the target
+  workspace reloaded. The reported Python function's first recommendation click
+  produced a checked labeled multiline input, seven accepted neural cases,
+  concrete list changes and the expected two-item return with enabled playback.
+  Its local report showed 241 training samples, 60 held-out samples and normalized
+  error 0.189. This verifies the reported function, not arbitrary Python coverage.
+
 ## Strengthening contract — September 9, 2026
 
 Empty strings and empty arrays must not be frozen input dimensions. Extend local training to variable string content/length and array length, using whole caller tuples, declared literals, and literals connected to the input through assignments and comparisons. Generated mutations are candidates, never observed calls. The network must learn from these inputs and rank discrete alternatives by learned predictions; final acceptance still requires different statically checked outcomes.
@@ -12,7 +85,7 @@ The existing UI and tokens remain authoritative. The explicit neural action adds
 
 The function reader needs inputs that explain a changed decision, including decisions made after intermediate value updates. The explicit **Find inputs with neural network** action trains a small function-specific network on the local CPU. No chat model, account, source upload, or execution of workspace code is involved.
 
-The implementation covers the bounded TypeScript/JavaScript IR interpreter. Complete caller tuples and declared shapes initialize the input space. Numeric leaves are continuous features; strings, primitive collection lengths, literal alternatives and booleans can vary. Unsupported calls, framework state, unknown inputs, and interpreter limits remain gaps. This is a function-specific learned approximation, not a pretrained model that understands arbitrary source or domain intent.
+The implementation covers the bounded TypeScript/JavaScript IR interpreter and the limited Python bytecode evaluator described above. Complete caller tuples and declared shapes initialize the input space. Numeric leaves are continuous features; strings, primitive collection lengths, literal alternatives and booleans can vary. Unsupported calls, framework state, unknown inputs, and interpreter limits remain gaps. This is a function-specific learned approximation, not a pretrained model that understands arbitrary source or domain intent.
 
 ## Learning and inference
 
@@ -28,7 +101,7 @@ This approach is informed by [NEUZZ](https://arxiv.org/abs/1807.05620), but uses
 
 ## UI contract and acceptance
 
-Reuse the existing scenario action, help, live status, and scenario rows. Keep VS Code theme tokens, typography, spacing, focus treatment, and responsive wrapping. No new visual system or decorative animation. The primary flow is train → review the checked input and reason → apply it explicitly → follow value changes.
+Reuse the existing scenario action, help, live status, and scenario rows. Keep VS Code theme tokens, typography, spacing, focus treatment, and responsive wrapping. No new visual system or decorative animation. The separate neural action trains and adds cases for review and explicit application. Fill recommended values trains when necessary, applies a checked case, and prepares its explanation and playback in one action.
 
 Pending work disables duplicate requests and exposes Cancel. Success and empty results show actual training and held-out sample counts and normalized error; unsupported functions, cancellation, errors, and stale replies have distinct messages. A late reply must preserve selection, edited inputs, playback, graph clarity, and focus. Retain at most eight neural cases. Long Korean/English text must wrap at 390, 768, and 1440 px; keyboard navigation and live status must remain usable.
 
@@ -38,9 +111,9 @@ Functional acceptance includes real weight learning, gradient checks, masked unr
 
 `src/analyzer/neuralScenarios/index.ts` exports `inferNeuralScenarios(problem, options)` and typed problem/result/report contracts. `src/application/scenarioInputs/index.ts` exposes the local provider and typed model adapter. The Host preserves graph/request correlation and independently rechecks boundary witnesses before projection. Neither the browser nor source text supplies executable instructions.
 
-One request uses at most 16 parameters, 32 input coordinates, 192 encoded features, 16 observed comparison heads, 400 unique sampled tuples, 1,400 teacher evaluations during sampling/search, and four pairs/eight proposals. Explanations and Host validation perform additional bounded checks of those pairs. Numeric-only inputs use 24 tanh units and 240 full-batch Adam epochs; expanded text/collection features use 48 units and 360 epochs. Both have a learned linear residual. Unique tuples are split 4:1 before fitting normalizers or weights, so small finite domains have fewer than 320/80 samples. Sampling and training yield to cancellation; the existing Host timeout is 120 seconds. Loops supply only their first reached comparison observation.
+One request uses at most 16 parameters, 32 input coordinates, 192 encoded features, 16 observed comparison heads, 400 unique sampled tuples, 1,400 teacher evaluations during sampling/search, and four pairs/eight proposals. Explanations and Host validation perform additional bounded checks of those pairs. Numeric-only inputs use 24 tanh units and 240 full-batch Adam epochs; expanded text/collection features use 48 units and 360 epochs. Both have a learned linear residual. Unique tuples are split 4:1 before fitting normalizers or weights, so small finite domains have fewer than 320/80 samples. Sampling and training yield to cancellation; the existing Host timeout is 120 seconds. Python's first three reached occurrences of each condition can supply separate comparison heads; TS/JS retains its first-occurrence target. Final checks compare the same occurrence.
 
-Numeric dimensions use a symmetric finite domain: twice the largest scanned IR numeric literal or example magnitude, with a minimum radius of 16 and maximum radius of 1,000,000. Numeric object leaves and existing array elements can vary. A string domain retains at most 160 alternatives, each up to 512 UTF-16 code units. Primitive arrays can range from zero to 32 elements when a complete element template is available; numeric elements present in the original/declared shape remain independent coordinates and are masked when absent. Nested arrays/objects retain their fixed shape and existing leaf search. Declared literals stay within their union. Unknown dynamic arguments are not inferred as facts. String method calls such as `trim`, regular expressions, arbitrary library calls, object shape invention and framework state remain unsupported by this teacher. This is not a semantic language model, general constraint solver, runtime fuzzer, or framework simulator.
+Numeric dimensions use a symmetric finite domain: twice the largest scanned IR numeric literal or example magnitude, with a minimum radius of 16 and maximum radius of 1,000,000. Numeric object leaves and existing array elements can vary. A string domain retains at most 160 alternatives for TS/JS or 400 for Python, each up to 512 UTF-16 code units. Primitive arrays can range from zero to 32 elements when a complete element template is available; numeric elements present in the original/declared shape remain independent coordinates and are masked when absent. Nested arrays/objects retain their fixed shape and existing leaf search. Declared literals stay within their union. Unknown dynamic arguments are not inferred as facts. The TS/JS teacher still lacks string method calls such as `trim` and regular expressions; Python supports only the explicitly enumerated subset above. Arbitrary library calls, object shape invention and framework state remain unsupported. This is not a semantic language model, general constraint solver, runtime fuzzer, or framework simulator.
 
 Search uses up to six starts, including complete caller/planner anchors, up to 80 learned-gradient steps, and up to three numeric coordinates with at most 56 bisection refinements each. Discrete search checks at most 48 alternatives per coordinate/start within the shared budget, preserving numeric coordinates while varying one text/collection coordinate. Integer and short-decimal pairs are preferred across numeric coordinates; an exact representable calibrated value may also be used. Explanations preserve round-trippable numeric digits, escape invisible text characters, and show lengths and the first changed offset when full strings are too long. Full inputs stay available in the editor. Static verification must still succeed. A different outcome at a later external effect is never fabricated. Other languages and framework-owned state keep their existing static guides and explicit gaps.
 

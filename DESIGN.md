@@ -17,6 +17,14 @@ Validate shapes and preserve inferred origin. Never execute application source o
 silently replace edited inputs. The detailed contract is in
 [Local neural scenario inference](docs/NEURAL_SCENARIOS.md).
 
+**Use recommended values** starts the same local inference on its first click,
+then fills a complete checked case and selects its explanation. During training
+the button offers cancellation. Preserve edits made after the request began;
+the returned cases remain available for explicit application. An unavailable or
+failed analysis must leave the current input intact, with a visible explanation.
+Python acceptance includes regex-shaped text, same-file pure validation, duplicate
+handling on the second visit, multiline priority and concrete before/after values.
+
 Acceptance: boundary equality and both sides, late/deep/compound guards, caller
 tuple correlation, duplicate rejection, malformed/model-absent/cancelled/error
 states, stale-response rejection, and clear partial results. Preserve current
@@ -160,9 +168,10 @@ route; it never turns every node into an animated card or hides confidence.
   stops playback and returns it to the START frame.
 - Empty and no-route states explain why playback is unavailable. Inferred hops
   remain dashed and are labeled as inferred.
-- Values offers one explicit **Use recommended values** action when bounded
-  `logic.tutor` seeds or supported declared parameter types provide serializable
-  inputs. It chooses the first all-known ranked seed, otherwise the first
+- Values offers one explicit **Use recommended values** action. When local
+  inference is available, the first click requests it and fills a checked case;
+  type-only empty baselines cannot masquerade as a successful recommendation.
+  Older payloads without inference retain their compatible first all-known ranked seed, otherwise the first
   partial-known seed, preserves its known source/default/literal values, and
   completes only missing or unknown values with conservative declared-type
   representatives. Same-file typed arrays receive one supported element,

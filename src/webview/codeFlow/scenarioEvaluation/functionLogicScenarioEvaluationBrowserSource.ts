@@ -3,10 +3,20 @@
  * program-bundle machine. It exposes root-only stories to Workspace while the
  * evaluator retains child calls solely as return-value computation.
  */
+import { getPythonScenarioBrowserSource } from "./pythonScenarioBrowserSource";
 export function getFunctionLogicScenarioEvaluationBrowserSource(): string {
   return /* js */ `
+    ${getPythonScenarioBrowserSource()}
     /** Runs a Tutor seed through the same iterative opaque bundle machine as Values. */
     function functionTutorRunProgramBundleScenario(tutor, seed) {
+      if (tutor?.program?.python) {
+        const supplied = new Map();
+        for (const input of seed?.inputs || []) {
+          const binding = tutor.program.python.bindings.find((item) => item.parameterId === input.parameterId);
+          if (binding) supplied.set(binding.bindingId, functionTutorScenarioStaticState(input.value));
+        }
+        return calculatePythonScenario({ tutor }, supplied)?.scenarioPaths;
+      }
       if (!tutor?.programBundle?.programs?.length) return undefined;
       const root = tutor.programBundle.programs.find((program) => program.id === tutor.programBundle.rootProgramId);
       if (!root) return undefined;

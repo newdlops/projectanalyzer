@@ -12,6 +12,15 @@ import { getFunctionLogicValueFlowPlaybackBrowserSource } from "../../webview/co
 import { getBrowserLocalizationSource } from "../../localization/browserCatalog";
 import { getFunctionTutorBrowserSource, getFunctionTutorStyles } from "../../webview/codeFlow/tutor";
 
+test("neural cases remain visible when symbolic paths exhaust the table budget", () => {
+  const rows = new Function(`${getFunctionLogicScenarioWorkspaceBrowserSource()}; return readFunctionTutorScenarioRows;`)();
+  const seeds = Array.from({ length: 12 }, (_, index) => ({ id: `seed-${index}`, source: "type" }));
+  const results = new Map(seeds.map((seed) => [seed.id, Array.from({ length: 12 }, () => ({ symbolic: true }))]));
+  const neural = { id: "neural", source: "model" }; results.set(neural.id, [{ symbolic: false }]);
+  const visible = rows({ results }, [...seeds, neural]);
+  assert.equal(visible.length, 48); assert.equal(visible[0].seed.id, "neural");
+});
+
 test("Scenario Workspace keeps one root/fingerprint cache and no Host or dynamic execution boundary", () => {
   const source = getFunctionLogicScenarioWorkspaceBrowserSource();
   assert.match(source, /functionLogicScenarioWorkspaceRegistry/);

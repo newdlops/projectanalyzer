@@ -35,6 +35,15 @@ export function getFunctionTutorBrowserSource(): string {
         if (!current || typeof current !== "object" || item.depth > 4 || seen.has(current)) return unknown();
         seen.add(current);
         if (current.kind === "unknown" || current.kind === "unset") return unknown();
+        if (Array.isArray(current)) {
+          output += item.prefix + "["; pending.push({ value: current.length > 8 ? "…]" : "]", depth: 0, prefix: "" });
+          for (let index = Math.min(current.length, 8) - 1; index >= 0; index -= 1) {
+            const descriptor = Object.getOwnPropertyDescriptor(current, String(index));
+            if (!descriptor || !("value" in descriptor)) return unknown();
+            pending.push({ value: descriptor.value, depth: item.depth + 1, prefix: index ? ", " : "" });
+          }
+          continue;
+        }
         if (current.kind === "null" || current.kind === "undefined") { output += item.prefix + current.kind; continue; }
         if (current.kind === "boolean" || current.kind === "number" || current.kind === "string") { output += item.prefix + (typeof current.value === "string" || typeof current.value === "number" || typeof current.value === "boolean" ? current.value : unknown()); continue; }
         if (current.kind === "enum") { output += item.prefix + (typeof current.memberName === "string" ? current.memberName : unknown()); continue; }

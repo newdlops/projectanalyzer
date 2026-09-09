@@ -123,6 +123,8 @@ export function getFunctionLogicValuePreviewBrowserSource(): string {
       let emptyState;
       let selectedBindingId = "";
       let recommendedTutor;
+      let inputSuggestions;
+      let recommendationPending = false;
 
       /** Stores semantic feedback so a locale pass can reformat it in place. */
       function setAddStatus(key, params, error) {
@@ -388,7 +390,7 @@ export function getFunctionLogicValuePreviewBrowserSource(): string {
         };
         // Always retain a type-only candidate. It makes the action useful for
         // partial/older payloads while ranked source-backed seeds still win.
-        const candidates = [...(tutor?.seeds || []), typeSeed].map((seed) => {
+        const candidates = [...(tutor?.seeds || []), typeSeed].filter((seed) => !inputSuggestions || seed.source !== "type" && seed.quality?.status === "verified").map((seed) => {
           const inputByParameterId = new Map(
             (seed.inputs || []).map((input) => [input.parameterId, input])
           );
@@ -478,6 +480,7 @@ export function getFunctionLogicValuePreviewBrowserSource(): string {
           unknown
         });
         if (onValueChanged) onValueChanged("");
+        inputSuggestions?.didApply(selected.seed);
       }
 
       /** Creates only JSON/scalar representatives that are valid for the projected broad type. */
@@ -503,7 +506,26 @@ export function getFunctionLogicValuePreviewBrowserSource(): string {
           isFunctionLogicRecommendedInputSerializable(entry.value));
         return false;
       }
-      recommend.addEventListener("click", () => applyRecommendedInputs());
+      /** The first recommendation click performs inference; later replies cannot overwrite edits made while waiting. */
+      recommend.addEventListener("click", async () => {
+        if (recommendationPending) { inputSuggestions?.cancel(); return; }
+        const hasModel = (recommendedTutor?.seeds || []).some((seed) => seed.source === "model" && seed.quality?.status === "verified");
+        if (inputSuggestions && !hasModel) {
+          const before = JSON.stringify([...inputsByBindingId].map(([id, input]) => [id, input.value]));
+          recommendationPending = true;
+          recommend.textContent = projectAnalyzerText("scenario-ai-cancel"); recommend.setAttribute("aria-label", recommend.textContent);
+          setAddStatus("scenario-ai-pending");
+          const status = await inputSuggestions.request();
+          recommendationPending = false;
+          if (inputSuggestions.isDisposed()) return;
+          recommend.textContent = projectAnalyzerText("scenario-recommend-values"); recommend.setAttribute("aria-label", recommend.textContent);
+          if (before !== JSON.stringify([...inputsByBindingId].map(([id, input]) => [id, input.value]))) {
+            setAddStatus("scenario-recommend-edited"); return;
+          }
+          if (!["ready", "empty"].includes(status)) { setAddStatus("scenario-ai-" + status); return; }
+        }
+        applyRecommendedInputs();
+      });
 
       /** Synchronizes every row with the shared graph/scenario selection. */
       function applySelectedBinding() {
@@ -559,8 +581,10 @@ export function getFunctionLogicValuePreviewBrowserSource(): string {
           if (onValueChanged) onValueChanged("");
         },
         /** Lets the explicit Values action combine one ranked seed with declared type representatives. */
-        setRecommendedInputs(tutor) {
+        setRecommendedInputs(tutor, suggestions) {
           recommendedTutor = tutor;
+          inputSuggestions = suggestions;
+          recommend.title = projectAnalyzerText(inputSuggestions ? "scenario-recommend-neural-title" : "scenario-recommend-values-title");
         },
         /** Focuses the first transferred value and leaves a visible local status. */
         focusKnownInputs(names, message) {
@@ -585,8 +609,8 @@ export function getFunctionLogicValuePreviewBrowserSource(): string {
           hint.textContent = projectAnalyzerText("scenario-help");
           clearAll.textContent = projectAnalyzerText("clear-values");
           clearAll.title = projectAnalyzerText("clear-scenario-values");
-          recommend.textContent = projectAnalyzerText("scenario-recommend-values");
-          recommend.title = projectAnalyzerText("scenario-recommend-values-title");
+          recommend.textContent = projectAnalyzerText(recommendationPending ? "scenario-ai-cancel" : "scenario-recommend-values");
+          recommend.title = projectAnalyzerText(inputSuggestions ? "scenario-recommend-neural-title" : "scenario-recommend-values-title");
           recommend.setAttribute("aria-label", recommend.textContent);
           nameColumn.textContent = projectAnalyzerText("name");
           valueColumn.textContent = projectAnalyzerText("scenario-input");
