@@ -3,6 +3,7 @@ import type { FunctionTutorDecisionObservation, FunctionTutorInputAssignment } f
 import type { NeuralInputSpace } from "./inputSpace";
 import type { ScenarioNetwork } from "./network";
 import type { NeuralBoundary } from "./types";
+import { findDiscreteNeuralBoundary } from "./discreteSearch";
 
 export type ObservedInput = { inputs: FunctionTutorInputAssignment[]; observations: Map<string, FunctionTutorDecisionObservation> };
 export type MarginHead = { blockId: string; mean: number; scale: number };
@@ -13,17 +14,21 @@ export function findNeuralBoundary(
   observe: (x: number[]) => ObservedInput | undefined
 ): NeuralBoundary | undefined {
   let x = start.slice();
+  if (space.dimensions.some((dimension) => dimension.choices)) {
+    const discrete = findDiscreteNeuralBoundary(network, head, output, x, space, observe);
+    if (discrete) return discrete;
+  }
   const target = -head.mean / head.scale;
   for (let step = 0; step < 80; step += 1) {
-    const residual = network.predict(x)[output] - target;
-    const gradient = network.inputGradient(x, output);
-    const norm = gradient.reduce((sum, value) => sum + value * value, 1e-9);
-    x = x.map((value, index) => Math.max(-1, Math.min(1, value - Math.max(-0.2, Math.min(0.2, residual * gradient[index] / norm)))));
+    const residual = network.predict(space.features(x))[output] - target;
+    const gradient = network.inputGradient(space.features(x), output).slice(0, x.length);
+    const norm = gradient.reduce((sum, value, index) => sum + (space.dimensions[index].choices ? 0 : value * value), 1e-9);
+    x = x.map((value, index) => space.dimensions[index].choices ? value : Math.max(-1, Math.min(1, value - Math.max(-0.2, Math.min(0.2, residual * gradient[index] / norm)))));
     if (Math.abs(residual) < 1e-5) break;
   }
   // Keep the explanatory pair simple: one numeric leaf changes, other numeric leaves are integral.
   x = x.map((value, index) => space.dimensions[index].choices ? value : Math.round(value * space.dimensions[index].scale) / space.dimensions[index].scale);
-  const gradient = network.inputGradient(x, output);
+  const gradient = network.inputGradient(space.features(x), output).slice(0, x.length);
   const coordinates = gradient.map((value, index) => ({ index, value: space.dimensions[index].choices ? 0 : Math.abs(value) }))
     .filter((item) => item.value >= 1e-8).sort((a, b) => b.value - a.value).slice(0, 3);
   let best: NeuralBoundary | undefined;

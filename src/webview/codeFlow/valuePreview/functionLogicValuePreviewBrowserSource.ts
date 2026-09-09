@@ -149,7 +149,7 @@ export function getFunctionLogicValuePreviewBrowserSource(): string {
       recommend.className = "logic-value-preview-recommend";
       recommend.textContent = projectAnalyzerText("scenario-recommend-values");
       recommend.title = projectAnalyzerText("scenario-recommend-values-title");
-      recommend.setAttribute("aria-label", recommend.title);
+      recommend.setAttribute("aria-label", recommend.textContent);
       columns.className = "logic-value-preview-columns";
       nameColumn.textContent = projectAnalyzerText("name");
       valueColumn.textContent = projectAnalyzerText("scenario-input");
@@ -375,7 +375,7 @@ export function getFunctionLogicValuePreviewBrowserSource(): string {
         if (onValueChanged) onValueChanged("");
       });
 
-      /** Applies one deterministic Tutor seed, completing unknowns from declared broad types. */
+      /** Prefers one complete checked case; declared types complete inputs only when needed. */
       function applyRecommendedInputs() {
         const tutor = recommendedTutor;
         const parameters = tutor?.parameters || [];
@@ -409,9 +409,25 @@ export function getFunctionLogicValuePreviewBrowserSource(): string {
             return value === undefined ? [] : [{ parameterId: parameter.id, value, fromType: true }];
           });
           const known = serializable.length;
-          const allKnown = parameters.length > 0 && known === parameters.length;
-          return { seed, serializable, known, allKnown };
+          const omitted = parameters.filter((parameter) => inputByParameterId.get(parameter.id)?.omitted).length;
+          const allKnown = parameters.length > 0 && known + omitted === parameters.length;
+          const fallbackCount = serializable.filter((input) => input.fromType).length;
+          const checked = seed.quality?.status === "verified";
+          // Equal-coverage cases prefer a useful nonempty partner to an empty guard baseline.
+          const values = (seed.inputs || []).map((input) => input.value).filter(Boolean);
+          const visited = new Set(); let informative = 0;
+          for (let cursor = 0; cursor < values.length && cursor < 256; cursor += 1) {
+            const value = values[cursor]; if (visited.has(value)) continue; visited.add(value);
+            if (value.kind === "string" && value.value.trim().length > 0 || value.kind === "number" && value.value !== 0 || value.kind === "boolean" && value.value) informative += 1;
+            else if (value.kind === "object") values.push(...value.entries.map((entry) => entry.value));
+            else if (value.kind === "array") { if (value.items.length) informative += 1; values.push(...value.items); }
+          }
+          const targetDepth = Math.max(0, ...(seed.quality?.targetBlockIds || []).map((id) => (seed.quality?.checkedBlockIds || []).indexOf(id)));
+          const score = -fallbackCount * 1000 + (seed.source === "model" && checked ? 500 : seed.source === "branch" && checked ? 300 : seed.source === "callsite" ? 200 : 0)
+            + (checked ? 100 : 0) + (Number(seed.quality?.branchCount) || 0) * 10 + Math.min(128, targetDepth) / 129 + Math.min(9, informative) / 1000;
+          return { seed, serializable, known, allKnown, score };
         }).filter((candidate) => candidate.known > 0);
+        candidates.sort((a, b) => Number(b.allKnown) - Number(a.allKnown) || b.score - a.score);
         const selected = candidates.find((candidate) => candidate.allKnown) || candidates[0];
         if (!selected) {
           setAddStatus("scenario-recommend-unavailable");
@@ -571,7 +587,7 @@ export function getFunctionLogicValuePreviewBrowserSource(): string {
           clearAll.title = projectAnalyzerText("clear-scenario-values");
           recommend.textContent = projectAnalyzerText("scenario-recommend-values");
           recommend.title = projectAnalyzerText("scenario-recommend-values-title");
-          recommend.setAttribute("aria-label", recommend.title);
+          recommend.setAttribute("aria-label", recommend.textContent);
           nameColumn.textContent = projectAnalyzerText("name");
           valueColumn.textContent = projectAnalyzerText("scenario-input");
           addName.placeholder = projectAnalyzerText("scenario-variable-placeholder");

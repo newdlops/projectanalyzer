@@ -4,6 +4,20 @@ All notable user-visible changes to Project Analyzer: Code Flow are recorded in
 this file. The changelog starts with the first distribution-documented build;
 earlier local development builds were not tracked here.
 
+## 0.0.1094 - 2026-09-09
+
+### Improved
+
+- Local neural inference now varies string content/length and primitive array sizes
+  instead of freezing empty inputs. Connected source tokens, caller alternatives,
+  text features and learned discrete ranking produce checked boundary pairs.
+- Retain numeric array element inference, explain empty guards with nonempty partners,
+  and find later conditions after preceding guards. Recommendations show actual
+  operands, escaped invisible characters and distinguishable long-text changes.
+- Fill recommended values now prioritizes complete checked cases and useful nonempty
+  partners. Its accessible name matches the visible button, and narrow scenario rows
+  separate the title from the source label.
+
 ## 0.0.1093 - 2026-09-08
 
 ### Changed

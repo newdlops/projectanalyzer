@@ -1,14 +1,14 @@
 /** Bilingual input-quality explanations and explicit model-request lifecycle states. */
 const en = {
   "scenario-ai-action": "Find inputs with neural network",
-  "scenario-ai-help": "Trains a small network on this function’s input and calculated condition values, locally on your CPU. Review a checked boundary pair, then apply its inputs.",
+  "scenario-ai-help": "Learns from numbers, text, collection sizes and calculated condition values on your CPU. Compare inputs that change a branch result, then apply a case.",
   "scenario-ai-idle": "Uses declared input shapes and caller tuples. Source code stays on this computer.",
   "scenario-ai-pending": "Training locally, estimating boundary inputs, and checking their paths…",
   "scenario-ai-cancel": "Cancel suggestions",
   "scenario-ai-ready": "Added {count} suggestions · {model}",
   "scenario-ai-rejected": "Excluded {count} invalid, duplicate or redundant proposals.",
   "scenario-ai-empty": "No additional checked boundary pair was found within the search limits. This does not prove the remaining branches unreachable.",
-  "scenario-ai-unavailable": "Not enough supported numeric comparisons or complete inputs to train. Currently supports bounded TypeScript/JavaScript calculations; external and framework state remain unknown.",
+  "scenario-ai-unavailable": "Not enough supported condition values or complete inputs to train. Supports bounded TypeScript/JavaScript calculations; unsupported calls and framework state remain unknown.",
   "scenario-ai-denied": "Local inference could not start. Reopen the function and retry.",
   "scenario-ai-timeout": "Local inference exceeded its time limit. Try a smaller function.",
   "scenario-ai-invalid-response": "Generated inputs failed validation. Reopen the function and retry.",
@@ -37,14 +37,14 @@ const en = {
 };
 const ko: Record<keyof typeof en, string> = {
   "scenario-ai-action": "신경망으로 입력 찾기",
-  "scenario-ai-help": "이 함수의 입력과 계산된 조건값을 소형 신경망이 로컬 CPU에서 학습합니다. 확인된 경계 입력 쌍을 비교한 뒤 적용하세요.",
+  "scenario-ai-help": "숫자·문자열·배열 길이와 계산된 조건값을 로컬 CPU에서 학습합니다. 분기 결과가 달라지는 입력을 비교한 뒤 적용하세요.",
   "scenario-ai-idle": "선언된 입력 구조와 호출부의 인수 조합을 사용합니다. 소스는 이 컴퓨터에 머뭅니다.",
   "scenario-ai-pending": "로컬 학습 → 경계 입력 추정 → 경로 확인 중…",
   "scenario-ai-cancel": "제안 취소",
   "scenario-ai-ready": "제안 {count}개 추가 · {model}",
   "scenario-ai-rejected": "형식 오류·중복·추가 설명력이 없는 제안 {count}개 제외",
   "scenario-ai-empty": "탐색 범위에서 추가 경계 입력 쌍을 찾지 못했습니다. 남은 분기에 도달할 수 없다는 뜻은 아닙니다.",
-  "scenario-ai-unavailable": "학습할 수치 비교식이나 완전한 입력이 부족합니다. 현재 TypeScript·JavaScript의 제한된 계산을 지원하며, 외부 호출과 프레임워크 상태는 미확인으로 남깁니다.",
+  "scenario-ai-unavailable": "학습할 조건값이나 완전한 입력이 부족합니다. 현재 TypeScript·JavaScript의 제한된 계산을 지원하며, 지원하지 않는 호출과 프레임워크 상태는 미확인으로 남깁니다.",
   "scenario-ai-denied": "로컬 추론을 시작하지 못했습니다. 함수를 다시 열어 시도하세요.",
   "scenario-ai-timeout": "로컬 추론 시간 한도를 넘었습니다. 더 작은 함수에서 시도하세요.",
   "scenario-ai-invalid-response": "생성한 입력이 유효성 검사를 통과하지 못했습니다. 함수를 다시 열어 시도하세요.",

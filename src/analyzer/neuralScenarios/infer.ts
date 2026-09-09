@@ -50,13 +50,14 @@ export async function inferNeuralScenarios(problem: NeuralScenarioProblem, optio
     heads.push({ blockId, mean, scale });
   }
   if (!heads.length) return undefined;
-  const rows = (data: typeof samples): TrainingRow[] => data.map(({ x, sample }) => ({ x, y: heads.map((head) => {
+  const rows = (data: typeof samples): TrainingRow[] => data.map(({ x, sample }) => ({ x: space.features(x), y: heads.map((head) => {
     const observation = sample.observations.get(head.blockId);
     return observation ? (observation.left - observation.right - head.mean) / head.scale : undefined;
   }) }));
   const trainRows = rows(training); const validationRows = rows(validation);
-  const network = new ScenarioNetwork(space.dimensions.length, heads.length, random);
-  const epochs = Math.max(0, Math.min(400, Math.trunc(options.epochs ?? 240)));
+  const richInputs = space.featureCount > space.dimensions.length;
+  const network = new ScenarioNetwork(space.featureCount, heads.length, random, richInputs ? 48 : 24);
+  const epochs = Math.max(0, Math.min(400, Math.trunc(options.epochs ?? (richInputs ? 360 : 240))));
   const initialLoss = network.loss(trainRows);
   await network.train(trainRows, epochs, options.signal);
   const errors = heads.map((_, output) => {
@@ -69,7 +70,7 @@ export async function inferNeuralScenarios(problem: NeuralScenarioProblem, optio
     if (errors[output] > 0.25) continue;
     const head = heads[output];
     const ranked = training.filter(({ sample }) => sample.observations.has(head.blockId))
-      .sort((a, b) => Math.abs(network.predict(a.x)[output] + head.mean / head.scale) - Math.abs(network.predict(b.x)[output] + head.mean / head.scale))
+      .sort((a, b) => Math.abs(network.predict(space.features(a.x))[output] + head.mean / head.scale) - Math.abs(network.predict(space.features(b.x))[output] + head.mean / head.scale))
       .slice(0, 4).map((item) => item.x);
     // Anchor early attempts to complete caller/planner tuples for readable nearby inputs.
     const starts = [...examples.slice(0, 2), ...ranked];

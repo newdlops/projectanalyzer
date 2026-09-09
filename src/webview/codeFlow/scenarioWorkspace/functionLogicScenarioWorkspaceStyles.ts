@@ -56,7 +56,6 @@ export function getFunctionLogicScenarioWorkspaceStyles(): string {
       .logic-scenario-workspace-row { padding:5px 0; border-bottom:1px solid var(--vscode-panel-border); }
       .logic-scenario-workspace-table th, .logic-scenario-workspace-table td { display:grid; grid-template-columns:minmax(82px, .38fr) minmax(0, 1fr); gap:6px; border-bottom:0; }
       .logic-scenario-workspace-table th::before, .logic-scenario-workspace-table td::before { color:var(--vscode-descriptionForeground); content:attr(data-label); font-weight:700; }
-      .logic-scenario-workspace-row-selector { display:block; }
       .logic-scenario-workspace-action { display:grid !important; }
     }
     @media (pointer:coarse) { .logic-scenario-workspace-play, .logic-scenario-workspace-detail button, .logic-scenario-workspace-row-selector, .logic-scenario-input-suggestions button { min-height:44px; } }

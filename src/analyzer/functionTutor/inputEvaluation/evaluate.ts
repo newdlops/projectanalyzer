@@ -3,6 +3,7 @@ import type { FunctionTutorDeclarationAnalysis, FunctionTutorOperation, Function
 import { stringifyFunctionTutorStaticValue } from "../staticValue";
 import { evaluateInputBinary, evaluateInputExpression, inputValueTruth, readInputMember, unknownInputValue, writeInputMember } from "./expression";
 import type { FunctionTutorDecisionObservation, FunctionTutorInputAssignment, FunctionTutorInputEvaluation } from "./types";
+import { observeInputDecision } from "./observation";
 
 /** Interprets a bounded supported IR prefix, stopping at unknown effects or control. */
 export function evaluateFunctionTutorInputs(
@@ -60,14 +61,7 @@ export function evaluateFunctionTutorInputs(
       const value = evaluateInputExpression(block.decision.expression, bindings);
       const truth = inputValueTruth(value);
       if (truth === undefined || block.decision.continuationId) return { ...result, reason: "unknown-input" };
-      const expression = block.decision.expression;
-      if (options.observeDecision && expression.kind === "binary" && ["lt", "lte", "gt", "gte", "eq", "neq", "strict-eq", "strict-neq"].includes(expression.operator)) {
-        const left = evaluateInputExpression(expression.left, bindings);
-        const right = evaluateInputExpression(expression.right, bindings);
-        if (left.kind === "number" && right.kind === "number" && Number.isFinite(left.value - right.value)) {
-          options.observeDecision({ blockId, operator: expression.operator, left: left.value, right: right.value, outcome: truth });
-        }
-      }
+      if (options.observeDecision) { const observation = observeInputDecision(blockId, block.decision.expression, bindings, truth); if (observation) options.observeDecision(observation); }
       const matches = block.decision.outcomes.filter((outcome) => outcome.matches === (truth ? "true" : "false") || (!truth && outcome.matches === "loop-exit"));
       choices = choices.filter((edge) => matches.some((outcome) => outcome.edgeId === edge.edgeId));
       if (choices.length === 1) result.decisions.push({ blockId, edgeId: choices[0].edgeId, outcome: truth ? "true" : "false" });

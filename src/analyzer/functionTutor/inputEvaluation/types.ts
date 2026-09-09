@@ -13,11 +13,14 @@ export type FunctionTutorInputEvaluation = {
 
 export type FunctionTutorInputAssignment = { parameterId: string; value: FunctionTutorStaticValue; omitted?: boolean };
 
-/** A reached numeric comparison, after prior operations; no label exists for an unreached block. */
+/** A reached comparison distance, after prior operations; unreached blocks have no label. */
 export type FunctionTutorDecisionObservation = {
   blockId: string;
   operator: string;
   left: number;
   right: number;
   outcome: boolean;
+  metric?: "numeric" | "string-distance" | "truthiness";
+  leftValue?: FunctionTutorStaticValue;
+  rightValue?: FunctionTutorStaticValue;
 };

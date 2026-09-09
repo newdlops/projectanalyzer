@@ -183,6 +183,10 @@ dedicated Function Visualizer tab with a bounded control-flow graph:
 - optional **Find inputs with neural network** in **Values & paths**: train our small
   function-specific network locally from typed inputs and calculated conditions;
   review checked boundary pairs and held-out error before explicitly applying inputs
+- neural input search varies string content/length and primitive array sizes, using
+  caller values and connected condition tokens. It keeps meaningful empty guards
+  alongside nonempty cases and prefers complete checked cases when filling inputs.
+  [Supported calculations and measured limits](docs/NEURAL_SCENARIOS.md)
 - row-specific **Apply & Play** stories that follow START → calculations and writes →
   selected decisions → external effects → result, moving the visible token along an
   exact graph edge when available and keeping textual camera-follow beats otherwise

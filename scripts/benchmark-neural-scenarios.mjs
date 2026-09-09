@@ -16,6 +16,10 @@ const corpus = [
   ["quadratic", "x: number", "const score = x * x;", "score === 169"],
   ["preceding-guard", "x: number", "if (x < 0) return \"rejected\";\n const score = x * 8 + 3;", "score === 179"],
   ["modulo", "x: number", "const score = x % 17;", "score === 6"],
+  ["text-length", "name: string", "const score = name.length * 4 + 3;", "score === 39"],
+  ["text-token", "name: string", "const score = \"role/\" + name;", "score === \"role/reviewer\""],
+  ["empty-then-length", "name: string", "if (name === \"\") return \"empty\";\n const score = name.length * 2;", "score === 14"],
+  ["collection-length", "items: number[]", "const score = items.length * 5;", "score === 35"],
   ["external-gap", "x: number", "const score = external(x);", "score === 173"]
 ];
 const records = [];

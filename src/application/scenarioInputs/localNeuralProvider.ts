@@ -21,14 +21,14 @@ export function createLocalNeuralScenarioProvider(): ScenarioInputProvider {
     catch (error) { if (signal.aborted) throw new ScenarioInputError("cancelled"); throw error; }
     if (!result) throw new ScenarioInputError("unavailable");
     const scenarios = result.boundaries.flatMap((boundary) => {
-      const label = model.declaration.program.blocks.find((block) => block.blockId === boundary.blockId)?.label.slice(0, 180) ?? "";
+      const label = model.declaration.program.blocks.find((block) => block.blockId === boundary.blockId)?.label.slice(0, 80) ?? "";
       const difference = describeInputDifference(model, boundary.inputs, boundary.neighbor);
       const observations = [boundary.inputs, boundary.neighbor].map((inputs) => {
         let observation: FunctionTutorDecisionObservation | undefined;
         evaluateFunctionTutorInputs(model.declaration, inputs, { observeDecision(value) { if (value.blockId === boundary.blockId && !observation) observation = value; } });
         return observation;
       });
-      const outcomes = observations.map((item) => item ? `${formatNumber(item.left)} / ${formatNumber(item.right)} (${language === "ko" ? item.outcome ? "참" : "거짓" : String(item.outcome)})` : "?");
+      const outcomes = observations.map((item) => item ? `${item.leftValue ? displayValue(item.leftValue) : formatNumber(item.left)}${item.metric === "truthiness" ? "" : " / " + (item.rightValue ? displayValue(item.rightValue) : formatNumber(item.right))} (${language === "ko" ? item.outcome ? "참" : "거짓" : String(item.outcome)})` : "?");
       return [boundary.inputs, boundary.neighbor].map((tuple, index) => {
         const inputs = Object.create(null) as Record<string, unknown>;
         for (const parameter of model.declaration.parameters) {
@@ -48,7 +48,7 @@ export function createLocalNeuralScenarioProvider(): ScenarioInputProvider {
             : `A neural boundary confirmed by static checks. ${difference.name}: ${difference.values.join(" → ")}. Left / right operands of ${label}: ${outcomes.join(" → ")}.` };
       });
     });
-    return { modelName: "Local MLP · v1", text: JSON.stringify({ scenarios }), boundaries: result.boundaries, training: result.report };
+    return { modelName: "Local MLP · v2", text: JSON.stringify({ scenarios }), boundaries: result.boundaries, training: result.report };
   } };
 }
 
@@ -63,13 +63,30 @@ function describeInputDifference(model: FunctionTutorBuildModel, left: NeuralSce
     if (JSON.stringify(item.left) === JSON.stringify(item.right)) continue;
     if (item.left.kind === "object" && item.right.kind === "object") {
       const rightValue = item.right;
+      if (item.left.entries.length !== rightValue.entries.length || item.left.entries.some((entry) => !rightValue.entries.some((other) => other.key === entry.key))) {
+        return { name: item.name.slice(0, 40), values: [item.left, item.right].map(displayValue) };
+      }
       queue.push(...item.left.entries.map((entry) => ({ name: item.name + "." + entry.key, left: entry.value, right: rightValue.entries.find((other) => other.key === entry.key)!.value })));
     } else if (item.left.kind === "array" && item.right.kind === "array") {
+      if (item.left.items.length !== item.right.items.length) return { name: item.name.slice(0, 33) + ".length", values: [String(item.left.items.length), String(item.right.items.length)] };
       const rightValue = item.right;
       queue.push(...item.left.items.map((value, index) => ({ name: `${item.name}[${index}]`, left: value, right: rightValue.items[index] })));
-    } else return { name: item.name.slice(0, 64), values: [item.left, item.right].map((value) => value.kind === "number" ? formatNumber(value.value) : JSON.stringify(value).slice(0, 64)) };
+    } else {
+      if (item.left.kind === "string" && item.right.kind === "string" && (Math.max(JSON.stringify(item.left.value).length, JSON.stringify(item.right.value).length) > 56 || displayValue(item.left) === displayValue(item.right))) {
+        let offset = 0;
+        while (offset < Math.min(item.left.value.length, item.right.value.length) && item.left.value[offset] === item.right.value[offset]) offset += 1;
+        return { name: `${item.name.slice(0, 30)}[${offset}]`, values: [item.left, item.right].map((value) => `${displayValue({ kind: "string", value: value.value[offset] ?? "" })} (length ${value.value.length})`) };
+      }
+      return { name: item.name.slice(0, 40), values: [item.left, item.right].map(displayValue) };
+    }
   }
   return { name: "input", values: ["1", "2"] };
 }
 /** Exact round-trippable digits prevent different equality outcomes appearing to have identical values. */
 function formatNumber(value: number): string { return Object.is(value, -0) ? "-0" : String(value); }
+/** Full inputs remain in the editor; operand summaries are bounded and expose invisible characters. */
+function displayValue(value: Value): string {
+  const text = value.kind === "number" ? formatNumber(value.value) : value.kind === "string" || value.kind === "boolean" ? JSON.stringify(value.value) : value.kind === "null" ? "null" : JSON.stringify(value);
+  const visible = text.replace(/[\u200b-\u200f\u202a-\u202e\u2060-\u206f\ufeff]/gu, (character) => "\\u" + character.charCodeAt(0).toString(16).padStart(4, "0"));
+  return visible.length <= 56 ? visible : visible.slice(0, 30) + "…" + visible.slice(-10) + (value.kind === "string" ? ` (length ${value.value.length})` : "");
+}
