@@ -25,6 +25,14 @@ failed analysis must leave the current input intact, with a visible explanation.
 Python acceptance includes regex-shaped text, same-file pure validation, duplicate
 handling on the second visit, multiline priority and concrete before/after values.
 
+Parameter inference must preserve complete tuples, allocate text features to every
+parameter and keep already satisfied outer guards while learning deeper conditions.
+Candidate evidence includes Python assignments/helpers, integer constants and
+source-connected string pieces. Learned joint ranking and up to three adaptive
+training stages use a shared teacher budget; independently checked outcomes still
+decide acceptance. Include multi-string signatures, large integers, integer loops,
+three nested derived equalities and exact fractional guards in regression coverage.
+
 Acceptance: boundary equality and both sides, late/deep/compound guards, caller
 tuple correlation, duplicate rejection, malformed/model-absent/cancelled/error
 states, stale-response rejection, and clear partial results. Preserve current

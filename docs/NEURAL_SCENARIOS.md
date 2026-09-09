@@ -1,5 +1,74 @@
 # Local neural scenario inference
 
+## Parameter inference — September 10, 2026 (v4)
+
+The 0.0.1095 pipeline missed all six newly reproduced target cases below. Two
+Python strings exceeded the feature cap, Python numeric constants did not expand
+the input domain, declared integers were sampled as floats, composed strings lacked
+connected pieces, and newly reached inner comparisons were never learned.
+
+`Local MLP · v4` shares a cached text-feature budget across parameters, propagates
+Python comparison evidence through assignments and same-file helpers, and ranks
+joint categorical inputs with learned predictions. Up to three adaptive stages
+collect and learn newly reached comparisons. Coordinates fixed among reached
+training tuples preserve successful outer guards; new prefixes receive enough
+mutations for both fitting and held-out checks. Power-of-two numeric normalization
+also avoids changing `31` into `31.000000000000004` or rounding fractional guards.
+
+The committed diagnostic corpus now has 18 programs, with 16 checked targets found.
+The original ten successes remain; modulo still fails the quality gate and external
+state still lacks supported labels. New cases use the same 1,400-evaluation ceiling:
+
+| New diagnostic | 0.0.1095 target | v4 target | Held-out MAE, untrained → trained | Teacher checks |
+| --- | --- | --- | --- | --- |
+| Python large integer | Missed | Found | 0.783 → 0.018 | 415 |
+| Two Python strings | Missed | Found | 0.833 → 0.036 | 648 |
+| Python derived string | Missed | Found | 0.896 → 0.008 | 154 |
+| Python integer loop | Missed | Found | 0.794 → 0.058 | 236 |
+| Nested derived equalities | Missed | Found, both decisions | 0.735 → 0.012 | 604 |
+| Composed TypeScript string | Missed | Found | 0.742 → 0.041 | 649 |
+
+Uniform random sampling over the improved codec also finds the large-integer,
+derived-string and integer-loop targets. It misses the other three new targets
+with this seed and budget. All untrained runs retain the quality gate and return
+zero pairs. Candidate generation, adaptive sampling and trained ranking changed
+together, so this is a diagnostic improvement, not isolated proof of neural
+superiority or general branch coverage. Unit regressions use different constants
+and strings, three nested guards, a fractional outer guard, and 16 text parameters.
+
+Rendered QA also exposed a TS/JS presentation gap: attaching planned condition
+labels discarded the concrete-result marker, hiding an already computed return.
+Matched paths now keep that marker only when replay finishes exactly within its
+budget. Partial paths remain nonconcrete. Both sides of the three-level equality
+show their calculated return in the scenario explanation.
+
+### Verification record — 0.0.1096
+
+- Full TypeScript suite: 707 tests, 703 passed. The same four existing failures
+  remain: dynamic callsite type baseline, nested declared-object representatives,
+  advanced private Scenario calls and source-reveal architecture expectations.
+  All new parameter/replay regressions passed. Package tools: 12 passed. Compilation,
+  whitespace and release metadata checks passed. The VSIX has 445 files, 3.27 MiB
+  archived and 13.73 MiB unpacked, within the unchanged package budgets.
+- Actual generated webview and real local inference at 1440×900, 768×1024 and
+  390×844: two Python arguments reach `Token` / `access.key`; three nested TS
+  comparisons reach `37, 31, 17`, with the checked neighbor `37, 31, 16` also
+  explained. First-click training/application, pending state, keyboard activation,
+  completion focus, concrete returns, explicit application and playback passed.
+  Document/detail overflow and page errors: none. Desktop/tablet/mobile rendered
+  screenshots were separately inspected; existing tokens and layouts are retained.
+- Python regex/checksum regression at the same sizes retained nonempty duplicate
+  inputs, concrete array changes and returns. Concurrent edits were preserved;
+  cancellation retained the original input. Page errors: none. The in-app Browser
+  had no connection; standalone Chromium replaced only VS Code message transport.
+  No screen-reader or new specialist accessibility audit is claimed.
+- The 0.0.1096 VSIX was installed in official VS Code and the previously reported
+  function's workspace reloaded. Its first recommendation click applied a checked
+  labeled multiline input, added seven accepted cases and displayed the expected
+  two-item return. The installed model reported `Local MLP · v4`, 235 fitting and
+  58 held-out samples with normalized error 0.137. The rendered installed view
+  was inspected separately. The private source and screenshot are not committed.
+
 ## Python and first-click recommendations — September 10, 2026
 
 The 0.0.1094 change covered TS/JS only. Inspecting the actual installed function
@@ -111,13 +180,59 @@ Functional acceptance includes real weight learning, gradient checks, masked unr
 
 `src/analyzer/neuralScenarios/index.ts` exports `inferNeuralScenarios(problem, options)` and typed problem/result/report contracts. `src/application/scenarioInputs/index.ts` exposes the local provider and typed model adapter. The Host preserves graph/request correlation and independently rechecks boundary witnesses before projection. Neither the browser nor source text supplies executable instructions.
 
-One request uses at most 16 parameters, 32 input coordinates, 192 encoded features, 16 observed comparison heads, 400 unique sampled tuples, 1,400 teacher evaluations during sampling/search, and four pairs/eight proposals. Explanations and Host validation perform additional bounded checks of those pairs. Numeric-only inputs use 24 tanh units and 240 full-batch Adam epochs; expanded text/collection features use 48 units and 360 epochs. Both have a learned linear residual. Unique tuples are split 4:1 before fitting normalizers or weights, so small finite domains have fewer than 320/80 samples. Sampling and training yield to cancellation; the existing Host timeout is 120 seconds. Python's first three reached occurrences of each condition can supply separate comparison heads; TS/JS retains its first-occurrence target. Final checks compare the same occurrence.
+One request uses at most 16 parameters, 32 input coordinates, 192 encoded features,
+16 observed comparison heads, 1,400 teacher evaluations and four pairs/eight
+proposals. Initial collection retains up to 400 unique tuples. Up to three stages
+fit at most 800 tuples each, retaining initial coverage and recent reached prefixes.
+Corpus sampling assigns tuples 4:1 to fitting/held-out data before normalization or
+weight fitting; search feedback is fitting data only. Cached tuples never change
+split. Held-out tuples never seed subsequent corpus mutations. A head requires at
+least 16 fitting and four held-out observations with nonconstant labels.
+Explanations and Host validation perform additional bounded checks of the pairs.
+Each stage uses 24 tanh units/240 full-batch Adam epochs for numeric inputs or
+48 units/360 epochs for expanded features, plus a learned linear residual. The
+report counts total epochs across stages; losses and sample counts describe the
+last fit. Sampling and training yield to cancellation; the Host timeout remains
+120 seconds. Python's first three reached occurrences can supply separate heads;
+TS/JS retains its first occurrence. Final checks compare the same occurrence.
 
-Numeric dimensions use a symmetric finite domain: twice the largest scanned IR numeric literal or example magnitude, with a minimum radius of 16 and maximum radius of 1,000,000. Numeric object leaves and existing array elements can vary. A string domain retains at most 160 alternatives for TS/JS or 400 for Python, each up to 512 UTF-16 code units. Primitive arrays can range from zero to 32 elements when a complete element template is available; numeric elements present in the original/declared shape remain independent coordinates and are masked when absent. Nested arrays/objects retain their fixed shape and existing leaf search. Declared literals stay within their union. Unknown dynamic arguments are not inferred as facts. The TS/JS teacher still lacks string method calls such as `trim` and regular expressions; Python supports only the explicitly enumerated subset above. Arbitrary library calls, object shape invention and framework state remain unsupported. This is not a semantic language model, general constraint solver, runtime fuzzer, or framework simulator.
+Numeric dimensions use a symmetric finite domain: twice the largest scanned IR or
+Python bytecode numeric literal/example magnitude, rounded up to a power of two,
+with radius 16 through 2^20. Explicit Python `int` root parameters decode only to
+integers. Numeric object leaves and existing array elements can vary. A string
+domain retains at most 160 alternatives for TS/JS or 400 for Python, each up to
+512 UTF-16 code units. Text dimensions share the 192-feature budget; regex-specific
+features are used only when supported patterns exist. Primitive arrays can range
+from zero to 32 elements when a complete element template is available; numeric
+elements present in the original/declared shape remain independent coordinates
+and are masked when absent. Nested containers retain fixed shapes. Declared
+literals stay within their union. Unknown dynamic arguments are not facts. The
+TS/JS teacher still lacks string methods such as `trim` and regex; Python supports
+only the subset above. Arbitrary library calls, object shape invention and framework
+state remain unsupported. This is not a semantic language model, general constraint
+solver, runtime fuzzer, or framework simulator.
 
-Search uses up to six starts, including complete caller/planner anchors, up to 80 learned-gradient steps, and up to three numeric coordinates with at most 56 bisection refinements each. Discrete search checks at most 48 alternatives per coordinate/start within the shared budget, preserving numeric coordinates while varying one text/collection coordinate. Integer and short-decimal pairs are preferred across numeric coordinates; an exact representable calibrated value may also be used. Explanations preserve round-trippable numeric digits, escape invisible text characters, and show lengths and the first changed offset when full strings are too long. Full inputs stay available in the editor. Static verification must still succeed. A different outcome at a later external effect is never fabricated. Other languages and framework-owned state keep their existing static guides and explicit gaps.
+Search uses up to 14 starts, including ranked fitting tuples and complete
+caller/planner/source anchors, up to 80 learned-gradient steps, and up to three
+numeric coordinates with at most 56 bisection refinements each. Joint categorical
+ranking has beam width four, two passes and at most 8,192 predictions per start;
+it preserves numeric and fixed guard coordinates. Discrete witness checks examine
+at most 48 alternatives per coordinate/start within the shared teacher budget.
+Final pairs vary one coordinate, preserving actual condition and input changes.
+Numeric refinement prefers readable integers/short decimals but preserves fixed
+fractional guards and exact representable calibrated roots. Explanations retain
+round-trippable digits, invisible-character escapes, lengths and first changed
+offsets. Full inputs remain editable. Static verification must still succeed;
+later external effects are never fabricated. Other languages and framework state
+keep their static guides and explicit gaps.
 
-`inputEvidence.ts` owns parser-backed vocabulary/provenance, `inputSpace.ts` owns the typed codec and features, `network.ts` owns weight learning, and `search.ts` / `discreteSearch.ts` own learned search and bounded refinement. `functionTutor/inputEvaluation/observation.ts` owns the teacher's labels independently of the network. These files remain internal to their feature public APIs.
+`inputEvidence.ts` owns vocabulary/provenance, with bounded Python helper summaries
+in `pythonEvidence.ts`. `inputSpace.ts` owns the typed codec and `textFeatures.ts`
+owns cached input-only text encoding. `infer.ts` owns adaptive sample collection and
+stage budgets; `network.ts` owns weight learning; `search.ts` / `discreteSearch.ts`
+own learned search and refinement. The Function Tutor evaluator and shared Python
+machine own teacher labels independently. These files remain internal to their
+feature public APIs.
 
 ## Diagnostic results — September 9, 2026 (v2)
 

@@ -11,6 +11,34 @@ import { getFunctionVisualizerBrowserSource } from "../../webview/functionVisual
 import { getFunctionLogicValueFlowPlaybackBrowserSource } from "../../webview/codeFlow/dataFlow";
 import { getBrowserLocalizationSource } from "../../localization/browserCatalog";
 import { getFunctionTutorBrowserSource, getFunctionTutorStyles } from "../../webview/codeFlow/tutor";
+import { getFunctionLogicScenarioEvaluationBrowserSource } from "../../webview/codeFlow/scenarioEvaluation";
+import { getFunctionLogicScenarioEvaluatorBrowserSource, getFunctionLogicValuePreviewBrowserSource } from "../../webview/codeFlow/valuePreview";
+import { createFunctionTutorPayload } from "../../application/codeFlow/functionTutor";
+import { buildInputModel } from "./helpers/neuralScenarioFixtures";
+
+test("checked nested parameter paths retain both concrete returns in the scenario explanation", async () => {
+  const model = await buildInputModel('export function inspect(x: number, y: number, z: number) {\n if (x * 5 + 3 === 188) {\n  if (y * 7 - 2 === 215) {\n   if (z * 3 + 4 === 55) return "reached";\n  }\n }\n return "ordinary";\n}');
+  const payload = createFunctionTutorPayload(model, {
+    flowId: "code-flow:nested-parameter-test",
+    blockIds: new Map(model.functionLogic.blocks.map((block, index) => [block.id, `block-${index}`])),
+    edgeIds: new Map(model.functionLogic.edges.map((edge, index) => [edge.id, `edge-${index}`])),
+    bindingIds: new Map(model.declaration.program.bindings.map((binding, index) => [binding.bindingId, `binding-${index}`])),
+    createEvidenceToken: () => undefined
+  })!;
+  const browser = new Function("projectAnalyzerText", `${getFunctionLogicValuePreviewBrowserSource()}${getFunctionLogicScenarioEvaluatorBrowserSource()}${getFunctionLogicScenarioEvaluationBrowserSource()}${getFunctionTutorBrowserSource()}${getFunctionLogicScenarioWorkspaceBrowserSource()}
+    return { run: functionTutorRunScenario, resolve: functionTutorResolveScenarioPaths, effect: functionTutorScenarioEffectText };`)(
+    (key: string, params?: { value?: string }) => key + ":" + (params?.value ?? ""));
+  for (const [z, expected] of [[17, "reached"], [16, "ordinary"]] as const) {
+    const values = [37, 31, z];
+    const seed = { source: "model", certainty: "inferred", inputs: payload.parameters.map((parameter, index) => ({
+      parameterId: parameter.id, value: { kind: "number", value: values[index] }, certainty: "inferred" })) };
+    const evaluated = browser.run(payload, seed); const paths = browser.resolve(payload, seed, evaluated);
+    assert.equal(paths.length, 1); assert.equal(paths[0].limited, false); assert.equal(paths[0].scenario.concrete, true);
+    assert.equal(paths[0].scenario.decisions.length, 3); assert.equal(browser.effect(paths[0]), "may-return:" + expected);
+    const limited = browser.resolve(payload, seed, evaluated.map((path: object) => ({ ...path, limited: true, certainty: "unknown" })));
+    assert.ok(limited.every((path: { scenario?: { concrete?: boolean } }) => !path.scenario?.concrete));
+  }
+});
 
 test("neural cases remain visible when symbolic paths exhaust the table budget", () => {
   const rows = new Function(`${getFunctionLogicScenarioWorkspaceBrowserSource()}; return readFunctionTutorScenarioRows;`)();

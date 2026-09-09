@@ -1,6 +1,9 @@
 /** Public contracts for bounded, function-specific neural training and input search. */
 import type { FunctionTutorDeclarationAnalysis, FunctionTutorInputAssignment, FunctionTutorStaticValue } from "../functionTutor";
 
+/** Internal candidate hints, shared by language adapters; these are not verified inputs. */
+export type NeuralInputEvidence = { strings: string[]; lengths: number[] };
+
 export type NeuralScenarioProblem = {
   declaration: FunctionTutorDeclarationAnalysis;
   /** Whole caller/planner tuples; no observed-call claim is made for mutations. */
@@ -13,6 +16,7 @@ export type NeuralTrainingReport = {
   dimensions: number;
   heads: number;
   parameters: number;
+  /** Total optimization epochs across adaptive stages; losses below describe the last fit. */
   epochs: number;
   initialLoss: number;
   finalLoss: number;

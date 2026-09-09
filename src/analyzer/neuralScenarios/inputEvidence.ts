@@ -1,12 +1,17 @@
 /** Bounded input provenance and vocabulary extraction from parser-owned expressions, never return-label guessing. */
 import type { FunctionTutorExpression as Expression, FunctionTutorStaticValue as Value } from "../functionTutor";
-import type { NeuralScenarioProblem } from "./types";
-
-export type NeuralInputEvidence = { strings: string[]; lengths: number[] };
+import type { NeuralInputEvidence, NeuralScenarioProblem } from "./types";
+import { collectPythonNeuralEvidence } from "./pythonEvidence";
 
 /** Propagates parameter ownership through assignments so derived comparison literals can seed input mutations. */
 export function collectNeuralInputEvidence(problem: NeuralScenarioProblem): Map<string, NeuralInputEvidence> {
   const result = new Map(problem.declaration.parameters.map((parameter) => [parameter.id, { strings: [] as string[], lengths: [] as number[] }]));
+  if (problem.declaration.program.python) {
+    const python = collectPythonNeuralEvidence(problem.declaration.program.python);
+    for (const parameter of problem.declaration.parameters) {
+      const facts = python.get(parameter.name); if (facts) result.set(parameter.id, facts);
+    }
+  }
   const owners = new Map<string, Set<string>>();
   for (const binding of problem.declaration.program.bindings) {
     const parameter = problem.declaration.parameters.find((item) => item.id === binding.parameterId || item.bindingId === binding.bindingId);
@@ -75,6 +80,9 @@ export function createNeuralStringDomain(observed: string[], evidence: NeuralInp
     if (!affix || value === affix) continue;
     if (value.startsWith(affix)) derived.push(value.slice(affix.length));
     if (value.endsWith(affix)) derived.push(value.slice(0, -affix.length));
+    // A composed comparison can constrain several parameters separated by a
+    // source-owned delimiter. Keep its pieces as candidates for learned joint search.
+    if (affix.length <= 8 && /^[^\p{L}\p{N}]+$/u.test(affix) && value.includes(affix)) derived.push(...value.split(affix).slice(0, 8));
   }
   const meaningful = [...new Set([...observed.filter(Boolean), ...derived.filter(Boolean), ...roots.filter(Boolean)])].slice(0, 24);
   const base = meaningful[0] || name.replace(/[^\p{L}\p{N}]/gu, "").slice(0, 24) || "a";

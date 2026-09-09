@@ -2,9 +2,9 @@
 import type { FunctionTutorInputAssignment as Input, FunctionTutorStaticValue as Value } from "../functionTutor";
 import type { NeuralScenarioProblem } from "./types";
 import { collectNeuralInputEvidence, createNeuralStringDomain } from "./inputEvidence";
-import { createPythonRegexRuntime } from "../../shared/pythonScenario";
+import { encodeNeuralTextChoices } from "./textFeatures";
 
-type Dimension = { parameter: number; path: string[]; scale: number; choices?: Value[]; featureKind?: "text" | "collection"; textReferences?: string[]; numericElements?: boolean };
+type Dimension = { parameter: number; path: string[]; scale: number; choices?: Value[]; featureKind?: "text" | "collection"; textReferences?: string[]; numericElements?: boolean; integer?: boolean };
 export type NeuralInputSpace = {
   dimensions: Dimension[];
   featureCount: number;
@@ -36,10 +36,12 @@ export function createNeuralInputSpace(problem: NeuralScenarioProblem): NeuralIn
     if (!value || typeof value !== "object" || visited.has(value)) continue;
     visited.add(value);
     const record = value as Record<string, unknown>;
-    if (record.kind === "number" && typeof record.value === "number" && Number.isFinite(record.value)) scale = Math.max(scale, Math.abs(record.value));
+    if ((record.kind === "number" || record.op === "literal") && typeof record.value === "number" && Number.isFinite(record.value)) scale = Math.max(scale, Math.abs(record.value));
     pending.push(...Object.values(record));
   }
-  scale = Math.min(1e6, scale * 2);
+  // Power-of-two scaling preserves binary64 values across normalization. An
+  // arbitrary radius can turn 31 into 31.000000000000004 and miss an equality.
+  scale = Math.min(2 ** 20, 2 ** Math.ceil(Math.log2(scale * 2)));
   const dimensions: Dimension[] = [];
   const queue = base.map((input, parameter) => ({ value: input.value, parameter, path: [] as string[] }));
   for (let cursor = 0; cursor < queue.length; cursor += 1) {
@@ -72,15 +74,22 @@ export function createNeuralInputSpace(problem: NeuralScenarioProblem): NeuralIn
         continue;
       }
     }
-    if (item.value.kind === "number") dimensions.push({ ...item, scale });
+    if (item.value.kind === "number") dimensions.push({ ...item, scale,
+      integer: problem.declaration.language === "python" && !item.path.length && /^int$/u.test(parameter.typeText?.trim() ?? "") });
     else if (item.value.kind === "object") queue.push(...item.value.entries.map((entry) => ({ ...item, value: entry.value, path: [...item.path, entry.key] })));
     else if (item.value.kind === "array") queue.push(...item.value.items.map((value, index) => ({ ...item, value, path: [...item.path, String(index)] })));
   }
   if (!dimensions.length || dimensions.length > 32) return undefined;
   const pythonPatterns = problem.declaration.program.python?.regexPatterns ?? [];
-  const pythonRegex = createPythonRegexRuntime();
-  const pythonFeatureCount = problem.declaration.program.python ? 134 + pythonPatterns.length : 0;
-  const featureCount = dimensions.length + dimensions.reduce((sum, dimension) => sum + (dimension.featureKind === "text" ? 20 + (dimension.textReferences?.length ?? 0) + pythonFeatureCount : dimension.featureKind === "collection" ? 5 : 0), 0);
+  const textCount = dimensions.filter((dimension) => dimension.featureKind === "text").length;
+  const collectionCount = dimensions.filter((dimension) => dimension.featureKind === "collection").length;
+  const textBudget = Math.floor((192 - dimensions.length - collectionCount * 5) / Math.max(1, textCount));
+  if (textCount && textBudget < 4) return undefined;
+  // Cache source-only encodings once. Neither parameter values nor later teacher
+  // outcomes change this representation or leak labels into network features.
+  const textFeatures = dimensions.map((dimension) => dimension.featureKind === "text"
+    ? encodeNeuralTextChoices(dimension.choices!.map((value) => (value as Value & { kind: "string" }).value), dimension.textReferences ?? [], textBudget, pythonPatterns) : undefined);
+  const featureCount = dimensions.length + collectionCount * 5 + textFeatures.reduce((sum, choices) => sum + (choices?.[0]?.length ?? 0), 0);
   if (featureCount > 192) return undefined;
   return {
     dimensions,
@@ -90,34 +99,7 @@ export function createNeuralInputSpace(problem: NeuralScenarioProblem): NeuralIn
       dimensions.forEach((dimension, index) => {
         const value = choiceAt(dimension, vector[index]);
         if (dimension.featureKind === "text" && value?.kind === "string") {
-          const lengthScale = Math.max(1, ...dimension.choices!.map((item) => item.kind === "string" ? item.value.length : 0));
-          const text = value.value;
-          result.push(text.length / lengthScale, text.trim().length / lengthScale,
-            text.length ? (text.match(/\s/gu)?.length ?? 0) / text.length : 0, text.length ? (text.match(/[0-9]/gu)?.length ?? 0) / text.length : 0);
-          for (const position of [0, 1, 2, 3, Math.max(0, text.length - 4), Math.max(0, text.length - 3), Math.max(0, text.length - 2), Math.max(0, text.length - 1)]) {
-            const code = text.charCodeAt(position) || 0; result.push((code >>> 8) / 255, (code & 255) / 255);
-          }
-          // Token-relative features retain interior characters that endpoint embeddings lose.
-          // References come from inputs/source vocabulary, never a teacher's observed condition value.
-          for (const reference of dimension.textReferences ?? []) {
-            let distance = Math.abs(text.length - reference.length);
-            for (let i = 0; i < Math.min(text.length, reference.length); i += 1) if (text[i] !== reference[i]) distance += 1;
-            result.push(distance / lengthScale);
-          }
-          if (pythonFeatureCount) {
-            const digits = text.match(/[0-9]/gu) ?? [];
-            result.push(digits.length / 64, text.split(/\r\n|[\r\n]/u).length / 32);
-            // Position/category features retain fixed-width digit changes through separators and labels.
-            // They describe the input only; no validator outcome or teacher-calculated operand is encoded.
-            for (let index = 0; index < 12; index += 1) {
-              const digit = digits[index] === undefined ? -1 : Number(digits[index]);
-              result.push(digit < 0 ? 0 : (digit + 1) / 10);
-              for (let category = 0; category < 10; category += 1) result.push(digit === category ? 1 : 0);
-            }
-            for (const pattern of pythonPatterns) {
-              try { result.push(pythonRegex.matches(pattern, text).length / 32); } catch { result.push(0); }
-            }
-          }
+          result.push(...textFeatures[index]![Math.round((Math.max(-1, Math.min(1, vector[index])) + 1) * (dimension.choices!.length - 1) / 2)]);
         } else if (dimension.featureKind === "collection" && value?.kind === "array") {
           result.push(value.items.length / 32);
           for (let i = 0; i < 4; i += 1) { const item = value.items[i]; result.push(dimension.numericElements ? 0 : item?.kind === "number" ? Math.max(-1, Math.min(1, item.value / scale)) : item?.kind === "string" ? item.value.length / 512 : item ? 1 : 0); }
@@ -141,7 +123,7 @@ export function createNeuralInputSpace(problem: NeuralScenarioProblem): NeuralIn
             : JSON.stringify(choice) === JSON.stringify(value));
           if (index < 0) return undefined;
           result.push(dimension.choices.length === 1 ? 0 : index * 2 / (dimension.choices.length - 1) - 1);
-        } else if (value.kind === "number" && Math.abs(value.value) <= dimension.scale) result.push(value.value / dimension.scale);
+        } else if (value.kind === "number" && Math.abs(value.value) <= dimension.scale && (!dimension.integer || Number.isInteger(value.value))) result.push(value.value / dimension.scale);
         else return undefined;
       }
       // Fixed strings/shape must match; encoding must never mislabel a different tuple.
@@ -154,7 +136,7 @@ export function createNeuralInputSpace(problem: NeuralScenarioProblem): NeuralIn
       dimensions.forEach((dimension, index) => {
         const normalized = Math.max(-1, Math.min(1, vector[index]));
         const value: Value = dimension.choices ? structuredClone(choiceAt(dimension, normalized)!)
-          : { kind: "number", value: normalized * dimension.scale };
+          : { kind: "number", value: dimension.integer ? Math.round(normalized * dimension.scale) : normalized * dimension.scale };
         if (!dimension.path.length) result[dimension.parameter].value = value;
         else {
           const parent = read(result[dimension.parameter].value, dimension.path.slice(0, -1)); const key = dimension.path.at(-1)!;

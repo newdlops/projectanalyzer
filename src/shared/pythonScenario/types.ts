@@ -26,6 +26,9 @@ export type PythonScenarioProgram = {
 };
 export type PythonObservation = {
   blockId: string; operator: string; left: number; right: number; outcome: boolean;
+  metric?: "numeric" | "string-distance";
+  leftValue?: PythonValue;
+  rightValue?: PythonValue;
 };
 export type PythonScenarioResult = {
   status: "verified" | "partial";

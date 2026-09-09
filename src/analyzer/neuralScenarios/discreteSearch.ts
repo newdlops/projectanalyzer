@@ -5,6 +5,24 @@ import type { MarginHead, ObservedInput } from "./search";
 import type { NeuralBoundary } from "./types";
 import type { FunctionTutorStaticValue as Value } from "../functionTutor";
 
+/** A small beam lets several text/enum parameters move together before checking a one-coordinate witness. */
+export function rankNeuralJointStarts(network: ScenarioNetwork, head: MarginHead, output: number, start: number[], space: NeuralInputSpace): number[][] {
+  const dimensions = space.dimensions.map((dimension, index) => ({ dimension, index })).filter(({ dimension, index }) =>
+    (dimension.choices?.length ?? 0) > 1 && (!head.varyingCoordinates || head.varyingCoordinates.includes(index)));
+  if (dimensions.length < 2) return [start];
+  const target = -head.mean / head.scale; let beam = [start]; let predictions = 0;
+  for (let pass = 0; pass < 2; pass += 1) for (const { dimension, index } of dimensions) {
+    const candidates = new Map<string, { x: number[]; distance: number }>();
+    for (const anchor of beam) for (let choice = 0; choice < dimension.choices!.length; choice += 1) {
+      if (++predictions > 8192) return [start, ...beam];
+      const x = anchor.slice(); x[index] = choice * 2 / (dimension.choices!.length - 1) - 1;
+      candidates.set(JSON.stringify(x), { x, distance: Math.abs(network.predict(space.features(x))[output] - target) });
+    }
+    beam = [...candidates.values()].sort((a, b) => a.distance - b.distance).slice(0, 4).map((item) => item.x);
+  }
+  return [start, ...beam];
+}
+
 /** Learned margins rank alternatives before any teacher probes; no prediction alone certifies a pair. */
 export function findDiscreteNeuralBoundary(network: ScenarioNetwork, head: MarginHead, output: number, start: number[], space: NeuralInputSpace,
   observe: (vector: number[]) => ObservedInput | undefined): NeuralBoundary | undefined {
@@ -12,6 +30,7 @@ export function findDiscreteNeuralBoundary(network: ScenarioNetwork, head: Margi
   let best: NeuralBoundary | undefined; let bestScore = [Infinity, Infinity, Infinity];
   for (let index = 0; index < space.dimensions.length; index += 1) {
     const dimension = space.dimensions[index]; if (!dimension.choices || dimension.choices.length < 2) continue;
+    if (head.varyingCoordinates && !head.varyingCoordinates.includes(index)) continue;
     const ranked = dimension.choices.map((value, choice) => {
       const x = start.map((original, i) => i === index ? choice * 2 / (dimension.choices!.length - 1) - 1 : original);
       return { x, value, prediction: network.predict(space.features(x))[output] };
@@ -30,7 +49,8 @@ export function findDiscreteNeuralBoundary(network: ScenarioNetwork, head: Margi
       .map((item) => [JSON.stringify(item.x), item])).values()];
     const observed: Array<{ sample: ObservedInput; value: Value; cost: number; margin: number }> = [];
     for (const candidate of candidates) {
-      const sample = observe(candidate.x); if (!sample?.observations.has(head.key ?? head.blockId)) continue;
+      const sample = observe(candidate.x); if (!sample) return best;
+      if (!sample.observations.has(head.key ?? head.blockId)) continue;
       const value = candidate.value;
       const cost = value.kind === "string" ? value.value.length + (value.value.length === 0 ? 2 : 0)
         : value.kind === "array" ? value.items.length : 1;

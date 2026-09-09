@@ -128,7 +128,9 @@ export function getFunctionLogicScenarioPathPlannerBrowserSource(): string {
       return evaluated.map((path) => {
         const edgeIds = new Set(path?.edgeIds || []);
         const plan = planned.find((candidate) => candidate.scenario.decisions.every((decision) => edgeIds.has(decision.edgeId)));
-        return plan ? { ...path, scenario: plan.scenario } : path;
+        // The plan supplies labels, not certainty. Preserve a completed machine
+        // result so TS/JS returns remain visible alongside the matched decisions.
+        return plan ? { ...path, scenario: { ...plan.scenario, concrete: !path.limited && path.certainty === "exact" } } : path;
       });
     }
 

@@ -59,8 +59,15 @@ export function createPythonScenarioRuntime(regex: ReturnType<typeof createPytho
         const b = typeof left === "string" && typeof right === "string" ? right : number(right);
         value = operator === "<" ? a < b : operator === "<=" ? a <= b : operator === ">" ? a > b : a >= b;
       }
-      const comparison = typeof left === "number" && typeof right === "number" ? { operator, left, right }
+      let comparison: Cell["comparison"] = typeof left === "number" && typeof right === "number" ? { operator, left, right }
         : { operator, left: value ? 1 : 0, right: 0.5 };
+      if (typeof left === "string" && typeof right === "string" && ["==", "!="].includes(operator)) {
+        // Preserve a learnable distance even when almost every sampled string
+        // misses the target. Actual operands remain separate display evidence.
+        let distance = Math.abs(left.length - right.length);
+        for (let i = 0; i < Math.min(left.length, right.length); i += 1) if (left[i] !== right[i]) distance += 1;
+        comparison = { operator, left: distance, right: 0, metric: "string-distance", leftValue: left, rightValue: right };
+      }
       return { value, comparison };
     }
     if (operator === "+" && typeof left === "string" && typeof right === "string") return { value: snapshot(left + right) };

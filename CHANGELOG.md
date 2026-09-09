@@ -4,6 +4,20 @@ All notable user-visible changes to Project Analyzer: Code Flow are recorded in
 this file. The changelog starts with the first distribution-documented build;
 earlier local development builds were not tracked here.
 
+## 0.0.1096 - 2026-09-10
+
+### Improved
+
+- Local neural inference now shares text features across parameters and searches
+  related string arguments together, including source-derived token combinations.
+- Python input domains follow comparison literals through assignments and pure
+  helpers, include numeric bytecode constants and preserve declared integer inputs.
+- Adaptive training learns newly reached inner conditions while keeping successful
+  outer inputs fixed. Numeric normalization preserves exact integer and fractional
+  equality inputs. All recommended boundary pairs are independently checked.
+- TypeScript/JavaScript scenario explanations retain completed return values when
+  matching a checked input path to its displayed conditions.
+
 ## 0.0.1095 - 2026-09-10
 
 ### Fixed

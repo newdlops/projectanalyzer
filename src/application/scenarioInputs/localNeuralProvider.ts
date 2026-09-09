@@ -49,7 +49,7 @@ export function createLocalNeuralScenarioProvider(): ScenarioInputProvider {
             : `A neural boundary confirmed by static checks. ${difference.name}: ${difference.values.join(" → ")}. Left / right operands of ${label}: ${outcomes.join(" → ")}.` };
       });
     });
-    return { modelName: "Local MLP · v3", text: JSON.stringify({ scenarios }), boundaries: result.boundaries, training: result.report };
+    return { modelName: "Local MLP · v4", text: JSON.stringify({ scenarios }), boundaries: result.boundaries, training: result.report };
   } };
 }
 

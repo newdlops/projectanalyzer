@@ -23,8 +23,18 @@ const corpus = [
   ["external-gap", "x: number", "const score = external(x);", "score === 173"]
 ];
 const records = [];
-for (const [name, parameters, body, condition] of corpus) {
-  const model = await buildInputModel(`export function inspect(${parameters}) {\n ${body}\n if (${condition}) return "rare";\n return "ordinary";\n}`);
+const programs = corpus.map(([name, parameters, body, condition]) => ({ name, language: "typescript",
+  source: `export function inspect(${parameters}) {\n ${body}\n if (${condition}) return "rare";\n return "ordinary";\n}` }));
+programs.push(
+  { name: "python-large-integer", language: "python", source: 'def inspect(count: int):\n    score = count * 7 + 11\n    if score >= 7011:\n        return "rare"\n    return "ordinary"\n' },
+  { name: "python-two-text", language: "python", source: 'def inspect(prefix: str, token: str):\n    if prefix == "Bearer" and token == "secret-key":\n        return "rare"\n    return "ordinary"\n' },
+  { name: "python-derived-text", language: "python", source: 'def inspect(role: str):\n    value = "role/" + role\n    if value == "role/reviewer":\n        return "rare"\n    return "ordinary"\n' },
+  { name: "python-integer-loop", language: "python", source: 'def inspect(count: int):\n    total = 0\n    for i in range(count):\n        total += i\n    if total >= 45:\n        return "rare"\n    return "ordinary"\n' },
+  { name: "nested-equality", language: "typescript", source: 'export function inspect(x: number, y: number) {\n if (x * 7 + 11 === 270) {\n  if (y * 3 + 5 === 98) return "rare";\n }\n return "ordinary";\n}' },
+  { name: "composed-text", language: "typescript", source: 'export function inspect(prefix: string, token: string) {\n const combined = prefix + ":" + token;\n if (combined === "region:admin") return "rare";\n return "ordinary";\n}' }
+);
+for (const { name, language, source } of programs) {
+  const model = await buildInputModel(source, language);
   const problem = createNeuralScenarioProblem(model);
   const rare = (inputs) => { const evaluation = evaluateFunctionTutorInputs(model.declaration, inputs); return evaluation.status === "verified" && evaluation.terminal?.value?.value === "rare"; };
   const started = performance.now(); const trained = await inferNeuralScenarios(problem);

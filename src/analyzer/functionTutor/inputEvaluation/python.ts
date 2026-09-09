@@ -25,7 +25,9 @@ export function evaluatePythonTutorInputs(declaration: FunctionTutorDeclarationA
   }
   // Tutor steps count source blocks; Python bytecode has several primitive operations per block.
   const result = runtime.evaluate(program, values, { maxSteps: Math.min(8192, (options.maxSteps ?? 128) * 64), maxLoopVisits: options.maxLoopVisits ?? 32 });
-  for (const observation of result.observations) options.observeDecision?.({ ...observation, metric: "numeric" });
+  for (const observation of result.observations) options.observeDecision?.({ ...observation, metric: observation.metric ?? "numeric",
+    leftValue: observation.leftValue === undefined ? undefined : pythonTutorValue(observation.leftValue),
+    rightValue: observation.rightValue === undefined ? undefined : pythonTutorValue(observation.rightValue) });
   return { status: result.status, reason: result.reason, blockIds: result.blockIds, edgeIds: result.edgeIds, decisions: result.decisions,
     terminal: result.terminal ? { ...result.terminal, value: pythonTutorValue(result.terminal.value) } : undefined };
 }
