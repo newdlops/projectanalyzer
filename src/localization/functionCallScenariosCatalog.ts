@@ -4,6 +4,9 @@ export function getFunctionCallScenariosCatalogSource(): string {
     Object.assign(projectAnalyzerUiCopy.en, {
       "calls-view-order":"Call order", "calls-view-relations":"Call relationships", "calls-order-view":"Call view",
       "calls-order-title":"Parent call scenario", "calls-order-parent":"Read calls controlled by", "calls-order-inputs":"Check parent inputs",
+      "calls-color-key":"Call reading key", "calls-color-condition":"Decision", "calls-color-loop":"Loop", "calls-color-call":"Function call", "calls-color-return":"Return / end", "calls-color-deferred":"Separate dispatch",
+      "calls-order-condition-number":"Decision {count}", "calls-order-edit-condition":"Edit condition: {condition}. Current outcome: {outcome}",
+      "calls-order-change":"Edit",
       "calls-order-hint":"Follow a parent's decisions and loops to draft the order of project calls. Builtins and installed libraries are excluded.",
       "calls-order-loading":"Reading the parent's control flow…", "calls-order-unavailable":"The control flow is unavailable. Reload this function or inspect its call relationships.",
       "calls-order-example":"Example route", "calls-order-example-name":"Example {number} · calls: {count}", "calls-order-custom":"Custom scenario", "calls-order-new":"Start with no assumptions",
@@ -23,6 +26,9 @@ export function getFunctionCallScenariosCatalogSource(): string {
     Object.assign(projectAnalyzerUiCopy.ko, {
       "calls-view-order":"호출 순서", "calls-view-relations":"호출 관계", "calls-order-view":"호출 보기 방식",
       "calls-order-title":"상위 함수 호출 시나리오", "calls-order-parent":"호출을 제어하는 상위 함수", "calls-order-inputs":"상위 함수 입력값 확인",
+      "calls-color-key":"호출 흐름 색상 안내", "calls-color-condition":"조건 판단", "calls-color-loop":"반복", "calls-color-call":"함수 호출", "calls-color-return":"반환·종료", "calls-color-deferred":"별도 실행",
+      "calls-order-condition-number":"조건 {count}", "calls-order-edit-condition":"조건 수정: {condition}. 현재 결과: {outcome}",
+      "calls-order-change":"수정",
       "calls-order-hint":"상위 함수의 조건과 반복을 따라 프로젝트 함수의 호출 순서를 구성하세요. 내장 함수와 설치된 라이브러리는 제외합니다.",
       "calls-order-loading":"상위 함수의 제어 흐름을 읽고 있습니다…", "calls-order-unavailable":"제어 흐름을 읽을 수 없습니다. 함수를 다시 불러오거나 호출 관계를 확인하세요.",
       "calls-order-example":"경로 예시", "calls-order-example-name":"예시 {number} · 호출 {count}회", "calls-order-custom":"직접 구성한 시나리오", "calls-order-new":"조건 없이 새로 구성",

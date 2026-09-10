@@ -1,10 +1,12 @@
 /** Retained Function Calls mode: explicit lazy expansion, opaque messages, native keyboard controls and separate camera state. */
 import { getFunctionCallsGraphSource } from "./graphSource";
 import { getFunctionCallsScenarioSource } from "./scenarioSource";
+import { getFunctionCallsPresentationSource } from "./presentationSource";
 
 export function getFunctionCallsBrowserSource(): string {
   return /* js */ String.raw`
     ${getFunctionCallsGraphSource()}
+    ${getFunctionCallsPresentationSource()}
     ${getFunctionCallsScenarioSource()}
     /** Owns only call-mode state; switching never reconstructs or edits the statement workspace. */
     function createFunctionCallsMode(options) {
@@ -20,6 +22,7 @@ export function getFunctionCallsBrowserSource(): string {
       const t = (key, params) => projectAnalyzerText(key, params);
       const el = (tag, className, text) => { const element = document.createElement(tag); if (className) element.className = className; if (text !== undefined) element.textContent = text; return element; };
       const button = (text, key, action) => { const item = el("button", "", text); item.type = "button"; item.dataset.callKey = key; item.addEventListener("click", action); return item; };
+      const visuals = createFunctionCallsPresentation(el, t);
       const formatGuard = guard => guard.expression + " → " + (["true", "false", "exception", "finally", "nullish", "notNullish"].includes(guard.outcome) ? t("calls-" + guard.outcome) : guard.outcome);
       const guardText = edge => edge.guards.map(formatGuard).join(" ∧ ");
       const conditionText = edge => guardText(edge) || t(edge.limited ? "calls-context-unknown" : "calls-direct");
@@ -27,7 +30,7 @@ export function getFunctionCallsBrowserSource(): string {
       const pairKey = edge => edge.from + ">" + edge.to;
       const groupName = group => (nodes.get(group.from)?.name || "?") + " → " + (nodes.get(group.to)?.name || "?");
       const depthOf = id => layout?.positions.get(id)?.depth ?? 0;
-      const scenarios = createFunctionCallScenarioView({ el, button, t, load, render,
+      const scenarios = createFunctionCallScenarioView({ el, button, t, visuals, load, render,
         openInputs(node) { setMode("statements"); options.openFunction(node, "values"); },
         selectConnection(edge) { if (edge) { selectedGroup = pairKey(edge); callView = "relations"; render(); } },
         openEvidence(evidenceToken) { options.postMessage({ type: "codeFlow/openEvidence", payload: { graphVersion, evidenceToken } }); }
@@ -127,17 +130,25 @@ export function getFunctionCallsBrowserSource(): string {
         canvas.style.width = layout.width + "px"; canvas.style.height = layout.height + "px";
         const ns = "http://www.w3.org/2000/svg", svg = document.createElementNS(ns, "svg");
         svg.setAttribute("width", layout.width); svg.setAttribute("height", layout.height); svg.setAttribute("aria-hidden", "true");
-        const defs = document.createElementNS(ns, "defs"), marker = document.createElementNS(ns, "marker"), tip = document.createElementNS(ns, "path");
-        marker.id = "function-calls-arrow"; marker.setAttribute("viewBox", "0 0 10 10"); marker.setAttribute("refX", "9"); marker.setAttribute("refY", "5"); marker.setAttribute("markerWidth", "6"); marker.setAttribute("markerHeight", "6"); marker.setAttribute("orient", "auto-start-reverse");
-        tip.setAttribute("d", "M 0 0 L 10 5 L 0 10 z"); tip.style.fill = "var(--vscode-descriptionForeground)"; marker.append(tip); defs.append(marker); svg.append(defs); canvas.append(svg);
+        const defs = document.createElementNS(ns, "defs");
+        for (const tone of ["call", "condition", "loop", "deferred"]) {
+          const marker = document.createElementNS(ns, "marker"), tip = document.createElementNS(ns, "path");
+          marker.id = "function-calls-arrow-" + tone; marker.setAttribute("viewBox", "0 0 10 10"); marker.setAttribute("refX", "9"); marker.setAttribute("refY", "5"); marker.setAttribute("markerWidth", "6"); marker.setAttribute("markerHeight", "6"); marker.setAttribute("orient", "auto-start-reverse");
+          tip.setAttribute("d", "M 0 0 L 10 5 L 0 10 z"); tip.dataset.callTone = tone; tip.style.fill = "var(--calls-ink)"; marker.append(tip); defs.append(marker);
+        }
+        svg.append(defs); canvas.append(svg);
         for (const group of layout.groups) {
+          const tone = functionCallRelationTone(group.edges, group.cycle);
           const path = document.createElementNS(ns, "path"); path.setAttribute("d", group.path);
+          path.dataset.callTone = tone;
           path.setAttribute("class", "calls-edge-path" + (group.edges.some(edge => ["inferred", "unresolved"].includes(edge.confidence) || edge.deferred) ? " uncertain" : "") + (selectedGroup === group.key ? " selected" : ""));
-          path.setAttribute("marker-end", "url(#function-calls-arrow)"); svg.append(path);
+          path.setAttribute("marker-end", "url(#function-calls-arrow-" + tone + ")"); svg.append(path);
           const label = button("", "edge:" + group.key, () => selectEdge(group.key)); label.className = "calls-edge-label";
+          label.dataset.callTone = tone;
           label.style.left = group.labelX + "px"; label.style.top = group.labelY + "px"; label.setAttribute("aria-pressed", String(selectedGroup === group.key));
           const first = group.edges[0]; const kinds = [group.cycle ? t("calls-cycle") : "", group.edges.some(edge => edge.loops.length) ? t("calls-loop") : "", group.edges.length > 1 ? t("calls-sites", { count: group.edges.length }) : ""].filter(Boolean);
-          label.append(el("span", "", kinds.join(" · ") || t("calls-relation-" + first.relation)),
+          const kindLabel = el("span", "calls-edge-kind"); kindLabel.append(visuals.glyph(tone), el("span", "", kinds.join(" · ") || t(tone === "condition" ? "calls-color-condition" : "calls-relation-" + first.relation)));
+          label.append(kindLabel,
             el("span", "", group.edges.length > 1 ? t("calls-multiple-conditions") : conditionText(first)));
           label.title = groupName(group) + "\n" + group.edges.map(description).join("\n"); label.setAttribute("aria-label", label.title); canvas.append(label);
         }
@@ -156,7 +167,7 @@ export function getFunctionCallsBrowserSource(): string {
         const stop = () => { dragging = undefined; viewport.classList.remove("dragging"); }; viewport.addEventListener("pointerup", stop); viewport.addEventListener("pointercancel", stop);
         const detail = el("aside", "calls-detail"); detail.setAttribute("aria-label", t("reading-details")); renderDetail(detail);
         relationSurface = el("div", "calls-relations"); relationSurface.hidden = callView !== "relations";
-        workspace.append(viewport, detail); relationSurface.append(workspace, el("p", "calls-legend", t("calls-legend")));
+        workspace.append(viewport, detail); relationSurface.append(visuals.legend(["call", "condition", "loop", "deferred"]), workspace, el("p", "calls-legend", t("calls-legend")));
         container.append(header, views, status);
         if (callView === "order") container.append(scenarios.render({ nodes, connections, rootId: root?.sourceToken, pending, failures, loaded }));
         container.append(relationSurface); renderList(relationSurface); viewport.scrollLeft = camera.left; viewport.scrollTop = camera.top; revealRoot();
@@ -191,6 +202,8 @@ export function getFunctionCallsBrowserSource(): string {
       }
       function siteDetail(edge) {
         const section = el("section", "calls-site");
+        section.dataset.callTone = functionCallRelationTone([edge]);
+        section.append(visuals.cue(section.dataset.callTone, t("calls-color-" + section.dataset.callTone)));
         section.append(el("code", "", groupName(edge)), el("p", "calls-muted", t("calls-relation-" + edge.relation) + " · " + t(edge.confidence)));
         const facts = el("ul");
         const guards = edge.guards.map(formatGuard);

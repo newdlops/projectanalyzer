@@ -85,6 +85,22 @@ mode and locale changes, and cleared for a new snapshot. Copy feedback distingui
 success from clipboard denial, which selects the text for manual copying. Narrow
 layouts stack complete controls with explicit jumps between conditions and calls.
 
+The reading layer uses shared semantic cues: purple decisions, orange repetition,
+blue calls, green return/end, red throws and yellow pending/incomplete evidence.
+It derives accents and surfaces from VS Code tokens and keeps body text in the
+theme foreground. Explicit labels, diamond/repeat/return symbols and call ordinals
+carry the same meaning in forced colors. A false outcome is never an error state.
+Decision beats appear in the trace after predicate calls, use the same visit key
+as their control, and expose **Edit** to focus that exact control. The plain-text
+draft includes these decisions in order. Each decision counts toward the existing
+256-row trace bound; the source/evaluation and call ordinal semantics stay intact.
+
+The private `presentationSource` module shares cues and relationship classification
+between both views. Relationship colors describe call/condition/repetition/separate
+dispatch, with cycle and loop text retained. Selected edges keep their role color,
+and inferred/deferred evidence keeps its dashed line. Color never upgrades evidence
+confidence or indicates that the draft ran or its input values were verified.
+
 ## Semantics and limits
 
 This mode focuses on business code through project source ownership, not a semantic

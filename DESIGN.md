@@ -1,5 +1,35 @@
 # Function reading workspace
 
+## Call reading colors — September 2026
+
+Refine the existing call workspace for developers reading a parent's scenario.
+Keep native forms, source expressions, retained drafts and the separate relationship
+diagram. Give each transition a visible place in the sequence: predicate call →
+decision and assumed outcome → dependent calls. A decision in the trace links back
+to its matching control, including the correct repeated visit.
+
+Use VS Code chart colors as local reading roles: purple decisions, orange loop
+visits, blue project calls, green returns, red throws, and yellow unknown/pending
+states. A false condition is an ordinary branch, never an error. Keep body/code
+text in the theme foreground; use light tinted surfaces, colored shapes and thin
+borders for meaning. Diamond, repeat arrow, call ordinal and return arrow reinforce
+the labels. A compact key explains the colors. Match relationship edges and their
+labels to conditional, repeated or separate dispatch evidence; selection must stay
+distinct without dimming other functions or erasing uncertainty dashes.
+
+Use a vertical connector through the ordered trace, with full-width decision and
+loop beats separating calls. Preserve the established flat 4/8/12/16px rhythm and
+code font. Keep long arguments and conditions readable, stack at 768px/390px, and
+retain the condition/call jump actions. Do not add decoration or automatic motion.
+
+Acceptance: condition/loop/call/end roles are recognizable in the initial and edited
+route; a true/false change moves the correct calls; predicate calls precede decision
+beats; repeated decisions keep separate controls. Verify mouse and keyboard return
+to a decision, graph selection/camera retention, drafts and input handoff, empty,
+loading/error/limited/throw states, long labels and both languages. Inspect 1440×900,
+768×1024 and 390×844 in dark/light/forced colors; check text contrast and non-color
+cues including common color-vision deficiency emulation.
+
 ## Parent-controlled call scenarios — September 2026
 
 The Function calls mode starts with **Call order / 호출 순서**. Developers choose

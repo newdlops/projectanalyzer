@@ -4,6 +4,20 @@ All notable user-visible changes to Project Analyzer: Code Flow are recorded in
 this file. The changelog starts with the first distribution-documented build;
 earlier local development builds were not tracked here.
 
+## 0.0.1100 - 2026-09-11
+
+### Improved
+
+- Read call scenarios with purple decisions, orange loop visits, blue calls and
+  green returns. Icons, labels and a connected timeline preserve meaning without
+  relying on color. Throws and incomplete paths have distinct feedback.
+- See each decision after its predicate calls and before the selected calls.
+  Use **Edit** on a decision to focus the matching control, including repeated
+  visits. False outcomes remain ordinary branches rather than errors.
+- Match call relationship edges and labels to conditions, loops and separate
+  dispatch. Keep uncertainty dashes and selection legible without dimming functions.
+  Native theme colors, wrapping and keyboard controls work in both call views.
+
 ## 0.0.1099 - 2026-09-10
 
 ### Added

@@ -11,7 +11,12 @@ export function getFunctionCallsControlSource(): string {
       const choose = (key, label, options, kind, visit, blockId) => {
         const value = selection.get(key);
         const decision = { key, label, options, kind, visit, blockId, value: options.some(option => option.value === value) ? value : undefined };
-        if (!seenChoices.has(key)) { seenChoices.add(key); decisions.push(decision); }
+        if (!seenChoices.has(key)) {
+          seenChoices.add(key); decisions.push(decision);
+          // Put the decision after its predicate calls and before dependent
+          // calls, using the same visit identity as the editable control.
+          if (kind !== "loop") rows.push({ kind: "decision", decisionKey: key, blockId, label, value: decision.value, visit });
+        }
         if (!decision.value) { pending = decision; return undefined; }
         return decision.value;
       };

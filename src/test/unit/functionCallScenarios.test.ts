@@ -53,6 +53,12 @@ for (const language of ["typescript", "python"] as const) {
     assert.deepEqual(s.names(s.run(() => "false")), [python ? "is_ready" : "isReady", "reject", "notify"]);
     const trace = s.run(() => "true");
     assert.equal(trace.rows.find((row: { ordinal?: number }) => row.ordinal === 3).expression, "persist(audit(1))");
+    // A visual decision belongs after the call which computes its predicate,
+    // before the selected argument arm; repeated guards do not duplicate it.
+    assert.deepEqual(trace.rows.map((row: { kind: string }) => row.kind), ["call", "decision", "call", "call", "call"]);
+    const awaiting = runtime.traceFunctionCalls(s.slice.control, s.connections);
+    assert.deepEqual(s.names(awaiting), [python ? "is_ready" : "isReady"]);
+    assert.equal(awaiting.rows.at(-1).decisionKey, awaiting.pending.key);
   });
 
   test(`${language} repeated decisions and loop visits keep independent outcomes`, async () => {
@@ -61,6 +67,7 @@ for (const language of ["typescript", "python"] as const) {
     assert.deepEqual(s.names(trace), [python ? "is_ready" : "isReady", "persist", "notify", python ? "is_ready" : "isReady", "reject", "finish", "persist"]);
     const repeated = trace.decisions.filter((decision: Choice) => /is_?[Rr]eady/u.test(decision.label));
     assert.equal(repeated.length, 2); assert.notEqual(repeated[0].key, repeated[1].key);
+    assert.deepEqual(trace.rows.filter((row: { kind: string; label: string }) => row.kind === "decision" && /is_?[Rr]eady/u.test(row.label)).map((row: { decisionKey: string }) => row.decisionKey), repeated.map((decision: Choice) => decision.key));
     const sameText = await scenario(language, python ? "repeat_decision" : "repeatDecision");
     let count = 0;
     const changed = sameText.run(() => ++count === 1 ? "true" : "false");
