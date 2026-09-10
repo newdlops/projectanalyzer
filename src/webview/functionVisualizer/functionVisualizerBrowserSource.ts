@@ -30,6 +30,7 @@ export function getFunctionVisualizerBrowserSource(): string {
       activeLogicValueFlowRendering: undefined,
       uiLanguage: document.documentElement.lang === "ko" ? "ko" : "en",
       loading: false,
+      pendingCallScenarioInputs: undefined,
       error: undefined,
       selectedLogicBlockId: undefined,
       logicGraphScale: 1,
@@ -54,7 +55,14 @@ export function getFunctionVisualizerBrowserSource(): string {
     };
 
     const callMode = createFunctionCallsMode({ postMessage: message => vscode.postMessage(message),
-      openFunction: node => drillIntoFunction(node), onModeChange(active) {
+      openFunction: (node, destination) => {
+        if (state.loading) return;
+        if (destination === "values" && state.history[state.historyIndex]?.target.sourceToken === node.sourceToken) {
+          state.activeLogicGraphRendering?.openValues?.(); return;
+        }
+        state.pendingCallScenarioInputs = destination === "values" ? node.sourceToken : undefined;
+        drillIntoFunction(node);
+      }, onModeChange(active) {
         elements.title.textContent = (active ? state.root?.label : state.history[state.historyIndex]?.detail.title) || projectAnalyzerText("function-title");
         elements.subtitle.hidden = active; elements.summary.hidden = active;
       } });
@@ -96,6 +104,7 @@ export function getFunctionVisualizerBrowserSource(): string {
       if (!payload || !payload.graphVersion || !payload.root) return;
       state.graph = { version: payload.graphVersion };
       state.root = payload.root;
+      state.pendingCallScenarioInputs = undefined;
       callMode.reset(payload);
       state.history = [];
       state.historyIndex = -1;
@@ -157,6 +166,7 @@ export function getFunctionVisualizerBrowserSource(): string {
       state.pendingTarget = undefined;
       state.loading = false;
       state.error = payload;
+      state.pendingCallScenarioInputs = undefined;
       render();
     }
 
@@ -292,6 +302,10 @@ export function getFunctionVisualizerBrowserSource(): string {
         createAttachedGraphContext(attachedScene, rootScopeId, graphViewportSnapshot)
       );
       renderGaps(detail.gaps || []);
+      if (state.pendingCallScenarioInputs === entry.target.sourceToken && !state.loading) {
+        state.pendingCallScenarioInputs = undefined;
+        state.activeLogicGraphRendering?.openValues?.();
+      }
     }
 
     /** Patches retained Function Visualizer chrome and graph copy without rebuilding state. */

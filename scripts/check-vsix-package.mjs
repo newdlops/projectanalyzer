@@ -15,9 +15,9 @@ const MAX_ZIP_COMMENT_BYTES = 65_535;
 export const PACKAGE_BUDGET = Object.freeze({
   archiveBytes: 15 * MEBIBYTE,
   unpackedBytes: 35 * MEBIBYTE,
-  // Function Calls spans analyzer, projection, protocol and Webview boundaries;
-  // its two ownership/binding modules use the existing spare-file allowance.
-  fileCount: 460,
+  // Parent scenarios add five runtime modules: control projection/traversal,
+  // scenario UI/styles and localized copy. Archive/unpacked budgets stay fixed.
+  fileCount: 465,
   singleFileBytes: 12 * MEBIBYTE
 });
 

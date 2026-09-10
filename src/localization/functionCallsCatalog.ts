@@ -1,6 +1,8 @@
 /** Localized controls and static-evidence explanations for the separate function-call diagram. */
+import { getFunctionCallScenariosCatalogSource } from "./functionCallScenariosCatalog";
 export function getFunctionCallsCatalogSource(): string {
   return /* js */ `
+    ${getFunctionCallScenariosCatalogSource()}
     Object.assign(projectAnalyzerUiCopy.en, {
       "function-modes":"Diagram mode", "function-mode-statements":"Statement flow", "function-mode-calls":"Function calls",
       "calls-title":"Function calls", "calls-hint":"One node per identified project function. Builtins and installed libraries are excluded. Select a function to explore its calls, conditions and loops.",

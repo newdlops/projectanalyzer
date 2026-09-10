@@ -9,6 +9,7 @@ import type { SourceNodeToken } from "../../protocol/sourceNavigation";
 import type { ProjectGraph, SourceRange } from "../../shared/types";
 import { createContentHash } from "../../shared/hash";
 import { createProjectCallableScope } from "./projectScope";
+import { createFunctionCallControlPlan } from "./controlPlan";
 
 /** Projects at most 32 project functions/96 sites, retaining distinct calls and their full source conditions. */
 export function createFunctionCallsSlice(graph: ProjectGraph, analysis: FunctionLogicAnalysis, request: FunctionCallsRequest,
@@ -33,6 +34,7 @@ export function createFunctionCallsSlice(graph: ProjectGraph, analysis: Function
   // Syntax-owned targets include omitted sites. They must not be counted again
   // as graph-only evidence after the visible-node or callsite budget is reached.
   const represented = new Set(projection.sites.flatMap(({ target }) => target ? [target.sourceToken] : []));
+  const controlSites: Array<{ context: ReturnType<typeof createFunctionCallContexts>[number]; connectionId: string }> = [];
   for (const context of createFunctionCallContexts({ ...analysis, callsites: projectSites }, { sourceText })) {
     const site = context.site; const target = targetBySite.get(site)!;
     const id = "function-call:" + createContentHash([root.id, site.range, site.calleeText, site.relation ?? "call"].map((value) => JSON.stringify(value)).join("|"));
@@ -45,6 +47,7 @@ export function createFunctionCallsSlice(graph: ProjectGraph, analysis: Function
       confidence: target.confidence, guards: context.guards, loops: context.loops,
       deferred: context.deferred, limited: context.limited,
       sourceLocation: display.location(site.filePath, site.range), evidenceToken: evidenceToken(site.filePath, site.range) });
+    controlSites.push({ context, connectionId: id });
   }
   // Keep graph-only callable evidence visible without inventing syntax guards.
   for (const target of projection.callees.filter((target) => !represented.has(target.sourceToken))) {
@@ -54,7 +57,11 @@ export function createFunctionCallsSlice(graph: ProjectGraph, analysis: Function
     connections.push({ id: "function-call:" + createContentHash(root.id + "|" + to), from: root.id, to, label: target.name,
       relation: target.relation ?? "call", confidence: target.confidence, guards: [], loops: [], deferred: target.relation === "event", limited: true });
   }
-  return { ...request, status: "ready", nodes: [...nodes.values()], connections, omittedCount,
+  const orderedIds = new Set(controlSites.map(site => site.connectionId));
+  const control = createFunctionCallControlPlan(analysis, root.id, graph.workspaceRoot, controlSites,
+    connections.filter(edge => !orderedIds.has(edge.id)).map(edge => edge.id), sourceText, evidenceToken);
+  control.limited ||= omittedCount > 0;
+  return { ...request, status: "ready", nodes: [...nodes.values()], connections, omittedCount, control,
     limited: analysis.gaps.some((gap) => gap.code !== "dynamicBehavior" && gap.presentation?.key !== "logic-gap-optional-chaining")
       || connections.some(connection => connection.limited) || omittedCount > 0 || projection.omittedCalleeCount > 0 };
 }

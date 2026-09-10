@@ -4,6 +4,22 @@ All notable user-visible changes to Project Analyzer: Code Flow are recorded in
 this file. The changelog starts with the first distribution-documented build;
 earlier local development builds were not tracked here.
 
+## 0.0.1099 - 2026-09-10
+
+### Added
+
+- **Call order** inside Function calls builds scenarios from a selected parent:
+  inspect its interface, choose branch outcomes and loop visits, and read numbered
+  project calls with original arguments and source evidence. **Call relationships**
+  keeps the function-node diagram available beside it.
+- Preserve nested argument evaluation order, independent decisions on each loop
+  visit, early returns, break/continue and finally cleanup for TypeScript/JavaScript
+  and Python. Incomplete order and separate dispatch remain explicit.
+- Start from bounded route examples or an empty draft, name and copy the scenario,
+  and open the parent's existing input analysis. Assumptions stay distinct from
+  verified values; drafts, manually edited inputs and diagram cameras retain state
+  across view changes. Narrow screens include jumps between conditions and calls.
+
 ## 0.0.1098 - 2026-09-10
 
 ### Improved

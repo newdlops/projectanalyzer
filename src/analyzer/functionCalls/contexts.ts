@@ -10,6 +10,9 @@ export type FunctionCallContext = {
   loops: string[];
   deferred: boolean;
   limited: boolean;
+  /** Source offsets identify expression choices; these never become browser source authority. */
+  expressionGuards?: Array<{ expression: string; outcome: string; from: number; to: number }>;
+  evaluationOrder?: number[];
 };
 
 /** Joins each call to its narrowest source block, retaining only dominating branch prerequisites. */
@@ -104,7 +107,9 @@ export function createFunctionCallContexts(analysis: FunctionLogicAnalysis, opti
     }
     const expressionContext = syntaxGuards?.(site);
     if (expressionContext) {
-      for (const guard of expressionContext.guards) if (!result.guards.some(existing => existing.expression === guard.expression && existing.outcome === guard.outcome)) result.guards.push(guard);
+      result.expressionGuards = expressionContext.guards;
+      result.evaluationOrder = expressionContext.order;
+      for (const guard of expressionContext.guards) if (!result.guards.some(existing => existing.expression === guard.expression && existing.outcome === guard.outcome)) result.guards.push({ expression: guard.expression, outcome: guard.outcome });
       result.deferred ||= expressionContext.deferred;
       result.limited ||= expressionContext.limited;
     } else if (analysis.language === "python" && /\b(?:and|or|else)\b/u.test(block.label)) result.limited = true;

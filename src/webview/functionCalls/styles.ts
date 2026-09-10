@@ -1,6 +1,8 @@
 /** Existing VS Code tokens applied to a separate, pannable call graph and readable relationship list. */
+import { getFunctionCallScenarioStyles } from "./scenarioStyles";
 export function getFunctionCallsStyles(): string {
   return /* css */ `
+    ${getFunctionCallScenarioStyles()}
     .visualizer-modes { display:flex; flex-wrap:wrap; gap:4px; margin:12px 0; border-bottom:1px solid var(--vscode-panel-border); }
     .visualizer-modes button { min-height:36px; padding:7px 13px; border:0; border-bottom:2px solid transparent; background:transparent; color:var(--vscode-descriptionForeground); cursor:pointer; }
     .visualizer-modes button[aria-pressed="true"] { color:var(--vscode-foreground); border-bottom-color:var(--vscode-focusBorder); background:var(--vscode-list-hoverBackground); font-weight:600; }

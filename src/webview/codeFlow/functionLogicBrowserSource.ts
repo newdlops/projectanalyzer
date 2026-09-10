@@ -400,6 +400,8 @@ export function getFunctionLogicBrowserSource(): string {
         nodeButtonsById,
         nodeLayoutsByBlockId,
         valueFlowRendering,
+        /** Public navigation action reused by the parent-call scenario view. */
+        openValues() { inspector.openInspect("values"); },
         dispose() { reading.dispose(); understanding.dispose(); },
         /** Rewrites retained locale copy without rebuilding graph geometry or state. */
         updateLanguage(language) {

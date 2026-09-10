@@ -36,3 +36,37 @@ function conditionalArguments(enabled: boolean, callback?: (value: boolean) => v
   service?.save(isReady(2));
   return enabled || audit(0);
 }
+
+function nestedCalls() { return notify(isReady(1) ? persist(audit(1)) : reject("invalid")); }
+function repeatDecision(enabled: boolean) {
+  if (enabled) persist(1);
+  audit(2);
+  if (enabled) notify(3);
+  return finish();
+}
+function loopControl(items: number[]) {
+  for (const item of items) {
+    if (!isReady(item)) continue;
+    persist(item);
+    if (item > 10) break;
+    notify(item);
+  }
+  return finish();
+}
+function loadItems() { return [1, 2]; }
+function iteratorCalls() { for (const item of loadItems()) persist(item); return finish(); }
+function conditionLoop() { let item = 1; while (isReady(item)) { persist(item); item += 1; } return finish(); }
+function cleanup(enabled: boolean) { try { if (enabled) return persist(1); return reject("invalid"); } finally { audit(2); } }
+function delayed(button: EventTarget) { button.addEventListener("click", handleClick); audit(0); }
+function handleClick() { persist(1); }
+function nestedCleanup() { try { try { return persist(1); } finally { audit(2); } } finally { notify(3); } }
+function overrideCleanup() { try { return persist(1); } finally { return notify(2); } }
+function caughtThrow() { try { throw reject("invalid"); } catch { audit(1); } finish(); }
+function throwCleanup() { try { throw reject("invalid"); } finally { audit(2); } }
+function loopCleanup(items: number[]) {
+  for (const item of items) {
+    try { if (!isReady(item)) continue; persist(item); break; }
+    finally { audit(item); }
+  }
+  return finish();
+}

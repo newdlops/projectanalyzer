@@ -1,5 +1,45 @@
 # Function reading workspace
 
+## Parent-controlled call scenarios — September 2026
+
+The Function calls mode starts with **Call order / 호출 순서**. Developers choose
+one parent function, inspect its signature, and follow a numbered sequence of its
+business calls with original argument expressions. **Call relationships / 호출 관계**
+retains the existing node-per-function diagram, expansion, camera and selection.
+These are two views inside the same call mode, not another statement-flow mode.
+
+- Hierarchy: parent selector/signature → compact scenario controls → reached
+  conditions beside an ordered call trace → editable/copyable scenario draft.
+  A direct action opens the parent's existing Values inspector for input checking.
+- Follow CFG transitions, including early return/throw, break/continue and loop
+  exits. Calls inside argument expressions precede their consumer. Inline
+  short-circuit/conditional choices remain explicit. Deferred handlers do not
+  become immediate numbered calls; graph-only evidence has no invented order.
+- Start with bounded example routes so the initial view is useful; offer an empty
+  draft for explicit choices. Labels say these are assumed conditions, with input
+  values unverified. Example routes are not exhaustive or execution observations.
+- Loop choices mean zero, one or two *assumed* iterations. Keep conditions on
+  different visits independent, preserve loop boundaries, and mark bounded or
+  unknown continuations. Never reuse a first-iteration outcome as a runtime fact.
+- Keep per-parent drafts across selection/view/mode switches and locale changes.
+  Reset on a new snapshot. Preserve edited statement inputs; opening Values does
+  not apply fabricated values or start neural training automatically.
+- Reuse existing VS Code theme tokens, UI/editor fonts, flat borders and 4/8/12/16px
+  rhythm. Use a compact 280px condition column and flexible trace at desktop sizes;
+  stack at 768px and 390px, with no document-level horizontal overflow. Code wraps;
+  long traces/conditions scroll in bounded desktop regions. No decorative motion.
+- Native labeled selects/buttons support keyboard operation and visible focus;
+  reached conditions and call ordinals provide non-color cues. Handle pending,
+  failed/retry, no business calls, unknown order, branch awaiting choice, incomplete
+  analysis, copy failure/success, long expressions and maximum-density cases.
+
+Acceptance: TS/Python nested argument order, mutually exclusive branches, joined
+branches, early exits, loop skip/two visits, continue/break, inline guards, deferred
+calls, distinct same-text decisions, source authority, budgets and stale responses.
+Verify the production Webview at 390×844, 768×1024 and 1440×900; exercise presets,
+editing conditions, changing parent, draft copy, source navigation, Values entry,
+mode/camera retention and keyboard focus. Keep builtin/package exclusion intact.
+
 ## Function call mode — September 2026
 
 Developers can switch between **Statement flow / 구문 흐름** and **Function calls /

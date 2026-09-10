@@ -1,8 +1,9 @@
 # Function Calls mode
 
 The Function Visualizer exposes two independent modes. Statement flow retains its
-block diagram and scenario workspace. Function calls shows one node for each
-identified project callable, with directed connections grouping its distinct callsites. Switching
+block diagram and scenario workspace. Function calls opens **Call order**, a
+parent-controlled scenario draft, and also offers **Call relationships**, with one
+node for each identified project callable and connections grouping distinct callsites. Switching
 modes hides the other surface and preserves both cameras and selections. Opening
 a selected function's statement flow is an explicit navigation action.
 
@@ -13,6 +14,9 @@ a selected function's statement flow is an explicit navigation action.
   language-owned expression guards; `maxDepth` bounds traversal. The TypeScript
   adapter covers JS/TS/JSX/TSX short circuits, ternaries and optional dispatch. The
   Python adapter covers `and`, `or` and conditional expressions. No source executes.
+  Parser evaluation-order keys place argument calls before their consumers, and
+  Python conditional tests before their selected arm. Offset-owned guard identities
+  distinguish identical source text at different decisions.
 - `application/functionCalls.createFunctionCallsSlice(...)` combines contexts with
   the existing direct-target resolver, projects opaque function identities and
   per-callsite evidence. `createProjectCallableScope(workspaceRoot)` accepts concrete
@@ -21,6 +25,9 @@ a selected function's statement flow is an explicit navigation action.
   Source tokens are stable within the panel snapshot, so separately expanded
   callers share the same callee node. Exact/resolved/inferred confidence
   remains distinct. Graph-only evidence carries an explicit context limitation.
+  Its private `controlPlan` projection adds a bounded, opaque parent CFG to the
+  response: source signature, ordered callsite IDs/expressions, decision identities,
+  loop owners and abrupt-completion cleanup continuations.
 - `protocol/functionCalls` defines the bounded request/response contract.
   `functionCalls/load` accepts only graph version, issued source token and a safe
   nonnegative integer request sequence. Raw paths and extra request fields fail
@@ -33,6 +40,50 @@ a selected function's statement flow is an explicit navigation action.
   private iterative layout groups connections and detects self/mutual cycles.
   Graph buttons and the native expandable call list offer equivalent selection;
   the detail area exposes full conditions and explicit source/statement actions.
+  Private `controlSource` walks one selected parent's plan without executing source;
+  `scenarioSource` owns native controls, drafts and clipboard feedback. The retained
+  mode controller owns graph state and the existing statement navigation boundary.
+
+## Parent-controlled scenario drafts
+
+Call order starts from the parent interface, then presents decisions beside numbered
+project calls with their original argument expressions, prerequisites, loop visit
+and source location. Selecting a call opens its relationship; selecting another
+parent lazily loads that function's direct plan. The sequence does not recursively
+inline callee bodies. **Check parent inputs** opens the existing Values inspector.
+For the current statement function this preserves mounted DOM and manual inputs;
+another parent uses normal source-token navigation before opening Values.
+
+Each reached decision requires an explicit outcome. Loop counts 0, 1 or 2 are
+assumptions; repeated decisions have independent visit keys. The walker stops at an
+unselected condition and preserves return/throw, break/continue and finally cleanup.
+Nested finally blocks run inside out; an abrupt completion from finally can replace
+the pending completion. Iterator factory expressions run once per loop activation;
+while predicate calls also occur on the final exit check. Other loop forms remain
+visibly limited. Event/render/deferred relationships are separate dispatch evidence,
+not immediate call ordinals. Graph-only callsites remain available in relationships.
+
+A bounded breadth-first search offers at most eight examples, considering at most
+160 partial choices with a 256-item queue. Examples sample 0/1 loop visits; two
+visits are available through editing. Plans cap at 512 blocks and 1,024 transfers;
+traces cap at 1,024 steps and 256 displayed rows with explicit visited-state guards.
+Unknown blocks, truncated evidence, missing connections and unsupported ordering
+keep a visible limitation instead of creating runtime evidence.
+An explicit throw inside a surrounding catch/except region stops as incomplete:
+the shared CFG does not resolve the thrown value to a handler. It is not reported
+as an uncaught function exit; handler lanes can still be inspected as assumptions.
+
+The controls and generated draft always state that decisions are assumed and input
+values remain unverified. Different assumptions may be mutually infeasible for a
+concrete input or external state; these drafts are not a constraint solver, measured
+execution, or exhaustive scenario coverage. Numeric argument values and cross-call
+value propagation are not invented. Existing Values analysis is the next inspection
+step and does not automatically apply a draft's assumptions.
+
+Draft names, choices and disclosure state are retained per parent through view,
+mode and locale changes, and cleared for a new snapshot. Copy feedback distinguishes
+success from clipboard denial, which selects the text for manual copying. Narrow
+layouts stack complete controls with explicit jumps between conditions and calls.
 
 ## Semantics and limits
 
@@ -66,7 +117,7 @@ provide the repetition description instead.
 Source expression guards supplement conditions that remain inside larger statement
 blocks. A returned closure does not imply its body was invoked. Event/render
 relations retain their existing analysis meaning, and deferred dispatch is shown
-separately. Connections describe possible source relationships, not execution order,
+separately. Relationship connections describe possible source relationships, not execution order,
 observed values, iteration counts or termination. Dynamic dispatch, external effects,
 runtime exceptions, framework scheduling and unsupported language expressions can
 remain unknown. The mode does not build a whole-program execution proof.
@@ -94,3 +145,9 @@ collisions, locally shadowed builtin names and budgets after filtering. Host tes
 source evidence, unavailable/failed reads, authority checks, replay and late results.
 Browser QA separately exercises the generated production HTML, mode retention,
 keyboard selection, expansion, source actions, dense/long content and narrow views.
+Parent scenario fixtures additionally cover TS/Python nested argument ordering,
+independent loop visits, break/continue, iterator versus while evaluation, nested
+finally cleanup and completion replacement, optional dispatch and traversal limits.
+Browser checks exercise per-parent drafts, condition editing, successful/denied copy,
+retained manual inputs, child Values navigation, lazy-load failures/retry and stale
+plan rejection at 1440×900, 768×1024 and 390×844.
