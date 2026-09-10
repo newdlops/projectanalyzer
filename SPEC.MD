@@ -783,9 +783,17 @@ filter, repeat, exit edge는 모두 `inferred`이며 callee가 실제로 iterabl
 dispatch를 보존한다. predicate 자체를 평가하는 호출에는 그 결과를 선행 조건으로 붙이지
 않고 합류한 분기의 결과도 이후 호출의 필수 조건으로 단정하지 않는다. `for`/`while` 안의
 반복 호출과 자기 재귀/함수 사이 순환은 별도로 표시하며 횟수·종료·실제 런타임 실행을
-추정하지 않는다. 미확인 대상과 추정 신뢰도를 유지한다.
+추정하지 않는다. 프로젝트 대상의 exact/resolved/inferred 신뢰도를 유지한다.
 
-이 모드의 snapshot당 상한은 함수/미확인 대상 32개, 호출 지점 128개, 펼침 깊이 6이다.
+함수 호출 모드는 비즈니스 로직에 집중하여 workspace 안에서 정의가 확인된 함수·메서드·
+생성자만 노드로 표시한다. `len`, `append` 등의 내장·표준 라이브러리 호출, 미확인 대상,
+workspace 밖의 소스, `site-packages`·`dist-packages`·가상환경·`node_modules`의 설치된
+의존성은 제외한다. 이름만으로 내장 함수를 판별하지 않아 프로젝트에서 직접 정의한 `len`은
+유지한다. Python import 및 lexical binding을 확인해 외부 호출이 이름만 같은 프로젝트
+함수에 연결되지 않게 한다. 제외된 호출도 원본 조건·루프 표현식에는 그대로 남으며,
+표시 한도나 한도 초과 개수는 소비하지 않는다. 이 범위는 모든 하위 펼침에도 적용한다.
+
+이 모드의 snapshot당 상한은 프로젝트 함수 32개, 호출 지점 128개, 펼침 깊이 6이다.
 Host의 한 요청은 최대 512개 구문 블록, 96개 호출 지점, 32개 대상을 분석한다. 응답은
 `graphVersion`, opaque `sourceToken`, 단조 증가 `requestId`로 연결하며 root 변경·새
 snapshot 이후 도착한 응답은 버린다. `functionCalls/load`는 경로나 임의 symbol ID를

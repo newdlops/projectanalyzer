@@ -9,10 +9,10 @@ import type { ProjectGraph, SourceFile } from "../../../shared/types";
 import type { SourceNodeToken } from "../../../protocol/sourceNavigation";
 
 /** Builds real declaration identities; direct calls intentionally exercise syntax recovery. */
-export async function loadFunctionCallsFixture(language: "typescript" | "python" = "typescript") {
+export async function loadFunctionCallsFixture(language: "typescript" | "python" = "typescript", fixtureName = "workflow") {
   const extension = language === "python" ? "py" : "ts";
-  const content = fs.readFileSync(path.resolve(__dirname, `../../../../src/test/fixtures/functionCalls/workflow.${extension}`), "utf8");
-  const file: SourceFile = { path: `/workspace/workflow.${extension}`, languageId: language, content, sizeBytes: Buffer.byteLength(content), contentHash: createContentHash(content) };
+  const content = fs.readFileSync(path.resolve(__dirname, `../../../../src/test/fixtures/functionCalls/${fixtureName}.${extension}`), "utf8");
+  const file: SourceFile = { path: `/workspace/${fixtureName}.${extension}`, languageId: language, content, sizeBytes: Buffer.byteLength(content), contentHash: createContentHash(content) };
   const analyzer = language === "python" ? new PythonAnalyzer() : new TypeScriptAnalyzer();
   const parsed = await analyzer.parse(file);
   const nodes = await analyzer.extractSymbols(parsed);

@@ -1,6 +1,6 @@
 /** Snapshot-authorized Host boundary for lazy Function Calls neighborhoods; no source execution. */
 import { analyzeFunctionLogic } from "../../analyzer/functionLogic";
-import { createFunctionCallsSlice } from "../../application/functionCalls";
+import { createFunctionCallsSlice, createProjectCallableScope } from "../../application/functionCalls";
 import type { FunctionCallsRequest, FunctionCallsResponse } from "../../protocol/functionCalls";
 import type { WebviewGraphDelivery } from "../sidebarGraphDelivery";
 import type { SourceNodeTokenRegistry } from "../sourceNavigation";
@@ -33,7 +33,7 @@ export class FunctionCallsHostDelivery {
     const empty = (status: FunctionCallsResponse["status"]): FunctionCallsResponse => ({ ...request, status, nodes: [], connections: [], omittedCount: 0, limited: true });
     const snapshot = graphDelivery.current(); const node = sourceNodeTokens.resolve(request.sourceToken);
     if (!snapshot || !graphDelivery.matches(request.graphVersion) || !node) { await this.dependencies.postMessage(empty("stale")); return; }
-    if (!["function", "method", "constructor"].includes(node.kind)) { await this.dependencies.postMessage(empty("unavailable")); return; }
+    if (!createProjectCallableScope(snapshot.graph.workspaceRoot)(node)) { await this.dependencies.postMessage(empty("unavailable")); return; }
     let response: FunctionCallsResponse;
     try {
       const source = this.rootSource?.nodeId === node.id ? this.rootSource.text : await this.dependencies.readSourceText(node.filePath);

@@ -71,3 +71,13 @@ test("call Host drops source reads that finish after a root reset or graph repla
     assert.equal(h.messages.length, 0);
   }
 });
+
+test("call Host rejects dependency and outside roots before reading source", async () => {
+  for (const filePath of ["/workspace/.venv/lib/python3.12/site-packages/sdk.py", "/workspace/site-packages/sdk.py", "/outside/project.py"]) {
+    const h = await harness();
+    h.root.filePath = filePath;
+    await h.delivery.load(h.request);
+    assert.equal(h.messages[0].status, "unavailable");
+    assert.equal(h.reads(), 0);
+  }
+});

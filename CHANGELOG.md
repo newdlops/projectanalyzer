@@ -4,6 +4,18 @@ All notable user-visible changes to Project Analyzer: Code Flow are recorded in
 this file. The changelog starts with the first distribution-documented build;
 earlier local development builds were not tracked here.
 
+## 0.0.1098 - 2026-09-10
+
+### Improved
+
+- **Function calls** now focuses on identified project functions. Builtins, unresolved
+  targets and installed dependencies such as Python `site-packages` no longer clutter
+  the diagram or consume its node/callsite limits. The scope also applies to expansion.
+- Keep complete conditions and loops, including expressions such as `len(items) > 4`.
+  Python binding checks prevent library aliases and collection methods from borrowing
+  unrelated project identities while preserving locally defined functions named `len`.
+- Clarify project-function counts and the empty state in Korean and English.
+
 ## 0.0.1097 - 2026-09-10
 
 ### Added

@@ -66,7 +66,13 @@ export function createFunctionLogicDrillTargets(
   analysis: FunctionLogicAnalysis,
   createSourceToken: FunctionLogicSourceTokenFactory,
   limit = FUNCTION_LOGIC_DEFAULT_CALLEE_LIMIT,
-  options: { includeSelf?: boolean } = {}
+  options: {
+    includeSelf?: boolean;
+    /** Applied before token issuance and limits; excluded dependencies consume no diagram budget. */
+    acceptTarget?: (node: SymbolNode) => boolean;
+    /** Optional language-owned binding check, preserving the default statement drill behavior. */
+    acceptCallsiteTarget?: (site: FunctionLogicCallsite, node: SymbolNode, confidence: EdgeConfidence) => boolean;
+  } = {}
 ): FunctionLogicDrillProjection {
   const nodesById = new Map(graph.nodes.map((node) => [node.id, node]));
   const groupsByNodeId = new Map<string, CalleeGroup>();
@@ -108,7 +114,7 @@ export function createFunctionLogicDrillTargets(
               options.includeSelf
             )
           : undefined;
-        if (chainResolution) {
+        if (chainResolution && options.acceptCallsiteTarget?.(callsite, chainResolution.node, chainResolution.confidence) !== false) {
           addMatchedCallsite(groupsByNodeId, chainResolution.node, {
             key: createSyntaxCallsiteKey(callsite),
             filePath: callsite.filePath,
@@ -118,7 +124,8 @@ export function createFunctionLogicDrillTargets(
             relation: callsite.relation ?? "call"
           });
         }
-      } else if (target && isConcreteCallable(target)) {
+      } else if (target && isConcreteCallable(target)
+        && options.acceptCallsiteTarget?.(callsite, target, matchingEdge.confidence) !== false) {
         addMatchedCallsite(groupsByNodeId, target, {
           key: createSyntaxCallsiteKey(callsite),
           filePath: callsite.filePath,
@@ -138,7 +145,7 @@ export function createFunctionLogicDrillTargets(
       analysis.lexicalOwnerQualifiedName,
       options.includeSelf
     );
-    if (syntaxResolution) {
+    if (syntaxResolution && options.acceptCallsiteTarget?.(callsite, syntaxResolution.node, syntaxResolution.confidence) !== false) {
       addMatchedCallsite(groupsByNodeId, syntaxResolution.node, {
         key: createSyntaxCallsiteKey(callsite),
         filePath: callsite.filePath,
@@ -169,7 +176,8 @@ export function createFunctionLogicDrillTargets(
     });
   }
 
-  const orderedGroups = [...groupsByNodeId.values()].sort(compareCalleeGroups);
+  const orderedGroups = [...groupsByNodeId.values()]
+    .filter(group => options.acceptTarget?.(group.node) !== false).sort(compareCalleeGroups);
   const boundedLimit = normalizeLimit(limit);
   const selectedGroups = orderedGroups.slice(0, boundedLimit);
   const omittedByLimit = Math.max(0, orderedGroups.length - selectedGroups.length);

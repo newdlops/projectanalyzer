@@ -15,8 +15,8 @@ const MAX_ZIP_COMMENT_BYTES = 65_535;
 export const PACKAGE_BUDGET = Object.freeze({
   archiveBytes: 15 * MEBIBYTE,
   unpackedBytes: 35 * MEBIBYTE,
-  // The independent Function Calls mode adds thirteen runtime modules across
-  // analyzer, projection, protocol and Webview boundaries; retain two spare files.
+  // Function Calls spans analyzer, projection, protocol and Webview boundaries;
+  // its two ownership/binding modules use the existing spare-file allowance.
   fileCount: 460,
   singleFileBytes: 12 * MEBIBYTE
 });

@@ -71,9 +71,9 @@ test("direct neighborhoods retain one function identity and distinct callsite co
   assert.doesNotMatch(JSON.stringify(batch), /\/workspace\//u);
   assert.equal(project("countdown").connections[0].from, project("countdown").connections[0].to);
   const unknown = project("finish");
-  assert.equal(unknown.nodes[1].resolution, "unresolved");
-  assert.equal(unknown.nodes[1].sourceToken, undefined);
-  assert.equal(unknown.connections[0].confidence, "unresolved");
+  assert.equal(unknown.nodes.length, 1, "unresolved library calls are not business function nodes");
+  assert.equal(unknown.connections.length, 0);
+  assert.equal(unknown.omittedCount, 0, "scope exclusions do not imply a diagram budget limit");
   assert.equal(project("audit").connections.length, 0);
   assert.equal(project("deferred").connections.length, 0, "returning a closure does not eagerly call its body");
 });
@@ -92,7 +92,9 @@ test("context traversal and projections bound dense, duplicate and incomplete so
   const fixture = await loadFunctionCallsFixture();
   const analysis = fixture.analysis("processBatch");
   assert.ok(createFunctionCallContexts(analysis, { maxDepth: 1 }).some(context => context.limited));
-  analysis.callsites = Array.from({ length: 150 }, (_, index) => ({ ...analysis.callsites[0], calleeName: `unknown${index}`, calleeText: `unknown${index}` }));
+  const targets = Array.from({ length: 150 }, (_, index) => ({ ...analysis.functionNode, id: `dense:${index}`, name: `business${index}`, qualifiedName: `business${index}` }));
+  fixture.graph.nodes.push(...targets);
+  analysis.callsites = targets.map(target => ({ ...analysis.callsites[0], calleeName: target.name, calleeText: target.name }));
   const slice = createFunctionCallsSlice(fixture.graph, analysis, { graphVersion: "snapshot:test", sourceToken: functionCallsToken(analysis.functionNode.id), requestId: 2 }, functionCallsToken, () => undefined);
   assert.equal(slice.nodes.length, 32);
   assert.equal(slice.connections.length, 31);

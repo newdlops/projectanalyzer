@@ -7,14 +7,17 @@ Developers can switch between **Statement flow / 구문 흐름** and **Function 
 surface with its own graph, selection, zoom and expansion state. Keep the statement
 surface mounted when switching so edited scenario values and graph state survive.
 
-- Show one node per known function and directed edges per callsite. Source guards
+- Show one node per identified project function and directed edges per callsite. Source guards
   and enclosing loops label the connections. Distinguish loop-contained calls from
   recursive/cyclic call relationships; never infer iteration counts from a cycle.
 - Start at the current root's direct calls. Select a function to inspect incoming
   and outgoing callsites, expand one more level, or open its statement flow. Expansion
   is lazy, bounded and cycle-safe. Repeated targets reuse their existing node.
-- Retain unresolved targets and deferred/event/render relations with explicit text
-  and line style. A source condition is a static prerequisite, not a runtime result.
+- Focus this mode on business code: exclude builtins, unresolved targets, installed
+  packages and source outside the workspace before allocating graph limits. Preserve
+  their expressions in conditions and loops. Explain the scope in the mode hint and
+  empty state. Retain deferred/event/render relations and inferred confidence with
+  explicit line style. A source condition is a static prerequisite, not a runtime result.
 - Hierarchy: shared function heading → two mode controls → concise mode explanation
   and graph controls → graph with selected function/call detail → accessible call
   list. The same list supplies full conditions when graph labels are abbreviated.
@@ -26,12 +29,12 @@ surface mounted when switching so edited scenario values and graph state survive
   the document, toolbar and detail must wrap without horizontal overflow. Keep
   keyboard node/list controls, visible focus, minimum 44px touch targets, polite
   load/status feedback, and reduced-motion support.
-- Pending, retryable failure, empty leaf, unresolved target, depth/node/edge limit,
+- Pending, retryable failure, empty project-call leaf, depth/node/edge limit,
   long names, parallel edges, self-calls, cycles and stale replies are explicit.
   Changing locale preserves state. Switching modes does not start neural training.
 
 Acceptance covers TS and Python conditional/loop call fixtures, early-return guards,
-calls inside predicates, shared callees, recursion, unresolved/deferred calls,
+calls inside predicates, shared callees, recursion, dependency exclusion/deferred calls,
 bounded expansion, source actions and strict message validation. Independently
 exercise real rendered 390×844/768×1024/1440×900 views, keyboard selection, mode
 state retention, loading/error/empty/dense states, expansion and statement drill-in.
