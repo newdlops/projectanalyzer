@@ -173,6 +173,10 @@ function validateReadableWebviewRequest(value: unknown): WebviewRequestValidatio
     case "codeFlow/selectSource":
       payloadIsValid = isCodeFlowSelectSourcePayload(payload);
       break;
+    case "functionCalls/load":
+      payloadIsValid = isRecord(payload) && hasOnlyKeys(payload, ["graphVersion", "sourceToken", "requestId"])
+        && isCodeFlowSelectSourcePayload(payload) && isNonNegativeInteger(payload.requestId);
+      break;
     case "codeFlow/openEvidence":
       payloadIsValid = isCodeFlowOpenEvidencePayload(payload);
       break;

@@ -1,5 +1,41 @@
 # Function reading workspace
 
+## Function call mode — September 2026
+
+Developers can switch between **Statement flow / 구문 흐름** and **Function calls /
+함수 호출** in the dedicated Function Visualizer. The second mode is a separate
+surface with its own graph, selection, zoom and expansion state. Keep the statement
+surface mounted when switching so edited scenario values and graph state survive.
+
+- Show one node per known function and directed edges per callsite. Source guards
+  and enclosing loops label the connections. Distinguish loop-contained calls from
+  recursive/cyclic call relationships; never infer iteration counts from a cycle.
+- Start at the current root's direct calls. Select a function to inspect incoming
+  and outgoing callsites, expand one more level, or open its statement flow. Expansion
+  is lazy, bounded and cycle-safe. Repeated targets reuse their existing node.
+- Retain unresolved targets and deferred/event/render relations with explicit text
+  and line style. A source condition is a static prerequisite, not a runtime result.
+- Hierarchy: shared function heading → two mode controls → concise mode explanation
+  and graph controls → graph with selected function/call detail → accessible call
+  list. The same list supplies full conditions when graph labels are abbreviated.
+- Reuse VS Code colors, native buttons, code font, 4/8/12/16px spacing and flat
+  borders. Use source-code labels as text, not markup. Selection uses border and
+  text as well as color; unrelated nodes stay legible. No decorative animation.
+- At 390px place details below the canvas; at 768px/1440px preserve a useful canvas
+  with an adjacent detail region when space permits. The canvas may pan internally;
+  the document, toolbar and detail must wrap without horizontal overflow. Keep
+  keyboard node/list controls, visible focus, minimum 44px touch targets, polite
+  load/status feedback, and reduced-motion support.
+- Pending, retryable failure, empty leaf, unresolved target, depth/node/edge limit,
+  long names, parallel edges, self-calls, cycles and stale replies are explicit.
+  Changing locale preserves state. Switching modes does not start neural training.
+
+Acceptance covers TS and Python conditional/loop call fixtures, early-return guards,
+calls inside predicates, shared callees, recursion, unresolved/deferred calls,
+bounded expansion, source actions and strict message validation. Independently
+exercise real rendered 390×844/768×1024/1440×900 views, keyboard selection, mode
+state retention, loading/error/empty/dense states, expansion and statement drill-in.
+
 ## Scenario input quality — September 2026
 
 Scenario inputs should explain a distinct behavior: a source boundary, an early

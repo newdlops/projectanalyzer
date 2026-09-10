@@ -14,6 +14,7 @@ AGENTS.md
 SPEC.MD
 PRODUCT.md
 DESIGN.md
+FUNCTION_CALLS.md
 FunctionSpec.md
 docs/**
 package-lock.json

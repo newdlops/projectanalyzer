@@ -772,6 +772,27 @@ filter, repeat, exit edge는 모두 `inferred`이며 callee가 실제로 iterabl
 
 ### 6.3 Flow Reader와 Function Visualizer
 
+전용 Function Visualizer에는 `구문 흐름 / Statement flow`와 `함수 호출 / Function calls`
+모드를 따로 제공한다. 기본 모드는 구문 흐름이며 모드 전환은 기존 DOM, 입력값, 선택,
+확대·이동 상태를 보존한다. 함수 호출 모드는 최초 선택 시 root의 직접 호출을 읽고, 이후
+사용자가 함수를 선택하여 하위 호출을 펼친다. 한 함수의 여러 호출 지점은 노드 하나와
+연결 하나로 묶어 그리고, 연결 선택 시 각 지점의 조건·반복·소스 위치를 개별 표시한다.
+
+호출 조건은 CFG의 지배 관계와 언어별 식 구문을 함께 사용한다. 조기 반환을 피하는 조건,
+분기 결과, TypeScript/JavaScript·Python의 단축 평가와 조건부 식, TypeScript의 optional
+dispatch를 보존한다. predicate 자체를 평가하는 호출에는 그 결과를 선행 조건으로 붙이지
+않고 합류한 분기의 결과도 이후 호출의 필수 조건으로 단정하지 않는다. `for`/`while` 안의
+반복 호출과 자기 재귀/함수 사이 순환은 별도로 표시하며 횟수·종료·실제 런타임 실행을
+추정하지 않는다. 미확인 대상과 추정 신뢰도를 유지한다.
+
+이 모드의 snapshot당 상한은 함수/미확인 대상 32개, 호출 지점 128개, 펼침 깊이 6이다.
+Host의 한 요청은 최대 512개 구문 블록, 96개 호출 지점, 32개 대상을 분석한다. 응답은
+`graphVersion`, opaque `sourceToken`, 단조 증가 `requestId`로 연결하며 root 변경·새
+snapshot 이후 도착한 응답은 버린다. `functionCalls/load`는 경로나 임의 symbol ID를
+받지 않는다. 편집 중인 root source override와 기존 source/evidence token 권한을 재사용한다.
+
+세부 모듈 계약과 제약은 [FUNCTION_CALLS.md](FUNCTION_CALLS.md)에 기록한다.
+
 Entrypoint Flow Reader는 좁은 sidebar에서 vertical ribbon을 사용한다. 선택 함수의
 Function Visualizer는 별도 editor tab에서 node와 labeled edge로 이루어진 free-pan
 control-flow graph를 기본 표현으로 사용한다. viewport는 native scroll bound 대신 하나의

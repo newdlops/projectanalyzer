@@ -4,6 +4,20 @@ All notable user-visible changes to Project Analyzer: Code Flow are recorded in
 this file. The changelog starts with the first distribution-documented build;
 earlier local development builds were not tracked here.
 
+## 0.0.1097 - 2026-09-10
+
+### Added
+
+- **Function calls** is a separate diagram mode beside **Statement flow**. Each
+  function has one node; connections retain distinct callsites, source conditions,
+  enclosing loops and target confidence. Self-recursion and cycles are labeled.
+- Expand a selected function's calls, compare repeated callsite conditions, open
+  source evidence or enter its statement flow. Switching modes preserves selection,
+  zoom, pan and the mounted statement workspace.
+- TypeScript/JavaScript and Python calls include early-exit prerequisites and
+  expression guards. Unknown targets and analysis limits remain explicit. A
+  keyboard-accessible call list complements the pannable diagram.
+
 ## 0.0.1096 - 2026-09-10
 
 ### Improved

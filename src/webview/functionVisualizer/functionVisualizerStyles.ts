@@ -1,6 +1,7 @@
 /** Theme-aware layout for the navigable, single-canvas Function Visualizer tab. */
 
 import { getFunctionLogicGraphStyles } from "../codeFlow/functionLogicGraphStyles";
+import { getFunctionCallsStyles } from "../functionCalls";
 
 /** Returns panel chrome plus the shared source-backed graph styles. */
 export function getFunctionVisualizerStyles(): string {
@@ -276,6 +277,7 @@ export function getFunctionVisualizerStyles(): string {
     }
 
     ${getFunctionLogicGraphStyles()}
+    ${getFunctionCallsStyles()}
 
     .visualizer-shell .logic-graph-node.expandable {
       border-color: color-mix(in srgb, var(--vscode-textLink-foreground) 58%, var(--vscode-panel-border));

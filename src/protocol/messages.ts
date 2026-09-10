@@ -17,6 +17,7 @@ import type {
   FunctionExplorerSearchPayload
 } from "./functionExplorer";
 import type { FunctionVisualizerSessionPayload } from "./functionVisualizer";
+import type { FunctionCallsRequest, FunctionCallsResponse } from "./functionCalls";
 import type { ScenarioInputsResponse } from "./scenarioInputs";
 import type {
   ModuleFlowDetailPayload,
@@ -95,6 +96,7 @@ export type WebviewRequest =
   | { type: "search/query"; payload: SearchRequest }
   | { type: "export/run"; payload: ExportRequest }
   | CodeFlowRequest
+  | { type: "functionCalls/load"; payload: FunctionCallsRequest }
   | FunctionExplorerRequest
   | ModuleFlowLaunchRequest
   | ModuleFlowRequest
@@ -135,6 +137,7 @@ export type ExtensionResponse =
   | { type: "codeFlow/detailFailed"; payload: CodeFlowFailurePayload }
   | { type: "codeFlow/scenarioInputsLoaded"; payload: ScenarioInputsResponse }
   | { type: "functionVisualizer/sessionLoaded"; payload: FunctionVisualizerSessionPayload }
+  | { type: "functionCalls/loaded"; payload: FunctionCallsResponse }
   | { type: "function/indexLoaded"; payload: FunctionExplorerPayload }
   | { type: "function/searchLoaded"; payload: FunctionExplorerSearchPayload }
   | { type: "function/searchFailed"; payload: FunctionExplorerSearchFailurePayload }

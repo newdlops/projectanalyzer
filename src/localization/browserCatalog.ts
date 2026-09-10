@@ -8,6 +8,7 @@ import { getFunctionReadingCatalogSource } from "./functionReadingCatalog";
 import { getFunctionUnderstandingCatalogSource } from "./functionUnderstandingCatalog";
 import { getFrameworkBehaviorCatalogSource } from "./frameworkBehaviorCatalog";
 import { getScenarioInputCatalogSource } from "./scenarioInputCatalog";
+import { getFunctionCallsCatalogSource } from "./functionCallsCatalog";
 
 /** Returns a CSP-inline script fragment for localized static Webview chrome. */
 export function getBrowserLocalizationSource(): string {
@@ -325,6 +326,7 @@ export function getBrowserLocalizationSource(): string {
     ${getFunctionUnderstandingCatalogSource()}
     ${getFrameworkBehaviorCatalogSource()}
     ${getScenarioInputCatalogSource()}
+    ${getFunctionCallsCatalogSource()}
 
     function applyProjectAnalyzerLanguage(language) {
       const locale = language === "ko" ? "ko" : "en";

@@ -32,6 +32,8 @@ export type FunctionLogicDrillProjection = {
   callees: FunctionLogicDrillTargetPayload[];
   omittedCalleeCount: number;
   targetsByBlockId: ReadonlyMap<string, FunctionLogicDrillTargetPayload[]>;
+  /** Precise syntax-site joins for other application projections, never serialized as source authority. */
+  sites: Array<{ site: FunctionLogicCallsite; target?: FunctionLogicDrillTargetPayload }>;
 };
 
 type CalleeGroup = {
@@ -63,14 +65,15 @@ export function createFunctionLogicDrillTargets(
   functionNode: SymbolNode,
   analysis: FunctionLogicAnalysis,
   createSourceToken: FunctionLogicSourceTokenFactory,
-  limit = FUNCTION_LOGIC_DEFAULT_CALLEE_LIMIT
+  limit = FUNCTION_LOGIC_DEFAULT_CALLEE_LIMIT,
+  options: { includeSelf?: boolean } = {}
 ): FunctionLogicDrillProjection {
   const nodesById = new Map(graph.nodes.map((node) => [node.id, node]));
   const groupsByNodeId = new Map<string, CalleeGroup>();
   const directEdges = graph.edges.filter((edge) =>
     edge.kind === "calls"
     && edge.sourceId === functionNode.id
-    && edge.targetId !== functionNode.id
+    && (options.includeSelf || edge.targetId !== functionNode.id)
   );
   const usedEdgeIds = new Set<string>();
 
@@ -101,7 +104,8 @@ export function createFunctionLogicDrillTargets(
               graph,
               functionNode,
               callsite,
-              analysis.lexicalOwnerQualifiedName
+              analysis.lexicalOwnerQualifiedName,
+              options.includeSelf
             )
           : undefined;
         if (chainResolution) {
@@ -131,7 +135,8 @@ export function createFunctionLogicDrillTargets(
       graph,
       functionNode,
       callsite,
-      analysis.lexicalOwnerQualifiedName
+      analysis.lexicalOwnerQualifiedName,
+      options.includeSelf
     );
     if (syntaxResolution) {
       addMatchedCallsite(groupsByNodeId, syntaxResolution.node, {
@@ -171,6 +176,7 @@ export function createFunctionLogicDrillTargets(
   const sourceDisplay = createSourceDisplayFormatter(graph.workspaceRoot);
   const callees: FunctionLogicDrillTargetPayload[] = [];
   const targetsByBlockId = new Map<string, FunctionLogicDrillTargetPayload[]>();
+  const targetsBySite = new Map<string, FunctionLogicDrillTargetPayload>();
   let omittedWithoutToken = 0;
 
   for (const group of selectedGroups) {
@@ -185,6 +191,7 @@ export function createFunctionLogicDrillTargets(
     );
     const target = createTarget(group, sourceToken, sourceLocation);
     callees.push(target);
+    for (const site of group.callsites) targetsBySite.set(site.key, createTarget(group, sourceToken, sourceLocation, [site]));
 
     const callsitesByBlockId = new Map<string, MatchedCallsite[]>();
     for (const callsite of group.callsites) {
@@ -211,7 +218,8 @@ export function createFunctionLogicDrillTargets(
   return {
     callees,
     omittedCalleeCount: omittedByLimit + omittedWithoutToken,
-    targetsByBlockId
+    targetsByBlockId,
+    sites: analysis.callsites.map((site) => ({ site, target: targetsBySite.get(createSyntaxCallsiteKey(site)) }))
   };
 }
 
@@ -320,10 +328,11 @@ function resolveSyntaxTarget(
   graph: ProjectGraph,
   functionNode: SymbolNode,
   callsite: FunctionLogicCallsite,
-  lexicalOwnerQualifiedName?: string
+  lexicalOwnerQualifiedName?: string,
+  includeSelf = false
 ): SyntaxTargetResolution | undefined {
   const candidates = graph.nodes.filter((node) =>
-    node.id !== functionNode.id && isConcreteCallable(node)
+    (includeSelf || node.id !== functionNode.id) && isConcreteCallable(node)
   );
   const normalizedText = callsite.calleeText
     .replace(/\?\./gu, ".")

@@ -5,6 +5,7 @@
 
 import { getFunctionLogicBrowserSource } from "../codeFlow/functionLogicBrowserSource";
 import { getCompoundFunctionLogicGraphSource } from "./compoundFunctionLogicGraphSource";
+import { getFunctionCallsBrowserSource } from "../functionCalls";
 
 /** Returns CSP-compatible JavaScript for one Function Visualizer panel. */
 export function getFunctionVisualizerBrowserSource(): string {
@@ -52,11 +53,17 @@ export function getFunctionVisualizerBrowserSource(): string {
       flowGaps: document.getElementById("flow-gaps")
     };
 
+    const callMode = createFunctionCallsMode({ postMessage: message => vscode.postMessage(message),
+      openFunction: node => drillIntoFunction(node), onModeChange(active) {
+        elements.title.textContent = (active ? state.root?.label : state.history[state.historyIndex]?.detail.title) || projectAnalyzerText("function-title");
+        elements.subtitle.hidden = active; elements.summary.hidden = active;
+      } });
     elements.back.addEventListener("click", () => navigateToHistory(state.historyIndex - 1));
 
     window.addEventListener("message", (event) => {
       const message = event.data;
       if (!message || typeof message.type !== "string") return;
+      if (message.type === "functionCalls/loaded") { callMode.accept(message.payload); return; }
       if (message.type === "codeFlow/scenarioInputsLoaded") { acceptScenarioInputsResponse(message.payload); return; }
 
       if (message.type === "ui/language") {
@@ -64,6 +71,7 @@ export function getFunctionVisualizerBrowserSource(): string {
         state.uiLanguage = language;
         applyProjectAnalyzerLanguage(language);
         relocalizeFunctionVisualizerPresentation();
+        callMode.localize();
         return;
       }
 
@@ -88,6 +96,7 @@ export function getFunctionVisualizerBrowserSource(): string {
       if (!payload || !payload.graphVersion || !payload.root) return;
       state.graph = { version: payload.graphVersion };
       state.root = payload.root;
+      callMode.reset(payload);
       state.history = [];
       state.historyIndex = -1;
       state.pendingTarget = payload.root;
@@ -257,7 +266,7 @@ export function getFunctionVisualizerBrowserSource(): string {
 
       const detail = entry.detail;
       document.title = projectAnalyzerText("function-flow-title", { title: detail.title });
-      elements.title.textContent = detail.title;
+      elements.title.textContent = callMode.isActive() ? state.root.label : detail.title;
       elements.subtitle.textContent = formatFunctionSubtitle(detail);
       elements.summary.textContent = createFunctionLogicSummaryText(detail.logic);
       elements.semantics.textContent = projectAnalyzerText("function-semantics");
@@ -299,7 +308,7 @@ export function getFunctionVisualizerBrowserSource(): string {
       }
       const detail = entry.detail;
       document.title = projectAnalyzerText("function-flow-title", { title: detail.title });
-      elements.title.textContent = detail.title;
+      elements.title.textContent = callMode.isActive() ? state.root.label : detail.title;
       elements.subtitle.textContent = formatFunctionSubtitle(detail);
       elements.summary.textContent = createFunctionLogicSummaryText(detail.logic);
       elements.semantics.textContent = projectAnalyzerText("function-semantics");
@@ -703,6 +712,7 @@ export function getFunctionVisualizerBrowserSource(): string {
 
     ${getCompoundFunctionLogicGraphSource()}
 
+    ${getFunctionCallsBrowserSource()}
     ${getFunctionLogicBrowserSource()}
 
     /** Creates a theme-aware text badge used by the shared graph renderer. */

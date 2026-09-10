@@ -25,6 +25,7 @@ import {
   readSourceText
 } from "../webviewHostActions";
 import { getFunctionVisualizerHtml } from "./functionVisualizerHtml";
+import { FunctionCallsHostDelivery } from "../functionCalls";
 
 /** VS Code collaborators and bounded projection configuration for the panel. */
 export type FunctionVisualizerPanelProviderDependencies = {
@@ -70,11 +71,15 @@ export class FunctionVisualizerPanelProvider {
 
   /** Shared application delivery builds function details for this panel only. */
   private readonly codeFlowDelivery: CodeFlowHostDelivery;
+  private readonly functionCallsDelivery: FunctionCallsHostDelivery;
 
   public constructor(
     private readonly dependencies: FunctionVisualizerPanelProviderDependencies
   ) {
     this.uiLanguage = dependencies.config.uiLanguage;
+    this.functionCallsDelivery = new FunctionCallsHostDelivery({ graphDelivery: this.graphDelivery,
+      sourceNodeTokens: this.sourceNodeTokens, evidenceTokens: this.evidenceTokens, readSourceText,
+      postMessage: (payload) => this.postMessage({ type: "functionCalls/loaded", payload }) });
     this.codeFlowDelivery = new CodeFlowHostDelivery({
       graphDelivery: this.graphDelivery,
       insightCache: this.insightCache,
@@ -146,6 +151,7 @@ export class FunctionVisualizerPanelProvider {
 
   /** Handles only the shared requests meaningful inside this focused panel. */
   private async handleMessage(message: WebviewRequest): Promise<void> {
+    if (message.type === "functionCalls/load") { await this.functionCallsDelivery.load(message.payload); return; }
     if (message.type === "codeFlow/requestScenarioInputs") { await this.codeFlowDelivery.requestScenarioInputs(message.payload); return; }
     if (message.type === "codeFlow/cancelScenarioInputs") { this.codeFlowDelivery.cancelScenarioInputs(message.payload); return; }
     this.dependencies.logger.debug("functionVisualizer.message", { type: message.type });
@@ -206,6 +212,7 @@ export class FunctionVisualizerPanelProvider {
     this.insightCache.clear();
     this.sourceNodeTokens.activate(activation.snapshot.version, request.graph);
     this.evidenceTokens.activate(activation.snapshot.version, request.graph);
+    this.functionCallsDelivery.reset(request.nodeId, request.sourceText);
     const node = request.graph.nodes.find((candidate) => candidate.id === request.nodeId);
     const rootToken = this.sourceNodeTokens.createToken(request.nodeId);
     if (!node || !rootToken) {
@@ -239,6 +246,7 @@ export class FunctionVisualizerPanelProvider {
 
   /** Drops snapshot authority when the editor tab is closed. */
   private disposePanelState(): void {
+    this.functionCallsDelivery.reset();
     this.codeFlowDelivery.clearScenarioInputs();
     this.panel = undefined;
     this.webviewReady = false;

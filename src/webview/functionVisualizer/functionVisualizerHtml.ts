@@ -42,6 +42,11 @@ export function getFunctionVisualizerHtml(
       </div>
     </header>
 
+    <div class="visualizer-modes" role="group" aria-label="Diagram mode" data-i18n-aria-label="function-modes">
+      <button id="function-mode-statements" type="button" aria-pressed="true" aria-controls="flow-steps" data-i18n="function-mode-statements">Statement flow</button>
+      <button id="function-mode-calls" type="button" aria-pressed="false" aria-controls="function-calls" data-i18n="function-mode-calls">Function calls</button>
+    </div>
+    <section id="function-calls" class="function-calls" aria-label="Function calls" data-i18n-aria-label="calls-title" hidden></section>
     <div id="status" class="status" role="status" aria-live="polite" data-i18n="connecting">Connecting to the analyzer…</div>
     <section id="function-origins-section" class="function-origins" aria-labelledby="function-origins-title" hidden>
       <h2 id="function-origins-title" data-i18n="reached-from-title">Reached from</h2>
