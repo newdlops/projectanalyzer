@@ -404,10 +404,16 @@ debugger: source is never executed and uncertainty remains visible.
   pressed state. Repeating the active control closes the reading panel.
 - The reading panel has two exclusive modes. Inspector groups selected code,
   values/paths, and function information in three retained tabs;
-  Function Guide shows **At a Glance** and five stable questions: codebase fit,
+  Function Guide starts with **Function summary** when the optional source-backed
+  Summary is present, then five stable questions: codebase fit,
   inputs, path decisions, work/calls, and outcomes. Opening or changing a Guide
   question does not move the viewport, select a block, change graph semantics, open
   source, alter branch/value state, start playback, or calculate scenarios.
+- **Function summary** orders purpose and source basis, inputs and outcomes,
+  up to five conditional source stages, then native disclosures for calls/writes
+  and gaps. A source comment/KDoc supplies authored purpose; otherwise the text
+  reports structural facts. Source names never imply a business responsibility.
+  Existing payloads keep **At a Glance**. Graph and source actions are explicit.
 - Each answer contains a deterministic claim, source-backed facts, certainty,
   source basis, and an explicit **Show on Graph** or **Open Source** action when
   matching evidence exists. **Show on Graph** changes selection/emphasis and
@@ -417,6 +423,16 @@ debugger: source is never executed and uncertainty remains visible.
   status locally, pauses when the Guide closes, and never executes source.
   **Load Inputs & Open Values** transfers known literals only, then opens the
   editable Scenario destination in the Inspector's Values & paths tab.
+- Opening that disclosure also shows three representative rows from the same
+  Workspace results, expandable to five. Conditions, reached calls/writes,
+  terminals and unknowns explain each path. Selection and keyboard navigation
+  share the existing seed/path state and preview; every row remains in the
+  detailed table. Selection, localization and playback reuse the result-revision
+  projection without another interpreter or consumer.
+- Kotlin paths show source assumptions as symbolic evidence. Input application,
+  editable value calculation and input search are disabled with an explanation;
+  source preview and structural path playback remain available. A nullable type
+  is displayed independently from a default argument.
 - Closing the Guide clears Guide attention and scenario preview but preserves
   branch choices, value playback, manual values, per-session reading state, and
   all non-Guide graph state.
@@ -475,6 +491,16 @@ supporting evidence in the selected row's detail. Evaluated paths are listed
 individually. When concrete evaluation is unavailable, a bounded graph planner
 may enumerate source-backed condition choices and reachable effects as explicit
 symbolic scenarios. It never claims concrete values for those symbolic paths.
+
+Summary and Values consume the same bounded execution-scenario model. The selected
+detail shows named inputs, ordered checked/assumed choices, one **Calls and writes
+in order** list, and explicit source termination, calculated return, assumptions
+and gap reasons. Calls that compute a condition precede its branch-outcome fact.
+Repeated loop choices and writes remain separate occurrences, and field changes
+retain their qualified target. Display omissions are distinct from analysis limits.
+Empty work/input states stay textual; the existing theme tokens, wrapping, narrow
+stacked layout, selection, input application and single playback lifecycle remain
+the presentation contract.
 
 Each path row has a sibling **Apply & Play** action after the four data columns:
 it selects and previews that exact seed/path pair, then applies only its

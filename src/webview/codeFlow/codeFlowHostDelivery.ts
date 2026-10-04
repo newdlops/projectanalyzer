@@ -104,7 +104,7 @@ export class CodeFlowHostDelivery {
     const controller = new AbortController();
     const pending = { request, controller }; this.pendingInputs = pending;
     let timedOut = false;
-    const timer = setTimeout(() => { timedOut = true; controller.abort(); }, 120000);
+    const timer = setTimeout(() => { timedOut = true; controller.abort(); }, request.mode === "neural" ? 120000 : 5000);
     let onAbort: () => void = () => {};
     const cancelled = new Promise<never>((_resolve, reject) => {
       onAbort = () => reject(new ScenarioInputError(timedOut ? "timeout" : "cancelled"));
@@ -114,7 +114,7 @@ export class CodeFlowHostDelivery {
       const language = this.dependencies.getUiLanguage();
       const run = async () => {
         if (controller.signal.aborted) throw new ScenarioInputError("cancelled");
-        return provider.suggest(entry.model, language, controller.signal);
+        return provider.suggest(entry.model, language, controller.signal, request.mode ?? "fast");
       };
       const response = await Promise.race([run(), cancelled]);
       if (controller.signal.aborted || this.pendingInputs !== pending || this.inputContexts.get(request.flowId) !== entry
@@ -125,7 +125,7 @@ export class CodeFlowHostDelivery {
       // Keep earlier inputs in context so retries can seek genuinely new cases.
       entry.model = { ...entry.model, seeds: [...entry.model.seeds, ...seeds] };
       await send({ status: projected.length ? "ready" : "empty", modelName: response.modelName.slice(0, 100), seeds: projected,
-        rejected: result.rejected + result.seeds.length - seeds.length, training: response.training });
+        rejected: result.rejected + result.seeds.length - seeds.length, training: response.training, generation: response.generation });
     } catch (error) {
       if (this.inputContexts.get(request.flowId) === entry && this.resolveActiveGraph(request.graphVersion)) {
         await send({ status: error instanceof ScenarioInputError ? error.code : "failed" });
@@ -313,7 +313,8 @@ export class CodeFlowHostDelivery {
       this.dependencies.projectionOptions?.originLimit,
       tutorModel
     );
-    if (payload.logic?.tutor && sourceText && this.dependencies.scenarioInputProvider) {
+    if (payload.logic?.tutor && sourceText && this.dependencies.scenarioInputProvider
+      && tutorModel.declaration.program.evaluationMode !== "symbolic-only") {
       for (const [id, entry] of this.inputContexts) if (entry.graphVersion !== active.version) this.inputContexts.delete(id);
       payload.logic.tutor.inputSuggestions = { available: tutorModel.declaration.parameters.length > 0 && tutorModel.declaration.parameters.length <= 16 };
       this.inputContexts.set(payload.id, {

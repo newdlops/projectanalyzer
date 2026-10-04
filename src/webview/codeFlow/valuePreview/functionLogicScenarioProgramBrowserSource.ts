@@ -11,10 +11,12 @@ export function getFunctionLogicScenarioProgramBrowserSource(): string {
      * resolved only by Host-issued IDs, never by source name.
      */
     function calculateFunctionLogicScenarioProgramBundle(logic, nodeButtonsById, edgeElementsById, suppliedInputs, scenarioIdentity) {
+      if (logic?.tutor?.program?.evaluationMode === "symbolic-only") return null;
       const bundle = logic.tutor.programBundle;
       const programs = new Map((bundle.programs || []).map((program) => [program.id, program]));
       const root = programs.get(bundle.rootProgramId);
       if (!root) return null;
+      if (root.evaluationMode === "symbolic-only") return null;
       const linksByCallId = new Map((bundle.links || []).map((link) => [link.callId, link]));
       const omittedByCallId = new Map((bundle.omittedLinks || []).filter((link) => link.callId).map((link) => [link.callId, link]));
       const rootBindings = readFunctionLogicScenarioEditableBindings(logic.valueBindings || []);

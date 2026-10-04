@@ -533,7 +533,7 @@ test("Function Guide derives bounded Python declaration facts from its parser-ow
   assert.ok(declaration.constraints.some((constraint) => constraint.operator === "gte"));
 });
 
-test("Python address-sync scenarios retain multiline types and expose four symbolic effect paths", async () => {
+test("Python address-sync scenarios preserve four complete effect paths and bounded loop prefixes", async () => {
   const fixturePath = resolve(process.cwd(), "src/test/fixtures/functionLogic/scenario_python_address_sync.py");
   const sourceText = readFileSync(fixturePath, "utf8");
   const lines = sourceText.split(/\r?\n/u);
@@ -582,19 +582,35 @@ test("Python address-sync scenarios retain multiline types and expose four symbo
     `${getFunctionLogicScenarioPathPlannerBrowserSource()}\nreturn { plan: functionTutorPlanSymbolicPaths, resolve: functionTutorResolveScenarioPaths };`
   ) as (text: (key: string) => string) => {
     plan(tutor: Record<string, unknown>): Array<{
-      scenario: { decisions: Array<{ outcome: string }>; effects: Array<{ label: string }> };
+      limited: boolean;
+      terminal: { kind: string };
+      scenario: { decisions: Array<{ outcome: string }>; effects: Array<{ blockId: string; label: string }> };
     }>;
     resolve(tutor: Record<string, unknown>, seed: Record<string, unknown>, paths: Array<Record<string, unknown>>): Array<{
-      scenario: { decisions: Array<{ outcome: string }>; effects: Array<{ label: string }> };
+      limited: boolean;
+      terminal: { kind: string };
+      scenario: { decisions: Array<{ outcome: string }>; effects: Array<{ blockId: string; label: string }> };
     }>;
   };
   const scenarioTools = createScenarioTools((key) => key);
   const paths = scenarioTools.plan({ program: declaration.program });
-  assert.equal(paths.length, 4);
-  assert.deepEqual(new Set(paths.map((path) => path.scenario.decisions.map((decision) => decision.outcome).join("/"))), new Set([
+  assert.equal(paths.length, 6);
+  // Comprehension loops remain bounded source prefixes; they cannot imply that
+  // a repeated loop completed or that a later database effect was reached.
+  const loopPrefixes = paths.filter((path) => path.limited);
+  assert.deepEqual(loopPrefixes.map((path) => path.scenario.decisions.map((decision) => decision.outcome)), [
+    ["iterate"], ["exit", "iterate"]
+  ]);
+  assert.equal(loopPrefixes.every((path) => path.terminal.kind === "unknown" && path.scenario.effects.length === 0), true);
+  const completePaths = paths.filter((path) => !path.limited);
+  assert.equal(completePaths.length, 4);
+  assert.equal(completePaths.every((path) => path.terminal.kind === "exit"), true);
+  assert.deepEqual(new Set(completePaths.map((path) => path.scenario.decisions
+    .filter((decision) => decision.outcome === "true" || decision.outcome === "false")
+    .map((decision) => decision.outcome).join("/"))), new Set([
     "true/true", "true/false", "false/true", "false/false"
   ]));
-  assert.deepEqual(paths.map((path) => path.scenario.effects.length).sort((left, right) => left - right), [0, 1, 1, 2]);
+  assert.deepEqual(completePaths.map((path) => path.scenario.effects.length).sort((left, right) => left - right), [0, 1, 1, 2]);
 
   const payload = createFunctionTutorPayload(model, {
     flowId: "code-flow:python-address-sync",
@@ -615,8 +631,15 @@ test("Python address-sync scenarios retain multiline types and expose four symbo
     certainty: "inferred",
     limited: false
   }]);
-  assert.equal(projectedPaths.length, 4, "an inferred mixed seed must not collapse unknown source branches");
-  assert.deepEqual(projectedPaths.map((path) => path.scenario.effects.length).sort((left, right) => left - right), [0, 1, 1, 2]);
+  assert.equal(projectedPaths.length, 6, "an inferred mixed seed must preserve source branches and bounded loop prefixes");
+  assert.equal(projectedPaths.filter((path) => path.limited).length, 2);
+  // Summary projection also retains calls inside predicates. Count database
+  // effect blocks separately so those source facts cannot inflate this matrix.
+  const databaseEffectBlocks = new Set(payload.program.blocks.filter((block) => block.kind === "effect").map((block) => block.blockId));
+  assert.equal(databaseEffectBlocks.size, 2);
+  assert.deepEqual(projectedPaths.filter((path) => !path.limited)
+    .map((path) => path.scenario.effects.filter((effect) => databaseEffectBlocks.has(effect.blockId)).length)
+    .sort((left, right) => left - right), [0, 1, 1, 2]);
 });
 
 test("Function Guide derives Java parameter categories without claiming unavailable support", () => {

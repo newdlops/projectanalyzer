@@ -10,6 +10,7 @@ import type {
 import { analyzeFunctionalFunctionLogic } from "./languages/functional/functionalFunctionLogicAnalyzer";
 import { analyzeJavaFunctionLogic } from "./languages/java/javaFunctionLogicAnalyzer";
 import { analyzePythonFunctionLogic } from "./languages/python/pythonFunctionLogicAnalyzer";
+import { analyzeKotlinFunctionLogic } from "./languages/kotlin";
 import { analyzeFunctionLogic as analyzeTypeScriptFunctionLogic } from "./typescriptFunctionLogicAnalyzer";
 
 /** Dispatches one concrete callable to its language-specific logic analyzer. */
@@ -18,6 +19,7 @@ export function analyzeFunctionLogic(
 ): FunctionLogicAnalysis {
   const language = input.functionNode.language.toLowerCase();
   const extension = input.functionNode.filePath.split(".").at(-1)?.toLowerCase();
+  if (language === "kotlin" || extension === "kt" || extension === "kts") return analyzeKotlinFunctionLogic(input);
   if (language === "python" || extension === "py") {
     return analyzePythonFunctionLogic(input);
   }

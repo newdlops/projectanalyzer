@@ -59,6 +59,7 @@ Supported source-first function visualization currently covers:
 | TypeScript / JavaScript / JSX / TSX | Statements, branches, loops, effects, JSX render choices, listener registrations, detached event handlers, static embedded-code programs, receiver chains, and component drill targets |
 | Python | Statements, `with`, comprehensions, generator arguments, receiver chains, mutations, and exits |
 | Java | Methods, constructors, branches, loops, switches, structured regions, mutations, and exits |
+| Kotlin (`.kt` / `.kts`) | Named top-level/member/local/extension functions, expression bodies, `if`/`when`, loops, `try`/`finally`, lexical values, and bounded symbolic source paths |
 | F# / OCaml | Named functions and `|>` stages with final-argument insertion |
 | Elixir | Named functions and `|>` stages with first-argument insertion |
 
@@ -108,7 +109,7 @@ After local workspace analysis, the sidebar offers two starting points:
    path, then inspect the statements, decisions, loops, effects, mutations, and
    exits inside the selected function.
 
-TypeScript, JavaScript, Python, Java, F#, OCaml, and Elixir have a source-first
+TypeScript, JavaScript, Python, Java, Kotlin, F#, OCaml, and Elixir have a source-first
 shortcut: place the cursor inside a supported callable (a named pipe-forward
 function for F#/OCaml/Elixir), then choose
 **Visualize Current Function** from the editor context menu. The command activates
@@ -168,19 +169,30 @@ dedicated Function Visualizer tab with a bounded control-flow graph:
   for entering session-only JSON/scalar parameter values or local/constant definition
   overrides; a long variable list scrolls inside the table instead of collapsing it;
   if analysis misses a binding, add a `CUSTOM` variable by name and value
-- a **Function Guide** disclosure in the Function Logic Inspector that explains five
-  fixed source-backed questions: codebase role, inputs, path-changing decisions,
-  work/calls, and outcomes; it never moves the graph until **Show on Graph** is chosen
+- a **Function Guide** disclosure starting with a source-backed **Function summary**:
+  authored documentation or structural purpose, inputs, conditional stages, outcomes,
+  calls/writes, and analysis gaps. Five reading questions provide the deeper context;
+  the graph moves when **Show on Graph** is chosen
 - lazy **Source Path Scenarios** under that guide, with statically inferred inputs,
   possible outcomes, certainty, and tracked value transitions; **Load Inputs & Open
   Values** copies only known values into the existing editor and opens its tab
+- three representative scenarios, expandable to five, selected from the same bounded
+  Scenario Workspace rows. Selection and locale changes reuse completed results;
+  Kotlin paths describe source assumptions with value calculation and input application disabled
 - a path-centric **Scenario Workspace** in Values that lists every reachable path as
   its own row with path conditions, expected effects, evidence gaps, and named input
   evidence; when values cannot be evaluated, bounded symbolic rows preserve source
   choices without pretending that unknown values are concrete
+- a shared **execution scenario model** for Summary and Values: ordered calls and
+  writes, repeated checked/assumed choices, source terminals, calculated values,
+  assumptions and gaps. Its bounded snapshots and catalog are reused across
+  selection, playback and locale changes; see the [model contract](src/shared/functionScenarios/README.md)
 - boundary-focused input recommendations that preserve earlier guards and required
   interface fields, with checked branch outcomes and an explanation of each case
-- optional **Find inputs with neural network** in **Values & paths**: train our small
+- **Generate scenarios quickly** in **Values & paths**: a local linear model uses
+  complete caller tuples, assignments and source-resolved pure helper calculations;
+  it checks at most 192 proposed paths and reuses results for the same source snapshot
+- optional **Search with neural network** in **Values & paths**: train our small
   function-specific network locally from typed inputs and calculated conditions;
   review checked boundary pairs and held-out error before explicitly applying inputs
 - neural input search varies string content/length and primitive array sizes, using
@@ -317,7 +329,7 @@ HTTP/GraphQL/selected function
   -> Repository or model
   -> External or state boundary
 
-Selected TypeScript/JavaScript/Python/Java/F#/OCaml/Elixir function
+Selected TypeScript/JavaScript/Python/Java/Kotlin/F#/OCaml/Elixir function
   -> Condition or loop
   -> Branch-local operation/call/mutation/effect
   -> Return, throw, repeat, or fallthrough exit
@@ -354,13 +366,14 @@ frontend. Cross-function JavaScript and TypeScript extraction uses textual and
 line-oriented heuristics without a lexical scope graph, receiver resolution, or
 type checking. Python project symbols continue to use the Rust scanner when it
 is available and have a Lezer-backed in-process fallback. Because the Rust path
-currently produces only file nodes for Java and the pipe-forward functional
-languages, the Extension Host supplements Java symbols plus F#/OCaml/Elixir
-named functions and conservative pipeline-call evidence from the current workspace.
+currently produces only file nodes for Java, Kotlin and the pipe-forward functional
+languages, the Extension Host supplements Java and Kotlin symbols plus F#/OCaml/Elixir
+named functions and conservative call evidence from the current workspace.
 
 After a function is selected, TypeScript and JavaScript use the TypeScript
-compiler AST, Python and Java use Lezer syntax trees, and F#/OCaml/Elixir use a
-bounded pipe-forward syntax adapter. All adapters produce the same block,
+compiler AST, Python and Java use Lezer syntax trees, Kotlin uses a generated
+ANTLR parser from a fixed official grammar, and F#/OCaml/Elixir use a bounded
+pipe-forward syntax adapter. All adapters produce the same block,
 transfer, callsite, source-range, and coverage-gap contract. The imperative-language
 adapters also emit source-complete, de-duplicated value-change evidence for
 variable/property writes and conservative in-place receiver calls. Python models
@@ -439,10 +452,28 @@ five fixed questions. It samples a bounded set of graph-backed callsites, declar
 defaults, literal types, and direct branch boundaries; it never combines argument
 values from different calls and label them as an observed tuple. Its browser
 interpreter consumes JSON expression IR without executing project source. The
-default analysis runs locally. The optional **Find inputs with neural network**
-action trains a small CPU network and searches its learned numeric boundaries;
-opening a function or changing language never starts training. No external model
-or account is used. See [learning, verification and limits](docs/NEURAL_SCENARIOS.md).
+default analysis runs locally. **Generate scenarios quickly** fits small input/condition
+relations and checks proposed boundaries with the source interpreter. Repeated requests
+reuse a source-owned cache. The optional **Search with neural network** action trains
+a small CPU network for a broader search; opening a function or changing language
+never starts training. No external model or account is used. See
+[generation, verification and limits](docs/SCENARIO_INPUT_QUALITY.md).
+The Summary uses authored documentation and source facts rather than guessing business
+intent from function names. Opening Guide alone does not evaluate scenarios. Its bounded
+path plan is shared by the active function, and changing functions releases retained
+results and preview elements. Kotlin's fixed official grammar parser loads on first
+Kotlin use; parsing requires no JVM at runtime. Kotlin arithmetic, overload dispatch,
+scope functions and coroutine scheduling remain analysis limits. Source path preview
+and playback remain available, while concrete value calculation and input application
+are disabled.
+
+Execution scenarios are portable source-path models rather than observed traces.
+They retain each actual loop choice and write occurrence, validate ordered route
+edges, and keep a member's value change attached to its field target. Values details
+show calls and writes together in execution order, followed by source termination,
+any calculated return, assumptions and concrete gap reasons. Display omissions and
+analysis limits remain separate; checked-choice coverage does not claim exhaustive paths.
+
 TypeScript/JavaScript get AST facts; Python and Java additionally derive
 simple declaration-header types/defaults and direct comparisons; F#/OCaml/Elixir
 retain only safe declaration/binding facts. Unknown calls, aliases, unsupported
@@ -606,8 +637,10 @@ Key reusable modules:
 - `src/analyzer/functionLogic/embeddedCode/` — literal-only code discovery,
   iterative program/callable-scope planning, host CFG integration, and virtual
   evidence remapping
-- `src/analyzer/functionLogic/languages/` — Python/Java Lezer adapters and the
-  F#/OCaml/Elixir pipe-forward Function Logic adapter
+- `src/analyzer/functionLogic/languages/` — Python/Java Lezer adapters, the Kotlin
+  structured adapter, and the F#/OCaml/Elixir pipe-forward Function Logic adapter
+- `src/analyzer/languages/kotlin/` — lazy generated parser, bounded shared syntax
+  snapshots, source symbols and conservative lexical call targets
 - `src/analyzer/languages/python/`, `src/analyzer/languages/java/`, and
   `src/analyzer/languages/functional/` — shared callable, pipeline, and
   conservative call-graph syntax boundaries

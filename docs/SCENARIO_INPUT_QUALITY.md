@@ -1,6 +1,6 @@
 # Scenario input quality
 
-Updated for 0.0.1093, September 8, 2026. Current neural implementation and QA:
+Updated for 0.0.1101, October 4, 2026. Optional neural implementation and QA:
 [Local neural scenario inference](NEURAL_SCENARIOS.md).
 
 ## Reader workflow
@@ -10,7 +10,12 @@ The detail explains why its inputs matter and how many source branch outcomes
 were checked. Boundary cases appear before the retained caller/default baseline.
 **Apply Inputs** changes the current input editor; selecting a row only previews it.
 
-**Find inputs with neural network** trains a function-specific network locally on
+**Generate scenarios quickly** uses a small local linear model. It starts from
+complete caller tuples, keeps unrelated fields, fits calculated condition changes,
+and checks each proposed boundary with the source interpreter. Creation and row
+inspection do not train a network. Repeated requests reuse a source-owned cache.
+
+**Search with neural network** optionally trains a function-specific network locally on
 the CPU. Review the checked pair, changed input, calculated condition values and
 held-out error, then apply the case explicitly. There is no external model or account.
 
@@ -28,12 +33,40 @@ the neural teacher does not manufacture a return value for that policy.
 
 | Module | Public surface and responsibility |
 | --- | --- |
-| `src/analyzer/functionTutor/inputEvaluation/` | `evaluateFunctionTutorInputs`, input assignment and evaluation types. Bounded pure interpretation of supported parser-owned IR. |
+| `src/analyzer/functionTutor/inputEvaluation/` | `compileFunctionTutorInputDeclaration`, `evaluateFunctionTutorInputs`, input assignment and evaluation types. Bounded pure helper summaries and interpretation of supported parser-owned IR. |
+| `src/analyzer/fastScenarios/` | `inferFastScenarios` and problem/result/report types. Bounded local relation fitting, checked witnesses and snapshot-owned caching. |
 | `src/application/codeFlow/functionTutor/` | Existing model builder plus `evaluateScenarioSeed` / `selectScenarioSeeds`. Candidate construction and coverage-based selection remain internal. |
-| `src/application/scenarioInputs/` | `createLocalNeuralScenarioProvider`, `createNeuralScenarioProblem`, `parseScenarioInputSuggestions`, `ScenarioInputProvider`, finite `ScenarioInputError`. Typed problem adaptation and independently validated proposals. |
+| `src/application/scenarioInputs/` | `createLocalScenarioProvider` (fast default), `createLocalNeuralScenarioProvider`, `createNeuralScenarioProblem`, `parseScenarioInputSuggestions`, `ScenarioInputProvider`, finite `ScenarioInputError`. Typed problem adaptation and independently validated proposals. |
 | `src/analyzer/neuralScenarios/` | `inferNeuralScenarios` and problem/result/report types. Own dense network, backpropagation/Adam, typed codec and gradient search; internal weights stay request-local. |
 | `src/protocol/scenarioInputs.ts` | Bounded request correlation and finite response states. No source text supplied by the Webview. |
 | `src/webview/codeFlow/scenarioInputsBrowserSource.ts` | Explicit request controls and correlated replies. The shared Scenario Workspace owns input application and retained state. |
+
+Pure synchronous internal helpers are summarized from exact source-owned call
+locations. Their assignments, defaults and bounded branches feed calculated
+condition values. Unsupported effects, captured bindings, alias/member writes,
+recursion and exception dispatch remain partial. Unused arguments and local
+calculations still must be supported; an unused effect cannot silently disappear.
+Cross-file helpers require an `exact` graph call edge. The public source program
+retains its call boundary, while the Host input checker owns compiled summaries.
+Summaries require stable lexical bindings: reassigned functions, property writes
+and shadowed call names do not resolve to an earlier declaration. Each helper has
+at most 64 blocks, 128 traversal states and 16 return paths; the actual call chain
+is limited to four helpers regardless of catalog order.
+
+Fast inference checks at most 192 tuples, 32 condition observations and four
+opposing-outcome pairs. It yields every 32 evaluations and supports cancellation.
+No fitted estimate counts as coverage until the source predicate is reached.
+Nonlinear, joint categorical and unsupported calculations may need optional
+neural search or stay unconfirmed. Kotlin retains symbolic source scenarios;
+neither input inference mode claims JVM numeric semantics.
+
+Cache keys include complete caller/planner tuples, domains and the evaluation
+budget. Each immutable source declaration owns at most four entries; keys and
+results are each limited to 96 KiB. Replies use defensive copies, and a cache hit
+reports zero new evaluations. The program checker reuses snapshot-owned indexes.
+Run `npm run benchmark:scenarios` to measure source preparation, cold inference,
+cache reuse and one optional neural comparison on the diagnostic fixture corpus.
+These timings do not measure VS Code renderer CPU or workspace-wide performance.
 
 The source-to-CFG adapter maps compound predicates using original AST expression
 ranges and condition metadata. Display labels are not reparsed as executable code.
@@ -99,18 +132,66 @@ guarantees all edge cases. Weights and samples remain in memory for one request.
 
 ## Request and UI lifecycle
 
-Requests contain only the active graph version, opaque flow identity and bounded
-request ID. The Host retains at most eight delivered function contexts, accepts a
-single pending request, rejects replays, times out after 120 seconds, and ignores
+Requests contain only the active graph version, opaque flow identity, bounded
+request ID and optional `fast` / `neural` mode. Missing mode selects fast inference.
+The Host retains at most eight delivered function contexts, accepts a single pending
+request, rejects replays, times out after 5 seconds for fast inference or 120 seconds
+for neural search, and ignores
 late responses after cancellation or context replacement. The browser independently
 checks correlation before accepting new seeds.
 
 The response can be ready, empty, unavailable, cancelled, denied, timeout,
-invalid-response, failed or stale. Up to eight neural cases are retained for a function
-context. Loading disables the request action and exposes cancellation. Completion
+invalid-response, failed or stale. Up to eight generated cases are retained for a function
+context. Loading disables both request actions and exposes cancellation. Completion
 restores focus if the cancellation button disappears. Error states explain retry
 or unsupported input/condition context; existing rows, input edits, selection, snapshot, playback state and
 graph DOM remain intact. Locale changes update controls without issuing a request.
+
+## Fast-model verification — October 4, 2026
+
+The diagnostic benchmark uses six small source fixtures and ten fresh declarations
+per fixture. Source preparation is measured separately from inference. Across all
+60 snapshots, cold inference had a **0.470 ms median / 7.286 ms p95**; cache reuse
+had a **0.009 ms median** for supported fixtures. These are local Node measurements,
+not an installed VS Code CPU or memory profile, and include one unsupported fixture.
+
+| Fixture | Source preparation median | Cold median | Cold p95 | Cache median | Evaluations | Checked pairs |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Calculated equality | 2.126 ms | 0.527 ms | 2.331 ms | 0.009 ms | 19 | 1 |
+| Internal pure helper | 1.190 ms | 0.165 ms | 0.222 ms | 0.006 ms | 7 | 1 |
+| Nested guard | 0.789 ms | 0.361 ms | 0.825 ms | 0.010 ms | 21 | 2 |
+| Object fields | 0.885 ms | 7.256 ms | 8.345 ms | 0.011 ms | 155 | 1 |
+| Text length | 0.712 ms | 1.958 ms | 2.359 ms | 0.006 ms | 64 | 1 |
+| Unsupported external call | 0.578 ms | 0.050 ms | 0.061 ms | Unavailable | Unavailable | 0 |
+
+All five supported fixtures reached their distinguishing return. The single neural
+comparison on the calculated equality took 294.496 ms / 476 evaluations and reached
+the same return. This comparison describes this fixture; it does not establish a
+general speed ratio or equivalent search coverage.
+
+- Focused fast inference, pure helper, request delivery and input quality tests:
+  **32/32 passed**. The full TypeScript run with four concurrent workers passed
+  **860/864**, with the same four failures reproduced on clean HEAD: two declared
+  type representative expectations, advanced private Scenario evaluation, and the
+  source-reveal architecture expectation. An initial unrestricted run also had one
+  Rust CLI integration failure; it passed in isolation and in the bounded full run.
+- Rust analyzer tests: **82 passed**. Package tooling tests: **12 passed**.
+  TypeScript compile, typecheck and whitespace checks passed.
+- macOS arm64 VSIX validation: **508 files, 3.54 MiB archive, 15.20 MiB unpacked**.
+  Extracted-runtime smoke checks passed **3/3** using only packaged dependencies:
+  Kotlin lazy parsing/disposal, the emitted scenario model, and fast provider helper
+  boundaries, cache reuse and cancellation.
+- Native Safari rendered the production HTML at **1440×900, 768×1024 and 390×844**.
+  Fast generation appended real provider-generated inputs 23 and 22 for a calculated
+  helper boundary while retaining the edited input 1234. Optional neural pending
+  and cancellation, Korean localization, long return text, responsive controls and
+  Kotlin symbolic-only paths were inspected. No page errors or document overflow
+  were reported. Locale and size changes retained the scenario catalog cache.
+
+The preview used a local Host message bridge: fast replies came from the production
+provider; neural training inside Safari and an installed VS Code interaction were
+not exercised. The benchmark exercised optional neural inference in Node. Browser
+inspection and unit checks are separate evidence.
 
 ## Historical verification — 0.0.1091
 

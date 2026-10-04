@@ -1,6 +1,16 @@
 /** Finite browser-copy descriptor contracts shared across application layers. */
 export type PresentationParams = Record<string, string | number | boolean>;
 
+/** Finite behavior/scenario Summary prose; identifiers and source expressions stay literal. */
+export const FUNCTION_TUTOR_SUMMARY_PRESENTATION_KEYS = [
+  "summary-purpose-structure", "summary-item-parameter", "summary-item-condition", "summary-item-loop",
+  "summary-item-switch", "summary-item-try", "summary-item-call", "summary-item-external-call",
+  "summary-item-unresolved-call", "summary-item-write", "summary-item-effect", "summary-item-return",
+  "summary-item-throw", "summary-item-exit", "summary-gap-analysis", "summary-gap-boundary",
+  "summary-gap-external", "summary-gap-unresolved", "summary-gap-limit", "summary-gap-unknown"
+] as const;
+export type FunctionTutorSummaryPresentationKey = typeof FUNCTION_TUTOR_SUMMARY_PRESENTATION_KEYS[number];
+
 /** Runtime inventory used by catalog-parity tests without duplicating string matching. */
 export const FUNCTION_LOGIC_GAP_PRESENTATION_KEYS = [
   "logic-gap-statement-limit", "logic-gap-finally", "logic-gap-jsx-limit", "logic-gap-expression-limit", "logic-gap-optional-chaining", "logic-gap-exceptions", "logic-gap-parser-recovered", "logic-gap-runtime-code", "logic-gap-embedded-diagnostic", "logic-gap-embedded-limit", "logic-gap-embedded-region-limit", "logic-gap-constant-write", "logic-gap-value-limit", "logic-gap-java-expression", "logic-gap-java-runtime", "logic-gap-python-expression", "logic-gap-python-runtime", "logic-gap-functional-runtime", "logic-gap-functional-collapsed", "logic-gap-functional-limit", "logic-gap-unavailable-language", "logic-gap-unavailable-source", "logic-gap-unavailable-function"

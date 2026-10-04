@@ -16,6 +16,7 @@ import type { ScenarioProgramBundle } from "./scenarioProgramBundle";
 import type { FunctionFrameworkBehavior } from "../../../analyzer/frameworkBehavior";
 import type { FunctionTutorFactPresentationKey, FunctionTutorSemanticPresentationKey, PresentationParams } from "../../../localization/presentationDescriptors";
 import type { FunctionLogicAnalysis } from "../../../analyzer/functionLogic";
+import type { FunctionBehaviorSummary } from "./behaviorSummary/types";
 import type {
   ArchitecturalLayer,
   ArchitecturalLayerConfidence,
@@ -224,6 +225,8 @@ export type FunctionTutorGuidePlan = {
 /** Complete application result consumed by protocol projection. */
 export type FunctionTutorBuildModel = {
   declaration: FunctionTutorDeclarationAnalysis;
+  /** Host-only pure helper summaries; public source programs retain their call boundaries. */
+  inputEvaluationDeclaration?: FunctionTutorDeclarationAnalysis;
   functionLogic: FunctionLogicAnalysis;
   callsites: FunctionTutorCallsiteTuple[];
   candidatesByParameter: Map<string, FunctionTutorInputCandidate[]>;
@@ -231,6 +234,8 @@ export type FunctionTutorBuildModel = {
   seeds: FunctionTutorScenarioSeed[];
   context: FunctionTutorCodebaseContext;
   guide: FunctionTutorGuidePlan;
+  /** Common current-scope behavior facts planned without additional source reads. */
+  behaviorSummary?: FunctionBehaviorSummary;
   /** Host-only resolved bundle; projection replaces all identities before delivery. */
   scenarioBundle?: ScenarioProgramBundle;
   /** Source-owned framework timing and callback contracts, without execution. */

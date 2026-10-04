@@ -15,9 +15,9 @@ const MAX_ZIP_COMMENT_BYTES = 65_535;
 export const PACKAGE_BUDGET = Object.freeze({
   archiveBytes: 15 * MEBIBYTE,
   unpackedBytes: 35 * MEBIBYTE,
-  // Parent scenarios use five runtime modules plus shared semantic presentation
-  // cues for both call views. Archive/unpacked budgets stay fixed.
-  fileCount: 466,
+  // Kotlin, shared Summary and fast source-input inference use bounded modules.
+  // Five new inference runtime files fit within this limit; byte budgets stay fixed.
+  fileCount: 512,
   singleFileBytes: 12 * MEBIBYTE
 });
 
@@ -47,6 +47,12 @@ const TYPESCRIPT_RUNTIME_PATHS = new Set([
 
 const LEZER_RUNTIME_PATH_PATTERN =
   /^extension\/node_modules\/@lezer\/(?:common|highlight|java|lr|python)\/(?:package\.json|LICENSE|dist\/index\.cjs)$/;
+
+/** Kotlin's generated parser uses only the pinned Node CommonJS runtime. */
+const ANTLR_RUNTIME_PATHS = new Set([
+  "extension/node_modules/antlr4/package.json",
+  "extension/node_modules/antlr4/dist/antlr4.node.cjs"
+]);
 
 /**
  * Reads central-directory entries from a VSIX without inflating file contents.
@@ -152,6 +158,7 @@ export function validateVsixPackage(entries, archiveBytes, budget = PACKAGE_BUDG
 
 /** Defines the intentionally narrow production surface shipped to VS Code. */
 export function isAllowedPackagePath(archivePath) {
+  if (archivePath === "extension/THIRD_PARTY_NOTICES.md") return true;
   if (REQUIRED_PATHS.includes(archivePath) || NATIVE_ENGINE_PATH_PATTERN.test(archivePath)) {
     return true;
   }
@@ -168,6 +175,7 @@ export function isAllowedPackagePath(archivePath) {
   if (LEZER_RUNTIME_PATH_PATTERN.test(archivePath)) {
     return true;
   }
+  if (ANTLR_RUNTIME_PATHS.has(archivePath)) return true;
 
   // TypeScript remains a self-contained runtime module. Compiler binaries,
   // declarations, translations, and server files are packaging waste.

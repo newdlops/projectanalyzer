@@ -5,6 +5,13 @@ import { evaluateInputBinary, evaluateInputExpression, inputValueTruth, readInpu
 import type { FunctionTutorDecisionObservation, FunctionTutorInputAssignment, FunctionTutorInputEvaluation } from "./types";
 import { observeInputDecision } from "./observation";
 import { evaluatePythonTutorInputs } from "./python";
+import { compileFunctionTutorInputDeclaration } from "./pureCalls";
+
+/** Immutable source snapshots own indexes once, rather than rebuilding them for each probe. */
+const indexes = new WeakMap<FunctionTutorDeclarationAnalysis["program"], {
+  blocks: Map<string, FunctionTutorDeclarationAnalysis["program"]["blocks"][number]>;
+  outgoing: Map<string, FunctionTutorDeclarationAnalysis["program"]["edges"]>;
+}>();
 
 /** Interprets a bounded supported IR prefix, stopping at unknown effects or control. */
 export function evaluateFunctionTutorInputs(
@@ -12,16 +19,22 @@ export function evaluateFunctionTutorInputs(
   inputs: readonly FunctionTutorInputAssignment[],
   options: { maxSteps?: number; maxLoopVisits?: number; observeDecision?: (observation: FunctionTutorDecisionObservation) => void } = {}
 ): FunctionTutorInputEvaluation {
-  if (declaration.language === "python" && declaration.program.python) return evaluatePythonTutorInputs(declaration, inputs, options);
   const result: FunctionTutorInputEvaluation = { status: "partial", blockIds: [], edgeIds: [], decisions: [] };
+  if (declaration.program.evaluationMode === "symbolic-only") return { ...result, reason: "language-gap" };
+  if (declaration.language === "python" && declaration.program.python) return evaluatePythonTutorInputs(declaration, inputs, options);
   if (!["typescript", "javascript"].includes(declaration.language)) return { ...result, reason: "language-gap" };
-  const program = declaration.program;
-  const blocks = new Map(program.blocks.map((block) => [block.blockId, block]));
-  const outgoing = new Map<string, typeof program.edges>();
-  for (const edge of program.edges) {
-    if (edge.kind === "defines" || edge.kind === "deferred") continue;
-    const group = outgoing.get(edge.sourceBlockId) ?? []; group.push(edge); outgoing.set(edge.sourceBlockId, group);
+  const program = compileFunctionTutorInputDeclaration(declaration).program;
+  let index = indexes.get(program);
+  if (!index) {
+    const blocks = new Map(program.blocks.map((block) => [block.blockId, block]));
+    const outgoing = new Map<string, typeof program.edges>();
+    for (const edge of program.edges) {
+      if (edge.kind === "defines" || edge.kind === "deferred") continue;
+      const group = outgoing.get(edge.sourceBlockId) ?? []; group.push(edge); outgoing.set(edge.sourceBlockId, group);
+    }
+    index = { blocks, outgoing }; indexes.set(program, index);
   }
+  const { blocks, outgoing } = index;
   const bindings = new Map<string, Value>();
   for (const binding of program.bindings) {
     const parameter = declaration.parameters.find((candidate) => candidate.id === binding.parameterId || candidate.bindingId === binding.bindingId);

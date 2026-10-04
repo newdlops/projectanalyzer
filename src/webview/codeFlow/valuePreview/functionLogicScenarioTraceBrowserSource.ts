@@ -16,6 +16,7 @@ export function getFunctionLogicScenarioTraceBrowserSource(): string {
       controlEdgeElementsById,
       scenarioIdentity
     ) {
+      const symbolicOnly = logic.tutor?.program?.evaluationMode === "symbolic-only";
       const section = document.createElement("section");
       const header = document.createElement("div");
       const title = document.createElement("h3");
@@ -24,8 +25,15 @@ export function getFunctionLogicScenarioTraceBrowserSource(): string {
       const rows = document.createElement("ol");
       const omitted = document.createElement("p");
       let selectedBindingId = "";
+      const readProgression = createFunctionLogicScenarioProgressionReader(
+        logic, nodeButtonsById, controlEdgeElementsById, scenarioIdentity
+      );
+      let renderedProgression;
+      let renderedLanguage;
 
       section.className = "logic-scenario-trace";
+      // Source-path playback remains in the Workspace; this view requires calculated binding values.
+      section.hidden = symbolicOnly;
       section.setAttribute("aria-label", projectAnalyzerText("scenario-trace-region"));
       header.className = "logic-scenario-trace-header";
       title.textContent = projectAnalyzerText("scenario-calculation");
@@ -41,6 +49,7 @@ export function getFunctionLogicScenarioTraceBrowserSource(): string {
 
       /** Recalculates the selected branch after input, selection, or choice changes. */
       function refresh() {
+        if (symbolicOnly) return;
         // Locale refresh retains the selected binding and rows; only owned
         // landmark/header copy is rewritten before the existing progression.
         section.setAttribute("aria-label", projectAnalyzerText("scenario-trace-region"));
@@ -51,6 +60,10 @@ export function getFunctionLogicScenarioTraceBrowserSource(): string {
         ).find((candidate) =>
           candidate.id === selectedBindingId
         );
+        const progression = binding ? readProgression(binding.id) : undefined;
+        const language = document.documentElement.lang;
+        if (progression === renderedProgression && language === renderedLanguage) return;
+        renderedProgression = progression; renderedLanguage = language;
         rows.replaceChildren();
         omitted.hidden = true;
         omitted.textContent = "";
@@ -58,9 +71,6 @@ export function getFunctionLogicScenarioTraceBrowserSource(): string {
           selection.textContent = projectAnalyzerText("choose-variable");
           return;
         }
-        const progression = readFunctionLogicScenarioPlaybackFrames(
-          logic, binding, nodeButtonsById, controlEdgeElementsById, scenarioIdentity
-        );
         const calculation = progression.calculation;
         const orderedRecords = progression.orderedRecords;
         const allSteps = progression.frames;
@@ -113,14 +123,50 @@ export function getFunctionLogicScenarioTraceBrowserSource(): string {
         },
         /** Supplies the shared bounded frames to graph playback without DOM state changes. */
         readFrames(bindingId) {
-          const binding = readFunctionLogicScenarioEditableBindings(logic.valueBindings || [])
-            .find((candidate) => candidate.id === bindingId);
-          return binding
-            ? readFunctionLogicScenarioPlaybackFrames(
-                logic, binding, nodeButtonsById, controlEdgeElementsById, scenarioIdentity
-              ).frames
-            : [];
+          return readProgression(bindingId)?.frames || [];
         }
+      };
+    }
+
+    /**
+     * Shares one calculation between trace and playback reads. The graph/IR and
+     * opaque resolvers are fixed for this renderer's lifetime; editable inputs
+     * and branch exclusions own invalidation. Retain only one binding's frames
+     * so visiting many variables cannot grow a second graph-sized cache.
+     */
+    function createFunctionLogicScenarioProgressionReader(logic, nodes, edges, scenarioIdentity) {
+      let inputKey;
+      let calculation;
+      let orderedRecords;
+      let frameBindingId;
+      let frameLanguage;
+      let progression;
+      return (bindingId) => {
+        if (logic.tutor?.program?.evaluationMode === "symbolic-only") return undefined;
+        const bindings = readFunctionLogicScenarioEditableBindings(logic.valueBindings || []);
+        const binding = bindings.find((candidate) => candidate.id === bindingId);
+        if (!binding) return undefined;
+        // A small semantic signature avoids coupling input writers, Guide
+        // handoffs, and branch controls to an extra mutable revision counter.
+        const nextInputKey = JSON.stringify([
+          bindings.map((candidate) => [candidate.id, readFunctionLogicValuePreview(candidate.id)]),
+          logic.blocks.map((block) => Boolean(nodes.get(block.id)?.classList.contains("choice-dimmed"))),
+          (logic.edges || []).map((edge) => Boolean(edges?.get(edge.id)?.path?.classList.contains("choice-dimmed")))
+        ]);
+        if (nextInputKey !== inputKey) {
+          const raw = calculateFunctionLogicScenario(logic, nodes, edges, scenarioIdentity);
+          calculation = projectFunctionLogicScenarioCalculation(logic, raw, scenarioIdentity);
+          orderedRecords = collectFunctionLogicScenarioBlockRecords(logic, calculation);
+          inputKey = nextInputKey; progression = undefined;
+        }
+        const language = document.documentElement.lang;
+        if (!progression || frameBindingId !== bindingId || frameLanguage !== language) {
+          frameBindingId = bindingId; frameLanguage = language;
+          progression = { calculation, orderedRecords,
+            frames: collectFunctionLogicScenarioPlaybackFrames(binding, orderedRecords, calculation)
+              .slice(0, MAX_LOGIC_SCENARIO_TRACE_STEPS) };
+        }
+        return progression;
       };
     }
 

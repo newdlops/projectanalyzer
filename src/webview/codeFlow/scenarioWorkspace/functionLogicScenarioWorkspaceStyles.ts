@@ -24,7 +24,7 @@ export function getFunctionLogicScenarioWorkspaceStyles(): string {
     .logic-scenario-workspace-play { width:100%; min-height:30px; padding:4px 7px; color:var(--vscode-button-foreground); background:var(--vscode-button-background); border:1px solid var(--vscode-button-border, var(--vscode-panel-border)); border-radius:3px; cursor:pointer; font-size:var(--logic-font-tiny); overflow-wrap:anywhere; }
     .logic-scenario-workspace-play:hover:not(:disabled) { background:var(--vscode-button-hoverBackground); }
     .logic-scenario-workspace-play:disabled, .logic-scenario-workspace-detail button:disabled { cursor:not-allowed; opacity:.58; }
-    .logic-scenario-workspace-detail { display:grid; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); gap:8px; min-width:0; padding:8px; background:color-mix(in srgb, var(--vscode-editor-background) 84%, var(--vscode-sideBar-background)); border:1px solid var(--vscode-panel-border); border-radius:4px; font-size:var(--logic-font-tiny); }
+    .logic-scenario-workspace-detail { display:grid; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); align-content:start; align-items:start; gap:8px; min-width:0; padding:8px; background:color-mix(in srgb, var(--vscode-editor-background) 84%, var(--vscode-sideBar-background)); border:1px solid var(--vscode-panel-border); border-radius:4px; font-size:var(--logic-font-tiny); }
     .logic-scenario-workspace-detail:empty { display:none; }
     .logic-scenario-input-suggestions { display:grid; gap:6px; min-width:0; padding:8px 0; border-top:1px solid var(--vscode-panel-border); }
     .logic-scenario-input-suggestions > div { display:flex; flex-wrap:wrap; gap:6px; }
@@ -45,7 +45,9 @@ export function getFunctionLogicScenarioWorkspaceStyles(): string {
     .logic-scenario-workspace-detail dl { display:grid; grid-template-columns:minmax(70px, auto) minmax(0, 1fr); gap:3px 7px; margin:0; }
     .logic-scenario-workspace-detail dt { color:var(--vscode-descriptionForeground); font-family:var(--vscode-editor-font-family); }
     .logic-scenario-workspace-detail dd { min-width:0; margin:0; font-family:var(--vscode-editor-font-family); overflow-wrap:anywhere; }
-    .logic-scenario-workspace-detail ol { margin:0; padding-left:18px; overflow-wrap:anywhere; }
+    .logic-scenario-workspace-detail ol, .logic-scenario-workspace-detail ul { margin:0; padding-left:18px; overflow-wrap:anywhere; }
+    .logic-scenario-work-order, .logic-scenario-model-gaps { display:grid; gap:4px; line-height:1.5; }
+    .logic-scenario-model-terminal { padding-left:8px; border-left:2px solid var(--vscode-panel-border); }
     .logic-scenario-workspace-detail-actions { display:flex; flex-wrap:wrap; gap:6px; }
     .logic-scenario-workspace-detail button { min-height:30px; padding:4px 8px; color:var(--vscode-button-secondaryForeground); background:var(--vscode-button-secondaryBackground); border:1px solid var(--vscode-button-border, var(--vscode-panel-border)); border-radius:3px; cursor:pointer; }
     .logic-scenario-workspace-row-selector, .logic-scenario-workspace-play, .logic-scenario-workspace-detail button { touch-action:manipulation; }

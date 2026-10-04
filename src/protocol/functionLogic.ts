@@ -255,6 +255,7 @@ export type FunctionLogicPayload = {
     | "javascript"
     | "python"
     | "java"
+    | "kotlin"
     | "fsharp"
     | "ocaml"
     | "elixir"

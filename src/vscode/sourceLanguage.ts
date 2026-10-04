@@ -12,6 +12,8 @@ const SOURCE_LANGUAGE_BY_EXTENSION = new Map<string, string>([
   [".jsx", "javascriptreact"],
   [".py", "python"],
   [".java", "java"],
+  [".kt", "kotlin"],
+  [".kts", "kotlin"],
   [".fs", "fsharp"],
   [".fsx", "fsharp"],
   [".ml", "ocaml"],

@@ -103,6 +103,9 @@ test("language logic adapters keep parser-specific semantics behind pure boundar
   const lezerAnalyzer = readSource(
     "src/analyzer/functionLogic/core/lezerFunctionLogicAnalyzer.ts"
   );
+  const structuredAnalyzer = readSource(
+    "src/analyzer/functionLogic/core/structuredFunctionLogicAnalyzer.ts"
+  );
   const structuredControl = readSource(
     "src/analyzer/functionLogic/core/structuredControlFlow.ts"
   );
@@ -111,6 +114,9 @@ test("language logic adapters keep parser-specific semantics behind pure boundar
   );
   const java = readSource(
     "src/analyzer/functionLogic/languages/java/javaFunctionLogicAnalyzer.ts"
+  );
+  const kotlin = readSource(
+    "src/analyzer/functionLogic/languages/kotlin/kotlinFunctionLogicAnalyzer.ts"
   );
   const functional = readSource(
     "src/analyzer/functionLogic/languages/functional/functionalFunctionLogicAnalyzer.ts"
@@ -129,13 +135,17 @@ test("language logic adapters keep parser-specific semantics behind pure boundar
 
   assert.match(dispatcher, /analyzePythonFunctionLogic/u);
   assert.match(dispatcher, /analyzeJavaFunctionLogic/u);
+  assert.match(dispatcher, /analyzeKotlinFunctionLogic/u);
   assert.match(dispatcher, /analyzeFunctionalFunctionLogic/u);
-  assert.match(lezerAnalyzer, /while \(pending\.length > 0\)/u);
-  assert.match(lezerAnalyzer, /createStructuredControlEdges/u);
+  assert.match(lezerAnalyzer, /return analyzeStructuredFunctionLogic/u);
+  assert.match(structuredAnalyzer, /while \(pending\.length > 0\)/u);
+  assert.match(structuredAnalyzer, /createStructuredControlEdges/u);
+  assert.doesNotMatch(structuredAnalyzer, /from ["'](?:@lezer|antlr4)|KotlinParser/u);
   assert.match(structuredControl, /while \(currentBlock\)/u);
   assert.match(structuredControl, /while \(container\?\.ownerBlockId\)/u);
   assert.match(python, /LezerFunctionLogicAdapter/u);
   assert.match(java, /LezerFunctionLogicAdapter/u);
+  assert.match(kotlin, /analyzeStructuredFunctionLogic/u);
   assert.match(functional, /collectFunctionalPipelineChains/u);
   assert.match(functional, /for \(let index = 1; index < blocks\.length; index \+= 1\)/u);
   assert.match(events, /while \(pending\.length > 0\)/u);
@@ -152,9 +162,11 @@ test("language logic adapters keep parser-specific semantics behind pure boundar
   assert.doesNotMatch(
     [
       lezerAnalyzer,
+      structuredAnalyzer,
       structuredControl,
       python,
       java,
+      kotlin,
       functional,
       events,
       expressionPlanner,
@@ -264,8 +276,8 @@ test("lexical value flow stays parser-adapted, bounded, iterative, and protocol-
   const lezer = readSource(
     "src/analyzer/functionLogic/dataFlow/lezerFunctionDataFlow.ts"
   );
-  const sharedLezerPipeline = readSource(
-    "src/analyzer/functionLogic/core/lezerFunctionLogicAnalyzer.ts"
+  const sharedStructuredPipeline = readSource(
+    "src/analyzer/functionLogic/core/structuredFunctionLogicAnalyzer.ts"
   );
   const protocol = readSource("src/protocol/functionLogic.ts");
   const renderer = readSource("src/webview/codeFlow/functionLogicBrowserSource.ts");
@@ -294,9 +306,9 @@ test("lexical value flow stays parser-adapted, bounded, iterative, and protocol-
   assert.match(lezer, /collectJavaFunctionValueFacts/u);
   assert.match(lezer, /classifyLezerValueUsage/u);
   assert.match(lezer, /\bfinal\b/u);
-  assert.match(sharedLezerPipeline, /collectValueFacts/u);
+  assert.match(sharedStructuredPipeline, /collectValueFacts/u);
   assert.doesNotMatch(
-    [projection, typescript, lezer].join("\n"),
+    [projection, typescript, lezer, sharedStructuredPipeline].join("\n"),
     /from ".*(?:webview|protocol|vscode|extension)/u
   );
   assert.match(protocol, /FunctionLogicValueBindingPayload/u);

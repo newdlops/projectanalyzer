@@ -168,6 +168,9 @@ export function getFunctionLogicScenarioEvaluatorBrowserSource(): string {
 
     /** Runs immutable state propagation over only the branch-enabled visible CFG. */
     function calculateFunctionLogicScenario(logic, nodeButtonsById, edgeElementsById, scenarioIdentity) {
+      if (logic?.tutor?.program?.evaluationMode === "symbolic-only") {
+        return { recordsByBlockId: new Map(), inputStateByBindingId: new Map(), truncated: true, processed: 0, scenarioPaths: [] };
+      }
       if (logic?.tutor?.program?.python) return calculatePythonScenario(logic, undefined, scenarioIdentity);
       // New Host snapshots may carry an opaque program bundle. Keep the legacy
       // value-change engine as a compatibility path for earlier snapshots.

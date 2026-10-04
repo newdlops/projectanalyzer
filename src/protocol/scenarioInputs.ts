@@ -2,12 +2,14 @@
 import type { CodeFlowId } from "./codeFlow";
 import type { FunctionTutorScenarioSeedPayload } from "./functionTutor";
 
-export type ScenarioInputsRequest = { graphVersion: string; flowId: CodeFlowId; requestId: number };
+export type ScenarioInputsRequest = { graphVersion: string; flowId: CodeFlowId; requestId: number; mode?: "fast" | "neural" };
 export type ScenarioInputsResponse = ScenarioInputsRequest & {
   status: "ready" | "empty" | "unavailable" | "cancelled" | "denied" | "timeout" | "invalid-response" | "failed" | "stale";
   modelName?: string;
   seeds?: FunctionTutorScenarioSeedPayload[];
   rejected?: number;
+  /** Work performed for this request; cache hits do not claim previous evaluation work. */
+  generation?: { evaluations: number; elapsedMs: number; cacheHit: boolean; limitReached: boolean };
   /** Numeric training diagnostics only; weights, labels and source identities stay in the Host. */
   training?: {
     trainingSamples: number; validationSamples: number; dimensions: number; heads: number; parameters: number;

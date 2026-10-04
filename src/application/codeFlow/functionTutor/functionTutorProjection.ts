@@ -23,6 +23,7 @@ import type {
 import type { SourceRange } from "../../../shared/types";
 import type { FunctionTutorBuildModel } from "./types";
 import { projectFrameworkBehavior } from "./frameworkBehaviorProjection";
+import { projectFunctionBehaviorSummary } from "./behaviorSummary/projection";
 
 export type FunctionTutorProjectionContext = {
   flowId: CodeFlowId;
@@ -86,6 +87,7 @@ export function createFunctionTutorPayload(
   const projectedGaps = model.gaps.map(projectGap);
   const projectedContext = projectCodebaseContext(model, context, evidenceTokens);
   const projectedGuide = projectGuidePlan(model, context, evidenceTokens);
+  const behaviorSummary = projectFunctionBehaviorSummary(model.behaviorSummary, context, evidenceTokens);
   const frameworkBehavior = projectFrameworkBehavior(model.frameworkBehavior, model.functionLogic, context);
   const rootContinuationIds = new Map((model.declaration.program.continuations ?? []).map((item) => [item.id, opaqueTutorIdentity(context, "scenario-continuation", `${model.declaration.functionNode.id}:${item.id}`)]));
   const projectedBlocks = model.declaration.program.blocks.flatMap((block) => {
@@ -119,6 +121,7 @@ export function createFunctionTutorPayload(
   const entryBlockId = context.blockIds.get(model.declaration.program.entryBlockId);
   if (!entryBlockId) return undefined;
   const projectedProgram = {
+    ...(model.declaration.program.evaluationMode ? { evaluationMode: model.declaration.program.evaluationMode } : {}),
     python: model.declaration.program.python ? {
       ...model.declaration.program.python,
       entryBlockId: context.blockIds.get(model.declaration.program.python.entryBlockId)!,
@@ -192,6 +195,7 @@ export function createFunctionTutorPayload(
     const continuationIds = new Map((declaration.program.continuations ?? []).map((item) => [item.id, opaqueTutorIdentity(context, "scenario-continuation", `${nodeId}:${item.id}`)]));
     return {
       id: programIdByNodeId.get(nodeId)!, executionKind: declaration.executionKind,
+      ...(declaration.program.evaluationMode ? { evaluationMode: declaration.program.evaluationMode } : {}),
       confidence: "exact" as const,
       entryBlockId: blockIds.get(declaration.program.entryBlockId)!,
       blocks: declaration.program.blocks.map((block) => ({
@@ -238,6 +242,8 @@ export function createFunctionTutorPayload(
       functionId: context.flowId,
       documentation: model.context.documentation?.summary,
       frameworkBehavior,
+      behaviorSummary,
+      program: projectedProgram,
       guide: projectedGuide.chapters.map((chapter) => [chapter.kind, chapter.facts.map((fact) => fact.id)]),
       parameters: model.declaration.parameters.map((parameter) => [parameter.id, parameter.typeKind]),
       seeds: model.seeds.map((seed) => seed.id),
@@ -248,6 +254,7 @@ export function createFunctionTutorPayload(
     availability: model.availability,
     context: projectedContext,
     guide: projectedGuide,
+    ...(behaviorSummary ? { behaviorSummary } : {}),
     frameworkBehavior,
     parameters: model.declaration.parameters.map((parameter) => ({
       id: parameterIds.get(parameter.id)!,

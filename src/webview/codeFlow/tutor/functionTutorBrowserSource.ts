@@ -175,6 +175,7 @@ export function getFunctionTutorBrowserSource(): string {
       return { before: before || { kind: "undefined" }, after: value };
     }
     function functionTutorRunScenario(tutor, seed) {
+      if (tutor?.program?.evaluationMode === "symbolic-only") return [];
       // New opaque bundles share Values' iterative evaluator. The old local
       // interpreter remains solely for snapshots issued before bundles existed.
       const bundled = typeof functionTutorRunProgramBundleScenario === "function"

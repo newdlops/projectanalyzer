@@ -1,0 +1,25 @@
+{
+  "sourceRepository": "https://github.com/Kotlin/kotlin-spec",
+  "sourceRevision": "0f762a2314a9304e4b3fc386b1aceef1d56c7e4c",
+  "sourceDirectory": "grammar/src/main/antlr",
+  "sourceLicense": "Apache-2.0",
+  "grammarFiles": ["KotlinLexer.g4", "KotlinParser.g4", "UnicodeClasses.g4"],
+  "grammarSha256": {
+    "KotlinLexer.g4": "cb9a859b4a1f2ed9fd55b77d75c1834e77b901cc19807097c232b0e6f25e2285",
+    "KotlinParser.g4": "ad2ca8a1b82e5f6c583512281156f2dbb14a1d144f1a3ce341b5c781319520fc",
+    "UnicodeClasses.g4": "ec955adaf47d14b134752f537380f826986038d0557413be4d07b255486c7800"
+  },
+  "generator": {
+    "name": "ANTLR",
+    "version": "4.13.2",
+    "url": "https://www.antlr.org/download/antlr-4.13.2-complete.jar",
+    "sha256": "eae2dfa119a64327444672aff63e9ec35a20180dc5b8090b7a6ab85125df4d76"
+  },
+  "runtime": { "package": "antlr4", "version": "4.13.2" },
+  "generationCommand": "ANTLR_JAR=/path/to/antlr-4.13.2-complete.jar JAVA=/path/to/java node scripts/generate-kotlin-parser.mjs",
+  "targetAdaptations": [
+    "Translate RCURL lexer mode-stack Java action into this._modeStack.length and this.popMode() in a temporary grammar copy.",
+    "Restore UnicodeData First/Last range pairs already present in pinned UnicodeClasses.g4: 3400..4DB5, 4E00..9FCC, AC00..D7A3. Upstream source remains unchanged."
+  ],
+  "generatedFiles": ["KotlinLexer.ts", "KotlinParser.ts"]
+}

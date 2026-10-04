@@ -1,0 +1,4 @@
+# Preserve upstream Kotlin grammar/license and ANTLR output byte-for-byte.
+# Their generated formatting is excluded from Git's whitespace lint only.
+src/analyzer/languages/kotlin/internal/generated/*.ts -whitespace
+src/analyzer/languages/kotlin/internal/grammar/* -whitespace

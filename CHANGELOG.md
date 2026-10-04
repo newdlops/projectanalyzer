@@ -4,6 +4,40 @@ All notable user-visible changes to Project Analyzer: Code Flow are recorded in
 this file. The changelog starts with the first distribution-documented build;
 earlier local development builds were not tracked here.
 
+## 0.0.1101 - 2026-10-04
+
+### Added
+
+- Kotlin `.kt` / `.kts` function analysis with an official grammar parser loaded
+  on first use. Read source conditions, calls, returns and symbolic scenarios;
+  unsupported runtime arithmetic and dispatch remain explicit.
+- A source-backed Function Summary joins documentation, inputs, conditions,
+  effects, outcomes and codebase context. Scenario details distinguish checked
+  conditions from assumed paths and preserve each loop visit and field change.
+- **Generate scenarios quickly** uses caller arguments and supported internal
+  calculations to find checked branch boundaries with a small local model.
+  Repeated requests reuse bounded source-owned results. Optional neural search
+  remains available as a separate action.
+
+### Improved
+
+- Function Guide and Values & paths acquire scenario calculations on interaction,
+  reuse shared results, and release retained previews and playback timers when
+  the active function changes.
+- Pure synchronous TypeScript/JavaScript helper summaries retain defaults,
+  unused argument evaluation and lexical call ownership. Reassigned or shadowed
+  functions, effects, recursion and unsupported calculations remain unconfirmed.
+- Fast requests check at most 192 input tuples and support cancellation; source
+  indexes, cached replies and responsive Korean/English controls stay bounded.
+
+### Known limitations
+
+- Four existing TypeScript test failures remain: two declared-type input
+  representative expectations, advanced private Scenario evaluation and a
+  source-reveal architecture expectation. The full suite passes 860/864; focused
+  feature tests, Rust tests and package validation pass. See
+  [the verification record](docs/SCENARIO_INPUT_QUALITY.md).
+
 ## 0.0.1100 - 2026-09-11
 
 ### Improved

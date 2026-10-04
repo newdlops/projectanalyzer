@@ -167,8 +167,9 @@ function validateReadableWebviewRequest(value: unknown): WebviewRequestValidatio
       break;
     case "codeFlow/requestScenarioInputs":
     case "codeFlow/cancelScenarioInputs":
-      payloadIsValid = isRecord(payload) && hasOnlyKeys(payload, ["graphVersion", "flowId", "requestId"])
-        && isCodeFlowSelectPayload(payload) && isNonNegativeInteger(payload.requestId);
+      payloadIsValid = isRecord(payload) && hasOnlyKeys(payload, ["graphVersion", "flowId", "requestId", "mode"])
+        && isCodeFlowSelectPayload(payload) && isNonNegativeInteger(payload.requestId)
+        && (payload.mode === undefined || isOneOf(payload.mode, ["fast", "neural"]));
       break;
     case "codeFlow/selectSource":
       payloadIsValid = isCodeFlowSelectSourcePayload(payload);

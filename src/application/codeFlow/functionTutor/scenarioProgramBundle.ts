@@ -60,7 +60,7 @@ export async function buildScenarioProgramBundle(
       const callLocation = { callStartLine: call.callRange.startLine, callStartCharacter: call.callRange.startCharacter };
       if (catalogCallKeys.has(`${current.declaration.functionNode.id}:${callLocation.callStartLine}:${callLocation.callStartCharacter}`)) continue;
       if (current.depth >= SCENARIO_PROGRAM_BUNDLE_LIMITS.maxCallDepth) { omitted.push({ callerProgramId: current.declaration.functionNode.id, ...callLocation, reason: "depth-budget" }); continue; }
-      const targets = graph.edges.filter((edge) => edge.kind === "calls" && edge.sourceId === current.declaration.functionNode.id && edge.range
+      const targets = graph.edges.filter((edge) => edge.kind === "calls" && edge.confidence === "exact" && edge.sourceId === current.declaration.functionNode.id && edge.range
         && edge.filePath === current.declaration.functionNode.filePath && overlaps(edge.range, call.callRange))
         .map((edge) => graph.nodes.find((node) => node.id === edge.targetId))
         .filter((node): node is SymbolNode => Boolean(node && node.kind === "function"));

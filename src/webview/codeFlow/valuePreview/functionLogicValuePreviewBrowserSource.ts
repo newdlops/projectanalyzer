@@ -17,6 +17,11 @@ export function getFunctionLogicValuePreviewBrowserSource(): string {
     const functionLogicManualScenarioValueByName = new Map();
     const functionLogicValuePreviewElementsByBindingId = new Map();
 
+    /** Releases graph/detail DOM labels while keeping same-root editable values for relayout. */
+    function clearFunctionLogicValuePreviewLabels() {
+      functionLogicValuePreviewElementsByBindingId.clear();
+    }
+
     /** Resets every editable value only when the root graph session changes. */
     function readFunctionLogicValuePreviewSession(sessionKey) {
       if (functionLogicValuePreviewSessionKey === sessionKey) return;
@@ -125,6 +130,19 @@ export function getFunctionLogicValuePreviewBrowserSource(): string {
       let recommendedTutor;
       let inputSuggestions;
       let recommendationPending = false;
+
+      /** Keeps source-backed binding inspection available when runtime values cannot be evaluated. */
+      function refreshEvaluationCapability() {
+        const symbolicOnly = recommendedTutor?.program?.evaluationMode === "symbolic-only";
+        recommend.disabled = symbolicOnly; clearAll.disabled = symbolicOnly;
+        addName.disabled = symbolicOnly; addValue.disabled = symbolicOnly; add.disabled = symbolicOnly;
+        addPanel.hidden = symbolicOnly;
+        hint.textContent = projectAnalyzerText(symbolicOnly ? "summary-symbolic-disabled" : "scenario-help");
+        if (emptyState) emptyState.textContent = projectAnalyzerText(symbolicOnly ? "scenario-empty-symbolic" : "scenario-empty");
+        for (const record of labelRecordsByBindingId.values()) {
+          record.input.disabled = symbolicOnly; record.action.disabled = symbolicOnly;
+        }
+      }
 
       /** Stores semantic feedback so a locale pass can reformat it in place. */
       function setAddStatus(key, params, error) {
@@ -585,6 +603,7 @@ export function getFunctionLogicValuePreviewBrowserSource(): string {
           recommendedTutor = tutor;
           inputSuggestions = suggestions;
           recommend.title = projectAnalyzerText(inputSuggestions ? "scenario-recommend-neural-title" : "scenario-recommend-values-title");
+          refreshEvaluationCapability();
         },
         /** Focuses the first transferred value and leaves a visible local status. */
         focusKnownInputs(names, message) {
@@ -643,6 +662,7 @@ export function getFunctionLogicValuePreviewBrowserSource(): string {
           if (emptyState) emptyState.textContent = projectAnalyzerText("scenario-empty");
           if (addStatusPresentation) setAddStatus(addStatusPresentation.key, addStatusPresentation.params, addStatus.classList.contains("error"));
           else if (focusStatusPresentation) addStatus.textContent = projectAnalyzerText(focusStatusPresentation.key, focusStatusPresentation.params);
+          refreshEvaluationCapability();
         }
       };
     }

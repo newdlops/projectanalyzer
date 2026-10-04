@@ -23,6 +23,7 @@ import { mergeSupplementalLanguageGraph } from "./supplementalLanguageGraph";
 /** Languages whose symbols are supplied by the in-process analyzer for now. */
 const SUPPLEMENTAL_LANGUAGE_IDS = new Set([
   "java",
+  "kotlin",
   "fsharp",
   "ocaml",
   "elixir"

@@ -105,6 +105,8 @@ test("suggestion protocol accepts only bounded correlation identities", () => {
   const payload = { graphVersion: "v1", flowId: "code-flow:" + "a".repeat(32), requestId: 1 };
   for (const type of ["codeFlow/requestScenarioInputs", "codeFlow/cancelScenarioInputs"]) {
     assert.equal(validateWebviewRequest({ type, payload }).ok, true);
+    for (const mode of ["fast", "neural"]) assert.equal(validateWebviewRequest({ type, payload: { ...payload, mode } }).ok, true);
+    for (const mode of ["remote", "", 1, null]) assert.equal(validateWebviewRequest({ type, payload: { ...payload, mode } }).ok, false);
     assert.equal(validateWebviewRequest({ type, payload: { ...payload, sourceText: "run()" } }).ok, false);
     assert.equal(validateWebviewRequest({ type, payload: { ...payload, requestId: -1 } }).ok, false);
     assert.equal(validateWebviewRequest({ type, payload: { ...payload, flowId: "/tmp/file.ts" } }).ok, false);

@@ -1,16 +1,17 @@
-/** Neural input proposals are untrusted data; this module never executes model or project code. */
+/** Local input proposals are untrusted data; this module never executes project code. */
 import { createContentHash } from "../../shared/hash";
 import { evaluateFunctionTutorInputs, type FunctionTutorParameterFact, type FunctionTutorStaticValue as Value } from "../../analyzer/functionTutor";
 import type { NeuralBoundary, NeuralTrainingReport } from "../../analyzer/neuralScenarios";
+import type { FastScenarioReport } from "../../analyzer/fastScenarios";
 import { areFunctionTutorStaticValuesEqual, isFunctionTutorSafeObjectKey, stringifyFunctionTutorStaticValue } from "../../analyzer/functionTutor/staticValue";
 import { evaluateScenarioSeed, selectScenarioSeeds } from "../codeFlow/functionTutor";
 import type { FunctionTutorBuildModel, FunctionTutorScenarioSeed } from "../codeFlow/functionTutor";
 
 export type ScenarioInputFailure = "unavailable" | "cancelled" | "denied" | "timeout" | "invalid-response" | "failed" | "stale";
-export type ScenarioInputProviderResult = { modelName: string; text: string; boundaries?: NeuralBoundary[]; training?: NeuralTrainingReport };
+export type ScenarioInputProviderResult = { modelName: string; text: string; boundaries?: NeuralBoundary[]; training?: NeuralTrainingReport; generation?: FastScenarioReport };
 /** Host-owned structured facts feed local training; no source text or external model is required. */
 export type ScenarioInputProvider = {
-  suggest(model: FunctionTutorBuildModel, language: "ko" | "en", signal: AbortSignal): Promise<ScenarioInputProviderResult>;
+  suggest(model: FunctionTutorBuildModel, language: "ko" | "en", signal: AbortSignal, mode?: "fast" | "neural"): Promise<ScenarioInputProviderResult>;
 };
 export class ScenarioInputError extends Error {
   public constructor(public readonly code: ScenarioInputFailure) { super(code); this.name = "ScenarioInputError"; }
@@ -29,6 +30,7 @@ export function parseScenarioInputSuggestions(text: string, model: FunctionTutor
   const knownOutcomes = new Set(model.seeds.flatMap((seed) => outcomeKeys(seed)));
   const checkedBoundaries = new Map<string, string>();
   const previousTargets = new Set(model.seeds.filter((seed) => seed.source === "model").flatMap((seed) => seed.quality?.targetBlockIds ?? []));
+  const declaration = model.inputEvaluationDeclaration ?? model.declaration;
   for (const boundary of boundaries.slice(0, 4)) {
     if (previousTargets.has(boundary.blockId)) continue;
     const tuples = [boundary.inputs, boundary.neighbor];
@@ -37,7 +39,7 @@ export function parseScenarioInputSuggestions(text: string, model: FunctionTutor
       return !input || input.omitted || !matchesParameter(input.value, parameter);
     }))) continue;
     if (boundary.occurrence !== undefined && (!Number.isInteger(boundary.occurrence) || boundary.occurrence < 0 || boundary.occurrence > 2)) continue;
-    const outcomes = tuples.map((inputs) => evaluateFunctionTutorInputs(model.declaration, inputs).decisions.filter((item) => item.blockId === boundary.blockId)[boundary.occurrence ?? 0]?.outcome);
+    const outcomes = tuples.map((inputs) => evaluateFunctionTutorInputs(declaration, inputs).decisions.filter((item) => item.blockId === boundary.blockId)[boundary.occurrence ?? 0]?.outcome);
     if (outcomes[0] === undefined || outcomes[1] === undefined || outcomes[0] === outcomes[1]) continue;
     for (const inputs of tuples) checkedBoundaries.set(inputKey(inputs), boundary.blockId);
   }
@@ -46,7 +48,7 @@ export function parseScenarioInputSuggestions(text: string, model: FunctionTutor
     const seed = parseSeed(item, model);
     if (!seed || seen.has(seedKey(seed))) { rejected += 1; continue; }
     seen.add(seedKey(seed));
-    const evaluated = evaluateScenarioSeed(model.declaration, seed, model.objectives);
+    const evaluated = evaluateScenarioSeed(declaration, seed, model.objectives);
     const targetBlockId = checkedBoundaries.get(seedKey(seed));
     if (targetBlockId && evaluated.quality) evaluated.quality.targetBlockIds = [targetBlockId];
     // A different ordinary number is not automatically a new scenario. For a

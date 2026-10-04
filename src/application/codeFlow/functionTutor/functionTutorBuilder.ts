@@ -5,7 +5,7 @@
  */
 
 import { resolve } from "node:path";
-import { analyzeFunctionTutorCallsite } from "../../../analyzer/functionTutor";
+import { analyzeFunctionTutorCallsite, compileFunctionTutorInputDeclaration } from "../../../analyzer/functionTutor";
 import {
   stringifyFunctionTutorStaticValue
 } from "../../../analyzer/functionTutor/staticValue";
@@ -27,6 +27,7 @@ import { buildFunctionTutorGuide } from "./functionTutorGuidePlanner";
 import { createCandidateDomains, createObjectives, createScenarioSeeds } from "./functionTutorInputPlanner";
 import { buildScenarioProgramBundle } from "./scenarioProgramBundle";
 import { analyzeFunctionFrameworkBehavior } from "../../../analyzer/frameworkBehavior";
+import { buildFunctionBehaviorSummary } from "./behaviorSummary";
 
 const MAX_INCOMING_CALLSITES = 8;
 const MAX_CALLER_FILES = 6;
@@ -44,6 +45,15 @@ export type FunctionTutorBuildInput = {
 
 /** Builds one deterministic, bounded model that is ready for opaque projection. */
 export async function buildFunctionTutorModel(input: FunctionTutorBuildInput): Promise<FunctionTutorBuildModel> {
+  // One immutable build snapshot reads each source once, even when a file owns
+  // framework facts, a caller and several internal helper declarations.
+  const sourceSnapshots = new Map<string, Promise<string | undefined>>();
+  const readSourceText = input.readSourceText;
+  input = { ...input, readSourceText(filePath) {
+    let source = sourceSnapshots.get(filePath);
+    if (!source) { source = readSourceText(filePath).catch(() => undefined); sourceSnapshots.set(filePath, source); }
+    return source;
+  } };
   const frameworkBehavior = analyzeFunctionFrameworkBehavior({
     functionNode: input.declaration.functionNode,
     sourceText: await input.readSourceText(input.declaration.functionNode.filePath).catch(() => undefined),
@@ -55,9 +65,10 @@ export async function buildFunctionTutorModel(input: FunctionTutorBuildInput): P
     ? await buildScenarioProgramBundle(input.graph, input.declaration, input.readSourceText)
     : undefined;
   const callsiteResult = await collectCallsiteTuples(input);
+  const inputEvaluationDeclaration = compileFunctionTutorInputDeclaration(input.declaration, scenarioBundle);
   const candidatesByParameter = createCandidateDomains(input.declaration, callsiteResult.tuples);
   const objectives = createObjectives(input.declaration);
-  const seeds = createScenarioSeeds(input.declaration, callsiteResult.tuples, candidatesByParameter, objectives);
+  const seeds = createScenarioSeeds(inputEvaluationDeclaration, callsiteResult.tuples, candidatesByParameter, objectives);
   const collectedContext = collectFunctionTutorCodebaseContext({
     graph: input.graph,
     functionLogic: input.functionLogic,
@@ -74,8 +85,10 @@ export async function buildFunctionTutorModel(input: FunctionTutorBuildInput): P
     scenarios: seeds,
     gaps
   });
+  const behaviorSummary = buildFunctionBehaviorSummary({ declaration: input.declaration, functionLogic: input.functionLogic, context, gaps });
   return {
     declaration: input.declaration,
+    inputEvaluationDeclaration,
     functionLogic: input.functionLogic,
     callsites: callsiteResult.tuples,
     candidatesByParameter,
@@ -83,6 +96,7 @@ export async function buildFunctionTutorModel(input: FunctionTutorBuildInput): P
     seeds,
     context,
     guide,
+    behaviorSummary,
     scenarioBundle,
     frameworkBehavior,
     availability: guide.summary.readyChapterCount > 0

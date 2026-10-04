@@ -102,6 +102,7 @@ export function getFunctionVisualizerBrowserSource(): string {
     /** Resets browser history for one explicit editor or sidebar root request. */
     function beginSession(payload) {
       if (!payload || !payload.graphVersion || !payload.root) return;
+      disposeFunctionLogicScenarioWorkspaces();
       state.graph = { version: payload.graphVersion };
       state.root = payload.root;
       state.pendingCallScenarioInputs = undefined;

@@ -11,6 +11,8 @@ test("infers analyzer language IDs without loading VS Code TextDocuments", () =>
   assert.equal(inferSourceLanguageId("/workspace/widget.jsx"), "javascriptreact");
   assert.equal(inferSourceLanguageId("/workspace/service.py"), "python");
   assert.equal(inferSourceLanguageId("/workspace/Main.java"), "java");
+  assert.equal(inferSourceLanguageId("/workspace/서비스.KT"), "kotlin");
+  assert.equal(inferSourceLanguageId("/workspace/build.kts"), "kotlin");
   assert.equal(inferSourceLanguageId("/workspace/Pipeline.FSX"), "fsharp");
   assert.equal(inferSourceLanguageId("/workspace/pipeline.ml"), "ocaml");
   assert.equal(inferSourceLanguageId("/workspace/pipeline.exs"), "elixir");

@@ -10,6 +10,7 @@ import { AnalyzerPipeline } from "../analyzer/core/analyzerPipeline";
 import { FunctionalLanguageAnalyzer } from "../analyzer/languages/functional";
 import { JavaScriptAnalyzer } from "../analyzer/languages/javascript";
 import { JavaAnalyzer } from "../analyzer/languages/java";
+import { KotlinAnalyzer, disposeKotlinSyntaxCache, invalidateKotlinSyntaxCache } from "../analyzer/languages/kotlin";
 import { PythonAnalyzer } from "../analyzer/languages/python";
 import { TypeScriptAnalyzer } from "../analyzer/languages/typescript";
 import { RustAnalyzerBackend } from "../analyzer/rust/rustAnalyzerBackend";
@@ -57,6 +58,7 @@ export function createExtensionServices(context: vscode.ExtensionContext): Exten
     new JavaScriptAnalyzer(),
     new PythonAnalyzer(),
     new JavaAnalyzer(),
+    new KotlinAnalyzer(),
     new FunctionalLanguageAnalyzer()
   ]);
   const analyzer = new RustAnalyzerBackend({
@@ -67,6 +69,15 @@ export function createExtensionServices(context: vscode.ExtensionContext): Exten
     logger
   });
   context.subscriptions.push(analyzer);
+  // Snapshots are bounded and content-keyed; explicit lifecycle invalidation
+  // also releases closed/deleted files before the LRU capacity is reached.
+  context.subscriptions.push(
+    { dispose: disposeKotlinSyntaxCache },
+    vscode.workspace.onDidCloseTextDocument((document) => invalidateKotlinSyntaxCache(document.uri.fsPath)),
+    vscode.workspace.onDidDeleteFiles((event) => {
+      for (const uri of event.files) invalidateKotlinSyntaxCache(uri.fsPath);
+    })
+  );
   const explorerGraphPanelProvider = new ExplorerGraphPanelProvider({
     context,
     cacheStore,

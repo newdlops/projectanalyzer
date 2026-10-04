@@ -40,6 +40,9 @@ test("accepts the intended runtime package surface", () => {
     entry("extension/out/graph/graphStore.js", 8_000),
     entry("extension/node_modules/@lezer/common/dist/index.cjs", 40_000),
     entry("extension/node_modules/@lezer/java/package.json", 1_000),
+    entry("extension/node_modules/antlr4/package.json", 2_000),
+    entry("extension/node_modules/antlr4/dist/antlr4.node.cjs", 300_000),
+    entry("extension/THIRD_PARTY_NOTICES.md", 12_000),
     entry("extension/node_modules/typescript/lib/typescript.js", 9_000_000)
   ];
 
@@ -78,6 +81,8 @@ test("rejects development files and undeclared runtime dependencies", () => {
   assert.equal(isAllowedPackagePath("extension/node_modules/typescript/lib/lib.dom.d.ts"), false);
   assert.equal(isAllowedPackagePath("extension/node_modules/@lezer/java/src/parser.js"), false);
   assert.equal(isAllowedPackagePath("extension/node_modules/@lezer/python/dist/index.d.ts"), false);
+  assert.equal(isAllowedPackagePath("extension/node_modules/antlr4/src/antlr4/index.d.cts"), false);
+  assert.equal(isAllowedPackagePath("extension/node_modules/antlr4/dist/antlr4.web.mjs"), false);
   assert.equal(isAllowedPackagePath("extension/out/test/unit/example.test.js"), false);
 
   const result = validateVsixPackage(

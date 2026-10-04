@@ -14,7 +14,7 @@ export type NeuralInputSpace = {
 };
 
 /** Keeps one complete shape. Alternatives outside that shape are not silently flattened. */
-export function createNeuralInputSpace(problem: NeuralScenarioProblem): NeuralInputSpace | undefined {
+export function createNeuralInputSpace(problem: NeuralScenarioProblem, options: { includeFeatures?: boolean } = {}): NeuralInputSpace | undefined {
   const parameters = problem.declaration.parameters;
   const evidence = collectNeuralInputEvidence(problem);
   if (!parameters.length || parameters.length > 16) return undefined;
@@ -87,14 +87,15 @@ export function createNeuralInputSpace(problem: NeuralScenarioProblem): NeuralIn
   if (textCount && textBudget < 4) return undefined;
   // Cache source-only encodings once. Neither parameter values nor later teacher
   // outcomes change this representation or leak labels into network features.
-  const textFeatures = dimensions.map((dimension) => dimension.featureKind === "text"
+  const textFeatures = dimensions.map((dimension) => options.includeFeatures !== false && dimension.featureKind === "text"
     ? encodeNeuralTextChoices(dimension.choices!.map((value) => (value as Value & { kind: "string" }).value), dimension.textReferences ?? [], textBudget, pythonPatterns) : undefined);
-  const featureCount = dimensions.length + collectionCount * 5 + textFeatures.reduce((sum, choices) => sum + (choices?.[0]?.length ?? 0), 0);
+  const featureCount = options.includeFeatures === false ? dimensions.length : dimensions.length + collectionCount * 5 + textFeatures.reduce((sum, choices) => sum + (choices?.[0]?.length ?? 0), 0);
   if (featureCount > 192) return undefined;
   return {
     dimensions,
     featureCount,
     features(vector) {
+      if (options.includeFeatures === false) return vector.slice();
       const result = vector.map((value, index) => dimensions[index].featureKind ? 0 : value);
       dimensions.forEach((dimension, index) => {
         const value = choiceAt(dimension, vector[index]);

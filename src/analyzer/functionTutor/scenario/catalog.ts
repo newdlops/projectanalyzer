@@ -33,6 +33,9 @@ export function buildFunctionTutorScenarioCatalog(input: Input): FunctionTutorSc
       if (ts.isIdentifier(declaration.name) && declaration.initializer && (ts.isArrowFunction(declaration.initializer) || ts.isFunctionExpression(declaration.initializer))) addUnique(functions, declaration.name.text, declaration.initializer);
     }
   }
+  const unstableFunctions = collectCallableWrites(input.sourceFile, new Set(functions.keys()));
+  input.rootAnalysis.inputSummarySafe = [...functions].some(([name, node]) => node === input.rootFunction && !unstableFunctions.has(name));
+  for (const name of unstableFunctions) functions.delete(name);
   const programs: FunctionTutorScenarioCatalogProgram[] = [];
   const resolutions: FunctionTutorScenarioCatalog["resolutions"] = [];
   const idFor = (node: ts.Node, role: string) => `scenario-private:${createContentHash(`${input.rootNode.filePath}\0${role}\0${node.pos}\0${node.end}`).slice(0, 28)}`;
@@ -58,6 +61,7 @@ export function buildFunctionTutorScenarioCatalog(input: Input): FunctionTutorSc
           seen.set(candidate.node, targetId);
           const symbol = privateSymbol(input.rootNode, candidate.node, targetId);
           const analysis = input.materialize(candidate.node, symbol, candidate.thisBindingId);
+          analysis.inputSummarySafe = candidate.role === "function";
           programs.push({ id: targetId, ownerId: candidate.ownerId, thisBindingId: candidate.thisBindingId, invocationRole: candidate.role, declaration: analysis, fieldInitializers: candidate.role === "constructor" ? collectFieldInitializers(candidate.node.parent) : [] });
           queue.push({ node: candidate.node, id: targetId, analysis, depth: current.depth + 1, candidate });
         }
@@ -134,12 +138,54 @@ function hasBindingWrite(root: FunctionLikeWithBody, name: string, declaration: 
 /** Locals/parameters shadow top-level names, so they block rather than guess dispatch. */
 function collectLexicalShadows(node: FunctionLikeWithBody): Set<string> {
   const shadows = new Set<string>();
-  for (const parameter of node.parameters) if (ts.isIdentifier(parameter.name)) shadows.add(parameter.name.text);
+  for (const parameter of node.parameters) for (const name of bindingNames(parameter.name)) shadows.add(name);
   const pending: ts.Node[] = [node.body];
-  while (pending.length) { const current = pending.pop()!; if (current !== node.body && ts.isFunctionLike(current)) continue;
-    if (ts.isVariableDeclaration(current) && ts.isIdentifier(current.name)) shadows.add(current.name.text);
+  while (pending.length) { const current = pending.pop()!;
+    // Record a declaration before skipping its body: a nested function shadows
+    // the top-level name even though its code is not part of this root's CFG.
+    if ((ts.isFunctionDeclaration(current) || ts.isClassDeclaration(current)) && current.name) shadows.add(current.name.text);
+    if (current !== node.body && ts.isFunctionLike(current)) continue;
+    if (ts.isVariableDeclaration(current)) for (const name of bindingNames(current.name)) shadows.add(name);
     ts.forEachChild(current, (child) => { pending.push(child); }); }
   return shadows;
+}
+
+/** Any potential write blocks stable callable dispatch, including destructuring and nested writers. */
+function collectCallableWrites(source: ts.SourceFile, names: Set<string>): Set<string> {
+  const unstable = new Set<string>(); const pending: ts.Node[] = [source]; const visited = new Set<ts.Node>();
+  const recordTarget = (target: ts.Node) => {
+    const targets = [target]; const seen = new Set<ts.Node>();
+    while (targets.length) {
+      const item = targets.pop()!; if (seen.has(item)) continue; seen.add(item);
+      if (seen.size > 256) { for (const name of names) unstable.add(name); return; }
+      if (ts.isIdentifier(item) && names.has(item.text)) unstable.add(item.text);
+      else if (ts.isPropertyAccessExpression(item)) { if (names.has(item.name.text)) unstable.add(item.name.text); }
+      else if (ts.isElementAccessExpression(item)) {
+        if (item.argumentExpression && ts.isStringLiteral(item.argumentExpression) && names.has(item.argumentExpression.text)) unstable.add(item.argumentExpression.text);
+      } else ts.forEachChild(item, (child) => { targets.push(child); });
+    }
+  };
+  while (pending.length) {
+    const node = pending.pop()!; if (visited.has(node)) continue; visited.add(node);
+    if (visited.size > 50000) return new Set(names);
+    if (ts.isBinaryExpression(node) && node.operatorToken.kind >= ts.SyntaxKind.FirstAssignment && node.operatorToken.kind <= ts.SyntaxKind.LastAssignment) recordTarget(node.left);
+    else if ((ts.isPrefixUnaryExpression(node) || ts.isPostfixUnaryExpression(node)) && [ts.SyntaxKind.PlusPlusToken, ts.SyntaxKind.MinusMinusToken].includes(node.operator)) recordTarget(node.operand);
+    else if (ts.isForOfStatement(node) || ts.isForInStatement(node)) recordTarget(node.initializer);
+    else if (ts.isWithStatement(node) || ts.isCallExpression(node) && ts.isIdentifier(node.expression) && node.expression.text === "eval") return new Set(names);
+    ts.forEachChild(node, (child) => { pending.push(child); });
+  }
+  return unstable;
+}
+
+/** Parameter/local binding patterns are names, not reads of same-named global callables. */
+function bindingNames(root: ts.BindingName): string[] {
+  const names: string[] = []; const pending: ts.BindingName[] = [root]; const visited = new Set<ts.Node>();
+  while (pending.length && visited.size < 256) {
+    const item = pending.pop()!; if (visited.has(item)) continue; visited.add(item);
+    if (ts.isIdentifier(item)) names.push(item.text);
+    else for (const element of item.elements) if (ts.isBindingElement(element)) pending.push(element.name);
+  }
+  return names;
 }
 function optionalDisposition(node: ts.CallExpression | ts.NewExpression, locals: Map<string, string>, objects: Map<string, ts.ObjectLiteralExpression>): "present" | "absent" | "unknown" | undefined {
   if (!ts.isCallExpression(node) || !(node.questionDotToken || (ts.isPropertyAccessExpression(node.expression) && node.expression.questionDotToken))) return undefined;

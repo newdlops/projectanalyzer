@@ -53,7 +53,8 @@ export function getFunctionTutorGuideStyles(): string {
     .logic-guide-question:focus-visible, .logic-guide-action:focus-visible, .logic-guide-source-action:focus-visible, .logic-guide-toggle:focus-visible, .logic-guide-scenario-select:focus-visible, .logic-guide-scenario-body select:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-offset: 1px; }
     @media (max-width: 520px) { .logic-guide-overview dl, .logic-guide-scenario-detail dl { grid-template-columns: 1fr; gap: 1px; } .logic-guide-overview dd, .logic-guide-scenario-detail dd { margin-bottom: 5px; } }
     @container function-guide (max-width: 560px) {
-      .logic-guide-scenario-table, .logic-guide-scenario-table tbody, .logic-guide-scenario-table tr, .logic-guide-scenario-table th, .logic-guide-scenario-table td { display: block; width: 100%; box-sizing: border-box; }
+      /* A retained table-caption box can shrink to one character once its table becomes a block. */
+      .logic-guide-scenario-table, .logic-guide-scenario-table caption, .logic-guide-scenario-table tbody, .logic-guide-scenario-table tr, .logic-guide-scenario-table th, .logic-guide-scenario-table td { display: block; width: 100%; box-sizing: border-box; }
       .logic-guide-scenario-table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; }
       .logic-guide-scenario-table tr { padding: 5px 0; border-bottom: 1px solid var(--vscode-panel-border); }
       .logic-guide-scenario-table th, .logic-guide-scenario-table td { display: grid; grid-template-columns: minmax(82px, .38fr) minmax(0, 1fr); gap: 6px; border-bottom: 0; }

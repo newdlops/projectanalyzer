@@ -68,7 +68,7 @@ source-backed 시각화로 바꾸어 개발자가 직접 읽고 검증하도록 
 
 ## Capabilities and Constraints
 
-- TypeScript, JavaScript, JSX/TSX, Python, Java, F#, OCaml, Elixir의 서로 다른
+- TypeScript, JavaScript, JSX/TSX, Python, Java, Kotlin, F#, OCaml, Elixir의 서로 다른
   수준의 Function Logic 분석을 제공한다.
 - control flow, branch choice, loop, mutation/effect, value flow, scenario value,
   call/render/event drill, compound body focus, static embedded-code program을
@@ -78,6 +78,14 @@ source-backed 시각화로 바꾸어 개발자가 직접 읽고 검증하도록 
   결합해 코드베이스 위치·입력·결정·작업·종료를 5개 질문으로 안내한다. 기존의 static
   input case 비교는 로컬 정적 분석으로 동작한다. 불확실한 값·지원하지 않는 연산·budget은
   gap으로 보인다.
+- Guide의 **함수 요약**은 소스에 작성된 목적 또는 구조적 사실, 입력·조건부 단계·결과·호출과
+  쓰기·미확인 부분을 먼저 보여준다. 대표 시나리오 3개를 최대 5개까지 펼칠 수 있고, 기존
+  Scenario Workspace의 결과와 선택을 공유한다. Kotlin은 소스 경로 탐색과 재생을 지원하며
+  구체적인 값 계산과 입력 적용은 지원 범위에서 제외한다.
+- 공통 **실행 시나리오 모델**은 입력·가정/검증된 조건·순서 있는 호출과 쓰기·소스 종료식·
+  계산값·미확인 부분을 구분한다. Summary와 Values가 같은 bounded snapshot을 쓰며,
+  Values 상세는 반복 방문의 값 변화와 field target을 보존한다. 표시 생략을 분석 실패나
+  전체 경로 검증으로 취급하지 않는다.
 - **AI 에지케이스 제안**은 사용자가 직접 요청할 때 선택한 VS Code 모델에 함수 인터페이스,
   선택 함수와 최대 4개 호출부의 코드, 조건과 기존 입력을 전달한다. 일반적인 대표값보다
   경계·복합 조건·예외·인자 간 관계를 설명하는 값을 제안하고, 알려진 타입과 정적 경로로

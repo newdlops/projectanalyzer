@@ -4,7 +4,7 @@
  */
 
 import * as vscode from "vscode";
-import { createLocalNeuralScenarioProvider } from "../../application/scenarioInputs";
+import { createLocalScenarioProvider } from "../../application/scenarioInputs";
 import { CodeFlowInsightCache } from "../../application/codeFlow";
 import type { CodeFlowSelectSourceRequest } from "../../protocol/codeFlow";
 import type { ExtensionResponse, WebviewRequest } from "../../protocol/messages";
@@ -89,7 +89,7 @@ export class FunctionVisualizerPanelProvider {
       getUiLanguage: () => this.uiLanguage,
       projectionOptions: dependencies.config.codeFlow,
       readSourceText,
-      scenarioInputProvider: createLocalNeuralScenarioProvider(),
+      scenarioInputProvider: createLocalScenarioProvider(),
       openEvidenceLocation: ({ filePath, range }) =>
         dependencies.sourceHighlighter.revealRange(filePath, range),
       postMessage: (message) => this.postMessage(message)

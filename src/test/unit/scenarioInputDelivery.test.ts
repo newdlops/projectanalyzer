@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { CodeFlowInsightCache } from "../../application/codeFlow";
 import type { ScenarioInputProvider, ScenarioInputProviderResult } from "../../application/scenarioInputs";
-import { ScenarioInputError } from "../../application/scenarioInputs";
+import { createLocalScenarioProvider, ScenarioInputError } from "../../application/scenarioInputs";
 import type { ExtensionResponse } from "../../protocol/messages";
 import type { ScenarioInputsRequest } from "../../protocol/scenarioInputs";
 import type { SymbolNode } from "../../shared/types";
@@ -60,6 +60,43 @@ test("model invocation is explicit, uses Host source context, and ignores repeat
   const duplicate = fixture.messages.at(-1);
   assert.ok(duplicate?.type === "codeFlow/scenarioInputsLoaded" && duplicate.payload.status === "empty");
   fixture.delivery.clearScenarioInputs();
+});
+
+test("the production provider defaults to the fast source model and reports bounded work", async () => {
+  const fixture = await setup(createLocalScenarioProvider(), 'export function inspect(x: number) {\n if (x * 7 - 11 === 150) return "rare";\n return "ordinary";\n}');
+  await fixture.delivery.requestScenarioInputs(fixture.request);
+  const reply = fixture.messages.at(-1);
+  assert.ok(reply?.type === "codeFlow/scenarioInputsLoaded");
+  assert.equal(reply.payload.status, "ready"); assert.equal(reply.payload.modelName, "Local linear · v1");
+  assert.equal(reply.payload.training, undefined);
+  assert.ok(reply.payload.generation && reply.payload.generation.evaluations <= 192);
+  assert.ok(reply.payload.seeds?.some((seed) => seed.quality?.status === "verified"));
+  await fixture.delivery.requestScenarioInputs({ ...fixture.request, requestId: 2 });
+  const retry = fixture.messages.at(-1); assert.ok(retry?.type === "codeFlow/scenarioInputsLoaded");
+  assert.equal(retry.payload.status, "empty"); assert.equal(retry.payload.generation?.cacheHit, true);
+  fixture.delivery.clearScenarioInputs();
+});
+
+test("browser separates fast generation from optional neural training without duplicate work", async () => {
+  const modes: string[] = [];
+  const fixture = await setup({ suggest: async (_model, _language, _signal, mode) => { modes.push(mode ?? "missing"); return response; } });
+  const runtime = installSidebarWebviewRuntime();
+  try {
+    const html = getFunctionVisualizerHtml({ webview: { cspSource: "vscode-webview:" } as never, nonce: "model-modes" });
+    new Function(html.match(/<script nonce="model-modes">([\s\S]*)<\/script>/u)![1])();
+    runtime.dispatchMessage({ type: "functionVisualizer/sessionLoaded", payload: { graphVersion: fixture.request.graphVersion, root: { sourceToken: fixture.rootToken, label: "inspect" } } });
+    runtime.dispatchMessage(structuredClone(fixture.detail));
+    assert.equal(modes.length, 0);
+    runtime.clickRenderedByClassNth("flow-steps", "logic-scenario-ai-request", 0);
+    const fast = runtime.messages.at(-1); assert.equal(fast?.type, "codeFlow/requestScenarioInputs");
+    assert.equal((fast.payload as ScenarioInputsRequest).mode, "fast");
+    await fixture.delivery.requestScenarioInputs(fast.payload as ScenarioInputsRequest); runtime.dispatchMessage(fixture.messages.at(-1)!);
+    runtime.clickRenderedByClassNth("flow-steps", "logic-scenario-neural-request", 0);
+    const neural = runtime.messages.at(-1); assert.equal(neural?.type, "codeFlow/requestScenarioInputs");
+    assert.equal((neural.payload as ScenarioInputsRequest).mode, "neural");
+    await fixture.delivery.requestScenarioInputs(neural.payload as ScenarioInputsRequest);
+    assert.deepEqual(modes, ["fast", "neural"]);
+  } finally { fixture.delivery.clearScenarioInputs(); runtime.restore(); }
 });
 
 test("the first recommendation click requests inference and preserves edits or cancellation during the reply", async () => {

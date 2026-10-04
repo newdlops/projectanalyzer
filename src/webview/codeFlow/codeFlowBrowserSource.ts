@@ -282,6 +282,7 @@ export function getCodeFlowBrowserSource(): string {
 
     /** Resets every browser reference bound to a previous immutable graph. */
     function resetGraphState() {
+      disposeFunctionLogicScenarioWorkspaces();
       state.catalog = undefined;
       state.catalogLoading = false;
       state.catalogRequestSequence = 0;

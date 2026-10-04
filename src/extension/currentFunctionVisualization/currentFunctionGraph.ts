@@ -109,6 +109,7 @@ function createCursorSyntaxEvidence(language: string): string {
   if (language === "java") {
     return "javaLezerAst";
   }
+  if (language === "kotlin") return "kotlinAntlrAst";
   if (language === "fsharp" || language === "ocaml" || language === "elixir") {
     return "functionalPipelineSyntax";
   }

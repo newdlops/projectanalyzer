@@ -94,6 +94,7 @@ export type FunctionLogicLanguage =
   | "javascript"
   | "python"
   | "java"
+  | "kotlin"
   | "fsharp"
   | "ocaml"
   | "elixir"

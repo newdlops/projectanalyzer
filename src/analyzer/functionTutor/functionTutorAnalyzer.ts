@@ -17,6 +17,7 @@ import {
 } from "../functionLogic/typescriptFunctionLogicSyntax";
 import type { FunctionLikeWithBody } from "../functionLogic/typescriptFunctionLogicInternal";
 import { analyzeNonTypeScriptTutorDeclaration } from "./nonTypeScriptTutorAdapter";
+import { analyzeKotlinTutorDeclaration } from "./languages/kotlin";
 import { compilePythonScenario } from "../pythonScenarios";
 import { createUnavailableFunctionTutorDeclaration } from "./functionTutorUnavailable";
 import { analyzeFunctionTutorDocumentation } from "./documentation";
@@ -62,6 +63,9 @@ export function analyzeFunctionTutorDeclaration(
 ): FunctionTutorDeclarationAnalysis {
   if (!input.sourceText) {
     return createUnavailableFunctionTutorDeclaration(input.functionNode, input.functionLogic, "The function source is unavailable for static Tutor analysis.");
+  }
+  if (input.functionNode.language.toLowerCase() === "kotlin" || /\.kts?$/iu.test(input.functionNode.filePath)) {
+    return withFunctionTutorDocumentation(analyzeKotlinTutorDeclaration(input.functionNode, input.sourceText, input.functionLogic), input.sourceText);
   }
   const language = getSupportedLanguage(input.functionNode);
   if (language === "unsupported") {

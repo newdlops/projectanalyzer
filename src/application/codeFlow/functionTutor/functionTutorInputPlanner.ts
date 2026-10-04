@@ -220,6 +220,9 @@ export function createScenarioSeeds(
   };
   for (const tuple of callsites) append(createSeedFromCallsite(tuple, pool.length + 1));
   const baseline = append(createBaselineSeed(declaration, candidatesByParameter, pool.length + 1));
+  // Symbolic languages share one CFG route set. Searching numeric input products
+  // cannot verify their runtime semantics and only repeats the same graph work.
+  if (declaration.program.evaluationMode === "symbolic-only") return [baseline];
   // Every source predicate gets a chance before any display limit is applied.
   for (const constraint of declaration.constraints) {
     const parameter = declaration.parameters.find((item) => item.id === constraint.parameterId);

@@ -5,9 +5,12 @@
  * answer or scenario detail. Graph changes remain explicit integration actions.
  */
 
+import { getFunctionTutorSummaryBrowserSource } from "./summary";
+
 /** Returns the Function Guide browser renderer appended after the safe interpreter. */
 export function getFunctionTutorGuideBrowserSource(): string {
   return /* js */ `
+    ${getFunctionTutorSummaryBrowserSource()}
     let functionTutorGuidePanelSequence = 0;
 
     /** Builds one source-backed Guide panel for the Inspector's guide mode. */
@@ -18,17 +21,25 @@ export function getFunctionTutorGuideBrowserSource(): string {
       const section = document.createElement("section"); const content = document.createElement("div");
       const status = document.createElement("p"); const chapterSlot = document.createElement("div");
       const scenarioSlot = document.createElement("div"); const toggle = document.createElement("button");
+      // Native details.open queues a toggle even before listeners are attached.
+      // Retain this disclosure so rendering its body cannot enqueue another open.
+      const scenarioDetails = document.createElement("details");
+      const scenarioSummary = document.createElement("summary"); const scenarioBody = document.createElement("div");
       const chapters = tutor.guide?.chapters || []; const questionButtons = [];
       let active = false; let chapterIndex = Math.max(0, chapters.findIndex((chapter) => chapter.id === tutor.guide?.initialChapterId));
       let scenariosOpen = false; let scenarioPhase = "idle"; let scenarioIndex = 0; let scenarioGeneration = 0;
+      let disposed = false; let workspaceAcquired = false;
+      let representativeExpanded = false; let requestedScenarioFocusKey;
+      const representativeSummaryCache = createFunctionTutorRepresentativeSummaryCache(tutor);
       // Values and Guide consume this single root-scoped model. Fallback keeps
       // older projections readable while no Tutor workspace is available.
       const workspace = callbacks?.scenarioWorkspace;
       const resultsBySeed = workspace?.read().results || new Map(); const errorsBySeed = workspace?.read().errors || new Map();
       let selectedSeedId = workspace?.read().selectedSeedId; let selectedPathIndex = workspace?.read().selectedPathIndex || 0;
       const unsubscribeWorkspace = workspace?.subscribe(() => {
+        if (disposed) return;
         selectedSeedId = workspace.read().selectedSeedId; selectedPathIndex = workspace.read().selectedPathIndex || 0;
-        if (scenariosOpen) renderScenarios();
+        if (active && scenariosOpen) renderScenarios();
       });
       // These maps hold only semantic UI affordances. They are deliberately
       // independent of translated labels so a locale refresh can replace a
@@ -51,11 +62,25 @@ export function getFunctionTutorGuideBrowserSource(): string {
       status.textContent = formatStatus(statusPresentation);
       chapterSlot.className = "logic-guide-chapter-slot";
       scenarioSlot.className = "logic-guide-scenario-slot";
+      scenarioDetails.className = "logic-guide-scenarios"; scenarioDetails.dataset.guideKey = "scenarios";
+      scenarioBody.className = "logic-guide-scenario-body";
+      scenarioDetails.append(scenarioSummary, scenarioBody); scenarioSlot.append(scenarioDetails);
+      scenarioDetails.addEventListener("toggle", () => {
+        // Coalesced/programmatic native toggles can report the state already
+        // handled by the reader action. They must not reacquire or render again.
+        if (disposed || scenariosOpen === scenarioDetails.open) return;
+        scenariosOpen = scenarioDetails.open;
+        if (scenariosOpen) startScenarioCalculation();
+        else {
+          syncWorkspaceConsumer();
+          if (scenarioPhase === "running") { scenarioPhase = "paused"; scenarioGeneration += 1; }
+        }
+      });
       toggle.type = "button"; toggle.className = "logic-guide-toggle"; toggle.textContent = projectAnalyzerText("function-guide");
       toggle.title = projectAnalyzerText("function-guide-description");
       toggle.setAttribute("aria-expanded", "false"); toggle.setAttribute("aria-controls", panelId);
 
-      const overview = createFunctionGuideOverview(tutor);
+      const overview = createFunctionBehaviorSummary(logic, callbacks) || createFunctionGuideOverview(tutor);
       const navigation = createFunctionGuideNavigation(chapters, chapterIndex, selectChapter, questionButtons);
       const limits = createFunctionGuideLimits(tutor);
       content.append(status, overview, navigation, chapterSlot, scenarioSlot, limits);
@@ -97,7 +122,8 @@ export function getFunctionTutorGuideBrowserSource(): string {
 
       /** Starts or resumes bounded scenario calculation without source execution. */
       function startScenarioCalculation() {
-        if (workspace) { workspace.acquire(); scenarioPhase = workspace.read().phase; renderScenarios(); return; }
+        if (disposed || !active || !scenariosOpen) return;
+        if (workspace) { syncWorkspaceConsumer(); scenarioPhase = workspace.read().phase; renderScenarios(); return; }
         if (!scenariosOpen || scenarioPhase === "running" || scenarioPhase === "complete" || scenarioPhase === "complete-with-errors") return;
         if (!tutor.seeds?.length) { scenarioPhase = "complete"; renderScenarios(); return; }
         scenarioPhase = "running"; const generation = ++scenarioGeneration; renderScenarios();
@@ -120,29 +146,32 @@ export function getFunctionTutorGuideBrowserSource(): string {
         runNext();
       }
 
-      /** Replaces only the lazy scenario disclosure and retains calculated state. */
+      /** Balances this Guide's single consumer independently from the Values surface. */
+      function syncWorkspaceConsumer() {
+        if (!workspace) return;
+        const shouldAcquire = active && scenariosOpen && !disposed;
+        if (shouldAcquire === workspaceAcquired) return;
+        workspaceAcquired = shouldAcquire;
+        if (shouldAcquire) workspace.acquire(); else workspace.release();
+      }
+
+      /** Replaces only the lazy scenario body and retains its native disclosure. */
       function renderScenarios() {
-        retainFunctionGuideInteraction(scenarioSlot, disclosureOpenByKey, (key) => { focusedControlKey = key; });
-        scenarioSlot.replaceChildren(createFunctionGuideScenarios());
-        restoreFunctionGuideInteraction(scenarioSlot, disclosureOpenByKey, focusedControlKey);
+        retainFunctionGuideInteraction(scenarioBody, disclosureOpenByKey, (key) => { focusedControlKey = key; });
+        if (requestedScenarioFocusKey) { focusedControlKey = requestedScenarioFocusKey; requestedScenarioFocusKey = undefined; }
+        scenarioBody.replaceChildren();
+        createFunctionGuideScenarios();
+        restoreFunctionGuideInteraction(scenarioBody, disclosureOpenByKey, focusedControlKey);
       }
 
       function createFunctionGuideScenarios() {
-        const details = document.createElement("details"); const summary = document.createElement("summary"); const body = document.createElement("div");
+        const details = scenarioDetails; const summary = scenarioSummary; const body = scenarioBody;
         const workspaceState = workspace?.read(); const seeds = tutor.seeds || []; const completed = resultsBySeed.size + errorsBySeed.size;
         const rows = readFunctionTutorScenarioRows(workspaceState || { results: resultsBySeed }, seeds);
         scenarioPhase = workspaceState?.phase || scenarioPhase;
-        details.className = "logic-guide-scenarios"; details.dataset.guideKey = "scenarios"; details.open = scenariosOpen;
         details.setAttribute("aria-busy", scenarioPhase === "running" || scenarioPhase === "calculating" ? "true" : "false");
         summary.textContent = projectAnalyzerText("static-input-cases", { count: rows.filter((row) => row.path).length || seeds.length });
-        summary.title = projectAnalyzerText("open-static-input-cases"); body.className = "logic-guide-scenario-body";
-        details.append(summary, body);
-        details.addEventListener("toggle", () => {
-          scenariosOpen = details.open;
-          if (scenariosOpen) startScenarioCalculation();
-          else if (workspace) workspace.release();
-          else if (scenarioPhase === "running") { scenarioPhase = "paused"; scenarioGeneration += 1; }
-        });
+        summary.title = projectAnalyzerText("open-static-input-cases");
         if (!scenariosOpen) { body.append(createFunctionGuideEmpty(projectAnalyzerText("calculate-static-cases"))); return details; }
         const progress = document.createElement("p"); progress.className = "logic-guide-scenario-progress";
         progress.textContent = scenarioPhase === "idle" ? projectAnalyzerText("static-cases-ready")
@@ -153,6 +182,14 @@ export function getFunctionTutorGuideBrowserSource(): string {
         body.append(progress);
         if (!seeds.length) { body.append(createFunctionGuideEmpty(projectAnalyzerText("no-safe-cases"))); return details; }
         if (!selectedSeedId) selectedSeedId = seeds[0].id;
+        const representatives = representativeSummaryCache.read(rows, workspaceState?.resultRevision ?? completed, callbacks.scenarioWorkspace?.readModels?.());
+        body.append(createFunctionTutorRepresentativeSummary(representatives, selectedSeedId, selectedPathIndex, representativeExpanded, tutor, {
+          listId: panelId + "-representatives",
+          onSelect(row, focusKey) { requestedScenarioFocusKey = focusKey; selectedSeedId = row.seed.id; selectedPathIndex = row.pathIndex; workspace?.select(selectedSeedId, selectedPathIndex); if (row.path) callbacks?.onScenarioPreview?.(row.path); renderScenarios(); },
+          onExpand(expanded) { representativeExpanded = expanded; renderScenarios(); },
+          onShowGraph(current) { callbacks?.onShowGraph?.(current); },
+          onOpenEvidence(token) { callbacks?.onOpenEvidence?.(token); }
+        }));
         const table = document.createElement("table"); const caption = document.createElement("caption"); const head = document.createElement("thead"); const headerRow = document.createElement("tr"); const tableBody = document.createElement("tbody");
         table.className = "logic-guide-scenario-table"; caption.textContent = projectAnalyzerText("possible-static-input-cases");
         const columnKeys = ["scenario", "path-conditions", "expected-effects", "evidence"];
@@ -192,7 +229,8 @@ export function getFunctionTutorGuideBrowserSource(): string {
         const effects = path.scenario?.effects || []; if (path.scenario) { const heading = document.createElement("h5"); const list = document.createElement("ol"); heading.textContent = projectAnalyzerText("expected-effects"); if (!effects.length) { const item = document.createElement("li"); item.textContent = projectAnalyzerText("scenario-effect-none"); list.append(item); } else for (const effect of effects) { const item = document.createElement("li"); item.textContent = effect.label; list.append(item); } detail.append(heading, list); }
         const known = selected.inputs.filter((input) => input.value.kind !== "unknown"); const load = document.createElement("button");
         load.type = "button"; load.className = "logic-guide-action"; load.dataset.guideKey = "scenario-load-inputs:" + selected.id; load.textContent = projectAnalyzerText("load-inputs"); load.title = projectAnalyzerText("load-static-inputs"); load.disabled = known.length === 0;
-        load.addEventListener("click", () => { callbacks?.onLoadInputs?.(selected); setStatus("loaded-known-inputs", { count: known.length, allKnown: known.length === selected.inputs.length }); }); detail.append(load);
+        if (tutor.program?.evaluationMode === "symbolic-only") { load.disabled = true; load.title = projectAnalyzerText("summary-symbolic-disabled"); const note = document.createElement("p"); note.className = "logic-summary-note"; note.textContent = projectAnalyzerText("summary-symbolic-disabled"); detail.append(note); }
+        load.addEventListener("click", () => { if (load.disabled) return; callbacks?.onLoadInputs?.(selected); setStatus("loaded-known-inputs", { count: known.length, allKnown: known.length === selected.inputs.length }); }); detail.append(load);
         const transitions = path.transitions || [];
         if (transitions.length) {
           const transitionTable = document.createElement("table"); const transitionHead = document.createElement("thead"); const transitionHeader = document.createElement("tr"); const transitionBody = document.createElement("tbody");
@@ -209,10 +247,9 @@ export function getFunctionTutorGuideBrowserSource(): string {
         section, toggle,
         /** Called only by the Inspector mode controller. */
         setActive(nextActive) {
+          if (disposed || active === Boolean(nextActive)) return;
           active = Boolean(nextActive); section.hidden = !active;
-          if (active && scenariosOpen) workspace?.acquire();
-          if (!active) workspace?.release();
-          if (active && scenariosOpen && scenarioPhase === "paused") startScenarioCalculation();
+          if (active && scenariosOpen) startScenarioCalculation(); else syncWorkspaceConsumer();
           if (!active) { if (scenarioPhase === "running") { scenarioPhase = "paused"; scenarioGeneration += 1; } callbacks?.onClearGuideFocus?.(); callbacks?.onClearScenarioPreview?.(); }
         },
         /** Rewrites Guide-owned copy only; semantic reading/scenario state is retained. */
@@ -230,7 +267,9 @@ export function getFunctionTutorGuideBrowserSource(): string {
           renderScenarios();
         },
         dispose() {
-          unsubscribeWorkspace?.(); workspace?.release();
+          if (disposed) return;
+          disposed = true; active = false; scenarioGeneration += 1;
+          unsubscribeWorkspace?.(); syncWorkspaceConsumer();
         }
       };
     }

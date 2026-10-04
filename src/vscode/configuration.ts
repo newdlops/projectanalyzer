@@ -48,7 +48,7 @@ export function readProjectAnalyzerConfig(): ProjectAnalyzerConfig {
     ),
     enabled: config.get("enabled", true),
     autoAnalyze: config.get("autoAnalyze", true),
-    include: config.get("include", ["**/*.{ts,tsx,js,jsx,py,java,fs,fsx,ml,mli,ex,exs}"]),
+    include: config.get("include", ["**/*.{ts,tsx,js,jsx,py,java,kt,kts,fs,fsx,ml,mli,ex,exs}"]),
     exclude: config.get("exclude", [
       "**/node_modules/**",
       "**/.git/**",

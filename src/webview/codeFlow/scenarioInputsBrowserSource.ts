@@ -14,29 +14,34 @@ export function getScenarioInputsBrowserSource(): string {
 
     /** Creates inert controls; focus, mounting and locale refresh never contact a model. */
     function createScenarioInputSuggestions(tutor, session) {
-      if (!tutor?.inputSuggestions?.available) return undefined;
+      if (!tutor?.inputSuggestions?.available || tutor?.program?.evaluationMode === "symbolic-only") return undefined;
       const element = document.createElement("section"); element.className = "logic-scenario-input-suggestions";
       const actions = document.createElement("div"); const requestButton = document.createElement("button"); const cancelButton = document.createElement("button");
+      const neuralButton = document.createElement("button"); neuralButton.type = "button"; neuralButton.className = "logic-scenario-neural-request";
       const help = document.createElement("p"); const status = document.createElement("p"); const training = document.createElement("p");
       requestButton.type = "button"; requestButton.className = "logic-scenario-ai-request"; cancelButton.type = "button";
       help.className = "logic-scenario-ai-help"; status.className = "logic-scenario-ai-status"; status.setAttribute("role", "status"); status.setAttribute("aria-live", "polite");
       training.className = "logic-scenario-ai-training";
-      actions.append(requestButton, cancelButton); element.append(actions, help, status, training);
-      let phase = "idle"; let request; let details = {}; let disposed = false; let completion; let settle;
+      actions.append(requestButton, neuralButton, cancelButton); element.append(actions, help, status, training);
+      let phase = "idle"; let mode = "fast"; let request; let details = {}; let disposed = false; let completion; let settle;
       function render() {
         requestButton.textContent = projectAnalyzerText("scenario-ai-action"); cancelButton.textContent = projectAnalyzerText("scenario-ai-cancel");
+        neuralButton.textContent = projectAnalyzerText("scenario-neural-action"); neuralButton.title = projectAnalyzerText("scenario-neural-help");
         help.textContent = projectAnalyzerText("scenario-ai-help");
         const limited = (tutor.seeds || []).filter((seed) => seed.source === "model").length >= 8;
-        requestButton.disabled = phase === "pending" || limited; cancelButton.hidden = phase !== "pending";
+        requestButton.disabled = phase === "pending" || limited; neuralButton.disabled = requestButton.disabled; cancelButton.hidden = phase !== "pending";
         element.setAttribute("aria-busy", phase === "pending" ? "true" : "false");
-        status.textContent = projectAnalyzerText("scenario-ai-" + phase, details)
+        status.textContent = projectAnalyzerText(phase === "pending" && mode === "neural" ? "scenario-neural-pending" : "scenario-ai-" + phase, details)
           + (details.rejected ? " · " + projectAnalyzerText("scenario-ai-rejected", { count: details.rejected }) : "")
           + (limited ? " · " + projectAnalyzerText("scenario-ai-limit") : "");
-        training.hidden = !details.training;
+        training.hidden = !details.training && !details.generation;
         const numberFormat = new Intl.NumberFormat(state.uiLanguage, { maximumFractionDigits: 3 });
         training.textContent = details.training ? projectAnalyzerText("scenario-neural-training", {
           training: numberFormat.format(details.training.training), validation: numberFormat.format(details.training.validation),
           error: numberFormat.format(details.training.error)
+        }) : details.generation ? projectAnalyzerText("scenario-fast-generation", {
+          evaluations: details.generation.evaluations, elapsed: numberFormat.format(details.generation.elapsedMs),
+          reuse: details.generation.cacheHit ? projectAnalyzerText("scenario-fast-cache") : ""
         }) : "";
       }
       function cancel() {
@@ -47,11 +52,12 @@ export function getScenarioInputsBrowserSource(): string {
         settle?.("cancelled"); settle = undefined; completion = undefined;
       }
       /** Both explicit buttons share one correlated request and one cancellation lifecycle. */
-      function requestInputs() {
+      function requestInputs(nextMode = "fast") {
         if (completion) return completion;
         if (disposed || requestButton.disabled || !state.graph?.version) return Promise.resolve("unavailable");
         completion = new Promise((resolve) => { settle = resolve; });
-        request = { graphVersion: state.graph.version, flowId: tutor.functionId, requestId: ++nextScenarioInputRequestId };
+        mode = nextMode === "neural" ? "neural" : "fast";
+        request = { graphVersion: state.graph.version, flowId: tutor.functionId, requestId: ++nextScenarioInputRequestId, mode };
         scenarioInputRequests.set(request.requestId, { request, accept(payload) {
           if (disposed || !request || request.requestId !== payload.requestId) return;
           const restoreFocus = document.activeElement === cancelButton;
@@ -66,7 +72,12 @@ export function getScenarioInputsBrowserSource(): string {
           const validReport = report && Number.isInteger(report.trainingSamples) && report.trainingSamples > 0 && report.trainingSamples <= 1400
             && Number.isInteger(report.validationSamples) && report.validationSamples > 0 && report.validationSamples <= 1400
             && typeof report.validationError === "number" && Number.isFinite(report.validationError) && report.validationError >= 0 && report.validationError <= 1000000;
+          const generation = payload.generation;
+          const validGeneration = generation && Number.isInteger(generation.evaluations) && generation.evaluations >= 0 && generation.evaluations <= 192
+            && Number.isFinite(generation.elapsedMs) && generation.elapsedMs >= 0 && generation.elapsedMs <= 5000
+            && typeof generation.cacheHit === "boolean" && typeof generation.limitReached === "boolean";
           details = { count, model: String(payload.modelName || "").slice(0, 100), rejected: Number(payload.rejected) || 0,
+            generation: validGeneration ? generation : undefined,
             training: validReport ? { training: report.trainingSamples, validation: report.validationSamples, error: report.validationError } : undefined }; render();
           settle?.(phase); settle = undefined; completion = undefined;
           if (restoreFocus) { if (requestButton.disabled) { status.tabIndex = -1; status.focus(); } else requestButton.focus(); }
@@ -75,7 +86,8 @@ export function getScenarioInputsBrowserSource(): string {
         vscode.postMessage({ type: "codeFlow/requestScenarioInputs", payload: request });
         return completion;
       }
-      requestButton.addEventListener("click", requestInputs);
+      requestButton.addEventListener("click", () => requestInputs("fast"));
+      neuralButton.addEventListener("click", () => requestInputs("neural"));
       cancelButton.addEventListener("click", () => { cancel(); requestButton.focus(); });
       render();
       return { element, request: requestInputs, cancel, didApply(seed) {

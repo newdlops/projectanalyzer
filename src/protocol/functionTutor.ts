@@ -8,7 +8,7 @@ import type {
   FunctionLogicBlockPayloadKind,
   FunctionLogicEdgePayloadKind
 } from "./functionLogic";
-import type { FunctionTutorFactPresentationKey, FunctionTutorGapPresentationKey, FunctionTutorSemanticPresentationKey, PresentationParams } from "../localization/presentationDescriptors";
+import type { FunctionTutorFactPresentationKey, FunctionTutorGapPresentationKey, FunctionTutorSemanticPresentationKey, FunctionTutorSummaryPresentationKey, FunctionLogicGapPresentationKey, PresentationParams } from "../localization/presentationDescriptors";
 
 import type { FunctionFrameworkBehaviorPayload } from "./frameworkBehavior";
 import type { PythonScenarioProgram } from "../shared/pythonScenario";
@@ -70,6 +70,8 @@ export type FunctionTutorPayload = {
   availability: "ready" | "partial" | "unavailable";
   context: FunctionTutorCodebaseContextPayload;
   guide: FunctionTutorGuidePlanPayload;
+  /** Optional common source-backed reading summary; absence preserves the legacy overview. */
+  behaviorSummary?: FunctionTutorBehaviorSummaryPayload;
   frameworkBehavior?: FunctionFrameworkBehaviorPayload;
   parameters: FunctionTutorParameterPayload[];
   seeds: FunctionTutorScenarioSeedPayload[];
@@ -246,6 +248,8 @@ export type FunctionTutorScenarioSeedPayload = {
 };
 
 export type FunctionTutorProgramPayload = {
+  /** An omitted mode keeps the legacy concrete evaluator; unsupported runtimes stay symbolic. */
+  evaluationMode?: "concrete" | "symbolic-only";
   python?: PythonScenarioProgram;
   entryBlockId: string;
   blocks: Array<{
@@ -280,6 +284,36 @@ export type FunctionTutorProgramPayload = {
   invocationRole?: "function" | "method" | "constructor" | "object-method" | "static-method";
   /** Safe own fields installed before a projected constructor body runs. */
   fieldInitializers?: Array<{ key: string; value: FunctionTutorExpressionPayload }>;
+};
+
+/** Bounded source structure, never concrete values or a flattened execution route. */
+export type FunctionTutorBehaviorSummaryItemPayload = {
+  id: string;
+  kind: "parameter" | "condition" | "loop" | "switch" | "try" | "call" | "external-call" | "unresolved-call" | "write" | "effect" | "return" | "throw" | "exit";
+  sourcePreview: string;
+  presentationKey: FunctionTutorSummaryPresentationKey;
+  presentationParams?: PresentationParams;
+  certainty: FunctionTutorPayloadCertainty;
+  scope: "source" | "conditional" | "repeated" | "finally";
+  conditions: Array<{ blockId: string; edgeId: string; outcome: FunctionLogicEdgePayloadKind; sourcePreview: string }>;
+  blockIds: string[];
+  edgeIds: string[];
+  evidenceTokens: CodeFlowEvidenceToken[];
+  alternatives?: Array<{ edgeId: string; outcome: FunctionLogicEdgePayloadKind; sourcePreview: string; blockIds: string[] }>;
+};
+
+/** v2/v3 optional semantic addition. All identities belong to the active Function Logic snapshot. */
+export type FunctionTutorBehaviorSummaryPayload = {
+  schema: 1;
+  status: "ready" | "partial" | "unavailable";
+  purpose: { basis: "documentation" | "structure"; sourcePreview?: string; presentationKey?: FunctionTutorSummaryPresentationKey; presentationParams?: PresentationParams; certainty: FunctionTutorPayloadCertainty; evidenceTokens: CodeFlowEvidenceToken[] };
+  inputs: Array<FunctionTutorBehaviorSummaryItemPayload & { name: string; typeText?: string; defaultText?: string; optional: boolean; rest: boolean }>;
+  outcomes: FunctionTutorBehaviorSummaryItemPayload[];
+  steps: FunctionTutorBehaviorSummaryItemPayload[];
+  impacts: FunctionTutorBehaviorSummaryItemPayload[];
+  gaps: Array<{ id: string; presentationKey: FunctionTutorSummaryPresentationKey | FunctionLogicGapPresentationKey | FunctionTutorGapPresentationKey; presentationParams?: PresentationParams; sourcePreview?: string; blockIds: string[]; evidenceTokens: CodeFlowEvidenceToken[] }>;
+  omittedCounts: { inputs: number; outcomes: number; steps: number; impacts: number; gaps: number };
+  limited: boolean;
 };
 
 /**

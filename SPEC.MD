@@ -233,8 +233,32 @@ basis를 보존한다. `Source Path Scenarios`는 Guide 내부에서만 lazy하�
 남긴다. scenario interpreter는 path 8, step 240, loop block 3회 상한을 지키고 제한에
 닿은 결과를 normal return으로 표시하지 않는다. TypeScript/JavaScript는 compiler AST
 adapter, Python/Java는 parser header와 structured condition fallback,
+Kotlin은 공식 문법으로 파싱한 callable/control/value adapter,
 F#/OCaml/Elixir는 safe binding/header fallback을 사용한다. 지원하지 않는
 write/call/alias는 추측하지 않는다.
+
+Guide의 첫 영역은 선택적인 공통 `behaviorSummary`다. 소스 주석/KDoc의 목적 또는
+명시적인 구조 집계, 입력과 기본값, 조건이 붙은 반환·예외, 최대 5개 주요 소스 단계,
+호출·쓰기와 미확인 부분을 보여준다. 이름에서 업무 목적을 추측하지 않으며, 서로 다른
+분기를 하나의 실행 순서나 반환값으로 합치지 않는다. 목록은 8개, graph 참조는 24개,
+evidence는 8개, 항목 소스는 240자, 목적은 480자로 제한하고 생략 수를 표시한다.
+주석이 없는 함수는 구조 근거를 표시한다. Summary가 없는 이전 payload는 기존 개요를 쓴다.
+
+`Source Path Scenarios`에는 같은 Workspace 행에서 고른 대표 시나리오를 처음 3개,
+확장하면 최대 5개 제공한다. 다른 시나리오는 기존 상세 표에서 확인한다. 대표 선택은
+공유 seed/path 선택과 미리 보기를 사용하며 새 evaluator나 consumer를 만들지 않는다.
+정적 경로는 실제 간선을 따라 개별적으로 계산하고 반복에는 visited set과 depth 제한을
+적용한다. 분기가 없는 무인자 함수에도 경로가 있다. 최대 12개 경로, 경로당 5개 결정,
+48개 탐색 상태, 기본·최대 깊이 300과 화면 행 48개를 유지한다. 제한된 경로는 명시적으로
+표시한다. 시나리오 제목은 호출명에서 업무 동작을 추정하지 않는다.
+
+`.kt`와 `.kts`는 top-level/member/local/extension 함수와 block/expression body,
+`val`/`var`, `if`/`when`, 반복, `try`/`catch`/`finally`, 지원 가능한 루트 Elvis·safe call·
+short circuit을 소스 근거로 연결한다. 생성자/init/accessor와 nested lambda/inline/coroutine
+동작은 현재 함수의 직접 실행으로 섞지 않는다. Kotlin의 `evaluationMode: symbolic-only`는
+JS 값 계산, 입력 적용과 입력 탐색을 막고 소스 경로 미리 보기·재생을 제공한다. null 가능
+타입과 생략 가능한 기본 인자는 구분한다. 갑작스러운 종료의 finally 경유, 런타임 수치
+의미와 동적 dispatch 등 지원되지 않는 의미는 gap으로 남긴다.
 
 입력 추천은 인터페이스의 필수 필드, 원래 callsite의 전체 인자 조합, 경계값과 앞서 통과해야
 하는 조건을 함께 사용한다. 최대 384개 후보를 모은 뒤 실제로 확인한 분기 결과·종료·예외를
@@ -243,7 +267,23 @@ write/call/alias는 추측하지 않는다.
 지원 IR을 확인하고 알 수 없는 호출·alias write·제어 연결·언어에는 partial과 중단 이유를
 남긴다. 확인하지 못한 분기는 도달 불가능하다는 증거가 아니다.
 
-`Values & paths`는 `신경망으로 입력 찾기`를 제공한다. 함수별 자체 residual MLP를
+`Values & paths`의 기본 생성은 `빠른 시나리오 생성`이다. 전체 호출부 인자 조합을 시작점으로
+선언된 입력 구조를 유지하며, 대입 이후 도달한 조건값의 국소 선형 변화를 추정한다.
+숫자 경계와 제한된 문자열·배열 후보는 소스 IR에서 다시 확인하여 같은 조건의 반대 결과를
+보인 쌍만 추천한다. 신경망 학습·특징 임베딩·외부 모델 없이 최대 192회 평가, 32개 조건,
+4개 경계 쌍·8개 추가 사례를 사용한다. 32회마다 취소를 확인하며 이벤트 루프에 양보한다.
+Host는 기본 요청에 5초, 선택 신경망 요청에 120초 제한을 적용한다.
+순수 동기 내부 함수는 lexical AST의 정확한 호출 위치 또는 confidence `exact`인 graph 간선으로
+연결한다. helper당 최대 64개 블록·128개 탐색 상태·16개 반환 경로와 4단계 호출을 허용한다.
+함수 바인딩이 재대입되거나 호출 이름이 shadow되면 이전 선언을 확정 대상으로 사용하지 않는다.
+4단계 제한은 catalog의 순서와 무관하게 실제 호출 체인에 적용한다.
+부수 효과·captured binding·member write·예외·순환 호출은 확정 계산으로 바꾸지 않는다.
+생략된 기본 인자와 사용하지 않는 인자·계산의 평가 여부도 보존한다. 소스가 바뀌면 새 모델을
+만들고, 동일 스냅샷의 호출부/후보/예산별 결과를 최대 4개 재사용한다. 캐시 항목의 key와
+결과는 각각 96KiB 이하이며 선언과 프로그램 인덱스는 WeakMap으로 소유한다.
+Kotlin은 기존 symbolic-only 소스 시나리오와 Summary를 사용하고 숫자 입력 생성은 수행하지 않는다.
+
+추가 탐색은 `신경망으로 추가 탐색`에서 요청한다. 함수별 자체 residual MLP를
 로컬 CPU에서 학습하며 외부 모델, 계정, 원문 전달을 사용하지 않는다. 완전한 호출부 인자
 조합과 선언된 입력 구조로 bounded 입력 공간을 만들고, 앞선 값 변경을 반영한 수치 비교,
 문자열 비교 거리, 알려진 truthiness를 학습한다. 호출부 문자열과 대입·조건식에 연결된
@@ -289,18 +329,19 @@ Python 문자열 후보는 정규식 형태와 최대 96회 사전 검사에서 
 첫 세 번의 분기를 별도 학습 대상으로 두며 witness는 동일한 반복 회차끼리 재검사한다.
 실제 검사한 수치·문자열·변경값만 설명하고 도달하지 않은 분기는 label로 사용하지 않는다.
 
-`추천 값 채우기`도 첫 클릭에서 동일한 신경망 요청을 시작한다. 완료하면 검증된 사례를
+`추천 값 채우기`도 첫 클릭에서 동일한 빠른 모델 요청을 시작한다. 완료하면 검증된 사례를
 채우고 해당 사례 설명을 선택한다. 대기 중에는 취소할 수 있고, 그 사이 편집한 값은
 덮어쓰지 않는다. 실패·지원 부족은 기존 값을 유지하며 상태를 보여 준다.
 TS/JS 경로에 조건 설명을 붙일 때도 완료된 정확한 재생 결과의 반환값을 보존한다.
 제한에 걸렸거나 값이 미확인인 경로를 구체적 반환으로 표시하지 않는다.
 
 요청 protocol은 `codeFlow/requestScenarioInputs`와 `codeFlow/cancelScenarioInputs`이며
-payload는 현재 graphVersion, opaque flowId, nonnegative safe requestId만 받는다.
-Host는 최근 전달한 함수 snapshot에만 요청을 허용하고 단일 pending 요청, 120초 timeout,
+payload는 현재 graphVersion, opaque flowId, nonnegative safe requestId와 선택적인
+`fast`/`neural` mode만 받는다. mode 생략은 `fast`이다.
+Host는 최근 전달한 함수 snapshot에만 요청을 허용하고 단일 pending 요청, 모드별 5초/120초 timeout,
 취소, 중복 ID, graph/root 교체와 늦은 응답을 처리한다. 응답 `codeFlow/scenarioInputsLoaded`는
 ready/empty/unavailable/cancelled/denied/timeout/invalid-response/failed/stale 중 하나와
-새 model seed 및 숫자 학습 진단만 전달한다. raw path 및 analyzer identity, 신경망 가중치와
+새 model seed 및 숫자 생성/학습 진단만 전달한다. raw path 및 analyzer identity, 신경망 가중치와
 학습 표본을 Webview에 노출하지 않는다.
 
 모델 응답은 최대 48,000자 JSON, 시나리오 8개, 문자열 1,024자, 배열/객체 32개,
@@ -929,6 +970,19 @@ scroll하고 긴 evidence가 graph canvas의 크기나 위치를 밀어내지 �
   이때 실제로 계산하지 않은 parameter·중간값·반환값을 concrete value로 표시하지 않는다.
   row/path selection은 resolved evidence preview만 바꾸며 input, branch choice, graph block
   selection, viewport, playback, Host state를 바꾸지 않는다.
+- Function Guide의 시나리오 disclosure는 동일한 native `details`를 유지하고 body만 갱신한다.
+  Guide가 활성화되고 disclosure가 열려 있는 동안만 하나의 Scenario Workspace consumer를
+  보유하며 반복 mode/locale 갱신은 추가 acquire나 toggle 계산을 만들지 않는다. graph 교체는
+  Guide/Values 구독과 preview DOM registry를 해제한다. 같은 root/fingerprint의 relayout은
+  입력·평가 결과를 재사용하고 다른 root/fingerprint로 이동하면 이전 workspace 결과를 비운다.
+  명시적인 새 root 요청 또는 graph reset은 다음 함수의 로딩·실패 상태에서도 이전 결과를 비운다.
+- symbolic path plan은 root/fingerprint당 한 번 만들고 모든 seed가 공유한다. 대표 요약은
+  결과·오류·seed 추가 시에만 증가하는 `resultRevision`을 기준으로 갱신하며, 행 선택·locale·
+  playback 갱신은 plan이나 대표 의미 계산을 반복하지 않는다. 계획에는 경로 12개, 분기 판단
+  5개, 탐색 상태 48개, 깊이 300의 상한과 경로별 visited set을 적용한다.
+- trace와 playback은 renderer별 한 번의 평가를 공유한다. editable input 또는 block/edge의
+  선택 경로 제외 상태가 바뀌면 다시 평가하고, locale 변경은 표시 frame만 다시 만든다.
+  frame cache는 마지막으로 조회한 binding 하나만 보유하며 graph renderer와 함께 해제한다.
 - Apply Inputs는 known parameter binding identity만 쓰고, Apply & Play는 deterministic으로
   resolved된 scenario branch edge만 별도 snapshot과 함께 적용한다. unrelated choice는
   보존하고 touched prior choice를 restore할 수 있다. manual input/branch edit는 story를
@@ -1264,8 +1318,11 @@ Webview는 Project Graph, 파일 시스템, VS Code API에 직접 접근하지 �
 - 익명 callable을 exact selection position으로 다시 매칭
 - TypeScript/JavaScript compiler AST 기반 statement classification
 - Python/Java Lezer adapter 기반 statement/callsite classification
+- Kotlin ANTLR adapter 기반 source control, expression-arm write, lexical value fact 추출
 - F#/OCaml/Elixir 공통 pipe-forward adapter 기반 input/stage/argument-insertion classification
 - 언어 중립 structured-control contract로 branch container와 transfer를 구성
+- `core/structuredFunctionLogicAnalyzer`의 generic source/node adapter 계약을 공유하고
+  기존 Lezer entrypoint는 호환 wrapper로 유지
 - 명시적 stack/container 기반 structured control-flow edge 구성
 - source range, exact/inferred confidence, parser/runtime gap 보존
 - access와 독립된 consume/sink lexical usage 분류 및 value-flow target까지 의미 보존
@@ -1304,10 +1361,50 @@ Webview는 Project Graph, 파일 시스템, VS Code API에 직접 접근하지 �
 - functional profile registry가 F#/OCaml last-argument와 Elixir first-argument semantics를 분리
 - iterative callable/pipe scan, UTF-16 range, 문자열/comment 제외, 독립 pipeline 경계를 공유
 
+#### `analyzer/languages/kotlin`
+
+- 공식 Kotlin 문법의 고정 revision과 ANTLR 4.13.2 생성 TS parser를 사용
+- public `index.ts`에서 immutable source/node, callable/call fact, UTF-16 범위와
+  `KotlinAnalyzer`를 제공하고 generated parser/context는 내부에 유지
+- Kotlin 작업이 처음 발생할 때만 parser/runtime을 load하며 설치·실행에는 JVM이 필요 없음
+- source hash별 snapshot을 최대 8개·합계 2MiB source text로 유지하고 token 100,000개,
+  token nesting 128로 파싱 입력을 제한; 실패·제한은 diagnostic으로 보존
+- 현재 선택 파일을 cache budget 안에서 우선하고 변경·닫힘·삭제·종료 때 stale snapshot 해제
+- provenance, 재생성 명령과 명시적 문법 보정은 모듈 README/manifest에 기록
+
+#### `application/codeFlow/functionTutor/behaviorSummary`
+
+- public builder는 declaration, CFG와 이미 수집된 context를 받아 bounded common Summary 생성
+- 반복 탐색과 scope boundary로 deferred/nested body를 현재 함수의 직접 작업에서 제외
+- projection은 현재 graph의 opaque block/edge/evidence mapping만 사용
+- `webview/codeFlow/tutor/summary`는 optional payload를 runtime 검증하고 기존 Guide에 렌더링
+- representative projection은 공유 Workspace의 `resultRevision`에만 의존하며 I/O·추가 계산 없음
+
+#### `shared/functionScenarios`
+
+- public `createFunctionExecutionScenarioModeler`와 schema 1 계약으로 기존 Workspace
+  경로를 입력·조건·순서 있는 호출/효과/쓰기·종료·가정·gap으로 정리
+- source route와 계산값은 분리하고 실제 관찰 여부는 항상 `static`; 업무 목적이나
+  외부 서비스의 성공을 추측하지 않음
+- entry부터 ordered edge/occurrence를 검증하며 deferred/defines, missing block,
+  연결되지 않은 suffix, terminal 이후 방문을 successful return으로 취급하지 않음
+- loop 선택과 쓰기는 occurrence마다 보존; 조건 계산 작업 뒤에 분기 선택을 기록하고
+  member before/after는 receiver가 아닌 구체적인 field target으로 표시
+- `checked`와 `assumed`를 구분하며 `symbolic-only`는 stale concrete/value/checked
+  metadata보다 우선; coverage는 표시 생략과 무관한 checked source choices만 집계하고
+  `exhaustive: false` 유지
+- scenario 48, route depth 300, steps 80(default)/120(max), representatives 5,
+  input/condition/gap/assumption/evidence 표시 16/12/16/8/8로 제한
+- 값 snapshot은 방문 96, 깊이 6, container 16, 문자열/key 240자로 제한하고 alias를
+  복사; cycle/accessor/internal brand/sparse array/긴 key는 안전한 unknown/gap 처리
+- Workspace `readModels()`에서 `resultRevision`별 catalog를 생성하고 Summary와 Values가
+  같은 객체를 사용; idle mount/선택/재생/locale 변경은 재계산하지 않고 root disposal에서 해제
+- 동일한 순수 구현을 browser에 한 번 emit하며 상세 계약·제약은 모듈 README에 기록
+
 #### `analyzer/rust`
 
 - Rust engine의 primary graph evidence 유지
-- Rust가 file node만 제공하는 Java/F#/OCaml/Elixir 파일에 한해 in-process symbol/call graph를 병합
+- Rust가 file node만 제공하는 Java/Kotlin/F#/OCaml/Elixir 파일에 한해 in-process symbol/call graph를 병합
 - supplement 대상 언어의 양 끝점이 모두 허용된 edge만 추가하여 언어 경계를 보존
 
 #### `protocol/codeFlow`

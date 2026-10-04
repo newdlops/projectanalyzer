@@ -7,90 +7,89 @@ export function getFunctionLogicScenarioPathPlannerBrowserSource(): string {
   return /* js */ `
     const FUNCTION_TUTOR_SYMBOLIC_PATH_LIMIT = 12;
     const FUNCTION_TUTOR_SYMBOLIC_DECISION_LIMIT = 5;
-    const FUNCTION_TUTOR_SYMBOLIC_CHOICE_KINDS = new Set(["true", "false", "case"]);
+    const FUNCTION_TUTOR_SYMBOLIC_STATE_LIMIT = 48;
+    const FUNCTION_TUTOR_SYMBOLIC_DEPTH_LIMIT = 300;
+    // Loop entry/exit and exception routes are source assumptions just like boolean/case choices.
+    const FUNCTION_TUTOR_SYMBOLIC_CHOICE_KINDS = new Set(["true", "false", "case", "default", "iterate", "exit", "exception"]);
 
-    /** Enumerates reachable condition combinations while collapsing loop counts. */
-    function functionTutorPlanSymbolicPaths(tutor) {
+    /** Follows individual routes; mutually exclusive exits never become one reachable bag. */
+    function functionTutorPlanSymbolicPaths(tutor, options = {}) {
       const program = tutor?.program;
       const blocks = program?.blocks || [];
       const edges = (program?.edges || []).filter((edge) => edge.kind !== "defines" && edge.kind !== "deferred");
-      if (!program?.entryBlockId || !blocks.length || !edges.length) return [];
+      if (!program?.entryBlockId || !blocks.length) return [];
+      const blockById = new Map(blocks.map((block) => [block.blockId, block]));
+      if (!blockById.has(program.entryBlockId)) return [];
+      const maxDepth = Math.max(1, Math.min(FUNCTION_TUTOR_SYMBOLIC_DEPTH_LIMIT, Number(options.maxDepth) || FUNCTION_TUTOR_SYMBOLIC_DEPTH_LIMIT));
       const outgoing = new Map();
       for (const edge of edges) {
         const values = outgoing.get(edge.sourceBlockId) || [];
         values.push(edge);
         outgoing.set(edge.sourceBlockId, values);
       }
-      const decisions = [];
-      for (const block of blocks) {
-        const choices = (outgoing.get(block.blockId) || []).filter((edge) => FUNCTION_TUTOR_SYMBOLIC_CHOICE_KINDS.has(edge.kind));
-        if (choices.length > 1) decisions.push({ block, choices });
-      }
-      if (!decisions.length) return [];
-      const boundedDecisions = decisions.slice(0, FUNCTION_TUTOR_SYMBOLIC_DECISION_LIMIT);
-      let combinations = [new Map()];
-      for (const decision of boundedDecisions) {
-        const next = [];
-        for (const combination of combinations) {
-          for (const choice of decision.choices) {
-            const selected = new Map(combination); selected.set(decision.block.blockId, choice.edgeId); next.push(selected);
-            if (next.length >= FUNCTION_TUTOR_SYMBOLIC_PATH_LIMIT * 4) break;
-          }
-          if (next.length >= FUNCTION_TUTOR_SYMBOLIC_PATH_LIMIT * 4) break;
-        }
-        combinations = next;
-      }
       const plans = [];
       const seen = new Set();
-      for (const selection of combinations) {
-        const reachable = functionTutorReachableScenarioSlice(program.entryBlockId, outgoing, selection);
-        const selectedDecisions = boundedDecisions.flatMap((decision) => {
-          if (!reachable.blockIds.has(decision.block.blockId)) return [];
-          const selectedEdgeId = selection.get(decision.block.blockId);
-          const edge = decision.choices.find((candidate) => candidate.edgeId === selectedEdgeId);
-          return edge ? [{ blockId: decision.block.blockId, label: decision.block.label, edgeId: edge.edgeId, outcome: edge.kind, outcomeLabel: edge.label || edge.kind }] : [];
-        });
-        if (!selectedDecisions.length) continue;
-        const signature = selectedDecisions.map((item) => item.blockId + "=" + item.edgeId).join("|");
-        if (seen.has(signature)) continue;
+      const pending = [{ nextBlockId: program.entryBlockId, blockIds: [], edgeIds: [], decisions: [], visited: new Set() }];
+      let allocatedStates = 1; let truncated = false;
+      function finish(state, terminalBlock, limited) {
+        const signature = state.blockIds.join("|") + ":" + state.edgeIds.join("|");
+        if (seen.has(signature)) return;
         seen.add(signature);
-        const orderedBlocks = blocks.filter((block) => reachable.blockIds.has(block.blockId));
-        const effects = orderedBlocks.filter((block) => ["call", "effect", "render", "event"].includes(block.kind)).map((block) => ({ blockId: block.blockId, kind: block.kind, label: block.label }));
-        const terminalBlock = [...orderedBlocks].reverse().find((block) => ["return", "throw", "exit"].includes(block.kind));
-        plans.push({
-          blockIds: orderedBlocks.map((block) => block.blockId),
-          edgeIds: edges.filter((edge) => reachable.edgeIds.has(edge.edgeId)).map((edge) => edge.edgeId),
-          transitions: [],
-          terminal: { kind: terminalBlock?.kind || "exit" },
-          certainty: "inferred",
-          limited: decisions.length > boundedDecisions.length,
-          symbolic: true,
-          scenario: { ordinal: plans.length + 1, decisions: selectedDecisions, effects: effects }
+        const orderedBlocks = state.blockIds.map((id) => blockById.get(id)).filter(Boolean);
+        const effects = orderedBlocks.flatMap((block) => {
+          // Calls can live inside an assignment or return. The operation IR
+          // retains that source evidence without interpreting the expression.
+          const operations = (block.operations || []).filter((operation) => operation.kind === "effect");
+          if (operations.length) return operations.map((operation) => ({ blockId: block.blockId, kind: operation.effectKind || "effect", label: operation.summary || block.label }));
+          if (["call", "effect", "render", "event"].includes(block.kind)) return [{ blockId: block.blockId, kind: block.kind, label: block.label }];
+          return (tutor.behaviorSummary?.impacts || []).filter((item) => ["call", "effect", "external-call", "unresolved-call"].includes(item.kind) && item.blockIds?.[0] === block.blockId)
+            .map((item) => ({ blockId: block.blockId, kind: item.kind, label: item.sourcePreview }));
         });
-        if (plans.length >= FUNCTION_TUTOR_SYMBOLIC_PATH_LIMIT) break;
+        plans.push({
+          blockIds: state.blockIds,
+          edgeIds: state.edgeIds,
+          transitions: [],
+          terminal: { kind: ["return", "throw", "exit"].includes(terminalBlock?.kind) ? terminalBlock.kind : "unknown", blockId: terminalBlock?.blockId },
+          certainty: "inferred",
+          limited: Boolean(limited),
+          symbolic: true,
+          scenario: { ordinal: plans.length + 1, decisions: state.decisions, effects }
+        });
       }
+      // Linear segments advance within one state. Only forks consume the state
+      // budget, so a long straight-line function still gets its full depth limit.
+      while (pending.length && plans.length < FUNCTION_TUTOR_SYMBOLIC_PATH_LIMIT) {
+        const state = pending.pop();
+        while (true) {
+          const block = blockById.get(state.nextBlockId);
+          if (!block || state.visited.has(state.nextBlockId)) { finish(state, undefined, true); break; }
+          state.visited.add(block.blockId); state.blockIds.push(block.blockId);
+          if (["return", "throw", "exit"].includes(block.kind)) { finish(state, block, Boolean(block.terminal?.continuationId)); break; }
+          if (state.blockIds.length >= maxDepth) { finish(state, undefined, true); break; }
+          const choices = outgoing.get(block.blockId) || [];
+          if (!choices.length) { finish(state, undefined, true); break; }
+          const isDecision = choices.length > 1 && choices.some((edge) => FUNCTION_TUTOR_SYMBOLIC_CHOICE_KINDS.has(edge.kind));
+          if (isDecision && state.decisions.length >= FUNCTION_TUTOR_SYMBOLIC_DECISION_LIMIT) { finish(state, undefined, true); break; }
+          if (choices.length === 1) {
+            state.edgeIds.push(choices[0].edgeId); state.nextBlockId = choices[0].targetBlockId; continue;
+          }
+          for (let index = choices.length - 1; index >= 0; index -= 1) {
+            if (allocatedStates >= FUNCTION_TUTOR_SYMBOLIC_STATE_LIMIT) { truncated = true; continue; }
+            const edge = choices[index];
+            const decision = isDecision ? [{ blockId: block.blockId, label: block.label, edgeId: edge.edgeId, outcome: edge.kind, outcomeLabel: edge.label || edge.kind }] : [];
+            pending.push({ nextBlockId: edge.targetBlockId, blockIds: [...state.blockIds], edgeIds: [...state.edgeIds, edge.edgeId], decisions: [...state.decisions, ...decision], visited: new Set(state.visited) });
+            allocatedStates += 1;
+          }
+          if (!pending.length) finish(state, undefined, true);
+          break;
+        }
+      }
+      if (pending.length || truncated) for (const path of plans) path.limited = true;
       return plans;
     }
 
-    /** Computes a selected-edge reachability slice with an explicit visited set. */
-    function functionTutorReachableScenarioSlice(entryBlockId, outgoing, selection) {
-      const blockIds = new Set(); const edgeIds = new Set(); const queue = [entryBlockId];
-      while (queue.length > 0) {
-        const blockId = queue.shift();
-        if (!blockId || blockIds.has(blockId)) continue;
-        blockIds.add(blockId);
-        for (const edge of outgoing.get(blockId) || []) {
-          const selectedEdgeId = selection.get(blockId);
-          if (FUNCTION_TUTOR_SYMBOLIC_CHOICE_KINDS.has(edge.kind) && selectedEdgeId && edge.edgeId !== selectedEdgeId) continue;
-          edgeIds.add(edge.edgeId);
-          if (!blockIds.has(edge.targetBlockId)) queue.push(edge.targetBlockId);
-        }
-      }
-      return { blockIds, edgeIds };
-    }
-
     /** Uses symbolic paths only when concrete inputs cannot determine a useful route. */
-    function functionTutorResolveScenarioPaths(tutor, seed, evaluatedPaths) {
+    function functionTutorResolveScenarioPaths(tutor, seed, evaluatedPaths, cachedPlans) {
       const evaluated = evaluatedPaths || [];
       // Python's bytecode owns its decisions; absent TS expression nodes are not an evaluation gap.
       if (tutor?.program?.python && evaluated.length && evaluated.every((path) => !path.limited && path.scenario?.concrete)
@@ -98,7 +97,7 @@ export function getFunctionLogicScenarioPathPlannerBrowserSource(): string {
       // Remove symbolic combinations that contradict an independently checked
       // input prefix. Unchecked later branches remain explicitly symbolic.
       const checked = new Set(seed?.quality?.checkedEdgeIds || []);
-      const planned = functionTutorPlanSymbolicPaths(tutor).filter((path) => {
+      const planned = (cachedPlans || functionTutorPlanSymbolicPaths(tutor)).filter((path) => {
         const selected = new Map((path.scenario?.decisions || []).map((decision) => [decision.blockId, decision.edgeId]));
         return (tutor?.program?.edges || []).every((edge) => !checked.has(edge.edgeId)
           || !selected.has(edge.sourceBlockId) || selected.get(edge.sourceBlockId) === edge.edgeId);
@@ -118,7 +117,8 @@ export function getFunctionLogicScenarioPathPlannerBrowserSource(): string {
         !blockById.get(decision.blockId)?.decision?.expression
       ));
       if (planned.length && (
-        seed?.certainty === "unknown"
+        tutor?.program?.evaluationMode === "symbolic-only"
+        || seed?.certainty === "unknown"
         || seedHasUnknownInput
         || hasOpaquePlannedDecision
         || !evaluated.length
@@ -127,38 +127,24 @@ export function getFunctionLogicScenarioPathPlannerBrowserSource(): string {
       if (!planned.length) return evaluated;
       return evaluated.map((path) => {
         const edgeIds = new Set(path?.edgeIds || []);
-        const plan = planned.find((candidate) => candidate.scenario.decisions.every((decision) => edgeIds.has(decision.edgeId)));
+        const blockIds = new Set(path?.blockIds || []);
+        const plan = planned.find((candidate) => candidate.blockIds.every((id) => blockIds.has(id))
+          && candidate.scenario.decisions.every((decision) => edgeIds.has(decision.edgeId)));
         // The plan supplies labels, not certainty. Preserve a completed machine
         // result so TS/JS returns remain visible alongside the matched decisions.
         return plan ? { ...path, scenario: { ...plan.scenario, concrete: !path.limited && path.certainty === "exact" } } : path;
       });
     }
 
-    /** Produces a short localized scenario name from its reached effects. */
+    /** Numbers structural routes without guessing business intent from call names. */
     function functionTutorScenarioTitle(path, fallbackOrdinal) {
-      const effects = path?.scenario?.effects || [];
-      const kinds = effects.map((effect) => functionTutorScenarioActionKind(effect.label));
-      const unique = [...new Set(kinds.filter(Boolean))];
-      if (unique.length === 0) return projectAnalyzerText("scenario-path-no-effects");
-      if (unique.length === 1 && unique[0] === "delete") return projectAnalyzerText("scenario-path-delete-only");
-      if (unique.length === 1 && unique[0] === "create") return projectAnalyzerText("scenario-path-create-only");
-      if (unique.includes("delete") && unique.includes("create")) return projectAnalyzerText("scenario-path-delete-create");
       return projectAnalyzerText("scenario-path-number", { count: path?.scenario?.ordinal || fallbackOrdinal || 1 });
-    }
-
-    /** Keeps name heuristics presentation-only; the source label remains visible. */
-    function functionTutorScenarioActionKind(label) {
-      const name = String(label || "").toLowerCase();
-      if (/delete|remove|destroy|drop/u.test(name)) return "delete";
-      if (/create|add|insert|append/u.test(name)) return "create";
-      if (/update|edit|save|write|set/u.test(name)) return "update";
-      return "call";
     }
 
     /** Formats the source-backed choices that distinguish one path row. */
     function functionTutorScenarioConditionText(path) {
       const decisions = path?.scenario?.decisions || [];
-      if (!decisions.length) return projectAnalyzerText("scenario-path-evaluated");
+      if (!decisions.length) return projectAnalyzerText(path?.symbolic ? "scenario-path-source" : "scenario-path-evaluated");
       return decisions.map((decision) => decision.label + " → " + projectAnalyzerText("scenario-outcome-" + decision.outcome)).join(" · ");
     }
 

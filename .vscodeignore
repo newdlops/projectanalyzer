@@ -1,4 +1,5 @@
 # Development and repository metadata
+.gitattributes
 .gitignore
 .github/**
 .vscode/**
@@ -65,3 +66,10 @@ node_modules/@lezer/**/test/**
 node_modules/@lezer/**/dist/*.js
 node_modules/@lezer/**/dist/*.d.ts
 node_modules/@lezer/**/dist/*.d.cts
+
+# Kotlin needs the Node CommonJS ANTLR runtime; omit browser builds, maps and declarations.
+node_modules/antlr4/README.md
+node_modules/antlr4/src/**
+node_modules/antlr4/dist/*.map
+node_modules/antlr4/dist/*.mjs
+node_modules/antlr4/dist/antlr4.web.cjs

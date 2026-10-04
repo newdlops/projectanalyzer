@@ -39,7 +39,7 @@ export function getFunctionLogicBrowserSource(): string {
     ${getFunctionLogicValuePreviewBrowserSource()}
     ${getFunctionLogicScenarioEvaluatorBrowserSource()}
     ${getFunctionLogicScenarioEvaluationBrowserSource()}
-    ${getFunctionLogicScenarioWorkspaceBrowserSource()}
+    ${getFunctionLogicScenarioWorkspaceBrowserSource({ includeExecutionScenarioModel: false })}
     ${getScenarioInputsBrowserSource()}
     ${getFunctionLogicScenarioTraceBrowserSource()}
     ${getFunctionLogicDataFlowBrowserSource()}
@@ -402,7 +402,9 @@ export function getFunctionLogicBrowserSource(): string {
         valueFlowRendering,
         /** Public navigation action reused by the parent-call scenario view. */
         openValues() { inspector.openInspect("values"); },
-        dispose() { reading.dispose(); understanding.dispose(); },
+        // Guide subscribes to the shared workspace just like Values; release
+        // that consumer before a relayout leaves its old DOM detached.
+        dispose() { tutorRendering?.dispose(); clearFunctionLogicValuePreviewLabels(); reading.dispose(); understanding.dispose(); },
         /** Rewrites retained locale copy without rebuilding graph geometry or state. */
         updateLanguage(language) {
           edgeRendering.svg.setAttribute("aria-label", projectAnalyzerText("control-paths"));

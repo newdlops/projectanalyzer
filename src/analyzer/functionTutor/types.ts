@@ -234,6 +234,8 @@ export type FunctionTutorTerminal =
 
 /** Browser-independent program assembled from one Function Logic analysis. */
 export type FunctionTutorProgram = {
+  /** A syntax-only language must bypass the concrete expression interpreter. */
+  evaluationMode?: "concrete" | "symbolic-only";
   python?: PythonScenarioProgram;
   entryBlockId: string;
   blocks: FunctionTutorProgramBlock[];
@@ -323,6 +325,8 @@ export type FunctionTutorDeclarationAnalysis = {
   documentation?: FunctionTutorDocumentationFact;
   /** Host-only exact lexical callable catalog; it is never protocol-projected. */
   scenarioCatalog?: FunctionTutorScenarioCatalog;
+  /** Host-only lexical stability: a reassigned callable must never become a pure input summary. */
+  inputSummarySafe?: boolean;
 };
 
 /** Host-provided caller context passed to one language-specific extractor. */

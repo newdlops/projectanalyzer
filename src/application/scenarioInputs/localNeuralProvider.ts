@@ -6,7 +6,7 @@ import { ScenarioInputError, type ScenarioInputProvider } from "./scenarioInputS
 
 /** Preserves actual call tuples and planner examples without reading files or contacting a service. */
 export function createNeuralScenarioProblem(model: FunctionTutorBuildModel): NeuralScenarioProblem {
-  return { declaration: model.declaration,
+  return { declaration: model.inputEvaluationDeclaration ?? model.declaration,
     examples: [...model.callsites.map((tuple) => tuple.arguments), ...model.seeds.map((seed) => seed.inputs)]
       .map((inputs) => inputs.map(({ parameterId, value, omitted }) => ({ parameterId, value, omitted }))),
     domains: [...model.candidatesByParameter].map(([parameterId, candidates]) => ({ parameterId, values: candidates.map((item) => item.value) })) };
@@ -20,13 +20,20 @@ export function createLocalNeuralScenarioProvider(): ScenarioInputProvider {
     try { result = await inferNeuralScenarios(createNeuralScenarioProblem(model), { signal }); }
     catch (error) { if (signal.aborted) throw new ScenarioInputError("cancelled"); throw error; }
     if (!result) throw new ScenarioInputError("unavailable");
-    const scenarios = result.boundaries.flatMap((boundary) => {
+    const scenarios = createBoundaryScenarioProposals(model, result.boundaries, language, "neural");
+    return { modelName: "Local MLP · v4", text: JSON.stringify({ scenarios }), boundaries: result.boundaries, training: result.report };
+  } };
+}
+
+/** Serializes complete input data and source-checked operands for either local model. */
+export function createBoundaryScenarioProposals(model: FunctionTutorBuildModel, boundaries: NonNullable<Awaited<ReturnType<typeof inferNeuralScenarios>>>["boundaries"], language: "ko" | "en", origin: "fast" | "neural") {
+    return boundaries.flatMap((boundary) => {
       const label = (model.declaration.program.blocks.find((block) => block.blockId === boundary.blockId)?.label.slice(0, 80) ?? "")
         + (boundary.occurrence ? language === "ko" ? ` (${boundary.occurrence + 1}번째 반복)` : ` (visit ${boundary.occurrence + 1})` : "");
       const difference = describeInputDifference(model, boundary.inputs, boundary.neighbor);
       const observations = [boundary.inputs, boundary.neighbor].map((inputs) => {
         let observation: FunctionTutorDecisionObservation | undefined; let occurrence = 0;
-        evaluateFunctionTutorInputs(model.declaration, inputs, { observeDecision(value) { if (value.blockId === boundary.blockId && occurrence++ === (boundary.occurrence ?? 0)) observation = value; } });
+        evaluateFunctionTutorInputs(model.inputEvaluationDeclaration ?? model.declaration, inputs, { observeDecision(value) { if (value.blockId === boundary.blockId && occurrence++ === (boundary.occurrence ?? 0)) observation = value; } });
         return observation;
       });
       const outcomes = observations.map((item) => item ? `${item.leftValue ? displayValue(item.leftValue) : formatNumber(item.left)}${item.metric === "truthiness" ? "" : " / " + (item.rightValue ? displayValue(item.rightValue) : formatNumber(item.right))} (${language === "ko" ? item.outcome ? "참" : "거짓" : String(item.outcome)})` : "?");
@@ -45,12 +52,10 @@ export function createLocalNeuralScenarioProvider(): ScenarioInputProvider {
           }));
         }
         return { title: `${difference.name} = ${difference.values[index]}`.slice(0, 100), inputs,
-          reason: language === "ko" ? `신경망이 추정한 경계를 정적으로 확인했습니다. ${difference.name}: ${difference.values.join(" → ")}. 조건 ${label}의 좌변 / 우변: ${outcomes.join(" → ")}.`
-            : `A neural boundary confirmed by static checks. ${difference.name}: ${difference.values.join(" → ")}. Left / right operands of ${label}: ${outcomes.join(" → ")}.` };
+          reason: language === "ko" ? `${origin === "fast" ? "호출부와 내부 계산식으로 추정한" : "신경망이 추정한"} 경계를 정적으로 확인했습니다. ${difference.name}: ${difference.values.join(" → ")}. 조건 ${label}의 좌변 / 우변: ${outcomes.join(" → ")}.`
+            : `A ${origin === "fast" ? "source-guided" : "neural"} boundary confirmed by static checks. ${difference.name}: ${difference.values.join(" → ")}. Left / right operands of ${label}: ${outcomes.join(" → ")}.` };
       });
     });
-    return { modelName: "Local MLP · v4", text: JSON.stringify({ scenarios }), boundaries: result.boundaries, training: result.report };
-  } };
 }
 
 /** Names the single changed leaf so the pair explains an input-to-calculated-value transition. */

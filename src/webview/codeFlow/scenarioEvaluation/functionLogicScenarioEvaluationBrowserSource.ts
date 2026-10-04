@@ -9,6 +9,7 @@ export function getFunctionLogicScenarioEvaluationBrowserSource(): string {
     ${getPythonScenarioBrowserSource()}
     /** Runs a Tutor seed through the same iterative opaque bundle machine as Values. */
     function functionTutorRunProgramBundleScenario(tutor, seed) {
+      if (tutor?.program?.evaluationMode === "symbolic-only") return [];
       if (tutor?.program?.python) {
         const supplied = new Map();
         for (const input of seed?.inputs || []) {
