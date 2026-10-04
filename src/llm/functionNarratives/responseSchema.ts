@@ -8,13 +8,13 @@ export function createLocalNarrativeSchema(context: FunctionNarrativeContext): R
     snippetId: { type: "string", enum: context.snippets.map((snippet) => snippet.id) },
     startLine: { type: "integer", minimum: 1 }, endLine: { type: "integer", minimum: 1 }
   } };
-  const step = { type: "object", additionalProperties: false, required: ["text", "source"], properties: { text: prose, source } };
+  const step = { type: "object", additionalProperties: false, required: ["text", "reason", "effect", "source"], properties: { text: prose, reason: prose, effect: prose, source } };
   const scenario = { type: "object", additionalProperties: false, required: ["title", "when", "steps", "outcome", "assumptions"], properties: {
     title: { type: "string", minLength: 1, maxLength: 160 }, when: facts,
-    steps: { type: "array", minItems: 1, maxItems: 3, items: step }, outcome: prose, assumptions: facts
+    steps: { type: "array", minItems: 1, maxItems: 5, items: step }, outcome: prose, assumptions: facts
   } };
   return { type: "object", additionalProperties: false, required: ["summary", "scenarios", "limitations"], properties: {
-    summary: { type: "string", minLength: 1, maxLength: 1200 }, scenarios: { type: "array", minItems: 1, maxItems: 2, items: scenario },
+    summary: { type: "string", minLength: 1, maxLength: 1200 }, scenarios: { type: "array", minItems: 1, maxItems: 3, items: scenario },
     limitations: { ...facts, maxItems: 6 }
   } };
 }

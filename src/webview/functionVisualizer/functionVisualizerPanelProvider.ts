@@ -34,6 +34,7 @@ export type FunctionVisualizerPanelProviderDependencies = {
   logger: ProjectAnalyzerLogger;
   sourceHighlighter: SourceHighlighter;
   functionNarrativeProvider?: FunctionNarrativeProvider;
+  functionNarrativeSourcePresenter?: import("../../shared/functionNarratives").FunctionNarrativeSourcePresenter;
 };
 
 /** One latest-wins root visualization waiting for a ready Webview. */
@@ -93,6 +94,7 @@ export class FunctionVisualizerPanelProvider {
       readSourceText,
       scenarioInputProvider: createLocalScenarioProvider(),
       functionNarrativeProvider: dependencies.functionNarrativeProvider,
+      functionNarrativeSourcePresenter: dependencies.functionNarrativeSourcePresenter,
       openEvidenceLocation: ({ filePath, range }) =>
         dependencies.sourceHighlighter.revealRange(filePath, range),
       postMessage: (message) => this.postMessage(message)
@@ -172,6 +174,9 @@ export class FunctionVisualizerPanelProvider {
         break;
       case "codeFlow/openEvidence":
         await this.codeFlowDelivery.openEvidence(message.payload);
+        break;
+      case "codeFlow/openFunctionNarrativeSource":
+        await this.codeFlowDelivery.openFunctionNarrativeSource(message.payload);
         break;
       default:
         break;

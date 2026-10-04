@@ -4,6 +4,15 @@ import type { CodeFlowEvidenceToken } from "./functionLogic";
 import type { FunctionNarrative, FunctionNarrativeSnippet } from "../shared/functionNarratives";
 
 export type FunctionNarrativesRequest = { graphVersion: string; flowId: CodeFlowId; requestId: number };
+/** Selects one Host-cached result, never a browser-supplied path, range or evidence token. */
+export type FunctionNarrativeSourceRequest = {
+  graphVersion: string;
+  flowId: CodeFlowId;
+  contextId: string;
+  language: "ko" | "en";
+  scenarioIndex: number;
+  stepIndex: number;
+};
 export type FunctionNarrativesResponse = FunctionNarrativesRequest & {
   status: "ready" | "unavailable" | "cancelled" | "denied" | "timeout" | "invalid-response" | "context-too-large" | "failed" | "stale";
   modelName?: string;

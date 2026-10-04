@@ -21,6 +21,7 @@ import { SourceHighlightService } from "../vscode/sourceHighlightService";
 import { createWorkspaceAnalysisCacheKey } from "../vscode/workspaceFingerprint";
 import { VsCodeWorkspaceFileSystem } from "../vscode/workspaceFileSystem";
 import { createConfiguredFunctionNarrativeProvider } from "../vscode/configuredFunctionNarrativeProvider";
+import { FunctionNarrativeDecorationService } from "../vscode/functionNarrativeDecorations";
 import { ExplorerGraphPanelProvider } from "../webview/explorerGraphPanelProvider";
 import { ExplorerViewProvider } from "../webview/explorerViewProvider";
 import { FunctionVisualizerPanelProvider } from "../webview/functionVisualizer";
@@ -48,7 +49,9 @@ export function createExtensionServices(context: vscode.ExtensionContext): Exten
   const config = readProjectAnalyzerConfig();
   const functionNarrativeProvider = createConfiguredFunctionNarrativeProvider();
   const sourceHighlighter = new SourceHighlightService();
+  const narrativeDecorations = new FunctionNarrativeDecorationService(vscode);
   context.subscriptions.push(sourceHighlighter);
+  context.subscriptions.push(narrativeDecorations);
   const fileSystem = new VsCodeWorkspaceFileSystem(config);
   const storageDirectory = context.storageUri?.fsPath ?? context.globalStorageUri.fsPath;
   const cacheStore = config.cache.enabled
@@ -89,6 +92,7 @@ export function createExtensionServices(context: vscode.ExtensionContext): Exten
   });
   const functionVisualizerPanelProvider = new FunctionVisualizerPanelProvider({
     functionNarrativeProvider,
+    functionNarrativeSourcePresenter: narrativeDecorations.createPresenter(),
     config,
     logger,
     sourceHighlighter
@@ -109,6 +113,7 @@ export function createExtensionServices(context: vscode.ExtensionContext): Exten
   context.subscriptions.push(moduleVisualizerPanelProvider);
   const explorerViewProvider = new ExplorerViewProvider({
     functionNarrativeProvider,
+    functionNarrativeSourcePresenter: narrativeDecorations.createPresenter(),
     context,
     analyzer,
     cacheStore,

@@ -67,6 +67,7 @@ export type ExplorerViewProviderDependencies = {
   sourceHighlighter: SourceHighlighter;
   workspaceGraphCoordinator: WorkspaceGraphCoordinator;
   functionNarrativeProvider?: FunctionNarrativeProvider;
+  functionNarrativeSourcePresenter?: import("../shared/functionNarratives").FunctionNarrativeSourcePresenter;
 };
 
 /** Temporary gate while the visual graph renderer is disconnected from the GUI. */
@@ -115,6 +116,7 @@ export class ExplorerViewProvider implements vscode.WebviewViewProvider {
     this.codeFlowDelivery = new CodeFlowHostDelivery({
       scenarioInputProvider: createLocalScenarioProvider(),
       functionNarrativeProvider: dependencies.functionNarrativeProvider,
+      functionNarrativeSourcePresenter: dependencies.functionNarrativeSourcePresenter,
       graphDelivery: this.graphDelivery,
       insightCache: this.codeFlowInsights,
       sourceNodeTokens: this.sourceNodeTokens,
@@ -263,6 +265,9 @@ export class ExplorerViewProvider implements vscode.WebviewViewProvider {
         break;
       case "codeFlow/openEvidence":
         await this.codeFlowDelivery.openEvidence(message.payload);
+        break;
+      case "codeFlow/openFunctionNarrativeSource":
+        await this.codeFlowDelivery.openFunctionNarrativeSource(message.payload);
         break;
       case "moduleFlow/open":
         await this.openModuleFlow();

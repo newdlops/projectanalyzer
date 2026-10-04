@@ -25,6 +25,33 @@ reuse; plain-text rendering; keyboard source actions and retained focus. Inspect
 390×844, 768×1024 and 1440×900 production Webviews separately from unit checks.
 Model-absent and synthetic-result visual QA are distinct from actual LLM inference.
 
+### Source annotations and detailed explanation
+
+After validated generation, project the same scenario/step numbers onto their
+source lines as compact `LLM 1.2` end-of-line hints. Preserve editor monospace,
+CodeLens foreground and native hover typography; use a subtle dotted source mark
+rather than diagnostic severity. A line shared by several scenarios gets one
+combined hint. Full prose stays in the hover: inference basis, model/language,
+function purpose, scenario conditions, step explanation, outcome and assumptions.
+Render model text as untrusted plain Markdown text. Do not insert source comments
+or modify the document. Retain at most one result, twenty step references and one
+shared decoration type; opening another editor does not invoke the model.
+
+The original whole-file snapshot hash must match before decorating. Edits, file
+closure, an owning graph reset, explicit Clear LLM Source Annotations, disabling
+the setting, and extension disposal remove annotations. Another surface's reset
+must not clear the current owner's result. Native keyboard commands provide the
+clear action. Long hints are abbreviated; the unabridged explanation is readable
+in the hover and Guide. Decoration color is supplementary to the explicit LLM
+label and scenario/step numbers.
+
+Detailed explanations must trace actual statements, explain why each branch is
+chosen, what values/effects change, which later work is skipped by a return, and
+what is known about the result. Input examples accompany that trace rather than
+replacing it. Preserve uncertainty and citation bounds. Verify real Kotlin and
+TypeScript responses separately from synthetic long-text UI cases; verify source
+marks, hover content, duplicate-line grouping and edit invalidation in VS Code.
+
 ## Call reading colors — September 2026
 
 Refine the existing call workspace for developers reading a parent's scenario.

@@ -1,16 +1,17 @@
 /** Host-owned, snapshot-scoped LLM lifecycle and evidence projection, shared by both function surfaces. */
 import { FunctionNarrativeError, parseFunctionNarrative, type FunctionNarrativeProvider } from "../../application/functionNarratives";
-import type { FunctionNarrativeContext } from "../../shared/functionNarratives";
-import type { FunctionNarrativesRequest, FunctionNarrativesResponse } from "../../protocol/functionNarratives";
+import type { FunctionNarrativeContext, FunctionNarrativeSourcePresenter } from "../../shared/functionNarratives";
+import type { FunctionNarrativesRequest, FunctionNarrativesResponse, FunctionNarrativeSourceRequest } from "../../protocol/functionNarratives";
 import type { ExtensionResponse } from "../../protocol/messages";
 import type { CodeFlowEvidenceToken } from "../../protocol/functionLogic";
 import type { SourceRange } from "../../shared/types";
 import { createContentHash } from "../../shared/hash";
 
 type ReadyResult = Pick<FunctionNarrativesResponse, "narrative" | "snippets" | "evidenceTokens" | "modelName" | "limited" | "language">;
-type ContextEntry = { graphVersion: string; contextId: string; context: FunctionNarrativeContext; filePath: string; lastRequestId: number; reselectModel: boolean; cached: Map<string, ReadyResult> };
+type ContextEntry = { graphVersion: string; contextId: string; context: FunctionNarrativeContext; filePath: string; sourceHash?: string; lastRequestId: number; reselectModel: boolean; cached: Map<string, ReadyResult> };
 export type FunctionNarrativesHostDependencies = {
   provider?: FunctionNarrativeProvider;
+  sourcePresenter?: FunctionNarrativeSourcePresenter;
   isActive(graphVersion: string): boolean;
   getLanguage(): "ko" | "en";
   createEvidence(filePath: string, range: SourceRange): CodeFlowEvidenceToken | undefined;
@@ -21,18 +22,20 @@ export type FunctionNarrativesHostDependencies = {
 export class FunctionNarrativesHostDelivery {
   private readonly contexts = new Map<string, ContextEntry>();
   private pending?: { request: FunctionNarrativesRequest; controller: AbortController };
+  private presentedFlowId?: string;
   public constructor(private readonly dependencies: FunctionNarrativesHostDependencies) {}
 
   /** Registers only Host-published source; browser requests can never choose another file or prompt. */
-  public register(flowId: string, graphVersion: string, context: FunctionNarrativeContext, filePath: string): string | undefined {
+  public register(flowId: string, graphVersion: string, context: FunctionNarrativeContext, filePath: string, sourceHash?: string): string | undefined {
     if (!this.dependencies.isActive(graphVersion) || !this.dependencies.provider || !context.snippets.some((snippet) => snippet.role === "function")) return undefined;
     for (const [id, entry] of this.contexts) if (entry.graphVersion !== graphVersion) this.contexts.delete(id);
     const prior = this.contexts.get(flowId);
     // Nearby constants/helpers can change without changing the root Tutor IR fingerprint.
-    const contextId = "narrative-context:" + createContentHash(graphVersion + "\0" + JSON.stringify(context)).slice(0, 32);
+    const contextId = "narrative-context:" + createContentHash(graphVersion + "\0" + (sourceHash ?? "") + "\0" + JSON.stringify(context)).slice(0, 32);
     if (prior && prior.graphVersion === graphVersion && prior.contextId === contextId) return contextId;
     if (this.pending?.request.flowId === flowId) this.pending.controller.abort();
-    this.contexts.set(flowId, { graphVersion, contextId, context, filePath, lastRequestId: -1, reselectModel: false, cached: new Map() });
+    if (this.presentedFlowId === flowId) { this.dependencies.sourcePresenter?.clear(); this.presentedFlowId = undefined; }
+    this.contexts.set(flowId, { graphVersion, contextId, context, filePath, sourceHash, lastRequestId: -1, reselectModel: false, cached: new Map() });
     while (this.contexts.size > 8) {
       const oldest = this.contexts.keys().next().value!;
       if (this.pending?.request.flowId === oldest) this.pending.controller.abort();
@@ -42,11 +45,27 @@ export class FunctionNarrativesHostDelivery {
   }
 
   /** Releases pending model work and source context on root replacement or surface disposal. */
-  public clear(): void { this.pending?.controller.abort(); this.pending = undefined; this.contexts.clear(); }
+  public clear(): void { this.pending?.controller.abort(); this.pending = undefined; this.contexts.clear(); this.dependencies.sourcePresenter?.clear(); this.presentedFlowId = undefined; }
   public cancel(request: FunctionNarrativesRequest): void {
     const pending = this.pending;
     if (pending && pending.request.flowId === request.flowId && pending.request.graphVersion === request.graphVersion
       && pending.request.requestId === request.requestId) pending.controller.abort();
+  }
+
+  /** Shared source tokens cannot identify a narrative. Validate its exact context/locale before opening. */
+  public resolveSource(request: FunctionNarrativeSourceRequest): { evidenceToken: CodeFlowEvidenceToken; present(): void } | undefined {
+    const entry = this.contexts.get(request.flowId);
+    if (!entry || entry.graphVersion !== request.graphVersion || entry.contextId !== request.contextId || !this.dependencies.isActive(request.graphVersion)
+      || !Number.isSafeInteger(request.scenarioIndex) || request.scenarioIndex < 0 || !Number.isSafeInteger(request.stepIndex) || request.stepIndex < 0) return undefined;
+    const result = entry.cached.get(request.language);
+    const evidenceToken = result?.evidenceTokens?.[request.scenarioIndex]?.[request.stepIndex];
+    if (!result || !evidenceToken) return undefined;
+    return { evidenceToken, present: () => {
+      // Opening the native editor is asynchronous; replacement/eviction during that await revokes restoration.
+      if (this.contexts.get(request.flowId) === entry && entry.cached.get(request.language) === result && this.dependencies.isActive(request.graphVersion)) {
+        this.presentSource(request.flowId, entry, result);
+      }
+    } };
   }
 
   /** Caches validated narratives per snapshot/locale; duplicate IDs cannot incur another model request. */
@@ -62,7 +81,7 @@ export class FunctionNarrativesHostDelivery {
     this.pending?.controller.abort();
     const language = this.dependencies.getLanguage();
     const cached = entry.cached.get(language);
-    if (cached) { await send({ status: "ready", ...cached, cacheHit: true }); return; }
+    if (cached) { this.presentSource(request.flowId, entry, cached); await send({ status: "ready", ...cached, cacheHit: true }); return; }
     const provider = this.dependencies.provider;
     if (!provider) { await send({ status: "unavailable" }); return; }
     const controller = new AbortController();
@@ -90,6 +109,7 @@ export class FunctionNarrativesHostDelivery {
         limited: entry.context.limited, snippets: entry.context.snippets.map(({ id, startLine, endLine }) => ({ id, startLine, endLine })) };
       entry.cached.set(language, result);
       entry.reselectModel = false;
+      this.presentSource(request.flowId, entry, result);
       await send({ status: "ready", ...result, cacheHit: false });
     } catch (error) {
       if (stillCurrent()) {
@@ -101,5 +121,13 @@ export class FunctionNarrativesHostDelivery {
       clearTimeout(timeout); controller.signal.removeEventListener("abort", onAbort);
       if (this.pending === pending) this.pending = undefined;
     }
+  }
+
+  /** Decorates only validated output on a Host-captured snapshot; private paths remain on this native boundary. */
+  private presentSource(flowId: string, entry: ContextEntry, result: ReadyResult): void {
+    if (!entry.sourceHash || !result.narrative || !result.language || !result.modelName) return;
+    this.dependencies.sourcePresenter?.show({ filePath: entry.filePath, sourceHash: entry.sourceHash, contextId: entry.contextId,
+      functionName: entry.context.functionName, language: result.language, modelName: result.modelName, narrative: result.narrative, snippets: entry.context.snippets });
+    this.presentedFlowId = flowId;
   }
 }

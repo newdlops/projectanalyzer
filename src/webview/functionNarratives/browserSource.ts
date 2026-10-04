@@ -70,6 +70,8 @@ export function getFunctionNarrativesBrowserSource(): string {
             + (result.cacheHit ? " · " + projectAnalyzerText("narrative-cached") : "");
           const summary = document.createElement("p"); summary.className = "logic-summary-purpose"; summary.textContent = result.narrative.summary;
           results.append(basis, summary);
+          const sourceHelp = document.createElement("p"); sourceHelp.className = "logic-summary-note logic-narrative-source-note";
+          sourceHelp.textContent = projectAnalyzerText("narrative-source-help"); results.append(sourceHelp);
           if (result.limited) { const limit = document.createElement("p"); limit.className = "logic-summary-note"; limit.textContent = projectAnalyzerText("narrative-limited"); results.append(limit); }
           for (let index = 0; index < result.narrative.scenarios.length; index += 1) {
             const scenario = result.narrative.scenarios[index];
@@ -82,9 +84,17 @@ export function getFunctionNarrativesBrowserSource(): string {
               const text = document.createElement("p"); text.textContent = step.text;
               const source = document.createElement("button"); source.type = "button"; source.className = "logic-guide-action logic-narrative-source";
               source.id = widgetId + "-source-" + index + "-" + stepIndex;
-              source.textContent = projectAnalyzerText("narrative-source", { start: step.source.startLine, end: step.source.endLine });
-              const token = result.evidenceTokens[index][stepIndex]; source.addEventListener("click", () => callbacks?.onOpenEvidence?.(token));
-              row.append(text, source); steps.append(row);
+              source.textContent = projectAnalyzerText("narrative-source", { scenario: index + 1, step: stepIndex + 1, start: step.source.startLine, end: step.source.endLine });
+              source.addEventListener("click", () => {
+                if (!disposed && state.graph?.version === graphVersion && tutor.narratives.contextId) {
+                  vscode.postMessage({ type: "codeFlow/openFunctionNarrativeSource", payload: { graphVersion, flowId: tutor.functionId,
+                    contextId: tutor.narratives.contextId, language: result.language, scenarioIndex: index, stepIndex } });
+                }
+              });
+              row.append(text);
+              appendFacts(row, "narrative-reason", step.reason ? [step.reason] : []);
+              appendFacts(row, "narrative-effect", step.effect ? [step.effect] : []);
+              row.append(source); steps.append(row);
             }
             article.append(steps); appendFacts(article, "narrative-outcome", [scenario.outcome]);
             appendFacts(article, "narrative-assumptions", scenario.assumptions); results.append(article);

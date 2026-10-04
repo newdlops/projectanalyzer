@@ -16,7 +16,7 @@ import {
 } from "../../application/codeFlow";
 import { analyzeFunctionLogic } from "../../analyzer/functionLogic";
 import { buildFunctionNarrativeContext, type FunctionNarrativeProvider } from "../../application/functionNarratives";
-import type { FunctionNarrativesRequest } from "../../protocol/functionNarratives";
+import type { FunctionNarrativesRequest, FunctionNarrativeSourceRequest } from "../../protocol/functionNarratives";
 import { FunctionNarrativesHostDelivery } from "./functionNarrativesHostDelivery";
 import { parseScenarioInputSuggestions, ScenarioInputError, type ScenarioInputProvider } from "../../application/scenarioInputs";
 import type { FunctionTutorBuildModel } from "../../application/codeFlow/functionTutor";
@@ -37,6 +37,7 @@ import type { ExtensionResponse } from "../../protocol/messages";
 import type { ProjectAnalyzerLogger } from "../../observability/logger";
 import { localizeHost, type UiLanguage } from "../../localization/uiLanguage";
 import type { ProjectGraph, SymbolNode } from "../../shared/types";
+import { createContentHash } from "../../shared/hash";
 import type { WebviewGraphDelivery } from "../sidebarGraphDelivery";
 import type { SourceNodeTokenRegistry } from "../sourceNavigation";
 import type {
@@ -55,6 +56,7 @@ export type CodeFlowHostDeliveryDependencies = {
   projectionOptions?: SymbolCodeFlowProjectionOptions;
   scenarioInputProvider?: ScenarioInputProvider;
   functionNarrativeProvider?: FunctionNarrativeProvider;
+  functionNarrativeSourcePresenter?: import("../../shared/functionNarratives").FunctionNarrativeSourcePresenter;
   readSourceText(filePath: string): Promise<string | undefined>;
   openEvidenceLocation(location: CodeFlowEvidenceLocation): Promise<void>;
   postMessage(message: ExtensionResponse): Promise<void>;
@@ -78,7 +80,7 @@ export class CodeFlowHostDelivery {
   private readonly narratives: FunctionNarrativesHostDelivery;
 
   public constructor(private readonly dependencies: CodeFlowHostDeliveryDependencies) {
-    this.narratives = new FunctionNarrativesHostDelivery({ provider: dependencies.functionNarrativeProvider,
+    this.narratives = new FunctionNarrativesHostDelivery({ provider: dependencies.functionNarrativeProvider, sourcePresenter: dependencies.functionNarrativeSourcePresenter,
       isActive: (version) => Boolean(this.resolveActiveGraph(version)), getLanguage: dependencies.getUiLanguage,
       createEvidence: (filePath, range) => dependencies.evidenceTokens.createToken(filePath, range), postMessage: dependencies.postMessage });
   }
@@ -330,7 +332,7 @@ export class CodeFlowHostDelivery {
     if (payload.logic?.tutor && sourceText && this.dependencies.functionNarrativeProvider) {
       const helperIds = new Set(tutorModel.context.callees.filter((callee) => callee.kind === "local").map((callee) => callee.nodeId));
       const context = buildFunctionNarrativeContext(node, sourceText, active.graph.nodes.filter((candidate) => helperIds.has(candidate.id)));
-      const contextId = this.narratives.register(payload.id, active.version, context, node.filePath);
+      const contextId = this.narratives.register(payload.id, active.version, context, node.filePath, createContentHash(sourceText));
       payload.logic.tutor.narratives = { available: Boolean(contextId), ...(contextId ? { contextId,
         sourceToken: this.dependencies.sourceNodeTokens.createToken(node.id) } : {}) };
     }
@@ -368,6 +370,20 @@ export class CodeFlowHostDelivery {
       return;
     }
     await this.dependencies.openEvidenceLocation(location);
+  }
+
+  /** Opens only a numbered step from the selected cached narrative and restores its own annotations. */
+  public async openFunctionNarrativeSource(request: FunctionNarrativeSourceRequest): Promise<void> {
+    const active = this.resolveActiveGraph(request.graphVersion);
+    const target = active && this.narratives.resolveSource(request);
+    const location = target && this.dependencies.evidenceTokens.resolve(target.evidenceToken);
+    if (!active || !target || !location) {
+      await this.publishFailure(request.graphVersion, active ? "evidenceNotFound" : "staleGraph", active ? "evidenceNotFound" : "staleReopenLogic",
+        this.localize(active ? "evidenceNotFound" : "staleGraph", this.localize("reopenLogic")));
+      return;
+    }
+    await this.dependencies.openEvidenceLocation(location);
+    target.present();
   }
 
   /** Resolves a snapshot only when the browser and Host versions still agree. */

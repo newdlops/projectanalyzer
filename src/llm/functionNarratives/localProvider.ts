@@ -33,7 +33,7 @@ export function createLocalFunctionNarrativeProvider(options: LocalFunctionNarra
       await writeFile(promptFile, prompt, { encoding: "utf8", mode: 0o600 });
       const text = await runLocalModel(options.binaryPath, ["--model", options.modelPath, "--file", promptFile,
         "--single-turn", "--simple-io", "--no-display-prompt", "--no-escape", "--offline", "--no-warmup",
-        "--ctx-size", "8192", "--predict", "1600", "--threads", "2", "--threads-batch", "2", "--poll", "0",
+        "--ctx-size", "8192", "--predict", "2400", "--threads", "2", "--threads-batch", "2", "--poll", "0",
         "--temp", "0.2", "--seed", "42", "--json-schema", JSON.stringify(createLocalNarrativeSchema(context))], controller.signal);
       return { modelName: ("Local · " + basename(options.modelPath, ".gguf")).slice(0, 100), text };
     } finally {

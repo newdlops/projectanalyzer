@@ -14,7 +14,8 @@ export function isFunctionNarrative(value: unknown, snippets?: readonly Pick<Fun
       || !texts(scenario.when, 4) || !texts(scenario.assumptions, 4) || !text(scenario.outcome, 600)
       || !Array.isArray(scenario.steps) || scenario.steps.length < 1 || scenario.steps.length > 5) return false;
     for (const step of scenario.steps) {
-      if (!record(step) || !keys(step, ["text", "source"]) || !text(step.text, 600) || !record(step.source)
+      if (!record(step) || !keys(step, ["text", "reason", "effect", "source"]) || !text(step.text, 600)
+        || (step.reason !== undefined && !text(step.reason, 600)) || (step.effect !== undefined && !text(step.effect, 600)) || !record(step.source)
         || !keys(step.source, ["snippetId", "startLine", "endLine"]) || !text(step.source.snippetId, 80)
         || !Number.isSafeInteger(step.source.startLine) || !Number.isSafeInteger(step.source.endLine)) return false;
       const source = step.source as { snippetId: string; startLine: number; endLine: number };

@@ -1388,13 +1388,16 @@ Webview는 Project Graph, 파일 시스템, VS Code API에 직접 접근하지 �
   raw 파일 경로와 analyzer identity를 LLM 또는 Webview에 전달하지 않는다.
 - `FunctionNarrativeProvider.generate`는 사용자 요청으로만 호출되는 교체 가능한 LLM 경계다.
   기본 local adapter는 PC에 설치한 `llama-completion`과 사용자가 선택한 instruction-tuned
-  GGUF를 명시적 요청에만 실행한다. 8,192 token context, 출력 1,600 token, CPU thread 2개,
+  GGUF를 명시적 요청에만 실행한다. 8,192 token context, 출력 2,400 token, CPU thread 2개,
   offline mode와 JSON grammar를 사용한다. 프로세스는 요청 종료/취소 때 해제하며 공급자
   설정 변경을 포함해 한 Extension Host에서 하나만 실행한다. private 임시 prompt는 삭제한다.
   선택 가능한 VS Code adapter는 연결된 Chat model의 token 한도를 확인한 뒤 실제
   `sendRequest`/response stream을 사용한다. 모델 자동 다운로드·학습·API key 보관은 하지 않는다.
 - 응답은 최대 24,000자 JSON, summary 1,200자, 시나리오 1–4개, 각 step 1–5개,
   title 160자, 기타 설명 600자, 조건·가정 각 4개, 미확인 부분 6개로 제한한다.
+  로컬 grammar는 시나리오 1–3개와 `text`·`reason`·`effect`를 요구하며 이전 text-only
+  응답은 계속 읽는다. 지침과 예제는 입력별 분기 판단·계산 근거·다음 진행·조기 반환을
+  설명하도록 요청한다. 이는 프롬프트 개선이며 가중치 학습은 하지 않는다.
   각 step은 제공한 snippet ID와 그 범위 안의 최대 21줄을 참조해야 한다. 이 검사는
   위치와 형식의 유효성만 확인하며 LLM 설명의 사실성·경로 도달·실행을 검증하지 않는다.
 - 요청 `codeFlow/requestFunctionNarratives` / `codeFlow/cancelFunctionNarratives`는 현재
@@ -1407,10 +1410,19 @@ Webview는 Project Graph, 파일 시스템, VS Code API에 직접 접근하지 �
   제한 여부, narrative, snippet 범위와 각 step의 Host-issued evidence token만 포함한다.
   source range를 새 editor token으로 바꾸며 브라우저가 경로·prompt·모델 ID를 정하지 못한다.
 - Guide Summary 뒤의 optional section은 Kotlin/symbolic-only 및 인자 없는 함수도 제공한다.
-  조건 → 동작 순서 → 예상 결과 → 가정/미확인 부분을 literal text로 표시하며 항상
+  조건 → 동작 순서·판단 근거·값과 흐름의 변화 → 예상 결과 → 가정/미확인 부분을 literal text로 표시하며 항상
   LLM 추론·실제 실행 미검증을 명시한다. 기존 값·경로·graph에 설명을 적용하지 않는다.
   모델 없음·권한 거부·취소·timeout·invalid-response·입력 한도·failed·stale 및 두 locale 지원.
   초기 mount, focus와 언어 전환은 LLM을 호출하지 않는다.
+- `codeFlow/openFunctionNarrativeSource`는 graphVersion, flowId, contextId, 생성 language와
+  scenario/step index만 받는다. Host는 정확한 cached result를 고르고 그 step의 evidence
+  token을 해석한다. 같은 위치를 인용하는 다른 함수/언어의 설명으로 대체하지 않으며
+  비동기 editor open 뒤에도 graph/context/cache 소유권을 다시 확인한다.
+- `vscode/functionNarrativeDecorations`는 전체 source hash가 맞는 file 문서에만 최대
+  20개 step의 번호를 줄별로 묶어 표시한다. hints는 120자 이하이며 native hover는 escaped,
+  untrusted Markdown으로 전체 해설·모델·생성 언어·미검증 근거를 표시한다. 한 결과만 유지하며
+  owner의 graph reset/disposal, 문서 수정/닫기, 명시적 지우기, 설정 해제 때 제거한다.
+  editor 표시, source action, hover와 지우기는 모델 요청·소스 쓰기·graph 변경을 하지 않는다.
 
 공개 API와 실제 모델 연결 조건은 `docs/FUNCTION_NARRATIVES.md`를 따른다.
 

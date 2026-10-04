@@ -7,8 +7,9 @@ import { validateWebviewRequest } from "../../protocol/webviewRequestValidation"
 import { installSidebarWebviewRuntime } from "./helpers/sidebarWebviewRuntime";
 
 const flowId = "code-flow:" + "a".repeat(32);
+const contextId = "narrative-context:" + "c".repeat(32);
 const narrative = { summary: "<img src=x onerror=run()>", scenarios: [{ title: "Ready", when: ["LIMIT > 0"],
-  steps: [{ text: "Print ready.", source: { snippetId: "root", startLine: 4, endLine: 4 } }], outcome: "Return after printing.", assumptions: ["Output is available."] }], limitations: [] };
+  steps: [{ text: "Print ready.", reason: "LIMIT=3 makes LIMIT > 0 true.", effect: "The else branch is skipped.", source: { snippetId: "root", startLine: 4, endLine: 4 } }], outcome: "Return after printing.", assumptions: ["Output is available."] }], limitations: [] };
 
 test("LLM requests accept only opaque current function identity and reject source/prompt injection", () => {
   for (const type of ["codeFlow/requestFunctionNarratives", "codeFlow/cancelFunctionNarratives"]) {
@@ -22,6 +23,15 @@ test("LLM requests accept only opaque current function identity and reject sourc
   }
 });
 
+test("numbered narrative source actions accept only bounded snapshot/result identities", () => {
+  const payload = { graphVersion: "fixture", flowId, contextId, language: "en", scenarioIndex: 0, stepIndex: 0 };
+  assert.equal(validateWebviewRequest({ type: "codeFlow/openFunctionNarrativeSource", payload }).ok, true);
+  for (const extra of [{ filePath: "/secret" }, { evidenceToken: "chosen by browser" }, { contextId: "bad" },
+    { language: "other" }, { scenarioIndex: 4 }, { stepIndex: 5 }, { stepIndex: -1 }]) {
+    assert.equal(validateWebviewRequest({ type: "codeFlow/openFunctionNarrativeSource", payload: { ...payload, ...extra } }).ok, false);
+  }
+});
+
 test("Kotlin LLM controls are inert until clicked and preserve literal output, source action and locale state", () => {
   const runtime = installSidebarWebviewRuntime();
   try {
@@ -29,7 +39,7 @@ test("Kotlin LLM controls are inert until clicked and preserve literal output, s
     const state = { graph: { version: "fixture" }, uiLanguage: "en" };
     const browser = new Function("state", "vscode", getBrowserLocalizationSource() + getFunctionNarrativesBrowserSource()
       + "return {create:createFunctionNarratives,accept:acceptFunctionNarrativesResponse,locale:applyProjectAnalyzerLanguage};")(state, { postMessage(message: typeof posts[number]) { posts.push(message); } });
-    const widget = browser.create({ functionId: flowId, narratives: { available: true }, program: { evaluationMode: "symbolic-only" } }, { onOpenEvidence(token: string) { sources.push(token); } });
+    const widget = browser.create({ functionId: flowId, narratives: { available: true, contextId }, program: { evaluationMode: "symbolic-only" } }, { onOpenEvidence(token: string) { sources.push(token); } });
     assert.ok(widget, "symbolic languages must offer source-reading LLM narratives");
     document.getElementById("narrative-root")!.append(widget.element);
     assert.equal(posts.length, 0);
@@ -43,10 +53,13 @@ test("Kotlin LLM controls are inert until clicked and preserve literal output, s
     browser.accept(result);
     assert.ok(runtime.getRenderedText("narrative-root").includes("<img src=x onerror=run()>"));
     assert.ok(runtime.getRenderedText("narrative-root").some((text) => text.includes("LLM inference · execution unverified")));
+    assert.ok(runtime.getRenderedText("narrative-root").includes("LIMIT=3 makes LIMIT > 0 true."));
+    assert.ok(runtime.getRenderedText("narrative-root").includes("The else branch is skipped."));
     runtime.clickRenderedByClassNth("narrative-root", "logic-narrative-source", 0);
-    assert.deepEqual(sources, ["code-evidence:" + "b".repeat(64)]);
+    assert.equal(sources.length, 0);
+    assert.deepEqual(posts[1], { type: "codeFlow/openFunctionNarrativeSource", payload: { graphVersion: "fixture", flowId, contextId, language: "en", scenarioIndex: 0, stepIndex: 0 } });
     state.uiLanguage = "ko"; browser.locale("ko"); widget.refreshLanguage();
-    assert.equal(posts.length, 1); assert.equal(runtime.countRenderedByClass("narrative-root", "logic-narrative-scenario"), 1);
+    assert.equal(posts.length, 2); assert.equal(runtime.countRenderedByClass("narrative-root", "logic-narrative-scenario"), 1);
     assert.ok(runtime.getRenderedText("narrative-root").some((text) => text.includes("LLM 추론 · 실제 실행 미검증")));
     widget.dispose();
   } finally { runtime.restore(); }

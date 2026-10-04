@@ -7,7 +7,9 @@ import { CodeFlowEvidenceTokenRegistry } from "../../webview/codeFlow/codeFlowEv
 import { WebviewGraphDelivery } from "../../webview/sidebarGraphDelivery";
 import { SourceNodeTokenRegistry } from "../../webview/sourceNavigation";
 import { getFunctionVisualizerHtml } from "../../webview/functionVisualizer/functionVisualizerHtml";
-import type { FunctionNarrativesRequest } from "../../protocol/functionNarratives";
+import type { FunctionNarrativesRequest, FunctionNarrativeSourceRequest } from "../../protocol/functionNarratives";
+import type { FunctionNarrativeSourcePresentation } from "../../shared/functionNarratives";
+import { createContentHash } from "../../shared/hash";
 import type { ExtensionResponse } from "../../protocol/messages";
 import type { SymbolNode } from "../../shared/types";
 import { createGraph } from "./helpers/projectReadingGuideFixtures";
@@ -21,9 +23,11 @@ test("production Kotlin Guide offers actual LLM requests without changing static
   const graphDelivery = new WebviewGraphDelivery(); const version = graphDelivery.activate(graph).snapshot.version;
   const sourceNodeTokens = new SourceNodeTokenRegistry(); sourceNodeTokens.activate(version, graph);
   const evidenceTokens = new CodeFlowEvidenceTokenRegistry(); evidenceTokens.activate(version, graph);
-  const messages: ExtensionResponse[] = []; let calls = 0; let sourceReads = 0;
+  const messages: ExtensionResponse[] = []; const presentations: FunctionNarrativeSourcePresentation[] = [];
+  const opened: unknown[] = []; let calls = 0; let sourceReads = 0;
   const delivery = new CodeFlowHostDelivery({ graphDelivery, sourceNodeTokens, evidenceTokens, insightCache: new CodeFlowInsightCache(),
-    getUiLanguage: () => "en", readSourceText: async () => { sourceReads += 1; return "stale disk text"; }, openEvidenceLocation: async () => {},
+    getUiLanguage: () => "en", readSourceText: async () => { sourceReads += 1; return "stale disk text"; }, openEvidenceLocation: async (location) => { opened.push(location); },
+    functionNarrativeSourcePresenter: { show(presentation) { presentations.push(presentation); }, clear() {} },
     logger: { debug() {}, info() {}, warn() {}, error() {} }, async postMessage(message) { messages.push(message); },
     functionNarrativeProvider: { async generate(context) {
       calls += 1; assert.equal(context.language, "kotlin"); assert.ok(context.snippets.some((snippet) => snippet.text.includes('println("ready")')));
@@ -49,6 +53,12 @@ test("production Kotlin Guide offers actual LLM requests without changing static
     const reply = messages.at(-1)!; assert.ok(reply.type === "codeFlow/functionNarrativesLoaded"); assert.equal(reply.payload.status, "ready");
     assert.ok(reply.payload.evidenceTokens?.[0][0] && evidenceTokens.resolve(reply.payload.evidenceTokens[0][0]));
     runtime.dispatchMessage(reply); assert.equal(calls, 1);
+    assert.equal(presentations.length, 1); assert.equal(presentations[0].sourceHash, createContentHash(source));
+    assert.equal(presentations[0].filePath, node.filePath);
+    runtime.clickRenderedByClassNth("flow-steps", "logic-narrative-source", 0);
+    const sourceAction = runtime.messages.at(-1); assert.equal(sourceAction?.type, "codeFlow/openFunctionNarrativeSource");
+    await delivery.openFunctionNarrativeSource(sourceAction!.payload as FunctionNarrativeSourceRequest);
+    assert.equal(opened.length, 1); assert.equal(presentations.length, 2); assert.equal(calls, 1);
     assert.equal(runtime.countRenderedByClass("flow-steps", "logic-narrative-scenario"), 1);
     assert.equal(runtime.getRenderedIdentityByClassNth("flow-steps", "logic-graph-node", 0), graphIdentity);
     assert.equal(runtime.messages.filter((message) => message.type === "codeFlow/requestScenarioInputs").length, 0);

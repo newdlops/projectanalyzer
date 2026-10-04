@@ -170,6 +170,12 @@ function validateReadableWebviewRequest(value: unknown): WebviewRequestValidatio
       payloadIsValid = isRecord(payload) && hasOnlyKeys(payload, ["graphVersion", "flowId", "requestId"])
         && isCodeFlowSelectPayload(payload) && isNonNegativeInteger(payload.requestId);
       break;
+    case "codeFlow/openFunctionNarrativeSource":
+      payloadIsValid = isRecord(payload) && hasOnlyKeys(payload, ["graphVersion", "flowId", "contextId", "language", "scenarioIndex", "stepIndex"])
+        && isCodeFlowSelectPayload(payload) && typeof payload.contextId === "string" && /^narrative-context:[0-9a-f]{32}$/u.test(payload.contextId)
+        && isOneOf(payload.language, ["ko", "en"]) && isNonNegativeInteger(payload.scenarioIndex) && payload.scenarioIndex < 4
+        && isNonNegativeInteger(payload.stepIndex) && payload.stepIndex < 5;
+      break;
     case "codeFlow/requestScenarioInputs":
     case "codeFlow/cancelScenarioInputs":
       payloadIsValid = isRecord(payload) && hasOnlyKeys(payload, ["graphVersion", "flowId", "requestId", "mode"])

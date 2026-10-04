@@ -2,7 +2,13 @@
 
 /** Model references are relative to supplied snippets and use one-based source line numbers. */
 export type FunctionNarrativeSource = { snippetId: string; startLine: number; endLine: number };
-export type FunctionNarrativeStep = { text: string; source: FunctionNarrativeSource };
+export type FunctionNarrativeStep = {
+  text: string;
+  /** Optional for cached responses from earlier versions; current prompts request both fields. */
+  reason?: string;
+  effect?: string;
+  source: FunctionNarrativeSource;
+};
 export type FunctionNarrativeScenario = {
   title: string;
   when: string[];

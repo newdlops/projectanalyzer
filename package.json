@@ -2,7 +2,7 @@
   "name": "function-analysis",
   "displayName": "%extension.displayName%",
   "description": "%extension.description%",
-  "version": "0.0.1102",
+  "version": "0.0.1103",
   "publisher": "newdlops",
   "private": true,
   "license": "MIT",
@@ -76,9 +76,23 @@
         "title": "%command.openModuleFlow%",
         "category": "%command.category%",
         "icon": "$(type-hierarchy)"
+      },
+      {
+        "command": "projectAnalyzer.clearFunctionNarrativeDecorations",
+        "title": "%command.clearFunctionNarrativeDecorations%",
+        "category": "%command.category%",
+        "enablement": "projectAnalyzer.hasNarrativeDecorations",
+        "icon": "$(clear-all)"
       }
     ],
     "menus": {
+      "editor/title": [
+        {
+          "command": "projectAnalyzer.clearFunctionNarrativeDecorations",
+          "when": "projectAnalyzer.hasNarrativeDecorations && resourceScheme == file",
+          "group": "navigation@110"
+        }
+      ],
       "editor/context": [
         {
           "command": "projectAnalyzer.visualizeCurrentFunction",
@@ -97,6 +111,11 @@
     "configuration": {
       "title": "%configuration.title%",
       "properties": {
+        "projectAnalyzer.functionNarratives.sourceDecorations": {
+          "type": "boolean",
+          "default": true,
+          "description": "%configuration.functionNarratives.sourceDecorations%"
+        },
         "projectAnalyzer.functionNarratives.provider": {
           "type": "string",
           "enum": [

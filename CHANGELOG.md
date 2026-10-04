@@ -4,6 +4,31 @@ All notable user-visible changes to Project Analyzer: Code Flow are recorded in
 this file. The changelog starts with the first distribution-documented build;
 earlier local development builds were not tracked here.
 
+## 0.0.1103 - 2026-10-05
+
+### Added
+
+- LLM scenario step numbers and compact explanations beside source lines, with
+  native hovers for conditions, reasoning, value changes, outcomes and assumptions.
+  Clear annotations from the editor toolbar or disable them in settings.
+
+### Improved
+
+- Request detailed operation, reason and effect fields with original source line
+  numbers and worked explanation guidance. Local generation supports up to three
+  scenarios and five steps, with a bounded 2,400-token output budget.
+- Keep one source annotation result, validate its complete document hash and
+  clear stale marks on edits, close, graph replacement or disposal. Git revision
+  documents cannot invalidate the working file's marks.
+- Restore the selected flow, source context, language and step from cache without
+  model work. Shared source locations cannot substitute another narrative.
+
+### Known limitations
+
+- Explanation guidance changes prompts, not model weights. Inference remains
+  unverified; small models can misread conditions despite valid JSON/citations.
+  The four previously recorded TypeScript test failures remain unchanged.
+
 ## 0.0.1102 - 2026-10-05
 
 ### Added
