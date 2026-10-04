@@ -6,11 +6,13 @@
  */
 
 import { getFunctionTutorSummaryBrowserSource } from "./summary";
+import { getFunctionNarrativesBrowserSource } from "../../functionNarratives";
 
 /** Returns the Function Guide browser renderer appended after the safe interpreter. */
 export function getFunctionTutorGuideBrowserSource(): string {
   return /* js */ `
     ${getFunctionTutorSummaryBrowserSource()}
+    ${getFunctionNarrativesBrowserSource()}
     let functionTutorGuidePanelSequence = 0;
 
     /** Builds one source-backed Guide panel for the Inspector's guide mode. */
@@ -81,9 +83,10 @@ export function getFunctionTutorGuideBrowserSource(): string {
       toggle.setAttribute("aria-expanded", "false"); toggle.setAttribute("aria-controls", panelId);
 
       const overview = createFunctionBehaviorSummary(logic, callbacks) || createFunctionGuideOverview(tutor);
+      const narratives = createFunctionNarratives(tutor, callbacks);
       const navigation = createFunctionGuideNavigation(chapters, chapterIndex, selectChapter, questionButtons);
       const limits = createFunctionGuideLimits(tutor);
-      content.append(status, overview, navigation, chapterSlot, scenarioSlot, limits);
+      content.append(status, overview, ...(narratives ? [narratives.element] : []), navigation, chapterSlot, scenarioSlot, limits);
       section.append(content);
       renderChapter(); renderScenarios();
 
@@ -259,6 +262,7 @@ export function getFunctionTutorGuideBrowserSource(): string {
           toggle.title = projectAnalyzerText("function-guide-description");
           status.textContent = formatStatus(statusPresentation);
           overview.refreshLanguage?.();
+          narratives?.refreshLanguage();
           navigation.refreshLanguage?.();
           limits.refreshLanguage?.();
           // These are bounded Guide subviews. They retain chapter/scenario
@@ -269,6 +273,7 @@ export function getFunctionTutorGuideBrowserSource(): string {
         dispose() {
           if (disposed) return;
           disposed = true; active = false; scenarioGeneration += 1;
+          narratives?.dispose();
           unsubscribeWorkspace?.(); syncWorkspaceConsumer();
         }
       };

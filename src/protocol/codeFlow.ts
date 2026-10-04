@@ -8,6 +8,7 @@ import type { CodeFlowPresentationKey, FunctionLogicGapPresentationKey, Presenta
 import type { ArchitecturalLayerPayload } from "./functionArchitecture";
 import type { SourceNodeToken } from "./sourceNavigation";
 import type { ScenarioInputsRequest } from "./scenarioInputs";
+import type { FunctionNarrativesRequest } from "./functionNarratives";
 import type {
   CodeFlowOpenEvidenceRequest,
   FunctionLogicPayload
@@ -69,6 +70,8 @@ export type CodeFlowSelectSourceRequest = {
 
 /** Requests owned by the CodeFlow vertical slice. */
 export type CodeFlowRequest =
+  | { type: "codeFlow/requestFunctionNarratives"; payload: FunctionNarrativesRequest }
+  | { type: "codeFlow/cancelFunctionNarratives"; payload: FunctionNarrativesRequest }
   | { type: "codeFlow/requestScenarioInputs"; payload: ScenarioInputsRequest }
   | { type: "codeFlow/cancelScenarioInputs"; payload: ScenarioInputsRequest }
   | { type: "codeFlow/catalog"; payload: CodeFlowCatalogRequest }

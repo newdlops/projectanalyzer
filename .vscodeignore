@@ -4,6 +4,7 @@
 .github/**
 .vscode/**
 .vscode-test/**
+.local-models/**
 .codex/**
 .plan/**
 .codeidx/**

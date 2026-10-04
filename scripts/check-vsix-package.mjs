@@ -15,8 +15,7 @@ const MAX_ZIP_COMMENT_BYTES = 65_535;
 export const PACKAGE_BUDGET = Object.freeze({
   archiveBytes: 15 * MEBIBYTE,
   unpackedBytes: 35 * MEBIBYTE,
-  // Kotlin, shared Summary and fast source-input inference use bounded modules.
-  // Five new inference runtime files fit within this limit; byte budgets stay fixed.
+  // Keep modular runtime code bounded; compilation omits unused type-only artifacts.
   fileCount: 512,
   singleFileBytes: 12 * MEBIBYTE
 });

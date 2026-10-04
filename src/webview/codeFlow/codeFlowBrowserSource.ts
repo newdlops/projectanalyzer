@@ -141,6 +141,7 @@ export function getCodeFlowBrowserSource(): string {
     window.addEventListener("message", (event) => {
       const message = event.data;
       if (message?.type === "codeFlow/scenarioInputsLoaded") { acceptScenarioInputsResponse(message.payload); return; }
+      if (message?.type === "codeFlow/functionNarrativesLoaded") { acceptFunctionNarrativesResponse(message.payload); return; }
 
       if (message.type === "ui/language") {
         state.uiLanguage = message.payload?.language === "ko" ? "ko" : "en";
@@ -410,6 +411,14 @@ export function getCodeFlowBrowserSource(): string {
     /** Routes shared renderer drill actions to the dedicated editor tab. */
     function drillIntoFunction(target) {
       selectFunction(target);
+    }
+
+    /** Reloads only the current function's Host-issued token after bounded context eviction. */
+    function refreshFunctionNarrativeContext(sourceToken) {
+      if (!state.graph || state.detailLoading || !sourceToken) return;
+      state.detailLoading = true; state.detailError = undefined;
+      setCodeFlowStatus("building-flow"); render();
+      vscode.postMessage({ type: "codeFlow/selectSource", payload: { graphVersion: state.graph.version, sourceToken } });
     }
 
     /** Moves from the launcher to an explicit loading state. */

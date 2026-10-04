@@ -1,5 +1,30 @@
 # Function reading workspace
 
+## Source-reading LLM scenarios — October 2026
+
+Add one optional section immediately after the existing Function Guide summary.
+Keep VS Code theme tokens, native buttons, code/source actions, and the flat 4/8/12px
+spacing. The reading order is explicit generation → inferred purpose → up to four
+scenarios (conditions → numbered work → expected result → assumptions) → missing
+information. Each step has a separate source action. Generated prose is literal
+text and carries a persistent “LLM inference · execution unverified” label.
+
+Generation starts only on a button click. Show progress, cancel, completion, model
+absence, access denial, timeout, invalid output, context limits, failed request and
+stale snapshot. Keep prior results during locale changes, label their generation
+language, and offer generation in the new language without an automatic request.
+Never apply LLM descriptions to the existing scenario inputs or graph selection.
+Default to an on-demand local model, with native GGUF selection on first use. Keep
+connected VS Code models as a machine setting. Expired contexts offer an explicit
+reload action; reloading restores the source context without starting inference.
+
+Acceptance: Kotlin and parameterless functions offer the action; mount/focus/locale
+changes produce no inference; strict snippet references and bounded output; stale
+and late replies discarded; request cancellation on disposal; same-snapshot result
+reuse; plain-text rendering; keyboard source actions and retained focus. Inspect
+390×844, 768×1024 and 1440×900 production Webviews separately from unit checks.
+Model-absent and synthetic-result visual QA are distinct from actual LLM inference.
+
 ## Call reading colors — September 2026
 
 Refine the existing call workspace for developers reading a parent's scenario.

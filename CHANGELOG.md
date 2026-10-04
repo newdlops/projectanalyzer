@@ -4,6 +4,34 @@ All notable user-visible changes to Project Analyzer: Code Flow are recorded in
 this file. The changelog starts with the first distribution-documented build;
 earlier local development builds were not tracked here.
 
+## 0.0.1102 - 2026-10-05
+
+### Added
+
+- **LLM behavior scenarios** reads a function and bounded nearby code to describe
+  its purpose, conditions, ordered work, expected result and assumptions. Kotlin
+  and parameterless functions are supported; every step has a source action.
+- Run a local instruction-tuned GGUF model with llama.cpp only on explicit
+  generation. The process exits after completion/cancellation, and model changes
+  share one queue. Connected VS Code chat models remain an optional setting.
+
+### Improved
+
+- Cache narratives by source context and language, including nearby helpers and
+  constants. Cancel work on graph replacement/disposal; reload expired contexts
+  explicitly and reselect failed connected models without automatic inference.
+- Validate bounded JSON and snippet references, render prose as literal text,
+  preserve reading state across language changes, and label inference separately
+  from the existing checked static scenarios.
+- Omit unreferenced empty type-only JavaScript output to keep the package within
+  its existing file budget while retaining runtime exports and side effects.
+
+### Known limitations
+
+- LLM explanations can be inaccurate even when their source references validate.
+  Models are installed separately and are excluded from the VSIX. The four
+  previously recorded TypeScript test failures remain unchanged.
+
 ## 0.0.1101 - 2026-10-04
 
 ### Added

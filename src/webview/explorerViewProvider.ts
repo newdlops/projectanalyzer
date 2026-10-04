@@ -4,6 +4,7 @@
  */
 
 import * as vscode from "vscode";
+import type { FunctionNarrativeProvider } from "../application/functionNarratives";
 import { createLocalScenarioProvider } from "../application/scenarioInputs";
 import { localizeHost, type HostMessageKey } from "../localization/uiLanguage";
 import type { AnalysisBackend } from "../analyzer/core/analysisBackend";
@@ -65,6 +66,7 @@ export type ExplorerViewProviderDependencies = {
   openModuleFlow: () => Promise<ModuleFlowLaunchResultPayload>;
   sourceHighlighter: SourceHighlighter;
   workspaceGraphCoordinator: WorkspaceGraphCoordinator;
+  functionNarrativeProvider?: FunctionNarrativeProvider;
 };
 
 /** Temporary gate while the visual graph renderer is disconnected from the GUI. */
@@ -112,6 +114,7 @@ export class ExplorerViewProvider implements vscode.WebviewViewProvider {
     this.uiLanguage = dependencies.config.uiLanguage;
     this.codeFlowDelivery = new CodeFlowHostDelivery({
       scenarioInputProvider: createLocalScenarioProvider(),
+      functionNarrativeProvider: dependencies.functionNarrativeProvider,
       graphDelivery: this.graphDelivery,
       insightCache: this.codeFlowInsights,
       sourceNodeTokens: this.sourceNodeTokens,
@@ -178,6 +181,7 @@ export class ExplorerViewProvider implements vscode.WebviewViewProvider {
   public async publishGraph(graph: ProjectGraph): Promise<void> {
     const activation = this.graphDelivery.activate(graph);
     if (activation.changed) {
+      this.codeFlowDelivery.clearScenarioInputs();
       // A newly published object is a new immutable snapshot even when coarse
       // metadata happens to match an older analysis result.
       this.codeFlowInsights.clear();
@@ -204,6 +208,8 @@ export class ExplorerViewProvider implements vscode.WebviewViewProvider {
    * Handles typed Webview requests from the sidebar GUI.
    */
   private async handleMessage(message: WebviewRequest): Promise<void> {
+    if (message.type === "codeFlow/requestFunctionNarratives") { await this.codeFlowDelivery.requestFunctionNarratives(message.payload); return; }
+    if (message.type === "codeFlow/cancelFunctionNarratives") { this.codeFlowDelivery.cancelFunctionNarratives(message.payload); return; }
     if (message.type === "codeFlow/requestScenarioInputs") { await this.codeFlowDelivery.requestScenarioInputs(message.payload); return; }
     if (message.type === "codeFlow/cancelScenarioInputs") { this.codeFlowDelivery.cancelScenarioInputs(message.payload); return; }
     this.dependencies.logger.debug("sidebar.message", { type: message.type });
@@ -471,6 +477,7 @@ export class ExplorerViewProvider implements vscode.WebviewViewProvider {
    * Clears cached graph data and tells the GUI to reset its state.
    */
   private async clearCache(): Promise<void> {
+    this.codeFlowDelivery.clearScenarioInputs();
     // Invalidate all in-memory navigation authority before the asynchronous
     // persisted-cache operation can interleave with another Webview request.
     this.graphDelivery.clear();

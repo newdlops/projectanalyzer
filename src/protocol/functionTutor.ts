@@ -12,6 +12,7 @@ import type { FunctionTutorFactPresentationKey, FunctionTutorGapPresentationKey,
 
 import type { FunctionFrameworkBehaviorPayload } from "./frameworkBehavior";
 import type { PythonScenarioProgram } from "../shared/pythonScenario";
+import type { SourceNodeToken } from "./sourceNavigation";
 
 export type FunctionTutorPayloadCertainty = "exact" | "inferred" | "unknown";
 export type FunctionTutorStaticValuePayload =
@@ -59,6 +60,8 @@ export type FunctionTutorOperationPayload =
   | { kind: "unsupported"; summary: string; reason: string };
 
 export type FunctionTutorPayload = {
+  /** An explicit source-reading action; available for symbolic languages and parameterless functions too. */
+  narratives?: { available: boolean; contextId?: string; sourceToken?: SourceNodeToken };
   /** Offered only by a Host with a user-initiated model provider. */
   inputSuggestions?: { available: boolean };
   /** v3 adds invocation semantics; v2 readers remain valid because fields are optional. */

@@ -11,3 +11,4 @@ engine/analyzer/bin/
 .codeidx/
 .portmanager/
 /.vscode/
+/.local-models/

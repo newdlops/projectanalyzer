@@ -1380,6 +1380,40 @@ Webview는 Project Graph, 파일 시스템, VS Code API에 직접 접근하지 �
 - `webview/codeFlow/tutor/summary`는 optional payload를 runtime 검증하고 기존 Guide에 렌더링
 - representative projection은 공유 Workspace의 `resultRevision`에만 의존하며 I/O·추가 계산 없음
 
+#### `application/functionNarratives` 및 `webview/functionNarratives`
+
+- `buildFunctionNarrativeContext`는 선택 함수의 immutable source snapshot에서 최대 5개,
+  합계 18,000자 스니펫을 구성한다. 본문 160줄/10,000자, 생략 시 별도 끝 20줄/2,000자,
+  앞의 문서·상수 16줄/2,000자와 같은 파일의 직접 helper 최대 60줄/2,000자를 사용한다.
+  raw 파일 경로와 analyzer identity를 LLM 또는 Webview에 전달하지 않는다.
+- `FunctionNarrativeProvider.generate`는 사용자 요청으로만 호출되는 교체 가능한 LLM 경계다.
+  기본 local adapter는 PC에 설치한 `llama-completion`과 사용자가 선택한 instruction-tuned
+  GGUF를 명시적 요청에만 실행한다. 8,192 token context, 출력 1,600 token, CPU thread 2개,
+  offline mode와 JSON grammar를 사용한다. 프로세스는 요청 종료/취소 때 해제하며 공급자
+  설정 변경을 포함해 한 Extension Host에서 하나만 실행한다. private 임시 prompt는 삭제한다.
+  선택 가능한 VS Code adapter는 연결된 Chat model의 token 한도를 확인한 뒤 실제
+  `sendRequest`/response stream을 사용한다. 모델 자동 다운로드·학습·API key 보관은 하지 않는다.
+- 응답은 최대 24,000자 JSON, summary 1,200자, 시나리오 1–4개, 각 step 1–5개,
+  title 160자, 기타 설명 600자, 조건·가정 각 4개, 미확인 부분 6개로 제한한다.
+  각 step은 제공한 snippet ID와 그 범위 안의 최대 21줄을 참조해야 한다. 이 검사는
+  위치와 형식의 유효성만 확인하며 LLM 설명의 사실성·경로 도달·실행을 검증하지 않는다.
+- 요청 `codeFlow/requestFunctionNarratives` / `codeFlow/cancelFunctionNarratives`는 현재
+  graphVersion, opaque flowId, nonnegative safe requestId만 받는다. Host는 최근 전달한
+  함수 8개를 유지하며 단일 pending inference, 45초 timeout, 취소·중복 ID·root/graph
+  교체를 처리한다. 주변 코드까지 포함한 content hash와 locale로 검증된 결과를 재사용한다.
+  오래된 함수 context가 8개 상한에서 만료되면 Host-issued source token으로 명시적으로
+  다시 불러올 수 있다. 다시 불러오기는 추론을 시작하지 않는다.
+- 응답 `codeFlow/functionNarrativesLoaded`는 status, modelName, 생성 언어, cacheHit,
+  제한 여부, narrative, snippet 범위와 각 step의 Host-issued evidence token만 포함한다.
+  source range를 새 editor token으로 바꾸며 브라우저가 경로·prompt·모델 ID를 정하지 못한다.
+- Guide Summary 뒤의 optional section은 Kotlin/symbolic-only 및 인자 없는 함수도 제공한다.
+  조건 → 동작 순서 → 예상 결과 → 가정/미확인 부분을 literal text로 표시하며 항상
+  LLM 추론·실제 실행 미검증을 명시한다. 기존 값·경로·graph에 설명을 적용하지 않는다.
+  모델 없음·권한 거부·취소·timeout·invalid-response·입력 한도·failed·stale 및 두 locale 지원.
+  초기 mount, focus와 언어 전환은 LLM을 호출하지 않는다.
+
+공개 API와 실제 모델 연결 조건은 `docs/FUNCTION_NARRATIVES.md`를 따른다.
+
 #### `shared/functionScenarios`
 
 - public `createFunctionExecutionScenarioModeler`와 schema 1 계약으로 기존 Workspace

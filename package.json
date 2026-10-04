@@ -2,7 +2,7 @@
   "name": "function-analysis",
   "displayName": "%extension.displayName%",
   "description": "%extension.description%",
-  "version": "0.0.1101",
+  "version": "0.0.1102",
   "publisher": "newdlops",
   "private": true,
   "license": "MIT",
@@ -97,6 +97,29 @@
     "configuration": {
       "title": "%configuration.title%",
       "properties": {
+        "projectAnalyzer.functionNarratives.provider": {
+          "type": "string",
+          "enum": [
+            "local",
+            "vscode"
+          ],
+          "default": "local",
+          "scope": "machine",
+          "description": "%configuration.functionNarratives.provider%"
+        },
+        "projectAnalyzer.functionNarratives.localBinary": {
+          "type": "string",
+          "default": "",
+          "scope": "machine",
+          "restricted": true,
+          "description": "%configuration.functionNarratives.localBinary%"
+        },
+        "projectAnalyzer.functionNarratives.localModel": {
+          "type": "string",
+          "default": "",
+          "scope": "machine",
+          "description": "%configuration.functionNarratives.localModel%"
+        },
         "projectAnalyzer.enabled": {
           "type": "boolean",
           "default": true,
@@ -227,7 +250,7 @@
     "engine:stage": "node scripts/stage-runtime-engine.mjs",
     "engine:test": "cargo test --manifest-path engine/analyzer/Cargo.toml",
     "dev:prepare": "npm run engine:build && npm run compile",
-    "compile": "node scripts/clean-output.mjs && tsc -p ./tsconfig.json",
+    "compile": "node scripts/clean-output.mjs && tsc -p ./tsconfig.json && node scripts/prune-type-only-output.mjs",
     "watch": "tsc -watch -p ./tsconfig.json",
     "check": "tsc -p ./tsconfig.json --noEmit",
     "benchmark:neural": "npm run compile && node scripts/benchmark-neural-scenarios.mjs",

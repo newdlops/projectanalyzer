@@ -47,6 +47,7 @@ export function getFunctionTutorIntegrationBrowserSource(): string {
           );
         },
         onOpenEvidence(token) { if (token) openLogicEvidence(token); },
+        onRefreshFunction(token) { if (token) refreshFunctionNarrativeContext(token); },
         onClearGuideFocus() { comprehension.clearGuideFocus(); },
         onClearScenarioPreview() { comprehension.clearGuideFocus(); }
       });

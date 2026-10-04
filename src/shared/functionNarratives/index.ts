@@ -1,0 +1,3 @@
+/** Public portable narrative contracts and runtime validation; callers do not depend on internal files. */
+export type { FunctionNarrative, FunctionNarrativeScenario, FunctionNarrativeStep, FunctionNarrativeSource, FunctionNarrativeContext, FunctionNarrativeSnippet } from "./types";
+export { isFunctionNarrative } from "./validation";

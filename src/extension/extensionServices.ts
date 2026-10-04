@@ -20,6 +20,7 @@ import { readProjectAnalyzerConfig } from "../vscode/configuration";
 import { SourceHighlightService } from "../vscode/sourceHighlightService";
 import { createWorkspaceAnalysisCacheKey } from "../vscode/workspaceFingerprint";
 import { VsCodeWorkspaceFileSystem } from "../vscode/workspaceFileSystem";
+import { createConfiguredFunctionNarrativeProvider } from "../vscode/configuredFunctionNarrativeProvider";
 import { ExplorerGraphPanelProvider } from "../webview/explorerGraphPanelProvider";
 import { ExplorerViewProvider } from "../webview/explorerViewProvider";
 import { FunctionVisualizerPanelProvider } from "../webview/functionVisualizer";
@@ -45,6 +46,7 @@ export type ExtensionServices = {
 export function createExtensionServices(context: vscode.ExtensionContext): ExtensionServices {
   const logger = createProjectAnalyzerLogger(context);
   const config = readProjectAnalyzerConfig();
+  const functionNarrativeProvider = createConfiguredFunctionNarrativeProvider();
   const sourceHighlighter = new SourceHighlightService();
   context.subscriptions.push(sourceHighlighter);
   const fileSystem = new VsCodeWorkspaceFileSystem(config);
@@ -86,6 +88,7 @@ export function createExtensionServices(context: vscode.ExtensionContext): Exten
     sourceHighlighter
   });
   const functionVisualizerPanelProvider = new FunctionVisualizerPanelProvider({
+    functionNarrativeProvider,
     config,
     logger,
     sourceHighlighter
@@ -105,6 +108,7 @@ export function createExtensionServices(context: vscode.ExtensionContext): Exten
   });
   context.subscriptions.push(moduleVisualizerPanelProvider);
   const explorerViewProvider = new ExplorerViewProvider({
+    functionNarrativeProvider,
     context,
     analyzer,
     cacheStore,

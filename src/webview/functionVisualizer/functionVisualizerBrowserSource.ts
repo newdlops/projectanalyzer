@@ -73,6 +73,7 @@ export function getFunctionVisualizerBrowserSource(): string {
       if (!message || typeof message.type !== "string") return;
       if (message.type === "functionCalls/loaded") { callMode.accept(message.payload); return; }
       if (message.type === "codeFlow/scenarioInputsLoaded") { acceptScenarioInputsResponse(message.payload); return; }
+      if (message.type === "codeFlow/functionNarrativesLoaded") { acceptFunctionNarrativesResponse(message.payload); return; }
 
       if (message.type === "ui/language") {
         const language = message.payload?.language === "ko" ? "ko" : "en";
@@ -230,6 +231,17 @@ export function getFunctionVisualizerBrowserSource(): string {
           sourceToken: target.sourceToken
         }
       });
+    }
+
+    /** Restores an evicted source context through the existing authorized source-token request. */
+    function refreshFunctionNarrativeContext(sourceToken) {
+      if (!state.graph || state.loading || !sourceToken) return;
+      const entry = state.history.find((candidate) => candidate.target.sourceToken === sourceToken);
+      state.pendingTarget = { sourceToken, label: entry?.target.label || projectAnalyzerText("called-function") };
+      state.loading = true; state.error = undefined;
+      setVisualizerStatus(projectAnalyzerText("building-function", { label: state.pendingTarget.label }), true);
+      renderNavigation();
+      vscode.postMessage({ type: "codeFlow/selectSource", payload: { graphVersion: state.graph.version, sourceToken } });
     }
 
     /** Moves through already-built function details without another Host request. */

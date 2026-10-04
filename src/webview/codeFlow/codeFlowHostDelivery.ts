@@ -15,6 +15,9 @@ import {
   buildFunctionTutorModel
 } from "../../application/codeFlow";
 import { analyzeFunctionLogic } from "../../analyzer/functionLogic";
+import { buildFunctionNarrativeContext, type FunctionNarrativeProvider } from "../../application/functionNarratives";
+import type { FunctionNarrativesRequest } from "../../protocol/functionNarratives";
+import { FunctionNarrativesHostDelivery } from "./functionNarrativesHostDelivery";
 import { parseScenarioInputSuggestions, ScenarioInputError, type ScenarioInputProvider } from "../../application/scenarioInputs";
 import type { FunctionTutorBuildModel } from "../../application/codeFlow/functionTutor";
 import type { FunctionTutorPayload } from "../../protocol/functionTutor";
@@ -51,6 +54,7 @@ export type CodeFlowHostDeliveryDependencies = {
   getUiLanguage(): UiLanguage;
   projectionOptions?: SymbolCodeFlowProjectionOptions;
   scenarioInputProvider?: ScenarioInputProvider;
+  functionNarrativeProvider?: FunctionNarrativeProvider;
   readSourceText(filePath: string): Promise<string | undefined>;
   openEvidenceLocation(location: CodeFlowEvidenceLocation): Promise<void>;
   postMessage(message: ExtensionResponse): Promise<void>;
@@ -71,11 +75,21 @@ export class CodeFlowHostDelivery {
     lastRequestId: number;
   }>();
   private pendingInputs?: { request: ScenarioInputsRequest; controller: AbortController };
+  private readonly narratives: FunctionNarrativesHostDelivery;
 
-  public constructor(private readonly dependencies: CodeFlowHostDeliveryDependencies) {}
+  public constructor(private readonly dependencies: CodeFlowHostDeliveryDependencies) {
+    this.narratives = new FunctionNarrativesHostDelivery({ provider: dependencies.functionNarrativeProvider,
+      isActive: (version) => Boolean(this.resolveActiveGraph(version)), getLanguage: dependencies.getUiLanguage,
+      createEvidence: (filePath, range) => dependencies.evidenceTokens.createToken(filePath, range), postMessage: dependencies.postMessage });
+  }
+
+  /** Both explicit LLM actions share this surface's snapshot and disposal lifecycle. */
+  public requestFunctionNarratives(request: FunctionNarrativesRequest): Promise<void> { return this.narratives.request(request); }
+  public cancelFunctionNarratives(request: FunctionNarrativesRequest): void { this.narratives.cancel(request); }
 
   /** Cancels in-flight context/model work when its owning panel or root expires. */
   public clearScenarioInputs(): void {
+    this.narratives.clear();
     this.pendingInputs?.controller.abort(); this.pendingInputs = undefined; this.inputContexts.clear();
   }
 
@@ -313,6 +327,13 @@ export class CodeFlowHostDelivery {
       this.dependencies.projectionOptions?.originLimit,
       tutorModel
     );
+    if (payload.logic?.tutor && sourceText && this.dependencies.functionNarrativeProvider) {
+      const helperIds = new Set(tutorModel.context.callees.filter((callee) => callee.kind === "local").map((callee) => callee.nodeId));
+      const context = buildFunctionNarrativeContext(node, sourceText, active.graph.nodes.filter((candidate) => helperIds.has(candidate.id)));
+      const contextId = this.narratives.register(payload.id, active.version, context, node.filePath);
+      payload.logic.tutor.narratives = { available: Boolean(contextId), ...(contextId ? { contextId,
+        sourceToken: this.dependencies.sourceNodeTokens.createToken(node.id) } : {}) };
+    }
     if (payload.logic?.tutor && sourceText && this.dependencies.scenarioInputProvider
       && tutorModel.declaration.program.evaluationMode !== "symbolic-only") {
       for (const [id, entry] of this.inputContexts) if (entry.graphVersion !== active.version) this.inputContexts.delete(id);

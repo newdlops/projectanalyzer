@@ -4,6 +4,7 @@
  */
 
 import * as vscode from "vscode";
+import type { FunctionNarrativeProvider } from "../../application/functionNarratives";
 import { createLocalScenarioProvider } from "../../application/scenarioInputs";
 import { CodeFlowInsightCache } from "../../application/codeFlow";
 import type { CodeFlowSelectSourceRequest } from "../../protocol/codeFlow";
@@ -32,6 +33,7 @@ export type FunctionVisualizerPanelProviderDependencies = {
   config: ProjectAnalyzerConfig;
   logger: ProjectAnalyzerLogger;
   sourceHighlighter: SourceHighlighter;
+  functionNarrativeProvider?: FunctionNarrativeProvider;
 };
 
 /** One latest-wins root visualization waiting for a ready Webview. */
@@ -90,6 +92,7 @@ export class FunctionVisualizerPanelProvider {
       projectionOptions: dependencies.config.codeFlow,
       readSourceText,
       scenarioInputProvider: createLocalScenarioProvider(),
+      functionNarrativeProvider: dependencies.functionNarrativeProvider,
       openEvidenceLocation: ({ filePath, range }) =>
         dependencies.sourceHighlighter.revealRange(filePath, range),
       postMessage: (message) => this.postMessage(message)
@@ -152,6 +155,8 @@ export class FunctionVisualizerPanelProvider {
   /** Handles only the shared requests meaningful inside this focused panel. */
   private async handleMessage(message: WebviewRequest): Promise<void> {
     if (message.type === "functionCalls/load") { await this.functionCallsDelivery.load(message.payload); return; }
+    if (message.type === "codeFlow/requestFunctionNarratives") { await this.codeFlowDelivery.requestFunctionNarratives(message.payload); return; }
+    if (message.type === "codeFlow/cancelFunctionNarratives") { this.codeFlowDelivery.cancelFunctionNarratives(message.payload); return; }
     if (message.type === "codeFlow/requestScenarioInputs") { await this.codeFlowDelivery.requestScenarioInputs(message.payload); return; }
     if (message.type === "codeFlow/cancelScenarioInputs") { this.codeFlowDelivery.cancelScenarioInputs(message.payload); return; }
     this.dependencies.logger.debug("functionVisualizer.message", { type: message.type });
