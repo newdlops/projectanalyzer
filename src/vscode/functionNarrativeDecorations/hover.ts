@@ -23,6 +23,7 @@ export function createNarrativeSourceHover(api: typeof vscode, presentation: Fun
   for (const [index, references] of scenarios) {
     const scenario = references[0].scenario;
     hover.appendMarkdown("---\n\n### "); paragraph(`${index + 1}. ${scenario.title}`);
+    if (scenario.explanation) paragraph(scenario.explanation);
     facts(ko ? "조건" : "Conditions", scenario.when);
     for (const reference of references) {
       hover.appendMarkdown("**"); hover.appendText(`LLM ${reference.label} · L${reference.step.source.startLine}–${reference.step.source.endLine}`);

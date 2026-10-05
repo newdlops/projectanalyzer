@@ -12,6 +12,13 @@ export function getFunctionNarrativesStyles(): string {
     .logic-narrative-steps { margin: 0; padding-left: 22px; display: grid; gap: 8px; min-width: 0; }
     .logic-narrative-steps li, .logic-narrative-facts li { overflow-wrap: anywhere; line-height: 1.5; }
     .logic-narrative-source { margin-top: 4px; }
+    .logic-narrative-paragraph { white-space: pre-line; }
+    .logic-narrative-evidence { min-width: 0; font-size: var(--logic-font-small); }
+    .logic-narrative-evidence > summary { cursor: pointer; padding: 4px 0; line-height: 1.5; color: var(--vscode-descriptionForeground); }
+    .logic-narrative-evidence > summary:hover { color: var(--vscode-foreground); }
+    .logic-narrative-evidence > summary:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-offset: 2px; }
+    .logic-narrative-evidence-body { display: grid; gap: 10px; padding-top: 8px; min-width: 0; }
+    .logic-function-narratives [hidden] { display: none !important; }
     .logic-function-narratives button { min-height: 30px; white-space: normal; overflow-wrap: anywhere; }
     .logic-function-narratives button:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-offset: 2px; }
     @container function-guide (max-width: 560px) { .logic-narrative-facts { grid-template-columns: 1fr; } }

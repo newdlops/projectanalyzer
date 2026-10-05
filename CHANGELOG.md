@@ -4,6 +4,27 @@ All notable user-visible changes to Project Analyzer: Code Flow are recorded in
 this file. The changelog starts with the first distribution-documented build;
 earlier local development builds were not tracked here.
 
+## 0.0.1104 - 2026-10-05
+
+### Improved
+
+- Open Function Guide with a short purpose and one explicit explanation action.
+  Move full summaries, reading questions and static scenarios into closed Analysis
+  details; keep graph zoom, outline, Inspector and legend in closed Tools.
+- Read generated scenarios as connected paragraphs, with cited steps inside
+  closed Source evidence. Local output requires a bounded explanation field;
+  older responses remain readable. Native source hovers also include the paragraph.
+- Show Guide first on narrow screens and pause its scenario consumer when Analysis
+  details closes. Preserve Guide mode, separate scroll positions and evidence
+  disclosures across relayouts and locale changes, with visible focus targets
+  during generation and expired-context recovery.
+
+### Known limitations
+
+- Small local models can produce incorrect reasoning despite valid sentence-form
+  output and source references. Inference remains unverified. The four previously
+  recorded TypeScript test failures remain unchanged.
+
 ## 0.0.1103 - 2026-10-05
 
 ### Added

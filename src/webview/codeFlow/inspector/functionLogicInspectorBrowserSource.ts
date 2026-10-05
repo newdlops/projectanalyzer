@@ -22,7 +22,7 @@ export function getFunctionLogicInspectorBrowserSource(): string {
       if (existing) return existing;
       const wideQuery = typeof window.matchMedia === "function"
         ? window.matchMedia("(min-width: 1040px)") : undefined;
-      const created = { open: wideQuery ? wideQuery.matches : true, mode: "inspect", tab: "code", scrollTop: 0, scrollByTab: {} };
+      const created = { open: wideQuery ? wideQuery.matches : true, mode: "inspect", tab: "code", scrollTop: 0, scrollByTab: {}, defaultGuidePending: true };
       functionLogicInspectorStateBySession.set(sessionKey, created);
       while (functionLogicInspectorStateBySession.size > MAX_FUNCTION_LOGIC_INSPECTOR_SESSIONS) {
         const oldest = functionLogicInspectorStateBySession.keys().next().value;
@@ -35,6 +35,9 @@ export function getFunctionLogicInspectorBrowserSource(): string {
     /** Builds a right-side drawer whose mode survives graph relayouts. */
     function createFunctionLogicInspector(sessionKey) {
       const state = readFunctionLogicInspectorState(sessionKey);
+      // Construction precedes Guide registration. Save the desired mode before
+      // the temporary guideless shell falls back to Inspect during a relayout.
+      const retainedGuideMode = state.mode === "guide";
       functionLogicInspectorSequence += 1;
       const inspectorId = "logic-inspector-" + functionLogicInspectorSequence;
       const workspace = document.createElement("div");
@@ -179,7 +182,13 @@ export function getFunctionLogicInspectorBrowserSource(): string {
           if (!guide) return;
           scroll.append(guide.section);
           guide.toggle.addEventListener("click", () => openGuide(true));
-          setDrawer(state.open, state.mode, false);
+          // Only the first registration chooses the reading surface. Retained
+          // sessions preserve explicit tabs/closed state when the graph relayouts.
+          const nextMode = state.defaultGuidePending || retainedGuideMode ? "guide" : state.mode;
+          if (state.defaultGuidePending) { state.defaultGuidePending = false; state.open = true; }
+          // Keep the temporary shell's actual surface until setDrawer captures
+          // its scroll. Prematurely choosing Guide would overwrite its offset.
+          setDrawer(state.open, nextMode, false);
         },
         /** Opens inspect mode after a direct node action without stealing focus. */
         open() { tabs.select("code", false); setDrawer(true, "inspect", false); },

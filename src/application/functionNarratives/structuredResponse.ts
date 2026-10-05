@@ -13,8 +13,8 @@ export function buildFunctionNarrativePrompt(context: FunctionNarrativeContext, 
     "All descriptions are LLM inference, never verified execution or exhaustive coverage. Use original one-based line numbers for each step's source.",
     buildFunctionNarrativeExplanationGuidance(language),
     `Write natural-language fields in ${language === "ko" ? "Korean" : "English"}; preserve code identifiers. Return only JSON, without Markdown.`,
-    'Schema: {"summary":"up to 1200 chars","scenarios":[{"title":"up to 160 chars","when":["condition"],"steps":[{"text":"operation","reason":"why this condition or calculation follows from the scenario inputs","effect":"changed value, next statement or skipped work","source":{"snippetId":"root","startLine":1,"endLine":1}}],"outcome":"expected result","assumptions":["unverified prerequisite"]}],"limitations":["missing information"]}.',
-    "At most 4 conditions and 4 assumptions per scenario, 5 steps per scenario and 6 limitations. Each field except summary/title is at most 600 characters. Every cited range must be inside the named supplied snippet, and at most 21 lines."
+    'Schema: {"summary":"up to 1200 chars","scenarios":[{"title":"up to 160 chars","when":["condition"],"explanation":"connected prose, up to 1800 chars","steps":[{"text":"operation","reason":"why this condition or calculation follows from the scenario inputs","effect":"changed value, next statement or skipped work","source":{"snippetId":"root","startLine":1,"endLine":1}}],"outcome":"expected result","assumptions":["unverified prerequisite"]}],"limitations":["missing information"]}.',
+    "At most 4 conditions and 4 assumptions per scenario, 5 steps per scenario and 6 limitations. Each field except summary/title/explanation is at most 600 characters. Every cited range must be inside the named supplied snippet, and at most 21 lines."
   ].join("\n");
   return [instructions, JSON.stringify(numberFunctionNarrativeContext(context))];
 }

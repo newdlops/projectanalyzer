@@ -1,5 +1,52 @@
 # 함수 따라 읽기 UI 검증
 
+## 0.0.1104: 간단한 기본 화면과 문장형 설명
+
+2026-10-05, Function Visualizer와 공용 Function Logic 렌더러를 함께 변경했다.
+기본 header는 Guide·전체 보기와 접힌 도구를 표시한다. 목차·Inspector·확대·범례는 도구에서
+펼친다. Guide는 짧은 source-backed purpose와 명시적 설명 생성부터 보여주고, 전체 정적 요약·
+질문·경로 시나리오는 접힌 분석 상세에서 읽는다. 좁은 화면에서는 Guide를 그래프 위에 둔다.
+LLM 시나리오는 연결된 문단으로 읽고 단계별 소스 근거는 별도로 펼친다.
+
+| 검증 경계 | 실제 확인 |
+| --- | --- |
+| TypeScript 전체 unit | 905개 중 901개 통과, 기존 실패 4개 유지 |
+| Rust / 패키징 script / 타입 | 82/82, 13/13, typecheck 통과 |
+| 회귀 재현 | Guide open/closed·Guide/Code 독립 스크롤 재배치, pending/stale 포커스 RED→GREEN |
+| 소스 표시 | 문단을 untrusted Markdown의 literal text로 전달, 기존 native lifecycle 테스트 5/5 |
+| 기본 production HTML | Safari 390×844, 768×1024, 1440×900에서 새 기본 화면과 줄바꿈 확인 |
+| 생성 결과 | 실제 3B Kotlin 응답을 재생해 문단·생성 언어·미검증 표시와 접힌 소스 근거 확인 |
+| 긴 설명 | synthetic 4개×5단계와 긴 문단을 같은 세 크기에서 확인; 문서 가로 overflow 없음 |
+| 상호작용 | 도구 열기/닫기, 확대·전체 보기·목차, 근거 펼침·locale 유지, 생성/취소 확인 |
+| 예외 상태 | synthetic 모델 없음·invalid-response·stale/명시적 reload, 인자 없는 Kotlin, 분석 로딩·실패·정상 복원 확인 |
+
+계측된 화면 오류는 0개였다. 기본 화면의 시나리오 workspace acquire는 0이며, 부모 분석 상세를
+닫으면 consumer를 해제하고 locale 변경 때 재시작하지 않는 동작은 production browser source의
+unit test로 확인했다. 실제 로컬 모델 추론 4회는 HTML 재생과 별도로 실행했고 의미 오류도
+기록했다. 자세한 모델 응답과 한계는 [FUNCTION_NARRATIVES](FUNCTION_NARRATIVES.md)를 따른다.
+
+UI 디자인 워크플로와 Impeccable의 distill/craft 검토를 적용했다. 기계 검사에는 기존 Guide의
+선택 경로를 표시하는 3px 왼쪽 테두리 1건이 남았다. 이는 기존 의미 표시를 유지한 항목이다.
+Web Interface Guidelines의 focus/숨김/native disclosure/줄바꿈 기준으로 변경 코드를 검토했고
+리뷰에서 발견한 hidden action focus와 retained Guide 상태 문제를 수정했다. 이번 검증에서
+light theme·forced colors·전체 키보드 사용자 흐름을 별도로 재검사했다는 의미는 아니다.
+
+0.0.1104를 기본 VS Code에 설치하고 이 프로젝트의 Kotlin `classifyOrder`를 열었다.
+새 기본 도구와 열린 Guide, 접힌 분석 상세를 확인했으며 사용자 설정의 실제 1.5B 모델로
+한국어 설명 3개를 생성했다. 생성 중 포커스는 취소에 있었고 완료 후 생성 버튼은 숨겨졌다.
+근거를 펼쳐 Tab으로 소스 버튼에 이동한 뒤 Enter로 원본 L3–4를 열었다. 편집기의 native
+hover에서 시나리오 문단과 단계 해설을 확인했고, Guide로 돌아와 근거를 다시 접었다.
+추론 완료와 소스/hover 확인 뒤 `llama-completion` 프로세스가 남아 있지 않았다.
+이 확인은 소스 위치와 UI 연결 검증이다. 모델이 비활성/priority 단계에도 ordinary 줄을
+인용하는 의미 오류가 있었으므로 내용 정확성은 별도 검토해야 한다.
+
+임시 production fixture와 실제 모델 보고서는 `/private/tmp/projectanalyzer-llm-visual-qa.cjs`,
+`/private/tmp/projectanalyzer-simple-prose-report.json`에 있다. 테스트·패키징 로그는
+`/private/tmp/projectanalyzer-simple-ui-final-unit.log`, `projectanalyzer-simple-ui-rust.log`,
+`projectanalyzer-simple-ui-package.log`에 보존했다. fixture와 모델은 제품 배포에 포함하지 않는다.
+
+## 0.0.1088: 함수 따라 읽기 개편 기록
+
 2026-09-07, Function Visualizer와 공용 Function Logic 렌더러의 읽기 흐름 개편 기록이다.
 
 ## 변경된 사용자 흐름

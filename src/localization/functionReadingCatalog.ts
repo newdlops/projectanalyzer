@@ -3,6 +3,8 @@ export function getFunctionReadingCatalogSource(): string {
   return /* js */ `
     Object.assign(projectAnalyzerUiCopy.en, {
       "reading-outline": "Outline", "reading-title": "Read the function",
+      "reading-tools": "Tools", "reading-analysis": "Analysis details",
+      "reading-purpose-fallback": "Follow the graph to read the function, or generate a plain-language explanation.",
       "reading-description": "Follow source order. Select a step to find it on the graph.",
       "reading-show": "Show source outline", "reading-hide": "Hide source outline",
       "reading-filter-label": "Filter source steps", "reading-filter-all": "All",
@@ -25,6 +27,8 @@ export function getFunctionReadingCatalogSource(): string {
     });
     Object.assign(projectAnalyzerUiCopy.ko, {
       "reading-outline": "코드 목차", "reading-title": "함수 따라 읽기",
+      "reading-tools": "도구", "reading-analysis": "분석 상세",
+      "reading-purpose-fallback": "흐름도를 따라 함수를 읽거나, 문장형 설명을 생성해 보세요.",
       "reading-description": "소스 순서대로 읽어 보세요. 단계를 선택하면 그래프에서 찾아줍니다.",
       "reading-show": "코드 목차 펼치기", "reading-hide": "코드 목차 접기",
       "reading-filter-label": "코드 단계 필터", "reading-filter-all": "전체",

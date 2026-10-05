@@ -7,6 +7,28 @@ import { getFunctionLogicScenarioWorkspaceBrowserSource } from "../../webview/co
 import { installSidebarWebviewRuntime } from "./helpers/sidebarWebviewRuntime";
 import { installNativeDisclosureTasks } from "./helpers/nativeDisclosureRuntime";
 
+test("advanced Guide reading is closed initially and closing it releases only the Guide scenario consumer", () => {
+  const runtime = installSidebarWebviewRuntime();
+  try {
+    const { panel, acquisitions, releases } = createGuide();
+    document.getElementById("guide-root")!.append(panel.section);
+    panel.setActive(true);
+    assert.equal(runtime.getRenderedOpenByClassNth("guide-root", "logic-guide-analysis", 0), false);
+    assert.equal(acquisitions(), 0);
+    // A retained inner disclosure is not visible or a reason to compute while its parent is closed.
+    runtime.setRenderedOpenByClassNth("guide-root", "logic-guide-scenarios", 0, true);
+    assert.equal(acquisitions(), 0);
+    runtime.setRenderedOpenByClassNth("guide-root", "logic-guide-analysis", 0, true);
+    assert.equal(acquisitions(), 1);
+    runtime.setRenderedOpenByClassNth("guide-root", "logic-guide-analysis", 0, false);
+    assert.equal(releases(), 1);
+    panel.refreshLanguage();
+    assert.equal(runtime.getRenderedOpenByClassNth("guide-root", "logic-guide-analysis", 0), false);
+    assert.equal(acquisitions(), 1);
+    panel.dispose(); assert.equal(releases(), 1);
+  } finally { runtime.restore(); }
+});
+
 test("opening Guide scenarios settles native toggle tasks and keeps its disclosure mounted", () => {
   const runtime = installSidebarWebviewRuntime();
   try {
@@ -14,6 +36,7 @@ test("opening Guide scenarios settles native toggle tasks and keeps its disclosu
     const { panel, acquisitions } = createGuide();
     document.getElementById("guide-root")!.append(panel.section);
     panel.setActive(true);
+    runtime.setRenderedOpenByClassNth("guide-root", "logic-guide-analysis", 0, true);
     const disclosureId = runtime.getRenderedIdentityByClassNth("guide-root", "logic-guide-scenarios", 0);
     const disclosure = document.getElementById(disclosureId) as HTMLDetailsElement;
     disclosure.open = true;
@@ -33,6 +56,7 @@ test("Guide activation is idempotent and releases only its own workspace consume
     const { panel, acquisitions, releases, workspace } = createGuide();
     document.getElementById("guide-root")!.append(panel.section);
     panel.setActive(true);
+    runtime.setRenderedOpenByClassNth("guide-root", "logic-guide-analysis", 0, true);
     runtime.setRenderedOpenByClassNth("guide-root", "logic-guide-scenarios", 0, true);
     workspace.acquire(); // A separate Values consumer must survive Guide updates.
     const acquired = acquisitions();

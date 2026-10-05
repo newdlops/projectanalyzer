@@ -170,6 +170,15 @@ export function getFunctionLogicGraphStyles(): string {
       font-size: var(--logic-font-body);
     }
 
+    .logic-graph-tools { grid-column: 1 / -1; min-width: 0; font-size: var(--logic-font-small); }
+    .logic-graph-tools > summary { cursor: pointer; padding: 4px 0; color: var(--vscode-descriptionForeground); line-height: 1.5; }
+    .logic-graph-tools > summary:hover { color: var(--vscode-foreground); }
+    .logic-graph-tools > summary:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-offset: 2px; }
+    .logic-graph-tools-body { display: grid; gap: 8px; min-width: 0; padding: 12px 0; border-bottom: 1px solid var(--vscode-panel-border); }
+    @media (pointer: coarse) {
+      .logic-graph-tools > summary, .logic-guide-analysis > summary, .logic-narrative-evidence > summary { min-height: 44px; box-sizing: border-box; display: list-item; align-content: center; }
+    }
+
     .logic-graph-control-group {
       display: inline-flex;
       min-width: 0;

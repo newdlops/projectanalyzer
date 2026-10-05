@@ -302,6 +302,14 @@ export function getFunctionLogicInspectorStyles(): string {
       .logic-graph-workspace.inspector-open .logic-inspector-drawer {
         display: grid;
       }
+
+      /* Put reading first in narrow panes so generation is discoverable before
+         scrolling through a large canvas. Direct node inspection keeps graph first. */
+      .logic-graph-workspace.inspector-open:has(> .logic-inspector-drawer[data-inspector-mode="guide"]) {
+        grid-template-rows: var(--logic-inspector-stacked-height) var(--logic-workspace-height);
+      }
+      .logic-graph-workspace.inspector-open > .logic-inspector-drawer[data-inspector-mode="guide"] { grid-row: 1; border-top: 0; border-bottom: 1px solid var(--vscode-panel-border); }
+      .logic-graph-workspace.inspector-open:has(> .logic-inspector-drawer[data-inspector-mode="guide"]) > .logic-reading-surface { grid-row: 2; }
     }
 
     @media (prefers-reduced-motion: reduce) {

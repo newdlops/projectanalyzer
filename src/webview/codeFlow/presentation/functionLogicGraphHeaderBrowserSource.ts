@@ -14,14 +14,18 @@ export function getFunctionLogicGraphHeaderBrowserSource(): string {
       integratedLegend,
       graphTitle,
       extraControl,
-      outlineToggle
+      outlineToggle,
+      understanding
     ) {
       const header = document.createElement("div");
       const title = document.createElement("strong");
       const controls = document.createElement("div");
       const viewGroup = document.createElement("div");
       const readGroup = document.createElement("div");
-      const viewportControls = createFunctionLogicViewportControls(viewportController);
+      const viewportControls = createFunctionLogicViewportControls(viewportController, true);
+      const tools = document.createElement("details");
+      const toolsSummary = document.createElement("summary");
+      const toolsBody = document.createElement("div");
       header.className = "logic-graph-header";
       const resolveTitle = () => typeof graphTitle === "function" ? graphTitle() : (graphTitle || projectAnalyzerText("control-paths-title"));
       title.textContent = resolveTitle();
@@ -31,18 +35,24 @@ export function getFunctionLogicGraphHeaderBrowserSource(): string {
       viewGroup.append(createLogicGraphControlLabel(projectAnalyzerText("view")), viewportControls);
       readGroup.append(createLogicGraphControlLabel(projectAnalyzerText("read")));
       if (outlineToggle) readGroup.append(outlineToggle);
-      // append(undefined) creates visible text in browsers, so Tutor's
-      // optional control must be added only when the host supplied one.
-      if (extraControl) readGroup.append(extraControl);
       readGroup.append(inspectorToggle);
-      controls.append(viewGroup, readGroup);
-      header.append(title, controls, integratedLegend);
+      tools.className = "logic-graph-tools"; toolsBody.className = "logic-graph-tools-body";
+      toolsSummary.textContent = projectAnalyzerText("reading-tools");
+      tools.append(toolsSummary, toolsBody);
+      toolsBody.append(viewGroup, readGroup);
+      if (integratedLegend) toolsBody.append(integratedLegend);
+      if (understanding) toolsBody.append(understanding);
+      // Keep the original Fit action outside advanced tools without duplicating listeners or camera state.
+      if (extraControl) controls.append(extraControl);
+      controls.append(viewportControls.primaryFit);
+      header.append(title, controls, tools);
       // Keep stable header nodes: a language update must not replace controls
       // because callers retain focus and viewport state across the update.
       header.refreshLanguage = () => {
         title.textContent = resolveTitle();
         viewGroup.firstChild.textContent = projectAnalyzerText("view");
         readGroup.firstChild.textContent = projectAnalyzerText("read");
+        toolsSummary.textContent = projectAnalyzerText("reading-tools");
         integratedLegend?.refreshLanguage?.();
       };
       return header;

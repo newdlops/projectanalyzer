@@ -1,6 +1,6 @@
 # 코드 스니펫을 읽는 LLM 동작 시나리오
 
-Function Guide의 **LLM 시나리오 만들기**는 함수 본문과 가까운 문서·상수, 같은 파일에
+Function Guide의 **설명 생성**은 함수 본문과 가까운 문서·상수, 같은 파일에
 확인된 직접 helper 코드를 언어 모델에 전달해 목적과 동작 시나리오를 만든다.
 Kotlin과 인자 없는 함수도 사용할 수 있다. 숫자 입력을 찾는 기존 로컬 모델과는 별도 기능이다.
 
@@ -9,17 +9,18 @@ Kotlin과 인자 없는 함수도 사용할 수 있다. 숫자 입력을 찾는 
 1. PC에 llama.cpp의 `llama-completion` 실행 도구와 instruction-tuned GGUF 모델을 준비한다.
    기본 provider는 `local`이다. Homebrew 경로와 PATH를 확인하며, 다른 설치 경로는
    `projectAnalyzer.functionNarratives.localBinary`에 지정한다.
-2. 함수를 시각화한 뒤 Function Guide를 열고 **LLM 시나리오 만들기**를 누른다.
+2. 함수를 시각화하면 Function Guide가 열린다. 짧은 목적을 읽고 **설명 생성**을 누른다.
    첫 요청에서 GGUF 파일을 선택하면 `projectAnalyzer.functionNarratives.localModel`에
    사용자 설정으로 저장한다. 프로젝트 설정이 실행 파일을 바꾸지 못하도록 machine scope를 쓴다.
 3. 로컬 모델은 요청할 때만 실행하고 끝나거나 취소되면 프로세스를 종료한다.
    기본 문맥 8,192 token, 응답 2,400 token, CPU thread 2개와 GPU 자동 offload를 사용한다.
    같은 snapshot/언어의 결과를 재사용하며 설정 변경으로 두 모델이 동시에 실행되지 않는다.
-4. 함수의 역할과 시나리오에서 조건, 번호가 붙은 동작, **판단 근거**, **값과 흐름의 변화**,
-   예상 결과, 가정을 읽는다. 로컬 모델은 1–3개×최대 5단계, 연결 모델은 최대 4개×5단계다.
+4. 함수의 역할과 시나리오별 문단에서 조건·판단·계산·건너뛴 작업·예상 결과를 읽는다.
+   접힌 **소스 근거**를 펼치면 조건, 번호가 붙은 동작, **판단 근거**, **값과 흐름의 변화**,
+   예상 결과와 가정을 확인한다. 로컬 모델은 1–3개×최대 5단계, 연결 모델은 최대 4개×5단계다.
    각 단계의 **소스 · 1.2 · L…** 버튼은 Host가 확인한 원본 줄을 편집기에서 연다.
 5. 원본 줄 끝에 `LLM 1.2` 번호와 짧은 해설이 표시된다. 표시한 줄의 hover에서 조건,
-   전체 동작·판단 근거·값의 변화·예상 결과·가정을 확인한다. 한 줄의 여러 시나리오는
+   문장형 설명·전체 동작·판단 근거·값의 변화·예상 결과·가정을 확인한다. 한 줄의 여러 시나리오는
    표시 하나로 묶는다. 소스 내용은 변경하지 않는다.
 
 소스를 수정하거나 문서를 닫으면 오래된 표시를 제거한다. 최신 해설은 함수를 다시 불러와
@@ -31,6 +32,11 @@ Kotlin과 인자 없는 함수도 사용할 수 있다. 숫자 입력을 찾는 
 VS Code 연결 모델을 쓰려면 `projectAnalyzer.functionNarratives.provider`를 `vscode`로 바꾼다.
 여러 등록 모델 중 선택하며 필요한 접근 동의는 VS Code UI를 따른다. 접근 실패, 잘못된
 응답 또는 timeout 후 재시도는 다른 모델을 선택할 수 있다. 로그인·API key를 자동 처리하지 않는다.
+
+기본 그래프 도구는 Guide·전체 보기와 접힌 **도구**다. 전체 함수 요약과 5개 읽기 질문,
+기존 정적 경로 시나리오는 접힌 **분석 상세**에서 확인한다. 부모 상세를 닫으면 해당 시나리오
+계산 소비자를 해제한다. 생성 중에는 취소만 보이고 현재 언어의 완료 결과에서는 생성 버튼을
+숨긴다. 언어를 바꾸면 기존 문단과 펼침 상태를 유지하고 새 언어의 생성 버튼을 제공한다.
 
 모델이나 실행 도구가 없으면 설정 안내를 표시한다. 모델을 VSIX에 포함하거나 자동 다운로드하지
 않고, 키를 보관하지 않으며, 기본 분석·화면 전환·focus·언어 전환 때 추론하지 않는다.
@@ -49,8 +55,9 @@ LLM 설명은 항상 **추론 · 실제 실행 미검증**이다. JSON 형식과
 별도 스니펫으로 제공하고 제한 안내를 표시한다. 결과가 없는/잘못된 JSON, 제공하지 않은
 소스 위치, 상한 초과 응답은 거부한다. 자동 재요청은 하지 않는다.
 
-상세 해설은 프롬프트의 지침과 해설 예제로 가르친다. 입력 역할, 조건의 참/거짓 근거,
-변수 변화, 다음 구문, 조기 반환으로 건너뛴 작업을 요청하고 소스 줄 번호를 제공한다.
+상세 해설은 프롬프트 지침으로 요청한다. 일관된 입력 역할, 조건의 참/거짓 근거,
+실제 계산과 변수 변화, 다음 구문, 조기 반환으로 건너뛴 작업과 결과를 완전한 문장으로
+연결하도록 요청하고 소스 줄 번호를 제공한다. 무관한 함수의 해설 예제는 제공하지 않는다.
 현재 버전은 모델 가중치나 LoRA를 학습하지 않는다. 모델 응답은 길이뿐 아니라 실제 분기와
 결과도 검토해야 한다. 특히 작은 모델은 자세한 형식을 따르더라도 잘못된 판단을 할 수 있다.
 
@@ -72,9 +79,11 @@ LLM 설명은 항상 **추론 · 실제 실행 미검증**이다. JSON 형식과
 - `webview/functionNarratives`: inert reading section, strict reply correlation, bounded DOM,
   literal prose, locale/focus retention, disposal cancellation.
 - `protocol/functionNarratives`: identity-only request/cancel, 정확한 context/locale/단계 source action,
-  bounded structured result. 이전 text-only 단계도 읽으며 새 prompt는 reason/effect를 요청한다.
+  bounded structured result. 이전 text-only 단계도 읽으며 새 prompt는 explanation/reason/effect를 요청한다.
 
 source context는 최대 5개/18,000자이며 결과는 최대 24,000자 JSON, 시나리오 4개×step 5개다.
+시나리오의 `explanation`은 최대 1,800자다. 새 로컬 grammar에는 필수이며 이전 결과에는
+선택 필드로 허용한다. 이전 결과는 기존 조건·단계·결과만 이어 문단을 구성한다.
 cache는 owning surface/root의 수명에 속하고 새 snapshot 또는 disposal에서 해제한다.
 주변 상수/helper까지 content identity에 포함한다. 확장이 백그라운드 모델을 유지하지 않는다.
 
@@ -93,6 +102,33 @@ Q4_K_M을 사용했다. revision `f74adce6aa16316c625447af059dbebe4983757c`,
 2,104,932,800 bytes, SHA-256
 `724fb256bec1ff062b2f65e4569e871ad2e95ab2a3989723d1769c54294730b7`을 확인했다.
 두 모델 모두 `.local-models/`에 보관하며, 비교를 위해 사용자 설정을 바꾸지 않았다.
+
+## 0.0.1104 검증 기록
+
+- 실제 로컬 provider로 두 모델의 Kotlin/TypeScript 한국어 설명을 각각 한 번 생성했다.
+  모두 검증 가능한 JSON·소스 범위와 시나리오별 문장형 `explanation`을 반환했다.
+  기존 사용자 모델 설정과 context/output/thread 상한은 바꾸지 않았다.
+
+  | 모델 | Kotlin `classifyOrder` | TypeScript 계산·조기 반환 함수 |
+  | --- | ---: | ---: |
+  | Qwen2.5-Coder 3B Q4_K_M | 18.409초, 3개 시나리오 | 15.841초, 3개 시나리오 |
+  | Qwen2.5-Coder 1.5B Q4_K_M | 10.962초, 3개 시나리오 | 12.341초, 3개 시나리오 |
+
+  작은 QA 함수 각 1회 측정이며 일반적인 속도·정확도를 보장하지 않는다. 3B Kotlin은
+  ordinary/priority와 경계값 100을 문장으로 설명했지만 비활성 경우를 생략했다. 3B TypeScript는
+  `150 + 5 = 155`를 설명했으나 비활성 경우의 문단과 결과가 모순됐다. 1.5B TypeScript는
+  고정 추가값 5를 비율 할인으로 잘못 설명했다. 문장형 형식과 인용 검증을 사실 정확성으로
+  취급하지 않으며 모든 결과에 미검증 추론 표시를 유지한다.
+- 관련 변경의 TypeScript 전체 테스트는 905개 중 901개 통과했다. 기존 declared-type 입력
+  대표값 2개, advanced private Scenario, decorated source-reveal 실패 4개는 같다.
+  Rust 82개, 패키징 script 13개와 typecheck는 통과했다. Guide 재배치의 open/closed 및
+  독립 Guide/Code 스크롤, pending/stale 포커스 회귀는 재현한 뒤 수정하고 테스트했다.
+- production HTML의 세 viewport와 실제/합성 응답 상태는
+  [UI 검증 기록](FUNCTION_READING_UI_QA.md)에 구분했다. 0.0.1104 VSIX는 488개 파일,
+  압축 3.56MiB·압축 해제 15.28MiB로 기존 패키지 상한을 통과했다.
+- 설치된 VS Code의 실제 1.5B Kotlin 한국어 응답으로 문단 3개, 접힌 근거,
+  Tab/Enter 소스 열기와 문단을 포함한 native hover를 확인했다. 완료 후 모델 프로세스는
+  남아 있지 않았다. 일부 단계의 의미와 인용 위치는 잘못됐으며 미검증 표시를 유지한다.
 
 ## 0.0.1103 검증 기록
 

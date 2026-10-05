@@ -54,10 +54,10 @@ export function getFunctionVisualizerHtml(
     </section>
     <section id="flow-steps" class="flow-steps" aria-label="Function control-flow graph" data-i18n-aria-label="function-control-aria"></section>
 
-    <section id="flow-gaps-section" class="flow-gaps" aria-labelledby="flow-gaps-title" hidden>
-      <h2 id="flow-gaps-title" data-i18n="unknown-title">What remains unknown</h2>
+    <details id="flow-gaps-section" class="flow-gaps" aria-labelledby="flow-gaps-title" hidden>
+      <summary id="flow-gaps-title" data-i18n="unknown-title">What remains unknown</summary>
       <div id="flow-gaps"></div>
-    </section>
+    </details>
   </main>
   <script nonce="${options.nonce}">${getBrowserLocalizationSource()}\napplyProjectAnalyzerLanguage("${options.language ?? "en"}");\n${getFunctionVisualizerBrowserSource()}</script>
 </body>

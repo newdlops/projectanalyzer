@@ -4,6 +4,7 @@ import test from "node:test";
 import { createFunctionReadingOutline, getFunctionReadingBrowserSource, type FunctionReadingBlock } from "../../webview/codeFlow/reading";
 import { getFunctionLogicInspectorBrowserSource } from "../../webview/codeFlow/inspector";
 import { getFunctionLogicViewportBrowserSource } from "../../webview/codeFlow/viewport";
+import { getFunctionLogicGraphHeaderBrowserSource } from "../../webview/codeFlow/presentation";
 import { getBrowserLocalizationSource } from "../../localization/browserCatalog";
 import { installSidebarWebviewRuntime } from "./helpers/sidebarWebviewRuntime";
 
@@ -80,6 +81,100 @@ function mountReadingViewport() {
     return { camera, controller, surface };
   `)();
 }
+
+test("outline starts closed and an explicit reading choice survives its locale pass", () => {
+  const runtime = installSidebarWebviewRuntime();
+  try {
+    const { surface, camera } = mountReadingViewport();
+    const outlineId = runtime.getRenderedIdentityByClassNth("flow-steps", "logic-reading-outline", 0);
+    assert.equal(runtime.isHidden(outlineId), true);
+    const before = camera.getTransform();
+    runtime.clickRenderedByClassNth("flow-steps", "logic-reading-toggle", 0);
+    assert.equal(runtime.isHidden(outlineId), false);
+    surface.refreshLanguage();
+    assert.equal(runtime.isHidden(outlineId), false);
+    assert.deepEqual(camera.getTransform(), before);
+    assert.equal(runtime.messages.length, 0);
+  } finally { runtime.restore(); }
+});
+
+test("compact graph tools retain working Fit and translated controls without moving the camera on disclosure", () => {
+  const runtime = installSidebarWebviewRuntime();
+  try {
+    const { camera } = mountReadingViewport();
+    const header = new Function("camera", `${getBrowserLocalizationSource()}
+      ${getFunctionLogicViewportBrowserSource()}
+      ${getFunctionLogicGraphHeaderBrowserSource()}
+      return createLogicGraphHeader(camera, document.createElement("button"), document.createElement("div"));`)(camera);
+    document.getElementById("flow-steps")!.append(header);
+    assert.equal(runtime.getRenderedOpenByClassNth("flow-steps", "logic-graph-tools", 0), false);
+    assert.equal(runtime.countRenderedByClassWithinClass("flow-steps", "logic-graph-tools", "logic-zoom-button"), 4);
+    camera.setTransform({ scale: 1.25, x: 100, y: 200 });
+    const before = camera.getTransform();
+    runtime.setRenderedOpenByClassNth("flow-steps", "logic-graph-tools", 0, true);
+    header.refreshLanguage();
+    assert.equal(runtime.getRenderedOpenByClassNth("flow-steps", "logic-graph-tools", 0), true);
+    assert.deepEqual(camera.getTransform(), before);
+    runtime.clickByTitle("Fit complete function graph (F)");
+    assert.notDeepEqual(camera.getTransform(), before);
+    assert.equal(runtime.messages.length, 0);
+  } finally { runtime.restore(); }
+});
+
+test("a new Inspector opens Guide first and keeps an explicit Values choice after relayout", () => {
+  const runtime = installSidebarWebviewRuntime();
+  try {
+    const factory = new Function(`${getBrowserLocalizationSource()}
+      const formatLogicBlockLabel = (block) => block.label;
+      ${getFunctionLogicInspectorBrowserSource()}
+      return () => createFunctionLogicInspector("guide-first-test");`)();
+    const active: boolean[] = [];
+    const guide = () => ({ section: document.createElement("section"), toggle: document.createElement("button"), setActive(value: boolean) { active.push(value); } });
+    const first = factory(); first.registerGuide(guide());
+    assert.equal(first.drawer.dataset.inspectorMode, "guide");
+    assert.equal(active.at(-1), true);
+    first.openInspect("values");
+    const second = factory(); second.registerGuide(guide());
+    assert.equal(second.drawer.dataset.inspectorMode, "inspect");
+    assert.equal(active.at(-1), false);
+    let visible: boolean | undefined;
+    second.onValuesVisibilityChange((value: boolean) => { visible = value; });
+    assert.equal(visible, true);
+  } finally { runtime.restore(); }
+});
+
+test("open and closed Guide choices survive registering the same session after graph relayout", () => {
+  const runtime = installSidebarWebviewRuntime();
+  try {
+    const factory = new Function(`${getBrowserLocalizationSource()}
+      const formatLogicBlockLabel = (block) => block.label;
+      ${getFunctionLogicInspectorBrowserSource()}
+      return () => createFunctionLogicInspector("retained-guide-test");`)();
+    const guide = () => ({ section: document.createElement("section"), toggle: document.createElement("button"), setActive() {} });
+    const first = factory(); first.registerGuide(guide());
+    const host = document.getElementById("flow-steps")!;
+    host.append(first.workspace);
+    runtime.setRenderedScrollByClass("flow-steps", "logic-inspector-scroll", { left: 0, top: 240 });
+    first.openInspect("code");
+    runtime.setRenderedScrollByClass("flow-steps", "logic-inspector-scroll", { left: 0, top: 80 });
+    first.openGuide();
+    const second = factory(); second.registerGuide(guide());
+    assert.equal(second.drawer.dataset.inspectorMode, "guide");
+    assert.equal(runtime.getAttribute(second.drawer.id, "aria-hidden"), "false");
+    host.replaceChildren(second.workspace);
+    assert.equal(runtime.getRenderedScrollByClass("flow-steps", "logic-inspector-scroll").top, 240);
+    second.openInspect("code");
+    assert.equal(runtime.getRenderedScrollByClass("flow-steps", "logic-inspector-scroll").top, 80);
+    second.openGuide();
+    runtime.clickRenderedByClassNth("flow-steps", "logic-inspector-close", 0);
+    const third = factory(); third.registerGuide(guide());
+    assert.equal(third.drawer.dataset.inspectorMode, "guide");
+    assert.equal(runtime.getAttribute(third.drawer.id, "aria-hidden"), "true");
+    host.replaceChildren(third.workspace);
+    third.openGuide();
+    assert.equal(runtime.getRenderedScrollByClass("flow-steps", "logic-inspector-scroll").top, 240);
+  } finally { runtime.restore(); }
+});
 
 test("source reading keeps reader zoom and reveals the start of oversized statements", () => {
   const runtime = installSidebarWebviewRuntime();

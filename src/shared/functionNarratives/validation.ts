@@ -10,7 +10,8 @@ export function isFunctionNarrative(value: unknown, snippets?: readonly Pick<Fun
   if (!record(value) || !keys(value, ["summary", "scenarios", "limitations"]) || !text(value.summary, 1200) || !texts(value.limitations, 6)
     || !Array.isArray(value.scenarios) || value.scenarios.length < 1 || value.scenarios.length > 4) return false;
   for (const scenario of value.scenarios) {
-    if (!record(scenario) || !keys(scenario, ["title", "when", "steps", "outcome", "assumptions"]) || !text(scenario.title, 160)
+    if (!record(scenario) || !keys(scenario, ["title", "when", "explanation", "steps", "outcome", "assumptions"]) || !text(scenario.title, 160)
+      || (scenario.explanation !== undefined && !text(scenario.explanation, 1800))
       || !texts(scenario.when, 4) || !texts(scenario.assumptions, 4) || !text(scenario.outcome, 600)
       || !Array.isArray(scenario.steps) || scenario.steps.length < 1 || scenario.steps.length > 5) return false;
     for (const step of scenario.steps) {

@@ -11,8 +11,8 @@ export function getFunctionReadingBrowserSource(): string {
     /** Mounts one outline beside the existing canvas without cloning graph nodes. */
     function createFunctionReadingSurface(logic, sessionKey, viewport, controller, viewportController, inspector) {
       const model = createFunctionReadingOutline(logic);
-      const wide = typeof window.matchMedia !== "function" || window.matchMedia("(min-width: 1040px)").matches;
-      const local = functionReadingSessions.get(sessionKey) || { open: wide, filter: "all" };
+      // The graph starts alone; an explicit outline choice survives relayouts.
+      const local = functionReadingSessions.get(sessionKey) || { open: false, filter: "all" };
       functionReadingSessions.set(sessionKey, local);
       while (functionReadingSessions.size > 16) functionReadingSessions.delete(functionReadingSessions.keys().next().value);
       const id = "function-reading-" + (++functionReadingSequence);

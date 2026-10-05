@@ -455,7 +455,7 @@ export function getFunctionLogicViewportBrowserSource(): string {
     }
 
     /** Builds accessible zoom, Center, and Fit controls for one controller. */
-    function createFunctionLogicViewportControls(controller) {
+    function createFunctionLogicViewportControls(controller, separateFit = false) {
       const group = document.createElement("div");
       const zoomOut = createFunctionLogicViewportButton("−", projectAnalyzerText("function-zoom-out"));
       const level = createFunctionLogicViewportButton("100%", projectAnalyzerText("function-zoom-reset"));
@@ -478,8 +478,12 @@ export function getFunctionLogicViewportBrowserSource(): string {
       zoomIn.addEventListener("click", () => controller.zoomStep(1));
       center.addEventListener("click", controller.center);
       fit.addEventListener("click", controller.fit);
-      group.append(zoomOut, level, zoomIn, center, fit, announcement);
+      group.append(zoomOut, level, zoomIn, center);
+      if (!separateFit) group.append(fit);
+      group.append(announcement);
       controller.attachControls({ group, zoomOut, level, zoomIn, center, fit, announcement });
+      // The compact header can move this same accessible action outside its advanced tools.
+      group.primaryFit = fit;
       return group;
     }
 

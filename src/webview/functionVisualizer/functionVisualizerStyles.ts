@@ -260,7 +260,10 @@ export function getFunctionVisualizerStyles(): string {
       border-top: 1px solid var(--vscode-panel-border);
     }
 
-    .flow-gaps h2 { margin: 0 0 10px; font-size: 1.15rem; }
+    .flow-gaps[hidden] { display: none; }
+    .flow-gaps > summary { cursor: pointer; line-height: 1.5; color: var(--vscode-descriptionForeground); }
+    .flow-gaps > summary:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-offset: 2px; }
+    .flow-gaps[open] > summary { margin-bottom: 10px; }
     #flow-gaps { display: grid; gap: 8px; }
 
     .gap-card {

@@ -69,6 +69,7 @@ test("native source decorations show inferred detail on the matching dirty snaps
   try {
     assert.equal(f.editor.calls.length, 0);
     const hostile = structuredClone(target); hostile.narrative.summary = '[open](command:unsafe) <b>html</b>';
+    hostile.narrative.scenarios[0].explanation = 'enabled가 false라 조기 반환한다. [open](command:unsafe) <b>html</b>';
     hostile.narrative.scenarios[0].steps[0].reason = "!enabled는 true다.";
     hostile.narrative.scenarios[0].steps[0].effect = "ordinary 반환문을 건너뛴다.";
     presenter.show(hostile);
@@ -77,6 +78,7 @@ test("native source decorations show inferred detail on the matching dirty snaps
     assert.match(options[0].renderOptions.after.contentText, /LLM 1\.1, 2\.1/u);
     assert.equal(options[0].hoverMessage.isTrusted, false); assert.equal(options[0].hoverMessage.supportHtml, false);
     assert.ok(options[0].hoverMessage.textParts.includes(hostile.narrative.summary));
+    assert.ok(options[0].hoverMessage.textParts.includes(hostile.narrative.scenarios[0].explanation));
     assert.match(options[0].hoverMessage.value, /실제 실행 미검증/u);
     assert.match(options[0].hoverMessage.value, /disabled 문자열을 반환한다/u);
     assert.match(options[0].hoverMessage.value, /판단 근거/u);

@@ -1048,8 +1048,9 @@ scroll하고 긴 evidence가 graph canvas의 크기나 위치를 밀어내지 �
 - workspace-relative statement location
 - graph node 선택 시 자동으로 열리고 detail, outgoing target, source action을 보여 주는
   graph-adjacent right-side Inspector drawer
-- wide editor의 새 root graph는 Inspector를 열고, 좁은 editor는 graph-first로 시작하며 사용자의
-  open/close 선택은 같은 root relayout 동안 유지
+- Guide가 있는 새 root graph는 모든 폭에서 Guide를 먼저 연다. Guide가 없는 경우 기존
+  wide Inspector/narrow graph 기본값을 유지하며 사용자의 mode/open/close 선택과 각 surface의
+  독립 scroll position은 같은 root relayout 동안 유지
 - selected summary와 source action은 Inspector의 `코드 이해` tab 첫 section으로 유지한다.
   Scenario value editor와 binding selector/playback은 `값과 경로`, callee 목록과 signature는
   `함수 정보`에 배치하며 tab별 scroll position과 mounted input identity를 보존한다.
@@ -1059,12 +1060,14 @@ scroll하고 긴 evidence가 graph canvas의 크기나 위치를 밀어내지 �
   mount나 tab/locale 변경이 아니라 Workspace의 첫 직접 focus/pointer interaction에서 시작한다.
   `값과 경로`가 숨겨지면 해당 계산 consumer를 해제하고 playback을 일시정지하며 graph disposal에서
   나머지 자원을 해제한다. Function Guide는 별도 exclusive drawer mode를 유지한다.
-- desktop에서는 graph와 별도 column, 작은 화면에서는 graph 아래 별도 row, 명시적 toggle/close,
+- desktop에서는 graph와 별도 column, 작은 화면에서는 Guide가 graph 위, Inspect가 graph 아래
+  별도 row, 명시적 toggle/close,
   `Escape`, `aria-expanded`/`aria-hidden`/`inert` 상태
 - child function attachment로 graph를 다시 그려도 같은 root에서는 drawer open 상태 유지
 - 빈 canvas의 primary drag, 어느 target에서나 middle drag, modifier 없는 two-axis trackpad
   wheel로 상하좌우 screen-space translation을 변경하고 graph 원점의 모든 방향을 지나 pan 가능
-- `− / 현재 배율 / + / Center / Fit` control과 1%~300% bounded zoom. `Center`는 현재 배율을
+- 기본 header는 Guide·Fit과 접힌 Tools를 표시한다. Tools에는 `− / 현재 배율 / + / Center`,
+  목차·Inspector·범례·overview를 넣고 목차도 처음에 접는다. 1%~300% bounded zoom. `Center`는 현재 배율을
   유지한 채 전체 graph 중심을 viewport 중심에 맞추고, `Fit`은 양 축과 screen padding을 함께
   계산해 100% 이하에서 전체 graph를 가운데 배치
 - viewport focus 상태의 `+`, `-`, `0`, `C`, `F` shortcut과 cursor world point를 유지하는
@@ -1394,10 +1397,12 @@ Webview는 Project Graph, 파일 시스템, VS Code API에 직접 접근하지 �
   선택 가능한 VS Code adapter는 연결된 Chat model의 token 한도를 확인한 뒤 실제
   `sendRequest`/response stream을 사용한다. 모델 자동 다운로드·학습·API key 보관은 하지 않는다.
 - 응답은 최대 24,000자 JSON, summary 1,200자, 시나리오 1–4개, 각 step 1–5개,
-  title 160자, 기타 설명 600자, 조건·가정 각 4개, 미확인 부분 6개로 제한한다.
-  로컬 grammar는 시나리오 1–3개와 `text`·`reason`·`effect`를 요구하며 이전 text-only
-  응답은 계속 읽는다. 지침과 예제는 입력별 분기 판단·계산 근거·다음 진행·조기 반환을
-  설명하도록 요청한다. 이는 프롬프트 개선이며 가중치 학습은 하지 않는다.
+  title 160자, scenario `explanation` 1,800자, 기타 설명 600자, 조건·가정 각 4개,
+  미확인 부분 6개로 제한한다. 로컬 grammar는 시나리오 1–3개와 `explanation`·`text`·`reason`·
+  `effect`를 요구한다. 이전 explanation 없는/text-only 응답은 계속 읽고 기존 필드로 문장을
+  구성한다. 지침은 일관된 입력 하나의 분기 판단·실제 계산·다음 진행·조기 반환·결과를
+  연결된 완전한 문장으로 설명하도록 요청한다. 무관한 함수 해설 예제는 포함하지 않는다.
+  이는 프롬프트 개선이며 가중치 학습은 하지 않는다.
   각 step은 제공한 snippet ID와 그 범위 안의 최대 21줄을 참조해야 한다. 이 검사는
   위치와 형식의 유효성만 확인하며 LLM 설명의 사실성·경로 도달·실행을 검증하지 않는다.
 - 요청 `codeFlow/requestFunctionNarratives` / `codeFlow/cancelFunctionNarratives`는 현재
@@ -1409,11 +1414,17 @@ Webview는 Project Graph, 파일 시스템, VS Code API에 직접 접근하지 �
 - 응답 `codeFlow/functionNarrativesLoaded`는 status, modelName, 생성 언어, cacheHit,
   제한 여부, narrative, snippet 범위와 각 step의 Host-issued evidence token만 포함한다.
   source range를 새 editor token으로 바꾸며 브라우저가 경로·prompt·모델 ID를 정하지 못한다.
-- Guide Summary 뒤의 optional section은 Kotlin/symbolic-only 및 인자 없는 함수도 제공한다.
-  조건 → 동작 순서·판단 근거·값과 흐름의 변화 → 예상 결과 → 가정/미확인 부분을 literal text로 표시하며 항상
-  LLM 추론·실제 실행 미검증을 명시한다. 기존 값·경로·graph에 설명을 적용하지 않는다.
+- Guide의 짧은 source-backed purpose 다음 optional section은 Kotlin/symbolic-only 및 인자 없는
+  함수도 제공한다. 생성 결과는 연결된 문단을 먼저 표시하고 조건·동작 순서·판단 근거·값과 흐름의
+  변화·예상 결과·가정은 시나리오별 접힌 Source evidence에 둔다. 모두 literal text로 표시하며
+  항상 LLM 추론·실제 실행 미검증과 생성 언어를 명시한다. 전체 정적 Summary, 질문, Source Path
+  Scenarios는 처음에 접힌 Analysis details에 둔다. 부모 상세를 닫으면 해당 계산 consumer를
+  해제하고 재생을 일시정지한다. 기존 값·경로·graph에 LLM 설명을 적용하지 않는다.
   모델 없음·권한 거부·취소·timeout·invalid-response·입력 한도·failed·stale 및 두 locale 지원.
-  초기 mount, focus와 언어 전환은 LLM을 호출하지 않는다.
+  초기 mount, focus, disclosure와 언어 전환은 LLM을 호출하지 않는다. pending에서는 Cancel만,
+  현재 언어의 완료 결과에서는 추가 생성 버튼을 숨긴다. stale 상태는 Reload를 제공한다.
+  요청 후 focus는 보이는 Cancel/Reload/Generate 또는 status로 복원하고 locale 변경은 근거
+  disclosure 상태와 source button focus를 보존한다.
 - `codeFlow/openFunctionNarrativeSource`는 graphVersion, flowId, contextId, 생성 language와
   scenario/step index만 받는다. Host는 정확한 cached result를 고르고 그 step의 evidence
   token을 해석한다. 같은 위치를 인용하는 다른 함수/언어의 설명으로 대체하지 않으며

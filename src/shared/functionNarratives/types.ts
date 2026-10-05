@@ -12,6 +12,8 @@ export type FunctionNarrativeStep = {
 export type FunctionNarrativeScenario = {
   title: string;
   when: string[];
+  /** Connected reading paragraph, up to 1800 characters; optional for older cached responses. */
+  explanation?: string;
   steps: FunctionNarrativeStep[];
   outcome: string;
   assumptions: string[];

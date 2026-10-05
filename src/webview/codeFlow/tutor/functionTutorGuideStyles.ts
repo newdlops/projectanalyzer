@@ -5,6 +5,11 @@ export function getFunctionTutorGuideStyles(): string {
   return /* css */ `
     .logic-function-guide { display: grid; gap: 8px; min-width: 0; container: function-guide / inline-size; }
     .logic-function-guide-content { display: grid; gap: 10px; min-width: 0; }
+    .logic-guide-introduction { margin: 0; line-height: 1.6; overflow-wrap: anywhere; }
+    .logic-guide-analysis { border-top: 1px solid var(--vscode-panel-border); padding-top: 8px; min-width: 0; }
+    .logic-guide-analysis > summary { cursor: pointer; line-height: 1.5; padding: 4px 0; }
+    .logic-guide-analysis > summary:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-offset: 2px; }
+    .logic-guide-analysis-body { display: grid; gap: 12px; min-width: 0; padding-top: 12px; }
     .logic-function-guide h3, .logic-function-guide h4, .logic-function-guide h5 { margin: 0; color: var(--vscode-foreground); font-size: var(--logic-font-medium); line-height: 1.3; }
     .logic-guide-status, .logic-guide-answer, .logic-guide-empty, .logic-guide-scenario-body > p, .logic-guide-scenario-description { margin: 0; color: var(--vscode-descriptionForeground); font-size: var(--logic-font-small); line-height: 1.45; overflow-wrap: anywhere; }
     .logic-guide-overview, .logic-guide-navigation, .logic-guide-chapter { display: grid; gap: 6px; min-width: 0; }

@@ -297,7 +297,8 @@ export function getFunctionLogicBrowserSource(): string {
         createFunctionLogicIntegratedLegend(),
         graphTitle,
         tutorRendering?.toggle,
-        reading.toggle
+        reading.toggle,
+        understanding.element
       );
       graph.className = "logic-graph";
       viewport.className = "logic-graph-viewport";
@@ -368,7 +369,7 @@ export function getFunctionLogicBrowserSource(): string {
       );
       inspector.appendSectionsTo("info", signature, calleeExplorer);
       inspector.onValuesVisibilityChange((visible) => valueFlowRendering?.setVisible(visible));
-      graph.append(understanding.element, graphHeader);
+      graph.append(graphHeader);
       graph.append(bodyFocusController.navigation);
       graph.append(inspector.workspace);
 

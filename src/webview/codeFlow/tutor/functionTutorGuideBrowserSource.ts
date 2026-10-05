@@ -27,6 +27,9 @@ export function getFunctionTutorGuideBrowserSource(): string {
       // Retain this disclosure so rendering its body cannot enqueue another open.
       const scenarioDetails = document.createElement("details");
       const scenarioSummary = document.createElement("summary"); const scenarioBody = document.createElement("div");
+      const introduction = document.createElement("p");
+      const analysisDetails = document.createElement("details"); const analysisSummary = document.createElement("summary");
+      const analysisBody = document.createElement("div");
       const chapters = tutor.guide?.chapters || []; const questionButtons = [];
       let active = false; let chapterIndex = Math.max(0, chapters.findIndex((chapter) => chapter.id === tutor.guide?.initialChapterId));
       let scenariosOpen = false; let scenarioPhase = "idle"; let scenarioIndex = 0; let scenarioGeneration = 0;
@@ -41,7 +44,7 @@ export function getFunctionTutorGuideBrowserSource(): string {
       const unsubscribeWorkspace = workspace?.subscribe(() => {
         if (disposed) return;
         selectedSeedId = workspace.read().selectedSeedId; selectedPathIndex = workspace.read().selectedPathIndex || 0;
-        if (active && scenariosOpen) renderScenarios();
+        if (active && analysisDetails.open && scenariosOpen) renderScenarios();
       });
       // These maps hold only semantic UI affordances. They are deliberately
       // independent of translated labels so a locale refresh can replace a
@@ -86,9 +89,32 @@ export function getFunctionTutorGuideBrowserSource(): string {
       const narratives = createFunctionNarratives(tutor, callbacks);
       const navigation = createFunctionGuideNavigation(chapters, chapterIndex, selectChapter, questionButtons);
       const limits = createFunctionGuideLimits(tutor);
-      content.append(status, overview, ...(narratives ? [narratives.element] : []), navigation, chapterSlot, scenarioSlot, limits);
+      introduction.className = "logic-guide-introduction";
+      analysisDetails.className = "logic-guide-analysis"; analysisBody.className = "logic-guide-analysis-body";
+      analysisSummary.textContent = projectAnalyzerText("reading-analysis");
+      analysisBody.append(status, overview, navigation, chapterSlot, scenarioSlot, limits);
+      analysisDetails.append(analysisSummary, analysisBody);
+      analysisDetails.addEventListener("toggle", () => {
+        if (disposed) return;
+        if (analysisDetails.open) startScenarioCalculation();
+        else {
+          syncWorkspaceConsumer();
+          if (scenarioPhase === "running") { scenarioPhase = "paused"; scenarioGeneration += 1; }
+        }
+      });
+      refreshIntroduction();
+      content.append(introduction, ...(narratives ? [narratives.element] : []), analysisDetails);
       section.append(content);
       renderChapter(); renderScenarios();
+
+      /** Short source-backed purpose; full claims/actions remain in the advanced disclosure. */
+      function refreshIntroduction() {
+        const summary = tutor.behaviorSummary;
+        const purpose = functionTutorValidBehaviorSummary(summary, tutor) ? summary.purpose : undefined;
+        introduction.textContent = purpose ? purpose.basis === "documentation" ? purpose.sourcePreview
+          : projectAnalyzerText(purpose.presentationKey, purpose.presentationParams) : projectAnalyzerText("reading-purpose-fallback");
+        introduction.setAttribute("translate", purpose?.basis === "documentation" ? "no" : "yes");
+      }
 
       /** Selects a question without changing lens, selection, or viewport. */
       function selectChapter(nextIndex, focus) {
@@ -125,14 +151,14 @@ export function getFunctionTutorGuideBrowserSource(): string {
 
       /** Starts or resumes bounded scenario calculation without source execution. */
       function startScenarioCalculation() {
-        if (disposed || !active || !scenariosOpen) return;
+        if (disposed || !active || !analysisDetails.open || !scenariosOpen) return;
         if (workspace) { syncWorkspaceConsumer(); scenarioPhase = workspace.read().phase; renderScenarios(); return; }
         if (!scenariosOpen || scenarioPhase === "running" || scenarioPhase === "complete" || scenarioPhase === "complete-with-errors") return;
         if (!tutor.seeds?.length) { scenarioPhase = "complete"; renderScenarios(); return; }
         scenarioPhase = "running"; const generation = ++scenarioGeneration; renderScenarios();
         const runNext = () => {
           if (generation !== scenarioGeneration) return;
-          if (!active || !scenariosOpen) { scenarioPhase = "paused"; renderScenarios(); return; }
+          if (!active || !analysisDetails.open || !scenariosOpen) { scenarioPhase = "paused"; renderScenarios(); return; }
           if (scenarioIndex >= tutor.seeds.length) {
             scenarioPhase = errorsBySeed.size ? "complete-with-errors" : "complete";
             setStatus(errorsBySeed.size ? "static-cases-gaps" : "static-cases-ready-status");
@@ -152,7 +178,7 @@ export function getFunctionTutorGuideBrowserSource(): string {
       /** Balances this Guide's single consumer independently from the Values surface. */
       function syncWorkspaceConsumer() {
         if (!workspace) return;
-        const shouldAcquire = active && scenariosOpen && !disposed;
+        const shouldAcquire = active && analysisDetails.open && scenariosOpen && !disposed;
         if (shouldAcquire === workspaceAcquired) return;
         workspaceAcquired = shouldAcquire;
         if (shouldAcquire) workspace.acquire(); else workspace.release();
@@ -261,6 +287,7 @@ export function getFunctionTutorGuideBrowserSource(): string {
           toggle.textContent = projectAnalyzerText("function-guide");
           toggle.title = projectAnalyzerText("function-guide-description");
           status.textContent = formatStatus(statusPresentation);
+          analysisSummary.textContent = projectAnalyzerText("reading-analysis"); refreshIntroduction();
           overview.refreshLanguage?.();
           narratives?.refreshLanguage();
           navigation.refreshLanguage?.();

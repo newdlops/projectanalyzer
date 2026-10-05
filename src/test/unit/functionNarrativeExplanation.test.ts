@@ -10,14 +10,16 @@ const context: FunctionNarrativeContext = { functionName: "classify", language: 
   snippets: [{ id: "root", role: "function", startLine: 20, endLine: 23,
     text: 'fun classify(enabled: Boolean): String {\n if (!enabled) return "disabled"\n return "ordinary"\n}', truncated: false }] };
 
-test("both providers teach statement-level reasoning and early-return effects with a separate worked example", () => {
+test("both providers request connected prose, statement reasoning and skipped work without unrelated example source", () => {
   for (const language of ["ko", "en"] as const) {
     const local = buildLocalNarrativePrompt(context, language);
     const connected = buildFunctionNarrativePrompt(context, language);
     for (const prompt of [local, connected[0]]) {
       assert.ok(prompt.includes(language === "ko" ? "분기 판단" : "branch decision"));
       assert.ok(prompt.includes(language === "ko" ? "건너뛰" : "skipped"));
-      assert.ok(prompt.includes(language === "ko" ? "해설 예제" : "Worked explanation example"));
+      assert.ok(prompt.includes(language === "ko" ? "완전한 문장" : "complete sentences"));
+      assert.ok(prompt.includes("explanation"));
+      assert.ok(!prompt.includes("fun gate("));
       assert.ok(prompt.includes(language === "ko" ? "입력 예시만" : "input example alone"));
     }
     const data = JSON.parse(connected[1]) as FunctionNarrativeContext;
@@ -46,4 +48,19 @@ test("detailed reasons and effects are validated while earlier text-only respons
   const legacy = structuredClone(narrative) as any;
   delete legacy.scenarios[0].steps[0].reason; delete legacy.scenarios[0].steps[0].effect;
   assert.deepEqual(parseFunctionNarrative(JSON.stringify(legacy), context), legacy);
+});
+
+test("connected scenario prose is bounded and required for new local responses without rejecting legacy results", () => {
+  const narrative = { summary: "Choose a label.", scenarios: [{ title: "Disabled", when: ["enabled=false"],
+    explanation: "With enabled=false, !enabled is true. The first return produces disabled, so ordinary is skipped.",
+    steps: [{ text: "Evaluate the guard.", source: { snippetId: "root", startLine: 21, endLine: 21 } }],
+    outcome: "disabled", assumptions: [] }], limitations: [] };
+  assert.deepEqual(parseFunctionNarrative(JSON.stringify(narrative), context), narrative);
+  for (const explanation of ["", "x".repeat(1801)]) {
+    const invalid = structuredClone(narrative); invalid.scenarios[0].explanation = explanation;
+    assert.throws(() => parseFunctionNarrative(JSON.stringify(invalid), context));
+  }
+  const schema = createLocalNarrativeSchema(context) as any;
+  assert.ok(schema.properties.scenarios.items.required.includes("explanation"));
+  assert.equal(schema.properties.scenarios.items.properties.explanation.maxLength, 1800);
 });

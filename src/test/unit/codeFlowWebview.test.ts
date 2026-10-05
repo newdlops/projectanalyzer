@@ -364,7 +364,8 @@ test("Function Guide explains codebase context through an accessible disclosure 
     message.payload.logic.tutor = createTutorFixture();
     runtime.dispatchMessage(createGraphMessage(graphVersion));
     runtime.dispatchMessage(message);
-    runtime.clickByTitle("Open a source-backed guide to this function and its codebase context");
+    assert.equal(runtime.getRenderedAttributeByTitle("flow-steps", "Open a source-backed guide to this function and its codebase context", "aria-expanded"), "true", "Guide is the initial reading surface");
+    runtime.setRenderedOpenByClassNth("flow-steps", "logic-guide-analysis", 0, true);
     const rendered = runtime.getRenderedText("flow-steps").join("\n");
     assert.ok(rendered.includes("Understand This Function"));
     assert.ok(rendered.includes("Where Does It Fit?"));
@@ -390,7 +391,7 @@ test("Function Guide relocalizes in place without requesting graph work", () => 
     message.payload.logic.tutor = createTutorFixture();
     runtime.dispatchMessage(createGraphMessage(graphVersion));
     runtime.dispatchMessage(message);
-    runtime.clickByTitle("Open a source-backed guide to this function and its codebase context");
+    runtime.setRenderedOpenByClassNth("flow-steps", "logic-guide-analysis", 0, true);
     const guideCount = runtime.countRenderedByClass("flow-steps", "logic-function-guide");
     const graphCount = runtime.countRenderedByClass("flow-steps", "logic-graph-node");
     const messageCount = runtime.messages.length;
@@ -432,7 +433,7 @@ test("Function Guide retains semantic reading, Values, and graph state through l
     }];
     runtime.dispatchMessage(createGraphMessage(graphVersion));
     runtime.dispatchMessage(message);
-    runtime.clickByTitle("Open a source-backed guide to this function and its codebase context");
+    runtime.setRenderedOpenByClassNth("flow-steps", "logic-guide-analysis", 0, true);
     runtime.clickRenderedByClassNth("flow-steps", "logic-guide-question", 1);
     runtime.setRenderedOpenByClassNth("flow-steps", "logic-guide-more-facts", 0, true);
     runtime.setRenderedOpenByClassNth("flow-steps", "logic-guide-source-basis", 0, true);
@@ -468,6 +469,7 @@ test("Function Guide retains semantic reading, Values, and graph state through l
     assert.ok(runtime.getRenderedText("flow-steps").includes("Loaded 1 known inputs into Values."));
     assert.equal(runtime.getRenderedValueByTitle("flow-steps", "Scenario input for PARAM amount"), "10");
     assert.equal(runtime.getRenderedOpenByClassNth("flow-steps", "logic-guide-scenarios", 0), true);
+    assert.equal(runtime.getRenderedOpenByClassNth("flow-steps", "logic-guide-analysis", 0), true);
     assert.equal(runtime.getRenderedOpenByClassNth("flow-steps", "logic-guide-more-facts", 0), true);
     assert.equal(runtime.getRenderedOpenByClassNth("flow-steps", "logic-guide-source-basis", 0), true);
     assert.equal(runtime.getFocusedRenderedAttribute("data-guide-key"), "scenario-load-inputs:function-tutor-seed:11111111111111111111111111111111");

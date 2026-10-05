@@ -169,10 +169,13 @@ dedicated Function Visualizer tab with a bounded control-flow graph:
   for entering session-only JSON/scalar parameter values or local/constant definition
   overrides; a long variable list scrolls inside the table instead of collapsing it;
   if analysis misses a binding, add a `CUSTOM` variable by name and value
-- a **Function Guide** disclosure starting with a source-backed **Function summary**:
-  authored documentation or structural purpose, inputs, conditional stages, outcomes,
-  calls/writes, and analysis gaps. Five reading questions provide the deeper context;
-  the graph moves when **Show on Graph** is chosen
+- a **Function Guide** opened initially with a short source-backed purpose and an
+  explicit **Generate explanation** action. Generated scenarios read as paragraphs,
+  with cited steps under **Source evidence**. **Analysis details** contains the full
+  Function summary, inputs, conditional stages, outcomes, calls/writes, gaps and
+  five reading questions; the graph moves when **Show on Graph** is chosen
+- compact graph controls: **Function Guide**, **Fit**, and a closed **Tools**
+  disclosure for zoom, centering, the reading outline, Inspector and legend
 - lazy **Source Path Scenarios** under that guide, with statically inferred inputs,
   possible outcomes, certainty, and tracked value transitions; **Load Inputs & Open
   Values** copies only known values into the existing editor and opens its tab

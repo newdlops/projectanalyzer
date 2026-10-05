@@ -1,12 +1,41 @@
 # Function reading workspace
 
+## Simple function reading — October 2026
+
+The initial surface is the graph beside a short purpose and an explicit LLM
+explanation action. Preserve VS Code typography, theme tokens and native controls.
+Keep only Guide, Fit and a closed Tools disclosure in the graph toolbar. Tools
+contains zoom, center, outline, selected-block details, navigation and the legend.
+The outline starts closed; a reader's subsequent choice survives relayouts.
+Open Guide initially when available. Node selection still opens its Inspector.
+
+Guide shows purpose and LLM prose first. Put the full static summary, five reading
+questions, scenario tables and limits behind one closed Analysis details disclosure.
+Closing this disclosure releases Guide's scenario consumer and pauses its bounded
+fallback calculation. Reopening resumes only an explicitly opened scenario section.
+No mount, disclosure, locale or focus action invokes a model.
+
+Generated scenarios read as connected paragraphs: one input set, condition decisions,
+ordered calculations, skipped work and result. Models provide a bounded explanation
+alongside existing cited steps. Older results remain readable as composed prose.
+Source steps and their buttons are behind a closed Source evidence disclosure;
+opening/focus state survives localization. Keep the inference label visible. Show
+one actionable generation/cancel/reload control for each request phase.
+
+Acceptance: initial primary controls stay discoverable at 390×844, 768×1024 and
+1440×900; no document overflow; long prose wraps; keyboard disclosures, cancel,
+retry, stale reload and source actions work. Verify real Kotlin/TypeScript model
+responses separately from synthetic UI states. Keep output, cache, source ownership
+and CPU/memory bounds unchanged. Functional checks do not substitute for visual QA.
+
 ## Source-reading LLM scenarios — October 2026
 
-Add one optional section immediately after the existing Function Guide summary.
+Place one optional section immediately after the short Function Guide purpose.
 Keep VS Code theme tokens, native buttons, code/source actions, and the flat 4/8/12px
 spacing. The reading order is explicit generation → inferred purpose → up to four
-scenarios (conditions → numbered work → expected result → assumptions) → missing
-information. Each step has a separate source action. Generated prose is literal
+scenarios (connected explanation → closed Source evidence) → missing information.
+Evidence contains conditions, numbered work, expected result and assumptions;
+each step has a separate source action. Generated prose is literal
 text and carries a persistent “LLM inference · execution unverified” label.
 
 Generation starts only on a button click. Show progress, cancel, completion, model
@@ -449,16 +478,18 @@ debugger: source is never executed and uncertainty remains visible.
 
 ## Information and interaction contract
 
-- The graph header groups controls by **View** and **Read**, followed by a
-  native **Graph key** disclosure for exact/inferred paths, choices,
+- The graph header exposes **Function Guide**, **Fit**, and closed **Tools**.
+  Tools holds zoom, centering, outline, Inspector, overview and a native
+  **Graph key** disclosure for exact/inferred paths, choices,
   value flow/change, calls, and outcomes. **Function Guide** and **Details**
   remain mutually exclusive disclosures with `aria-expanded`; neither uses
   pressed state. Repeating the active control closes the reading panel.
 - The reading panel has two exclusive modes. Inspector groups selected code,
   values/paths, and function information in three retained tabs;
-  Function Guide starts with **Function summary** when the optional source-backed
-  Summary is present, then five stable questions: codebase fit,
-  inputs, path decisions, work/calls, and outcomes. Opening or changing a Guide
+  Function Guide starts with a short source-backed purpose and explicit paragraph
+  generation. Closed **Analysis details** holds the full **Function summary**
+  and five stable questions: codebase fit, inputs, path decisions, work/calls,
+  and outcomes. Opening or changing a Guide
   question does not move the viewport, select a block, change graph semantics, open
   source, alter branch/value state, start playback, or calculate scenarios.
 - **Function summary** orders purpose and source basis, inputs and outcomes,
@@ -472,7 +503,7 @@ debugger: source is never executed and uncertainty remains visible.
   viewport only; it never replaces graph semantics.
 - **Source Path Scenarios** is a lazy disclosure within the Guide. Its bounded
   interpreter starts only when opened, exposes idle/running/paused/complete
-  status locally, pauses when the Guide closes, and never executes source.
+  status locally, pauses when the Guide or Analysis details closes, and never executes source.
   **Load Inputs & Open Values** transfers known literals only, then opens the
   editable Scenario destination in the Inspector's Values & paths tab.
 - Opening that disclosure also shows three representative rows from the same

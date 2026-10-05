@@ -14,6 +14,7 @@ test("static Summary renders source text and graph/source actions without activa
     assert.equal(runtime.countRenderedByClass("summary-root", "logic-behavior-summary"), 1);
     assert.ok(runtime.getRenderedText("summary-root").includes("<img src=x onerror=run()>"), "source documentation remains literal text");
     assert.equal(fixture.acquisitions(), 0);
+    runtime.setRenderedOpenByClassNth("summary-root", "logic-guide-analysis", 0, true);
     const keys = Array.from({ length: runtime.countRenderedByClass("summary-root", "logic-summary-graph") }, (_, index) => (document.getElementById(runtime.getRenderedIdentityByClassNth("summary-root", "logic-summary-graph", index)) as HTMLElement).dataset.guideKey);
     assert.equal(new Set(keys).size, keys.length, "repeated source facts retain distinct focus positions in each region");
     runtime.clickRenderedByClassNth("summary-root", "logic-summary-graph", 0);
@@ -29,6 +30,7 @@ test("representative Summary uses shared rows, expands 3 to 5 and preserves shar
   const runtime = installSidebarWebviewRuntime();
   try {
     const tasks = installNativeDisclosureTasks(); const fixture = createPanel(); document.getElementById("summary-root")!.append(fixture.panel.section); fixture.panel.setActive(true);
+    runtime.setRenderedOpenByClassNth("summary-root", "logic-guide-analysis", 0, true);
     const disclosure = document.getElementById(runtime.getRenderedIdentityByClassNth("summary-root", "logic-guide-scenarios", 0)) as HTMLDetailsElement;
     disclosure.open = true; tasks.flush();
     assert.equal(runtime.countRenderedByClass("summary-root", "logic-summary-scenario-select"), 3);
@@ -112,6 +114,7 @@ test("symbolic-only Guide disables input handoff and describes supported source 
   const runtime = installSidebarWebviewRuntime();
   try {
     const tasks = installNativeDisclosureTasks(); const fixture = createPanel(false, { symbolic: true }); document.getElementById("summary-root")!.append(fixture.panel.section); fixture.panel.setActive(true);
+    runtime.setRenderedOpenByClassNth("summary-root", "logic-guide-analysis", 0, true);
     const id = runtime.getRenderedIdentityByClassNth("summary-root", "logic-guide-scenarios", 0); (document.getElementById(id) as HTMLDetailsElement).open = true; tasks.flush();
     const texts = runtime.getRenderedText("summary-root"); assert.ok(texts.includes("Value calculation and input application are unavailable for this language. Use source path preview and playback."));
     const loadId = runtime.getRenderedIdentityByTitle("summary-root", "Value calculation and input application are unavailable for this language. Use source path preview and playback.");
