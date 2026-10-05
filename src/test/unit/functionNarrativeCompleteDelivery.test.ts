@@ -145,3 +145,32 @@ test("inferred and partial paths get individual fixed slots and visible source c
     assert.equal(f.messages.at(-1)!.coverage!.completed, 5);
   } finally { f.delivery.clear(); }
 });
+
+test("model preparation can exceed the inference deadline and occurs once, never during cached paging", async (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout"] }); let preparations = 0;
+  const f = fixture({ async prepare(_language, signal) { preparations++; t.mock.timers.tick(180000); assert.equal(signal.aborted, false); }, async generate(context) { return reply(context); } });
+  try {
+    await f.delivery.request(request); assert.equal(f.messages.at(-1)!.status, "ready"); assert.equal(preparations, 1);
+    await f.delivery.request({ ...request, requestId: 2, pageIndex: 1, pageLanguage: "en" });
+    await f.delivery.request({ ...request, requestId: 3 }); assert.equal(preparations, 1);
+  } finally { f.delivery.clear(); t.mock.timers.reset(); }
+});
+
+test("Guide cancellation ends an uncooperative preparation and no inference runs afterward", async () => {
+  let started!: () => void; const gate = new Promise<void>((resolve) => { started = resolve; });
+  let inferences = 0;
+  const f = fixture({ async prepare() { started(); await new Promise(() => {}); }, async generate(context) { inferences++; return reply(context); } });
+  try {
+    const pending = f.delivery.request(request); await gate; f.delivery.cancel(request); await pending;
+    assert.equal(f.messages.at(-1)!.status, "cancelled"); assert.equal(inferences, 0); assert.equal(f.messages.at(-1)!.coverage!.completed, 0);
+  } finally { f.delivery.clear(); }
+});
+
+test("preparation failure preserves a retryable session; a later explicit action prepares and analyzes", async () => {
+  let attempts = 0; let inferences = 0;
+  const f = fixture({ async prepare() { if (++attempts === 1) throw new FunctionNarrativeError("download-failed"); }, async generate(context) { inferences++; return reply(context); } });
+  try {
+    await f.delivery.request(request); assert.equal(f.messages.at(-1)!.status, "download-failed"); assert.equal(inferences, 0);
+    await f.delivery.request({ ...request, requestId: 2 }); assert.equal(attempts, 2); assert.equal(inferences, 4); assert.equal(f.messages.at(-1)!.coverage!.completed, 8);
+  } finally { f.delivery.clear(); }
+});

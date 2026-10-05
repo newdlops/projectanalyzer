@@ -122,7 +122,7 @@ export class FunctionNarrativesHostDelivery {
     const controller = new AbortController();
     const pending = { request, controller }; this.pending = pending;
     let timedOut = false;
-    const timeout = setTimeout(() => { timedOut = true; controller.abort(); }, 45000);
+    let timeout: ReturnType<typeof setTimeout> | undefined;
     let onAbort: () => void = () => {};
     const cancelled = new Promise<never>((_resolve, reject) => {
       onAbort = () => reject(new FunctionNarrativeError(timedOut ? "timeout" : "cancelled"));
@@ -130,6 +130,10 @@ export class FunctionNarrativesHostDelivery {
     });
     const stillCurrent = () => this.contexts.get(request.flowId) === entry && this.dependencies.isActive(request.graphVersion);
     try {
+      if (provider.prepare) await Promise.race([provider.prepare(language, controller.signal), cancelled]);
+      if (controller.signal.aborted || this.pending !== pending || !stillCurrent()) return;
+      // A first-use multi-gigabyte transfer is not part of the inference deadline.
+      timeout = setTimeout(() => { timedOut = true; controller.abort(); }, 45000);
       const response = await Promise.race([provider.generate(entry.context, language, controller.signal, { reselectModel: entry.reselectModel }), cancelled]);
       if (controller.signal.aborted || this.pending !== pending || !stillCurrent()) return;
       const narrative = parseFunctionNarrative(response.text, entry.context, language);
@@ -158,7 +162,7 @@ export class FunctionNarrativesHostDelivery {
     }
   }
 
-  /** One explicit action consumes all source batches; each batch has a 90-second deadline and cancellation. */
+  /** Source-free preparation precedes all source batches; each inference has its own 90-second deadline. */
   private async requestComplete(request: FunctionNarrativesRequest, entry: ContextEntry, language: "ko" | "en"): Promise<void> {
     const provider = this.dependencies.provider;
     const send = (result: Omit<FunctionNarrativesResponse, keyof FunctionNarrativesRequest>) =>
@@ -170,6 +174,8 @@ export class FunctionNarrativesHostDelivery {
     let generated = false;
     const current = () => this.pending === pending && this.contexts.get(request.flowId) === entry && this.dependencies.isActive(request.graphVersion);
     try {
+      if (!session.complete && provider.prepare) await this.prepareProvider(provider, language, controller.signal);
+      if (!current()) return;
       while (!session.complete) {
         let timedOut = false;
         const timer = setTimeout(() => { timedOut = true; controller.abort(); }, SCENARIO_BATCH_DEADLINE_MS);
@@ -211,6 +217,18 @@ export class FunctionNarrativesHostDelivery {
         await send({ status, ...result, cacheHit: false });
       }
     } finally { if (this.pending === pending) this.pending = undefined; }
+  }
+
+  /** Cancellation wins even if a setup adapter fails to observe its signal; cached pages never call this. */
+  private async prepareProvider(provider: FunctionNarrativeProvider, language: "ko" | "en", signal: AbortSignal): Promise<void> {
+    if (signal.aborted) throw new FunctionNarrativeError("cancelled");
+    let abort = () => {};
+    const cancelled = new Promise<never>((_resolve, reject) => {
+      abort = () => reject(new FunctionNarrativeError("cancelled"));
+      signal.addEventListener("abort", abort, { once: true });
+    });
+    try { await Promise.race([provider.prepare!(language, signal), cancelled]); }
+    finally { signal.removeEventListener("abort", abort); }
   }
 
   /** Keeps evidence and presentation bounded to the one visible page, with stable global numbering. */

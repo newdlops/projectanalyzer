@@ -18,7 +18,7 @@ export type FunctionNarrativeSourceRequest = {
   pageIndex?: number;
 };
 export type FunctionNarrativesResponse = FunctionNarrativesRequest & {
-  status: "ready" | "progress" | "unavailable" | "cancelled" | "denied" | "timeout" | "invalid-response" | "language-mismatch" | "context-too-large" | "failed" | "stale";
+  status: "ready" | "progress" | "unavailable" | "download-failed" | "cancelled" | "denied" | "timeout" | "invalid-response" | "language-mismatch" | "context-too-large" | "failed" | "stale";
   modelName?: string;
   language?: "ko" | "en";
   cacheHit?: boolean;

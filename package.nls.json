@@ -10,7 +10,7 @@
   "configuration.title": "Project Analyzer: Code Flow",
   "configuration.functionNarratives.provider": "LLM used only when generating behavior scenarios. Local runs a GGUF model on this computer and releases it after each request; vscode uses a connected VS Code chat model.",
   "configuration.functionNarratives.localBinary": "Path to llama.cpp's llama-completion executable. Leave empty to use Homebrew or PATH. No server or model runs while idle.",
-  "configuration.functionNarratives.localModel": "Absolute path to a local instruction-tuned GGUF model. If empty, choose a model on the first Generate LLM scenarios action.",
+  "configuration.functionNarratives.localModel": "Absolute path to an existing instruction-tuned GGUF model. If empty or missing, the first Analyze all scenarios action automatically downloads Qwen3.5-4B Q4_K_M (2.74 GB) to the extension cache. Interrupted downloads resume on retry. llama-completion must be preinstalled.",
   "configuration.functionNarratives.sourceDecorations": "Show generated LLM scenario/step numbers on their source lines and detailed explanations on hover. Editing the source removes these inference annotations.",
   "configuration.uiLanguage.description": "Language for Project Analyzer runtime surfaces. Resolved view and owned editor-panel titles update immediately; Activity Bar container, command/menu, settings, and extension labels follow the VS Code display language after reload.",
   "configuration.uiLanguage.auto": "Use Korean only for Korean VS Code display locales; otherwise use English.",

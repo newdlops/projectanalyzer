@@ -183,7 +183,7 @@ export function getFunctionNarrativesBrowserSource(): string {
           const restoreFocus = document.activeElement === cancelButton;
           const progress = payload.status === "progress";
           if (!progress) request = undefined;
-          const statuses = ["ready", "progress", "unavailable", "cancelled", "denied", "timeout", "invalid-response", "language-mismatch", "context-too-large", "failed", "stale"];
+          const statuses = ["ready", "progress", "unavailable", "download-failed", "cancelled", "denied", "timeout", "invalid-response", "language-mismatch", "context-too-large", "failed", "stale"];
           phase = progress ? "pending" : statuses.includes(payload.status) ? payload.status : "failed";
           if (payload.narrative || phase === "ready" || progress) {
             if (!validFunctionNarrativesResponse(payload)) phase = "invalid-response";

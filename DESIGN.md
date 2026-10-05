@@ -66,9 +66,21 @@ absence, access denial, timeout, invalid output, context limits, failed request 
 stale snapshot. Keep prior results during locale changes, label their generation
 language, and offer generation in the new language without an automatic request.
 Never apply LLM descriptions to the existing scenario inputs or graph selection.
-Default to an on-demand local model, with native GGUF selection on first use. Keep
+Default to an on-demand local model, with automatic GGUF preparation on first use. Keep
 connected VS Code models as a machine setting. Expired contexts offer an explicit
 reload action; reloading restores the source context without starting inference.
+
+Model preparation uses a native VS Code progress notification rather than another
+Webview panel. Its hierarchy is model name/2.74 GB → bytes received/verification →
+Cancel. Keep the Guide's existing Cancel action available throughout preparation.
+Both controls stop the transfer; retry resumes a retained partial file. Existing
+configured GGUF files bypass the download. Require the preinstalled runner before
+starting any transfer. Completion continues the same requested analysis. Download
+failure leaves a localized retry message in the Guide. Native typography, theme
+colors, focus treatment and responsive notification layout remain owned by VS Code.
+Preparation runs before the inference deadline; mount/focus/paging/locale changes
+do not prepare a model. Acceptance includes actual first-use progress/cancel/retry,
+checksum verification, cache reuse and no model process while downloading or idle.
 
 Acceptance: Kotlin and parameterless functions offer the action; mount/focus/locale
 changes produce no inference; strict snippet references and bounded output; stale

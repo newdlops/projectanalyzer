@@ -10,7 +10,7 @@
   "configuration.title": "프로젝트 분석기: 코드 흐름",
   "configuration.functionNarratives.provider": "동작 시나리오를 생성할 때만 사용하는 LLM입니다. local은 PC의 GGUF 모델을 실행하고 요청 후 해제하며, vscode는 VS Code에 연결된 채팅 모델을 사용합니다.",
   "configuration.functionNarratives.localBinary": "llama.cpp의 llama-completion 실행 파일 경로입니다. 비워 두면 Homebrew 또는 PATH를 사용합니다. 대기 중에는 서버나 모델을 실행하지 않습니다.",
-  "configuration.functionNarratives.localModel": "로컬 명령형 GGUF 모델의 절대 경로입니다. 비워 두면 처음 LLM 시나리오 만들기를 누를 때 모델을 선택합니다.",
+  "configuration.functionNarratives.localModel": "기존 명령형 GGUF 모델의 절대 경로입니다. 비어 있거나 파일이 없으면 첫 전체 시나리오 분석 때 Qwen3.5-4B Q4_K_M(2.74 GB)을 확장 캐시에 자동 다운로드합니다. 중단된 다운로드는 재시도 시 이어받습니다. llama-completion은 미리 설치해야 합니다.",
   "configuration.functionNarratives.sourceDecorations": "LLM 시나리오와 단계 번호를 해당 소스 줄에 표시하고 호버에 자세한 해설을 표시합니다. 소스를 수정하면 이 추론 표시를 지웁니다.",
   "configuration.uiLanguage.description": "Project Analyzer 런타임 화면의 언어입니다. 해결된 보기와 소유 편집기 패널 제목은 즉시 바뀌며, 활동 표시줄 컨테이너, 명령/메뉴, 설정 및 확장 레이블은 다시 시작한 뒤 VS Code 표시 언어를 따릅니다.",
   "configuration.uiLanguage.auto": "VS Code 표시 언어가 한국어일 때만 한국어를 사용하고, 그 외에는 영어를 사용합니다.",

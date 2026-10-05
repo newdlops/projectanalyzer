@@ -4,6 +4,23 @@ All notable user-visible changes to Project Analyzer: Code Flow are recorded in
 this file. The changelog starts with the first distribution-documented build;
 earlier local development builds were not tracked here.
 
+## 0.0.1109 - 2026-10-05
+
+### Added
+
+- Automatically download Qwen3.5-4B Q4_K_M (2.74 GB) on the first explicit local
+  analysis when no existing GGUF is configured. Keep weights in extension-global
+  storage across updates; verify pinned size/SHA-256 before using the model.
+- Show native download progress and cancellation. Interrupted transfers resume
+  on retry; invalid content is discarded. Multiple windows share a download lease.
+- Prepare the model before starting inference deadlines. Check the preinstalled
+  llama-completion runner first and keep existing custom GGUF/VS Code model settings.
+
+### Requirements
+
+- llama.cpp is installed separately. Model download requires HTTPS access to
+  Hugging Face and its CDN, plus about 2.74 GB of available disk space.
+
 ## 0.0.1108 - 2026-10-05
 
 ### Improved

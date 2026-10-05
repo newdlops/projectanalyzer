@@ -1415,14 +1415,15 @@ Webview는 Project Graph, 파일 시스템, VS Code API에 직접 접근하지 �
   이 검사는 문장의 의미 정확성을
   보장하지 않는다. context identity에는 위의 source fact와 static check도 포함한다.
 - `FunctionNarrativeProvider.generate`는 사용자 요청으로만 호출되는 교체 가능한 LLM 경계다.
-  기본 local adapter는 PC에 설치한 `llama-completion`과 사용자가 선택한 instruction-tuned
-  GGUF를 명시적 요청에만 실행한다. 8,192 token context, 출력 2,400 token, CPU thread 2개,
+  optional `prepare(language, signal)`는 source 없이 명시적 요청 때만 실행하며 추론 timeout보다
+  먼저 끝난다. 기본 local adapter는 PC에 설치한 `llama-completion`과 기존 설정 GGUF 또는
+  자동 준비한 Qwen3.5-4B Q4_K_M을 명시적 요청에만 실행한다. 8,192 token context, 출력 2,400 token, CPU thread 2개,
   offline mode와 JSON grammar를 사용한다. 프로세스는 요청 종료/취소 때 해제하며 공급자
   설정 변경을 포함해 한 Extension Host에서 하나만 실행한다. 요청 언어는 별도 system message로
   전달한다. 한국어의 자유 서술 필드는 한글로 시작하도록 bounded JSON grammar로 유도하고
   고정된 source 식은 유지한다. private 임시 user/system prompt는 요청 종료 시 삭제한다.
   선택 가능한 VS Code adapter는 연결된 Chat model의 token 한도를 확인한 뒤 실제
-  `sendRequest`/response stream을 사용한다. 모델 자동 다운로드·학습·API key 보관은 하지 않는다.
+  `sendRequest`/response stream을 사용한다. 모델 학습·API key 보관은 하지 않는다.
 - 응답은 최대 24,000자 JSON, summary 1,200자, 시나리오 1–4개, 각 step 1–5개,
   title 160자, scenario `explanation` 1,800자, 기타 설명 600자, 조건·가정 각 4개,
   미확인 부분 6개로 제한한다. 이 상한은 응답 한 페이지이며 함수 전체의 경로 수를 제한하지 않는다.
@@ -1456,7 +1457,7 @@ Webview는 Project Graph, 파일 시스템, VS Code API에 직접 접근하지 �
   항상 LLM 추론·실제 실행 미검증과 생성 언어를 명시한다. 전체 정적 Summary, 질문, Source Path
   Scenarios는 처음에 접힌 Analysis details에 둔다. 부모 상세를 닫으면 해당 계산 consumer를
   해제하고 재생을 일시정지한다. 기존 값·경로·graph에 LLM 설명을 적용하지 않는다.
-  모델 없음·권한 거부·취소·timeout·invalid-response·language-mismatch·입력 한도·failed·stale 및 두 locale 지원.
+  모델 없음·다운로드 실패·권한 거부·취소·timeout·invalid-response·language-mismatch·입력 한도·failed·stale 및 두 locale 지원.
   초기 mount, focus, disclosure와 언어 전환은 LLM을 호출하지 않는다. pending에서는 Cancel만,
   현재 언어의 완료 결과에서는 추가 생성 버튼을 숨긴다. stale 상태는 Reload를 제공한다.
   요청 후 focus는 보이는 Cancel/Reload/Generate 또는 status로 복원하고 locale 변경은 근거
@@ -1499,10 +1500,29 @@ Webview는 Project Graph, 파일 시스템, VS Code API에 직접 접근하지 �
 - Qwen3.x 이름의 GGUF는 current llama-completion의 tool-template probe 대신 tool-free
   ChatML/`--no-jinja`/`--reasoning off`를 사용한다. local 8,192 context, 2,400 output,
   thread 2개, offline와 single-process lifecycle은 유지한다. 마켓 확장에는 모델·runner를
-  포함하지 않고 자동 다운로드하지 않는다.
+  포함하지 않는다. runner는 미리 설치하며 가중치는 첫 명시적 분석 요청에서 자동 다운로드한다.
 - complete local batch는 summary 240자, title 64자, explanation 480자, 최대 step 3개,
   step text/reason/effect 각각 120자, assumptions와 limitations 각각 최대 2개를 사용한다.
   기존 portable 응답 최대값과 별개인 생성 예산이며 fixed scenario slot 개수는 줄이지 않는다.
+
+#### `storage/localModels` 및 `vscode/functionNarrativeSetup`
+
+- construction과 activation은 모델 I/O·다운로드·추론을 시작하지 않는다. preinstalled runner가
+  유효할 때만 모델을 준비한다. 기존 machine `localModel` 파일은 재사용하고 빈/없는 경로는
+  extension-global 저장소의 pinned Qwen3.5-4B Q4_K_M을 사용한다. 설정을 자동으로 덮어쓰지 않는다.
+- public `createManagedLocalModelCache`와 `DEFAULT_FUNCTION_NARRATIVE_MODEL`은 framework-free
+  `ManagedLocalModelCache` port를 구현한다. 기본 원본 revision, 2,740,937,888 byte 크기 및
+  SHA-256은 확장 소유 상수다. 브라우저와 workspace는 다운로드 URL·파일 경로를 선택하지 못한다.
+- HTTPS redirect 최대 8회, socket idle 60초, bounded streaming과 native progress를 사용한다.
+  SHA-256이 맞는 파일만 atomic rename한다. 네트워크/취소 partial은 유지하며 explicit retry는
+  validated Range로 이어받는다. Range 미지원은 재시작하고 checksum/oversize 실패는 폐기한다.
+- 파일은 0600, 디렉터리는 0700으로 만들며 다운로드 lease로 창 사이 중복 전송을 방지한다.
+  죽은 PID의 lease는 복구한다. 신호·native Cancel·Guide Cancel·extension disposal로 중단한다.
+  큰 파일은 메모리에 누적하지 않는다. 완료 파일의 size/mtime/ctime/inode identity가 같을 때만
+  Host 내 hash 검증 결과를 재사용한다. 모델 파일은 확장 업데이트에 걸쳐 유지된다.
+- `prepare`는 한 explicit run의 provider를 고정한다. 준비 완료 후에만 inference deadline을
+  시작하고 cached paging/완료 session 재조회는 prepare를 호출하지 않는다. download-failed는
+  localized retry 안내이며 완료된 시나리오와 재개 가능한 session을 보존한다.
 
 #### `shared/functionScenarios`
 

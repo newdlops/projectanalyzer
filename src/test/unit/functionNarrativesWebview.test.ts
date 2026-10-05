@@ -181,3 +181,23 @@ test("expired LLM context offers an explicit Host-owned source refresh without a
     widget.dispose();
   } finally { runtime.restore(); }
 });
+
+test("download failure restores a focused retry action with localized resumable-download guidance", () => {
+  const runtime = installSidebarWebviewRuntime();
+  try {
+    const posts: Array<{ type: string; payload: Record<string, unknown> }> = [];
+    const browser = new Function("state", "vscode", getBrowserLocalizationSource() + getFunctionNarrativesBrowserSource()
+      + "return {create:createFunctionNarratives,accept:acceptFunctionNarrativesResponse,locale:applyProjectAnalyzerLanguage};")({ graph: { version: "fixture" }, uiLanguage: "ko" }, { postMessage(message: typeof posts[number]) { posts.push(message); } });
+    browser.locale("ko");
+    const widget = browser.create({ functionId: flowId, narratives: { available: true, contextId } }, {});
+    document.getElementById("narrative-root")!.append(widget.element);
+    runtime.focusRenderedByClassNth("narrative-root", "logic-narrative-request", 0);
+    runtime.clickRenderedByClassNth("narrative-root", "logic-narrative-request", 0);
+    browser.accept({ ...posts[0].payload, status: "download-failed" });
+    assert.ok(runtime.getRenderedText("narrative-root").some((text) => text.includes("중단된 다운로드는 자동으로 이어받습니다")));
+    assert.equal(runtime.getFocusedElementId(), runtime.getRenderedIdentityByClassNth("narrative-root", "logic-narrative-request", 0));
+    assert.equal(posts.length, 1);
+    runtime.clickRenderedByClassNth("narrative-root", "logic-narrative-request", 0); assert.equal(posts.length, 2);
+    widget.dispose();
+  } finally { runtime.restore(); }
+});

@@ -22,6 +22,7 @@ import { createWorkspaceAnalysisCacheKey } from "../vscode/workspaceFingerprint"
 import { VsCodeWorkspaceFileSystem } from "../vscode/workspaceFileSystem";
 import { createConfiguredFunctionNarrativeProvider } from "../vscode/configuredFunctionNarrativeProvider";
 import { createFunctionNarrativePageStore } from "../storage/functionNarrativePages";
+import { createManagedLocalModelCache, DEFAULT_FUNCTION_NARRATIVE_MODEL } from "../storage/localModels";
 import { FunctionNarrativeDecorationService } from "../vscode/functionNarrativeDecorations";
 import { ExplorerGraphPanelProvider } from "../webview/explorerGraphPanelProvider";
 import { ExplorerViewProvider } from "../webview/explorerViewProvider";
@@ -48,7 +49,9 @@ export type ExtensionServices = {
 export function createExtensionServices(context: vscode.ExtensionContext): ExtensionServices {
   const logger = createProjectAnalyzerLogger(context);
   const config = readProjectAnalyzerConfig();
-  const functionNarrativeProvider = createConfiguredFunctionNarrativeProvider();
+  const localModels = createManagedLocalModelCache(context.globalStorageUri.fsPath, DEFAULT_FUNCTION_NARRATIVE_MODEL);
+  context.subscriptions.push(localModels);
+  const functionNarrativeProvider = createConfiguredFunctionNarrativeProvider(localModels);
   const sourceHighlighter = new SourceHighlightService();
   const narrativeDecorations = new FunctionNarrativeDecorationService(vscode);
   context.subscriptions.push(sourceHighlighter);

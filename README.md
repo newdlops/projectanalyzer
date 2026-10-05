@@ -66,11 +66,12 @@ Supported source-first function visualization currently covers:
 ## Understand the Selected Function
 
 The Guide's **Analyze all scenarios** action uses a local LLM on demand. Install
-the extension from the marketplace, then install `llama-completion` and download
-an instruction-tuned GGUF separately. The tested Qwen3.5-4B Q4_K_M file is about
-2.74 GB; select it on first generation or set
-`projectAnalyzer.functionNarratives.localModel`. Models are not bundled or
-automatically downloaded. See [model setup, checksums and limits](docs/FUNCTION_NARRATIVES.md).
+the extension from the marketplace and preinstall `llama-completion`. On the first
+analysis, the extension automatically downloads Qwen3.5-4B Q4_K_M (2.74 GB), checks
+its SHA-256 and reuses its private global cache thereafter. Download progress is
+cancellable; retry resumes a partial file. An existing GGUF configured in
+`projectAnalyzer.functionNarratives.localModel` is reused directly. Models are
+not bundled in the VSIX. See [model setup, checksums and limits](docs/FUNCTION_NARRATIVES.md).
 A connected VS Code Chat model is also available through the provider setting.
 
 **At a glance** starts with authored documentation, inputs, decisions and

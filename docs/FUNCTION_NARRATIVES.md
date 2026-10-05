@@ -8,12 +8,15 @@ Kotlin과 인자 없는 함수도 사용할 수 있다. 숫자 입력을 찾는 
 
 ## 사용 및 연결
 
-1. PC에 llama.cpp의 `llama-completion` 실행 도구와 instruction-tuned GGUF 모델을 준비한다.
+1. 확장을 설치하고 PC에 llama.cpp의 `llama-completion` 실행 도구를 미리 준비한다.
    기본 provider는 `local`이다. Homebrew 경로와 PATH를 확인하며, 다른 설치 경로는
    `projectAnalyzer.functionNarratives.localBinary`에 지정한다.
 2. 함수를 시각화하면 Function Guide가 열린다. 짧은 목적을 읽고 **전체 시나리오 분석**을 누른다.
-   첫 요청에서 GGUF 파일을 선택하면 `projectAnalyzer.functionNarratives.localModel`에
-   사용자 설정으로 저장한다. 프로젝트 설정이 실행 파일을 바꾸지 못하도록 machine scope를 쓴다.
+   `localModel`이 비어 있거나 해당 파일이 없으면 Qwen3.5-4B Q4_K_M 가중치(2.74 GB)를
+   자동 다운로드하고 무결성 확인 후 같은 요청의 분석을 시작한다. native 진행 알림과 Guide의
+   **취소**로 다운로드를 중단할 수 있다. 다시 분석하면 임시 파일부터 이어받는다.
+   기존 GGUF의 절대 경로를 `projectAnalyzer.functionNarratives.localModel`에 설정하면 그대로
+   재사용한다. 프로젝트 설정이 실행 파일을 바꾸지 못하도록 machine scope를 쓴다.
 3. 로컬 모델은 요청할 때만 실행하고 끝나거나 취소되면 프로세스를 종료한다.
    기본 문맥 8,192 token, 응답 2,400 token, CPU thread 2개와 GPU 자동 offload를 사용한다.
    발견한 소스 경로를 한 번에 최대 2개씩 순차 분석한다. 전체 경로 수에는 3개/4개 상한을
@@ -60,10 +63,33 @@ Host와 화면은 설명의 문자 체계를 확인하며 인용된 코드·반�
 계산 소비자를 해제한다. 생성 중에는 취소만 보이고 현재 언어의 완료 결과에서는 생성 버튼을
 숨긴다. 언어를 바꾸면 기존 문단과 펼침 상태를 유지하고 새 언어의 생성 버튼을 제공한다.
 
-모델이나 실행 도구가 없으면 설정 안내를 표시한다. 모델을 VSIX에 포함하거나 자동 다운로드하지
-않고, 키를 보관하지 않으며, 기본 분석·화면 전환·focus·언어 전환 때 추론하지 않는다.
+실행 도구가 없으면 다운로드 전에 설정 안내를 표시한다. 가중치는 VSIX에 포함하지 않고 첫 분석
+요청에서만 준비한다. 키를 보관하지 않으며 기본 분석·화면 전환·focus·언어 전환 때 다운로드하거나
+추론하지 않는다.
 로컬 모드는 source를 외부로 보내지 않는다. 연결 공급자의 전송 방식은 해당 설정을 따른다.
 전체 저장소를 전달하지 않는다. context가 만료되면 **함수 다시 불러오기**로 복구한 뒤 다시 생성한다.
+
+### 자동 모델 저장소
+
+`storage/localModels.createManagedLocalModelCache`는 `ExtensionContext.globalStorageUri` 아래
+`models/qwen3.5-4b-q4_k_m-00fe7986ff5f/Qwen3.5-4B-Q4_K_M.gguf`를 사용한다.
+확장 업데이트와 workspace 전환 때 같은 파일을 재사용한다. 저장 위치는 VS Code가 지정한
+global storage를 따르며 원격 Extension Host에서는 해당 Host의 저장소를 사용한다.
+일반 분석 캐시 지우기는 모델을 삭제하지 않는다.
+
+다운로드 원본은 [Unsloth GGUF의 고정 revision](https://huggingface.co/unsloth/Qwen3.5-4B-GGUF/tree/e87f176479d0855a907a41277aca2f8ee7a09523)이다.
+예상 파일 크기는 2,740,937,888 byte, SHA-256은
+`00fe7986ff5f6b463e62455821146049db6f9313603938a70800d1fb69ef11a4`다.
+기본 [Qwen3.5-4B 모델](https://huggingface.co/Qwen/Qwen3.5-4B)은 Apache-2.0을 따른다.
+다운로드는 HTTPS와 정상 TLS 검증을 사용하고 Hugging Face/CDN 접근이 필요하다.
+실패 시 네트워크·프록시·저장 공간을 확인하고 명시적으로 재시도한다.
+
+전송은 bounded buffer로 `.part` 파일에 쓰고, 재시도 시 Range와 전체 체크섬을 확인한다.
+서버가 Range를 지원하지 않으면 처음부터 다시 받는다. 크기·체크섬이 맞아야 최종 파일로
+atomic rename하며 잘못된 데이터는 사용하지 않는다. SHA-256 결과는 한 Host에서 파일 stat
+identity가 유지될 때 재사용하고 다른 Host/재시작 또는 파일 변경 시 다시 확인한다.
+여러 창은 PID/token 파일 lease로 다운로드를 공유하고 취소·Host disposal은 전송을 중단한다.
+준비 단계에는 source를 전달하지 않으며 다운로드 시간은 묶음별 90초 추론 제한에 포함하지 않는다.
 
 ## 근거와 한계
 
@@ -97,7 +123,12 @@ LLM 설명은 항상 **추론 · 실제 실행 미검증**이다. JSON 형식과
 - `vscode/functionNarrativeProvider`: 실제 VS Code 모델 선택, token 확인, streaming, 취소와 오류 변환.
 - `llm/functionNarratives`: `createLocalFunctionNarrativeProvider`, private prompt, localized line-numbered
   input, JSON grammar, output cap 및 종료를 기다리는 공용 process queue.
-- `vscode/configuredFunctionNarrativeProvider`: machine 설정과 첫 GGUF 선택, local/VS Code provider 연결.
+- `shared/localModels`: `ManagedLocalModelCache`, `LocalModelDescriptor`, bounded progress/error 계약.
+- `storage/localModels`: `createManagedLocalModelCache`, `DEFAULT_FUNCTION_NARRATIVE_MODEL`.
+  내부 HTTPS streaming/resume/hash와 cross-window lease를 native UI에서 분리한다.
+- `vscode/functionNarrativeSetup`: `createConfiguredNarrativeProvider`는 machine 설정, runner preflight,
+  source-free `prepare`와 native 진행·취소·오류 안내를 담당한다. 실행별 provider를 AbortSignal에 고정한다.
+- `vscode/configuredFunctionNarrativeProvider`: VS Code API와 주입받은 모델 저장소를 위 adapter에 연결한다.
 - `vscode/functionNarrativeDecorations`: 한 번에 검증된 결과 하나만 유지하는 native adapter.
   전체 문서의 hash, 실제 file URI와 표시 소유권을 확인하고 편집·닫기·설정 해제 때 지운다.
 - `storage/functionNarrativePages`: `createFunctionNarrativePageStore`는 첫 저장 때만 private
@@ -187,11 +218,11 @@ revision `e87f176479d0855a907a41277aca2f8ee7a09523`, 파일 `Qwen3.5-4B-Q4_K_M.g
 Jinja 끄기와 reasoning 끄기로 실제 추론했다. 현재 runner의 Qwen3.5 Jinja tool-template probe는
 추론 전에 실패하므로 `Qwen3.`/`Qwen3-`로 시작하는 모델 파일명에 이 호환 옵션을 적용한다.
 
-마켓 설치에는 모델이 포함되지 않는다. 사용자는 llama.cpp 실행 도구와
-[고정 revision의 GGUF 파일](https://huggingface.co/unsloth/Qwen3.5-4B-GGUF/resolve/e87f176479d0855a907a41277aca2f8ee7a09523/Qwen3.5-4B-Q4_K_M.gguf?download=true)을 별도로
-다운로드한 뒤 첫 생성의 파일 선택 또는 `projectAnalyzer.functionNarratives.localModel`로
-연결한다. 다운로드 뒤 위 SHA-256으로 무결성을 확인할 수 있다. 자동 다운로드나 설치
-wizard는 아직 제공하지 않는다. 모델은 `.local-models/`에 보관하며 git과 VSIX에서 제외한다.
+마켓 설치에는 모델이 포함되지 않는다. llama.cpp 실행 도구를 미리 설치하고 첫 **전체 시나리오
+분석**을 요청하면 위 고정 revision의 GGUF를 자동 다운로드해 SHA-256을 검증한다.
+다운로드는 확장 global storage에 보관하며 git과 VSIX에 넣지 않는다.
+기존 `projectAnalyzer.functionNarratives.localModel` 파일이 있으면 그대로 사용한다.
+이 PC에 이미 있던 비교용 모델은 `.local-models/`에 보관하며 git과 VSIX에서 제외한다.
 
 0.0.1107까지 이 PC의 사용자 설정은 공식 [Qwen2.5-Coder-1.5B-Instruct-GGUF](https://huggingface.co/Qwen/Qwen2.5-Coder-1.5B-Instruct-GGUF)의
 Q4_K_M 파일을 사용했다. 모델은 `.local-models/`에 별도로 보관하며 git과 VSIX에서 제외한다.
@@ -206,6 +237,38 @@ Q4_K_M을 사용했다. revision `f74adce6aa16316c625447af059dbebe4983757c`,
 2,104,932,800 bytes, SHA-256
 `724fb256bec1ff062b2f65e4569e871ad2e95ab2a3989723d1769c54294730b7`을 확인했다.
 두 모델 모두 `.local-models/`에 보관하며, 비교를 위해 사용자 설정을 바꾸지 않았다.
+
+## 0.0.1109 검증 기록
+
+- 생산 storage/network adapter로 고정 Hugging Face revision의 2,740,937,888 bytes를
+  실제 다운로드했다. 67,199,610 bytes에서 취소한 뒤 HTTP 206과 일치하는 Content-Range로
+  이어받았고, 완료 파일의 SHA-256을 독립적으로 다시 계산해 고정 값과 일치함을 확인했다.
+  같은 cache의 다음 `ensure`는 추가 네트워크 요청 없이 파일을 재사용했다.
+- 이 자동 다운로드 파일로 생산 configured provider → local provider → Host를 실행했다.
+  공개 Kotlin `inspect(value)`의 5/5 경로가 한국어 설명으로 완료됐고 세 묶음·세 페이지를
+  저장했다. 준비부터 모든 페이지 읽기까지 55.438초였으며 작은 함수 한 번의 측정이다.
+  준비/모델 cache 확인은 각각 한 번, 모델 호출은 세 번이었다. 저장 페이지를 다시 읽어도
+  준비·다운로드·추론 횟수가 늘지 않았다. VS Code 설정/알림 API는 QA port로 대체했고
+  모델 실행은 실제 llama-completion을 사용했다. 완료 후 모델 프로세스는 없었다.
+- 실제 전송은 Node의 정상 시스템 CA 검증을 켜서 실행했다. 이 PC의 기업 CA는 기본 Node
+  trust store만으로 인식되지 않아 `--use-system-ca`가 필요했다. TLS 검증을 끄지 않았다.
+  이 CLI 검증은 실제 VS Code Host의 프록시·인증서 설정 검증을 대신하지 않는다.
+- 새 storage/setup/Host 집중 테스트 27개와 패키징 script 13개가 통과했다. 전체 TypeScript
+  unit은 964개 중 960개 통과했다. 기존 declared-type 입력 대표값 2개, advanced private
+  Scenario, decorated source-reveal의 실패 4개는 같다. check, compile, release metadata,
+  diff check와 VSIX 상한 검사도 통과했다. Rust 소스는 바꾸지 않아 Rust 테스트를 재실행하지
+  않았다. 비공개 source·prompt·모델 응답과 다운로드 파일은 git/VSIX에 포함하지 않았다.
+- 생산 HTML을 실제 Safari에서 390×844 한국어 준비/취소, 768×1024 한국어 다운로드 실패,
+  1440×900 영어 실패 상태로 확인했다. 이 응답 상태는 명시적인 QA fixture이며 실제 native
+  다운로드 알림의 재생이 아니다. 취소 후 재분석 동작, 한영 전환, 긴 문장의 줄바꿈을
+  확인했고 측정한 가로 overflow와 계측된 browser 오류는 없었다. 변경 범위의 Impeccable
+  검사와 Web Interface Guidelines 검토에서도 추가 수정 항목은 없었다.
+- 실제 VS Code QA 창은 함수 시각화 명령으로 활성화했지만 native 캡처가 이전 명령 palette를
+  계속 표시하여 진행 알림의 시각 검증은 완료하지 못했다. 알림의 진행·취소·오류 연결은
+  adapter 테스트로 확인했다. OS 스크린리더, 실제 터치 장치, 전체 접근성 인증은 확인하지 않았다.
+- 0.0.1109 VSIX는 509개 파일, 압축 3.60 MiB·해제 15.38 MiB다. 기본 및 QA 프로필에
+  설치했고 두 manifest의 버전과 설치된 런타임 JS 475개의 빌드 출력 일치를 확인했다.
+  기본 프로필의 기존 GGUF 설정은 유지했고 QA 프로필의 빈 모델 경로는 자동 준비를 사용한다.
 
 ## 0.0.1108 검증 기록
 
@@ -254,8 +317,8 @@ Rust 테스트를 재실행하지 않았다. 설치 manifest와 변경 런타임
 
 실제 화면과 synthetic 상태의 구분은 [UI 검증 기록](FUNCTION_READING_UI_QA.md)을 따른다.
 완료 개수는 captured control graph의 유한 구조 경로에 대한 것이며, 모든 반복 횟수나
-실제 입력 도달 가능성·모델 문장의 의미 정확성을 보장하지 않는다. 모델 자동 다운로드는
-구현하지 않았으며 위 별도 설치 방법과 고정 revision·SHA-256을 제공한다.
+실제 입력 도달 가능성·모델 문장의 의미 정확성을 보장하지 않는다. 0.0.1108 당시에는 모델
+자동 다운로드를 제공하지 않았으며 고정 revision·SHA-256과 별도 설치 방법을 제공했다.
 
 ## 0.0.1107 검증 기록
 
