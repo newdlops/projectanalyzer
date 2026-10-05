@@ -4,6 +4,22 @@ All notable user-visible changes to Project Analyzer: Code Flow are recorded in
 this file. The changelog starts with the first distribution-documented build;
 earlier local development builds were not tracked here.
 
+## 0.0.1107 - 2026-10-05
+
+### Fixed
+
+- Send the requested explanation language in a separate local system message and
+  constrain Korean prose during JSON decoding. Source expressions retain their
+  original text and the existing inference resource limits remain in place.
+- Validate the response language before displaying, caching or adding source
+  annotations. Wrong-language results show a localized retry message and require
+  another explicit action; they cannot be labeled as a successful Korean result.
+
+### Known limitations
+
+- Language validation checks prose scripts and preserves source literals. It does
+  not establish semantic correctness; model explanations remain unverified.
+
 ## 0.0.1106 - 2026-10-05
 
 ### Improved

@@ -40,7 +40,11 @@ VS Code 연결 모델을 쓰려면 `projectAnalyzer.functionNarratives.provider`
 그 외에는 영어를 사용하며 명시적 `ko`/`en`이 표시 언어보다 우선한다. 코드의 식·식별자·
 반환 문자열은 원문을 유지한다. 언어를 바꾸는 것만으로 모델을 실행하지 않는다.
 기존 결과에는 생성 언어를 표시하고, 새 언어의 **설명 생성**을 누르면 해당 언어로 생성한다.
-이미 생성한 언어로 돌아가면 그 언어의 캐시를 다시 읽는다.
+이미 생성한 언어로 돌아가면 그 언어의 캐시를 다시 읽는다. 로컬 실행에서는 요청 언어를
+별도 system message로 전달하고 한국어 서술은 한글로 시작하도록 JSON grammar로 유도한다.
+Host와 화면은 설명의 문자 체계를 확인하며 인용된 코드·반환 문자열은 원문으로 허용한다.
+요청 언어와 다른 설명은 저장하거나 소스에 표시하지 않고 재시도 안내를 보여준다.
+자동으로 다시 생성하지 않는다. 이 확인은 문장 의미나 내용의 정확성을 판정하지 않는다.
 
 기본 그래프 도구는 Guide·전체 보기와 접힌 **도구**다. 전체 함수 요약과 5개 읽기 질문,
 기존 정적 경로 시나리오는 접힌 **분석 상세**에서 확인한다. 부모 상세를 닫으면 해당 시나리오
@@ -76,7 +80,8 @@ LLM 설명은 항상 **추론 · 실제 실행 미검증**이다. JSON 형식과
   `buildFunctionNarrativeSourceFlow`, `addFunctionNarrativeValueGrounding`,
   `buildFunctionNarrativeScenarioFrames`, `parseFunctionNarrative`,
   `FunctionNarrativeProvider`, `FunctionNarrativeError`.
-- `shared/functionNarratives`: portable narrative/context types 및 동일한 Host/browser runtime validator.
+- `shared/functionNarratives`: portable narrative/context types 및 동일한 Host/browser runtime validator,
+  요청 언어의 서술을 확인하는 `isFunctionNarrativeLanguage`.
   `FunctionNarrativeSourcePresenter`, `buildFunctionNarrativeSourceAnnotations`는 native source 표시 계약과
   줄별 번호 그룹화를 제공한다.
 - `vscode/functionNarrativeProvider`: 실제 VS Code 모델 선택, token 확인, streaming, 취소와 오류 변환.
@@ -156,6 +161,48 @@ Q4_K_M을 사용했다. revision `f74adce6aa16316c625447af059dbebe4983757c`,
 2,104,932,800 bytes, SHA-256
 `724fb256bec1ff062b2f65e4569e871ad2e95ab2a3989723d1769c54294730b7`을 확인했다.
 두 모델 모두 `.local-models/`에 보관하며, 비교를 위해 사용자 설정을 바꾸지 않았다.
+
+## 0.0.1107 검증 기록
+
+- 최종 빌드의 실제 local provider → Host 경계에서 기존 Qwen2.5-Coder 1.5B Q4_K_M을
+  한국어·영어로 실행했다. Kotlin/TypeScript는 명시적 설정과 다른 표시 언어를 사용해
+  요청 언어가 우선하는 것도 확인했다. source read adapter와 설정 조회는 QA adapter로
+  대체했으며, 아래 실행은 VS Code 화면 재생과 별개다.
+
+  | 입력 함수 | 한국어 요약·시나리오 | 영어 요약·시나리오 |
+  | --- | --- | --- |
+  | Kotlin `classifyOrder(enabled, amount)` | 3개, 6.201초 | 3개, 5.963초 |
+  | TypeScript `computeTotal(amount, enabled)` | 3개, 12.522초 | 3개, 8.852초 |
+  | 복잡한 Python 스냅샷 처리 함수 | 1개, 5.155초 | 1개, 7.941초 |
+
+  각 언어·함수의 1회 측정이며 일반적인 속도나 정확도를 보장하지 않는다. 위 실제 호출은
+  6회, 추가 source read는 0회였다. 같은 언어 재요청과 이전 언어 복귀는 캐시를 사용했다.
+  한국어 summary·문단·reason/effect가 모두 한국어로 반환됐다. native 설치본에서도
+  Kotlin 두 언어와 해당 Python 한국어 생성을 별도로 확인했다.
+- 한국어 설명이 전부 영어였던 이전 Python 응답을 회귀 대상으로 사용했다. 새 요청은
+  별도 private system prompt를 전달하고 한글 시작의 bounded JSON pattern으로 prose를
+  유도한다. prompt와 system 파일은 `0600`으로 기록하고 완료·오류·취소 때 함께 제거한다.
+  기존 source const/enum, 8,192 context·2,400 output·thread 2개·45초·단일 프로세스 제한,
+  seed 42·temperature 0.2를 유지했다. 자동 재시도나 모델 교체는 하지 않았다.
+- Host는 구조·소스 검증 뒤 캡처한 요청 언어를 확인한다. 영어 설명을 한국어로 요청한
+  regression에서 language-mismatch를 반환하고 캐시·evidence·annotation을 만들지 않으며,
+  명시적 재요청 뒤 한국어 성공과 같은 언어 캐시를 확인했다. production renderer도 같은
+  문자 확인을 적용하여 잘못된 ready payload를 성공으로 표시하지 않는다.
+- 이 검사는 문자 체계에 대한 heuristic이다. 인용된 코드와 원본 식을 허용하며 문장 의미를
+  평가하지 않는다. Kotlin 영어 summary는 `amount`를 Boolean이라고 했고 한국어 상세는
+  거짓 조건의 경계값을 잘못 설명했다. TypeScript 한국어는 고정 추가값 5를 5%로 설명했다.
+  Python 한국어도 실제 매개변수를 잘못 설명했다. 결과에 미검증 추론 표시를 유지한다.
+- native Python의 후속 영어 생성은 invalid-response로 거부됐다. 별도 Host QA 영어 성공을
+  모든 native 요청의 성공 보장으로 해석하지 않는다. UI는 기존 한국어 결과를 보존하고
+  명시적 재시도 버튼을 제공했다. native Kotlin 영어 요청은 정상 완료됐다.
+- 언어·Host delivery·Webview·local adapter 집중 테스트 24개가 모두 통과했다.
+  전체 TypeScript unit 921개 중 917개 통과, 기존 declared-type 입력 대표값 2개·advanced
+  private Scenario·decorated source reveal 실패 4개가 유지된다. compile, 패키징 script 13개,
+  release metadata와 diff check를 통과했다. Rust 소스는 이번에 변경하지 않았다.
+- 최종 VSIX는 494개 파일, 압축 3.57MiB·해제 15.32MiB다. 기본 및 QA 프로필의 0.0.1107
+  설치와 변경 런타임 JS 10개의 빌드 일치를 확인했고 추론 프로세스는 남아 있지 않았다.
+  실제 생성·소스·hover와 세 viewport·언어 전환·잘못된 언어·오류 복구 화면의 구체적 경계는
+  [UI 검증 기록](FUNCTION_READING_UI_QA.md)을 따른다. private 소스·응답은 commit하지 않는다.
 
 ## 0.0.1106 검증 기록
 

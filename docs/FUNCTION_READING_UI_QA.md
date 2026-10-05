@@ -1,5 +1,64 @@
 # 함수 따라 읽기 UI 검증
 
+## 0.0.1107: 요청한 설명 언어와 오류 복구
+
+2026-10-05, 한국어 UI에서도 영어 설명이 성공 결과로 표시되던 복잡한 Python 함수를
+재현했다. 요청 언어를 로컬 system message와 한국어 JSON grammar에 전달하고,
+Host와 production renderer에서 응답 언어를 확인하도록 수정했다. 기존 VS Code 토큰,
+레이아웃, disclosure와 버튼을 유지했다. UI 디자인 워크플로와 Impeccable을 적용하고
+Web Interface Guidelines의 상태 안내·포커스·줄바꿈 기준으로 변경 부분을 검토했다.
+
+화면 재생에는 최종 production HTML과 실제 1.5B Kotlin/TypeScript 한국어·영어 응답을
+사용했다. Safari fixture의 메시지 경계는 계측용 adapter이며 모델을 실행하지 않는다.
+다음은 실제 클릭·스크롤 및 accessibility tree와 screenshot으로 확인한 범위다.
+
+| 검증 경계 | 실제 확인 |
+| --- | --- |
+| Kotlin desktop `1440×900`, tablet `768×1024`, narrow `390×844` | 한국어·영어 문단, 생성 언어, 접힌 소스 근거와 좁은 화면 줄바꿈; 각 page horizontal overflow 없음, 계측 오류 0 |
+| 언어 전환·캐시 | 한국어 생성 후 근거를 펼치고 영어 전환; 요청 수 유지, 한국어 생성 표시와 근거 상태 보존. 명시적 영어 생성 뒤 한국어 복귀 시 캐시 복원, 추가 요청 없음 |
+| 소스 메시지 | 펼친 근거의 소스 버튼이 source action 1회 전송. Safari fixture에서는 실제 editor를 열지 않음 |
+| 잘못된 언어 | 한국어 요청에 구조적으로 유효한 실제 영어 응답을 재생; 시나리오 0개, 한국어 언어 불일치 안내와 생성 버튼. 명시적 재시도만 요청 수 증가 |
+| 생성 중·취소 | synthetic pending에서 취소 1회 전송, 생성 버튼으로 포커스 복원, 취소 안내. 자동 추가 요청 없음 |
+| 예외 상태, `390×844` | synthetic unavailable·failed·invalid-response·timeout·context-too-large·denied·stale의 한국어 안내와 복구 버튼. page overflow 없음, 계측 오류 0 |
+| 만료 복구 | stale 응답 뒤 함수 다시 불러오기로 ready 복원; 다시 불러오기만으로 추론 요청이 늘지 않고 명시적 생성 뒤 한국어 시나리오 3개 표시 |
+| TypeScript desktop | 실제 한국어·영어 요약과 문단 3개, 고정 조건 제목. 언어 전환은 요청 수 3을 유지하고 영어 생성 시 4로 증가; overflow 없음, 오류 0 |
+
+최종 darwin-arm64 VSIX를 기본 프로필과 별도 `Function Language QA 1107` 프로필에 설치했다.
+두 프로필의 설치 목록에 `newdlops.function-analysis@0.0.1107`이 있고, manifest와 변경된
+런타임 JS 10개가 빌드 출력과 일치한다. protocol 변경은 type-only이므로 별도 JS가 없다.
+임시 QA workspace에서 실제 VS Code와 사용자 설정의 기존 Qwen2.5-Coder 1.5B Q4_K_M을
+사용해 다음을 추가로 확인했다.
+
+- Kotlin 한국어 생성 중 취소로 포커스 이동, 완료 후 시나리오 3개와 한국어 설명 표시.
+  근거를 펼쳐 Tab·Enter로 원본 줄을 열고 편집기 LLM annotation과 native hover의 한국어
+  문단·단계 해설을 확인했다.
+- 이전에 영어로 나왔던 복잡한 Python 함수에서 한국어 생성이 완료되고 생성 언어와 실제
+  본문이 한국어인 것을 screenshot으로 확인했다. 영어로 바꾸면 한국어 결과의 생성 표시를
+  보존했다. 이어진 실제 영어 요청은 invalid-response로 거부됐으며 기존 한국어 결과를
+  유지하고 영어 재시도 안내와 생성 버튼을 표시했다.
+- Kotlin의 별도 실제 영어 요청은 영어 시나리오 3개로 완료됐다. 한국어 UI로 돌아오면
+  기존 영어 결과에 생성 언어를 정확히 표시했다. Guide를 닫으면 열기 버튼으로 포커스가
+  돌아오고 다시 열면 결과를 보존하며 닫기 버튼으로 포커스가 이동했다.
+- 추론 완료 및 화면 조작 뒤 `llama-completion` 프로세스가 남아 있지 않았다.
+  QA workspace의 언어 설정은 한국어로 복원했으며 모델과 추론 자원 상한은 유지했다.
+
+언어·Host delivery·Webview·local adapter의 최종 집중 테스트 24개는 모두 통과했다.
+전체 TypeScript unit은 921개 중 917개 통과했고 기존 실패 4개는 같다. 패키징 script 13개,
+compile, release metadata, diff check와 VSIX 상한 검사는 통과했다. Rust 소스는 변경하지 않아
+이번 릴리스에서 Rust 테스트를 재실행하지 않았다. VSIX는 494개 파일, archive 3.57MiB,
+unpacked 15.32MiB다.
+
+이 기록은 전체 UI나 모델 문장의 의미 정확성에 대한 승인 기록이 아니다. 실제 Kotlin 영어
+요약은 정수 입력을 Boolean으로 잘못 설명했고 TypeScript 한국어는 고정 추가값을 비율로
+설명했다. 자세한 모델 측정과 제약은 [모델 검증 기록](FUNCTION_NARRATIVES.md)을 따른다.
+실제 모델이 빠르게 완료해 native 취소는 별도로 검증하지 못했으며 취소와 timeout 화면은
+synthetic 상태 검증이다. light theme·forced colors·전체 키보드 흐름·모든 기존 그래프 도구를
+이번에 다시 검사했다는 의미는 아니다.
+
+최종 HTML fixture는 `/private/tmp/projectanalyzer-language-visual-qa.cjs`와 그 출력에,
+전체 unit 로그는 `/private/tmp/projectanalyzer-language-all-unit.log`에 보존했다.
+임시 Python 소스와 모델 응답은 로컬 QA 경로에만 두고 저장소와 VSIX에 포함하지 않는다.
+
 ## 0.0.1106: 조건에 맞는 제목과 설명 언어
 
 실제 로컬 1.5B의 Kotlin/TypeScript 한국어·영어 응답 네 개를 최종 Host parser에 재생한

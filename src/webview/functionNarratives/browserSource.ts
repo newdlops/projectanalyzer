@@ -1,9 +1,10 @@
 /** Explicit LLM generation controls; construction never evaluates scenarios or contacts a model. */
-import { isFunctionNarrative } from "../../shared/functionNarratives";
+import { isFunctionNarrative, isFunctionNarrativeLanguage } from "../../shared/functionNarratives";
 
 export function getFunctionNarrativesBrowserSource(): string {
   return /* js */ `
     ${isFunctionNarrative.toString()}
+    ${isFunctionNarrativeLanguage.toString()}
     const functionNarrativeRequests = new Map();
     const functionNarrativeResults = new Map();
     let nextFunctionNarrativeRequestId = 0;
@@ -145,13 +146,15 @@ export function getFunctionNarrativesBrowserSource(): string {
           if (disposed || !request || request.requestId !== payload.requestId) return;
           const restoreFocus = document.activeElement === cancelButton;
           request = undefined;
-          const statuses = ["ready", "unavailable", "cancelled", "denied", "timeout", "invalid-response", "context-too-large", "failed", "stale"];
+          const statuses = ["ready", "unavailable", "cancelled", "denied", "timeout", "invalid-response", "language-mismatch", "context-too-large", "failed", "stale"];
           phase = statuses.includes(payload.status) ? payload.status : "failed";
           if (phase === "ready") {
-            if (validFunctionNarrativesResponse(payload)) {
+            if (!validFunctionNarrativesResponse(payload)) phase = "invalid-response";
+            else if (!isFunctionNarrativeLanguage(payload.narrative, payload.language)) phase = "language-mismatch";
+            else {
               result = payload; functionNarrativeResults.set(key + ":" + payload.language, payload);
               while (functionNarrativeResults.size > 8) functionNarrativeResults.delete(functionNarrativeResults.keys().next().value);
-            } else phase = "invalid-response";
+            }
           }
           render();
           if (restoreFocus) {

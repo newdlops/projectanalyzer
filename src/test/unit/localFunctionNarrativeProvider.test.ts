@@ -21,6 +21,9 @@ async function fixture(body: string | ((directory: string) => string)) {
 test("local LLM adapter starts only on request and reads Kotlin from a private file without shell interpolation", async () => {
   const f = await fixture(`const fs = require('node:fs'); const args = process.argv.slice(2);
     const prompt = fs.readFileSync(args[args.indexOf('--file') + 1], 'utf8');
+    const systemFile = args[args.indexOf('--system-prompt-file') + 1];
+    const system = fs.readFileSync(systemFile, 'utf8');
+    if (!system.includes('English code-reading') || (fs.statSync(systemFile).mode & 0o777) !== 0o600) process.exit(3);
     if (!prompt.includes('fun describe()') || !args.includes('--offline') || !args.includes('--json-schema')) process.exit(2);
     process.stdout.write('{"summary":"ready"}');`);
   try {

@@ -2,8 +2,13 @@
 import type { FunctionNarrativeContext } from "../../shared/functionNarratives";
 import { buildFunctionNarrativeScenarioFrames } from "../../application/functionNarratives";
 
-export function createLocalNarrativeSchema(context: FunctionNarrativeContext): Record<string, unknown> {
-  const prose = { type: "string", minLength: 1, maxLength: 600 };
+export function createLocalNarrativeSchema(context: FunctionNarrativeContext, language: "ko" | "en" = "en"): Record<string, unknown> {
+  // Anchored character classes are supported by llama.cpp's JSON grammar. A
+  // Korean start guides the decoder's language while source const/enum fields
+  // remain untouched. Bounds are in the pattern because pattern takes precedence.
+  const description = (limit: number) => ({ type: "string", minLength: 1, maxLength: limit,
+    ...(language === "ko" ? { pattern: `^[가-힣][^"\\\\\\x00-\\x1F]{0,${limit - 1}}$` } : {}) });
+  const prose = description(600);
   const facts = { type: "array", items: prose, maxItems: 4 };
   const source = { type: "object", additionalProperties: false, required: ["snippetId", "startLine", "endLine"], properties: {
     snippetId: { type: "string", enum: context.snippets.map((snippet) => snippet.id) },
@@ -11,8 +16,8 @@ export function createLocalNarrativeSchema(context: FunctionNarrativeContext): R
   } };
   const step = { type: "object", additionalProperties: false, required: ["text", "reason", "effect", "source"], properties: { text: prose, reason: prose, effect: prose, source } };
   const scenario = { type: "object", additionalProperties: false, required: ["title", "when", "explanation", "steps", "outcome", "assumptions"], properties: {
-    title: { type: "string", minLength: 1, maxLength: 160 }, when: facts,
-    explanation: { type: "string", minLength: 1, maxLength: 1800 },
+    title: description(160), when: facts,
+    explanation: description(1800),
     steps: { type: "array", minItems: 1, maxItems: 5, items: step }, outcome: prose, assumptions: facts
   } };
   const frames = buildFunctionNarrativeScenarioFrames(context);
@@ -24,7 +29,7 @@ export function createLocalNarrativeSchema(context: FunctionNarrativeContext): R
         source: { enum: frame.sources } } } } }
   })) } : { type: "array", minItems: 1, maxItems: 3, items: scenario };
   return { type: "object", additionalProperties: false, required: ["summary", "scenarios", "limitations"], properties: {
-    summary: { type: "string", minLength: 1, maxLength: 1200 }, scenarios,
+    summary: description(1200), scenarios,
     limitations: { ...facts, maxItems: 6 }
   } };
 }

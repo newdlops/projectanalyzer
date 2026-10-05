@@ -5,7 +5,7 @@ import { basename, join } from "node:path";
 import { tmpdir } from "node:os";
 import { FunctionNarrativeError, type FunctionNarrativeProvider } from "../../application/functionNarratives";
 import { createLocalNarrativeSchema } from "./responseSchema";
-import { buildLocalNarrativePrompt } from "./localPrompt";
+import { buildLocalNarrativePrompt, buildLocalNarrativeSystemPrompt } from "./localPrompt";
 export type LocalFunctionNarrativeOptions = { binaryPath: string; modelPath: string };
 
 // Shared across provider instances so changing model settings cannot load two models at once.
@@ -29,12 +29,14 @@ export function createLocalFunctionNarrativeProvider(options: LocalFunctionNarra
       if (controller.signal.aborted) throw new FunctionNarrativeError("cancelled");
       directory = await mkdtemp(join(tmpdir(), "function-narrative-"));
       const promptFile = join(directory, "prompt.txt");
+      const systemFile = join(directory, "system.txt");
       const prompt = buildLocalNarrativePrompt(context, language);
       await writeFile(promptFile, prompt, { encoding: "utf8", mode: 0o600 });
-      const text = await runLocalModel(options.binaryPath, ["--model", options.modelPath, "--file", promptFile,
+      await writeFile(systemFile, buildLocalNarrativeSystemPrompt(language), { encoding: "utf8", mode: 0o600 });
+      const text = await runLocalModel(options.binaryPath, ["--model", options.modelPath, "--file", promptFile, "--system-prompt-file", systemFile,
         "--single-turn", "--simple-io", "--no-display-prompt", "--no-escape", "--offline", "--no-warmup",
         "--ctx-size", "8192", "--predict", "2400", "--threads", "2", "--threads-batch", "2", "--poll", "0",
-        "--temp", "0.2", "--seed", "42", "--json-schema", JSON.stringify(createLocalNarrativeSchema(context))], controller.signal);
+        "--temp", "0.2", "--seed", "42", "--json-schema", JSON.stringify(createLocalNarrativeSchema(context, language))], controller.signal);
       return { modelName: ("Local · " + basename(options.modelPath, ".gguf")).slice(0, 100), text };
     } finally {
       signal.removeEventListener("abort", abort);

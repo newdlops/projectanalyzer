@@ -97,7 +97,7 @@ export class FunctionNarrativesHostDelivery {
     try {
       const response = await Promise.race([provider.generate(entry.context, language, controller.signal, { reselectModel: entry.reselectModel }), cancelled]);
       if (controller.signal.aborted || this.pending !== pending || !stillCurrent()) return;
-      const narrative = parseFunctionNarrative(response.text, entry.context);
+      const narrative = parseFunctionNarrative(response.text, entry.context, language);
       const evidenceTokens = narrative.scenarios.map((scenario) => scenario.steps.map((step) => {
         const token = this.dependencies.createEvidence(entry.filePath, {
           startLine: step.source.startLine - 1, startCharacter: 0, endLine: step.source.endLine, endCharacter: 0

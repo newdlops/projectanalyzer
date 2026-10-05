@@ -10,6 +10,8 @@ const context: FunctionNarrativeContext = { functionName: "describe", language: 
   snippets: [{ id: "root", role: "function", startLine: 3, endLine: 6, text: 'fun describe() {\n if (LIMIT > 0) println("ready")\n else println("empty")\n}', truncated: false }] };
 const narrative = { summary: "Print a message based on LIMIT.", scenarios: [{ title: "Positive LIMIT", when: ["LIMIT > 0"],
   steps: [{ text: "Print ready.", source: { snippetId: "root", startLine: 4, endLine: 4 } }], outcome: "Finish normally.", assumptions: [] }], limitations: [] };
+const korean = { summary: "LIMIT에 따라 메시지를 출력합니다.", scenarios: [{ title: "양수 LIMIT", when: ["LIMIT > 0"],
+  steps: [{ text: "ready를 출력합니다.", source: { snippetId: "root", startLine: 4, endLine: 4 } }], outcome: "정상 종료합니다.", assumptions: [] }], limitations: [] };
 const request = { flowId: `code-flow:${"a".repeat(32)}` as const, graphVersion: "fixture", requestId: 1 };
 
 /** Only the remote provider is replaced; all request/result processing remains production code. */
@@ -27,7 +29,7 @@ function fixture(provider: FunctionNarrativeProvider, sourcePresenter?: { show(t
 
 test("LLM Host caches source-reading narratives per locale and ignores replayed IDs without exposing source paths", async () => {
   let calls = 0;
-  const f = fixture({ async generate(received, language) { calls += 1; assert.equal(received, context); assert.ok(["en", "ko"].includes(language)); return { modelName: "LLM", text: JSON.stringify(narrative) }; } });
+  const f = fixture({ async generate(received, language) { calls += 1; assert.equal(received, context); assert.ok(["en", "ko"].includes(language)); return { modelName: "LLM", text: JSON.stringify(language === "ko" ? korean : narrative) }; } });
   try {
     await f.delivery.request(request); await f.delivery.request(request);
     assert.equal(calls, 1); assert.equal(f.messages.length, 1);
@@ -71,7 +73,7 @@ test("whole-file changes expire annotation ownership even when the visible sourc
 
 test("source actions restore the exact flow and locale even when cached narratives share an evidence token", async () => {
   const shown: Array<{ functionName: string; language: string }> = []; let calls = 0;
-  const f = fixture({ async generate() { calls += 1; return { modelName: "Local", text: JSON.stringify(narrative) }; } },
+  const f = fixture({ async generate(_context, language) { calls += 1; return { modelName: "Local", text: JSON.stringify(language === "ko" ? korean : narrative) }; } },
     { show(target) { shown.push(target as typeof shown[number]); }, clear() {} });
   const contextId = f.delivery.register(request.flowId, request.graphVersion, context, "/private/Example.kt", "a".repeat(64))!;
   const helperId = `code-flow:${"d".repeat(32)}` as const;

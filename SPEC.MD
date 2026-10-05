@@ -1417,7 +1417,9 @@ Webview는 Project Graph, 파일 시스템, VS Code API에 직접 접근하지 �
   기본 local adapter는 PC에 설치한 `llama-completion`과 사용자가 선택한 instruction-tuned
   GGUF를 명시적 요청에만 실행한다. 8,192 token context, 출력 2,400 token, CPU thread 2개,
   offline mode와 JSON grammar를 사용한다. 프로세스는 요청 종료/취소 때 해제하며 공급자
-  설정 변경을 포함해 한 Extension Host에서 하나만 실행한다. private 임시 prompt는 삭제한다.
+  설정 변경을 포함해 한 Extension Host에서 하나만 실행한다. 요청 언어는 별도 system message로
+  전달한다. 한국어의 자유 서술 필드는 한글로 시작하도록 bounded JSON grammar로 유도하고
+  고정된 source 식은 유지한다. private 임시 user/system prompt는 요청 종료 시 삭제한다.
   선택 가능한 VS Code adapter는 연결된 Chat model의 token 한도를 확인한 뒤 실제
   `sendRequest`/response stream을 사용한다. 모델 자동 다운로드·학습·API key 보관은 하지 않는다.
 - 응답은 최대 24,000자 JSON, summary 1,200자, 시나리오 1–4개, 각 step 1–5개,
@@ -1429,6 +1431,10 @@ Webview는 Project Graph, 파일 시스템, VS Code API에 직접 접근하지 �
   이는 프롬프트 개선이며 가중치 학습은 하지 않는다.
   각 step은 제공한 snippet ID와 그 범위 안의 최대 21줄을 참조해야 한다. 이 검사는
   위치와 형식의 유효성만 확인하며 LLM 설명의 사실성·경로 도달·실행을 검증하지 않는다.
+  `shared/functionNarratives.isFunctionNarrativeLanguage`는 인용된 코드·문자열을 제외한
+  설명의 문자 체계를 확인한다. Host는 source snapshot의 식을 유지하고 자유 서술의 언어가
+  요청과 다르면 `language-mismatch`로 거부한다. 잘못된 언어는 캐시·source 표시·완료 결과에
+  저장하지 않으며 browser도 설명을 다시 확인한다. 자동 재요청 없이 사용자가 재시도한다.
 - 요청 `codeFlow/requestFunctionNarratives` / `codeFlow/cancelFunctionNarratives`는 현재
   graphVersion, opaque flowId, nonnegative safe requestId만 받는다. Host는 최근 전달한
   함수 8개를 유지하며 단일 pending inference, 45초 timeout, 취소·중복 ID·root/graph
@@ -1444,7 +1450,7 @@ Webview는 Project Graph, 파일 시스템, VS Code API에 직접 접근하지 �
   항상 LLM 추론·실제 실행 미검증과 생성 언어를 명시한다. 전체 정적 Summary, 질문, Source Path
   Scenarios는 처음에 접힌 Analysis details에 둔다. 부모 상세를 닫으면 해당 계산 consumer를
   해제하고 재생을 일시정지한다. 기존 값·경로·graph에 LLM 설명을 적용하지 않는다.
-  모델 없음·권한 거부·취소·timeout·invalid-response·입력 한도·failed·stale 및 두 locale 지원.
+  모델 없음·권한 거부·취소·timeout·invalid-response·language-mismatch·입력 한도·failed·stale 및 두 locale 지원.
   초기 mount, focus, disclosure와 언어 전환은 LLM을 호출하지 않는다. pending에서는 Cancel만,
   현재 언어의 완료 결과에서는 추가 생성 버튼을 숨긴다. stale 상태는 Reload를 제공한다.
   요청 후 focus는 보이는 Cancel/Reload/Generate 또는 status로 복원하고 locale 변경은 근거

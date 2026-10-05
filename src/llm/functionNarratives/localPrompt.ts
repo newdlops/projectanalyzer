@@ -3,6 +3,13 @@ import type { FunctionNarrativeContext } from "../../shared/functionNarratives";
 import { createLocalNarrativeSchema } from "./responseSchema";
 import { buildFunctionNarrativeExplanationGuidance, buildFunctionNarrativeFlowGuidance, numberFunctionNarrativeContext } from "../../application/functionNarratives";
 
+/** A separate system message keeps the requested language above the large source/schema user message. */
+export function buildLocalNarrativeSystemPrompt(language: "ko" | "en"): string {
+  return language === "ko"
+    ? "당신은 한국어 코드 읽기 도우미입니다. 모든 설명과 제목은 한국어 문장으로 작성하세요. 코드 식별자와 고정된 소스 식은 원문을 유지합니다. 제공된 코드만 근거로 삼고 없는 검사, 예외, 외부 결과를 만들지 마세요. JSON 객체 하나만 반환하세요."
+    : "You are an English code-reading assistant. Write every explanation and title in English. Preserve identifiers and fixed source expressions. Describe only the supplied code; do not invent checks, exceptions or external outcomes. Return one JSON object.";
+}
+
 export function buildLocalNarrativePrompt(context: FunctionNarrativeContext, language: "ko" | "en"): string {
   const instructions = language === "ko" ? [
     "한국어 코드 읽기 도우미로서 선택한 함수의 목적과 자세한 동작 시나리오를 설명하세요. 설명 문장은 반드시 한국어로 쓰세요.",
@@ -23,7 +30,7 @@ export function buildLocalNarrativePrompt(context: FunctionNarrativeContext, lan
   ];
   const numbered = numberFunctionNarrativeContext(context);
   return instructions.join("\n") + "\n" + buildFunctionNarrativeExplanationGuidance(language)
-    + "\nJSON schema:\n" + JSON.stringify(createLocalNarrativeSchema(context))
+    + "\nJSON schema:\n" + JSON.stringify(createLocalNarrativeSchema(context, language))
     + "\nSOURCE DATA:\n" + JSON.stringify(numbered)
     + (context.valueFacts?.length ? "\n" + buildFunctionNarrativeFlowGuidance({ ...context, sourceFlow: undefined }, language) : "")
     + (language === "ko" ? "\nJSON schema에서 고정한 when/outcome/source는 그대로 쓰세요. explanation과 reason/effect는 그 조건과 반환 구문에 맞게 설명하세요. 구체적인 입력값을 새로 가정하지 말고 코드의 관계로 설명하세요." : "\nCopy fixed when/outcome/source fields from the schema. Explain their exact conditions and source terminal in explanation/reason/effect. Describe source relationships without inventing concrete input values.")

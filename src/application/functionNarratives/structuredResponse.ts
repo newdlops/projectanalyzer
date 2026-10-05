@@ -1,5 +1,5 @@
 /** Vendor-neutral prompt and strict JSON parsing for short, source-cited hypothetical behavior. */
-import { isFunctionNarrative, type FunctionNarrative, type FunctionNarrativeContext } from "../../shared/functionNarratives";
+import { isFunctionNarrative, isFunctionNarrativeLanguage, type FunctionNarrative, type FunctionNarrativeContext } from "../../shared/functionNarratives";
 import { FunctionNarrativeError } from "./provider";
 import { buildFunctionNarrativeExplanationGuidance, numberFunctionNarrativeContext } from "./explanationGuidance";
 import { buildFunctionNarrativeScenarioFrames } from "./scenarioFrames";
@@ -24,7 +24,7 @@ export function buildFunctionNarrativePrompt(context: FunctionNarrativeContext, 
 }
 
 /** Allows an optional whole-response JSON fence; partial or arbitrary embedded JSON is rejected. */
-export function parseFunctionNarrative(text: string, context: FunctionNarrativeContext): FunctionNarrative {
+export function parseFunctionNarrative(text: string, context: FunctionNarrativeContext, language?: "ko" | "en"): FunctionNarrative {
   if (text.length > 24000) throw new FunctionNarrativeError("invalid-response");
   let source = text.trim();
   if (source.startsWith("```json\n") && source.endsWith("\n```")) source = source.slice(8, -4);
@@ -40,7 +40,14 @@ export function parseFunctionNarrative(text: string, context: FunctionNarrativeC
   }))) throw new FunctionNarrativeError("invalid-response");
   // Scenario conditions and source ownership are validated before deriving a
   // heading. Prose remains model-authored; its title cannot relabel another path.
-  return frames.length ? { ...parsed, scenarios: parsed.scenarios.map((scenario, index) => ({
+  const narrative = frames.length ? { ...parsed, scenarios: parsed.scenarios.map((scenario, index) => ({
     ...scenario, title: frames[index].title
   })) } : parsed;
+  if (language) {
+    const literals = [...context.snippets.flatMap((snippet) => snippet.text.split("\n")),
+      ...(context.sourceFlow?.paths.flatMap((path) => path.steps.map((step) => step.code)) ?? []),
+      ...frames.flatMap((frame) => [frame.title, ...frame.when, frame.outcome])];
+    if (!isFunctionNarrativeLanguage(narrative, language, literals)) throw new FunctionNarrativeError("language-mismatch");
+  }
+  return narrative;
 }

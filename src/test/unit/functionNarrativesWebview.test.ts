@@ -11,6 +11,35 @@ const contextId = "narrative-context:" + "c".repeat(32);
 const narrative = { summary: "<img src=x onerror=run()>", scenarios: [{ title: "Ready", when: ["LIMIT > 0"],
   steps: [{ text: "Print ready.", reason: "LIMIT=3 makes LIMIT > 0 true.", effect: "The else branch is skipped.", source: { snippetId: "root", startLine: 4, endLine: 4 } }], outcome: "Return after printing.", assumptions: ["Output is available."] }], limitations: [] };
 
+test("English output mislabeled Korean stays out of rendered results and permits explicit keyboard retry", () => {
+  const runtime = installSidebarWebviewRuntime();
+  try {
+    const posts: Array<{ type: string; payload: Record<string, unknown> }> = [];
+    const state = { graph: { version: "fixture" }, uiLanguage: "ko" };
+    const browser = new Function("state", "vscode", getBrowserLocalizationSource() + getFunctionNarrativesBrowserSource()
+      + "return {create:createFunctionNarratives,accept:acceptFunctionNarrativesResponse,locale:applyProjectAnalyzerLanguage};")(state, { postMessage(message: typeof posts[number]) { posts.push(message); } });
+    browser.locale("ko");
+    const widget = browser.create({ functionId: flowId, narratives: { available: true, contextId } }, {});
+    document.getElementById("narrative-root")!.append(widget.element);
+    runtime.focusRenderedByClassNth("narrative-root", "logic-narrative-request", 0);
+    runtime.clickRenderedByClassNth("narrative-root", "logic-narrative-request", 0);
+    const payload = { ...posts[0].payload, status: "ready", language: "ko", modelName: "Model", narrative,
+      snippets: [{ id: "root", startLine: 3, endLine: 6 }], evidenceTokens: [["code-evidence:" + "b".repeat(64)]], limited: false, cacheHit: false };
+    browser.accept(payload);
+    assert.equal(runtime.countRenderedByClass("narrative-root", "logic-narrative-scenario"), 0);
+    assert.ok(runtime.getRenderedText("narrative-root").some((text) => text.includes("요청한 언어로 설명하지 않았습니다")));
+    assert.equal(runtime.getFocusedElementId(), runtime.getRenderedIdentityByClassNth("narrative-root", "logic-narrative-request", 0));
+    assert.equal(posts.length, 1, "no automatic retry is allowed");
+    runtime.clickRenderedByClassNth("narrative-root", "logic-narrative-request", 0);
+    assert.equal(posts.length, 2);
+    browser.accept({ ...payload, ...posts[1].payload, narrative: { summary: "LIMIT가 양수이면 출력합니다.", scenarios: [{ title: "양수 LIMIT", when: ["LIMIT > 0"],
+      explanation: "LIMIT가 양수이면 ready를 출력합니다.", steps: [{ text: "ready를 출력합니다.", reason: "LIMIT가 양수입니다.", effect: "메시지를 출력합니다.",
+        source: { snippetId: "root", startLine: 4, endLine: 4 } }], outcome: "정상 종료합니다.", assumptions: [] }], limitations: [] } });
+    assert.equal(runtime.countRenderedByClass("narrative-root", "logic-narrative-scenario"), 1);
+    widget.dispose();
+  } finally { runtime.restore(); }
+});
+
 test("paragraph reading keeps source evidence closed and retains disclosure/focus without extra model work", () => {
   const runtime = installSidebarWebviewRuntime();
   try {

@@ -1,7 +1,7 @@
 /** Replaceable LLM boundary; application code supplies excerpts and never owns a model process. */
 import type { FunctionNarrativeContext } from "../../shared/functionNarratives";
 
-export type FunctionNarrativeFailure = "unavailable" | "cancelled" | "denied" | "timeout" | "invalid-response" | "context-too-large" | "failed";
+export type FunctionNarrativeFailure = "unavailable" | "cancelled" | "denied" | "timeout" | "invalid-response" | "language-mismatch" | "context-too-large" | "failed";
 export class FunctionNarrativeError extends Error {
   public constructor(public readonly code: FunctionNarrativeFailure) { super(code); this.name = "FunctionNarrativeError"; }
 }
