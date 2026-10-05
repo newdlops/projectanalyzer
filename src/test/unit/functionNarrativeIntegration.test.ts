@@ -32,6 +32,9 @@ test("production Kotlin Guide offers actual LLM requests without changing static
     functionNarrativeProvider: { async generate(context) {
       calls += 1; assert.equal(context.language, "kotlin"); assert.ok(context.snippets.some((snippet) => snippet.text.includes('println("ready")')));
       assert.ok(context.snippets.some((snippet) => snippet.text.includes("const val LIMIT = 3")));
+      assert.equal(context.sourceFlow?.basis, "source-control-flow");
+      assert.ok(context.sourceFlow?.paths.some((path) => path.steps.some((step) => step.code === "LIMIT > 0")));
+      // The fixture models an external explanation; partial call routes are not constrained to terminal frames.
       return { modelName: "LLM boundary fixture", text: JSON.stringify({ summary: "Print a message based on LIMIT.", scenarios: [{ title: "Positive LIMIT", when: ["LIMIT > 0"], steps: [{ text: "Print ready.", source: { snippetId: "root", startLine: 4, endLine: 4 } }], outcome: "Finish normally.", assumptions: [] }], limitations: [] }) };
     } } });
   const runtime = installSidebarWebviewRuntime();

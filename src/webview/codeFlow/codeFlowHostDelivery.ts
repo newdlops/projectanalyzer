@@ -15,7 +15,7 @@ import {
   buildFunctionTutorModel
 } from "../../application/codeFlow";
 import { analyzeFunctionLogic } from "../../analyzer/functionLogic";
-import { buildFunctionNarrativeContext, type FunctionNarrativeProvider } from "../../application/functionNarratives";
+import { buildFunctionNarrativeContext, addFunctionNarrativeValueGrounding, type FunctionNarrativeProvider } from "../../application/functionNarratives";
 import type { FunctionNarrativesRequest, FunctionNarrativeSourceRequest } from "../../protocol/functionNarratives";
 import { FunctionNarrativesHostDelivery } from "./functionNarrativesHostDelivery";
 import { parseScenarioInputSuggestions, ScenarioInputError, type ScenarioInputProvider } from "../../application/scenarioInputs";
@@ -331,7 +331,8 @@ export class CodeFlowHostDelivery {
     );
     if (payload.logic?.tutor && sourceText && this.dependencies.functionNarrativeProvider) {
       const helperIds = new Set(tutorModel.context.callees.filter((callee) => callee.kind === "local").map((callee) => callee.nodeId));
-      const context = buildFunctionNarrativeContext(node, sourceText, active.graph.nodes.filter((candidate) => helperIds.has(candidate.id)));
+      const context = addFunctionNarrativeValueGrounding(buildFunctionNarrativeContext(node, sourceText,
+        active.graph.nodes.filter((candidate) => helperIds.has(candidate.id)), analysis), tutorModel);
       const contextId = this.narratives.register(payload.id, active.version, context, node.filePath, createContentHash(sourceText));
       payload.logic.tutor.narratives = { available: Boolean(contextId), ...(contextId ? { contextId,
         sourceToken: this.dependencies.sourceNodeTokens.createToken(node.id) } : {}) };

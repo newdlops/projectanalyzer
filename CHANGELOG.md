@@ -4,6 +4,30 @@ All notable user-visible changes to Project Analyzer: Code Flow are recorded in
 this file. The changelog starts with the first distribution-documented build;
 earlier local development builds were not tracked here.
 
+## 0.0.1105 - 2026-10-05
+
+### Improved
+
+- Ground explanations in up to three bounded source routes from the existing
+  Kotlin/TypeScript and other language adapters, stopping at the first return.
+  Preserve incomplete paths and syntax confidence without running source code.
+- Share parser-backed value operations and existing complete primitive input
+  checks. Normalize explicit primitive required Boolean guards so local models
+  receive the matching input value instead of inverting `!flag` themselves.
+- Bind eligible scenario conditions, source terminals and citations to fixed
+  frames in local JSON grammar and Host validation. LLMs write the prose; they
+  cannot swap these fields between routes. Reuse existing analysis without
+  extra model calls, a background process or larger inference budgets.
+- Distinguish omitted source excerpts from static-analysis limits so complete
+  Kotlin source does not show a misleading omitted-code notice.
+
+### Known limitations
+
+- Prose and detailed reasoning can still be incorrect. The real 1.5B QA returned
+  correct Kotlin outcome paragraphs and fixed-fee TypeScript paragraphs, but
+  some detailed guard effects and `Math.max` calculations were wrong. Source
+  frames are syntax evidence, not execution or feasibility proof.
+
 ## 0.0.1104 - 2026-10-05
 
 ### Improved

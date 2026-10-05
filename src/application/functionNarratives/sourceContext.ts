@@ -1,9 +1,11 @@
-/** Selects bounded excerpts from one immutable source snapshot; no filesystem reads or graph traversal. */
+/** Selects bounded excerpts and existing syntax routes from one immutable source snapshot, without I/O or parsing. */
 import type { SourceRange, SymbolNode } from "../../shared/types";
+import type { FunctionLogicAnalysis } from "../../analyzer/functionLogic";
 import type { FunctionNarrativeContext, FunctionNarrativeSnippet } from "../../shared/functionNarratives";
+import { buildFunctionNarrativeSourceFlow } from "./sourceFlow";
 
 /** Root-first excerpts preserve original one-based lines, including a separate truncated tail. */
-export function buildFunctionNarrativeContext(node: SymbolNode, source: string, related: readonly SymbolNode[] = []): FunctionNarrativeContext {
+export function buildFunctionNarrativeContext(node: SymbolNode, source: string, related: readonly SymbolNode[] = [], analysis?: FunctionLogicAnalysis): FunctionNarrativeContext {
   const lines = source.split(/\r?\n/);
   const snippets: FunctionNarrativeSnippet[] = [];
   let remaining = 18000;
@@ -47,5 +49,11 @@ export function buildFunctionNarrativeContext(node: SymbolNode, source: string, 
     if (snippets.length >= 5) { limited = true; break; }
     append("helper-" + visited.size, "helper", candidate.range.startLine, candidate.range.endLine - (candidate.range.endCharacter === 0 ? 1 : 0), 60, 2000, candidate.range);
   }
-  return { functionName: node.name.slice(0, 240), language: node.language.slice(0, 40), snippets, limited };
+  const context: FunctionNarrativeContext = { functionName: node.name.slice(0, 240), language: node.language.slice(0, 40), snippets, limited };
+  // Only the exact selected source snapshot can contribute source routes. The
+  // host already owns this analysis; legacy callers remain source-only.
+  if (analysis && analysis.functionNode.id === node.id && analysis.functionNode.filePath === node.filePath) {
+    context.sourceFlow = buildFunctionNarrativeSourceFlow(analysis, source, context);
+  }
+  return context;
 }

@@ -24,7 +24,7 @@ export type FunctionNarrative = {
   limitations: string[];
 };
 
-/** Only source excerpts, never workspace paths or analyzer identities, reach the language model. */
+/** Source excerpts and syntax routes omit workspace paths and analyzer identities. */
 export type FunctionNarrativeSnippet = {
   id: string;
   role: "function" | "nearby" | "helper" | "caller";
@@ -37,5 +37,58 @@ export type FunctionNarrativeContext = {
   functionName: string;
   language: string;
   snippets: FunctionNarrativeSnippet[];
+  /** Optional bounded syntax routes, not evaluated inputs or observed program execution. */
+  sourceFlow?: FunctionNarrativeSourceFlow;
+  /** Syntax-backed value operations and complete static checks, never model-derived facts. */
+  valueFacts?: FunctionNarrativeValueFact[];
+  checkedExamples?: FunctionNarrativeCheckedExample[];
+  /** Bounded fact selection is separate from an omitted source excerpt. */
+  groundingLimited?: boolean;
+  /** True only when source excerpts were omitted or truncated. */
   limited: boolean;
+};
+
+/** One visible statement on a syntax route, with the choice made at its source predicate. */
+export type FunctionNarrativeFlowStep = {
+  kind: string;
+  code: string;
+  source: FunctionNarrativeSource;
+  confidence: "exact" | "inferred";
+  /** Choice describes this route only; feasibility for concrete inputs is not proved. */
+  branch?: { outcome: string; confidence: "exact" | "inferred";
+    /** A parser-proven direct required Boolean input can name the matching input value. */
+    inputCondition?: string };
+};
+
+/** Source-terminal means the route ends at source return/throw/exit, never runtime verification. */
+export type FunctionNarrativeFlowPath = {
+  status: "source-terminal" | "partial";
+  /** Aggregate syntax confidence, including ordinary control-transfer edges. */
+  confidence: "exact" | "inferred";
+  steps: FunctionNarrativeFlowStep[];
+  reason?: "cycle" | "depth-limit" | "missing-source" | "missing-block" | "control-gap";
+};
+
+/** Small model-readable route projection; limits and uncertain syntax remain explicit. */
+export type FunctionNarrativeSourceFlow = {
+  basis: "source-control-flow";
+  paths: FunctionNarrativeFlowPath[];
+  limited: boolean;
+};
+
+/** Small named IR facts help distinguish fixed literals from invented business formulas. */
+export type FunctionNarrativeValueFact = {
+  target: string;
+  operation: "conditional" | "add" | "subtract" | "multiply" | "divide" | "modulo";
+  operands: string[];
+  source: FunctionNarrativeSource;
+};
+
+/** Only complete primitive input/terminal checks are shared, without parameter/block identities. */
+export type FunctionNarrativeCheckedExample = {
+  basis: "static-evaluation";
+  inputs: Array<{ name: string; value: string; omitted: boolean }>;
+  decisions: Array<{ expression: string; outcome: string; source: FunctionNarrativeSource }>;
+  sources: FunctionNarrativeSource[];
+  terminal: { kind: string; value: string; source: FunctionNarrativeSource };
 };

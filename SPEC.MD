@@ -1389,6 +1389,27 @@ Webview는 Project Graph, 파일 시스템, VS Code API에 직접 접근하지 �
   합계 18,000자 스니펫을 구성한다. 본문 160줄/10,000자, 생략 시 별도 끝 20줄/2,000자,
   앞의 문서·상수 16줄/2,000자와 같은 파일의 직접 helper 최대 60줄/2,000자를 사용한다.
   raw 파일 경로와 analyzer identity를 LLM 또는 Webview에 전달하지 않는다.
+- 같은 snapshot의 이미 계산된 Function Logic으로 optional `sourceFlow`를 구성한다.
+  source route는 최대 3개/24 depth/128 탐색 작업/4,000자이며 entry 이후 첫 return/throw에서
+  멈춘다. visited set은 route별로 유지하고 duplicate edge, deferred/callable boundary를
+  제외한다. cycle, missing source/block, depth/control gap은 partial로 보존한다.
+  `source-terminal`은 구문 경로의 끝이며 실제 실행·입력 도달 증거가 아니다.
+- 기존 Tutor IR의 직접 conditional/binary definition은 source-backed `valueFacts` 최대 6개로,
+  기존 complete static evaluation의 primitive 입력·판단·terminal은 `checkedExamples` 최대
+  3개로 제공한다. 두 종류의 record는 합계 2,000자이며 추가 parsing/probing/source I/O는 없다.
+  inferred block/edge, symbolic/partial 결과, 제공하지 않은 caller 값과 nested/deferred write는
+  제외한다. 명시적 primitive type인 required Boolean의 정확한 direct predicate만
+  matching true/false 입력으로 정규화한다. optional/nullable/alias/member 조건은
+  원래 구문 선택을 유지한다.
+- `context.limited`는 실제 source excerpt 생략만 표시한다. 경로 분석의 한계는
+  `sourceFlow.limited`, 추가 fact/check의 예산 생략은 `groundingLimited`에 따로 보존한다.
+  본문을 모두 제공한 Kotlin 함수에 정적 계산 한계만으로 코드 생략 안내를 표시하지 않는다.
+- complete exact return/throw route 또는 complete primitive check가 있으면 provider에
+  source frame을 제공한다. when/outcome/허용 source는 frame별로 고정하고 prose는 LLM이
+  작성한다. 로컬 grammar는 tuple items와 const/enum으로 제한하며 Host는 두 provider의
+  응답에서 frame 개수·순서·조건·terminal·인용을 다시 검증한다. partial/inferred/implicit
+  exit만 있는 context는 기존 자유형 계약을 유지한다. 이 검사는 문장의 의미 정확성을
+  보장하지 않는다. context identity에는 위의 source fact와 static check도 포함한다.
 - `FunctionNarrativeProvider.generate`는 사용자 요청으로만 호출되는 교체 가능한 LLM 경계다.
   기본 local adapter는 PC에 설치한 `llama-completion`과 사용자가 선택한 instruction-tuned
   GGUF를 명시적 요청에만 실행한다. 8,192 token context, 출력 2,400 token, CPU thread 2개,

@@ -1,5 +1,29 @@
 # 함수 따라 읽기 UI 검증
 
+## 0.0.1105: 정적 근거와 문장 연결
+
+2026-10-05, 이미 계산한 Function Logic·Tutor의 근거를 LLM context에 연결했다.
+화면 구조, CSS, 생성·소스 메시지 계약은 0.0.1104와 같다.
+
+- 최종 VSIX를 기본 VS Code에 다시 설치했다. manifest와 변경된 런타임 모듈 13개의
+  설치 파일이 빌드 출력과 일치했고 설치 목록의 `0.0.1105`를 확인했다.
+- 이 프로젝트의 `Example.kt`를 다시 로드하고 실제 사용자 설정의 1.5B 모델로 한국어
+  설명을 생성했다. 생성 중 취소에 포커스가 있었으며 완료 후 생성 버튼이 숨겨졌다.
+  disabled/priority/ordinary 문단 3개와 접힌 소스 근거를 실제 accessibility tree에서 확인했다.
+- 첫 설치 후보의 실제 스크린샷에서 전체 본문을 전달한 Kotlin 함수에도 코드 생략 안내가
+  나타나는 문제를 확인해 수정했다. 최종 설치본의 새 응답에는 해당 안내가 없었다.
+  symbolic 분석 한계와 source excerpt 생략을 별도 flag로 관리한다.
+- 첫 근거를 펼쳐 **소스 · 1.1 · L3–3**을 눌렀고 `Example.kt` 편집기가 활성화되는 것과
+  **Clear LLM Source Annotations** 동작이 등록된 것을 확인했다. 완료 후 모델 프로세스는
+  남아 있지 않았다. 최종 화면 캡처와 native hover는 사용자의 다른 VS Code 창 작업으로
+  수행하지 못했다.
+
+세 viewport의 production HTML과 native hover 검증은 아래 0.0.1104 기록을 유지하며 이번에
+재검사하지 않았다. 최종 TypeScript unit은 916개 중 912개 통과했고 기존 실패 4개는 같다.
+새 근거 연결 테스트 11개, Rust 82개, 패키징 script 13개와 typecheck는 통과했다.
+최종 VSIX는 493개 파일, archive 3.57MiB, unpacked 15.31MiB로 기존 상한을 통과했다.
+실제 문장의 상세 guard/계산 오류는 [모델 검증 기록](FUNCTION_NARRATIVES.md)에 남겼다.
+
 ## 0.0.1104: 간단한 기본 화면과 문장형 설명
 
 2026-10-05, Function Visualizer와 공용 Function Logic 렌더러를 함께 변경했다.

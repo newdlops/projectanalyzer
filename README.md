@@ -174,6 +174,9 @@ dedicated Function Visualizer tab with a bounded control-flow graph:
   with cited steps under **Source evidence**. **Analysis details** contains the full
   Function summary, inputs, conditional stages, outcomes, calls/writes, gaps and
   five reading questions; the graph moves when **Show on Graph** is chosen
+- source-grounded LLM prose: reuse bounded static routes and value operations,
+  bind eligible conditions, source terminals and citations to the same scenario,
+  and retain unverified labels for model-written explanations
 - compact graph controls: **Function Guide**, **Fit**, and a closed **Tools**
   disclosure for zoom, centering, the reading outline, Inspector and legend
 - lazy **Source Path Scenarios** under that guide, with statically inferred inputs,

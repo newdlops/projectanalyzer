@@ -1,0 +1,40 @@
+/** Source-owned scenario frames bind model prose to known predicates, terminals and cited route locations. */
+import type { FunctionNarrativeContext, FunctionNarrativeSource } from "../../shared/functionNarratives";
+
+/** Frames contain syntax or supported static results, never an asserted external/runtime outcome. */
+export type FunctionNarrativeScenarioFrame = {
+  when: string[];
+  outcome: string;
+  sources: FunctionNarrativeSource[];
+};
+
+/** Uses complete static examples first, otherwise complete exact source routes; partial models stay unconstrained. */
+export function buildFunctionNarrativeScenarioFrames(context: FunctionNarrativeContext): FunctionNarrativeScenarioFrame[] {
+  if (context.checkedExamples?.length) return context.checkedExamples.slice(0, 3).map((example) => ({
+    when: example.inputs.map((input) => `${input.name} = ${input.omitted ? "(omitted)" : input.value}`),
+    outcome: `${example.terminal.kind} ${example.terminal.value}`,
+    sources: uniqueSources(example.sources)
+  })).filter((frame) => frame.when.length <= 4 && frame.sources.length > 0);
+  const paths = context.sourceFlow?.paths;
+  if (!paths?.length || paths.some((path) => path.status !== "source-terminal" || path.confidence !== "exact"
+    || !["return", "throw"].includes(path.steps.at(-1)?.kind ?? ""))) return [];
+  const frames = paths.map((path) => ({
+    when: path.steps.filter((step) => step.branch).map((step) => step.branch!.inputCondition ?? `${step.code} => ${step.branch!.outcome}`),
+    outcome: path.steps.at(-1)!.code,
+    sources: uniqueSources(path.steps.map((step) => step.source))
+  }));
+  // Branch labels are source choices, not assumed input values. All routes in a
+  // constrained response must fit the portable when/source validator bounds.
+  return frames.every((frame) => frame.when.length <= 4 && frame.when.every((condition) => condition.length <= 600)
+    && frame.outcome.length <= 600 && frame.sources.length) ? frames.slice(0, 3) : [];
+}
+
+/** Deduplicates same-line guard/return citations; overlong source blocks stay in raw source only. */
+function uniqueSources(sources: FunctionNarrativeSource[]): FunctionNarrativeSource[] {
+  const seen = new Set<string>();
+  return sources.filter((source) => {
+    const key = JSON.stringify(source);
+    if (source.endLine - source.startLine > 20 || seen.has(key)) return false;
+    seen.add(key); return true;
+  });
+}

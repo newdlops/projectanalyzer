@@ -1,7 +1,7 @@
 /** Short localized instructions and explicit source line numbers suit small instruction-tuned models. */
 import type { FunctionNarrativeContext } from "../../shared/functionNarratives";
 import { createLocalNarrativeSchema } from "./responseSchema";
-import { buildFunctionNarrativeExplanationGuidance, numberFunctionNarrativeContext } from "../../application/functionNarratives";
+import { buildFunctionNarrativeExplanationGuidance, buildFunctionNarrativeFlowGuidance, numberFunctionNarrativeContext } from "../../application/functionNarratives";
 
 export function buildLocalNarrativePrompt(context: FunctionNarrativeContext, language: "ko" | "en"): string {
   const instructions = language === "ko" ? [
@@ -21,8 +21,11 @@ export function buildLocalNarrativePrompt(context: FunctionNarrativeContext, lan
     "Consider constants and early returns. Do not present branches excluded by known constants as reachable. Never copy placeholder/example prose.",
     "These are inferences, not verified execution. Use at most 5 meaningful steps per scenario. Return only the JSON object."
   ];
+  const numbered = numberFunctionNarrativeContext(context);
   return instructions.join("\n") + "\n" + buildFunctionNarrativeExplanationGuidance(language)
     + "\nJSON schema:\n" + JSON.stringify(createLocalNarrativeSchema(context))
-    + "\nSOURCE DATA:\n" + JSON.stringify(numberFunctionNarrativeContext(context))
+    + "\nSOURCE DATA:\n" + JSON.stringify(numbered)
+    + (context.valueFacts?.length ? "\n" + buildFunctionNarrativeFlowGuidance({ ...context, sourceFlow: undefined }, language) : "")
+    + (language === "ko" ? "\nJSON schema에서 고정한 when/outcome/source는 그대로 쓰세요. explanation과 reason/effect는 그 조건과 반환 구문에 맞게 설명하세요. 구체적인 입력값을 새로 가정하지 말고 코드의 관계로 설명하세요." : "\nCopy fixed when/outcome/source fields from the schema. Explain their exact conditions and source terminal in explanation/reason/effect. Describe source relationships without inventing concrete input values.")
     + (language === "ko" ? "\n모든 설명 문장은 한국어로 작성하세요. 코드 식별자는 그대로 두세요." : "\nAll prose must be English. Preserve code identifiers.");
 }

@@ -3,6 +3,8 @@
 Function Guide의 **설명 생성**은 함수 본문과 가까운 문서·상수, 같은 파일에
 확인된 직접 helper 코드를 언어 모델에 전달해 목적과 동작 시나리오를 만든다.
 Kotlin과 인자 없는 함수도 사용할 수 있다. 숫자 입력을 찾는 기존 로컬 모델과는 별도 기능이다.
+문장형 설명은 로컬 LLM이 작성한다. 기본 함수 요약과 그래프, 생성에 쓰는 조건·소스 경로는
+기존 정적 분석이 제공한다.
 
 ## 사용 및 연결
 
@@ -64,7 +66,9 @@ LLM 설명은 항상 **추론 · 실제 실행 미검증**이다. JSON 형식과
 ## 모듈의 public API
 
 - `application/functionNarratives`: `buildFunctionNarrativeContext`, `buildFunctionNarrativePrompt`,
-  `parseFunctionNarrative`, `FunctionNarrativeProvider`, `FunctionNarrativeError`.
+  `buildFunctionNarrativeSourceFlow`, `addFunctionNarrativeValueGrounding`,
+  `buildFunctionNarrativeScenarioFrames`, `parseFunctionNarrative`,
+  `FunctionNarrativeProvider`, `FunctionNarrativeError`.
 - `shared/functionNarratives`: portable narrative/context types 및 동일한 Host/browser runtime validator.
   `FunctionNarrativeSourcePresenter`, `buildFunctionNarrativeSourceAnnotations`는 native source 표시 계약과
   줄별 번호 그룹화를 제공한다.
@@ -87,6 +91,45 @@ source context는 최대 5개/18,000자이며 결과는 최대 24,000자 JSON, �
 cache는 owning surface/root의 수명에 속하고 새 snapshot 또는 disposal에서 해제한다.
 주변 상수/helper까지 content identity에 포함한다. 확장이 백그라운드 모델을 유지하지 않는다.
 
+### 정적 근거와 LLM 문장의 경계
+
+`buildFunctionNarrativeContext(node, source, helpers, analysis?)`는 같은 source snapshot의
+기존 Function Logic을 받아 optional source route를 붙인다. `buildFunctionNarrativeSourceFlow`
+는 언어별 parser를 다시 실행하지 않고 최대 3개 route, depth 24, 탐색 128회, 출력 4,000자로
+투영한다. 옵션의 depth/path/character 상한은 각각 48/3/6,000이다. 첫 return/throw에서
+멈추며 route별 visited set과 duplicate edge 제거를 사용한다. callback 정의·deferred route,
+embedded/unknown/try boundary는 실제 현재 함수의 실행으로 합치지 않는다. 생략된 source나
+cycle은 미완성 prefix로 남긴다. exact/inferred를 유지하며 `source-terminal`도 입력 도달이나
+실제 실행을 증명하지 않는다. Kotlin의 symbolic-only 한계는 그대로 유지한다.
+같은 줄에서 중복된 predicate 문자열이 있어도 실제 제공한 열 범위 밖의 구문을 인용하지 않는다.
+
+`addFunctionNarrativeValueGrounding(context, model)`은 이미 만든 Tutor IR에서 직접
+conditional/binary definition을 최대 6개, 기존 complete primitive static check를 최대
+3개 가져온다. record 합계는 2,000자다. source가 없는 구문, nested/deferred write,
+외부 caller 값, inferred 연결, partial/unknown 계산은 공유하지 않는다. 추가 source read,
+모델 호출, input search나 프로젝트 코드 실행을 하지 않는다. required Boolean의 정확한
+direct predicate는 `enabled = false`처럼 matching 입력으로 정규화한다. 명시적 primitive type만
+사용하며 optional/nullable/alias type은 원래 predicate 선택을 유지한다. undefined나 null을
+false와 같다고 단정하지 않는다.
+checked example은 entry를 제외한 계산 경로의 모든 구문이 제공한 root source에 있어야 한다.
+
+`context.limited`는 source excerpt가 실제 생략됐는지만 뜻한다. 분석 경로의 한계는
+`sourceFlow.limited`, fact/check 예산에서 제외된 추가 record는 `groundingLimited`로 구분한다.
+Kotlin의 symbolic 계산 한계가 있어도 본문 전체를 제공했다면 코드 생략 안내를 표시하지 않는다.
+
+`buildFunctionNarrativeScenarioFrames`는 complete exact return/throw route 또는 complete
+static example의 조건·terminal·소스 위치를 고정한다. 로컬 grammar의 각 scenario slot은
+그 `when`, `outcome`, 허용된 source enum을 그대로 생성한다. VS Code 연결 모델에는 같은
+frame을 지침으로 전달한다. Host parser가 응답 개수·순서·고정 필드·source 소유권을 다시
+검증하며 다른 route의 반환값이나 소스로 바꾸면 응답을 거부한다. `title`, `summary`,
+`explanation`, 단계의 `text/reason/effect`는 모델이 작성한다. 이 문장에는 오류가 남을 수 있다.
+implicit exit, partial/inferred context는 기존 자유형 응답을 사용한다.
+
+로컬 schema는 설치한 runner revision의
+[tuple items 및 const/enum 구현](https://github.com/ggml-org/llama.cpp/blob/b29c606e2/common/json-schema-to-grammar.cpp)을
+사용한다. 실제 Qwen2.5-Coder 1.5B 응답에서 고정 field와 source enum이 유지되는 것도 확인했다.
+출력 field는 기존 narrative 계약을 유지하며 같은 UI·native hover·소스 버튼을 사용한다.
+
 ## 로컬 검증 모델
 
 현재 PC의 사용자 설정은 공식 [Qwen2.5-Coder-1.5B-Instruct-GGUF](https://huggingface.co/Qwen/Qwen2.5-Coder-1.5B-Instruct-GGUF)의
@@ -102,6 +145,35 @@ Q4_K_M을 사용했다. revision `f74adce6aa16316c625447af059dbebe4983757c`,
 2,104,932,800 bytes, SHA-256
 `724fb256bec1ff062b2f65e4569e871ad2e95ab2a3989723d1769c54294730b7`을 확인했다.
 두 모델 모두 `.local-models/`에 보관하며, 비교를 위해 사용자 설정을 바꾸지 않았다.
+
+## 0.0.1105 검증 기록
+
+- 최종 TypeScript 전체 unit(`--test-concurrency=4`)은 916개 중 912개 통과했다. 0.0.1104의 declared-type 입력
+  대표값 2개, advanced private Scenario, decorated source-reveal 실패 4개는 같다.
+  새 근거 연결 테스트 11개는 모두 통과했고 optional/nullable/alias Boolean,
+  route 순환·깊이·생략·추론 confidence, 소스 frame 검증을 포함한다. Rust 82개,
+  패키징 script 13개, typecheck·compile·release metadata·diff check도 통과했다.
+- 기존 0.0.1104와 같은 Kotlin `classifyOrder`, TypeScript `computeTotal` 및 1.5B 모델,
+  seed 42, temperature 0.2, context/output/thread 상한으로 실제 생산 provider를 확인했다.
+  최종 생성은 Kotlin 6.041초, TypeScript 8.344초였다. 각 1회 측정이며 일반적인 속도나
+  정확도를 보장하지 않는다. 모델·사용자 설정을 바꾸지 않았다.
+- 최종 Kotlin 문단은 disabled/priority/ordinary를 올바른 Boolean 및 금액 조건으로 설명했다.
+  TypeScript 문단은 비활성 반환 0, 활성 경로의 고정 추가값 5/0을 설명했다. 이전의
+  “5% 할인” 해석은 이 최종 응답에 없었다. JSON은 고정 조건·소스 terminal·같은 route의
+  인용 범위를 통과했다. `Math.max`는 기존 정적 계산기의 지원 범위 밖이므로 해당 함수의
+  숫자 반환값을 static verified example로 제공하지 않았다.
+- 상세 단계에는 여전히 문제가 있었다. Kotlin의 통과한 guard에 대해 비활성 반환을 일반적으로
+  서술했고, TypeScript는 high-value 경로의 base를 0으로 단정하고 `0 + 5 = 5`라고 했다.
+  고정 field 검증을 문장 의미 검증으로 취급하지 않는다. 모든 LLM 결과에 미검증 추론 표시를
+  유지하며 모델 가중치 학습, 자동 재시도, 추가 추론 call을 하지 않는다.
+- 여러 prompt 후보도 실제 확인했다. source route JSON만 추가했을 때 비율 할인이 남았고,
+  경로를 prose로만 전달했을 때 invalid response 및 Boolean/반환 혼동이 있었다. 최종 방식은
+  source metadata를 고정하고 required Boolean input을 명시하는 방식이다.
+- 최종 두 QA 함수의 context는 이후 nullability·visible-column 보강 뒤에도 실제 추론 기록과
+  동일했다. 최종 VSIX는 493개 파일, 압축 3.57MiB·해제 15.31MiB로 상한을 통과했다.
+  기본 VS Code에 설치하고 manifest·런타임 모듈 13개의 일치, 실제 Kotlin 문단 3개,
+  코드 생략 안내 제거와 명시적 소스 열기를 확인했다. 구체적 UI 검증 범위는
+  [설치 검증 기록](FUNCTION_READING_UI_QA.md)을 따른다. 완료 후 모델 프로세스는 없었다.
 
 ## 0.0.1104 검증 기록
 
