@@ -15,7 +15,8 @@ export function getFunctionNarrativesBrowserSource(): string {
       const pending = functionNarrativeRequests.get(payload?.requestId);
       if (!pending || pending.request.flowId !== payload.flowId || pending.request.graphVersion !== payload.graphVersion
         || state.graph?.version !== payload.graphVersion) return;
-      functionNarrativeRequests.delete(payload.requestId); pending.accept(payload);
+      if (payload.status !== "progress") functionNarrativeRequests.delete(payload.requestId);
+      pending.accept(payload);
     }
 
     /** A response's snippet bounds and source token matrix must match every narrative step. */
@@ -26,6 +27,16 @@ export function getFunctionNarrativesBrowserSource(): string {
         || !Number.isSafeInteger(snippet.endLine) || snippet.startLine < 1 || snippet.endLine < snippet.startLine || snippet.endLine - snippet.startLine > 159)) return false;
       if (!isFunctionNarrative(payload.narrative, snippets) || !["ko", "en"].includes(payload.language)
         || typeof payload.modelName !== "string" || payload.modelName.length > 100 || typeof payload.limited !== "boolean" || typeof payload.cacheHit !== "boolean") return false;
+      if (payload.coverage !== undefined || payload.page !== undefined) {
+        const coverage = payload.coverage; const page = payload.page;
+        const integer = (value) => Number.isSafeInteger(value) && value >= 0;
+        if (!coverage || !page || !integer(coverage.completed) || !integer(coverage.discovered) || coverage.discovered < coverage.completed
+          || (coverage.total !== undefined && (!integer(coverage.total) || coverage.total !== coverage.discovered))
+          || typeof coverage.complete !== "boolean" || typeof coverage.sourceLimited !== "boolean"
+          || coverage.complete && (coverage.total === undefined || coverage.total !== coverage.completed)
+          || !integer(page.index) || !integer(page.count) || page.count < 1 || page.index >= page.count || !integer(page.offset)
+          || page.offset + payload.narrative.scenarios.length > coverage.completed) return false;
+      }
       return Array.isArray(payload.evidenceTokens) && payload.evidenceTokens.length === payload.narrative.scenarios.length
         && payload.evidenceTokens.every((tokens, index) => Array.isArray(tokens) && tokens.length === payload.narrative.scenarios[index].steps.length
           && tokens.every((token) => typeof token === "string" && /^code-evidence:[0-9a-f]{64}$/.test(token)));
@@ -43,15 +54,21 @@ export function getFunctionNarrativesBrowserSource(): string {
       const requestButton = document.createElement("button"); const cancelButton = document.createElement("button");
       const refreshButton = document.createElement("button"); refreshButton.type = "button"; refreshButton.className = "logic-guide-action logic-narrative-refresh";
       const help = document.createElement("p"); const status = document.createElement("p"); const results = document.createElement("div");
+      const pager = document.createElement("div"); const pageLabel = document.createElement("span");
+      const previousButton = document.createElement("button"); const nextButton = document.createElement("button");
+      pager.className = "logic-narrative-pagination"; pageLabel.className = "logic-narrative-page-label";
+      previousButton.type = "button"; previousButton.className = "logic-guide-action logic-narrative-previous";
+      nextButton.type = "button"; nextButton.className = "logic-guide-action logic-narrative-next";
+      pager.append(pageLabel, previousButton, nextButton);
       requestButton.type = "button"; requestButton.className = "logic-guide-action logic-narrative-request";
       cancelButton.type = "button"; cancelButton.className = "logic-guide-action logic-narrative-cancel";
       actions.className = "logic-guide-actions"; help.className = "logic-summary-note"; status.className = "logic-narrative-status";
       status.setAttribute("role", "status"); status.setAttribute("aria-live", "polite");
       results.className = "logic-narrative-results";
-      actions.append(requestButton, cancelButton, refreshButton); element.append(heading, actions, help, status, results);
+      actions.append(requestButton, cancelButton, refreshButton); element.append(heading, actions, help, status, results, pager);
       let result = functionNarrativeResults.get(key + ":" + state.uiLanguage);
-      let phase = result ? "ready" : "idle"; let request; let disposed = false;
-      // At most four disclosures per language. Capture current native state
+      let phase = result ? "ready" : "idle"; let request; let disposed = false; let requestLanguage;
+      // Retain only sixteen open disclosures across pages and languages. Capture native state
       // before replacement; queued toggle events never request work or mutate a new result.
       const evidenceOpenByKey = new Map(); const evidenceElements = new Map();
 
@@ -59,8 +76,9 @@ export function getFunctionNarrativesBrowserSource(): string {
       function render() {
         const focusedId = document.activeElement?.id;
         heading.textContent = projectAnalyzerText("narrative-heading");
-        requestButton.textContent = projectAnalyzerText(result?.language === state.uiLanguage ? "narrative-complete" : "narrative-action");
-        requestButton.disabled = phase === "pending" || result?.language === state.uiLanguage;
+        const complete = result?.language === state.uiLanguage && result?.coverage?.complete !== false;
+        requestButton.textContent = projectAnalyzerText(complete ? "narrative-complete" : result?.language === state.uiLanguage ? "narrative-continue" : "narrative-action");
+        requestButton.disabled = phase === "pending" || phase === "page-loading" || complete;
         requestButton.hidden = requestButton.disabled || phase === "stale";
         cancelButton.textContent = projectAnalyzerText("narrative-cancel"); cancelButton.hidden = phase !== "pending";
         refreshButton.textContent = projectAnalyzerText("narrative-refresh");
@@ -68,9 +86,19 @@ export function getFunctionNarrativesBrowserSource(): string {
         actions.hidden = requestButton.hidden && cancelButton.hidden && refreshButton.hidden;
         help.textContent = projectAnalyzerText("narrative-help");
         help.hidden = Boolean(result);
-        status.textContent = phase === "ready" && result ? projectAnalyzerText("narrative-completion-status", { count: result.narrative.scenarios.length }) : projectAnalyzerText("narrative-" + phase);
-        element.setAttribute("aria-busy", phase === "pending" ? "true" : "false");
-        for (const [id, disclosure] of evidenceElements) evidenceOpenByKey.set(id, Boolean(disclosure.open));
+        const coverage = phase === "pending" && result?.language !== requestLanguage ? undefined : result?.coverage;
+        status.textContent = phase === "pending" && coverage ? projectAnalyzerText(coverage.total === undefined ? "narrative-progress" : "narrative-progress-total", { count: coverage.completed, total: coverage.total })
+          : phase === "ready" && result ? projectAnalyzerText(coverage?.complete === false ? "narrative-partial-status" : "narrative-completion-status", { count: coverage?.completed ?? result.narrative.scenarios.length }) : projectAnalyzerText("narrative-" + phase);
+        element.setAttribute("aria-busy", phase === "pending" || phase === "page-loading" ? "true" : "false");
+        pager.hidden = !result?.page || result.page.count < 2;
+        previousButton.textContent = projectAnalyzerText("narrative-previous"); nextButton.textContent = projectAnalyzerText("narrative-next");
+        previousButton.disabled = phase === "pending" || phase === "page-loading" || !result?.page || result.page.index === 0;
+        nextButton.disabled = phase === "pending" || phase === "page-loading" || !result?.page || result.page.index + 1 >= result.page.count;
+        pageLabel.textContent = result?.page ? projectAnalyzerText("narrative-page-label", { page: result.page.index + 1, pages: result.page.count, start: result.page.offset + 1, end: result.page.offset + result.narrative.scenarios.length }) : "";
+        for (const [id, disclosure] of evidenceElements) {
+          if (disclosure.open) evidenceOpenByKey.set(id, true); else evidenceOpenByKey.delete(id);
+        }
+        while (evidenceOpenByKey.size > 16) evidenceOpenByKey.delete(evidenceOpenByKey.keys().next().value);
         evidenceElements.clear(); results.replaceChildren();
         if (result) {
           const basis = document.createElement("p"); basis.className = "logic-summary-basis";
@@ -79,10 +107,12 @@ export function getFunctionNarrativesBrowserSource(): string {
           const summary = document.createElement("p"); summary.className = "logic-summary-purpose"; summary.textContent = result.narrative.summary;
           results.append(basis, summary);
           if (result.limited) { const limit = document.createElement("p"); limit.className = "logic-summary-note"; limit.textContent = projectAnalyzerText("narrative-limited"); results.append(limit); }
+          if (coverage?.complete && coverage.sourceLimited) { const limit = document.createElement("p"); limit.className = "logic-summary-note"; limit.textContent = projectAnalyzerText("narrative-source-incomplete"); results.append(limit); }
           for (let index = 0; index < result.narrative.scenarios.length; index += 1) {
             const scenario = result.narrative.scenarios[index];
+            const globalIndex = (result.page?.offset ?? 0) + index;
             const article = document.createElement("section"); article.className = "logic-narrative-scenario";
-            const title = document.createElement("h4"); title.textContent = (index + 1) + ". " + scenario.title; article.append(title);
+            const title = document.createElement("h4"); title.textContent = (globalIndex + 1) + ". " + scenario.title; article.append(title);
             const paragraph = document.createElement("p"); paragraph.className = "logic-narrative-paragraph";
             // Older responses already contain source-cited claims. Compose them
             // verbatim rather than inventing a new model interpretation on mount.
@@ -91,9 +121,9 @@ export function getFunctionNarrativesBrowserSource(): string {
             article.append(paragraph);
             const evidence = document.createElement("details"); const evidenceSummary = document.createElement("summary"); const evidenceBody = document.createElement("div");
             evidence.className = "logic-narrative-evidence"; evidenceBody.className = "logic-narrative-evidence-body";
-            evidenceSummary.id = widgetId + "-evidence-" + index;
+            evidenceSummary.id = widgetId + "-evidence-" + globalIndex;
             evidenceSummary.textContent = projectAnalyzerText("narrative-evidence");
-            const disclosureKey = result.language + ":" + index;
+            const disclosureKey = result.language + ":" + globalIndex;
             evidence.open = evidenceOpenByKey.get(disclosureKey) || false; evidenceElements.set(disclosureKey, evidence);
             const sourceHelp = document.createElement("p"); sourceHelp.className = "logic-summary-note logic-narrative-source-note";
             sourceHelp.textContent = projectAnalyzerText("narrative-source-help"); evidenceBody.append(sourceHelp);
@@ -103,12 +133,13 @@ export function getFunctionNarrativesBrowserSource(): string {
               const step = scenario.steps[stepIndex]; const row = document.createElement("li");
               const text = document.createElement("p"); text.textContent = step.text;
               const source = document.createElement("button"); source.type = "button"; source.className = "logic-guide-action logic-narrative-source";
-              source.id = widgetId + "-source-" + index + "-" + stepIndex;
-              source.textContent = projectAnalyzerText("narrative-source", { scenario: index + 1, step: stepIndex + 1, start: step.source.startLine, end: step.source.endLine });
+              source.id = widgetId + "-source-" + globalIndex + "-" + stepIndex;
+              source.textContent = projectAnalyzerText("narrative-source", { scenario: globalIndex + 1, step: stepIndex + 1, start: step.source.startLine, end: step.source.endLine });
               source.addEventListener("click", () => {
                 if (!disposed && state.graph?.version === graphVersion && tutor.narratives.contextId) {
                   vscode.postMessage({ type: "codeFlow/openFunctionNarrativeSource", payload: { graphVersion, flowId: tutor.functionId,
-                    contextId: tutor.narratives.contextId, language: result.language, scenarioIndex: index, stepIndex } });
+                    contextId: tutor.narratives.contextId, language: result.language, scenarioIndex: index, stepIndex,
+                    ...(result.page ? { pageIndex: result.page.index } : {}) } });
                 }
               });
               row.append(text);
@@ -138,17 +169,23 @@ export function getFunctionNarrativesBrowserSource(): string {
         vscode.postMessage({ type: "codeFlow/cancelFunctionNarratives", payload: request });
         request = undefined; phase = "cancelled"; if (!disposed) render();
       }
-      requestButton.addEventListener("click", () => {
-        if (disposed || request || requestButton.disabled || state.graph?.version !== graphVersion) return;
+      /** Pagination only asks the Host for stored prose; the action without pageIndex analyzes remaining paths. */
+      function startRequest(pageIndex) {
+        const paging = pageIndex !== undefined;
+        if (disposed || request || !paging && requestButton.disabled || state.graph?.version !== graphVersion) return;
         const movePendingFocus = document.activeElement === requestButton;
-        request = { graphVersion, flowId: tutor.functionId, requestId: ++nextFunctionNarrativeRequestId };
+        const pageFocus = document.activeElement;
+        requestLanguage = paging ? result.language : state.uiLanguage;
+        request = { graphVersion, flowId: tutor.functionId, requestId: ++nextFunctionNarrativeRequestId,
+          ...(paging ? { pageIndex, pageLanguage: result.language } : {}) };
         functionNarrativeRequests.set(request.requestId, { request, accept(payload) {
           if (disposed || !request || request.requestId !== payload.requestId) return;
           const restoreFocus = document.activeElement === cancelButton;
-          request = undefined;
-          const statuses = ["ready", "unavailable", "cancelled", "denied", "timeout", "invalid-response", "language-mismatch", "context-too-large", "failed", "stale"];
-          phase = statuses.includes(payload.status) ? payload.status : "failed";
-          if (phase === "ready") {
+          const progress = payload.status === "progress";
+          if (!progress) request = undefined;
+          const statuses = ["ready", "progress", "unavailable", "cancelled", "denied", "timeout", "invalid-response", "language-mismatch", "context-too-large", "failed", "stale"];
+          phase = progress ? "pending" : statuses.includes(payload.status) ? payload.status : "failed";
+          if (payload.narrative || phase === "ready" || progress) {
             if (!validFunctionNarrativesResponse(payload)) phase = "invalid-response";
             else if (!isFunctionNarrativeLanguage(payload.narrative, payload.language)) phase = "language-mismatch";
             else {
@@ -156,17 +193,29 @@ export function getFunctionNarrativesBrowserSource(): string {
               while (functionNarrativeResults.size > 8) functionNarrativeResults.delete(functionNarrativeResults.keys().next().value);
             }
           }
+          if (progress && phase !== "pending") {
+            functionNarrativeRequests.delete(request.requestId);
+            vscode.postMessage({ type: "codeFlow/cancelFunctionNarratives", payload: request }); request = undefined;
+          }
           render();
-          if (restoreFocus) {
+          if (paging && (pageFocus === previousButton || pageFocus === nextButton)) {
+            if (!pageFocus.disabled) pageFocus.focus();
+            else if (!previousButton.disabled) previousButton.focus();
+            else if (!nextButton.disabled) nextButton.focus();
+            else { status.tabIndex = -1; status.focus(); }
+          } else if (restoreFocus && !progress) {
             if (!refreshButton.hidden) refreshButton.focus();
             else if (!requestButton.hidden) requestButton.focus();
             else { status.tabIndex = -1; status.focus(); }
           }
         } });
-        phase = "pending"; render();
+        phase = paging ? "page-loading" : "pending"; render();
         if (movePendingFocus) cancelButton.focus();
         vscode.postMessage({ type: "codeFlow/requestFunctionNarratives", payload: request });
-      });
+      }
+      requestButton.addEventListener("click", () => startRequest());
+      previousButton.addEventListener("click", () => { if (!previousButton.disabled) startRequest(result.page.index - 1); });
+      nextButton.addEventListener("click", () => { if (!nextButton.disabled) startRequest(result.page.index + 1); });
       cancelButton.addEventListener("click", () => { cancel(); requestButton.focus(); });
       // A retained history detail can outlive the eight Host contexts. Reload only on this explicit action.
       refreshButton.addEventListener("click", () => { if (!disposed && phase === "stale" && state.graph?.version === graphVersion) callbacks?.onRefreshFunction?.(tutor.narratives.sourceToken); });

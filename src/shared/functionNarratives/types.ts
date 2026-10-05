@@ -39,6 +39,10 @@ export type FunctionNarrativeContext = {
   snippets: FunctionNarrativeSnippet[];
   /** Optional bounded syntax routes, not evaluated inputs or observed program execution. */
   sourceFlow?: FunctionNarrativeSourceFlow;
+  /** Host-owned compact CFG for complete, lazy scenario enumeration; never sent wholesale to a model. */
+  scenarioGraph?: FunctionNarrativeScenarioGraph;
+  /** Offset of the source-owned scenarios in this bounded request; fixed frames apply even to partial/inferred paths. */
+  scenarioBatch?: { offset: number };
   /** Syntax-backed value operations and complete static checks, never model-derived facts. */
   valueFacts?: FunctionNarrativeValueFact[];
   checkedExamples?: FunctionNarrativeCheckedExample[];
@@ -73,6 +77,18 @@ export type FunctionNarrativeFlowPath = {
 export type FunctionNarrativeSourceFlow = {
   basis: "source-control-flow";
   paths: FunctionNarrativeFlowPath[];
+  limited: boolean;
+};
+
+/** Index-based snapshot adjacency avoids leaking analyzer identities or copying every path at registration. */
+export type FunctionNarrativeScenarioGraph = {
+  entry: number;
+  nodes: Array<{
+    kind: string;
+    step?: FunctionNarrativeFlowStep;
+    confidence: "exact" | "inferred";
+    next: Array<{ target: number; outcome: string; confidence: "exact" | "inferred" }>;
+  }>;
   limited: boolean;
 };
 

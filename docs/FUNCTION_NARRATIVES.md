@@ -1,6 +1,6 @@
 # 코드 스니펫을 읽는 LLM 동작 시나리오
 
-Function Guide의 **설명 생성**은 함수 본문과 가까운 문서·상수, 같은 파일에
+Function Guide의 **전체 시나리오 분석**은 함수 본문과 가까운 문서·상수, 같은 파일에
 확인된 직접 helper 코드를 언어 모델에 전달해 목적과 동작 시나리오를 만든다.
 Kotlin과 인자 없는 함수도 사용할 수 있다. 숫자 입력을 찾는 기존 로컬 모델과는 별도 기능이다.
 문장형 설명은 로컬 LLM이 작성한다. 기본 함수 요약과 그래프, 생성에 쓰는 조건·소스 경로는
@@ -11,17 +11,26 @@ Kotlin과 인자 없는 함수도 사용할 수 있다. 숫자 입력을 찾는 
 1. PC에 llama.cpp의 `llama-completion` 실행 도구와 instruction-tuned GGUF 모델을 준비한다.
    기본 provider는 `local`이다. Homebrew 경로와 PATH를 확인하며, 다른 설치 경로는
    `projectAnalyzer.functionNarratives.localBinary`에 지정한다.
-2. 함수를 시각화하면 Function Guide가 열린다. 짧은 목적을 읽고 **설명 생성**을 누른다.
+2. 함수를 시각화하면 Function Guide가 열린다. 짧은 목적을 읽고 **전체 시나리오 분석**을 누른다.
    첫 요청에서 GGUF 파일을 선택하면 `projectAnalyzer.functionNarratives.localModel`에
    사용자 설정으로 저장한다. 프로젝트 설정이 실행 파일을 바꾸지 못하도록 machine scope를 쓴다.
 3. 로컬 모델은 요청할 때만 실행하고 끝나거나 취소되면 프로세스를 종료한다.
    기본 문맥 8,192 token, 응답 2,400 token, CPU thread 2개와 GPU 자동 offload를 사용한다.
-   같은 snapshot/언어의 결과를 재사용하며 설정 변경으로 두 모델이 동시에 실행되지 않는다.
+   발견한 소스 경로를 한 번에 최대 2개씩 순차 분석한다. 전체 경로 수에는 3개/4개 상한을
+   적용하지 않는다. 묶음별 90초 제한을 사용하며, 같은 snapshot/언어의 결과를 재사용한다.
+   취소·실패 후 **이어서 시나리오 분석**은 완료된 경로를 건너뛰고 미완료 묶음부터 재개한다.
+   설정 변경으로 두 모델이 동시에 실행되지 않는다.
 4. 함수의 역할과 시나리오별 문단에서 조건·판단·계산·건너뛴 작업·예상 결과를 읽는다.
    접힌 **소스 근거**를 펼치면 조건, 번호가 붙은 동작, **판단 근거**, **값과 흐름의 변화**,
-   예상 결과와 가정을 확인한다. 로컬 모델은 1–3개×최대 5단계, 연결 모델은 최대 4개×5단계다.
+   예상 결과와 가정을 확인한다. 응답 하나는 최대 2개이고 결과는 한 페이지씩 읽는다.
+   로컬 묶음은 출력 한도 안에서 끝나도록 최대 3단계, summary 240자, 문단 480자,
+   단계의 text/reason/effect 각각 120자로 제한한다. 관련 동작은 소스 순서대로 묶어 설명한다.
+   연결 모델의 portable 단계 상한은 5개다. 이 설명 길이 제한은 전체 경로 수와 별개다.
+   **이전/다음 시나리오**는 저장된 결과만 읽으며 모델을 실행하지 않는다. 진행 중에는 완료한
+   개수를, 경로 열거가 끝나면 전체 개수와 완료 여부를 표시한다.
    각 단계의 **소스 · 1.2 · L…** 버튼은 Host가 확인한 원본 줄을 편집기에서 연다.
-5. 원본 줄 끝에 `LLM 1.2` 번호와 짧은 해설이 표시된다. 표시한 줄의 hover에서 조건,
+5. 원본 줄 끝에 `LLM 1.2` 번호와 짧은 해설이 표시된다. 번호는 페이지를 넘어 이어지므로
+   다섯 번째 시나리오의 첫 단계는 `LLM 5.1`이다. 현재 페이지의 표시만 유지한다. hover에서 조건,
    문장형 설명·전체 동작·판단 근거·값의 변화·예상 결과·가정을 확인한다. 한 줄의 여러 시나리오는
    표시 하나로 묶는다. 소스 내용은 변경하지 않는다.
 
@@ -39,7 +48,7 @@ VS Code 연결 모델을 쓰려면 `projectAnalyzer.functionNarratives.provider`
 요약과 시나리오 문단을 요청한다. `auto`는 VS Code 표시 언어가 한국어일 때 한국어,
 그 외에는 영어를 사용하며 명시적 `ko`/`en`이 표시 언어보다 우선한다. 코드의 식·식별자·
 반환 문자열은 원문을 유지한다. 언어를 바꾸는 것만으로 모델을 실행하지 않는다.
-기존 결과에는 생성 언어를 표시하고, 새 언어의 **설명 생성**을 누르면 해당 언어로 생성한다.
+기존 결과에는 생성 언어를 표시하고, 새 언어의 **전체 시나리오 분석**을 누르면 해당 언어로 생성한다.
 이미 생성한 언어로 돌아가면 그 언어의 캐시를 다시 읽는다. 로컬 실행에서는 요청 언어를
 별도 system message로 전달하고 한국어 서술은 한글로 시작하도록 JSON grammar로 유도한다.
 Host와 화면은 설명의 문자 체계를 확인하며 인용된 코드·반환 문자열은 원문으로 허용한다.
@@ -77,7 +86,8 @@ LLM 설명은 항상 **추론 · 실제 실행 미검증**이다. JSON 형식과
 ## 모듈의 public API
 
 - `application/functionNarratives`: `buildFunctionNarrativeContext`, `buildFunctionNarrativePrompt`,
-  `buildFunctionNarrativeSourceFlow`, `addFunctionNarrativeValueGrounding`,
+  `buildFunctionNarrativeSourceFlow`, `buildFunctionNarrativeScenarioGraph`,
+  `createFunctionNarrativeScenarioIterator`, `FunctionNarrativeScenarioRun`, `addFunctionNarrativeValueGrounding`,
   `buildFunctionNarrativeScenarioFrames`, `parseFunctionNarrative`,
   `FunctionNarrativeProvider`, `FunctionNarrativeError`.
 - `shared/functionNarratives`: portable narrative/context types 및 동일한 Host/browser runtime validator,
@@ -90,14 +100,20 @@ LLM 설명은 항상 **추론 · 실제 실행 미검증**이다. JSON 형식과
 - `vscode/configuredFunctionNarrativeProvider`: machine 설정과 첫 GGUF 선택, local/VS Code provider 연결.
 - `vscode/functionNarrativeDecorations`: 한 번에 검증된 결과 하나만 유지하는 native adapter.
   전체 문서의 hash, 실제 file URI와 표시 소유권을 확인하고 편집·닫기·설정 해제 때 지운다.
-- `webview/codeFlow/functionNarrativesHostDelivery`: snapshot별 최대 8개 context, locale별 결과,
-  단일 pending 요청과 45초 deadline, evidence token projection.
+- `storage/functionNarrativePages`: `createFunctionNarrativePageStore`는 첫 저장 때만 private
+  임시 폴더(0700)와 검증된 JSON 페이지(0600)를 만든다. 재조회 때 다시 검증하고 owner 해제 때
+  폴더를 제거한다. 전체 모델 문장을 Host 메모리에 쌓지 않는다.
+- `webview/codeFlow/functionNarrativesHostDelivery`: snapshot별 최대 8개 context, locale별 재개
+  세션과 작은 페이지 metadata, 단일 pending 분석과 묶음별 90초 deadline, evidence token projection.
+  source graph 없는 이전 계약은 45초 단일 요청 fallback을 유지한다.
 - `webview/functionNarratives`: inert reading section, strict reply correlation, bounded DOM,
   literal prose, locale/focus retention, disposal cancellation.
-- `protocol/functionNarratives`: identity-only request/cancel, 정확한 context/locale/단계 source action,
-  bounded structured result. 이전 text-only 단계도 읽으며 새 prompt는 explanation/reason/effect를 요청한다.
+- `protocol/functionNarratives`: identity-only request/cancel, cache-only `pageIndex`/`pageLanguage`,
+  progress/coverage/page 응답, 정확한 context/locale/페이지/단계 source action과 bounded result.
+  이전 text-only 단계도 읽으며 새 prompt는 explanation/reason/effect를 요청한다.
 
-source context는 최대 5개/18,000자이며 결과는 최대 24,000자 JSON, 시나리오 4개×step 5개다.
+source context는 최대 5개/18,000자이며 결과 한 페이지는 최대 24,000자 JSON이다.
+portable validator의 시나리오 4개×step 5개는 응답 상한이며 함수 전체의 경로 상한이 아니다.
 시나리오의 `explanation`은 최대 1,800자다. 새 로컬 grammar에는 필수이며 이전 결과에는
 선택 필드로 허용한다. 이전 결과는 기존 조건·단계·결과만 이어 문단을 구성한다.
 cache는 owning surface/root의 수명에 속하고 새 snapshot 또는 disposal에서 해제한다.
@@ -129,7 +145,22 @@ checked example은 entry를 제외한 계산 경로의 모든 구문이 제공�
 `sourceFlow.limited`, fact/check 예산에서 제외된 추가 record는 `groundingLimited`로 구분한다.
 Kotlin의 symbolic 계산 한계가 있어도 본문 전체를 제공했다면 코드 생략 안내를 표시하지 않는다.
 
-`buildFunctionNarrativeScenarioFrames`는 complete exact return/throw route 또는 complete
+새 전체 분석은 `scenarioGraph`의 모든 acyclic 분기 조합을 lazy iterator로 열거한다.
+재귀나 전체 경로 목록을 만들지 않고 stack·경로별 visited set·depth guard를 사용한다.
+loop는 건너뛰기, 한 번의 symbolic body/continue, 재방문 후 exit, break 경로로 추상화한다.
+반복 횟수의 모든 조합이나 실제 도달 가능성을 증명하지 않는다. 예외/추론 edge의 confidence를
+유지하며 unsupported/cycle/depth/missing-source는 별도 partial 경로로 남긴다. 생략한 source나
+partial 경로는 전체 발견 결과를 처리했더라도 추가 경로 가능성 안내를 표시한다.
+모델에는 graph 전체 대신 현재 묶음의 경로만 전달하고, 이전의 최대 3개 sourceFlow preview는
+이 새 분석의 전체 개수를 제한하지 않는다. 총 경로가 많으면 오래 걸릴 수 있으며 사용자가 취소한다.
+
+`buildFunctionNarrativeScenarioFrames`는 새 `scenarioBatch`의 모든 경로에 고정 slot을 제공한다.
+implicit exit·partial·inferred 경로도 각각 유지하고 모든 분기 조건을 순서대로 고정한다.
+200자보다 긴 조건/loop 본문은 fixed when에 `root L174–180: iterate` 같은 소스 줄 참조와
+선택을 기록한다. 전체 구문은 sourceFlow와 numbered snippet에 유지한다. 많은 조건이
+portable when 상한을 넘으면 모든 조건을 줄 참조로 압축하고 순서·선택을 그대로 보존한다.
+그래도 한도에 들어가지 않으면 `context-too-large`를 반환하며 조건을 잘라 완료로 처리하지
+않는다. batch 없는 이전 context에서는 complete exact return/throw route 또는 complete
 static example의 조건·terminal·소스 위치를 고정한다. 로컬 grammar의 각 scenario slot은
 그 `when`, `outcome`, 허용된 source enum을 그대로 생성한다. VS Code 연결 모델에는 같은
 frame을 지침으로 전달한다. Host parser가 응답 개수·순서·고정 필드·source 소유권을 다시
@@ -138,8 +169,8 @@ frame을 지침으로 전달한다. Host parser가 응답 개수·순서·고정
 이 제목을 적용하므로 모델 제목이 반대 분기를 이름 붙이지 못한다. 전체 조건은 근거에 남긴다.
 이 표시용 제목은 provider 입력에 추가하지 않으며 기존 prompt와 grammar를 유지한다.
 `summary`, `explanation`, 단계의 `text/reason/effect`는 모델 문장을 그대로 보존한다.
-이 문장에는 오류가 남을 수 있다. implicit exit, partial/inferred context는 모델 제목을 포함한
-기존 자유형 응답을 사용한다.
+이 문장에는 오류가 남을 수 있다. batch 없는 이전 implicit exit, partial/inferred context는
+모델 제목을 포함한 기존 자유형 응답을 사용한다.
 
 로컬 schema는 설치한 runner revision의
 [tuple items 및 const/enum 구현](https://github.com/ggml-org/llama.cpp/blob/b29c606e2/common/json-schema-to-grammar.cpp)을
@@ -148,8 +179,22 @@ frame을 지침으로 전달한다. Host parser가 응답 개수·순서·고정
 
 ## 로컬 검증 모델
 
-현재 PC의 사용자 설정은 공식 [Qwen2.5-Coder-1.5B-Instruct-GGUF](https://huggingface.co/Qwen/Qwen2.5-Coder-1.5B-Instruct-GGUF)의
-Q4_K_M 파일을 사용한다. 모델은 `.local-models/`에 별도로 보관하며 git과 VSIX에서 제외한다.
+새 검증 모델은 공식 [Qwen3.5-4B](https://huggingface.co/Qwen/Qwen3.5-4B)의
+[Unsloth Q4_K_M GGUF](https://huggingface.co/unsloth/Qwen3.5-4B-GGUF/tree/e87f176479d0855a907a41277aca2f8ee7a09523)다.
+revision `e87f176479d0855a907a41277aca2f8ee7a09523`, 파일 `Qwen3.5-4B-Q4_K_M.gguf`,
+2,740,937,888 bytes, SHA-256 `00fe7986ff5f6b463e62455821146049db6f9313603938a70800d1fb69ef11a4`를
+확인했다. 이 PC의 llama-completion 0.4.1/build 10964(`b29c606e2`)에서 text-only ChatML,
+Jinja 끄기와 reasoning 끄기로 실제 추론했다. 현재 runner의 Qwen3.5 Jinja tool-template probe는
+추론 전에 실패하므로 `Qwen3.`/`Qwen3-`로 시작하는 모델 파일명에 이 호환 옵션을 적용한다.
+
+마켓 설치에는 모델이 포함되지 않는다. 사용자는 llama.cpp 실행 도구와
+[고정 revision의 GGUF 파일](https://huggingface.co/unsloth/Qwen3.5-4B-GGUF/resolve/e87f176479d0855a907a41277aca2f8ee7a09523/Qwen3.5-4B-Q4_K_M.gguf?download=true)을 별도로
+다운로드한 뒤 첫 생성의 파일 선택 또는 `projectAnalyzer.functionNarratives.localModel`로
+연결한다. 다운로드 뒤 위 SHA-256으로 무결성을 확인할 수 있다. 자동 다운로드나 설치
+wizard는 아직 제공하지 않는다. 모델은 `.local-models/`에 보관하며 git과 VSIX에서 제외한다.
+
+0.0.1107까지 이 PC의 사용자 설정은 공식 [Qwen2.5-Coder-1.5B-Instruct-GGUF](https://huggingface.co/Qwen/Qwen2.5-Coder-1.5B-Instruct-GGUF)의
+Q4_K_M 파일을 사용했다. 모델은 `.local-models/`에 별도로 보관하며 git과 VSIX에서 제외한다.
 revision `f86cb2c1fa58255f8052cc32aeede1b7482d4361`, 1,117,320,768 bytes,
 SHA-256 `cc324af070c2ecbfd324a30884d2f951a7ff756aba85cb811a6ec436933bb046`를 확인했다.
 실제 Kotlin/한국어 추론과 source range 검증은 약 2.9초에 완료했다. 이 값은 작은 QA 함수 한 번의
@@ -161,6 +206,56 @@ Q4_K_M을 사용했다. revision `f74adce6aa16316c625447af059dbebe4983757c`,
 2,104,932,800 bytes, SHA-256
 `724fb256bec1ff062b2f65e4569e871ad2e95ab2a3989723d1769c54294730b7`을 확인했다.
 두 모델 모두 `.local-models/`에 보관하며, 비교를 위해 사용자 설정을 바꾸지 않았다.
+
+## 0.0.1108 검증 기록
+
+기존 3개 source preview와 응답당 4개 validator 상한을 전체 함수의 시나리오 개수로
+사용하지 않도록 바꿨다. 동일 snapshot의 Function Logic에서 발견한 경로를 모두 열거하고,
+고정 경로 묶음마다 정확히 하나씩 설명을 검증·저장한다. 실제 생산 local provider와 Host,
+Qwen3.5-4B Q4_K_M을 사용한 최종 순차 실행은 다음과 같다.
+
+| QA 함수 | 완료/발견 경로 | 모델 호출 / 저장 페이지 | 전체 생성 시간 |
+| --- | ---: | ---: | ---: |
+| 복잡한 로컬 Python 함수, 한국어 | 16/16 | 16 / 16 | 609.833초 |
+| Python 반복·continue·break 함수, 한국어 | 5/5 | 3 / 3 | 85.534초 |
+| 독립 조건 3개의 TypeScript 함수, 한국어 | 8/8 | 4 / 4 | 101.292초 |
+| Kotlin 조기 반환 함수, 영어 | 5/5 | 3 / 3 | 45.978초 |
+
+각 함수의 최종 `coverage.complete=true`, 완료 개수와 저장 페이지의 시나리오 합계를
+확인했다. 모든 저장 페이지를 다시 읽어도 모델 호출 수가 증가하지 않았다. 별도 프로세스를
+순차 실행했으며 source는 프로젝트 밖의 로컬 QA 자료를 포함한다. 비공개 source·prompt·
+모델 응답은 임시 경로에만 보관하고 저장소나 VSIX에 넣지 않았다. 시간은 각 함수 한 번의
+측정으로 일반적인 성능을 보장하지 않는다.
+
+초기 복잡한 Python 실행은 완료한 9개를 보존한 채 다음 묶음에서 45초 deadline에 걸렸다.
+90초로 늘린 뒤에는 긴 고정 조건과 장황한 문단이 2,400 token 출력을 소진했다. 최종 수정은
+긴 조건을 소스 줄 참조로 보존하고 로컬 문단·단계 길이를 줄인다. 경로 slot과 분기 선택을
+제거하지 않았으며, 실패했던 경로를 포함한 최종 16개가 모두 완료됐다. 총 실행은 90초로
+제한하지 않으며 각 묶음의 제한과 사용자의 명시적 취소를 사용한다.
+
+기본 프로필과 `Function Language QA 1107` 프로필의 GGUF 경로를 Qwen3.5-4B로 바꿨다.
+설치한 0.0.1108에서 Kotlin 한국어의 5개 문단, 세 페이지, 마지막 페이지의 `LLM 5.1`
+원본 연결과 native hover를 확인했다. 문단을 모두 생성해도 문장 의미는 검증된 것으로
+취급하지 않는다. 실제 마지막 문단은 `< 10`의 거짓 조건을 “10이 아니면”으로 잘못 풀어 썼다.
+고정 조건과 terminal은 소스 frame 검증을 통과했고 미검증 추론 표시는 유지한다.
+
+실행 중 `llama-completion` 한 프로세스의 RSS는 한 시점에 약 3.1GiB였다. 이는 peak나
+전체 GPU 메모리 측정, 이전 모델과의 성능 비교가 아니다. 8,192 context token, 2,400 output
+token, CPU thread 2개, offline 및 단일 프로세스 상한은 유지한다. renderer는 현재 페이지만
+만들고 완료 문단은 private 임시 페이지로 보관한다. 페이지별 작은 metadata는 완료 개수에
+따라 늘지만 전체 문단이나 전체 경로의 Cartesian product를 메모리에 적재하지 않는다.
+
+최종 집중 테스트 53개는 모두 통과했다. 전체 TypeScript unit 실행은 942개 중 938개
+통과했고 기존 declared-type 입력 대표값 2개, advanced private Scenario,
+decorated source-reveal의 실패 4개는 같다. 패키징 script 13개, compile, release metadata,
+diff check와 VSIX 상한 검사는 통과했다. Rust 소스는 변경하지 않았고 이번 변경에서
+Rust 테스트를 재실행하지 않았다. 설치 manifest와 변경 런타임 JS 28개를 빌드 출력과
+대조했고 mismatch가 없었다. type-only 계약 3개는 별도 JS가 없다.
+
+실제 화면과 synthetic 상태의 구분은 [UI 검증 기록](FUNCTION_READING_UI_QA.md)을 따른다.
+완료 개수는 captured control graph의 유한 구조 경로에 대한 것이며, 모든 반복 횟수나
+실제 입력 도달 가능성·모델 문장의 의미 정확성을 보장하지 않는다. 모델 자동 다운로드는
+구현하지 않았으며 위 별도 설치 방법과 고정 revision·SHA-256을 제공한다.
 
 ## 0.0.1107 검증 기록
 

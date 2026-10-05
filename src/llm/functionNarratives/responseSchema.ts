@@ -8,17 +8,21 @@ export function createLocalNarrativeSchema(context: FunctionNarrativeContext, la
   // remain untouched. Bounds are in the pattern because pattern takes precedence.
   const description = (limit: number) => ({ type: "string", minLength: 1, maxLength: limit,
     ...(language === "ko" ? { pattern: `^[가-힣][^"\\\\\\x00-\\x1F]{0,${limit - 1}}$` } : {}) });
-  const prose = description(600);
-  const facts = { type: "array", items: prose, maxItems: 4 };
+  // Complete runs may contain many pages. Bound local prose independently from
+  // path coverage so a verbose model cannot consume the entire output budget in
+  // summary/explanation before completing every fixed scenario slot.
+  const batched = context.scenarioBatch !== undefined;
+  const prose = description(batched ? 120 : 600);
+  const facts = { type: "array", items: prose, maxItems: batched ? 2 : 4 };
   const source = { type: "object", additionalProperties: false, required: ["snippetId", "startLine", "endLine"], properties: {
     snippetId: { type: "string", enum: context.snippets.map((snippet) => snippet.id) },
     startLine: { type: "integer", minimum: 1 }, endLine: { type: "integer", minimum: 1 }
   } };
   const step = { type: "object", additionalProperties: false, required: ["text", "reason", "effect", "source"], properties: { text: prose, reason: prose, effect: prose, source } };
   const scenario = { type: "object", additionalProperties: false, required: ["title", "when", "explanation", "steps", "outcome", "assumptions"], properties: {
-    title: description(160), when: facts,
-    explanation: description(1800),
-    steps: { type: "array", minItems: 1, maxItems: 5, items: step }, outcome: prose, assumptions: facts
+    title: description(batched ? 64 : 160), when: facts,
+    explanation: description(batched ? 480 : 1800),
+    steps: { type: "array", minItems: 1, maxItems: batched ? 3 : 5, items: step }, outcome: prose, assumptions: facts
   } };
   const frames = buildFunctionNarrativeScenarioFrames(context);
   // llama.cpp supports tuple items. Each fixed slot keeps its own conditions,
@@ -29,7 +33,7 @@ export function createLocalNarrativeSchema(context: FunctionNarrativeContext, la
         source: { enum: frame.sources } } } } }
   })) } : { type: "array", minItems: 1, maxItems: 3, items: scenario };
   return { type: "object", additionalProperties: false, required: ["summary", "scenarios", "limitations"], properties: {
-    summary: description(1200), scenarios,
-    limitations: { ...facts, maxItems: 6 }
+    summary: description(batched ? 240 : 1200), scenarios,
+    limitations: { ...facts, maxItems: batched ? 2 : 6 }
   } };
 }

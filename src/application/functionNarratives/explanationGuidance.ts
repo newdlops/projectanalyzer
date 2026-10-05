@@ -32,6 +32,8 @@ export function buildFunctionNarrativeExplanationGuidance(language: "ko" | "en")
 
 /** Adds original one-based line labels to a copy; source excerpt ownership remains unchanged. */
 export function numberFunctionNarrativeContext(context: FunctionNarrativeContext): FunctionNarrativeContext {
-  return { ...context, snippets: context.snippets.map((snippet) => ({ ...snippet,
+  // Only this batch's routes belong in the prompt, never the entire Host plan.
+  const { scenarioGraph: _hostGraph, ...batch } = context;
+  return { ...batch, snippets: context.snippets.map((snippet) => ({ ...snippet,
     text: snippet.text.split("\n").map((line, index) => `${snippet.startLine + index}: ${line}`).join("\n") })) };
 }

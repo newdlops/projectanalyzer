@@ -1410,7 +1410,8 @@ Webview는 Project Graph, 파일 시스템, VS Code API에 직접 접근하지 �
   응답에서 frame 개수·순서·조건·terminal·인용을 다시 검증한다. 검증이 끝난 frame의 제목은
   Host가 조건을 ` · `로 연결한 최대 160자로 표시한다. 조건이 없으면 terminal을 사용한다.
   전체 조건은 근거에 유지하고 provider prompt/grammar와 모델의 문장은 변경하지 않는다.
-  partial/inferred/implicit exit만 있는 context는 모델 제목을 포함한 기존 자유형 계약을 유지한다.
+  새 전체 분석은 complete/inferred/partial/implicit exit 경로 모두에 별도 고정 slot을 제공한다.
+  `scenarioBatch.offset`이 없는 이전 context만 자유형 fallback을 유지한다.
   이 검사는 문장의 의미 정확성을
   보장하지 않는다. context identity에는 위의 source fact와 static check도 포함한다.
 - `FunctionNarrativeProvider.generate`는 사용자 요청으로만 호출되는 교체 가능한 LLM 경계다.
@@ -1424,7 +1425,9 @@ Webview는 Project Graph, 파일 시스템, VS Code API에 직접 접근하지 �
   `sendRequest`/response stream을 사용한다. 모델 자동 다운로드·학습·API key 보관은 하지 않는다.
 - 응답은 최대 24,000자 JSON, summary 1,200자, 시나리오 1–4개, 각 step 1–5개,
   title 160자, scenario `explanation` 1,800자, 기타 설명 600자, 조건·가정 각 4개,
-  미확인 부분 6개로 제한한다. 로컬 grammar는 시나리오 1–3개와 `explanation`·`text`·`reason`·
+  미확인 부분 6개로 제한한다. 이 상한은 응답 한 페이지이며 함수 전체의 경로 수를 제한하지 않는다.
+  전체 분석의 local/connected 요청은 현재 batch의 경로마다 정확히 한 slot을 요구한다.
+  batch 없는 이전 local grammar는 시나리오 1–3개와 `explanation`·`text`·`reason`·
   `effect`를 요구한다. 이전 explanation 없는/text-only 응답은 계속 읽고 기존 필드로 문장을
   구성한다. 지침은 일관된 입력 하나의 분기 판단·실제 계산·다음 진행·조기 반환·결과를
   연결된 완전한 문장으로 설명하도록 요청한다. 무관한 함수 해설 예제는 포함하지 않는다.
@@ -1436,13 +1439,16 @@ Webview는 Project Graph, 파일 시스템, VS Code API에 직접 접근하지 �
   요청과 다르면 `language-mismatch`로 거부한다. 잘못된 언어는 캐시·source 표시·완료 결과에
   저장하지 않으며 browser도 설명을 다시 확인한다. 자동 재요청 없이 사용자가 재시도한다.
 - 요청 `codeFlow/requestFunctionNarratives` / `codeFlow/cancelFunctionNarratives`는 현재
-  graphVersion, opaque flowId, nonnegative safe requestId만 받는다. Host는 최근 전달한
-  함수 8개를 유지하며 단일 pending inference, 45초 timeout, 취소·중복 ID·root/graph
+  graphVersion, opaque flowId, nonnegative safe requestId와 선택적인 cache-only pageIndex/
+  pageLanguage만 받는다. Host는 최근 전달한 함수 8개를 유지하며 단일 pending 분석,
+  묶음별 90초 timeout(이전 단일 요청 fallback 45초), 취소·중복 ID·root/graph
   교체를 처리한다. 주변 코드까지 포함한 content hash와 locale로 검증된 결과를 재사용한다.
   오래된 함수 context가 8개 상한에서 만료되면 Host-issued source token으로 명시적으로
   다시 불러올 수 있다. 다시 불러오기는 추론을 시작하지 않는다.
 - 응답 `codeFlow/functionNarrativesLoaded`는 status, modelName, 생성 언어, cacheHit,
-  제한 여부, narrative, snippet 범위와 각 step의 Host-issued evidence token만 포함한다.
+  제한 여부, narrative, snippet 범위와 각 step의 Host-issued evidence token을 포함한다.
+  전체 분석은 progress, completed/discovered/optional total/complete/sourceLimited와
+  페이지 index/count/global offset을 제공한다. 열거가 끝날 때만 total을 확정한다.
   source range를 새 editor token으로 바꾸며 브라우저가 경로·prompt·모델 ID를 정하지 못한다.
 - Guide의 짧은 source-backed purpose 다음 optional section은 Kotlin/symbolic-only 및 인자 없는
   함수도 제공한다. 생성 결과는 연결된 문단을 먼저 표시하고 조건·동작 순서·판단 근거·값과 흐름의
@@ -1456,7 +1462,7 @@ Webview는 Project Graph, 파일 시스템, VS Code API에 직접 접근하지 �
   요청 후 focus는 보이는 Cancel/Reload/Generate 또는 status로 복원하고 locale 변경은 근거
   disclosure 상태와 source button focus를 보존한다.
 - `codeFlow/openFunctionNarrativeSource`는 graphVersion, flowId, contextId, 생성 language와
-  scenario/step index만 받는다. Host는 정확한 cached result를 고르고 그 step의 evidence
+  scenario/step index와 선택적인 pageIndex만 받는다. Host는 정확한 저장 페이지를 읽고 그 step의 evidence
   token을 해석한다. 같은 위치를 인용하는 다른 함수/언어의 설명으로 대체하지 않으며
   비동기 editor open 뒤에도 graph/context/cache 소유권을 다시 확인한다.
 - `vscode/functionNarrativeDecorations`는 전체 source hash가 맞는 file 문서에만 최대
@@ -1466,6 +1472,37 @@ Webview는 Project Graph, 파일 시스템, VS Code API에 직접 접근하지 �
   editor 표시, source action, hover와 지우기는 모델 요청·소스 쓰기·graph 변경을 하지 않는다.
 
 공개 API와 실제 모델 연결 조건은 `docs/FUNCTION_NARRATIVES.md`를 따른다.
+
+#### 전체 소스 시나리오 분석과 페이지 저장
+
+- `buildFunctionNarrativeScenarioGraph`는 같은 snapshot의 Function Logic을 source-backed
+  인접 목록으로 투영한다. 전체 조건 경로는 `createFunctionNarrativeScenarioIterator`가
+  반복 stack, 경로별 visited set과 depth guard로 lazy 열거한다. 최대 3개 preview와 별개로
+  함수 전체의 경로 상한을 두지 않는다. exact/inferred를 유지하고 missing/unsupported/
+  cycle/depth 경계는 partial prefix로 보존한다.
+- loop는 skip, 한 symbolic body pass의 일반/continue 경로 후 exit, break로 추상화한다.
+  모든 반복 횟수 조합을 열거하거나 입력 도달 가능성·외부 결과를 검증하지 않는다.
+- `FunctionNarrativeScenarioRun`은 한 번에 최대 2개, 합계 경로 JSON 목표 5,000자로
+  batch를 구성한다. 긴 단일 경로는 잘라내지 않고 단독 요청하며 응답 검증·저장이 완료된
+  뒤에만 completed를 증가시킨다. 오류·취소는 미완료 batch를 보존하고 명시적 재개만 허용한다.
+  모든 조건을 fixed when에 순서대로 보존한다. 긴 조건/loop 본문과 과밀 조건은 소스 줄
+  참조/선택으로 압축하고 전체 sourceFlow 구문은 유지한다. 그래도 응답 상한에 맞지 않으면
+  context-too-large로 실패한다. 일부 조건이나 시나리오를 버리고 완료로 표시하지 않는다.
+- 검증된 prose는 `FunctionNarrativePageStore` port 뒤의 storage adapter가 private
+  임시 폴더(0700)/JSON 파일(0600)에 저장한다. construction은 inert이고 read는 다시
+  runtime 검증한다. graph/root/context eviction/disposal은 저장소를 해제하며 late write를
+  취소한다. Host는 작은 page metadata와 현재 visible page만 유지한다.
+- Guide는 한 페이지와 이전/다음 버튼, 완료 개수·페이지 범위를 표시한다. 분석 중 paging은
+  비활성화하고 완료·취소·실패 후 완료된 페이지를 읽을 수 있다. locale별 독립 run을
+  유지하며 페이지 요청·locale·focus·source action은 추론하지 않는다. source step 번호는
+  global page offset을 적용하며 native annotation도 같은 번호로 현재 페이지만 표시한다.
+- Qwen3.x 이름의 GGUF는 current llama-completion의 tool-template probe 대신 tool-free
+  ChatML/`--no-jinja`/`--reasoning off`를 사용한다. local 8,192 context, 2,400 output,
+  thread 2개, offline와 single-process lifecycle은 유지한다. 마켓 확장에는 모델·runner를
+  포함하지 않고 자동 다운로드하지 않는다.
+- complete local batch는 summary 240자, title 64자, explanation 480자, 최대 step 3개,
+  step text/reason/effect 각각 120자, assumptions와 limitations 각각 최대 2개를 사용한다.
+  기존 portable 응답 최대값과 별개인 생성 예산이며 fixed scenario slot 개수는 줄이지 않는다.
 
 #### `shared/functionScenarios`
 

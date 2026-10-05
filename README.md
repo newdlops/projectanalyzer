@@ -65,6 +65,14 @@ Supported source-first function visualization currently covers:
 
 ## Understand the Selected Function
 
+The Guide's **Analyze all scenarios** action uses a local LLM on demand. Install
+the extension from the marketplace, then install `llama-completion` and download
+an instruction-tuned GGUF separately. The tested Qwen3.5-4B Q4_K_M file is about
+2.74 GB; select it on first generation or set
+`projectAnalyzer.functionNarratives.localModel`. Models are not bundled or
+automatically downloaded. See [model setup, checksums and limits](docs/FUNCTION_NARRATIVES.md).
+A connected VS Code Chat model is also available through the provider setting.
+
 **At a glance** starts with authored documentation, inputs, decisions and
 outcomes. Each reading action selects the corresponding graph node and its
 plain-language explanation in **Understand code**.
@@ -170,13 +178,17 @@ dedicated Function Visualizer tab with a bounded control-flow graph:
   overrides; a long variable list scrolls inside the table instead of collapsing it;
   if analysis misses a binding, add a `CUSTOM` variable by name and value
 - a **Function Guide** opened initially with a short source-backed purpose and an
-  explicit **Generate explanation** action. Generated scenarios read as paragraphs,
+  explicit **Analyze all scenarios** action. Generated scenarios read as paragraphs,
   with cited steps under **Source evidence**. **Analysis details** contains the full
   Function summary, inputs, conditional stages, outcomes, calls/writes, gaps and
   five reading questions; the graph moves when **Show on Graph** is chosen
 - source-grounded LLM prose: reuse bounded static routes and value operations,
   bind eligible conditions, source terminals and citations to the same scenario,
   and retain unverified labels for model-written explanations
+- complete source scenario reading: analyze all discovered structural paths in
+  sequential batches, retain completed pages on cancel/error, continue remaining
+  analysis explicitly, and read saved pages without another model call. Loop
+  iteration counts and path feasibility remain unverified
 - compact graph controls: **Function Guide**, **Fit**, and a closed **Tools**
   disclosure for zoom, centering, the reading outline, Inspector and legend
 - lazy **Source Path Scenarios** under that guide, with statically inferred inputs,

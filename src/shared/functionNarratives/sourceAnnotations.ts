@@ -12,6 +12,8 @@ export type FunctionNarrativeSourcePresentation = {
   modelName: string;
   narrative: FunctionNarrative;
   snippets: readonly FunctionNarrativeSnippet[];
+  /** Stable global numbering when this presentation is a bounded page from a complete run. */
+  scenarioOffset?: number;
 };
 
 /** Each surface owns a presenter; clearing another surface cannot remove the current result. */
@@ -29,15 +31,15 @@ export type FunctionNarrativeSourceReference = {
 export type FunctionNarrativeSourceAnnotation = { line: number; hint: string; references: FunctionNarrativeSourceReference[] };
 
 /** Groups shared source lines, retains all twenty possible references, and abbreviates only inline text. */
-export function buildFunctionNarrativeSourceAnnotations(narrative: FunctionNarrative, snippets: readonly FunctionNarrativeSnippet[]): FunctionNarrativeSourceAnnotation[] {
-  if (!isFunctionNarrative(narrative, snippets)) return [];
+export function buildFunctionNarrativeSourceAnnotations(narrative: FunctionNarrative, snippets: readonly FunctionNarrativeSnippet[], scenarioOffset = 0): FunctionNarrativeSourceAnnotation[] {
+  if (!isFunctionNarrative(narrative, snippets) || !Number.isSafeInteger(scenarioOffset) || scenarioOffset < 0) return [];
   const lines = new Map<number, FunctionNarrativeSourceAnnotation>();
   for (let scenarioIndex = 0; scenarioIndex < narrative.scenarios.length; scenarioIndex += 1) {
     const scenario = narrative.scenarios[scenarioIndex];
     for (let stepIndex = 0; stepIndex < scenario.steps.length; stepIndex += 1) {
       const step = scenario.steps[stepIndex];
       const annotation = lines.get(step.source.startLine) ?? { line: step.source.startLine, hint: "", references: [] };
-      annotation.references.push({ label: `${scenarioIndex + 1}.${stepIndex + 1}`, scenarioIndex, scenario, step });
+      annotation.references.push({ label: `${scenarioOffset + scenarioIndex + 1}.${stepIndex + 1}`, scenarioIndex: scenarioOffset + scenarioIndex, scenario, step });
       lines.set(annotation.line, annotation);
     }
   }

@@ -4,6 +4,28 @@ All notable user-visible changes to Project Analyzer: Code Flow are recorded in
 this file. The changelog starts with the first distribution-documented build;
 earlier local development builds were not tracked here.
 
+## 0.0.1108 - 2026-10-05
+
+### Improved
+
+- Analyze every discovered structural source scenario through sequential, fixed
+  batches instead of allowing the model to choose one to three examples. Preserve
+  separate inferred and partial routes, early returns and finite loop choices.
+- Show analysis progress and retain completed results after cancellation or errors.
+  An explicit Continue action processes only the remaining paths. Read saved results
+  with Previous/Next, stable global scenario numbers and matching source annotations.
+- Keep model prose in private temporary pages and render one bounded page at a time.
+  Paging, language changes and source navigation do not invoke the model.
+- Support Qwen3.5 text-only local inference with ChatML and reasoning disabled.
+  Each batch has a 90-second deadline; single-process, thread and output bounds remain.
+
+### Known limitations
+
+- Scenarios cover the captured control-flow graph. Loops use a finite structural
+  abstraction; this does not enumerate every iteration count or prove path feasibility.
+  Missing or unsupported source remains visible, and model prose remains unverified.
+- GGUF models and llama.cpp are installed separately from the marketplace extension.
+
 ## 0.0.1107 - 2026-10-05
 
 ### Fixed

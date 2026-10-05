@@ -68,6 +68,7 @@ export type ExplorerViewProviderDependencies = {
   workspaceGraphCoordinator: WorkspaceGraphCoordinator;
   functionNarrativeProvider?: FunctionNarrativeProvider;
   functionNarrativeSourcePresenter?: import("../shared/functionNarratives").FunctionNarrativeSourcePresenter;
+  createFunctionNarrativePageStore?: import("../shared/functionNarratives").FunctionNarrativePageStoreFactory;
 };
 
 /** Temporary gate while the visual graph renderer is disconnected from the GUI. */
@@ -117,6 +118,7 @@ export class ExplorerViewProvider implements vscode.WebviewViewProvider {
       scenarioInputProvider: createLocalScenarioProvider(),
       functionNarrativeProvider: dependencies.functionNarrativeProvider,
       functionNarrativeSourcePresenter: dependencies.functionNarrativeSourcePresenter,
+      createFunctionNarrativePageStore: dependencies.createFunctionNarrativePageStore,
       graphDelivery: this.graphDelivery,
       insightCache: this.codeFlowInsights,
       sourceNodeTokens: this.sourceNodeTokens,

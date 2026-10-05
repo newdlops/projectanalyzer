@@ -1,5 +1,56 @@
 # 함수 따라 읽기 UI 검증
 
+## 0.0.1108: 전체 시나리오 진행과 결과 페이지
+
+2026-10-05, 문장형 설명에 전체 소스 경로 분석, 진행 개수, 완료 결과 보존,
+명시적 이어하기와 이전/다음 페이지를 추가했다. 기존 VS Code 색상·타이포그래피·버튼·
+disclosure·focus 스타일을 유지했다. UI 디자인 워크플로와 Impeccable을 적용하고
+Web Interface Guidelines의 semantic button, polite 상태 안내, 키보드 포커스와 줄바꿈
+기준으로 변경 부분을 검토했다.
+
+Safari fixture는 최종 production HTML과 실제 Qwen3.5 Kotlin 한국어의 저장 결과를
+재생한다. 모델은 fixture에서 실행하지 않으며 진행·취소는 synthetic message adapter다.
+실제 클릭·스크롤·Return, accessibility tree와 screenshot으로 확인한 범위는 다음과 같다.
+
+| 검증 경계 | 실제 확인 |
+| --- | --- |
+| Desktop `1440×900` | 초기 생성 버튼, 완료 5개 안내, 한 페이지의 문단 2개와 접힌 근거 |
+| 저장 페이지·키보드 | 다음 클릭으로 전역 번호 3–4, Return으로 5번; 마지막 페이지에서 다음 disabled, 이전으로 focus 이동. 분석 요청 1회 유지, 페이지 읽기만 2회 증가 |
+| Tablet `768×1024` | 마지막 문단, 전체 조건 제목, 결과 3/3과 이전/다음 버튼. page horizontal overflow 없음, 계측 오류 0 |
+| Narrow `390×844` | 긴 조건·근거 줄바꿈, Guide 스크롤, 소스 5.1 버튼. 영어 UI 전환에도 한국어 생성 표시·열린 근거 보존, 추가 모델 요청 없음 |
+| 소스 메시지 | fixture source action 1회. Safari fixture에서 실제 편집기를 열었다는 의미는 아님 |
+| Synthetic 진행·취소, narrow | 완료 2개와 처리 중 안내, 페이지 버튼 disabled. 취소 후 문단 2개 유지, 이어서 분석 버튼과 focus 복원, cancel 1회, 자동 추가 요청 없음 |
+
+최종 빌드를 새로고침한 뒤 desktop·tablet·narrow의 결과 페이지와 위 synthetic 진행·취소를
+다시 확인했다. 확인한 viewport의 page horizontal overflow는 없었고 계측 오류는 0이었다.
+이전 응답 형식의 실제 문장 재생과 최종 compact local grammar의 실제 모델 생성은
+서로 다른 검증이다. compact grammar는 아래 native 한국어와 별도의 Host 실행에서 확인했다.
+
+0.0.1108 darwin-arm64 VSIX를 기본 프로필과 `Function Language QA 1107` 프로필에
+설치했다. 두 설치 목록과 profile manifest의 버전은 0.0.1108이며 변경 런타임 JS 28개가
+빌드 출력과 일치한다. 모델 경로는 두 프로필 모두 Qwen3.5-4B Q4_K_M으로 변경했다.
+소유한 QA 창만 Reload Window로 새 확장을 적용했고 실제 VS Code에서 다음을 확인했다.
+
+- `.kt` 파일의 Kotlin 함수 분석, 전체 시나리오 분석 버튼과 생성 중 취소 버튼.
+- Qwen3.5의 한국어 문단 5개와 생성 언어·모델 표시, 세 페이지의 전역 번호.
+- 다음 클릭과 Return으로 마지막 페이지, 소스 근거의 `5.1` 버튼으로 원본 L2 열기,
+  편집기 `LLM 5.1` 표시와 native hover의 한국어 문단·단계 설명·고정 조건.
+
+Native 취소는 진행 결과를 확인하기 전에 생성이 완료돼 완료분 보존·이어하기까지
+검증하지 못했다. 실제 모델은 최종 생산 Host에서 Python 16개/5개, TypeScript 8개,
+Kotlin 영어 5개를 모두 완료했다. 취소 후 미완료 묶음 재개, 90초 deadline, 늦은 페이지의
+annotation 복원 방지, private storage permissions·disposal race는 최종 집중 테스트로
+확인했다. 자세한 측정과 제약은 [모델 검증 기록](FUNCTION_NARRATIVES.md)을 따른다.
+
+전체 unit 942개 중 938개와 최종 집중 53개, 패키징 script 13개가 통과했다. 전체 unit의
+기존 실패 4개는 유지된다. compile·release metadata·diff check·VSIX 상한도 통과했다.
+VSIX는 501개 파일, archive 3.58MiB, unpacked 15.36MiB이며 GGUF를 포함하지 않는다.
+
+이 기록은 light theme·forced colors·전체 키보드 흐름·모든 그래프 도구나 모델 문장 의미의
+검증을 뜻하지 않는다. 실제 native 마지막 문단에는 `< 10`의 거짓 조건을 정확히 설명하지
+못한 문장이 있어 미검증 표시를 유지했다. 임시 fixture와 실제 응답은 로컬 QA 경로에만
+보관하며 저장소와 VSIX에 포함하지 않는다. 다른 사용자 창은 새 설치 후 reload가 필요할 수 있다.
+
 ## 0.0.1107: 요청한 설명 언어와 오류 복구
 
 2026-10-05, 한국어 UI에서도 영어 설명이 성공 결과로 표시되던 복잡한 Python 함수를

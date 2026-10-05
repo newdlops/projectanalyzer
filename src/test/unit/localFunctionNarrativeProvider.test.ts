@@ -11,9 +11,9 @@ const context: FunctionNarrativeContext = { functionName: "describe", language: 
   snippets: [{ id: "root", role: "function", startLine: 1, endLine: 1, text: 'fun describe() = "ready"', truncated: false }] };
 
 /** A fake external runner reads the actual private prompt file, but never evaluates source code. */
-async function fixture(body: string | ((directory: string) => string)) {
+async function fixture(body: string | ((directory: string) => string), modelName = "fixture.gguf") {
   const directory = await mkdtemp(join(tmpdir(), "function-llm-test-"));
-  const binaryPath = join(directory, "runner"); const modelPath = join(directory, "fixture.gguf");
+  const binaryPath = join(directory, "runner"); const modelPath = join(directory, modelName);
   await writeFile(binaryPath, `#!${process.execPath}\n${typeof body === "string" ? body : body(directory)}`, { mode: 0o700 }); await writeFile(modelPath, "GGUF fixture");
   return { directory, provider: createLocalFunctionNarrativeProvider({ binaryPath, modelPath }) };
 }
@@ -31,6 +31,17 @@ test("local LLM adapter starts only on request and reads Kotlin from a private f
     assert.equal(result.text, '{"summary":"ready"}'); assert.ok(result.modelName.includes("fixture"));
     assert.deepEqual((await readdir(f.directory)).sort(), ["fixture.gguf", "runner"]);
   } finally { await rm(f.directory, { recursive: true, force: true }); }
+});
+
+test("Qwen3.5 uses tool-free ChatML and disables reasoning while retaining local resource bounds", async () => {
+  const f = await fixture(`const args = process.argv.slice(2);
+    const value = (flag) => args[args.indexOf(flag) + 1];
+    if (value('--chat-template') !== 'chatml' || !args.includes('--no-jinja') || value('--reasoning') !== 'off'
+      || value('--ctx-size') !== '8192' || value('--threads') !== '2' || value('--threads-batch') !== '2'
+      || value('--predict') !== '2400' || !args.includes('--single-turn') || !args.includes('--offline')) process.exit(2);
+    process.stdout.write('{"summary":"new model"}');`, "Qwen3.5-4B-Q4_K_M.gguf");
+  try { assert.equal((await f.provider.generate(context, "en", new AbortController().signal)).text, '{"summary":"new model"}'); }
+  finally { await rm(f.directory, { recursive: true, force: true }); }
 });
 
 test("changing local model configuration waits for the previous process to exit before loading another", async () => {

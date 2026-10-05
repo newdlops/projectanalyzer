@@ -63,7 +63,7 @@ export class FunctionNarrativeDecorationService implements vscode.Disposable {
     this.clearEditors();
     const presentation = this.current?.presentation;
     if (!presentation || this.disposed || !this.enabled()) return;
-    const annotations = buildFunctionNarrativeSourceAnnotations(presentation.narrative, presentation.snippets);
+    const annotations = buildFunctionNarrativeSourceAnnotations(presentation.narrative, presentation.snippets, presentation.scenarioOffset);
     for (const editor of this.api.window.visibleTextEditors) {
       if (!this.matches(editor.document)) continue;
       if (createContentHash(editor.document.getText()) !== presentation.sourceHash) { this.clearCurrent(); return; }

@@ -35,6 +35,7 @@ export type FunctionVisualizerPanelProviderDependencies = {
   sourceHighlighter: SourceHighlighter;
   functionNarrativeProvider?: FunctionNarrativeProvider;
   functionNarrativeSourcePresenter?: import("../../shared/functionNarratives").FunctionNarrativeSourcePresenter;
+  createFunctionNarrativePageStore?: import("../../shared/functionNarratives").FunctionNarrativePageStoreFactory;
 };
 
 /** One latest-wins root visualization waiting for a ready Webview. */
@@ -95,6 +96,7 @@ export class FunctionVisualizerPanelProvider {
       scenarioInputProvider: createLocalScenarioProvider(),
       functionNarrativeProvider: dependencies.functionNarrativeProvider,
       functionNarrativeSourcePresenter: dependencies.functionNarrativeSourcePresenter,
+      createFunctionNarrativePageStore: dependencies.createFunctionNarrativePageStore,
       openEvidenceLocation: ({ filePath, range }) =>
         dependencies.sourceHighlighter.revealRange(filePath, range),
       postMessage: (message) => this.postMessage(message)

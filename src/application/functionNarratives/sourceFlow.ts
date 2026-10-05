@@ -1,6 +1,7 @@
 /** Projects existing language-neutral control facts into small source-cited LLM routes; never evaluates code. */
-import type { FunctionLogicAnalysis, FunctionLogicBlock, FunctionLogicEdge } from "../../analyzer/functionLogic";
+import type { FunctionLogicAnalysis, FunctionLogicEdge } from "../../analyzer/functionLogic";
 import type { FunctionNarrativeContext, FunctionNarrativeFlowPath, FunctionNarrativeFlowStep, FunctionNarrativeSourceFlow } from "../../shared/functionNarratives";
+import { createFunctionNarrativeSourceStep } from "./sourceStep";
 
 export type FunctionNarrativeFlowOptions = { maxDepth?: number; maxPaths?: number; maxCharacters?: number };
 
@@ -16,8 +17,7 @@ export function buildFunctionNarrativeSourceFlow(analysis: FunctionLogicAnalysis
   const maxPaths = bound(options.maxPaths, 3, 3);
   const maxCharacters = bound(options.maxCharacters, 4000, 6000);
   const result: FunctionNarrativeSourceFlow = { basis: "source-control-flow", paths: [], limited: analysis.gaps.length > 0 };
-  const lines = source.split(/\r?\n/u);
-  const excerptLines = new Map(context.snippets.map((snippet) => [snippet.id, snippet.text.split("\n")]));
+  const sourceStep = createFunctionNarrativeSourceStep(analysis, source, context);
   const blocks = new Map(analysis.blocks.map((block) => [block.id, block]));
   const outgoing = new Map<string, FunctionLogicEdge[]>();
   const seenEdges = new Set<string>();
@@ -84,31 +84,4 @@ export function buildFunctionNarrativeSourceFlow(analysis: FunctionLogicAnalysis
   result.limited ||= pending.length > 0;
   return result;
 
-  /** Only complete ranges already visible in a root excerpt may supply facts or citations. */
-  function sourceStep(block: FunctionLogicBlock): FunctionNarrativeFlowStep | undefined {
-    if (block.filePath !== analysis.functionNode.filePath) return undefined;
-    const range = block.range;
-    const startLine = range.startLine + 1;
-    const endLine = range.endLine + (range.endCharacter > 0 || range.startLine === range.endLine ? 1 : 0);
-    const snippet = context.snippets.find((candidate) => candidate.role === "function"
-      && startLine >= candidate.startLine && endLine <= candidate.endLine);
-    if (!snippet || range.startLine < 0 || range.endLine >= lines.length) return undefined;
-    // Matching predicate text elsewhere cannot authorize an operation after a
-    // character cutoff on the same line. Check this range's visible columns.
-    for (let line = range.startLine; line < endLine; line += 1) {
-      const supplied = excerptLines.get(snippet.id)?.[line - snippet.startLine + 1];
-      const offset = line === analysis.functionNode.range.startLine ? analysis.functionNode.range.startCharacter : 0;
-      const lastCharacter = line === range.endLine ? range.endCharacter : lines[line].length;
-      if (supplied === undefined || lastCharacter - offset > supplied.length) return undefined;
-    }
-    const raw = lines.slice(range.startLine, range.endLine + 1).map((line, index) => line.slice(index === 0 ? range.startCharacter : 0,
-      range.startLine + index === range.endLine ? range.endCharacter : undefined)).join("\n").trim();
-    const code = block.condition?.expression.trim() || raw;
-    // A character-truncated excerpt must not authorize hidden text on its last
-    // line. Synthetic exits have no source operation and are kept as "exit".
-    if (code && !snippet.text.includes(code)) return undefined;
-    if (code.length > 480) { result.limited = true; return undefined; }
-    return { kind: block.kind, code: code || block.kind, confidence: block.confidence,
-      source: { snippetId: snippet.id, startLine, endLine } };
-  }
 }

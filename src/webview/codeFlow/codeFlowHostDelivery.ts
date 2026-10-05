@@ -57,6 +57,7 @@ export type CodeFlowHostDeliveryDependencies = {
   scenarioInputProvider?: ScenarioInputProvider;
   functionNarrativeProvider?: FunctionNarrativeProvider;
   functionNarrativeSourcePresenter?: import("../../shared/functionNarratives").FunctionNarrativeSourcePresenter;
+  createFunctionNarrativePageStore?: import("../../shared/functionNarratives").FunctionNarrativePageStoreFactory;
   readSourceText(filePath: string): Promise<string | undefined>;
   openEvidenceLocation(location: CodeFlowEvidenceLocation): Promise<void>;
   postMessage(message: ExtensionResponse): Promise<void>;
@@ -81,6 +82,7 @@ export class CodeFlowHostDelivery {
 
   public constructor(private readonly dependencies: CodeFlowHostDeliveryDependencies) {
     this.narratives = new FunctionNarrativesHostDelivery({ provider: dependencies.functionNarrativeProvider, sourcePresenter: dependencies.functionNarrativeSourcePresenter,
+      createPageStore: dependencies.createFunctionNarrativePageStore,
       isActive: (version) => Boolean(this.resolveActiveGraph(version)), getLanguage: dependencies.getUiLanguage,
       createEvidence: (filePath, range) => dependencies.evidenceTokens.createToken(filePath, range), postMessage: dependencies.postMessage });
   }
@@ -376,7 +378,7 @@ export class CodeFlowHostDelivery {
   /** Opens only a numbered step from the selected cached narrative and restores its own annotations. */
   public async openFunctionNarrativeSource(request: FunctionNarrativeSourceRequest): Promise<void> {
     const active = this.resolveActiveGraph(request.graphVersion);
-    const target = active && this.narratives.resolveSource(request);
+    const target = active && await this.narratives.loadSource(request);
     const location = target && this.dependencies.evidenceTokens.resolve(target.evidenceToken);
     if (!active || !target || !location) {
       await this.publishFailure(request.graphVersion, active ? "evidenceNotFound" : "staleGraph", active ? "evidenceNotFound" : "staleReopenLogic",

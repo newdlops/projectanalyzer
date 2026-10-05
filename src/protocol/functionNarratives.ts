@@ -3,7 +3,10 @@ import type { CodeFlowId } from "./codeFlow";
 import type { CodeFlowEvidenceToken } from "./functionLogic";
 import type { FunctionNarrative, FunctionNarrativeSnippet } from "../shared/functionNarratives";
 
-export type FunctionNarrativesRequest = { graphVersion: string; flowId: CodeFlowId; requestId: number };
+export type FunctionNarrativesRequest = { graphVersion: string; flowId: CodeFlowId; requestId: number;
+  /** Cache-only paging is a separate intent from generation; it never invokes a provider. */
+  pageIndex?: number;
+  pageLanguage?: "ko" | "en" };
 /** Selects one Host-cached result, never a browser-supplied path, range or evidence token. */
 export type FunctionNarrativeSourceRequest = {
   graphVersion: string;
@@ -12,9 +15,10 @@ export type FunctionNarrativeSourceRequest = {
   language: "ko" | "en";
   scenarioIndex: number;
   stepIndex: number;
+  pageIndex?: number;
 };
 export type FunctionNarrativesResponse = FunctionNarrativesRequest & {
-  status: "ready" | "unavailable" | "cancelled" | "denied" | "timeout" | "invalid-response" | "language-mismatch" | "context-too-large" | "failed" | "stale";
+  status: "ready" | "progress" | "unavailable" | "cancelled" | "denied" | "timeout" | "invalid-response" | "language-mismatch" | "context-too-large" | "failed" | "stale";
   modelName?: string;
   language?: "ko" | "en";
   cacheHit?: boolean;
@@ -24,4 +28,7 @@ export type FunctionNarrativesResponse = FunctionNarrativesRequest & {
   snippets?: Array<Pick<FunctionNarrativeSnippet, "id" | "startLine" | "endLine">>;
   /** Each entry maps directly to one scenario's ordered steps, using Host-issued source tokens. */
   evidenceTokens?: CodeFlowEvidenceToken[][];
+  /** Total becomes known when lazy enumeration is exhausted; completed pages are retained on errors/cancel. */
+  coverage?: { completed: number; discovered: number; total?: number; complete: boolean; sourceLimited: boolean };
+  page?: { index: number; count: number; offset: number };
 };

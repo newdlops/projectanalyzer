@@ -1,5 +1,28 @@
 # Function reading workspace
 
+## Complete scenario reading — October 2026
+
+Keep the current Function Guide, theme tokens, literal prose and source disclosures.
+The primary action analyzes every source scenario, rather than asking the model to
+choose one to three examples. Show analyzed/total counts during sequential batches,
+with Cancel in the same action position. Completed pages survive cancellation and
+errors; Continue analyzes only remaining scenarios on another explicit action.
+Present one bounded page of scenarios with native Previous/Next controls and a page
+label. Page changes and language changes never start inference. Preserve scenario
+numbers across pages and use the same numbers for source actions and native hints.
+
+Enumerate conditional and early-exit paths without a three-path total cap. Abstract
+loops as skip, body/continue and exit/break routes, rather than enumerating every
+possible iteration count. Preserve inferred edges and analysis gaps; incomplete
+source coverage must remain visible and cannot be called complete. Batch limits
+bound each model response, not the function's total number of scenarios.
+
+Acceptance: a function with more than four paths analyzes and exposes all paths;
+partial/inferred routes cannot fall back to a single free-form scenario; every
+requested batch slot is validated. Confirm actual Kotlin and Python generation,
+progress, cancel/resume, cache, paging and source numbering, in both UI languages and
+at 390×844, 768×1024 and 1440×900. Verify the replacement model independently.
+
 ## Simple function reading — October 2026
 
 The initial surface is the graph beside a short purpose and an explicit LLM

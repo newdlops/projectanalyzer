@@ -3,6 +3,7 @@ import type { SourceRange, SymbolNode } from "../../shared/types";
 import type { FunctionLogicAnalysis } from "../../analyzer/functionLogic";
 import type { FunctionNarrativeContext, FunctionNarrativeSnippet } from "../../shared/functionNarratives";
 import { buildFunctionNarrativeSourceFlow } from "./sourceFlow";
+import { buildFunctionNarrativeScenarioGraph } from "./scenarioGraph";
 
 /** Root-first excerpts preserve original one-based lines, including a separate truncated tail. */
 export function buildFunctionNarrativeContext(node: SymbolNode, source: string, related: readonly SymbolNode[] = [], analysis?: FunctionLogicAnalysis): FunctionNarrativeContext {
@@ -54,6 +55,7 @@ export function buildFunctionNarrativeContext(node: SymbolNode, source: string, 
   // host already owns this analysis; legacy callers remain source-only.
   if (analysis && analysis.functionNode.id === node.id && analysis.functionNode.filePath === node.filePath) {
     context.sourceFlow = buildFunctionNarrativeSourceFlow(analysis, source, context);
+    context.scenarioGraph = buildFunctionNarrativeScenarioGraph(analysis, source, context);
   }
   return context;
 }

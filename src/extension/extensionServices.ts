@@ -21,6 +21,7 @@ import { SourceHighlightService } from "../vscode/sourceHighlightService";
 import { createWorkspaceAnalysisCacheKey } from "../vscode/workspaceFingerprint";
 import { VsCodeWorkspaceFileSystem } from "../vscode/workspaceFileSystem";
 import { createConfiguredFunctionNarrativeProvider } from "../vscode/configuredFunctionNarrativeProvider";
+import { createFunctionNarrativePageStore } from "../storage/functionNarrativePages";
 import { FunctionNarrativeDecorationService } from "../vscode/functionNarrativeDecorations";
 import { ExplorerGraphPanelProvider } from "../webview/explorerGraphPanelProvider";
 import { ExplorerViewProvider } from "../webview/explorerViewProvider";
@@ -92,6 +93,7 @@ export function createExtensionServices(context: vscode.ExtensionContext): Exten
   });
   const functionVisualizerPanelProvider = new FunctionVisualizerPanelProvider({
     functionNarrativeProvider,
+    createFunctionNarrativePageStore,
     functionNarrativeSourcePresenter: narrativeDecorations.createPresenter(),
     config,
     logger,
@@ -113,6 +115,7 @@ export function createExtensionServices(context: vscode.ExtensionContext): Exten
   context.subscriptions.push(moduleVisualizerPanelProvider);
   const explorerViewProvider = new ExplorerViewProvider({
     functionNarrativeProvider,
+    createFunctionNarrativePageStore,
     functionNarrativeSourcePresenter: narrativeDecorations.createPresenter(),
     context,
     analyzer,

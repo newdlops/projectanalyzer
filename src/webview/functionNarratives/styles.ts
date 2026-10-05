@@ -13,6 +13,9 @@ export function getFunctionNarrativesStyles(): string {
     .logic-narrative-steps li, .logic-narrative-facts li { overflow-wrap: anywhere; line-height: 1.5; }
     .logic-narrative-source { margin-top: 4px; }
     .logic-narrative-paragraph { white-space: pre-line; }
+    .logic-narrative-pagination { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; border-top: 1px solid var(--vscode-panel-border); padding-top: 12px; min-width: 0; }
+    .logic-narrative-page-label { flex: 1 0 100%; color: var(--vscode-descriptionForeground); font-size: var(--logic-font-small); overflow-wrap: anywhere; }
+    .logic-narrative-pagination button { flex: 1; min-width: 0; }
     .logic-narrative-evidence { min-width: 0; font-size: var(--logic-font-small); }
     .logic-narrative-evidence > summary { cursor: pointer; padding: 4px 0; line-height: 1.5; color: var(--vscode-descriptionForeground); }
     .logic-narrative-evidence > summary:hover { color: var(--vscode-foreground); }
