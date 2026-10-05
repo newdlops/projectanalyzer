@@ -10,6 +10,7 @@ import { getFunctionVisualizerHtml } from "../../webview/functionVisualizer/func
 import type { FunctionNarrativesRequest, FunctionNarrativeSourceRequest } from "../../protocol/functionNarratives";
 import type { FunctionNarrativeSourcePresentation } from "../../shared/functionNarratives";
 import { createContentHash } from "../../shared/hash";
+import { resolveUiLanguage } from "../../localization/uiLanguage";
 import type { ExtensionResponse } from "../../protocol/messages";
 import type { SymbolNode } from "../../shared/types";
 import { createGraph } from "./helpers/projectReadingGuideFixtures";
@@ -25,17 +26,21 @@ test("production Kotlin Guide offers actual LLM requests without changing static
   const evidenceTokens = new CodeFlowEvidenceTokenRegistry(); evidenceTokens.activate(version, graph);
   const messages: ExtensionResponse[] = []; const presentations: FunctionNarrativeSourcePresentation[] = [];
   const opened: unknown[] = []; let calls = 0; let sourceReads = 0;
+  let preference: "ko" | "en" = "en";
   const delivery = new CodeFlowHostDelivery({ graphDelivery, sourceNodeTokens, evidenceTokens, insightCache: new CodeFlowInsightCache(),
-    getUiLanguage: () => "en", readSourceText: async () => { sourceReads += 1; return "stale disk text"; }, openEvidenceLocation: async (location) => { opened.push(location); },
+    getUiLanguage: () => resolveUiLanguage(preference, "ko-KR"), readSourceText: async () => { sourceReads += 1; return "stale disk text"; }, openEvidenceLocation: async (location) => { opened.push(location); },
     functionNarrativeSourcePresenter: { show(presentation) { presentations.push(presentation); }, clear() {} },
     logger: { debug() {}, info() {}, warn() {}, error() {} }, async postMessage(message) { messages.push(message); },
-    functionNarrativeProvider: { async generate(context) {
+    functionNarrativeProvider: { async generate(context, language) {
+      assert.equal(language, preference, "explicit preference overrides VS Code display locale at generation time");
       calls += 1; assert.equal(context.language, "kotlin"); assert.ok(context.snippets.some((snippet) => snippet.text.includes('println("ready")')));
       assert.ok(context.snippets.some((snippet) => snippet.text.includes("const val LIMIT = 3")));
       assert.equal(context.sourceFlow?.basis, "source-control-flow");
       assert.ok(context.sourceFlow?.paths.some((path) => path.steps.some((step) => step.code === "LIMIT > 0")));
       // The fixture models an external explanation; partial call routes are not constrained to terminal frames.
-      return { modelName: "LLM boundary fixture", text: JSON.stringify({ summary: "Print a message based on LIMIT.", scenarios: [{ title: "Positive LIMIT", when: ["LIMIT > 0"], steps: [{ text: "Print ready.", source: { snippetId: "root", startLine: 4, endLine: 4 } }], outcome: "Finish normally.", assumptions: [] }], limitations: [] }) };
+      return { modelName: "LLM boundary fixture", text: JSON.stringify({ summary: language === "ko" ? "LIMIT에 따라 메시지를 출력합니다." : "Print a message based on LIMIT.", scenarios: [{ title: language === "ko" ? "양수 LIMIT" : "Positive LIMIT", when: ["LIMIT > 0"],
+        explanation: language === "ko" ? "LIMIT가 양수이면 ready를 출력하고 함수가 끝납니다." : "A positive LIMIT prints ready and the function finishes.",
+        steps: [{ text: language === "ko" ? "ready를 출력합니다." : "Print ready.", source: { snippetId: "root", startLine: 4, endLine: 4 } }], outcome: language === "ko" ? "정상 종료합니다." : "Finish normally.", assumptions: [] }], limitations: [] }) };
     } } });
   const runtime = installSidebarWebviewRuntime();
   try {
@@ -65,7 +70,19 @@ test("production Kotlin Guide offers actual LLM requests without changing static
     assert.equal(runtime.countRenderedByClass("flow-steps", "logic-narrative-scenario"), 1);
     assert.equal(runtime.getRenderedIdentityByClassNth("flow-steps", "logic-graph-node", 0), graphIdentity);
     assert.equal(runtime.messages.filter((message) => message.type === "codeFlow/requestScenarioInputs").length, 0);
-    runtime.dispatchMessage({ type: "ui/language", payload: { language: "ko" } }); assert.equal(calls, 1);
+    preference = "ko";
+    runtime.dispatchMessage({ type: "ui/language", payload: { language: preference } }); assert.equal(calls, 1);
     assert.ok(runtime.getRenderedText("flow-steps").some((text) => text.includes("LLM 추론 · 실제 실행 미검증")));
+    runtime.clickRenderedByClassNth("flow-steps", "logic-narrative-request", 0);
+    const koreanRequest = runtime.messages.at(-1); assert.equal(koreanRequest?.type, "codeFlow/requestFunctionNarratives");
+    await delivery.requestFunctionNarratives(koreanRequest!.payload as FunctionNarrativesRequest);
+    const koreanReply = messages.at(-1)!; assert.ok(koreanReply.type === "codeFlow/functionNarrativesLoaded");
+    assert.equal(koreanReply.payload.status, "ready"); assert.equal(koreanReply.payload.language, "ko");
+    runtime.dispatchMessage(koreanReply); assert.equal(calls, 2);
+    assert.ok(runtime.getRenderedText("flow-steps").some((text) => text.includes("LIMIT에 따라 메시지를 출력합니다.")));
+    preference = "en";
+    runtime.dispatchMessage({ type: "ui/language", payload: { language: preference } });
+    assert.equal(calls, 2, "returning to a generated language reuses its result without another model request");
+    assert.ok(runtime.getRenderedText("flow-steps").some((text) => text.includes("Print a message based on LIMIT.")));
   } finally { delivery.clearScenarioInputs(); runtime.restore(); }
 });

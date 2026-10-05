@@ -205,22 +205,26 @@ test("both providers bind conditions, terminal syntax and citations to the same 
     [["!enabled => false", "amount > 100 => true"], 'return "priority"'],
     [["!enabled => false", "amount > 100 => false"], 'return "ordinary"']
   ]);
-  const narrative = { summary: "Return a source-authored order label.", scenarios: frames.map((frame, i) => ({
-    title: `Route ${i + 1}`, when: frame.when, outcome: frame.outcome, assumptions: [],
+  const narrative = { summary: "Return a source-authored order label.", scenarios: frames.map((frame) => ({
+    title: frame.title, when: frame.when, outcome: frame.outcome, assumptions: [],
     explanation: "Read the given predicate choices and return the stated source label.",
     steps: [{ text: frame.outcome, source: frame.sources.at(-1)! }]
   })), limitations: [] };
   assert.deepEqual(parseFunctionNarrative(JSON.stringify(narrative), context), narrative);
   const wrongConditions = structuredClone(narrative); wrongConditions.scenarios[0].when = ["enabled=true"];
+  const wrongTitle = structuredClone(narrative); wrongTitle.scenarios[0].title = "Enabled and Amount Greater than 100";
   const wrongReturn = structuredClone(narrative); wrongReturn.scenarios[0].outcome = 'return "ordinary"';
   const wrongSource = structuredClone(narrative); wrongSource.scenarios[0].steps[0].source = { snippetId: "root", startLine: 5, endLine: 5 };
   const omitted = structuredClone(narrative); omitted.scenarios.pop();
+  assert.deepEqual(parseFunctionNarrative(JSON.stringify(wrongTitle), context), narrative,
+    "a model heading cannot contradict its verified scenario conditions; its prose is preserved");
   for (const invalid of [wrongConditions, wrongReturn, wrongSource, omitted]) {
     assert.throws(() => parseFunctionNarrative(JSON.stringify(invalid), context), { message: "invalid-response" });
   }
   const schema = createLocalNarrativeSchema(context) as any;
   assert.equal(schema.properties.scenarios.items.length, 3);
   for (const [i, slot] of schema.properties.scenarios.items.entries()) {
+    assert.equal(slot.properties.title.maxLength, 160);
     assert.deepEqual(slot.properties.when.const, frames[i].when);
     assert.equal(slot.properties.outcome.const, frames[i].outcome);
     assert.deepEqual(slot.properties.steps.items.properties.source.enum, frames[i].sources);

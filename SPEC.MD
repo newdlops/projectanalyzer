@@ -1407,8 +1407,11 @@ Webview는 Project Graph, 파일 시스템, VS Code API에 직접 접근하지 �
 - complete exact return/throw route 또는 complete primitive check가 있으면 provider에
   source frame을 제공한다. when/outcome/허용 source는 frame별로 고정하고 prose는 LLM이
   작성한다. 로컬 grammar는 tuple items와 const/enum으로 제한하며 Host는 두 provider의
-  응답에서 frame 개수·순서·조건·terminal·인용을 다시 검증한다. partial/inferred/implicit
-  exit만 있는 context는 기존 자유형 계약을 유지한다. 이 검사는 문장의 의미 정확성을
+  응답에서 frame 개수·순서·조건·terminal·인용을 다시 검증한다. 검증이 끝난 frame의 제목은
+  Host가 조건을 ` · `로 연결한 최대 160자로 표시한다. 조건이 없으면 terminal을 사용한다.
+  전체 조건은 근거에 유지하고 provider prompt/grammar와 모델의 문장은 변경하지 않는다.
+  partial/inferred/implicit exit만 있는 context는 모델 제목을 포함한 기존 자유형 계약을 유지한다.
+  이 검사는 문장의 의미 정확성을
   보장하지 않는다. context identity에는 위의 source fact와 static check도 포함한다.
 - `FunctionNarrativeProvider.generate`는 사용자 요청으로만 호출되는 교체 가능한 LLM 경계다.
   기본 local adapter는 PC에 설치한 `llama-completion`과 사용자가 선택한 instruction-tuned

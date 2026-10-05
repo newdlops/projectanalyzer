@@ -4,6 +4,25 @@ All notable user-visible changes to Project Analyzer: Code Flow are recorded in
 this file. The changelog starts with the first distribution-documented build;
 earlier local development builds were not tracked here.
 
+## 0.0.1106 - 2026-10-05
+
+### Improved
+
+- Derive eligible scenario headings from their validated source conditions so a
+  model-generated title cannot name the opposite branch. Preserve the model's
+  summary, paragraphs and detailed reasoning, with full conditions in evidence.
+- Verify explicit Korean/English settings through Host requests, language-specific
+  caches and the production Guide. Actual local 1.5B Kotlin and TypeScript requests
+  returned summaries and three scenario paragraphs in each requested language.
+- Keep inference prompts, grammar, resource limits and request counts unchanged.
+  Language switching reuses existing results and generates only on explicit action.
+
+### Known limitations
+
+- Source-derived headings do not validate the meaning of model-written prose.
+  Detailed guard effects and numeric calculations can still be wrong; generated
+  explanations retain the unverified-inference label.
+
 ## 0.0.1105 - 2026-10-05
 
 ### Improved

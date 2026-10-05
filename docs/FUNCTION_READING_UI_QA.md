@@ -1,5 +1,31 @@
 # 함수 따라 읽기 UI 검증
 
+## 0.0.1106: 조건에 맞는 제목과 설명 언어
+
+실제 로컬 1.5B의 Kotlin/TypeScript 한국어·영어 응답 네 개를 최종 Host parser에 재생한
+payload로 production Function Visualizer HTML을 만들었다. 기존 VS Code 토큰과 CSS를
+사용했고 새 layout이나 컴포넌트는 추가하지 않았다. 모델 실행 검증과 화면 재생 검증은
+별도이며 이 browser fixture에서는 실제 editor를 열지 않는다.
+
+Safari에서 다음을 실제 클릭·스크롤하고 AX와 screenshot으로 확인했다.
+
+- Kotlin 한국어 desktop `1440 × 900`, 영어 tablet `768 × 1024`, 한국어 narrow `390 × 844`.
+  각각 page horizontal overflow와 계측 오류는 0이었다. 좁은 화면에서 Guide가 그래프 위에
+  놓였고 Guide를 스크롤하여 두 번째·세 번째 조건 제목과 문단을 읽었다.
+- 한국어 시나리오 3개 생성 후 첫 소스 근거를 펼친 채 영어로 전환했다. 기존 한국어 문단의
+  생성 언어 표시와 펼침 상태가 유지됐고 요청 수는 1이었다. 명시적 영어 생성 후 영어 문단
+  3개와 같은 조건 제목을 표시했고 요청 수가 2가 됐다.
+- 영어 소스 버튼은 source protocol을 1회 보냈다. 한국어로 돌아오면 캐시의 한국어 문단을
+  다시 표시하고 펼침 상태를 유지했으며 요청 수는 2로 유지됐다. 실제 VS Code source open과
+  native hover를 이번 화면 fixture에서 확인한 것은 아니다.
+- TypeScript를 새 root로 열어 한국어로 명시적 생성한 뒤 영어로 전환했다. 전환만으로
+  요청 수가 늘지 않았다. 영어로 명시적 생성 후 영어 요약·문단 3개와 `base > 100`의
+  참/거짓 조건 제목을 desktop에서 확인했다. 전체 요청 수 4, source action 1, 오류 0이었다.
+
+최종 제목은 검증한 조건을 표시하고 본문의 LLM 문장은 원문을 유지한다. 따라서 화면이
+정상적으로 표시돼도 상세 해설의 사실 정확성을 의미하지 않는다. 기존 error/loading/stale
+상태는 이번 제목 변경의 대상이 아니며 이전 릴리스의 검증 기록을 유지한다.
+
 ## 0.0.1105: 정적 근거와 문장 연결
 
 2026-10-05, 이미 계산한 Function Logic·Tutor의 근거를 LLM context에 연결했다.

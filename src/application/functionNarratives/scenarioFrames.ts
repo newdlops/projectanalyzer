@@ -3,6 +3,7 @@ import type { FunctionNarrativeContext, FunctionNarrativeSource } from "../../sh
 
 /** Frames contain syntax or supported static results, never an asserted external/runtime outcome. */
 export type FunctionNarrativeScenarioFrame = {
+  title: string;
   when: string[];
   outcome: string;
   sources: FunctionNarrativeSource[];
@@ -14,7 +15,7 @@ export function buildFunctionNarrativeScenarioFrames(context: FunctionNarrativeC
     when: example.inputs.map((input) => `${input.name} = ${input.omitted ? "(omitted)" : input.value}`),
     outcome: `${example.terminal.kind} ${example.terminal.value}`,
     sources: uniqueSources(example.sources)
-  })).filter((frame) => frame.when.length <= 4 && frame.sources.length > 0);
+  })).filter((frame) => frame.when.length <= 4 && frame.sources.length > 0).map(withSourceTitle);
   const paths = context.sourceFlow?.paths;
   if (!paths?.length || paths.some((path) => path.status !== "source-terminal" || path.confidence !== "exact"
     || !["return", "throw"].includes(path.steps.at(-1)?.kind ?? ""))) return [];
@@ -26,7 +27,12 @@ export function buildFunctionNarrativeScenarioFrames(context: FunctionNarrativeC
   // Branch labels are source choices, not assumed input values. All routes in a
   // constrained response must fit the portable when/source validator bounds.
   return frames.every((frame) => frame.when.length <= 4 && frame.when.every((condition) => condition.length <= 600)
-    && frame.outcome.length <= 600 && frame.sources.length) ? frames.slice(0, 3) : [];
+    && frame.outcome.length <= 600 && frame.sources.length) ? frames.slice(0, 3).map(withSourceTitle) : [];
+}
+
+/** A visible heading cannot contradict its own fixed conditions; full conditions remain in the evidence disclosure. */
+function withSourceTitle(frame: Omit<FunctionNarrativeScenarioFrame, "title">): FunctionNarrativeScenarioFrame {
+  return { title: (frame.when.length ? frame.when.join(" · ") : frame.outcome).slice(0, 160), ...frame };
 }
 
 /** Deduplicates same-line guard/return citations; overlong source blocks stay in raw source only. */
