@@ -35,7 +35,7 @@ export class FunctionNarrativeScenarioSession {
       const narrative = parseFunctionNarrative(response.text, batch, language);
       for (let index = 0; index < narrative.scenarios.length; index++) {
         const path = batch.sourceFlow?.paths[index];
-        if (path) initializeFunctionNarrativeNodes(path, narrative.scenarios[index]);
+        if (path) initializeFunctionNarrativeNodes(path, narrative.scenarios[index], batch.detailLevel);
       }
       this.pending = { batch, narrative, modelName: response.modelName, scenarioIndex: 0 };
     }

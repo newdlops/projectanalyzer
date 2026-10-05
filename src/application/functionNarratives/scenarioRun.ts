@@ -16,12 +16,12 @@ export class FunctionNarrativeScenarioRun {
     this.iterator = createFunctionNarrativeScenarioIterator(context)!;
   }
 
-  /** Two paths per response at most; long routes are requested alone without removing their operations. */
+  /** Rich reading reserves one path's output budget; legacy requests can share two short paths. */
   public nextBatch(): FunctionNarrativeContext | undefined {
     if (this.pending) return this.pending;
     const paths: FunctionNarrativeFlowPath[] = [];
     let characters = 0;
-    while (paths.length < 2) {
+    while (paths.length < (this.context.detailLevel === "rich" ? 1 : 2)) {
       const candidate = this.lookahead ?? this.readPath();
       this.lookahead = undefined;
       if (!candidate) break;

@@ -4,6 +4,32 @@ All notable user-visible changes to Project Analyzer: Code Flow are recorded in
 this file. The changelog starts with the first distribution-documented build;
 earlier local development builds were not tracked here.
 
+## 0.0.1111 - 2026-10-06
+
+### Improved
+
+- Explain accumulated path conditions, ordered state changes/effects and what
+  source predicate chooses an alternative. Selected nodes show their actual
+  source expression, language syntax, concrete reasoning and value changes.
+- Preserve original Kotlin Elvis/safe-call syntax alongside analyzer-lowered
+  predicates so present source is not treated as a missing flow node.
+- Carry parser-proven Boolean input choices through full lazy scenario analysis;
+  constrain direct Kotlin null/non-null choices and leave partial results unknown.
+- Generate inputs before causal reasoning and results after it. Keep ordered
+  compound assignments as grounding and carry bounded earlier model values
+  between compact node-only requests without rewriting scenario prose.
+- Read every rich node in source order before reusing its terminal evidence;
+  clarify immediate effects and Kotlin Elvis semantics in the local prompt.
+- Reserve one detailed scenario per page and two nodes per request, retaining
+  cancellation/resume and cache-only actions with unchanged local memory limits.
+  Store grammar, including fixed source expressions, in private temporary files.
+
+### Known limitations
+
+- Model prose and illustrative values remain unverified inferences. Structural
+  checks do not prove arbitrary path feasibility, external outcomes or runtime
+  behavior. Existing source-analysis and language-evaluation gaps remain explicit.
+
 ## 0.0.1110 - 2026-10-06
 
 ### Improved

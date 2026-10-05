@@ -20,17 +20,23 @@ Kotlin과 인자 없는 함수도 사용할 수 있다. 숫자 입력을 찾는 
    재사용한다. 프로젝트 설정이 실행 파일을 바꾸지 못하도록 machine scope를 쓴다.
 3. 로컬 모델은 요청할 때만 실행하고 끝나거나 취소되면 프로세스를 종료한다.
    기본 문맥 8,192 token, 응답 2,400 token, CPU thread 2개와 GPU 자동 offload를 사용한다.
-   발견한 소스 경로를 한 번에 최대 2개씩 순차 분석한다. 전체 경로 수에는 3개/4개 상한을
+   발견한 소스 경로를 상세 해설 한 개씩 순차 분석한다. 전체 경로 수에는 3개/4개 상한을
    적용하지 않는다. 실제 추론 호출마다 90초 제한을 사용하며, 같은 snapshot/언어의 결과를 재사용한다.
    취소·실패 후 **이어서 시나리오 분석**은 완료된 경로를 건너뛰고 미완료 묶음부터 재개한다.
    설정 변경으로 두 모델이 동시에 실행되지 않는다.
 4. 함수의 역할과 시나리오별 문단에서 조건·판단·계산·건너뛴 작업·예상 결과를 읽는다.
    접힌 **소스 근거**를 펼치면 조건, 번호가 붙은 동작, **판단 근거**, **값과 흐름의 변화**,
    예상 결과와 가정을 확인한다. 응답 하나는 최대 2개이고 결과는 한 페이지씩 읽는다.
-   모델 예시가 포함된 로컬 묶음은 출력 한도 안에서 끝나도록 최대 3단계, summary 160자,
-   문단 280자, 단계의 text/reason/effect 각각 80자로 제한한다.
-   문단의 단계와 별도로 빠진 소스 노드를 최대 3개씩 해설하므로 문단의 단계 상한이 노드 수를
-   제한하지 않는다. 노드 추론은 같은 시나리오의 예시 입력을 고정해 사용한다.
+   문단 아래의 **이 경로를 선택하는 이유**, **상태와 부수 효과**, **다른 경로로 바뀌는 조건**은
+   입력을 대입한 누적 조건, 도달한 계산·호출·반환과 경계/대체 분기를 각각 설명한다.
+   상세 로컬 묶음은 summary 240자, 문단 600자, 위 세 필드 각각 220자, 종료/미완성 접두부의 대표 단계 한 개를
+   사용한다. 단계의 text/syntax/reason/effect는 각각 120/160/180/160자다.
+   모든 소스 노드를 최대 2개씩 순서대로 별도 해설하므로 대표 단계 상한이 노드 수를 제한하지 않는다.
+   노드 응답은 새 steps만 반환하고 원래 시나리오·입력·결과는 Host가 보존한다.
+   앞 노드의 모델 예시 값 최대 8개를 함께 전달해 계산을 이어가며 실제 실행값으로 취급하지 않는다.
+   문단 생성 때의 종료 단계는 앞 계산이 끝난 노드 해설로 교체한다. 초기 생성의 추측한 중간값을
+   반환 노드에 재사용하지 않으며, 함수 진입 노드는 이후 반환의 effect를 가져오지 않는다.
+   이전 context의 2개 경로·3개 노드 묶음과 짧은 해설도 계속 읽을 수 있다.
    연결 모델의 portable 단계 상한은 5개다. 이 설명 길이 제한은 전체 경로 수와 별개다.
    **이전/다음 시나리오**는 저장된 결과만 읽으며 모델을 실행하지 않는다. 진행 중에는 완료한
    개수를, 경로 열거가 끝나면 전체 개수와 완료 여부를 표시한다.
@@ -49,8 +55,13 @@ Kotlin과 인자 없는 함수도 사용할 수 있다. 숫자 입력을 찾는 
 캐시를 다시 표시하며 모델을 실행하지 않는다. `projectAnalyzer.functionNarratives.sourceDecorations`
 설정으로 표시를 끌 수 있다. Git 비교의 이전 리비전 문서는 현재 파일의 표시를 지우지 않는다.
 
-**선택한 노드 해설**에서 그래프 또는 노드 목록으로 선택한 구문의 동작·판단 근거·값의
+**선택한 노드 해설**에서 그래프 또는 노드 목록으로 선택한 구문의 동작·구문 의미·판단 근거·값의
 변화를 읽는다. 반복 방문은 각각 표시하며 다른 페이지의 노드는 저장된 해설만 불러온다.
+구문 의미는 해당 언어의 실제 연산자·선언·단락 평가·반환을 설명한다. Kotlin의 safe call,
+Elvis, `val`/`var` 등은 그 구문이 제공된 소스에 있을 때만 설명하도록 요청한다.
+노드 해설 위에는 Host가 확인한 실제 소스 식을 표시한다. 변환된 null 조건은
+`loweredPredicate`로 원문과 구분해 전달하므로 Elvis 경로가 소스 누락으로 중단되지 않는다.
+노드의 effect는 그 구문 직후의 변화이며 뒤의 반환/대입을 이미 끝난 작업으로 서술하지 않도록 한다.
 현재 경로가 지나지 않는 노드는 이를 명시하고 다른 시나리오의 예시와 함께 설명한다.
 첫 결과만 빈 입력칸을 채운다. 페이지 이동·진행률 갱신·언어 전환은 사용자가 편집한 값을
 덮어쓰지 않는다. 명시적으로 시나리오를 선택하거나 예시값을 적용하면 해당 예시로 바꾼다.
@@ -138,6 +149,11 @@ LLM 설명은 항상 **추론 · 실제 실행 미검증**이다. JSON 형식과
   `initializeFunctionNarrativeNodes`, `createFunctionNarrativeNodeTask`,
   `appendFunctionNarrativeNodes`, `finalizeFunctionNarrativeNodes`는 선택된 시나리오의 같은
   예시값으로 소스 노드 해설을 채우고, 진입·종료 및 반복 방문의 identity를 Host에서 부여한다.
+  초기화의 선택 인자 `detailLevel: "rich"`는 primary 단계의 재사용을 늦춰 모든 노드가
+  앞선 상태를 이어받게 한다. finalization은 그 해설로 일치하는 문단의 소스 근거를 갱신한다.
+  `buildFunctionNarrativeRichGuidance`는 local/VS Code 공급자에 같은 인과·언어 구문 지침을 제공한다.
+  `getFunctionNarrativeExampleConstraints`는 파서가 증명한 직접 Boolean/nullable 선택과
+  partial 상태만 가져오며 임의의 숫자 조건 도달을 검증하지 않는다.
 - `shared/functionNarratives`: portable narrative/context types 및 동일한 Host/browser runtime validator,
   요청 언어의 서술을 확인하는 `isFunctionNarrativeLanguage`.
   `isFunctionNarrativeExample`은 실행 없이 JSON 예시의 크기·깊이·안전한 key를 검사한다.
@@ -178,6 +194,17 @@ source context는 최대 5개/18,000자이며 실제 모델 응답 하나는 최
 portable validator의 시나리오 4개×step 5개는 응답 상한이며 함수 전체의 경로 상한이 아니다.
 시나리오의 `explanation`은 최대 1,800자다. 새 로컬 grammar에는 필수이며 이전 결과에는
 선택 필드로 허용한다. 이전 결과는 기존 조건·단계·결과만 이어 문단을 구성한다.
+현재 생산 context의 `detailLevel: "rich"`는 `analysis.pathReason/stateChange/alternative`와
+단계별 `syntax`를 필수로 요청한다. portable 각 필드는 최대 600자이며 Host/browser가 함께
+형식과 요청 언어를 검사한다. 이전 response에서는 선택 필드다. 상세 node task의
+`{steps:[...]}` 응답은 다른 최상위 필드를 거부하고 저장된 문단·입력·조건·결과를 상속한다.
+앞 값은 방문 순서상 target 이전의 해설에서만 가져오며 미래 노드의 값은 사용하지 않는다.
+상세 생성 응답은 `exampleInputs`를 해설 전에, `exampleResult`를 해설·근거 뒤에 작성해
+계산하기 전에 결과를 추측하는 모순을 줄인다. Host는 기존 portable `example` 계약으로
+정규화하며 두 형태를 섞은 응답을 거부한다. 직접 Boolean의 고정 JSON 값과 Kotlin의
+null 선택을 검사하고, partial 결과는 `null`을 요구한다. 수정/optional/nullable/alias Boolean
+입력을 단순한 false로 고정하지 않는다. 숫자 결과의 의미 정확성은 이 구조 검사의 범위 밖이다.
+고정 source 식이 포함된 JSON grammar도 0600 임시 파일로 전달하고 source를 argv에 넣지 않는다.
 cache는 owning surface/root의 수명에 속하고 새 snapshot 또는 disposal에서 해제한다.
 주변 상수/helper까지 content identity에 포함한다. 확장이 백그라운드 모델을 유지하지 않는다.
 
@@ -268,6 +295,72 @@ Q4_K_M을 사용했다. revision `f74adce6aa16316c625447af059dbebe4983757c`,
 2,104,932,800 bytes, SHA-256
 `724fb256bec1ff062b2f65e4569e871ad2e95ab2a3989723d1769c54294730b7`을 확인했다.
 두 모델 모두 `.local-models/`에 보관하며, 비교를 위해 사용자 설정을 바꾸지 않았다.
+
+## 0.0.1111 검증 기록
+
+- 자동 준비한 Qwen3.5-4B Q4_K_M와 실제 `llama-completion`으로 production Host,
+  source graph, local provider, page store를 함께 검증했다. 두 실행 모두 준비 1회,
+  모델 캐시 확인 1회, 추가 네트워크 요청 0회였다. 기존 체크섬 검증 캐시를 재사용했으며
+  이번 기록은 2.74 GB 전체 다운로드를 다시 수행한 기록이 아니다.
+
+  | 소스 / 해설 언어 | 완료 경로 / 저장 페이지 | 실제 모델 호출 | 전체 소요 시간 |
+  | --- | ---: | ---: | ---: |
+  | TypeScript / 영어 | 2 / 2 | 5 | 88.620초 |
+  | Kotlin / 한국어 | 3 / 3 | 10 | 171.057초 |
+
+  작은 fixture 각 1회 측정이며 일반적인 성능이나 정확도를 보장하지 않는다.
+  TypeScript는 조기 반환과 `(amount + 5) * 2`, Kotlin은 조기 반환과
+  `(amount ?: 10) + 5`를 갖는다. Boolean/null 선택, 예시 최종값, 도달 node ID 순서,
+  구문 해설 유무와 이전 지역값을 사용하는 반환 노드를 확인했다. 캐시 페이지 조회는
+  추가 추론을 만들지 않았다. VS Code 설정·진행 알림 API는 QA port로 대체했다.
+- 실제 검증 중 Kotlin의 non-null 입력에 기본값까지 더하는 오류와 미래 반환값을
+  조기 노드에 재사용하는 문제를 발견했다. 입력부터 결과까지의 생성 순서, 원문 Elvis와
+  lowered predicate 구분, bounded 이전 상태 전달을 보강한 뒤 최종 예시 결과는 통과했다.
+  문장 전체의 의미 정확성을 증명하지는 않는다. 최종 Kotlin 응답에도 Elvis를 비교/삼항
+  연산자로 부르거나 거짓인 분기들을 모두 참이라고 요약하는 표현이 남았다. TypeScript의
+  일부 구문 설명은 일반적인 지시 문구를 반복했다. 이 결과는 정적 증명이나 실행 관찰이
+  아니며 원문과 **추론 · 실제 실행 미검증** 표시를 함께 보여준다.
+- production Function Visualizer HTML과 실제 생성 응답을 Safari에서 재생했다.
+  TypeScript를 390×844·1440×900, Kotlin을 768×1024에서 확인했다. 경로별 설명 목록,
+  좁은 화면의 줄바꿈, 선택한 노드의 원문/구문/값 변화 표, native select와 focus ring,
+  페이지 선택, 그래프 선택, source 요청, locale 및 편집값 보존을 확인했다. 검사한 화면에
+  가로 overflow와 계측된 JavaScript 오류는 없었다. 시나리오·노드·source 조회는 이미
+  저장된 결과를 사용하며 새 분석 요청을 만들지 않았다.
+  준비 중 안내/취소, 다운로드 오류/재시도, 부분 완료 후 취소/완료 결과 보존은 synthetic
+  Host fixture로 검사했다. native VS Code 다운로드 알림이나 editor source reveal의
+  시각 검증을 대신하지 않는다. Values 편집 후 Guide 재개방은 Safari QA adapter가
+  후속 insight 메시지를 모두 구현하지 않아 end-to-end 완료를 주장하지 않는다.
+- Impeccable detector는 변경한 renderer 범위에서 지적 사항을 반환하지 않았다.
+  의미 있는 `dl`, native button/select, table caption/header, VS Code 색상/폰트/focus
+  토큰, 한 페이지 렌더링, bounded node cache와 동일 DOM 보존을 점검했다.
+  최신 Web Interface Guidelines로 label·상태 안내·locale·literal 출력·overflow를
+  코드 검토했다. 아래 점수는 이번 변경과 검사한 화면 범위의 기술적 점검이며
+  WCAG 적합성 인증이 아니다.
+
+  | 차원 | 점수 / 4 | 근거와 검증 한계 |
+  | --- | ---: | --- |
+  | 접근성 | 3 | 의미 구조·label·focus 확인; 전체 키보드 경로/스크린리더/대비 계측 미완료 |
+  | 성능 | 3 | 한 페이지·2개 노드 요청·캐시 재사용; renderer heap/CPU 정량 측정 없음 |
+  | 테마 | 3 | 기존 VS Code 토큰 재사용; 모든 테마의 실제 대비 검증 없음 |
+  | 반응형 | 3 | 세 viewport와 긴 문장 확인; 실제 터치/큰 글자 설정 미검증 |
+  | 구현 일관성 | 4 | 기존 Guide 구조·typed source 계약 유지; detector 지적 없음 |
+  | 합계 | **16 / 20** | Good, 검사 범위에 한정 |
+
+  변경 UI에서 확인한 P0/P1/P2/P3 결함은 0개다. 위 모델 문장의 의미 오류는 별도의
+  알려진 추론 한계이며 UI 감사 통과로 해소됐다고 취급하지 않는다.
+- TypeScript 전체 테스트 987개 중 983개가 통과했다. 기존 Function Guide declared-type
+  대표값 2개, advanced private Scenario, decorated source-reveal의 실패 4개는 남아 있다.
+  마지막 prompt 변경 뒤 rich reading/configured provider/local provider/Host integration
+  테스트 21개를 다시 실행해 모두 통과했다. 이전 상태 전달·terminal 재해석·부분 결과·
+  캐시만 사용하는 조회·다운로드 회귀를 포함한 기능 테스트 54개, Rust 82개와 패키징
+  script 13개도 통과했다. typecheck와 compile을 완료했다.
+- 0.0.1111 darwin-arm64 VSIX는 512개 파일, 압축 3.62 MiB·해제 15.46 MiB로 기존
+  패키지 상한을 통과했다. 기본 및 `Function Language QA 1107` 프로필에 설치하고
+  양쪽 등록 버전과 런타임 파일 478개의 빌드 출력 byte 일치를 확인했다. 기본 프로필의
+  기존 GGUF 설정과 QA 프로필의 자동 다운로드 설정을 유지했다. release metadata와
+  diff check도 통과했다. QA용 Safari 탭·서버를 닫았고 `llama-completion` 프로세스는
+  남아 있지 않았다. 설치 후 열려 있던 native VS Code 창을 재로드한 시각 검증은
+  수행하지 않았다.
 
 ## 0.0.1110 검증 기록
 

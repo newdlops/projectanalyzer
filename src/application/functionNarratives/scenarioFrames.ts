@@ -10,6 +10,32 @@ export type FunctionNarrativeScenarioFrame = {
   sources: FunctionNarrativeSource[];
 };
 
+/** Only parser-proven primitive entry choices are fixed; arbitrary numeric feasibility stays unverified. */
+export function getFunctionNarrativeExampleConstraints(context: FunctionNarrativeContext, index: number) {
+  const path = context.sourceFlow?.paths[index];
+  const booleans = new Map<string, boolean>(), conflicts = new Set<string>();
+  const nullInputs = new Set<string>(), nonNullInputs = new Set<string>();
+  for (const step of path?.steps ?? []) {
+    const match = step.branch?.inputCondition?.match(/^(.+) = (true|false)$/u);
+    if (match && context.parameters?.some((parameter) => parameter.name === match[1])) {
+      const value = match[2] === "true";
+      if (booleans.has(match[1]) && booleans.get(match[1]) !== value) conflicts.add(match[1]);
+      booleans.set(match[1], value);
+    }
+    // Kotlin parameters are immutable. Only a direct parameter in the analyzer's
+    // Elvis/safe-call lowering can constrain nullability; members/aliases stay free.
+    const nullable = context.language === "kotlin" && step.loweredPredicate?.match(/^([\p{L}_][\p{L}\p{N}_]*) != null$/u);
+    if (nullable && step.branch?.confidence === "exact" && context.parameters?.some((parameter) => parameter.name === nullable[1])) {
+      if (step.branch.outcome === "false") nullInputs.add(nullable[1]);
+      if (step.branch.outcome === "true") nonNullInputs.add(nullable[1]);
+    }
+  }
+  for (const name of conflicts) booleans.delete(name);
+  for (const name of nullInputs) if (nonNullInputs.has(name)) { nullInputs.delete(name); nonNullInputs.delete(name); }
+  return { booleans: [...booleans].map(([name, value]) => ({ name, json: String(value) })),
+    nullInputs: [...nullInputs], nonNullInputs: [...nonNullInputs], partial: path?.status === "partial" };
+}
+
 /** Uses complete static examples first, otherwise complete exact source routes; partial models stay unconstrained. */
 export function buildFunctionNarrativeScenarioFrames(context: FunctionNarrativeContext): FunctionNarrativeScenarioFrame[] {
   if (context.nodeTask) return [withSourceTitle({ ...context.nodeTask.frame, sources: context.nodeTask.targets.map((step) => step.source) })];
@@ -22,7 +48,7 @@ export function buildFunctionNarrativeScenarioFrames(context: FunctionNarrativeC
     // snippets. Repeat its source identity/outcome instead of its entire body in
     // fixed output. Every decision remains ordered; nothing is dropped.
     const conditions = decisions.map((step) => step.branch!.inputCondition
-      ?? (step.code.length > 200 ? reference(step) : `${step.code} => ${step.branch!.outcome}`));
+      ?? (step.code.length > 200 ? reference(step) : `${step.loweredPredicate ?? step.code} => ${step.branch!.outcome}`));
     let when = packConditions(conditions);
     if (!when) when = packConditions(decisions.map(reference));
     if (!when) throw new FunctionNarrativeError("context-too-large");
@@ -45,7 +71,7 @@ export function buildFunctionNarrativeScenarioFrames(context: FunctionNarrativeC
   if (!paths?.length || paths.some((path) => path.status !== "source-terminal" || path.confidence !== "exact"
     || !["return", "throw"].includes(path.steps.at(-1)?.kind ?? ""))) return [];
   const frames = paths.map((path) => ({
-    when: path.steps.filter((step) => step.branch).map((step) => step.branch!.inputCondition ?? `${step.code} => ${step.branch!.outcome}`),
+    when: path.steps.filter((step) => step.branch).map((step) => step.branch!.inputCondition ?? `${step.loweredPredicate ?? step.code} => ${step.branch!.outcome}`),
     outcome: path.steps.at(-1)!.code,
     sources: uniqueSources(path.steps.map((step) => step.source))
   }));

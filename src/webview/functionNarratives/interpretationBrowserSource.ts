@@ -1,6 +1,15 @@
 /** Scenario example facts and a selected-node reader; all graph/source mutations are explicit adapter callbacks. */
 export function getFunctionNarrativeInterpretationBrowserSource(): string {
   return /* js */ `
+    /** Causal explanations use the existing reading rhythm and definition-list semantics. */
+    function appendFunctionNarrativeAnalysis(parent, scenario) {
+      if (!scenario.analysis) return;
+      const facts=document.createElement("dl");facts.className="logic-narrative-analysis";
+      for(const [key,value]of [["narrative-path-reason",scenario.analysis.pathReason],["narrative-state-change",scenario.analysis.stateChange],["narrative-alternative",scenario.analysis.alternative]]){
+        const term=document.createElement("dt"),description=document.createElement("dd");term.textContent=projectAnalyzerText(key);description.textContent=value;facts.append(term,description);
+      }
+      parent.append(facts);
+    }
     /** Compact model examples precede static details and remain visibly unverified. */
     function appendFunctionNarrativeExample(parent, scenario, selected, actions) {
       if (!scenario.example) return;
@@ -63,8 +72,9 @@ export function getFunctionNarrativeInterpretationBrowserSource(): string {
         if(!reached){const examples=document.createElement("p");examples.className="logic-summary-note";examples.textContent=projectAnalyzerText("narrative-node-other-example",{scenario:data.ordinal,inputs:data.example?.inputs.map((input)=>input.name+" = "+input.json).join(" · ")||projectAnalyzerText("narrative-no-inputs")});body.append(examples);}
         for(let visit=0;visit<data.details.length;visit++){
           const {detail,nodeIndex}=data.details[visit];const section=document.createElement("section");section.className="logic-narrative-node-detail";
+          if(detail.code){const sourceCode=document.createElement("pre"),code=document.createElement("code");sourceCode.className="logic-narrative-node-code";code.textContent=detail.code;code.setAttribute("translate","no");sourceCode.append(code);section.append(sourceCode);}
           if(data.details.length>1){const visitLabel=document.createElement("strong");visitLabel.textContent=projectAnalyzerText("narrative-node-visit",{visit:visit+1});section.append(visitLabel);}
-          for(const [key,text]of [[undefined,detail.text],["narrative-reason",detail.reason],["narrative-effect",detail.effect]])if(text){const paragraph=document.createElement("p");if(key){const term=document.createElement("strong");term.textContent=projectAnalyzerText(key)+": ";paragraph.append(term);}paragraph.append(document.createTextNode(text));section.append(paragraph);}
+          for(const [key,text]of [[undefined,detail.text],["narrative-syntax",detail.syntax],["narrative-reason",detail.reason],["narrative-effect",detail.effect]])if(text){const paragraph=document.createElement("p");if(key){const term=document.createElement("strong");term.textContent=projectAnalyzerText(key)+": ";paragraph.append(term);}paragraph.append(document.createTextNode(text));section.append(paragraph);}
           if(detail.values?.length){const table=document.createElement("table");table.className="logic-narrative-node-values";const caption=document.createElement("caption");caption.textContent=projectAnalyzerText("narrative-node-values");table.append(caption);const head=document.createElement("thead"),row=document.createElement("tr");for(const key of ["name","narrative-before","narrative-after"]){const cell=document.createElement("th");cell.scope="col";cell.textContent=projectAnalyzerText(key);row.append(cell);}head.append(row);table.append(head);const tbody=document.createElement("tbody");for(const value of detail.values){const item=document.createElement("tr");for(const [index,text]of [value.name,value.before,value.after].entries()){const cell=document.createElement(index===0?"th":"td");if(index===0)cell.scope="row";cell.textContent=text;cell.setAttribute("translate","no");item.append(cell);}tbody.append(item);}table.append(tbody);section.append(table);}
           const source=document.createElement("button");source.type="button";source.className="logic-guide-action logic-narrative-node-source";source.textContent=projectAnalyzerText("narrative-node-source",{line:detail.source.startLine});source.addEventListener("click",()=>owner.openNodeSource(data,nodeIndex));section.append(source);body.append(section);
         }

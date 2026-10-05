@@ -30,9 +30,13 @@ export function createLocalFunctionNarrativeProvider(options: LocalFunctionNarra
       directory = await mkdtemp(join(tmpdir(), "function-narrative-"));
       const promptFile = join(directory, "prompt.txt");
       const systemFile = join(directory, "system.txt");
+      const schemaFile = join(directory, "schema.json");
       const prompt = buildLocalNarrativePrompt(context, language);
       await writeFile(promptFile, prompt, { encoding: "utf8", mode: 0o600 });
       await writeFile(systemFile, buildLocalNarrativeSystemPrompt(language), { encoding: "utf8", mode: 0o600 });
+      // Fixed grammar fields contain source predicates/operations too. Keep
+      // them in the same private lifecycle as prompts, never in process argv.
+      await writeFile(schemaFile, JSON.stringify(createLocalNarrativeSchema(context, language)), { encoding: "utf8", mode: 0o600 });
       const text = await runLocalModel(options.binaryPath, ["--model", options.modelPath, "--file", promptFile, "--system-prompt-file", systemFile,
         // The completion runner's Jinja tool-template probe rejects Qwen3.5's
         // current template before inference. These text-only, tool-free requests
@@ -40,7 +44,7 @@ export function createLocalFunctionNarrativeProvider(options: LocalFunctionNarra
         ...(/^qwen3[.\-]/iu.test(basename(options.modelPath)) ? ["--chat-template", "chatml", "--no-jinja", "--reasoning", "off"] : []),
         "--single-turn", "--simple-io", "--no-display-prompt", "--no-escape", "--offline", "--no-warmup",
         "--ctx-size", "8192", "--predict", "2400", "--threads", "2", "--threads-batch", "2", "--poll", "0",
-        "--temp", "0.2", "--seed", "42", "--json-schema", JSON.stringify(createLocalNarrativeSchema(context, language))], controller.signal);
+        "--temp", "0.2", "--seed", "42", "--json-schema-file", schemaFile], controller.signal);
       return { modelName: ("Local · " + basename(options.modelPath, ".gguf")).slice(0, 100), text };
     } finally {
       signal.removeEventListener("abort", abort);

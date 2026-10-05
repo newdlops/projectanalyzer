@@ -32,9 +32,12 @@ function fixture() {
   const click = (name: string, index = 0) => runtime.clickRenderedByClassNth("narrative-root", "logic-narrative-" + name, index);
   const scenario = (index: number) => ({ title: "Source route " + index, when: ["value > 0 => " + Boolean(index)], outcome: "return value", assumptions: [],
     explanation: "The example input follows this source route.", example: { inputs: [{ name: "value", json: index ? "5" : "0" }], result: String(index ? 5 : 0) },
+    analysis: { pathReason: "Substitute value into the comparison.", stateChange: "The result is returned without changing the input.", alternative: "Changing the input sign selects the other branch. <script>literal</script>" },
     steps: [{ text: "Return the value.", reason: "The input selects this route.", effect: "Return the selected example result.", source: { snippetId: "root", startLine: 4, endLine: 4 } }],
     graph: { nodeIds: [nodeId(0), nodeId(index + 1)], edgeIds: [] },
     nodeDetails: [0, index + 1].map((id, occurrence) => ({ nodeId: nodeId(id), occurrence, text: "Read source node " + id + ".",
+      syntax: "Return ends the function and leaves the argument unchanged.",
+      code: "return value; // <script>literal</script>",
       reason: "The same input selects this node.", effect: "Continue along this route.", values: [{ name: "value", before: "0", after: "<value>" }],
       source: { snippetId: "root", startLine: id + 1, endLine: id + 1 } })) });
   const response = (index = 0, status = "ready") => ({ ...posts.at(-1)!.payload, status, language: "en", modelName: "Model",
@@ -52,8 +55,11 @@ test("model examples fill empty inputs once; explicit selection/apply works whil
   try {
     assert.equal(f.posts.length, 0); f.click("request"); const result = f.response(); f.browser.accept(result);
     assert.equal(f.values.get("value"), "0");
+    assert.equal(f.runtime.countRenderedByClass("narrative-root", "logic-narrative-analysis"), 2);
+    assert.ok(f.runtime.getRenderedText("narrative-root").includes("What changes the path"));
     f.values.set("value", "99"); f.state.uiLanguage = "ko"; f.browser.locale("ko"); f.widget.refreshLanguage();
     assert.equal(f.values.get("value"), "99"); assert.equal(f.posts.length, 1);
+    assert.ok(f.runtime.getRenderedText("narrative-root").includes("다른 경로로 바뀌는 조건"));
     f.runtime.focusRenderedByClassNth("narrative-root", "logic-narrative-select", 1); f.click("select", 1);
     assert.equal(f.values.get("value"), "5");
     assert.equal(f.runtime.getFocusedRenderedAttribute("aria-pressed"), "true");
@@ -74,6 +80,9 @@ test("node selection reads literal value changes and out-of-page cached explanat
     f.runtime.selectRenderedByClassNth("narrative-root", "logic-narrative-node-select", 0, nodeId(1));
     assert.equal(f.selections.at(-1), nodeId(1));
     assert.ok(f.runtime.getRenderedText("narrative-root").includes("<value>"));
+    assert.ok(f.runtime.getRenderedText("narrative-root").some((text) => text.includes("Return ends the function")));
+    assert.equal(f.runtime.countRenderedByClass("narrative-root", "logic-narrative-node-code"), 1);
+    assert.ok(f.runtime.getRenderedText("narrative-root").some((text) => text.includes("<script>literal</script>")));
     f.selectNode(nodeId(3));
     const query = f.posts.at(-1)!; assert.equal(query.payload.nodeId, nodeId(3)); assert.equal(query.payload.pageIndex, undefined);
     assert.equal(validateWebviewRequest(query).ok, true);

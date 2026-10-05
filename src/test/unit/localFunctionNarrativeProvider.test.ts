@@ -24,7 +24,11 @@ test("local LLM adapter starts only on request and reads Kotlin from a private f
     const systemFile = args[args.indexOf('--system-prompt-file') + 1];
     const system = fs.readFileSync(systemFile, 'utf8');
     if (!system.includes('English code-reading') || (fs.statSync(systemFile).mode & 0o777) !== 0o600) process.exit(3);
-    if (!prompt.includes('fun describe()') || !args.includes('--offline') || !args.includes('--json-schema')) process.exit(2);
+    const schemaFile = args[args.indexOf('--json-schema-file') + 1];
+    const schema = JSON.parse(fs.readFileSync(schemaFile, 'utf8'));
+    if ((fs.statSync(schemaFile).mode & 0o777) !== 0o600 || !schema.properties.scenarios || args.includes('--json-schema')
+      || args.some(arg => arg.includes('fun describe') || arg.includes('snippetId'))) process.exit(4);
+    if (!prompt.includes('fun describe()') || !args.includes('--offline') || !args.includes('--json-schema-file')) process.exit(2);
     process.stdout.write('{"summary":"ready"}');`);
   try {
     const result = await f.provider.generate(context, "en", new AbortController().signal);

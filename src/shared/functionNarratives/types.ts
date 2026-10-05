@@ -4,6 +4,10 @@
 export type FunctionNarrativeSource = { snippetId: string; startLine: number; endLine: number };
 export type FunctionNarrativeStep = {
   text: string;
+  /** Explains the actual language expression/operator, separately from this input's result. */
+  syntax?: string;
+  /** Exact supplied source expression, verified before binding to a node; absent in older responses. */
+  code?: string;
   /** Optional for cached responses from earlier versions; current prompts request both fields. */
   reason?: string;
   effect?: string;
@@ -20,6 +24,8 @@ export type FunctionNarrativeScenario = {
   when: string[];
   /** Connected reading paragraph, up to 1800 characters; optional for older cached responses. */
   explanation?: string;
+  /** Source-grounded causal reading; these model interpretations are never checked execution facts. */
+  analysis?: { pathReason: string; stateChange: string; alternative: string };
   steps: FunctionNarrativeStep[];
   outcome: string;
   assumptions: string[];
@@ -62,8 +68,12 @@ export type FunctionNarrativeContext = {
   parameters?: Array<{ name: string; type?: string }>;
   /** Host-owned names constrain node value labels to this function. */
   valueNames?: string[];
+  /** The current production reading contract; absent on legacy callers/cached responses. */
+  detailLevel?: "rich";
   /** Internal bounded node task; the original scenario/example is held fixed across chunks. */
-  nodeTask?: { frame: { when: string[]; outcome: string }; example: FunctionNarrativeExample; targets: FunctionNarrativeFlowStep[] };
+  nodeTask?: { frame: { when: string[]; outcome: string }; example: FunctionNarrativeExample; targets: FunctionNarrativeFlowStep[];
+    /** Previously validated model paragraph and at most eight recent model values, not static facts. */
+    reading?: { explanation: string; priorState: Array<{ name: string; value: string }> } };
   /** True only when source excerpts were omitted or truncated. */
   limited: boolean;
 };
@@ -78,6 +88,8 @@ export type FunctionNarrativeFlowStep = {
   graphNodeId?: string;
   /** Position distinguishes repeated visits to a loop node; stripped with the graph identity. */
   graphOccurrence?: number;
+  /** Analyzer-lowered predicate for source syntax such as Kotlin Elvis, never a model-authored expression. */
+  loweredPredicate?: string;
   /** Choice describes this route only; feasibility for concrete inputs is not proved. */
   branch?: { outcome: string; confidence: "exact" | "inferred";
     /** A parser-proven direct required Boolean input can name the matching input value. */
@@ -110,7 +122,7 @@ export type FunctionNarrativeScenarioGraph = {
     graphNodeId?: string;
     step?: FunctionNarrativeFlowStep;
     confidence: "exact" | "inferred";
-    next: Array<{ target: number; outcome: string; confidence: "exact" | "inferred"; graphEdgeId?: string }>;
+    next: Array<{ target: number; outcome: string; confidence: "exact" | "inferred"; graphEdgeId?: string; inputCondition?: string }>;
   }>;
   limited: boolean;
 };

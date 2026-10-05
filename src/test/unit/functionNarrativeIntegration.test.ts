@@ -42,7 +42,10 @@ test("production Kotlin Guide offers actual LLM requests without changing static
       // The fixture models an external explanation; partial call routes are not constrained to terminal frames.
       return { modelName: "LLM boundary fixture", text: JSON.stringify({ summary: language === "ko" ? "LIMIT에 따라 메시지를 출력합니다." : "Print a message based on LIMIT.", scenarios: [{ title: language === "ko" ? "양수 LIMIT" : "Positive LIMIT", when: ["LIMIT > 0"],
         explanation: language === "ko" ? "LIMIT가 양수이면 ready를 출력하고 함수가 끝납니다." : "A positive LIMIT prints ready and the function finishes.",
+        analysis: language === "ko" ? { pathReason: "상수 3은 0보다 큽니다.", stateChange: "분기에서 메시지를 출력합니다.", alternative: "상수가 0 이하이면 다른 분기를 선택합니다." }
+          : { pathReason: "Constant 3 is greater than zero.", stateChange: "This branch prints the message.", alternative: "A non-positive constant chooses the other branch." },
         steps: [{ text: language === "ko" ? "ready를 출력합니다." : "Print ready.", reason: language === "ko" ? "LIMIT가 양수입니다." : "LIMIT is positive.",
+          syntax: language === "ko" ? "println 호출은 문자열을 출력합니다." : "The println call prints the supplied string.",
           effect: language === "ko" ? "메시지를 출력합니다." : "Print the message.", values: [{ name: "condition", before: "LIMIT > 0", after: "true" }],
           source: { snippetId: "root", startLine: 4, endLine: 4 } }], outcome: language === "ko" ? "정상 종료합니다." : "Finish normally.", assumptions: [], example: { inputs: [], result: "null" } }], limitations: [] }) };
     } } });
@@ -106,16 +109,19 @@ test("production Kotlin scenario interpretation populates editable values and co
     createFunctionNarrativePageStore() { const pages = new Map<number, FunctionNarrative>(); return { async write(index, value) { pages.set(index, value); }, async read(index) { return pages.get(index); }, async dispose() { pages.clear(); } }; },
     functionNarrativeProvider: { async generate(context) {
       calls++; assert.deepEqual(context.parameters?.map((parameter) => parameter.name), ["value"]);
-      return { modelName: "External model fixture", text: JSON.stringify({ summary: "Classify the integer and return its source result.", limitations: [],
+      assert.equal(context.detailLevel, "rich");
+      const narrative = { summary: "Classify the integer and return its source result.", limitations: [],
         scenarios: buildFunctionNarrativeScenarioFrames(context).map((frame) => {
           const negative = frame.outcome.includes("negative");
           const example = context.nodeTask?.example ?? { inputs: [{ name: "value", json: negative ? "-1" : "1" }], result: negative ? "negative" : "positive" };
           const sources = context.nodeTask?.targets.map((target) => target.source) ?? [frame.sources.at(-1)!];
           return { title: "Source route", when: frame.when, outcome: frame.outcome, assumptions: [], example,
-            explanation: "The example value follows the source conditions to this return.", steps: sources.map((source) => ({ source,
-              text: "Read the selected source operation.", reason: "The same integer selects this route.", effect: "Proceed or return the classified result.",
+            analysis: { pathReason: "The selected integer makes this source condition true or false.", stateChange: "The input is unchanged and the matching string is returned.", alternative: "Changing the sign chooses the other source branch." },
+            explanation: "The example value follows the source conditions to this return.", steps: sources.map((source, index) => ({ source, ...(context.nodeTask ? { code: context.nodeTask.targets[index].code } : {}),
+              text: "Read the selected source operation.", syntax: "The comparison selects a branch; return ends this function.", reason: "The same integer selects this route.", effect: "Proceed or return the classified result.",
               values: [{ name: "value", before: example.inputs[0].json, after: example.inputs[0].json }] })) };
-        }) }) };
+        }) };
+      return { modelName: "External model fixture", text: JSON.stringify(context.nodeTask ? { steps: narrative.scenarios[0].steps } : narrative) };
     } } });
   const runtime = installSidebarWebviewRuntime();
   try {
@@ -137,19 +143,26 @@ test("production Kotlin scenario interpretation populates editable values and co
     runtime.dispatchMessage({ type: "ui/language", payload: { language: "ko" } });
     assert.equal(runtime.getRenderedValueByTitle("flow-steps", "매개변수 value의 시나리오 입력"), "99");
     runtime.dispatchMessage({ type: "ui/language", payload: { language: "en" } });
-    runtime.clickRenderedByClassNth("flow-steps", "logic-narrative-select", 1);
+    runtime.clickRenderedByClassNth("flow-steps", "logic-narrative-next", 0);
+    await delivery.requestFunctionNarratives(runtime.messages.at(-1)!.payload as FunctionNarrativesRequest);
+    runtime.dispatchMessage(messages.at(-1)!);
+    runtime.clickRenderedByClassNth("flow-steps", "logic-narrative-select", 0);
     assert.equal(runtime.getRenderedValueByTitle("flow-steps", inputTitle), "1");
-    runtime.clickRenderedByClassNth("flow-steps", "logic-narrative-graph", 1);
+    runtime.clickRenderedByClassNth("flow-steps", "logic-narrative-graph", 0);
     assert.equal(runtime.getRenderedAttributeByClass("flow-steps", "logic-graph-node", "aria-pressed"), "true");
     const reply = messages.filter((message) => message.type === "codeFlow/functionNarrativesLoaded").at(-1)!;
     assert.ok(reply.type === "codeFlow/functionNarrativesLoaded");
-    const scenario = reply.payload.narrative!.scenarios[1];
+    const scenario = reply.payload.narrative!.scenarios[0];
+    assert.equal(runtime.countRenderedByClass("flow-steps", "logic-narrative-analysis"), 1);
     runtime.selectRenderedByClassNth("flow-steps", "logic-narrative-node-select", 0, scenario.nodeDetails!.at(-2)!.nodeId);
     assert.ok(runtime.getRenderedText("flow-steps").some((text) => text.includes("Proceed or return the classified result.")));
     runtime.clickRenderedByClassNth("flow-steps", "logic-narrative-node-source", 0);
     assert.equal(runtime.messages.at(-1)!.type, "codeFlow/openFunctionNarrativeSource");
     await delivery.openFunctionNarrativeSource(runtime.messages.at(-1)!.payload as FunctionNarrativeSourceRequest);
     assert.equal(opened.length, 1);
+    runtime.clickRenderedByClassNth("flow-steps", "logic-narrative-previous", 0);
+    await delivery.requestFunctionNarratives(runtime.messages.at(-1)!.payload as FunctionNarrativesRequest);
+    runtime.dispatchMessage(messages.at(-1)!);
     runtime.clickRenderedByClassNth("flow-steps", "logic-narrative-apply", 0);
     assert.equal(runtime.getRenderedValueByTitle("flow-steps", inputTitle), "-1");
     assert.equal(runtime.getFocusedElementId(), runtime.getRenderedIdentityByTitle("flow-steps", inputTitle));

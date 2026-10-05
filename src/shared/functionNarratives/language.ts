@@ -12,7 +12,9 @@ export function isFunctionNarrativeLanguage(narrative: FunctionNarrative, langua
   const descriptions = [narrative.summary, ...narrative.limitations];
   for (const scenario of narrative.scenarios) {
     descriptions.push(scenario.explanation ?? scenario.steps.map((step) => step.text).join(" "), ...scenario.assumptions);
+    if (scenario.analysis) descriptions.push(scenario.analysis.pathReason, scenario.analysis.stateChange, scenario.analysis.alternative);
     for (const step of [...scenario.steps, ...(scenario.nodeDetails ?? [])]) {
+      if (step.syntax !== undefined) descriptions.push(step.syntax);
       if (step.reason !== undefined) descriptions.push(step.reason);
       if (step.effect !== undefined) descriptions.push(step.effect);
     }

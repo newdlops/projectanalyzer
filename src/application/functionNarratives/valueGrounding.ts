@@ -1,7 +1,7 @@
 /** Reuses existing Tutor IR and completed checks as bounded named facts, without evaluation, parsing or I/O. */
 import type { FunctionTutorExpression, FunctionTutorStaticValue } from "../../analyzer/functionTutor";
 import type { FunctionTutorBuildModel } from "../codeFlow/functionTutor";
-import type { FunctionNarrativeContext, FunctionNarrativeValueFact, FunctionNarrativeSource, FunctionNarrativeCheckedExample } from "../../shared/functionNarratives";
+import type { FunctionNarrativeContext, FunctionNarrativeValueFact, FunctionNarrativeSource, FunctionNarrativeCheckedExample, FunctionNarrativeFlowStep } from "../../shared/functionNarratives";
 import { collectFunctionNarrativeScope } from "./currentScope";
 
 /** Copies at most six source operations and three existing primitive checks within a 2,000-character budget. */
@@ -43,13 +43,19 @@ export function addFunctionNarrativeValueGrounding(context: FunctionNarrativeCon
     remaining -= size; return true;
   };
   for (const block of declaration.program.blocks) for (const operation of block.operations) {
-    if (operation.kind !== "define") continue;
-    const target = bindings.get(operation.bindingId);
+    if (operation.kind !== "define" && (operation.kind !== "assign" || operation.target.kind !== "binding")) continue;
+    const bindingId = operation.kind === "define" ? operation.bindingId : operation.target.bindingId;
+    const target = bindings.get(bindingId);
     const source = citation(block.blockId);
     if (!target || target.length > 120 || !source) continue;
     const expression = operation.value;
     let fact: FunctionNarrativeValueFact | undefined;
-    if (expression.kind === "conditional") {
+    if (operation.kind === "assign" && operation.operator !== "set") {
+      // Preserve a repeated write's operator and source position; it consumes
+      // the previous local value, rather than redefining the original input.
+      const right = operand(expression);
+      if (right !== undefined) fact = { target, operation: operation.operator, operands: [target, right], source };
+    } else if (expression.kind === "conditional") {
       const condition = predicate(expression.condition);
       const whenTrue = operand(expression.whenTrue); const whenFalse = operand(expression.whenFalse);
       if (condition && whenTrue !== undefined && whenFalse !== undefined) fact = {
@@ -97,28 +103,37 @@ export function addFunctionNarrativeValueGrounding(context: FunctionNarrativeCon
   // predicate on a required Boolean input is normalized; nullable/member/compound
   // conditions retain their source choice without asserting an input value.
   let routeBudget = Math.max(0, 4000 - JSON.stringify(context.sourceFlow ?? {}).length);
+  /** Parser-proven direct Boolean choices apply to both preview and lazy full-graph paths. */
+  const booleanInputCondition = (step: FunctionNarrativeFlowStep, outcome: string): string | undefined => {
+    if (!["true", "false"].includes(outcome)) return undefined;
+    const matches = [...blocks.values()].filter((block) => block.condition?.expression === (step.loweredPredicate ?? step.code)
+      && block.range.startLine + 1 === step.source.startLine && block.confidence === "exact");
+    if (matches.length !== 1) return undefined;
+    const constraints = declaration.constraints.filter((constraint) => constraint.blockId === matches[0].id && constraint.certainty === "exact");
+    if (constraints.length !== 1) return undefined;
+    const constraint = constraints[0], parameter = declaration.parameters.find((parameter) => parameter.id === constraint.parameterId);
+    if (!parameter || parameter.name.length > 120 || parameter.typeKind !== "boolean" || parameter.optional || parameter.rest || constraint.memberPath.length
+      || !directBooleanType(declaration.language, parameter.typeText) || !["truthy", "falsy"].includes(constraint.operator)) return undefined;
+    // A parameter rewritten by the function is no longer an entry-value fact.
+    if (declaration.program.blocks.some((block) => block.operations.some((operation) => operation.kind === "define" && operation.bindingId === parameter.bindingId
+      || "target" in operation && operation.target.kind === "binding" && operation.target.bindingId === parameter.bindingId))) return undefined;
+    return `${parameter.name} = ${(constraint.operator === "truthy") === (outcome === "true")}`;
+  };
   const sourceFlow = context.sourceFlow && { ...context.sourceFlow, paths: context.sourceFlow.paths.map((path) => ({ ...path,
     steps: path.steps.map((step) => {
       if (!step.branch || !["true", "false"].includes(step.branch.outcome)) return step;
-      const matches = [...blocks.values()].filter((block) => block.condition?.expression === step.code
-        && block.range.startLine + 1 === step.source.startLine);
-      if (matches.length !== 1) return step;
-      const block = matches[0];
-      const constraints = declaration.constraints.filter((constraint) => constraint.blockId === block?.id && constraint.certainty === "exact");
-      if (constraints.length !== 1) return step;
-      const constraint = constraints[0];
-      const parameter = declaration.parameters.find((parameter) => parameter.id === constraint.parameterId);
-      if (!parameter || parameter.name.length > 120 || parameter.typeKind !== "boolean" || parameter.optional || parameter.rest || constraint.memberPath.length
-        || !directBooleanType(declaration.language, parameter.typeText)
-        || !["truthy", "falsy"].includes(constraint.operator)) return step;
-      const value = (constraint.operator === "truthy") === (step.branch.outcome === "true");
-      const next = { ...step, branch: { ...step.branch, inputCondition: `${parameter.name} = ${value}` } };
+      const inputCondition = booleanInputCondition(step, step.branch.outcome);
+      if (!inputCondition || step.branch.confidence !== "exact") return step;
+      const next = { ...step, branch: { ...step.branch, inputCondition } };
       const added = JSON.stringify(next).length - JSON.stringify(step).length;
       if (added > routeBudget) { limited = true; return step; }
       routeBudget -= added;
       return next;
     }) })) };
-  return { ...context, ...(sourceFlow ? { sourceFlow } : {}), ...(facts.length ? { valueFacts: facts } : {}),
+  const scenarioGraph = context.scenarioGraph && { ...context.scenarioGraph, nodes: context.scenarioGraph.nodes.map((node) => ({ ...node,
+    next: node.next.map((edge) => { const inputCondition = node.step && edge.confidence === "exact" && booleanInputCondition(node.step, edge.outcome);
+      return inputCondition ? { ...edge, inputCondition } : edge; }) })) };
+  return { ...context, ...(sourceFlow ? { sourceFlow } : {}), ...(scenarioGraph ? { scenarioGraph } : {}), ...(facts.length ? { valueFacts: facts } : {}),
     ...(examples.length ? { checkedExamples: examples } : {}), ...(limited ? { groundingLimited: true } : {}) };
 }
 

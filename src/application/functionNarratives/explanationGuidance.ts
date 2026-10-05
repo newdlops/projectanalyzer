@@ -1,6 +1,27 @@
 /** Shared prose guidance and source numbering for concrete, statement-level explanations. */
 import type { FunctionNarrativeContext } from "../../shared/functionNarratives";
 
+/** Rich tasks distinguish language semantics, concrete causality and nearby alternatives without extra inference. */
+export function buildFunctionNarrativeRichGuidance(language: "ko" | "en"): string {
+  return (language === "ko" ? [
+    "상세 읽기: explanation은 이 한 입력을 시작으로 소스 순서의 조건·계산·호출·반환을 이어 설명합니다. 같은 말을 필드마다 반복하지 마세요.",
+    "analysis.pathReason은 이전 조건들까지 함께 만족하는 이유입니다. example 입력을 실제 식에 대입해 비교 결과를 설명하세요. analysis.stateChange는 실제로 도달한 변수 변경·호출·반환과 건너뛴 작업을 순서대로 설명하고, 관찰하지 않은 외부 상태 변화는 미확인으로 남깁니다.",
+    "analysis.alternative는 소스에 있는 조건 하나가 달라질 때 어느 분기로 바뀌는지 설명합니다. 비교 경계의 포함/제외, null 여부, Boolean 선택 등 실제 코드의 차이를 짚고 새 조건·업무 규칙을 만들지 마세요. 분기가 없으면 분기 없음과 입력이 계산에 미치는 영향을 설명하세요.",
+    "각 step의 syntax는 복사한 code의 언어 의미를 설명합니다. 현재 코드에 있는 연산자, 단락 평가, 선언/재할당, Kotlin의 ?. / ?: / val / var / return 같은 문법만 설명하고 모든 문법을 나열하지 마세요. loweredPredicate는 원문이 아닌 분석기가 낮춘 조건입니다. 예를 들어 Elvis 분기는 원래 구문과 분석 조건을 구분해 읽습니다.",
+    "reason은 참이므로 참이라는 반복이 아니라 같은 입력값을 대입한 판단·계산 근거입니다. effect는 해당 구문 직후 바뀐 값과 다음 동작만 설명하세요. 조건 노드에서 아직 실행하지 않은 반환/대입을 완료된 변화로 쓰지 마세요.",
+    "nodeTask.reading.priorState는 앞 노드의 모델 예시 after 값입니다. 실행 관찰이 아닙니다. 현재 소스와 원래 입력을 확인해 이 상태를 이어 계산하고 값이 미확인이면 미확인을 유지하세요. nodeTask.example은 경로 전체에서 바꾸지 마세요.",
+    "반복 경로는 보이는 방문만 설명하고 임의의 반복 횟수를 만들지 마세요. partial 경로는 확인된 접두부까지만 설명하며 반환·외부 호출 결과를 지어내지 마세요. 가정과 생략/미확인 정보는 명시하세요."
+  ] : [
+    "Rich reading: explanation follows this single input set through source-ordered decisions, calculations, calls and termination. Do not repeat the same sentence in every field.",
+    "analysis.pathReason substitutes the actual example inputs into the predicates and includes the earlier conditions that make this path possible. analysis.stateChange explains reached writes/calls/return and skipped work in order; unknown external state remains unknown.",
+    "analysis.alternative explains which source branch changes when one actual predicate changes. Discuss inclusive/exclusive boundaries, nullability or Boolean choices only when evidenced. Do not invent rules. With no branch, explain the absence of branching and how inputs affect the calculation.",
+    "Every step's syntax explains its copied code: the actual operators, short circuit, declaration/reassignment or Kotlin ?. / ?: / val / var / return only when present. loweredPredicate is an analyzer-lowered condition, not verbatim source; distinguish that choice from the original syntax. Do not give a generic tutorial.",
+    "reason derives the comparison/calculation using the same concrete values, rather than saying true because true. effect describes values immediately after THIS operation and the next work; a condition node must not claim a later return or assignment already happened.",
+    "nodeTask.reading.priorState contains earlier MODEL example after-values, not observations. Continue from them using the source and original inputs; keep unknown values unknown. Do not change nodeTask.example across the route.",
+    "Describe retained loop visits without inventing iteration counts. A partial route ends at its known prefix; never invent a return or external outcome. State unverified assumptions and missing information."
+  ]).join("\n");
+}
+
 /** Asks for connected prose without unrelated code examples that small models can copy. */
 export function buildFunctionNarrativeExplanationGuidance(language: "ko" | "en"): string {
   return (language === "ko" ? [

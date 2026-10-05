@@ -13,8 +13,10 @@ export function createFunctionNarrativeValidator(validateExample: typeof isFunct
     if (!record(value) || !keys(value, ["summary", "scenarios", "limitations"]) || !text(value.summary, 1200) || !texts(value.limitations, 6)
       || !Array.isArray(value.scenarios) || value.scenarios.length < 1 || value.scenarios.length > 4) return false;
     for (const scenario of value.scenarios) {
-      if (!record(scenario) || !keys(scenario, ["title", "when", "explanation", "steps", "outcome", "assumptions", "example", "nodeDetails", "graph"]) || !text(scenario.title, 160)
+      if (!record(scenario) || !keys(scenario, ["title", "when", "explanation", "analysis", "steps", "outcome", "assumptions", "example", "nodeDetails", "graph"]) || !text(scenario.title, 160)
         || (scenario.explanation !== undefined && !text(scenario.explanation, 1800))
+        || (scenario.analysis !== undefined && (!record(scenario.analysis) || !keys(scenario.analysis, ["pathReason", "stateChange", "alternative"])
+          || !text(scenario.analysis.pathReason, 600) || !text(scenario.analysis.stateChange, 600) || !text(scenario.analysis.alternative, 600)))
         || (scenario.example !== undefined && !validateExample(scenario.example))
         || !texts(scenario.when, 4) || !texts(scenario.assumptions, 4) || !text(scenario.outcome, 600)
         || !Array.isArray(scenario.steps) || scenario.steps.length < 1 || scenario.steps.length > 5) return false;
@@ -26,7 +28,9 @@ export function createFunctionNarrativeValidator(validateExample: typeof isFunct
         || !Array.isArray(scenario.graph.edgeIds) || scenario.graph.edgeIds.length > 900
         || !scenario.graph.edgeIds.every((id) => typeof id === "string" && /^function-logic-edge:[0-9a-f]{32}$/.test(id)))) return false;
       for (const step of [...scenario.steps, ...(scenario.nodeDetails ?? [])]) {
-        if (!record(step) || !keys(step, ["text", "reason", "effect", "source", "values", "nodeId", "occurrence"]) || !text(step.text, 600)
+        if (!record(step) || !keys(step, ["text", "syntax", "code", "reason", "effect", "source", "values", "nodeId", "occurrence"]) || !text(step.text, 600)
+          || (step.syntax !== undefined && !text(step.syntax, 600))
+          || (step.code !== undefined && !text(step.code, 480))
           || (step.occurrence !== undefined && (!Number.isSafeInteger(step.occurrence) || (step.occurrence as number) < 0 || (step.occurrence as number) >= 900))
           || (step.nodeId !== undefined && (!text(step.nodeId, 80) || !/^function-logic-block:[0-9a-f]{32}$/.test(step.nodeId)))
           || (step.values !== undefined && (!Array.isArray(step.values) || step.values.length > 4 || step.values.some((item) => !record(item)

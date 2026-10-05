@@ -74,6 +74,12 @@ cancellable; retry resumes a partial file. An existing GGUF configured in
 not bundled in the VSIX. See [model setup, checksums and limits](docs/FUNCTION_NARRATIVES.md).
 A connected VS Code Chat model is also available through the provider setting.
 
+Detailed scenarios explain why the example takes this path, its ordered state
+changes and effects, and which source condition chooses a different branch.
+Selected nodes explain the actual language syntax and substitute the same inputs
+into comparisons and calculations. Kotlin constructs are explained when present
+in the source. These model examples remain unverified inferences.
+
 **At a glance** starts with authored documentation, inputs, decisions and
 outcomes. Each reading action selects the corresponding graph node and its
 plain-language explanation in **Understand code**.

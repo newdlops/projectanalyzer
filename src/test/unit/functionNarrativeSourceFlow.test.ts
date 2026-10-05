@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import test from "node:test";
 import { analyzeFunctionLogic, type FunctionLogicAnalysis, type FunctionLogicBlock } from "../../analyzer/functionLogic";
-import { addFunctionNarrativeValueGrounding, buildFunctionNarrativeContext, buildFunctionNarrativeSourceFlow, buildFunctionNarrativeFlowGuidance, buildFunctionNarrativeScenarioFrames, parseFunctionNarrative, buildFunctionNarrativePrompt } from "../../application/functionNarratives";
+import { addFunctionNarrativeValueGrounding, buildFunctionNarrativeContext, buildFunctionNarrativeSourceFlow, buildFunctionNarrativeFlowGuidance, buildFunctionNarrativeScenarioFrames, parseFunctionNarrative, buildFunctionNarrativePrompt, createFunctionNarrativeScenarioIterator, getFunctionNarrativeExampleConstraints } from "../../application/functionNarratives";
 import { createLocalNarrativeSchema } from "../../llm/functionNarratives/responseSchema";
 import { buildInputModel } from "./helpers/neuralScenarioFixtures";
 import { evaluateScenarioSeed } from "../../application/codeFlow/functionTutor";
@@ -171,8 +171,33 @@ test("optional, nullable and aliased Boolean predicates retain source choices wi
     const context = buildFunctionNarrativeContext(model.declaration.functionNode, source, [], model.functionLogic);
     const grounded = addFunctionNarrativeValueGrounding(context, { ...model, seeds: [] });
     assert.ok(grounded.sourceFlow?.paths.every((path) => path.steps.every((step) => !step.branch?.inputCondition)), parameter);
+    assert.ok(grounded.scenarioGraph?.nodes.every((node) => node.next.every((edge) => !edge.inputCondition)), parameter);
     assert.deepEqual(buildFunctionNarrativeScenarioFrames(grounded).map((frame) => frame.when), [["!enabled => true"], ["!enabled => false"]]);
   }
+});
+
+test("lazy full-graph scenarios retain parser-proven Boolean entry choices and exclude rewritten inputs", async () => {
+  const source = 'export function inspect(enabled: boolean, amount: number) {\n if (!enabled) return 0;\n return amount + 5;\n}';
+  const model = await buildInputModel(source);
+  const grounded = addFunctionNarrativeValueGrounding(buildFunctionNarrativeContext(model.declaration.functionNode, source, [], model.functionLogic), model);
+  const context = { ...grounded, detailLevel: "rich" as const, parameters: model.declaration.parameters.map((parameter) => ({ name: parameter.name, type: parameter.typeText })) };
+  const paths = [...createFunctionNarrativeScenarioIterator(context)!];
+  assert.deepEqual(paths.map((path) => path.steps.find((step) => step.branch)!.branch!.inputCondition), ["enabled = false", "enabled = true"]);
+  const batch = { ...context, sourceFlow: { basis: "source-control-flow" as const, paths, limited: false } };
+  assert.deepEqual(paths.map((_path, index) => getFunctionNarrativeExampleConstraints(batch, index).booleans), [[{ name: "enabled", json: "false" }], [{ name: "enabled", json: "true" }]]);
+  const rewritten = 'export function inspect(enabled: boolean) {\n enabled = false;\n if (!enabled) return 0;\n return 1;\n}';
+  const changed = await buildInputModel(rewritten);
+  const unsafe = addFunctionNarrativeValueGrounding(buildFunctionNarrativeContext(changed.declaration.functionNode, rewritten, [], changed.functionLogic), changed);
+  assert.ok(unsafe.scenarioGraph!.nodes.every((node) => node.next.every((edge) => !edge.inputCondition)));
+});
+
+test("ordered grounding retains compound assignments after their initial declaration", async () => {
+  const source = 'export function inspect(amount: number) {\n let total = amount + 5;\n total *= 2;\n return total;\n}';
+  const model = await buildInputModel(source);
+  const grounded = addFunctionNarrativeValueGrounding(buildFunctionNarrativeContext(model.declaration.functionNode, source, [], model.functionLogic), model);
+  assert.deepEqual(grounded.valueFacts?.map((fact) => [fact.target, fact.operation, fact.operands, fact.source.startLine]), [
+    ["total", "add", ["amount", "5"], 2], ["total", "multiply", ["total", "2"], 3]
+  ]);
 });
 
 test("grounding excludes deferred writes, foreign caller values and omitted or oversized context", async () => {

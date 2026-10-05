@@ -23,9 +23,14 @@ export function createFunctionNarrativeSourceStep(analysis: FunctionLogicAnalysi
     }
     const raw = lines.slice(range.startLine, range.endLine + 1).map((line, index) => line.slice(index === 0 ? range.startCharacter : 0,
       range.startLine + index === range.endLine ? range.endCharacter : undefined)).join("\n").trim();
-    const code = block.condition?.expression.trim() || raw;
+    const predicate = block.condition?.expression.trim();
+    // Elvis/safe-call lowering introduces a predicate such as x != null that
+    // was never written verbatim. Keep the original source and expose that
+    // analyzer expression explicitly; it must not turn a present node into a gap.
+    const loweredPredicate = predicate && !snippet.text.includes(predicate) ? predicate : undefined;
+    const code = loweredPredicate ? raw : predicate || raw;
     if (code && !snippet.text.includes(code) || code.length > 480) return undefined;
-    return { kind: block.kind, code: code || block.kind, confidence: block.confidence,
+    return { kind: block.kind, code: code || block.kind, confidence: block.confidence, ...(loweredPredicate ? { loweredPredicate } : {}),
       source: { snippetId: snippet.id, startLine, endLine } };
   };
 }

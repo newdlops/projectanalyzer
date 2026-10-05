@@ -1,5 +1,33 @@
 # Function reading workspace
 
+## Rich causal reading — October 2026
+
+The reader follows one input set through source operations and understands why
+it chooses this path. Preserve the existing VS Code typography, theme colors,
+4/8/12 spacing, flat sections, native controls and source disclosure. After the
+connected scenario paragraph, show a semantic definition list for **Why this
+path**, **State and effects**, and **What changes the path**. This makes accumulated
+conditions, ordered writes/calls and a nearby alternate branch easy to compare.
+Selected nodes explain the actual language syntax before example-specific
+reason/effect; Kotlin safe calls, Elvis, mutability and early returns are described
+only when present in the supplied source. Model prose stays visibly unverified.
+
+Keep one detailed scenario per saved page and at most two source nodes per
+inference. Compact node responses contain only new steps, carrying the original
+example and bounded prior model values as input context instead of regenerating
+scenario prose. No background generation, additional model process or source
+execution is introduced. Cached paging, node selection, locale refresh and value
+application keep their existing behavior and preserve edited inputs and focus.
+
+Acceptance: real local Kotlin and TypeScript responses include numerical/Boolean
+substitution, ordered calculation/effect and alternate-path explanation. Every
+reached source operation has a syntax explanation; repeated visits and partial
+source remain distinct. Validate malformed rich responses, inherited node
+context, cancel/resume and cache-only actions. Inspect idle, populated dense
+reading, node/source, locale, error and paging states at 390×844, 768×1024 and
+1440×900. Definition lists stack at narrow widths and long prose wraps without
+page-level overflow. No decorative cards, new typography or animation.
+
 ## Complete scenario reading — October 2026
 
 Keep the current Function Guide, theme tokens, literal prose and source disclosures.

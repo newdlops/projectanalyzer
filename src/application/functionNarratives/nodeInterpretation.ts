@@ -12,31 +12,50 @@ export function bindFunctionNarrativeGraph(context: FunctionNarrativeContext, no
         && candidate.targetId === nodeIds[edge.target] && candidate.kind === edge.outcome)?.id })) })) } };
 }
 
-/** Reuses primary descriptions only when a narrow citation identifies exactly one source node. */
-export function initializeFunctionNarrativeNodes(path: FunctionNarrativeFlowPath, scenario: FunctionNarrativeScenario): void {
+/** Rich nodes are read in source order; legacy prose can reuse a uniquely cited operation. */
+export function initializeFunctionNarrativeNodes(path: FunctionNarrativeFlowPath, scenario: FunctionNarrativeScenario,
+  detailLevel?: FunctionNarrativeContext["detailLevel"]): void {
   if (!path.graph || !scenario.example) return;
   scenario.graph = path.graph;
   scenario.nodeDetails = [];
+  // Primary prose is generated before intermediate values exist. Reusing its
+  // terminal would freeze an early guessed state instead of the carried state.
+  if (detailLevel === "rich") return;
   const same = (left: typeof path.steps[number]["source"], right: typeof left) => left.snippetId === right.snippetId
     && left.startLine === right.startLine && left.endLine === right.endLine;
   for (const step of scenario.steps) {
-    const matches = path.steps.filter((candidate) => candidate.graphNodeId && same(candidate.source, step.source));
+    const matches = path.steps.filter((candidate) => candidate.graphNodeId && same(candidate.source, step.source)
+      && (!step.code || step.code === candidate.code));
     if (matches.length === 1 && !scenario.nodeDetails.some((detail) => detail.nodeId === matches[0].graphNodeId)) {
-      scenario.nodeDetails.push({ ...step, nodeId: matches[0].graphNodeId!, occurrence: matches[0].graphOccurrence });
+      scenario.nodeDetails.push({ ...step, code: matches[0].code, nodeId: matches[0].graphNodeId!, occurrence: matches[0].graphOccurrence });
     }
   }
 }
 
-/** At most three outstanding source nodes per inference, with the scenario input set held fixed. */
+/** Rich node tasks reserve budget for syntax/causality and carry bounded prior model state. */
 export function createFunctionNarrativeNodeTask(batch: FunctionNarrativeContext, path: FunctionNarrativeFlowPath,
   scenario: FunctionNarrativeScenario): FunctionNarrativeContext | undefined {
   if (!scenario.example || !path.graph) return undefined;
   const explained = new Set(scenario.nodeDetails?.map((detail) => detail.nodeId + ":" + detail.occurrence));
   const targets = path.steps.filter((step) => step.graphNodeId && step.source.endLine - step.source.startLine <= 20
-    && !explained.has(step.graphNodeId + ":" + step.graphOccurrence)).slice(0, 3);
+    && !explained.has(step.graphNodeId + ":" + step.graphOccurrence)).slice(0, batch.detailLevel === "rich" ? 2 : 3);
   if (!targets.length) return undefined;
+  const priorState = new Map<string, string>();
+  // Only operations preceding the first target can supply carried state. Future
+  // primary citations must not masquerade as values observed before this node.
+  const firstOccurrence = targets[0].graphOccurrence ?? 0;
+  for (const detail of [...(scenario.nodeDetails ?? [])].sort((left, right) => (left.occurrence ?? 0) - (right.occurrence ?? 0))) {
+    if ((detail.occurrence ?? 0) >= firstOccurrence) continue;
+    for (const value of detail.values ?? []) {
+      if (["condition", "result"].includes(value.name)) continue;
+      priorState.delete(value.name); priorState.set(value.name, value.after);
+      while (priorState.size > 8) priorState.delete(priorState.keys().next().value!);
+    }
+  }
   return { ...batch, sourceFlow: { basis: "source-control-flow", paths: [path], limited: path.status === "partial" },
-    nodeTask: { frame: { when: scenario.when, outcome: scenario.outcome }, example: scenario.example, targets } };
+    nodeTask: { frame: { when: scenario.when, outcome: scenario.outcome }, example: scenario.example, targets,
+      ...(batch.detailLevel === "rich" ? { reading: { explanation: scenario.explanation || scenario.steps[0].text,
+        priorState: [...priorState].map(([name, value]) => ({ name, value })) } } : {}) } };
 }
 
 /** Append only ordered, independently validated task descriptions; model output never supplies node IDs. */
@@ -55,7 +74,7 @@ export function finalizeFunctionNarrativeNodes(batch: FunctionNarrativeContext, 
   const source = batch.snippets.find((snippet) => snippet.role === "function")!;
   const entryId = scenario.graph.nodeIds[0];
   if (entryId && !detailById.has(entryId + ":0")) detailById.set(entryId + ":0", { nodeId: entryId, occurrence: 0, text: summary,
-    reason: scenario.explanation, effect: scenario.steps[0]?.effect,
+    reason: scenario.explanation, ...(batch.detailLevel !== "rich" ? { effect: scenario.steps[0]?.effect } : {}),
     source: { snippetId: source.id, startLine: source.startLine, endLine: source.startLine },
     values: scenario.example.inputs.slice(0, 4).map((input) => ({ name: input.name, before: preview(input.json), after: preview(input.json) })) });
   const lastId = scenario.graph.nodeIds.at(-1);
@@ -67,5 +86,15 @@ export function finalizeFunctionNarrativeNodes(batch: FunctionNarrativeContext, 
       source: path.steps.at(-1)?.source || last.source, values: [{ name: "result", before: preview(scenario.example.result), after: preview(scenario.example.result) }] });
   }
   scenario.nodeDetails = scenario.graph.nodeIds.flatMap((id, index) => detailById.get(id + ":" + index) ?? []) as FunctionNarrativeNodeDetail[];
+  // The paragraph's narrow evidence and selected-node reading must share the
+  // final source-ordered interpretation, including its latest example values.
+  if (batch.detailLevel === "rich") scenario.steps = scenario.steps.map((step) => {
+    const matches = scenario.nodeDetails!.filter((detail) => detail.code === step.code
+      && detail.source.snippetId === step.source.snippetId && detail.source.startLine === step.source.startLine
+      && detail.source.endLine === step.source.endLine);
+    if (matches.length !== 1) return step;
+    const { nodeId: _nodeId, occurrence: _occurrence, ...reading } = matches[0];
+    return reading;
+  });
 }
 function preview(value: string): string { return value.length > 240 ? value.slice(0, 239) + "…" : value; }

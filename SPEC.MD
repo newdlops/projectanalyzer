@@ -1422,7 +1422,8 @@ Webview는 Project Graph, 파일 시스템, VS Code API에 직접 접근하지 �
   offline mode와 JSON grammar를 사용한다. 프로세스는 요청 종료/취소 때 해제하며 공급자
   설정 변경을 포함해 한 Extension Host에서 하나만 실행한다. 요청 언어는 별도 system message로
   전달한다. 한국어의 자유 서술 필드는 한글로 시작하도록 bounded JSON grammar로 유도하고
-  고정된 source 식은 유지한다. private 임시 user/system prompt는 요청 종료 시 삭제한다.
+  고정된 source 식은 유지한다. private 임시 user/system prompt와 JSON schema는 요청 종료 시 삭제한다.
+  `--json-schema-file`로 source를 포함한 grammar도 argv 밖에서 전달한다.
   선택 가능한 VS Code adapter는 연결된 Chat model의 token 한도를 확인한 뒤 실제
   `sendRequest`/response stream을 사용한다. 모델 학습·API key 보관은 하지 않는다.
 - 응답은 최대 24,000자 JSON, summary 1,200자, 시나리오 1–4개, 각 step 1–5개,
@@ -1434,6 +1435,11 @@ Webview는 Project Graph, 파일 시스템, VS Code API에 직접 접근하지 �
   구성한다. 지침은 일관된 입력 하나의 분기 판단·실제 계산·다음 진행·조기 반환·결과를
   연결된 완전한 문장으로 설명하도록 요청한다. 무관한 함수 해설 예제는 포함하지 않는다.
   이는 프롬프트 개선이며 가중치 학습은 하지 않는다.
+  현재 생산 context의 `detailLevel: "rich"`는 scenario `analysis.pathReason/stateChange/alternative`와
+  step `syntax`를 요청한다. 각 필드의 portable 상한은 600자이며 Host/browser 언어 검사에도
+  포함한다. 누적 조건에 입력을 대입한 이유, 실제 소스 순서의 상태/호출/반환, 다른 분기로
+  바뀌는 실제 predicate를 분리한다. 구문 의미는 현재 소스에 있는 해당 언어의 문법만 설명한다.
+  이 필드가 없는 이전 context/저장 응답은 계속 허용한다.
   각 step은 제공한 snippet ID와 그 범위 안의 최대 21줄을 참조해야 한다. 이 검사는
   위치와 형식의 유효성만 확인하며 LLM 설명의 사실성·경로 도달·실행을 검증하지 않는다.
   `shared/functionNarratives.isFunctionNarrativeLanguage`는 인용된 코드·문자열을 제외한
@@ -1488,7 +1494,8 @@ Webview는 Project Graph, 파일 시스템, VS Code API에 직접 접근하지 �
   cycle/depth 경계는 partial prefix로 보존한다.
 - loop는 skip, 한 symbolic body pass의 일반/continue 경로 후 exit, break로 추상화한다.
   모든 반복 횟수 조합을 열거하거나 입력 도달 가능성·외부 결과를 검증하지 않는다.
-- `FunctionNarrativeScenarioRun`은 한 번에 최대 2개, 합계 경로 JSON 목표 5,000자로
+- `FunctionNarrativeScenarioRun`은 상세 context에서 경로 한 개, 이전 context에서 최대 2개,
+  합계 경로 JSON 목표 5,000자로
   batch를 구성한다. 긴 단일 경로는 잘라내지 않고 단독 요청하며 응답 검증·저장이 완료된
   뒤에만 completed를 증가시킨다. 오류·취소는 미완료 batch를 보존하고 명시적 재개만 허용한다.
   모든 조건을 fixed when에 순서대로 보존한다. 긴 조건/loop 본문과 과밀 조건은 소스 줄
@@ -1506,16 +1513,30 @@ Webview는 Project Graph, 파일 시스템, VS Code API에 직접 접근하지 �
   ChatML/`--no-jinja`/`--reasoning off`를 사용한다. local 8,192 context, 2,400 output,
   thread 2개, offline와 single-process lifecycle은 유지한다. 마켓 확장에는 모델·runner를
   포함하지 않는다. runner는 미리 설치하며 가중치는 첫 명시적 분석 요청에서 자동 다운로드한다.
-- model example이 포함된 complete local batch는 summary 160자, title 64자, explanation 280자,
-  최대 step 3개, step text/reason/effect 각각 80자, assumptions와 limitations 각각 최대 2개를
-  사용한다. 이전 example 없는 context는 240/480/120자 예산을 유지한다.
+- 상세 complete local batch는 summary 240자, title 64자, explanation 600자, analysis 각 필드
+  220자, 종료/partial 접두부 대표 step 한 개, step text/syntax/reason/effect 각각 120/160/180/160자를 사용한다.
+  assumptions와 limitations는 각각 최대 2개다. 이전 model-example batch의 160/280/80자와
+  example 없는 context의 240/480/120자 예산은 유지한다.
   기존 portable 응답 최대값과 별개인 생성 예산이며 fixed scenario slot 개수는 줄이지 않는다.
+  상세 생성은 `exampleInputs`를 먼저, 계산 해설 뒤에 `exampleResult`를 쓰고 Host가 기존
+  `example`으로 정규화한다. 혼합 형태를 거부한다. source graph의 exact 직접 Boolean
+  entry 선택을 그대로 유지하며 수정/optional/nullable/alias Boolean은 고정하지 않는다.
+  Kotlin의 직접 nullable 입력은 lowering의 null/non-null 선택을 검증하고 partial 결과는 null이다.
+  compound assignment의 연산자·피연산자·소스 순서를 named grounding에 보존한다.
+  loweredPredicate는 분석기의 조건이며 원문 code와 구분한다. node code와 source가 target과
+  정확히 일치해야 하며 실제 source 식만 노드 해설에 표시한다.
 - `bindFunctionNarrativeGraph`는 같은 분석의 source CFG와 public projection의 block/edge를
   Host에서 연결한다. 모델에는 graph ID를 보내지 않으며 응답의 graph/nodeDetails ID를 거부한다.
   시나리오당 `example.inputs`는 선언한 모든 매개변수의 이름·JSON text와 표시 전용 result다.
   매개변수 32개, JSON 1,200자/방문 96/깊이 6/container 16을 제한하고 unsafe key/비유한 값/
-  실행 구문을 거부한다. nodeTask는 원래 frame과 예시를 고정하고 최대 3개 target source의
-  text/reason/effect와 예시 before/after를 검증한다. source-owned 모든 방문을 설명한 뒤
+  실행 구문을 거부한다. 상세 nodeTask는 원래 frame과 예시를 고정하고 최대 2개 target source의
+  text/syntax/reason/effect와 예시 before/after를 검증한다. 응답은 새 steps만 반환한다.
+  원래 문단·입력·조건·결과는 Host가 상속하므로 모델이 덮어쓸 수 없다.
+  방문 순서상 앞의 해설에서 최대 8개 named after 값을 모델 상태로 전달하며 미래 값은 제외한다.
+  상세 primary의 종료 인용은 중간 상태가 생기기 전의 값으로 노드 작업을 건너뛰지 않는다.
+  모든 구문을 소스 순서로 해설한 뒤 일치하는 인용을 최신 노드 해설로 교체하며 진입 노드에
+  이후 반환의 effect를 복사하지 않는다. primary의 값 표는 생략하고 nodeTask에서 검증한다.
+  이전 nodeTask는 최대 3개 target과 원래 narrative 응답을 유지한다. source-owned 모든 방문을 설명한 뒤
   entry/exit를 모델 목적/결과 문장으로 보완한다. partial frontier에 반환 설명을 합성하지 않는다.
 - Session은 완료 페이지를 디스크에 저장하고 미완료 한 페이지의 primary/node chunk만
   보존하여 취소·실패 후 완료된 추론을 다시 하지 않는다. node→page index와 browser의 8개

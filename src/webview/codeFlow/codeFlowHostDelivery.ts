@@ -336,7 +336,7 @@ export class CodeFlowHostDelivery {
       const grounded = addFunctionNarrativeValueGrounding(buildFunctionNarrativeContext(node, sourceText,
         active.graph.nodes.filter((candidate) => helperIds.has(candidate.id)), analysis), tutorModel);
       const context = bindFunctionNarrativeGraph({ ...grounded,
-        parameters: payload.logic.tutor.parameters.map((parameter) => ({ name: parameter.name, type: parameter.typeText })),
+        detailLevel: "rich", parameters: payload.logic.tutor.parameters.map((parameter) => ({ name: parameter.name, type: parameter.typeText })),
         valueNames: [...new Set([...(analysis.valueBindings ?? []).map((binding) => binding.name), "result", "condition"])].slice(0, 120)
       }, payload.logic.blocks.map((block) => block.id), payload.logic.edges);
       const contextId = this.narratives.register(payload.id, active.version, context, node.filePath, createContentHash(sourceText));

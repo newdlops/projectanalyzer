@@ -24,10 +24,16 @@ export function createNarrativeSourceHover(api: typeof vscode, presentation: Fun
     const scenario = references[0].scenario;
     hover.appendMarkdown("---\n\n### "); paragraph(`${index + 1}. ${scenario.title}`);
     if (scenario.explanation) paragraph(scenario.explanation);
+    if (scenario.analysis) {
+      facts(ko ? "이 경로를 선택하는 이유" : "Why this path", [scenario.analysis.pathReason]);
+      facts(ko ? "상태와 부수 효과" : "State and effects", [scenario.analysis.stateChange]);
+      facts(ko ? "다른 경로로 바뀌는 조건" : "What changes the path", [scenario.analysis.alternative]);
+    }
     facts(ko ? "조건" : "Conditions", scenario.when);
     for (const reference of references) {
       hover.appendMarkdown("**"); hover.appendText(`LLM ${reference.label} · L${reference.step.source.startLine}–${reference.step.source.endLine}`);
       hover.appendMarkdown("**\n\n"); paragraph(reference.step.text);
+      facts(ko ? "구문 의미" : "Syntax meaning", reference.step.syntax ? [reference.step.syntax] : []);
       facts(ko ? "판단 근거" : "Reason", reference.step.reason ? [reference.step.reason] : []);
       facts(ko ? "값과 흐름의 변화" : "Effect", reference.step.effect ? [reference.step.effect] : []);
     }

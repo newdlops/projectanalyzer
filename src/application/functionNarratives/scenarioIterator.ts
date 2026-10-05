@@ -55,7 +55,8 @@ export function createFunctionNarrativeScenarioIterator(context: FunctionNarrati
         const exitedLoops = new Set(frame.exitedLoops); if (repeated) exitedLoops.add(frame.index);
         for (const edge of [...exitsOnly].reverse()) {
           const branch = node.step && (exitsOnly.length > 1 || ["true", "false", "case", "iterate", "exception", "exit"].includes(edge.outcome))
-            ? { outcome: repeated ? "repeat-exit" : edge.outcome, confidence: edge.confidence } : undefined;
+            ? { outcome: repeated ? "repeat-exit" : edge.outcome, confidence: edge.confidence,
+              ...(!repeated && edge.inputCondition ? { inputCondition: edge.inputCondition } : {}) } : undefined;
           const nextSteps = branch ? [...frame.steps, { ...step!, branch }] : steps;
           pending.push({ index: edge.target, steps: nextSteps, visited, exitedLoops, depth: frame.depth + 1,
             nodeIds, edgeIds: edge.graphEdgeId ? [...frame.edgeIds, edge.graphEdgeId] : frame.edgeIds,

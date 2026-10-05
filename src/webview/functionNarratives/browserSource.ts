@@ -131,6 +131,7 @@ export function getFunctionNarrativesBrowserSource(): string {
             paragraph.textContent = scenario.explanation || [...scenario.when, ...scenario.steps.flatMap((step) => [step.text, step.reason, step.effect]), scenario.outcome]
               .filter(Boolean).map((value) => /[.!?。！？]$/.test(value.trim()) ? value.trim() : value.trim() + ".").join(" ");
             article.append(paragraph);
+            appendFunctionNarrativeAnalysis(article,scenario);
             appendFunctionNarrativeExample(article,scenario,index===selectedScenarioIndex,{id:widgetId+"-scenario-"+globalIndex,canApply:Boolean(callbacks?.onNarrativeScenario),canShowGraph:Boolean(callbacks?.onShowGraph),
               select(){selectScenario(index,"replace");render();},graph(){selectScenario(index,"none");callbacks?.onShowGraph?.({preferredLens:"flow",primaryBlockId:scenario.graph?.nodeIds[0],attentionBlockIds:scenario.graph?.nodeIds||[],attentionEdgeIds:scenario.graph?.edgeIds||[]});nodeReader.refresh();},
               apply(){selectScenario(index,"replace");callbacks?.onOpenNarrativeValues?.(scenario.example);render();}});
@@ -158,6 +159,7 @@ export function getFunctionNarrativesBrowserSource(): string {
                 }
               });
               row.append(text);
+              appendFacts(row, "narrative-syntax", step.syntax ? [step.syntax] : []);
               appendFacts(row, "narrative-reason", step.reason ? [step.reason] : []);
               appendFacts(row, "narrative-effect", step.effect ? [step.effect] : []);
               row.append(source); steps.append(row);

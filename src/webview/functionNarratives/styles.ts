@@ -38,8 +38,12 @@ export function getFunctionNarrativesStyles(): string {
     .logic-function-narratives [hidden] { display: none !important; }
     .logic-function-narratives button { min-height: 30px; white-space: normal; overflow-wrap: anywhere; }
     .logic-function-narratives button:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-offset: 2px; }
-    @container function-guide (max-width: 560px) { .logic-narrative-facts, .logic-narrative-example-values { grid-template-columns: 1fr; } .logic-narrative-example-values dd { margin-bottom: 4px; } }
-    @media (max-width: 520px) { .logic-narrative-facts, .logic-narrative-example-values { grid-template-columns: 1fr; } .logic-narrative-example-values dd { margin-bottom: 4px; } }
+    .logic-narrative-analysis { display: grid; grid-template-columns: minmax(96px, 0.3fr) minmax(0, 1fr); gap: 8px 12px; margin: 0; min-width: 0; line-height: 1.65; }
+    .logic-narrative-analysis dt { font-weight: 600; overflow-wrap: anywhere; }
+    .logic-narrative-analysis dd { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; min-width: 0; }
+    .logic-narrative-node-code { margin: 0; padding: 8px; background: var(--vscode-textCodeBlock-background); font-family: var(--vscode-editor-font-family); font-size: var(--logic-font-small); white-space: pre-wrap; overflow-wrap: anywhere; min-width: 0; }
+    @container function-guide (max-width: 560px) { .logic-narrative-facts, .logic-narrative-example-values, .logic-narrative-analysis { grid-template-columns: 1fr; } .logic-narrative-example-values dd, .logic-narrative-analysis dd { margin-bottom: 4px; } }
+    @media (max-width: 520px) { .logic-narrative-facts, .logic-narrative-example-values, .logic-narrative-analysis { grid-template-columns: 1fr; } .logic-narrative-example-values dd, .logic-narrative-analysis dd { margin-bottom: 4px; } }
     @media (pointer: coarse) { .logic-function-narratives button, .logic-narrative-node-select { min-height: 44px; } }
     @media (forced-colors: active) { .logic-function-narratives button:focus-visible { outline: 2px solid Highlight; } }
   `;

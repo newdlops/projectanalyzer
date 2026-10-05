@@ -72,6 +72,8 @@ test("native source decorations show inferred detail on the matching dirty snaps
     hostile.narrative.scenarios[0].explanation = 'enabled가 false라 조기 반환한다. [open](command:unsafe) <b>html</b>';
     hostile.narrative.scenarios[0].steps[0].reason = "!enabled는 true다.";
     hostile.narrative.scenarios[0].steps[0].effect = "ordinary 반환문을 건너뛴다.";
+    hostile.narrative.scenarios[0].steps[0].syntax = "논리 부정은 Boolean을 반대로 바꾼다. [open](command:unsafe)";
+    hostile.narrative.scenarios[0].analysis = { pathReason: "false를 부정해 true가 된다.", stateChange: "입력은 바뀌지 않고 반환한다.", alternative: "true 입력은 조기 반환을 건너뛴다." };
     presenter.show(hostile);
     const options = f.editor.calls.at(-1)!.options;
     assert.equal(options.length, 2); assert.equal(options[0].range.startLine, 1);
@@ -83,6 +85,8 @@ test("native source decorations show inferred detail on the matching dirty snaps
     assert.match(options[0].hoverMessage.value, /disabled 문자열을 반환한다/u);
     assert.match(options[0].hoverMessage.value, /판단 근거/u);
     assert.match(options[0].hoverMessage.value, /ordinary 반환문을 건너뛴다/u);
+    assert.ok(options[0].hoverMessage.textParts.includes(hostile.narrative.scenarios[0].steps[0].syntax));
+    assert.ok(options[0].hoverMessage.textParts.includes(hostile.narrative.scenarios[0].analysis.alternative));
     assert.equal(f.document.getText(), source);
     f.changeText(source.replace('"ordinary"', '"changed"'));
     assert.deepEqual(f.editor.calls.at(-1)!.options, []);
