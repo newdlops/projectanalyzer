@@ -258,7 +258,6 @@ export function getFunctionTutorGuideBrowserSource(): string {
         const effects = path.scenario?.effects || []; if (path.scenario) { const heading = document.createElement("h5"); const list = document.createElement("ol"); heading.textContent = projectAnalyzerText("expected-effects"); if (!effects.length) { const item = document.createElement("li"); item.textContent = projectAnalyzerText("scenario-effect-none"); list.append(item); } else for (const effect of effects) { const item = document.createElement("li"); item.textContent = effect.label; list.append(item); } detail.append(heading, list); }
         const known = selected.inputs.filter((input) => input.value.kind !== "unknown"); const load = document.createElement("button");
         load.type = "button"; load.className = "logic-guide-action"; load.dataset.guideKey = "scenario-load-inputs:" + selected.id; load.textContent = projectAnalyzerText("load-inputs"); load.title = projectAnalyzerText("load-static-inputs"); load.disabled = known.length === 0;
-        if (tutor.program?.evaluationMode === "symbolic-only") { load.disabled = true; load.title = projectAnalyzerText("summary-symbolic-disabled"); const note = document.createElement("p"); note.className = "logic-summary-note"; note.textContent = projectAnalyzerText("summary-symbolic-disabled"); detail.append(note); }
         load.addEventListener("click", () => { if (load.disabled) return; callbacks?.onLoadInputs?.(selected); setStatus("loaded-known-inputs", { count: known.length, allKnown: known.length === selected.inputs.length }); }); detail.append(load);
         const transitions = path.transitions || [];
         if (transitions.length) {
@@ -274,6 +273,7 @@ export function getFunctionTutorGuideBrowserSource(): string {
 
       return {
         section, toggle,
+        generateNarratives() { narratives?.start(); },
         /** Called only by the Inspector mode controller. */
         setActive(nextActive) {
           if (disposed || active === Boolean(nextActive)) return;

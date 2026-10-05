@@ -7,7 +7,8 @@
 /** Returns CSP-safe helpers for session-scoped Scenario variable inputs. */
 export function getFunctionLogicValuePreviewBrowserSource(): string {
   return /* js */ `
-    const MAX_LOGIC_VALUE_PREVIEW_LENGTH = 240;
+    const MAX_LOGIC_VALUE_PREVIEW_LENGTH = 1200;
+    const MAX_LOGIC_VALUE_LABEL_LENGTH = 240;
     const MAX_LOGIC_VALUE_PREVIEW_ROWS = 120;
     const MAX_LOGIC_MANUAL_SCENARIO_ROWS = 32;
     const MAX_LOGIC_MANUAL_SCENARIO_NAME_LENGTH = 80;
@@ -130,17 +131,23 @@ export function getFunctionLogicValuePreviewBrowserSource(): string {
       let recommendedTutor;
       let inputSuggestions;
       let recommendationPending = false;
+      let narrativeGenerator;
 
       /** Keeps source-backed binding inspection available when runtime values cannot be evaluated. */
       function refreshEvaluationCapability() {
         const symbolicOnly = recommendedTutor?.program?.evaluationMode === "symbolic-only";
-        recommend.disabled = symbolicOnly; clearAll.disabled = symbolicOnly;
-        addName.disabled = symbolicOnly; addValue.disabled = symbolicOnly; add.disabled = symbolicOnly;
-        addPanel.hidden = symbolicOnly;
-        hint.textContent = projectAnalyzerText(symbolicOnly ? "summary-symbolic-disabled" : "scenario-help");
+        recommend.disabled = symbolicOnly && !narrativeGenerator; clearAll.disabled = false;
+        addName.disabled = false; addValue.disabled = false; add.disabled = false;
+        addPanel.hidden = false;
+        hint.textContent = projectAnalyzerText(symbolicOnly ? "narrative-editable-examples" : "scenario-help");
+        if (!recommendationPending) {
+          recommend.textContent = projectAnalyzerText(symbolicOnly && narrativeGenerator ? "narrative-model-examples-action" : "scenario-recommend-values");
+          recommend.title = projectAnalyzerText(symbolicOnly && narrativeGenerator ? "narrative-model-examples-title" : inputSuggestions ? "scenario-recommend-neural-title" : "scenario-recommend-values-title");
+          recommend.setAttribute("aria-label", recommend.textContent);
+        }
         if (emptyState) emptyState.textContent = projectAnalyzerText(symbolicOnly ? "scenario-empty-symbolic" : "scenario-empty");
         for (const record of labelRecordsByBindingId.values()) {
-          record.input.disabled = symbolicOnly; record.action.disabled = symbolicOnly;
+          record.input.disabled = false; record.action.disabled = false;
         }
       }
 
@@ -526,6 +533,7 @@ export function getFunctionLogicValuePreviewBrowserSource(): string {
       }
       /** The first recommendation click performs inference; later replies cannot overwrite edits made while waiting. */
       recommend.addEventListener("click", async () => {
+        if (recommendedTutor?.program?.evaluationMode === "symbolic-only" && narrativeGenerator) { narrativeGenerator(); return; }
         if (recommendationPending) { inputSuggestions?.cancel(); return; }
         const hasModel = (recommendedTutor?.seeds || []).some((seed) => seed.source === "model" && seed.quality?.status === "verified");
         if (inputSuggestions && !hasModel) {
@@ -577,16 +585,19 @@ export function getFunctionLogicValuePreviewBrowserSource(): string {
           applySelectedBinding();
         },
         /** Applies a Guide transfer to matching tracked rows without rebuilding the editor. */
-        loadKnownInputs(valuesByName) {
+        loadKnownInputs(valuesByName, options) {
           for (const binding of bindings) {
             const value = valuesByName?.get(binding.name);
             if (value === undefined) continue;
+            if (options?.onlyEmpty && functionLogicValuePreviewByBindingId.get(binding.id)) continue;
             functionLogicValuePreviewByBindingId.set(binding.id, value);
             const input = inputsByBindingId.get(binding.id);
             if (input) input.value = value;
             refreshFunctionLogicValuePreviewElements(binding.id);
           }
         },
+        /** Symbolic languages can request real model examples through the owning Guide action. */
+        setNarrativeGenerator(generate) { narrativeGenerator=generate; refreshEvaluationCapability(); },
         /** Applies only resolved analyzer binding identities; unknown identities are skipped. */
         loadKnownInputsByBindingId(valuesByBindingId) {
           for (const [bindingId, value] of valuesByBindingId || []) {
@@ -689,13 +700,18 @@ export function getFunctionLogicValuePreviewBrowserSource(): string {
         : (functionLogicValuePreviewByBindingId.get(bindingId) || "");
     }
 
+    /** Bounds graph labels without losing the JSON input used by the editor and evaluator. */
+    function formatFunctionLogicValuePreviewLabel(value) {
+      return value.length > MAX_LOGIC_VALUE_LABEL_LENGTH ? value.slice(0, MAX_LOGIC_VALUE_LABEL_LENGTH - 1) + "…" : value;
+    }
+
     /** Creates one live graph/detail suffix for a tracked binding preview. */
     function createFunctionLogicValuePreviewLabel(bindingId) {
       const label = document.createElement("span");
       const labels = functionLogicValuePreviewElementsByBindingId.get(bindingId) || new Set();
       const value = readFunctionLogicValuePreview(bindingId);
       label.className = "logic-value-access-preview";
-      label.textContent = value ? "= " + value : "";
+      label.textContent = value ? "= " + formatFunctionLogicValuePreviewLabel(value) : "";
       label.hidden = !value;
       labels.add(label);
       functionLogicValuePreviewElementsByBindingId.set(bindingId, labels);
@@ -712,7 +728,7 @@ export function getFunctionLogicValuePreviewBrowserSource(): string {
           labels.delete(label);
           continue;
         }
-        label.textContent = value ? "= " + value : "";
+        label.textContent = value ? "= " + formatFunctionLogicValuePreviewLabel(value) : "";
         label.hidden = !value;
       }
       if (labels.size === 0) functionLogicValuePreviewElementsByBindingId.delete(bindingId);

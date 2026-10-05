@@ -65,7 +65,7 @@ Generation starts only on a button click. Show progress, cancel, completion, mod
 absence, access denial, timeout, invalid output, context limits, failed request and
 stale snapshot. Keep prior results during locale changes, label their generation
 language, and offer generation in the new language without an automatic request.
-Never apply LLM descriptions to the existing scenario inputs or graph selection.
+Keep model example values visibly distinct from static checks and user edits.
 Default to an on-demand local model, with automatic GGUF preparation on first use. Keep
 connected VS Code models as a machine setting. Expired contexts offer an explicit
 reload action; reloading restores the source context without starting inference.
@@ -81,6 +81,29 @@ colors, focus treatment and responsive notification layout remain owned by VS Co
 Preparation runs before the inference deadline; mount/focus/paging/locale changes
 do not prepare a model. Acceptance includes actual first-use progress/cancel/retry,
 checksum verification, cache reuse and no model process while downloading or idle.
+
+### Scenario interpretation and node examples — October 2026
+
+The primary Guide flow creates scenarios and prepares their interpretation together.
+Show the scenario paragraph, named example inputs/result and three clear actions:
+select this scenario, view its graph and apply its example inputs. Below them, show
+the selected graph node's explanation, decision reason and before/after example
+values. Static analysis questions remain in the existing secondary disclosure.
+Every source-owned node on a scenario is interpreted in bounded sequential chunks;
+entry/exit use the model's purpose/result text. Graph selection reads cached node
+details. First completion fills empty input rows; explicit scenario selection or
+Apply replaces examples. Preserve edited inputs during progress, paging and locale
+refresh. Kotlin inputs are editable examples even when a static evaluator is absent.
+Use existing flat sections, native theme/font tokens and 4/8/12/16px rhythm. Stack
+input facts/actions below 560px; wrap long identifiers and JSON without document
+overflow at 390px. Add no motion. Keep model inference and static verification
+labels separate. Loading, missing model, partial/cancel/retry, stale snapshot,
+no parameters, unknown external results and long node lists must remain usable.
+Acceptance: scenario creation yields example inputs and every reached node detail;
+select/apply/graph/source/previous/next/cancel work by mouse and keyboard; selected
+nodes show their scenario-specific values; cached navigation never starts inference;
+user edits survive unrelated refresh; check Kotlin and TypeScript in both languages
+at 390×844, 768×1024 and 1440×900 with actual production responses and UI fixtures.
 
 Acceptance: Kotlin and parameterless functions offer the action; mount/focus/locale
 changes produce no inference; strict snippet references and bounded output; stale

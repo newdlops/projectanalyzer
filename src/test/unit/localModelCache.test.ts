@@ -91,6 +91,23 @@ test("cancellation retains received bytes, stops transport and retry resumes", a
   } finally { await f.dispose(); }
 });
 
+test("the first received bytes report progress and permit cancellation within the throttle window", async (t) => {
+  t.mock.method(Date, "now", () => 1000);
+  const f = await fixture(whole); const received: number[] = [];
+  try {
+    const controller = new AbortController();
+    await assert.rejects(f.cache.ensure(controller.signal, (value) => {
+      if (value.phase === "downloading" && value.completedBytes > 0) {
+        received.push(value.completedBytes); controller.abort();
+      }
+    }), cancelled);
+    assert.equal(received.length, 1);
+    assert.ok(received[0] > 0);
+    assert.equal((await stat(f.target + ".part")).size, received[0]);
+    await assert.rejects(stat(f.target));
+  } finally { await f.dispose(); }
+});
+
 test("incorrect SHA-256 deletes the partial and never exposes an executable model", async () => {
   const bad = Buffer.from(bytes); bad[8] ^= 0xff;
   const f = await fixture((_request, response, call) => { response.writeHead(200, { "Content-Length": bytes.length }); response.end(call === 1 ? bad : bytes); });

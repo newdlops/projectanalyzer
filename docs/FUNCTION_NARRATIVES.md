@@ -1,7 +1,8 @@
 # 코드 스니펫을 읽는 LLM 동작 시나리오
 
 Function Guide의 **전체 시나리오 분석**은 함수 본문과 가까운 문서·상수, 같은 파일에
-확인된 직접 helper 코드를 언어 모델에 전달해 목적과 동작 시나리오를 만든다.
+확인된 직접 helper 코드를 언어 모델에 전달해 목적과 동작 시나리오, 예시 입력·결과값과
+각 경로의 노드 해설을 만든다.
 Kotlin과 인자 없는 함수도 사용할 수 있다. 숫자 입력을 찾는 기존 로컬 모델과는 별도 기능이다.
 문장형 설명은 로컬 LLM이 작성한다. 기본 함수 요약과 그래프, 생성에 쓰는 조건·소스 경로는
 기존 정적 분석이 제공한다.
@@ -20,18 +21,23 @@ Kotlin과 인자 없는 함수도 사용할 수 있다. 숫자 입력을 찾는 
 3. 로컬 모델은 요청할 때만 실행하고 끝나거나 취소되면 프로세스를 종료한다.
    기본 문맥 8,192 token, 응답 2,400 token, CPU thread 2개와 GPU 자동 offload를 사용한다.
    발견한 소스 경로를 한 번에 최대 2개씩 순차 분석한다. 전체 경로 수에는 3개/4개 상한을
-   적용하지 않는다. 묶음별 90초 제한을 사용하며, 같은 snapshot/언어의 결과를 재사용한다.
+   적용하지 않는다. 실제 추론 호출마다 90초 제한을 사용하며, 같은 snapshot/언어의 결과를 재사용한다.
    취소·실패 후 **이어서 시나리오 분석**은 완료된 경로를 건너뛰고 미완료 묶음부터 재개한다.
    설정 변경으로 두 모델이 동시에 실행되지 않는다.
 4. 함수의 역할과 시나리오별 문단에서 조건·판단·계산·건너뛴 작업·예상 결과를 읽는다.
    접힌 **소스 근거**를 펼치면 조건, 번호가 붙은 동작, **판단 근거**, **값과 흐름의 변화**,
    예상 결과와 가정을 확인한다. 응답 하나는 최대 2개이고 결과는 한 페이지씩 읽는다.
-   로컬 묶음은 출력 한도 안에서 끝나도록 최대 3단계, summary 240자, 문단 480자,
-   단계의 text/reason/effect 각각 120자로 제한한다. 관련 동작은 소스 순서대로 묶어 설명한다.
+   모델 예시가 포함된 로컬 묶음은 출력 한도 안에서 끝나도록 최대 3단계, summary 160자,
+   문단 280자, 단계의 text/reason/effect 각각 80자로 제한한다.
+   문단의 단계와 별도로 빠진 소스 노드를 최대 3개씩 해설하므로 문단의 단계 상한이 노드 수를
+   제한하지 않는다. 노드 추론은 같은 시나리오의 예시 입력을 고정해 사용한다.
    연결 모델의 portable 단계 상한은 5개다. 이 설명 길이 제한은 전체 경로 수와 별개다.
    **이전/다음 시나리오**는 저장된 결과만 읽으며 모델을 실행하지 않는다. 진행 중에는 완료한
    개수를, 경로 열거가 끝나면 전체 개수와 완료 여부를 표시한다.
    각 단계의 **소스 · 1.2 · L…** 버튼은 Host가 확인한 원본 줄을 편집기에서 연다.
+   문단 아래에는 매개변수별 예시 입력과 예상 결과값이 표시된다. **시나리오 선택**은 해당
+   경로를 강조하고 예시 입력을 채우며, **그래프에서 보기**는 경로를 화면에 맞춘다.
+   **예시값 적용**은 Values 입력칸을 열고 첫 입력으로 포커스를 옮긴다.
 5. 원본 줄 끝에 `LLM 1.2` 번호와 짧은 해설이 표시된다. 번호는 페이지를 넘어 이어지므로
    다섯 번째 시나리오의 첫 단계는 `LLM 5.1`이다. 현재 페이지의 표시만 유지한다. hover에서 조건,
    문장형 설명·전체 동작·판단 근거·값의 변화·예상 결과·가정을 확인한다. 한 줄의 여러 시나리오는
@@ -42,6 +48,14 @@ Kotlin과 인자 없는 함수도 사용할 수 있다. 숫자 입력을 찾는 
 명령으로 표시를 지울 수 있다. 같은 소스의 **소스** 버튼은 해당 함수·생성 언어의 검증된
 캐시를 다시 표시하며 모델을 실행하지 않는다. `projectAnalyzer.functionNarratives.sourceDecorations`
 설정으로 표시를 끌 수 있다. Git 비교의 이전 리비전 문서는 현재 파일의 표시를 지우지 않는다.
+
+**선택한 노드 해설**에서 그래프 또는 노드 목록으로 선택한 구문의 동작·판단 근거·값의
+변화를 읽는다. 반복 방문은 각각 표시하며 다른 페이지의 노드는 저장된 해설만 불러온다.
+현재 경로가 지나지 않는 노드는 이를 명시하고 다른 시나리오의 예시와 함께 설명한다.
+첫 결과만 빈 입력칸을 채운다. 페이지 이동·진행률 갱신·언어 전환은 사용자가 편집한 값을
+덮어쓰지 않는다. 명시적으로 시나리오를 선택하거나 예시값을 적용하면 해당 예시로 바꾼다.
+Kotlin도 예시 입력을 편집·삭제·추가할 수 있으며 **모델 예시 생성**은 Guide의 모델 분석을
+연결한다. Kotlin 소스의 런타임 계산을 지원한다는 의미는 아니다.
 
 VS Code 연결 모델을 쓰려면 `projectAnalyzer.functionNarratives.provider`를 `vscode`로 바꾼다.
 여러 등록 모델 중 선택하며 필요한 접근 동의는 VS Code UI를 따른다. 접근 실패, 잘못된
@@ -89,14 +103,18 @@ global storage를 따르며 원격 Extension Host에서는 해당 Host의 저장
 atomic rename하며 잘못된 데이터는 사용하지 않는다. SHA-256 결과는 한 Host에서 파일 stat
 identity가 유지될 때 재사용하고 다른 Host/재시작 또는 파일 변경 시 다시 확인한다.
 여러 창은 PID/token 파일 lease로 다운로드를 공유하고 취소·Host disposal은 전송을 중단한다.
-준비 단계에는 source를 전달하지 않으며 다운로드 시간은 묶음별 90초 추론 제한에 포함하지 않는다.
+준비 단계에는 source를 전달하지 않으며 다운로드 시간은 실제 모델 호출별 90초 추론 제한에 포함하지 않는다.
 
 ## 근거와 한계
 
 LLM 설명은 항상 **추론 · 실제 실행 미검증**이다. JSON 형식과 소스 위치가 제공한 스니펫
 범위 안인지 확인해도 설명의 의미가 맞다는 보장은 아니다. 소스 버튼은 검토 위치이며
-경로 도달이나 실행 증거가 아니다. 기존 정적 시나리오의 입력값·coverage·graph selection을
-변경하지 않으며 사용자 소스를 실행하거나 LLM tool call을 제공하지 않는다.
+경로 도달이나 실행 증거가 아니다. 모델 예시는 편집 가능한 입력칸과 경로 강조에 사용하지만
+정적 검증 결과나 관찰된 값으로 취급하지 않는다. 사용자 소스를 실행하거나 LLM tool call을
+제공하지 않는다. 매개변수는 최대 32개, 입력 JSON은 각각 1,200자·방문 96·깊이 6·container
+16개로 제한한다. 위험한 object key나 실행 구문은 거부한다. 결과값은 표시 전용 텍스트이고
+외부 결과가 미확인이면 `null` 예시와 가정을 사용한다. 전달하지 않은 소스나 지원하지 않는
+노드의 해설은 준비되지 않았다는 상태로 남기며 반환값으로 꾸미지 않는다.
 
 부족한 helper, 외부 호출의 결과, source excerpt 생략은 가정과 미확인 부분으로 설명하도록
 요청한다. 코드 주석·문자열은 명령이 아닌 데이터로 전달한다. 함수가 길면 본문 앞과 끝을
@@ -116,8 +134,15 @@ LLM 설명은 항상 **추론 · 실제 실행 미검증**이다. JSON 형식과
   `createFunctionNarrativeScenarioIterator`, `FunctionNarrativeScenarioRun`, `addFunctionNarrativeValueGrounding`,
   `buildFunctionNarrativeScenarioFrames`, `parseFunctionNarrative`,
   `FunctionNarrativeProvider`, `FunctionNarrativeError`.
+  `bindFunctionNarrativeGraph`는 기존 analyzer 순서를 public graph identity에 연결한다.
+  `initializeFunctionNarrativeNodes`, `createFunctionNarrativeNodeTask`,
+  `appendFunctionNarrativeNodes`, `finalizeFunctionNarrativeNodes`는 선택된 시나리오의 같은
+  예시값으로 소스 노드 해설을 채우고, 진입·종료 및 반복 방문의 identity를 Host에서 부여한다.
 - `shared/functionNarratives`: portable narrative/context types 및 동일한 Host/browser runtime validator,
   요청 언어의 서술을 확인하는 `isFunctionNarrativeLanguage`.
+  `isFunctionNarrativeExample`은 실행 없이 JSON 예시의 크기·깊이·안전한 key를 검사한다.
+  `createFunctionNarrativeValidator`는 이 helper를 명시적으로 주입해 Webview 직렬화에도
+  CommonJS module 참조가 남지 않게 한다.
   `FunctionNarrativeSourcePresenter`, `buildFunctionNarrativeSourceAnnotations`는 native source 표시 계약과
   줄별 번호 그룹화를 제공한다.
 - `vscode/functionNarrativeProvider`: 실제 VS Code 모델 선택, token 확인, streaming, 취소와 오류 변환.
@@ -135,15 +160,21 @@ LLM 설명은 항상 **추론 · 실제 실행 미검증**이다. JSON 형식과
   임시 폴더(0700)와 검증된 JSON 페이지(0600)를 만든다. 재조회 때 다시 검증하고 owner 해제 때
   폴더를 제거한다. 전체 모델 문장을 Host 메모리에 쌓지 않는다.
 - `webview/codeFlow/functionNarrativesHostDelivery`: snapshot별 최대 8개 context, locale별 재개
-  세션과 작은 페이지 metadata, 단일 pending 분석과 묶음별 90초 deadline, evidence token projection.
+  세션과 작은 페이지 metadata, 단일 pending 분석과 실제 모델 호출별 90초 deadline, evidence token projection.
   source graph 없는 이전 계약은 45초 단일 요청 fallback을 유지한다.
+  `FunctionNarrativeScenarioSession.readNodePage`는 저장된 첫 해설 페이지를 node ID로 조회하며,
+  모델을 호출하거나 화면의 선택 페이지·진행 중 request ID를 바꾸지 않는다.
 - `webview/functionNarratives`: inert reading section, strict reply correlation, bounded DOM,
   literal prose, locale/focus retention, disposal cancellation.
-- `protocol/functionNarratives`: identity-only request/cancel, cache-only `pageIndex`/`pageLanguage`,
+- `protocol/functionNarratives`: identity-only request/cancel, cache-only `pageIndex`/`pageLanguage`/`nodeId`,
   progress/coverage/page 응답, 정확한 context/locale/페이지/단계 source action과 bounded result.
+  source action의 optional `nodeIndex`는 해당 저장 페이지의 정확한 노드 근거를 가리킨다.
   이전 text-only 단계도 읽으며 새 prompt는 explanation/reason/effect를 요청한다.
 
-source context는 최대 5개/18,000자이며 결과 한 페이지는 최대 24,000자 JSON이다.
+source context는 최대 5개/18,000자이며 실제 모델 응답 하나는 최대 24,000자 JSON이다.
+노드 해설을 합친 저장 페이지는 최대 2개 시나리오와 시나리오별 최대 900개 node detail로
+제한한다. Webview는 한 페이지와 최대 8개 선택 노드 해설만 보유하며 다른 저장 페이지의
+전체 문장을 누적하지 않는다.
 portable validator의 시나리오 4개×step 5개는 응답 상한이며 함수 전체의 경로 상한이 아니다.
 시나리오의 `explanation`은 최대 1,800자다. 새 로컬 grammar에는 필수이며 이전 결과에는
 선택 필드로 허용한다. 이전 결과는 기존 조건·단계·결과만 이어 문단을 구성한다.
@@ -237,6 +268,55 @@ Q4_K_M을 사용했다. revision `f74adce6aa16316c625447af059dbebe4983757c`,
 2,104,932,800 bytes, SHA-256
 `724fb256bec1ff062b2f65e4569e871ad2e95ab2a3989723d1769c54294730b7`을 확인했다.
 두 모델 모두 `.local-models/`에 보관하며, 비교를 위해 사용자 설정을 바꾸지 않았다.
+
+## 0.0.1110 검증 기록
+
+- 자동 다운로드한 Qwen3.5-4B Q4_K_M와 실제 `llama-completion`으로 아래 응답을 검증했다.
+  모델 준비와 캐시 확인은 실행별 한 번이며 각 실행의 추가 네트워크 요청은 0회였다.
+  Kotlin 분류 함수는 5개 경로 전체와 3개 저장 페이지를 만들었다. 나머지 함수는
+  `enabled`의 조기 반환과 `amount + 5`를 계산하는 2개 경로를 갖는다.
+
+  | 소스 / 해설 언어 | 완료 경로 | 실제 모델 호출 | 전체 소요 시간 |
+  | --- | ---: | ---: | ---: |
+  | Kotlin 분류 / 한국어 | 5 / 5 | 8 | 182.183초 |
+  | TypeScript / 영어 | 2 / 2 | 3 | 74.217초 |
+  | TypeScript / 한국어 | 2 / 2 | 3 | 63.619초 |
+  | Kotlin / 영어 | 2 / 2 | 2 | 50.871초 |
+
+  이는 작은 fixture를 각각 한 번 실행한 측정이며 일반적인 성능·정확도 보장이 아니다.
+  검증된 모든 결과에 매개변수 예시와 도달 노드 해설이 있었고, node ID 순서는 해당
+  source route와 일치했다. TypeScript와 영어 Kotlin의 Boolean/숫자 입력 및 예시 결과를
+  fixture 수식과 비교했다. 소스 프로그램을 실행하거나 모델 가중치를 학습하지 않았다.
+- 실제 모델 응답을 production Function Visualizer HTML에 재생해 Safari에서 Kotlin을
+  390×844, 768×1024, 1440×900으로, TypeScript 영어를 1440×900으로 확인했다.
+  시나리오 선택, 예시값 적용, Kotlin 입력 수정, 노드 선택과 값 변화 표, 노드 소스 요청,
+  모델 예시 버튼의 Guide 전환 및 locale 전환 때 추가 추론이 없는 것을 확인했다.
+  검사한 viewport에서 가로 overflow와 계측된 JavaScript 오류는 없었다.
+  준비 중 안내·취소와 다운로드 실패·재시도 안내는 명시적인 synthetic Host 응답으로
+  확인했다. Safari QA의 Host 메시지는 replay adapter이며 실제 추론 검증과 구분한다.
+- UI 검증에서 발견한 compound graph ID 연결과 모델 예시 버튼의 잘못된 Inspector
+  전환을 수정했다. 실제 production HTML 통합 테스트는 graph/node/source/apply와
+  저장된 해설의 재사용, 편집값·locale·focus 보존을 검증한다. 별도 Host 테스트는
+  반복 방문, partial frontier, 취소 후 node chunk 재개, cache-only node 조회가 진행 중인
+  요청을 대체하지 않는 경우와 32개 매개변수 상한을 포함한다.
+- Impeccable의 접근성·성능·테마·반응형·표현 패턴을 변경 범위에서 점검했다.
+  native 버튼/select, 명시적인 label, table caption/header scope, 상태 안내,
+  테마 색상·focus ring, 긴 값 줄바꿈, 한 페이지 렌더링과 동일 노드 DOM 보존을 확인했다.
+  detector는 변경한 renderer 파일에서 지적 사항을 반환하지 않았다.
+  Web Interface Guidelines를 적용해 의미 구조·locale·literal 출력·경계 상태를 검토했다.
+  전체 색상 대비 계측, 실제 터치 기기와 모든 키보드 경로는 이번 검사 범위에 포함하지 않았다.
+- TypeScript 전체 테스트는 977개 중 973개가 통과했다. 기존 declared-type 대표값 2개,
+  advanced private Scenario와 decorated source-reveal의 실패 4개는 이전 릴리스와 같다.
+  기능 및 인접 architecture 테스트 46개, Rust 82개와 패키징 script 13개는 통과했다.
+  다운로드 회귀에는 첫 수신량이 알림 제한 시간 안에 들어와도 진행·취소가 가능하고
+  받은 partial bytes를 유지하는 결정적 테스트를 추가했다.
+- 0.0.1110 darwin-arm64 VSIX는 512개 파일, 압축 3.61 MiB·해제 15.43 MiB로 기존
+  패키지 상한을 통과했다. 모델 가중치는 포함하지 않는다. 기본 및
+  `Function Language QA 1107` 프로필에 설치하고 두 프로필의 등록 버전을 확인했다.
+  설치된 런타임 파일 478개가 빌드 출력과 byte 단위로 일치했다. 기본 프로필의 기존
+  GGUF 설정과 QA 프로필의 자동 다운로드 설정을 유지했다.
+  열려 있던 VS Code 창에서 새 버전을 다시 불러온 뒤의 native UI 검증은 완료하지 못했다.
+  위 화면 검증은 production HTML을 사용하는 Safari 검사이며 설치 검증과 구분한다.
 
 ## 0.0.1109 검증 기록
 

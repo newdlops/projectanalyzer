@@ -121,6 +121,7 @@ export function getFunctionLogicBrowserSource(): string {
         ...(graphContext || {}),
         resolveScenarioBindingId: graphContext?.resolveScenarioBindingId || ((bindingId) => valueBindingsById.has(bindingId) ? bindingId : undefined),
         resolveScenarioBlockId: graphContext?.resolveScenarioBlockId || ((blockId) => blocksById.has(blockId) ? blockId : undefined),
+        resolveSourceScenarioBlockId: graphContext?.resolveSourceScenarioBlockId || ((blockId) => blocksById.has(blockId) ? blockId : undefined),
         resolveScenarioEdgeId: graphContext?.resolveScenarioEdgeId || ((edgeId) => edgesById.has(edgeId) ? edgeId : undefined),
         isBodyOwner: (blockId) => compoundOwnerIds.has(blockId),
         focusBody: (blockId) => bodyFocusController.focus(blockId)
@@ -128,7 +129,7 @@ export function getFunctionLogicBrowserSource(): string {
       const hasValueFlow = (logic.valueBindings || []).length > 0;
       // Scenario Variables are an invariant Inspector surface. It must remain
       // discoverable even when analyzer-backed value bindings are incomplete.
-      const inspector = createFunctionLogicInspector(choiceSessionKey);
+      const inspector = createFunctionLogicInspector(choiceSessionKey, Boolean(logic.tutor?.narratives?.available));
       let branchChoices = readFunctionLogicBranchChoices(choiceSessionKey, logic.edges);
       let edgeRendering;
       let valueFlowRendering;
@@ -273,7 +274,7 @@ export function getFunctionLogicBrowserSource(): string {
       );
       const tutorRendering = createFunctionTutorIntegration(
         logic, comprehension, valueFlowRendering, viewportController, inspector,
-        valueFlowRendering?.scenarioWorkspaceSession);
+        valueFlowRendering?.scenarioWorkspaceSession, selectionGraphContext);
       const hasJsxFlow = logic.blocks.some((block) => block.kind === "render");
       const hasEventFlow = logic.blocks.some((block) => block.kind === "event");
       const hasRenderFlow = hasJsxFlow || hasEventFlow;

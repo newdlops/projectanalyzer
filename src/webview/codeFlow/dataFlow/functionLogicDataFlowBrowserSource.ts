@@ -138,7 +138,6 @@ export function getFunctionLogicDataFlowBrowserSource(): string {
           for (const edgeId of path?.edgeIds || []) controlEdgeElementsById.get(scenarioIdentity?.resolveScenarioEdgeId?.(edgeId) || edgeId)?.path?.classList.add("scenario-workspace-preview");
         },
         onApplyInputs(seed) {
-          if (logic.tutor?.program?.evaluationMode === "symbolic-only") return;
           activeScenarioSeedId = ""; activeScenarioPathIndex = 0; playbackRouteId = selectedBindingId;
           valuePreviewRendering.loadKnownInputsByBindingId(readFunctionLogicScenarioSeedInputs(seed, logic.tutor, bindingById, scenarioIdentity));
           scenarioTraceRendering?.refresh(); playback?.reset();
@@ -447,9 +446,10 @@ export function getFunctionLogicDataFlowBrowserSource(): string {
           valuePreviewRendering.focusKnownInputs(names, message);
         },
         /** Applies Guide-provided values to tracked editor rows without graph work. */
-        loadKnownInputs(valuesByName) {
-          valuePreviewRendering.loadKnownInputs(valuesByName);
+        loadKnownInputs(valuesByName, options) {
+          valuePreviewRendering.loadKnownInputs(valuesByName, options);
         },
+        setNarrativeGenerator(generate) { valuePreviewRendering.setNarrativeGenerator(generate); },
         resetPlayback() {
           playback.reset();
           refresh();

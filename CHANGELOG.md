@@ -4,6 +4,32 @@ All notable user-visible changes to Project Analyzer: Code Flow are recorded in
 this file. The changelog starts with the first distribution-documented build;
 earlier local development builds were not tracked here.
 
+## 0.0.1110 - 2026-10-06
+
+### Improved
+
+- Generate concrete JSON input examples, result descriptions, and source-node
+  explanations for each discovered scenario. Keep the same inputs across bounded
+  node requests and retain completed work when analysis is interrupted.
+- Connect Select scenario, Show on graph, Apply example values and Open source
+  to the production graph and Values editor. Read other nodes from saved pages
+  without starting inference or replacing the visible scenario page.
+- Populate empty inputs once and preserve user edits during progress, paging and
+  language changes. Kotlin model examples are editable; its unsupported concrete
+  runtime evaluator remains disabled. The model-example action opens the Guide.
+- Preserve compound graph identities and repeated loop visits. Keep one bounded
+  result page in the renderer, eight cached node descriptions, and skip unchanged
+  node DOM updates during playback/focus events. Model memory is released after use.
+- Retain automatic first-use model download, checksum verification and resumable
+  transfers from 0.0.1109. Report the first received bytes immediately so short or
+  stalled transfers can be cancelled. No weights are included in the extension package.
+
+### Known limitations
+
+- Model explanations, example inputs and results are inferred from the captured
+  source and are not runtime observations. Unsupported or partial source stays
+  explicit. Example generation supports up to 32 parameters per function.
+
 ## 0.0.1109 - 2026-10-05
 
 ### Added

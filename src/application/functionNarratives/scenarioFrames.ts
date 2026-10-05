@@ -12,6 +12,7 @@ export type FunctionNarrativeScenarioFrame = {
 
 /** Uses complete static examples first, otherwise complete exact source routes; partial models stay unconstrained. */
 export function buildFunctionNarrativeScenarioFrames(context: FunctionNarrativeContext): FunctionNarrativeScenarioFrame[] {
+  if (context.nodeTask) return [withSourceTitle({ ...context.nodeTask.frame, sources: context.nodeTask.targets.map((step) => step.source) })];
   if (context.scenarioBatch) return (context.sourceFlow?.paths ?? []).map((path) => {
     // Pack every decision in order. A response-size bound must not silently drop
     // later conditions or collapse several source routes into one scenario.

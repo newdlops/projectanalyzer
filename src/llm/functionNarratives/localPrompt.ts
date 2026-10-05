@@ -31,12 +31,23 @@ export function buildLocalNarrativePrompt(context: FunctionNarrativeContext, lan
   const numbered = numberFunctionNarrativeContext(context);
   return instructions.join("\n") + "\n" + buildFunctionNarrativeExplanationGuidance(language)
     + (context.scenarioBatch ? language === "ko"
-      ? "\n묶음 응답 예산: summary 240자, 각 explanation 480자, 단계 최대 3개와 text/reason/effect 각각 120자입니다. 관련 동작은 소스 순서대로 묶어 설명하고 고정 시나리오를 모두 완성하세요. when의 소스 줄 참조는 해당 경로의 조건 선택이며 실제 조건은 sourceFlow와 스니펫에 있습니다."
-      : "\nBatch response budget: summary 240 characters, each explanation 480, at most 3 steps with text/reason/effect 120 each. Group related operations in source order and complete every fixed slot. Source line references in when identify route decisions; their syntax is in sourceFlow and snippets."
+      ? "\n묶음 응답 예산: summary " + (context.parameters ? 160 : 240) + "자, 각 explanation " + (context.parameters ? 280 : 480) + "자, 단계 최대 3개와 text/reason/effect 각각 " + (context.parameters ? 80 : 120) + "자입니다. 관련 동작은 소스 순서대로 묶어 설명하고 고정 시나리오를 모두 완성하세요. when의 소스 줄 참조는 해당 경로의 조건 선택이며 실제 조건은 sourceFlow와 스니펫에 있습니다."
+      : "\nBatch response budget: summary " + (context.parameters ? 160 : 240) + " characters, each explanation " + (context.parameters ? 280 : 480) + ", at most 3 steps with text/reason/effect " + (context.parameters ? 80 : 120) + " each. Group related operations in source order and complete every fixed slot. Source line references in when identify route decisions; their syntax is in sourceFlow and snippets."
       : "")
     + "\nJSON schema:\n" + JSON.stringify(createLocalNarrativeSchema(context, language))
     + "\nSOURCE DATA:\n" + JSON.stringify(numbered)
+    + (context.parameters ? language === "ko"
+      ? "\n각 시나리오에 example을 채우세요. 모든 parameters의 name을 그대로 사용하고 json에는 경로 조건에 맞는 구체적인 JSON 입력을 문자열로 넣으세요. result는 표시용 예상 반환값이며 외부 결과가 미확인이면 null을 쓰세요. 각 단계의 values에 변수·condition·result의 예시 before/after 값을 넣으세요. 이것은 실행 관찰이 아닌 모델 예시입니다. 문단과 단계는 이 한 입력 세트를 일관되게 사용하세요."
+      : "\nFill example for each scenario. Use every parameters name exactly; json contains a concrete JSON input encoded as text, consistent with this route. result is display-only result text; use null for an unknown external result. Each step's values contains example before/after values for variables, condition or result. These are model examples, not observations. Prose and every node use this one input set."
+      : "")
+    + (context.nodeTask ? language === "ko"
+      ? "\n노드 해설 요청입니다. nodeTask.example은 그대로 복사하세요. targets의 모든 노드를 순서대로 정확히 하나씩 steps로 설명하고 각 source를 그대로 복사하세요. 같은 입력 예시로 동작·판단 이유·값 변화·다음 진행을 설명하세요."
+      : "\nThis is a node interpretation task. Copy nodeTask.example unchanged. Return one step for every targets node, in order, and copy its source exactly. Describe operation, reason, before/after example values and next work for the same input set."
+      : "")
     + (context.valueFacts?.length ? "\n" + buildFunctionNarrativeFlowGuidance({ ...context, sourceFlow: undefined }, language) : "")
-    + (language === "ko" ? "\nJSON schema에서 고정한 when/outcome/source는 그대로 쓰세요. explanation과 reason/effect는 그 조건과 반환 구문에 맞게 설명하세요. 구체적인 입력값을 새로 가정하지 말고 코드의 관계로 설명하세요." : "\nCopy fixed when/outcome/source fields from the schema. Explain their exact conditions and source terminal in explanation/reason/effect. Describe source relationships without inventing concrete input values.")
+    + (context.parameters ? language === "ko"
+      ? "\n고정된 when/outcome/source를 바꾸지 마세요. example 입력이 모든 경로 조건과 맞는지 확인하고 노드 해설에서 같은 값을 유지하세요."
+      : "\nPreserve fixed when/outcome/source. Check that the example inputs satisfy every route condition and keep them unchanged across node explanations."
+      : language === "ko" ? "\nJSON schema에서 고정한 when/outcome/source는 그대로 쓰세요. explanation과 reason/effect는 그 조건과 반환 구문에 맞게 설명하세요. 구체적인 입력값을 새로 가정하지 말고 코드의 관계로 설명하세요." : "\nCopy fixed when/outcome/source fields from the schema. Explain their exact conditions and source terminal in explanation/reason/effect. Describe source relationships without inventing concrete input values.")
     + (language === "ko" ? "\n모든 설명 문장은 한국어로 작성하세요. 코드 식별자는 그대로 두세요." : "\nAll prose must be English. Preserve code identifiers.");
 }

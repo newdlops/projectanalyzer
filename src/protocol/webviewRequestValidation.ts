@@ -167,16 +167,18 @@ function validateReadableWebviewRequest(value: unknown): WebviewRequestValidatio
       break;
     case "codeFlow/requestFunctionNarratives":
     case "codeFlow/cancelFunctionNarratives":
-      payloadIsValid = isRecord(payload) && hasOnlyKeys(payload, ["graphVersion", "flowId", "requestId", "pageIndex", "pageLanguage"])
+      payloadIsValid = isRecord(payload) && hasOnlyKeys(payload, ["graphVersion", "flowId", "requestId", "pageIndex", "pageLanguage", "nodeId"])
         && isCodeFlowSelectPayload(payload) && isNonNegativeInteger(payload.requestId)
-        && (payload.pageIndex === undefined ? payload.pageLanguage === undefined : isNonNegativeInteger(payload.pageIndex)
+        && (payload.nodeId === undefined || typeof payload.nodeId === "string" && /^function-logic-block:[0-9a-f]{32}$/u.test(payload.nodeId) && payload.pageIndex === undefined)
+        && (payload.pageIndex === undefined ? payload.nodeId === undefined ? payload.pageLanguage === undefined : payload.pageLanguage === undefined || isOneOf(payload.pageLanguage, ["ko", "en"]) : isNonNegativeInteger(payload.pageIndex)
           && (payload.pageLanguage === undefined || isOneOf(payload.pageLanguage, ["ko", "en"])));
       break;
     case "codeFlow/openFunctionNarrativeSource":
-      payloadIsValid = isRecord(payload) && hasOnlyKeys(payload, ["graphVersion", "flowId", "contextId", "language", "scenarioIndex", "stepIndex", "pageIndex"])
+      payloadIsValid = isRecord(payload) && hasOnlyKeys(payload, ["graphVersion", "flowId", "contextId", "language", "scenarioIndex", "stepIndex", "pageIndex", "nodeIndex"])
         && isCodeFlowSelectPayload(payload) && typeof payload.contextId === "string" && /^narrative-context:[0-9a-f]{32}$/u.test(payload.contextId)
         && isOneOf(payload.language, ["ko", "en"]) && isNonNegativeInteger(payload.scenarioIndex) && payload.scenarioIndex < 4
         && isNonNegativeInteger(payload.stepIndex) && payload.stepIndex < 5
+        && (payload.nodeIndex === undefined || isNonNegativeInteger(payload.nodeIndex) && payload.nodeIndex < 900)
         && (payload.pageIndex === undefined || isNonNegativeInteger(payload.pageIndex));
       break;
     case "codeFlow/requestScenarioInputs":

@@ -34,6 +34,10 @@ export function buildFunctionNarrativeExplanationGuidance(language: "ko" | "en")
 export function numberFunctionNarrativeContext(context: FunctionNarrativeContext): FunctionNarrativeContext {
   // Only this batch's routes belong in the prompt, never the entire Host plan.
   const { scenarioGraph: _hostGraph, ...batch } = context;
-  return { ...batch, snippets: context.snippets.map((snippet) => ({ ...snippet,
+  const cleanStep = ({ graphNodeId: _id, graphOccurrence: _visit, ...step }: NonNullable<FunctionNarrativeContext["sourceFlow"]>["paths"][number]["steps"][number]) => step;
+  return { ...batch,
+    ...(context.sourceFlow ? { sourceFlow: { ...context.sourceFlow, paths: context.sourceFlow.paths.map(({ graph: _identities, ...path }) => ({ ...path, steps: path.steps.map(cleanStep) })) } } : {}),
+    ...(context.nodeTask ? { nodeTask: { ...context.nodeTask, targets: context.nodeTask.targets.map(cleanStep) } } : {}),
+    snippets: context.snippets.map((snippet) => ({ ...snippet,
     text: snippet.text.split("\n").map((line, index) => `${snippet.startLine + index}: ${line}`).join("\n") })) };
 }

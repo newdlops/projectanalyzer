@@ -93,7 +93,10 @@ async function transfer(filePath: string, offset: number, model: LocalModelDescr
         if (!result.bytesWritten) throw new LocalModelError("storage");
         written += result.bytesWritten;
       }
-      bytes += chunk.byteLength; hash.update(chunk); report("downloading", bytes);
+      bytes += chunk.byteLength; hash.update(chunk);
+      // A delayed headers callback can consume the first chunk within the throttle window.
+      // Always report the first received bytes so short/stalled transfers remain visibly cancellable.
+      report("downloading", bytes, bytes === offset + chunk.byteLength);
     }
     checkCancelled(signal);
     report("verifying", bytes, true);

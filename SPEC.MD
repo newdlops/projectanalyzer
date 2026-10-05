@@ -256,7 +256,8 @@ evidence는 8개, 항목 소스는 240자, 목적은 480자로 제한하고 생�
 `val`/`var`, `if`/`when`, 반복, `try`/`catch`/`finally`, 지원 가능한 루트 Elvis·safe call·
 short circuit을 소스 근거로 연결한다. 생성자/init/accessor와 nested lambda/inline/coroutine
 동작은 현재 함수의 직접 실행으로 섞지 않는다. Kotlin의 `evaluationMode: symbolic-only`는
-JS 값 계산, 입력 적용과 입력 탐색을 막고 소스 경로 미리 보기·재생을 제공한다. null 가능
+JS 값 계산과 정적 입력 탐색을 막고 소스 경로 미리 보기·재생을 제공한다. 모델 예시 입력은
+편집·적용할 수 있으며 실행 검증으로 취급하지 않는다. null 가능
 타입과 생략 가능한 기본 인자는 구분한다. 갑작스러운 종료의 finally 경유, 런타임 수치
 의미와 동적 dispatch 등 지원되지 않는 의미는 gap으로 남긴다.
 
@@ -1027,7 +1028,7 @@ scroll하고 긴 evidence가 graph canvas의 크기나 위치를 밀어내지 �
   merge에서 서로 다른 값은 임의 선택 없이 `multiple reachable values` unknown으로 합침
 - scenario value의 `Name` label을 누르면 공용 binding selector가 같은 binding을 선택하여
   해당 label, definition/use graph node, value-flow edge를 함께 highlight
-- scenario 입력은 root graph browser session 동안만 유지하고 값 240자/분석 row 120개,
+- scenario 입력은 root graph browser session 동안만 유지하고 편집 값 1,200자/graph label 240자/분석 row 120개,
   사용자 추가 이름 80자/row 32개로 제한하며,
   Host 전송/source 변경/branch 자동 선택을 수행하지 않음; evaluator는 420자/180 token expression과
   1,200 work item의 명시적 상한을 사용
@@ -1442,8 +1443,10 @@ Webview는 Project Graph, 파일 시스템, VS Code API에 직접 접근하지 �
 - 요청 `codeFlow/requestFunctionNarratives` / `codeFlow/cancelFunctionNarratives`는 현재
   graphVersion, opaque flowId, nonnegative safe requestId와 선택적인 cache-only pageIndex/
   pageLanguage만 받는다. Host는 최근 전달한 함수 8개를 유지하며 단일 pending 분석,
-  묶음별 90초 timeout(이전 단일 요청 fallback 45초), 취소·중복 ID·root/graph
+  실제 모델 호출별 90초 timeout(이전 단일 요청 fallback 45초), 취소·중복 ID·root/graph
   교체를 처리한다. 주변 코드까지 포함한 content hash와 locale로 검증된 결과를 재사용한다.
+  선택적 opaque `nodeId`는 해당 언어의 저장 페이지 조회만 허용하며 pageIndex와 함께 받지
+  않는다. 이 조회는 진행 중인 분석·페이지 요청을 대체하거나 모델 준비를 시작하지 않는다.
   오래된 함수 context가 8개 상한에서 만료되면 Host-issued source token으로 명시적으로
   다시 불러올 수 있다. 다시 불러오기는 추론을 시작하지 않는다.
 - 응답 `codeFlow/functionNarrativesLoaded`는 status, modelName, 생성 언어, cacheHit,
@@ -1456,14 +1459,16 @@ Webview는 Project Graph, 파일 시스템, VS Code API에 직접 접근하지 �
   변화·예상 결과·가정은 시나리오별 접힌 Source evidence에 둔다. 모두 literal text로 표시하며
   항상 LLM 추론·실제 실행 미검증과 생성 언어를 명시한다. 전체 정적 Summary, 질문, Source Path
   Scenarios는 처음에 접힌 Analysis details에 둔다. 부모 상세를 닫으면 해당 계산 consumer를
-  해제하고 재생을 일시정지한다. 기존 값·경로·graph에 LLM 설명을 적용하지 않는다.
+  해제하고 재생을 일시정지한다. 모델이 만든 예시 입력은 편집 가능한 Values와 경로 강조에
+  사용하며 정적 확인값으로 취급하지 않는다. 첫 결과만 빈 입력을 채우고 명시적 시나리오 선택/
+  예시 적용은 해당 입력으로 바꾼다. 진행률·페이지·locale 갱신은 사용자 편집을 유지한다.
   모델 없음·다운로드 실패·권한 거부·취소·timeout·invalid-response·language-mismatch·입력 한도·failed·stale 및 두 locale 지원.
   초기 mount, focus, disclosure와 언어 전환은 LLM을 호출하지 않는다. pending에서는 Cancel만,
   현재 언어의 완료 결과에서는 추가 생성 버튼을 숨긴다. stale 상태는 Reload를 제공한다.
   요청 후 focus는 보이는 Cancel/Reload/Generate 또는 status로 복원하고 locale 변경은 근거
   disclosure 상태와 source button focus를 보존한다.
 - `codeFlow/openFunctionNarrativeSource`는 graphVersion, flowId, contextId, 생성 language와
-  scenario/step index와 선택적인 pageIndex만 받는다. Host는 정확한 저장 페이지를 읽고 그 step의 evidence
+  scenario/step index와 선택적인 pageIndex/nodeIndex만 받는다. Host는 정확한 저장 페이지를 읽고 그 step/node의 evidence
   token을 해석한다. 같은 위치를 인용하는 다른 함수/언어의 설명으로 대체하지 않으며
   비동기 editor open 뒤에도 graph/context/cache 소유권을 다시 확인한다.
 - `vscode/functionNarrativeDecorations`는 전체 source hash가 맞는 file 문서에만 최대
@@ -1501,9 +1506,22 @@ Webview는 Project Graph, 파일 시스템, VS Code API에 직접 접근하지 �
   ChatML/`--no-jinja`/`--reasoning off`를 사용한다. local 8,192 context, 2,400 output,
   thread 2개, offline와 single-process lifecycle은 유지한다. 마켓 확장에는 모델·runner를
   포함하지 않는다. runner는 미리 설치하며 가중치는 첫 명시적 분석 요청에서 자동 다운로드한다.
-- complete local batch는 summary 240자, title 64자, explanation 480자, 최대 step 3개,
-  step text/reason/effect 각각 120자, assumptions와 limitations 각각 최대 2개를 사용한다.
+- model example이 포함된 complete local batch는 summary 160자, title 64자, explanation 280자,
+  최대 step 3개, step text/reason/effect 각각 80자, assumptions와 limitations 각각 최대 2개를
+  사용한다. 이전 example 없는 context는 240/480/120자 예산을 유지한다.
   기존 portable 응답 최대값과 별개인 생성 예산이며 fixed scenario slot 개수는 줄이지 않는다.
+- `bindFunctionNarrativeGraph`는 같은 분석의 source CFG와 public projection의 block/edge를
+  Host에서 연결한다. 모델에는 graph ID를 보내지 않으며 응답의 graph/nodeDetails ID를 거부한다.
+  시나리오당 `example.inputs`는 선언한 모든 매개변수의 이름·JSON text와 표시 전용 result다.
+  매개변수 32개, JSON 1,200자/방문 96/깊이 6/container 16을 제한하고 unsafe key/비유한 값/
+  실행 구문을 거부한다. nodeTask는 원래 frame과 예시를 고정하고 최대 3개 target source의
+  text/reason/effect와 예시 before/after를 검증한다. source-owned 모든 방문을 설명한 뒤
+  entry/exit를 모델 목적/결과 문장으로 보완한다. partial frontier에 반환 설명을 합성하지 않는다.
+- Session은 완료 페이지를 디스크에 저장하고 미완료 한 페이지의 primary/node chunk만
+  보존하여 취소·실패 후 완료된 추론을 다시 하지 않는다. node→page index와 browser의 8개
+  selected-node cache는 전체 prose를 메모리에 쌓지 않는다. Compound renderer는 root public
+  ID와 canvas ID를 기존 identity adapter로 양방향 연결하고 다른 함수의 노드를 root 요청에
+  섞지 않는다. 선택 변경이 없는 playback/focus 알림은 노드 읽기 DOM을 다시 만들지 않는다.
 
 #### `storage/localModels` 및 `vscode/functionNarrativeSetup`
 
@@ -1845,7 +1863,8 @@ Webview는 Project Graph, 파일 시스템, VS Code API에 직접 접근하지 �
   same textual ordering, confidence, START/Δ/sink semantics, and controls.
 - graph node의 lexical access row는 최대 8개만 렌더링하고 정확한 추가 row 수와 전체 retained
   binding selector를 별도로 제공
-- scenario value editor는 최대 120 binding/값당 240자, 선택 progression은 최대 80 access step으로 제한
+- scenario value editor는 최대 120 binding/입력당 1,200자이며 graph label은 240자 이내로
+  줄인다. 선택 progression은 최대 80 access step으로 제한
 - function logic의 direct concrete callee는 함수당 최대 24개이며 사용자 action 때만 분석
 - Function Visualizer attached child는 최대 depth 6, 총 32개이며 한 번에 하나씩 Host에 요청
 - compound function graph layout은 합쳐진 block/edge를 한 finite canvas에 배치하고
@@ -1986,7 +2005,7 @@ Webview는 Project Graph, 파일 시스템, VS Code API에 직접 접근하지 �
 - node selection auto-open, toggle/close/Escape, ARIA/inert, child relayout open-state 유지 검증
 - VS Code UI/editor font variable 연동과 고정 px font-size 회귀 검증
 - preview input/clear/relayout 유지, `Name` click의 label/node/edge 선택 동기화,
-  `DEFINED`/`CONSUME`/`SINK`/write-unknown progression, branch dim, 240자/120행/80-step bound,
+  `DEFINED`/`CONSUME`/`SINK`/write-unknown progression, branch dim, 입력 1,200자/label 240자/120행/80-step bound,
   Host message/평가/branch 선택 부재 검증
 - PARAM/LOCAL/CONST selector, bounded access row, 선택 binding SVG overlay, branch-choice dimming,
   attached function scope별 binding/value-flow identity 격리 검증

@@ -8,7 +8,13 @@ export type FunctionNarrativeStep = {
   reason?: string;
   effect?: string;
   source: FunctionNarrativeSource;
+  /** Hypothetical JSON values produced by a model, never evaluator observations. */
+  values?: Array<{ name: string; before: string; after: string }>;
 };
+/** JSON text keeps model inputs portable without evaluating expressions or constructing user objects. */
+export type FunctionNarrativeExample = { inputs: Array<{ name: string; json: string }>; result: string };
+/** The Host binds the model's ordered descriptions to snapshot-owned opaque graph nodes. */
+export type FunctionNarrativeNodeDetail = FunctionNarrativeStep & { nodeId: string; occurrence?: number };
 export type FunctionNarrativeScenario = {
   title: string;
   when: string[];
@@ -17,6 +23,10 @@ export type FunctionNarrativeScenario = {
   steps: FunctionNarrativeStep[];
   outcome: string;
   assumptions: string[];
+  example?: FunctionNarrativeExample;
+  /** Complete node explanations are retained in page storage; only the selected detail is expanded in UI. */
+  nodeDetails?: FunctionNarrativeNodeDetail[];
+  graph?: { nodeIds: string[]; edgeIds: string[] };
 };
 export type FunctionNarrative = {
   summary: string;
@@ -48,6 +58,12 @@ export type FunctionNarrativeContext = {
   checkedExamples?: FunctionNarrativeCheckedExample[];
   /** Bounded fact selection is separate from an omitted source excerpt. */
   groundingLimited?: boolean;
+  /** Declared names only, not parameter identities or user-entered values. Enables model examples. */
+  parameters?: Array<{ name: string; type?: string }>;
+  /** Host-owned names constrain node value labels to this function. */
+  valueNames?: string[];
+  /** Internal bounded node task; the original scenario/example is held fixed across chunks. */
+  nodeTask?: { frame: { when: string[]; outcome: string }; example: FunctionNarrativeExample; targets: FunctionNarrativeFlowStep[] };
   /** True only when source excerpts were omitted or truncated. */
   limited: boolean;
 };
@@ -58,6 +74,10 @@ export type FunctionNarrativeFlowStep = {
   code: string;
   source: FunctionNarrativeSource;
   confidence: "exact" | "inferred";
+  /** Opaque browser identity; removed before sending any model prompt. */
+  graphNodeId?: string;
+  /** Position distinguishes repeated visits to a loop node; stripped with the graph identity. */
+  graphOccurrence?: number;
   /** Choice describes this route only; feasibility for concrete inputs is not proved. */
   branch?: { outcome: string; confidence: "exact" | "inferred";
     /** A parser-proven direct required Boolean input can name the matching input value. */
@@ -71,6 +91,8 @@ export type FunctionNarrativeFlowPath = {
   confidence: "exact" | "inferred";
   steps: FunctionNarrativeFlowStep[];
   reason?: "cycle" | "depth-limit" | "missing-source" | "missing-block" | "control-gap";
+  /** Host-only route identities are never model-authored. */
+  graph?: { nodeIds: string[]; edgeIds: string[] };
 };
 
 /** Small model-readable route projection; limits and uncertain syntax remain explicit. */
@@ -85,9 +107,10 @@ export type FunctionNarrativeScenarioGraph = {
   entry: number;
   nodes: Array<{
     kind: string;
+    graphNodeId?: string;
     step?: FunctionNarrativeFlowStep;
     confidence: "exact" | "inferred";
-    next: Array<{ target: number; outcome: string; confidence: "exact" | "inferred" }>;
+    next: Array<{ target: number; outcome: string; confidence: "exact" | "inferred"; graphEdgeId?: string }>;
   }>;
   limited: boolean;
 };

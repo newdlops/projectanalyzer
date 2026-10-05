@@ -500,6 +500,11 @@ export function getFunctionVisualizerBrowserSource(): string {
           const candidate = createCompoundBlockId(rootScopeId, blockId);
           return scene.logic.blocks.some((block) => block.id === candidate) ? candidate : undefined;
         },
+        /** Model explanations belong to the root snapshot; child-function IDs cannot authorize root node reads. */
+        resolveSourceScenarioBlockId: (blockId) => {
+          const identity = scene.blockIdentityById.get(blockId);
+          return identity?.scopeId === rootScopeId ? identity.sourceBlockId : undefined;
+        },
         resolveScenarioEdgeId: (edgeId) => {
           const candidate = createCompoundEdgeId(rootScopeId, edgeId);
           return scene.logic.edges.some((edge) => edge.id === candidate) ? candidate : undefined;

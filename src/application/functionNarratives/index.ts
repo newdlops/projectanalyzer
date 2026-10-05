@@ -2,6 +2,7 @@
 export { buildFunctionNarrativeContext } from "./sourceContext";
 export { buildFunctionNarrativeSourceFlow, type FunctionNarrativeFlowOptions } from "./sourceFlow";
 export { buildFunctionNarrativeScenarioGraph } from "./scenarioGraph";
+export { bindFunctionNarrativeGraph, initializeFunctionNarrativeNodes, createFunctionNarrativeNodeTask, appendFunctionNarrativeNodes, finalizeFunctionNarrativeNodes } from "./nodeInterpretation";
 export { createFunctionNarrativeScenarioIterator } from "./scenarioIterator";
 export { FunctionNarrativeScenarioRun } from "./scenarioRun";
 export { buildFunctionNarrativeFlowGuidance } from "./flowGuidance";

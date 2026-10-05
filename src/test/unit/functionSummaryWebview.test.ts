@@ -110,15 +110,18 @@ test("representatives cache completed semantics by revision and retain different
   } finally { runtime.restore(); }
 });
 
-test("symbolic-only Guide disables input handoff and describes supported source navigation", () => {
+test("symbolic-only Guide permits known input handoff while withholding calculated runtime results", () => {
   const runtime = installSidebarWebviewRuntime();
   try {
     const tasks = installNativeDisclosureTasks(); const fixture = createPanel(false, { symbolic: true }); document.getElementById("summary-root")!.append(fixture.panel.section); fixture.panel.setActive(true);
     runtime.setRenderedOpenByClassNth("summary-root", "logic-guide-analysis", 0, true);
     const id = runtime.getRenderedIdentityByClassNth("summary-root", "logic-guide-scenarios", 0); (document.getElementById(id) as HTMLDetailsElement).open = true; tasks.flush();
-    const texts = runtime.getRenderedText("summary-root"); assert.ok(texts.includes("Value calculation and input application are unavailable for this language. Use source path preview and playback."));
-    const loadId = runtime.getRenderedIdentityByTitle("summary-root", "Value calculation and input application are unavailable for this language. Use source path preview and playback.");
-    assert.equal(runtime.isDisabled(loadId), true); assert.ok(!texts.some((text) => text.startsWith("Calculated return:"))); fixture.panel.dispose();
+    const texts = runtime.getRenderedText("summary-root");
+    const loadId = runtime.getRenderedIdentityByTitle("summary-root", "Load the selected scenario inputs into Values");
+    assert.equal(runtime.isDisabled(loadId), false);
+    runtime.clickByTitle("Load the selected scenario inputs into Values");
+    assert.equal(fixture.loaded().length, 1);
+    assert.ok(!texts.some((text) => text.startsWith("Calculated return:"))); fixture.panel.dispose();
   } finally { runtime.restore(); }
 });
 
@@ -132,7 +135,7 @@ function createPanel(malformed = false, options: { legacy?: boolean; empty?: boo
     for (let index=0; index<6; index+=1) tutor.seeds.push({ id:"seed:"+index,ordinal:index+1,source:"type",certainty:"exact",inputs:[],objectiveIds:[],evidenceTokens:[],gapIds:[] });
     tutor.program.edges.push({edgeId:"e:return",sourceBlockId:"b:entry",targetBlockId:"b:return",kind:"next"});
     const results = new Map(tutor.seeds.map((seed,index) => [seed.id, [{blockIds:["b:entry","b:return"],edgeIds:["e:return"],transitions:[],terminal:{kind:"return",value:{kind:"number",value:index}},certainty:"exact",scenario:{concrete:true,decisions:[],effects:[]}}]]));
-    const state = { phase:"ready", results, errors:new Map(), resultRevision:1, selectedSeedId:"seed:0", selectedPathIndex:0 }; let acquireCount=0; let releaseCount=0; const subscribers=new Set(); const graphActions=[]; const sourceActions=[]; const previews=[];
+    const state = { phase:"ready", results, errors:new Map(), resultRevision:1, selectedSeedId:"seed:0", selectedPathIndex:0 }; let acquireCount=0; let releaseCount=0; const subscribers=new Set(); const graphActions=[]; const sourceActions=[]; const previews=[]; const loaded=[];
     tutor.program.blocks.push({blockId:"b:return-other",kind:"return",label:"return other",operations:[],terminal:{kind:"return"}});
     tutor.program.blocks.push({blockId:"b:throw",kind:"throw",label:"throw failure",operations:[],terminal:{kind:"throw"}});
     tutor.program.edges.push({edgeId:"e:other",sourceBlockId:"b:entry",targetBlockId:"b:return-other",kind:"next"},{edgeId:"e:throw",sourceBlockId:"b:entry",targetBlockId:"b:throw",kind:"next"});
@@ -143,12 +146,13 @@ function createPanel(malformed = false, options: { legacy?: boolean; empty?: boo
     if(options.empty){tutor.behaviorSummary.status="unavailable";tutor.behaviorSummary.outcomes=[];tutor.behaviorSummary.steps=[];}
     if(options.symbolic){tutor.program.evaluationMode="symbolic-only";tutor.parameters.push({id:"p:count",name:"count",typeText:"Int"});for(const seed of tutor.seeds)seed.inputs.push({parameterId:"p:count",value:{kind:"number",value:17},certainty:"exact"});for(const paths of results.values())for(const path of paths){path.symbolic=true;path.scenario.concrete=false;}}
     const cache=createFunctionTutorRepresentativeSummaryCache(tutor);
-    const panel=createFunctionTutorPanel({tutor}, {scenarioWorkspace:workspace,onShowGraph:item=>graphActions.push(item),onOpenEvidence:token=>sourceActions.push(token),onScenarioPreview:path=>previews.push(path)});
-    return { panel, acquisitions:()=>acquireCount,releases:()=>releaseCount,graphs:()=>graphActions,sources:()=>sourceActions,previews:()=>previews,selection:()=>({seedId:state.selectedSeedId,pathIndex:state.selectedPathIndex}),summary:()=>tutor.behaviorSummary,valid:value=>functionTutorValidBehaviorSummary(value,tutor),rows:()=>readFunctionTutorScenarioRows(state,tutor.seeds),project:(rows,revision)=>cache.read(rows,revision) };
+    const panel=createFunctionTutorPanel({tutor}, {scenarioWorkspace:workspace,onShowGraph:item=>graphActions.push(item),onOpenEvidence:token=>sourceActions.push(token),onScenarioPreview:path=>previews.push(path),onLoadInputs:seed=>loaded.push(seed)});
+    return { panel, acquisitions:()=>acquireCount,releases:()=>releaseCount,graphs:()=>graphActions,sources:()=>sourceActions,previews:()=>previews,loaded:()=>loaded,selection:()=>({seedId:state.selectedSeedId,pathIndex:state.selectedPathIndex}),summary:()=>tutor.behaviorSummary,valid:value=>functionTutorValidBehaviorSummary(value,tutor),rows:()=>readFunctionTutorScenarioRows(state,tutor.seeds),project:(rows,revision)=>cache.read(rows,revision) };
   `)() as {
     panel: { section: HTMLElement; setActive(active: boolean): void; refreshLanguage(): void; dispose(): void };
     acquisitions(): number; releases(): number; graphs(): Array<{ primaryBlockId: string }>; sources(): string[];
     previews(): Array<{ terminal: { kind: string } }>; selection(): { seedId: string; pathIndex: number };
+    loaded(): unknown[];
     summary(): unknown; valid(value: unknown): boolean;
     rows(): Array<{ seed: Record<string, unknown>; pathIndex: number; path: Record<string, unknown> }>;
     project(rows: unknown[], revision: number): { items: Array<{ kind: string; basis: string; terminalSource?: string }> };

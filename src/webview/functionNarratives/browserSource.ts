@@ -1,10 +1,14 @@
 /** Explicit LLM generation controls; construction never evaluates scenarios or contacts a model. */
-import { isFunctionNarrative, isFunctionNarrativeLanguage } from "../../shared/functionNarratives";
+import { createFunctionNarrativeValidator, isFunctionNarrativeLanguage, isFunctionNarrativeExample } from "../../shared/functionNarratives";
+import { getFunctionNarrativeInterpretationBrowserSource } from "./interpretationBrowserSource";
 
 export function getFunctionNarrativesBrowserSource(): string {
   return /* js */ `
-    ${isFunctionNarrative.toString()}
+    ${isFunctionNarrativeExample.toString()}
+    ${createFunctionNarrativeValidator.toString()}
+    const isFunctionNarrative = createFunctionNarrativeValidator(isFunctionNarrativeExample);
     ${isFunctionNarrativeLanguage.toString()}
+    ${getFunctionNarrativeInterpretationBrowserSource()}
     const functionNarrativeRequests = new Map();
     const functionNarrativeResults = new Map();
     let nextFunctionNarrativeRequestId = 0;
@@ -68,11 +72,15 @@ export function getFunctionNarrativesBrowserSource(): string {
       actions.append(requestButton, cancelButton, refreshButton); element.append(heading, actions, help, status, results, pager);
       let result = functionNarrativeResults.get(key + ":" + state.uiLanguage);
       let phase = result ? "ready" : "idle"; let request; let disposed = false; let requestLanguage;
+      let selectedScenarioIndex=0;let selectedScenarioIdentity;let initialExamplesApplied=false;let nodeRequest;let nodeLookupKey;
+      const nodeReader=createFunctionNarrativeNodeReader(callbacks,{id:widgetId,result:()=>result,index:()=>selectedScenarioIndex,scenario:()=>result?.narrative.scenarios[selectedScenarioIndex],
+        loadNode:queryNode,openNodeSource(data,nodeIndex){if(disposed||state.graph?.version!==graphVersion)return;vscode.postMessage({type:"codeFlow/openFunctionNarrativeSource",payload:{graphVersion,flowId:tutor.functionId,contextId:tutor.narratives.contextId,language:data.language,scenarioIndex:data.scenarioIndex,stepIndex:0,nodeIndex,...(data.pageIndex!==undefined?{pageIndex:data.pageIndex}:{})}});}});
+      element.append(nodeReader.element);
       // Retain only sixteen open disclosures across pages and languages. Capture native state
       // before replacement; queued toggle events never request work or mutate a new result.
       const evidenceOpenByKey = new Map(); const evidenceElements = new Map();
 
-      /** Updates only this reading section; graph, scenario inputs and evaluation remain untouched. */
+      /** Renders saved interpretations; only the first result fills empty example inputs automatically. */
       function render() {
         const focusedId = document.activeElement?.id;
         heading.textContent = projectAnalyzerText("narrative-heading");
@@ -100,6 +108,10 @@ export function getFunctionNarrativesBrowserSource(): string {
         }
         while (evidenceOpenByKey.size > 16) evidenceOpenByKey.delete(evidenceOpenByKey.keys().next().value);
         evidenceElements.clear(); results.replaceChildren();
+        if(result?.narrative.scenarios.some((scenario)=>scenario.example)){
+          const identity=result.language+":"+(result.page?.offset||0);
+          if(identity!==selectedScenarioIdentity){selectedScenarioIdentity=identity;selectedScenarioIndex=0;selectScenario(0,initialExamplesApplied?"none":"empty");initialExamplesApplied=true;}
+        }
         if (result) {
           const basis = document.createElement("p"); basis.className = "logic-summary-basis";
           basis.textContent = projectAnalyzerText("narrative-ready") + " · " + result.modelName + " · " + projectAnalyzerText("narrative-language", { language: projectAnalyzerText("narrative-language-" + result.language) })
@@ -119,6 +131,9 @@ export function getFunctionNarrativesBrowserSource(): string {
             paragraph.textContent = scenario.explanation || [...scenario.when, ...scenario.steps.flatMap((step) => [step.text, step.reason, step.effect]), scenario.outcome]
               .filter(Boolean).map((value) => /[.!?。！？]$/.test(value.trim()) ? value.trim() : value.trim() + ".").join(" ");
             article.append(paragraph);
+            appendFunctionNarrativeExample(article,scenario,index===selectedScenarioIndex,{id:widgetId+"-scenario-"+globalIndex,canApply:Boolean(callbacks?.onNarrativeScenario),canShowGraph:Boolean(callbacks?.onShowGraph),
+              select(){selectScenario(index,"replace");render();},graph(){selectScenario(index,"none");callbacks?.onShowGraph?.({preferredLens:"flow",primaryBlockId:scenario.graph?.nodeIds[0],attentionBlockIds:scenario.graph?.nodeIds||[],attentionEdgeIds:scenario.graph?.edgeIds||[]});nodeReader.refresh();},
+              apply(){selectScenario(index,"replace");callbacks?.onOpenNarrativeValues?.(scenario.example);render();}});
             const evidence = document.createElement("details"); const evidenceSummary = document.createElement("summary"); const evidenceBody = document.createElement("div");
             evidence.className = "logic-narrative-evidence"; evidenceBody.className = "logic-narrative-evidence-body";
             evidenceSummary.id = widgetId + "-evidence-" + globalIndex;
@@ -153,7 +168,19 @@ export function getFunctionNarrativesBrowserSource(): string {
           }
           appendFacts(results, "narrative-limitations", result.narrative.limitations);
         }
-        if (focusedId?.startsWith(widgetId + "-source-") || focusedId?.startsWith(widgetId + "-evidence-")) document.getElementById(focusedId)?.focus();
+        nodeReader.refresh();
+        if (focusedId?.startsWith(widgetId + "-source-") || focusedId?.startsWith(widgetId + "-evidence-") || focusedId?.startsWith(widgetId + "-scenario-")) document.getElementById(focusedId)?.focus();
+      }
+      /** A scenario selection changes graph examples; cached navigation and progress preserve edited inputs. */
+      function selectScenario(index,apply){selectedScenarioIndex=index;const scenario=result?.narrative.scenarios[index];if(scenario)callbacks?.onNarrativeScenario?.(scenario,{apply});nodeLookupKey=undefined;}
+      /** Out-of-page node descriptions use the stored result index and never authorize inference. */
+      function queryNode(nodeId){
+        if(disposed||!result||state.graph?.version!==graphVersion||!/^function-logic-block:[0-9a-f]{32}$/.test(nodeId))return;
+        const key=result.language+":"+(result.coverage?.completed||0)+":"+nodeId;if(key===nodeLookupKey)return;nodeLookupKey=key;
+        if(nodeRequest)functionNarrativeRequests.delete(nodeRequest.requestId);
+        nodeRequest={graphVersion,flowId:tutor.functionId,requestId:++nextFunctionNarrativeRequestId,nodeId,pageLanguage:result.language};
+        const requested=nodeRequest;functionNarrativeRequests.set(requested.requestId,{request:requested,accept(payload){if(disposed||nodeRequest!==requested)return;nodeRequest=undefined;if(payload.status==="ready"&&validFunctionNarrativesResponse(payload)&&isFunctionNarrativeLanguage(payload.narrative,payload.language))nodeReader.remember(payload,nodeId);}});
+        vscode.postMessage({type:"codeFlow/requestFunctionNarratives",payload:requested});
       }
       function appendFacts(parent, copyKey, values) {
         if (!values.length) return;
@@ -220,8 +247,8 @@ export function getFunctionNarrativesBrowserSource(): string {
       // A retained history detail can outlive the eight Host contexts. Reload only on this explicit action.
       refreshButton.addEventListener("click", () => { if (!disposed && phase === "stale" && state.graph?.version === graphVersion) callbacks?.onRefreshFunction?.(tutor.narratives.sourceToken); });
       render();
-      return { element, refreshLanguage() { result = functionNarrativeResults.get(key + ":" + state.uiLanguage) || result; render(); },
-        dispose() { disposed = true; cancel(); } };
+      return { element,start:()=>startRequest(), refreshLanguage() { result = functionNarrativeResults.get(key + ":" + state.uiLanguage) || result; render(); },
+        dispose() { disposed = true; cancel();if(nodeRequest)functionNarrativeRequests.delete(nodeRequest.requestId);nodeReader.dispose(); } };
     }
   `;
 }

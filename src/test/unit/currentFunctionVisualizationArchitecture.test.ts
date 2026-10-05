@@ -511,7 +511,8 @@ test("Scenario values stay bounded, calculated, traceable, session-scoped, and b
   assert.match(dataFlow, /createFunctionLogicValuePreviewEditor/u);
   assert.match(dataFlow, /createFunctionLogicValuePreviewLabel/u);
   assert.match(dataFlow, /readFunctionLogicScenarioEditableBindings/u);
-  assert.match(preview, /MAX_LOGIC_VALUE_PREVIEW_LENGTH = 240/u);
+  assert.match(preview, /MAX_LOGIC_VALUE_PREVIEW_LENGTH = 1200/u);
+  assert.match(preview, /MAX_LOGIC_VALUE_LABEL_LENGTH = 240/u);
   assert.match(preview, /MAX_LOGIC_VALUE_PREVIEW_ROWS = 120/u);
   assert.match(preview, /MAX_LOGIC_MANUAL_SCENARIO_ROWS = 32/u);
   assert.match(preview, /MAX_LOGIC_MANUAL_SCENARIO_NAME_LENGTH = 80/u);
@@ -530,7 +531,7 @@ test("Scenario values stay bounded, calculated, traceable, session-scoped, and b
   assert.match(dataFlow, /selectBinding\(bindingId, false\)/u);
   assert.match(dataFlow, /valuePreviewRendering\.setSelectedBinding/u);
   assert.match(dataFlow, /scenarioTraceRendering\.setSelectedBinding/u);
-  assert.match(preview, /label\.textContent = value \? "= " \+ value : ""/u);
+  assert.match(preview, /label\.textContent = value \? "= " \+ formatFunctionLogicValuePreviewLabel\(value\) : ""/u);
   assert.match(trace, /MAX_LOGIC_SCENARIO_TRACE_STEPS = 80/u);
   assert.match(trace, /formatFunctionLogicScenarioRole/u);
   assert.match(trace, /calculateFunctionLogicScenario/u);
@@ -568,7 +569,7 @@ test("Scenario Variables and its Inspector are invariant even without analyzer b
     "src/webview/codeFlow/dataFlow/functionLogicDataFlowBrowserSource.ts"
   );
 
-  assert.match(renderer, /createFunctionLogicInspector\(choiceSessionKey\)/u);
+  assert.match(renderer, /createFunctionLogicInspector\(choiceSessionKey,\s*Boolean\(logic\.tutor\?\.narratives\?\.available\)\)/u);
   assert.match(inspector, /functionLogicInspectorStateBySession/u);
   assert.match(inspector, /MAX_FUNCTION_LOGIC_INSPECTOR_SESSIONS/u);
   assert.match(dataFlow, /valuePreviewEditor: valuePreviewRendering\.element/u);

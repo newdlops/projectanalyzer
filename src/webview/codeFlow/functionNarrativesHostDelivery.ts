@@ -65,7 +65,11 @@ export class FunctionNarrativesHostDelivery {
       || !Number.isSafeInteger(request.scenarioIndex) || request.scenarioIndex < 0 || !Number.isSafeInteger(request.stepIndex) || request.stepIndex < 0) return undefined;
     const result = entry.cached.get(request.language);
     if ((request.pageIndex ?? 0) !== (result?.page?.index ?? 0)) return undefined;
-    const evidenceToken = result?.evidenceTokens?.[request.scenarioIndex]?.[request.stepIndex];
+    const detail = request.nodeIndex !== undefined && result?.narrative?.scenarios[request.scenarioIndex]?.nodeDetails?.[request.nodeIndex];
+    if (request.nodeIndex !== undefined && (!Number.isSafeInteger(request.nodeIndex) || request.nodeIndex < 0 || !detail)) return undefined;
+    const evidenceToken = detail ? this.dependencies.createEvidence(entry.filePath, {
+      startLine: detail.source.startLine - 1, startCharacter: 0, endLine: detail.source.endLine, endCharacter: 0
+    }) : result?.evidenceTokens?.[request.scenarioIndex]?.[request.stepIndex];
     if (!result || !evidenceToken) return undefined;
     return { evidenceToken, present: () => {
       // Opening the native editor is asynchronous; replacement/eviction during that await revokes restoration.
@@ -96,9 +100,21 @@ export class FunctionNarrativesHostDelivery {
     if (!entry || entry.graphVersion !== request.graphVersion || !this.dependencies.isActive(request.graphVersion)) {
       await send({ status: "stale" }); return;
     }
+    const language = this.dependencies.getLanguage();
+    if (request.nodeId !== undefined) {
+      const locale = request.pageLanguage ?? language;
+      const session = entry.sessions.get(locale);
+      const page = await session?.readNodePage(request.nodeId);
+      if (this.contexts.get(request.flowId) !== entry || !this.dependencies.isActive(request.graphVersion)) return;
+      if (!session || !page) { await send({ status: "unavailable" }); return; }
+      // A quiet node lookup must not replace the visible page's source-action cache.
+      await send({ status: "ready", ...this.projectPage(entry, session, page, locale), cacheHit: true }); return;
+    }
+    // Node lookups have their own browser correlation and cannot supersede an active page or generation request.
     if (request.requestId <= entry.lastRequestId) return;
     entry.lastRequestId = request.requestId;
-    const language = this.dependencies.getLanguage();
+    // Preserve every declared parameter; unsupported example size fails before download/inference instead of silently dropping inputs.
+    if ((entry.context.parameters?.length ?? 0) > 32) { await send({ status: "context-too-large" }); return; }
     if (request.pageIndex !== undefined) {
       const locale = request.pageLanguage ?? language;
       const session = entry.sessions.get(locale);
@@ -178,7 +194,13 @@ export class FunctionNarrativesHostDelivery {
       if (!current()) return;
       while (!session.complete) {
         let timedOut = false;
-        const timer = setTimeout(() => { timedOut = true; controller.abort(); }, SCENARIO_BATCH_DEADLINE_MS);
+        let timer: ReturnType<typeof setTimeout> | undefined;
+        // Node chunks may outlive one deadline in total; each actual inference keeps its own bound.
+        const boundedProvider: FunctionNarrativeProvider = { async generate(context, locale, signal, options) {
+          timer = setTimeout(() => { timedOut = true; controller.abort(); }, SCENARIO_BATCH_DEADLINE_MS);
+          try { return await provider.generate(context, locale, signal, options); }
+          finally { clearTimeout(timer); }
+        } };
         let onAbort = () => {};
         const cancelled = new Promise<never>((_resolve, reject) => {
           onAbort = () => reject(new FunctionNarrativeError(timedOut ? "timeout" : "cancelled"));
@@ -186,7 +208,7 @@ export class FunctionNarrativesHostDelivery {
         });
         try {
           if (controller.signal.aborted) throw new FunctionNarrativeError("cancelled");
-          await Promise.race([session.analyzeNext(provider, language, controller.signal, { reselectModel: entry.reselectModel }), cancelled]);
+          await Promise.race([session.analyzeNext(boundedProvider, language, controller.signal, { reselectModel: entry.reselectModel }), cancelled]);
         } finally { clearTimeout(timer); controller.signal.removeEventListener("abort", onAbort); }
         if (!current() || controller.signal.aborted) return;
         generated = true;

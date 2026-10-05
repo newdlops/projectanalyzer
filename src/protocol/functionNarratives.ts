@@ -4,6 +4,8 @@ import type { CodeFlowEvidenceToken } from "./functionLogic";
 import type { FunctionNarrative, FunctionNarrativeSnippet } from "../shared/functionNarratives";
 
 export type FunctionNarrativesRequest = { graphVersion: string; flowId: CodeFlowId; requestId: number;
+  /** Cache-only lookup for a graph node whose scenario lives on another saved page. */
+  nodeId?: string;
   /** Cache-only paging is a separate intent from generation; it never invokes a provider. */
   pageIndex?: number;
   pageLanguage?: "ko" | "en" };
@@ -15,6 +17,8 @@ export type FunctionNarrativeSourceRequest = {
   language: "ko" | "en";
   scenarioIndex: number;
   stepIndex: number;
+  /** Chooses a Host-cached node detail instead of a legacy summary step. */
+  nodeIndex?: number;
   pageIndex?: number;
 };
 export type FunctionNarrativesResponse = FunctionNarrativesRequest & {

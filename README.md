@@ -190,6 +190,10 @@ dedicated Function Visualizer tab with a bounded control-flow graph:
   sequential batches, retain completed pages on cancel/error, continue remaining
   analysis explicitly, and read saved pages without another model call. Loop
   iteration counts and path feasibility remain unverified
+- model scenario examples and node explanations: prepare named inputs/results and
+  reason/value changes for every supplied source node. Select a scenario, show its
+  graph, apply editable examples, and read saved node details without more inference.
+  The first result fills empty inputs; paging and locale changes preserve user edits
 - compact graph controls: **Function Guide**, **Fit**, and a closed **Tools**
   disclosure for zoom, centering, the reading outline, Inspector and legend
 - lazy **Source Path Scenarios** under that guide, with statically inferred inputs,
@@ -197,7 +201,8 @@ dedicated Function Visualizer tab with a bounded control-flow graph:
   Values** copies only known values into the existing editor and opens its tab
 - three representative scenarios, expandable to five, selected from the same bounded
   Scenario Workspace rows. Selection and locale changes reuse completed results;
-  Kotlin paths describe source assumptions with value calculation and input application disabled
+  Kotlin paths describe source assumptions with runtime calculation unavailable;
+  model example inputs remain editable and can be applied to Values
 - a path-centric **Scenario Workspace** in Values that lists every reachable path as
   its own row with path conditions, expected effects, evidence gaps, and named input
   evidence; when values cannot be evaluated, bounded symbolic rows preserve source
@@ -718,8 +723,9 @@ Lexical value flow retains at most 80 unambiguous bindings, 700 access facts, an
 an analysis gap. The Webview derives at most 1,500 cycle-safe nearest-use hops from
 those semantic relations. Graph nodes render at most eight access rows while the binding
 selector still exposes every retained binding. The scenario-value editor shows at
-most 120 retained bindings and accepts up to 240 literal characters per binding;
-its selected trace/playback renders at most 80 possible static Scenario frames,
+most 120 retained bindings and accepts up to 1,200 literal characters per binding;
+graph labels retain a 240-character preview while the editor keeps the full value.
+Its selected trace/playback renders at most 80 possible static Scenario frames,
 beginning with `START name = value`; transition frames retain `before → after`
 and exact/inferred/unknown text while using travelers only for existing lexical
 hops; matching travel is bounded slow curved path sampling, with a discrete fallback. Selecting a value only

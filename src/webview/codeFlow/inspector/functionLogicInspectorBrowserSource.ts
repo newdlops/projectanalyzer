@@ -33,7 +33,7 @@ export function getFunctionLogicInspectorBrowserSource(): string {
     }
 
     /** Builds a right-side drawer whose mode survives graph relayouts. */
-    function createFunctionLogicInspector(sessionKey) {
+    function createFunctionLogicInspector(sessionKey, hasNarratives = false) {
       const state = readFunctionLogicInspectorState(sessionKey);
       // Construction precedes Guide registration. Save the desired mode before
       // the temporary guideless shell falls back to Inspect during a relayout.
@@ -104,7 +104,7 @@ export function getFunctionLogicInspectorBrowserSource(): string {
         eyebrow.textContent = projectAnalyzerText(guideMode ? "guide-eyebrow" : "inspector-eyebrow");
         heading.textContent = projectAnalyzerText(guideMode ? "understand-function" : "reading-tab-" + state.tab);
         description.textContent = guideMode
-          ? projectAnalyzerText("guide-description") : projectAnalyzerText("reading-tab-" + state.tab + "-hint");
+          ? projectAnalyzerText(hasNarratives ? "narrative-guide-description" : "guide-description") : projectAnalyzerText("reading-tab-" + state.tab + "-hint");
         selectedLabel.hidden = guideMode || state.tab !== "code";
         selectedLabel.textContent = currentSelectionLabel;
       }
