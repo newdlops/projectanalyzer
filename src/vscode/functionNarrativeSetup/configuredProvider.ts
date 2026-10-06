@@ -1,7 +1,9 @@
 /** Inert configuration adapter: source-free managed preparation precedes bounded model inference. */
 import { stat } from "node:fs/promises";
 import type * as vscode from "vscode";
-import { FunctionNarrativeError, type FunctionNarrativeProvider } from "../../application/functionNarratives";
+import { FunctionNarrativeError, scheduleFunctionNarrativePreparation, scheduleFunctionNarrativeRequest,
+  type FunctionNarrativeOperationOptions, type FunctionNarrativeProvider } from "../../application/functionNarratives";
+import { getGlobalModelTaskManager, type ModelTaskManager } from "../../shared/modelTasks";
 import { createLocalFunctionNarrativeProvider } from "../../llm/functionNarratives";
 import { LocalModelError, type ManagedLocalModelCache } from "../../shared/localModels";
 import { createVsCodeFunctionNarrativeProvider, type FunctionNarrativeVsCodeApi } from "../functionNarrativeProvider";
@@ -16,21 +18,27 @@ type LocalFactory = typeof createLocalFunctionNarrativeProvider;
 
 /** A signal binds a prepared provider for the entire explicit run, even if settings change between batches. */
 export function createConfiguredNarrativeProvider(api: ConfiguredNarrativeApi, models: ManagedLocalModelCache,
-  createLocal: LocalFactory = createLocalFunctionNarrativeProvider): FunctionNarrativeProvider {
-  const connected = createVsCodeFunctionNarrativeProvider(api);
+  createLocal?: LocalFactory, manager: ModelTaskManager = getGlobalModelTaskManager()): FunctionNarrativeProvider {
+  const connected = createVsCodeFunctionNarrativeProvider(api, manager);
+  const localFactory = createLocal ?? (options => createLocalFunctionNarrativeProvider({ ...options, taskManager: manager }));
   const prepared = new WeakMap<AbortSignal, Promise<FunctionNarrativeProvider>>();
   let local: { key: string; provider: FunctionNarrativeProvider } | undefined;
-  const resolve = (language: "ko" | "en", signal: AbortSignal) => {
+  const resolve = (language: "ko" | "en", signal: AbortSignal, options?: FunctionNarrativeOperationOptions) => {
     let pending = prepared.get(signal);
-    if (!pending) { pending = choose(language, signal); prepared.set(signal, pending); }
+    if (!pending) {
+      pending = scheduleFunctionNarrativePreparation(manager, signal, operation => choose(language, operation), options);
+      prepared.set(signal, pending);
+    }
     return pending;
   };
   return {
-    async prepare(language, signal) { await resolve(language, signal); },
+    managesDeadlines: true,
+    async prepare(language, signal, options) { await resolve(language, signal, options); },
     async generate(context, language, signal, options) {
-      const provider = await resolve(language, signal);
+      const provider = await resolve(language, signal, { ...options, label: context.functionName });
       if (signal.aborted) throw new FunctionNarrativeError("cancelled");
-      return provider.generate(context, language, signal, options);
+      return scheduleFunctionNarrativeRequest(manager, context.functionName, signal,
+        operation => provider.generate(context, language, operation, options), options);
     }
   };
 
@@ -45,7 +53,7 @@ export function createConfiguredNarrativeProvider(api: ConfiguredNarrativeApi, m
     const modelPath = customExists ? configuredModel : await prepareManaged(language, signal);
     if (signal.aborted) throw new FunctionNarrativeError("cancelled");
     const key = binaryPath + "\0" + modelPath;
-    if (local?.key !== key) local = { key, provider: createLocal({ binaryPath, modelPath }) };
+    if (local?.key !== key) local = { key, provider: localFactory({ binaryPath, modelPath }) };
     return local.provider;
   }
 

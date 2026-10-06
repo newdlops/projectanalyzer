@@ -1,5 +1,5 @@
 /** Host-owned, snapshot-scoped LLM lifecycle and evidence projection, shared by both function surfaces. */
-import { FunctionNarrativeError, parseFunctionNarrative, type FunctionNarrativeProvider } from "../../application/functionNarratives";
+import { FunctionNarrativeError, parseFunctionNarrative, requestFunctionNarrative, type FunctionNarrativeProvider } from "../../application/functionNarratives";
 import type { FunctionNarrativeContext, FunctionNarrativeSourcePresenter, FunctionNarrativePageStoreFactory } from "../../shared/functionNarratives";
 import { FunctionNarrativeScenarioSession, type FunctionNarrativeStoredPage } from "./functionNarrativeScenarioSession";
 import type { FunctionNarrativesRequest, FunctionNarrativesResponse, FunctionNarrativeSourceRequest } from "../../protocol/functionNarratives";
@@ -8,8 +8,8 @@ import type { CodeFlowEvidenceToken } from "../../protocol/functionLogic";
 import type { SourceRange } from "../../shared/types";
 import { createContentHash } from "../../shared/hash";
 
-// Upgraded local models need longer for a source-dense batch. Total function
-// duration is uncapped; cancellation and the provider's output/process limits remain in force.
+// Unmanaged adapters retain a fallback deadline. Production adapters measure
+// their three-minute execution bound after the global queue grants ownership.
 const SCENARIO_BATCH_DEADLINE_MS = 90000;
 type ReadyResult = Pick<FunctionNarrativesResponse, "narrative" | "snippets" | "evidenceTokens" | "modelName" | "limited" | "language" | "page" | "coverage">;
 type ContextEntry = { graphVersion: string; contextId: string; context: FunctionNarrativeContext; filePath: string; sourceHash?: string; lastRequestId: number; reselectModel: boolean; cached: Map<string, ReadyResult>; sessions: Map<string, FunctionNarrativeScenarioSession> };
@@ -127,30 +127,43 @@ export class FunctionNarrativesHostDelivery {
       entry.cached.set(locale, result); this.presentSource(request.flowId, entry, result);
       await send({ status: "ready", ...result, cacheHit: true }); return;
     }
-    this.pending?.controller.abort();
     if (entry.context.scenarioGraph && this.dependencies.createPageStore) {
+      const session = entry.sessions.get(language);
+      if (session?.complete) {
+        // Reading a completed function must not revoke a different function's
+        // pending execution slot. Keep cache-only work outside pending ownership.
+        const first = await session.readPage(0);
+        if (this.contexts.get(request.flowId) !== entry || !this.dependencies.isActive(request.graphVersion)
+          || entry.lastRequestId !== request.requestId) return;
+        if (!first) { await send({ status: "unavailable" }); return; }
+        const result = this.projectPage(entry, session, first, language);
+        entry.cached.set(language, result); this.presentSource(request.flowId, entry, result);
+        await send({ status: "ready", ...result, cacheHit: true }); return;
+      }
+      this.pending?.controller.abort();
       await this.requestComplete(request, entry, language); return;
     }
     const cached = entry.cached.get(language);
     if (cached) { this.presentSource(request.flowId, entry, cached); await send({ status: "ready", ...cached, cacheHit: true }); return; }
     const provider = this.dependencies.provider;
     if (!provider) { await send({ status: "unavailable" }); return; }
+    this.pending?.controller.abort();
     const controller = new AbortController();
     const pending = { request, controller }; this.pending = pending;
-    let timedOut = false;
-    let timeout: ReturnType<typeof setTimeout> | undefined;
     let onAbort: () => void = () => {};
     const cancelled = new Promise<never>((_resolve, reject) => {
-      onAbort = () => reject(new FunctionNarrativeError(timedOut ? "timeout" : "cancelled"));
+      onAbort = () => reject(new FunctionNarrativeError("cancelled"));
       controller.signal.addEventListener("abort", onAbort, { once: true });
     });
     const stillCurrent = () => this.contexts.get(request.flowId) === entry && this.dependencies.isActive(request.graphVersion);
+    const operation = { label: entry.context.functionName, onProgress: (task: NonNullable<FunctionNarrativesResponse["task"]>) => {
+      if (this.pending === pending && stillCurrent()) void send({ status: "working", task }).catch(() => {});
+    } };
     try {
-      if (provider.prepare) await Promise.race([provider.prepare(language, controller.signal), cancelled]);
+      if (provider.prepare) await Promise.race([provider.prepare(language, controller.signal, operation), cancelled]);
       if (controller.signal.aborted || this.pending !== pending || !stillCurrent()) return;
-      // A first-use multi-gigabyte transfer is not part of the inference deadline.
-      timeout = setTimeout(() => { timedOut = true; controller.abort(); }, 45000);
-      const response = await Promise.race([provider.generate(entry.context, language, controller.signal, { reselectModel: entry.reselectModel }), cancelled]);
+      const response = await Promise.race([requestFunctionNarrative(provider, entry.context, language, controller.signal, 45000,
+        { ...operation, reselectModel: entry.reselectModel }), cancelled]);
       if (controller.signal.aborted || this.pending !== pending || !stillCurrent()) return;
       const narrative = parseFunctionNarrative(response.text, entry.context, language);
       const evidenceTokens = narrative.scenarios.map((scenario) => scenario.steps.map((step) => {
@@ -173,12 +186,12 @@ export class FunctionNarrativesHostDelivery {
         await send({ status });
       }
     } finally {
-      clearTimeout(timeout); controller.signal.removeEventListener("abort", onAbort);
+      controller.signal.removeEventListener("abort", onAbort);
       if (this.pending === pending) this.pending = undefined;
     }
   }
 
-  /** Source-free preparation precedes all source batches; each inference has its own 90-second deadline. */
+  /** Every source/node batch enters the shared queue independently, so long functions do not monopolize it. */
   private async requestComplete(request: FunctionNarrativesRequest, entry: ContextEntry, language: "ko" | "en"): Promise<void> {
     const provider = this.dependencies.provider;
     const send = (result: Omit<FunctionNarrativesResponse, keyof FunctionNarrativesRequest>) =>
@@ -189,27 +202,25 @@ export class FunctionNarrativesHostDelivery {
     const controller = new AbortController(); const pending = { request, controller }; this.pending = pending;
     let generated = false;
     const current = () => this.pending === pending && this.contexts.get(request.flowId) === entry && this.dependencies.isActive(request.graphVersion);
+    const operation = { label: entry.context.functionName, onProgress: (task: NonNullable<FunctionNarrativesResponse["task"]>) => {
+      if (current()) void send({ status: "working", task }).catch(() => {});
+    } };
     try {
-      if (!session.complete && provider.prepare) await this.prepareProvider(provider, language, controller.signal);
+      if (!session.complete && provider.prepare) await this.prepareProvider(provider, language, controller.signal, operation);
       if (!current()) return;
       while (!session.complete) {
-        let timedOut = false;
-        let timer: ReturnType<typeof setTimeout> | undefined;
-        // Node chunks may outlive one deadline in total; each actual inference keeps its own bound.
-        const boundedProvider: FunctionNarrativeProvider = { async generate(context, locale, signal, options) {
-          timer = setTimeout(() => { timedOut = true; controller.abort(); }, SCENARIO_BATCH_DEADLINE_MS);
-          try { return await provider.generate(context, locale, signal, options); }
-          finally { clearTimeout(timer); }
+        const boundedProvider: FunctionNarrativeProvider = { generate(context, locale, signal, options) {
+          return requestFunctionNarrative(provider, context, locale, signal, SCENARIO_BATCH_DEADLINE_MS, { ...options, ...operation });
         } };
         let onAbort = () => {};
         const cancelled = new Promise<never>((_resolve, reject) => {
-          onAbort = () => reject(new FunctionNarrativeError(timedOut ? "timeout" : "cancelled"));
+          onAbort = () => reject(new FunctionNarrativeError("cancelled"));
           controller.signal.addEventListener("abort", onAbort, { once: true });
         });
         try {
           if (controller.signal.aborted) throw new FunctionNarrativeError("cancelled");
           await Promise.race([session.analyzeNext(boundedProvider, language, controller.signal, { reselectModel: entry.reselectModel }), cancelled]);
-        } finally { clearTimeout(timer); controller.signal.removeEventListener("abort", onAbort); }
+        } finally { controller.signal.removeEventListener("abort", onAbort); }
         if (!current() || controller.signal.aborted) return;
         generated = true;
         entry.reselectModel = false;
@@ -242,14 +253,15 @@ export class FunctionNarrativesHostDelivery {
   }
 
   /** Cancellation wins even if a setup adapter fails to observe its signal; cached pages never call this. */
-  private async prepareProvider(provider: FunctionNarrativeProvider, language: "ko" | "en", signal: AbortSignal): Promise<void> {
+  private async prepareProvider(provider: FunctionNarrativeProvider, language: "ko" | "en", signal: AbortSignal,
+    options?: Parameters<NonNullable<FunctionNarrativeProvider["prepare"]>>[2]): Promise<void> {
     if (signal.aborted) throw new FunctionNarrativeError("cancelled");
     let abort = () => {};
     const cancelled = new Promise<never>((_resolve, reject) => {
       abort = () => reject(new FunctionNarrativeError("cancelled"));
       signal.addEventListener("abort", abort, { once: true });
     });
-    try { await Promise.race([provider.prepare!(language, signal), cancelled]); }
+    try { await Promise.race([provider.prepare!(language, signal, options), cancelled]); }
     finally { signal.removeEventListener("abort", abort); }
   }
 

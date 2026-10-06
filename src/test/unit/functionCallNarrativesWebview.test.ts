@@ -31,6 +31,12 @@ test("call-mode generation, cached selection, source actions and locale retain t
     const choices=runtime.getRenderedText("function-calls").filter(text=>text.includes("!enabled"));
     runtime.clickRenderedByClassNth("function-calls","calls-reading-request",0);
     const request=runtime.messages.at(-1);assert.equal(request?.type,"functionCalls/explain");assert.equal((request!.payload as FunctionCallNarrativesRequest).scope,"scenario");
+    runtime.focusRenderedByClassNth("function-calls","calls-reading-cancel",0);
+    const focused=runtime.getFocusedElementId();
+    runtime.dispatchMessage({type:"functionCalls/explanationLoaded",payload:{...request!.payload as FunctionCallNarrativesRequest,status:"working",task:{id:"model-task:2",kind:"inference",phase:"queued",position:2,waiting:2}}});
+    assert.ok(runtime.getRenderedText("function-calls").some(text=>text.includes("position 2")));assert.equal(runtime.getFocusedElementId(),focused);assert.equal(calls,0);
+    runtime.dispatchMessage({type:"functionCalls/explanationLoaded",payload:{...request!.payload as FunctionCallNarrativesRequest,status:"working",task:{id:"model-task:1",kind:"inference",phase:"running",position:0,waiting:0}}});
+    assert.ok(runtime.getRenderedText("function-calls").some(text=>text.includes("position 2")),"an older operation cannot replace the current queued state");
     await delivery.explain(request!.payload as FunctionCallNarrativesRequest);replies.forEach(payload=>runtime.dispatchMessage({type:"functionCalls/explanationLoaded",payload}));
     assert.equal(calls,1);assert.equal(runtime.countRenderedByClass("function-calls","calls-reading-facts"),1);
     assert.ok(runtime.getRenderedText("function-calls").some(text=>text.includes("Caller arguments bind")));

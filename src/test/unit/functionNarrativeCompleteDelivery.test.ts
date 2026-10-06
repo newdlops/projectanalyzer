@@ -86,6 +86,27 @@ test("cancel preserves completed pages and explicit resume retries only the pend
   } finally { f.delivery.clear(); }
 });
 
+test("reading a completed function does not cancel another function's pending batch", async () => {
+  let calls = 0, started!: () => void, release!: () => void, runningSignal: AbortSignal | undefined;
+  const entered = new Promise<void>(resolve => { started = resolve; });
+  const hold = new Promise<void>(resolve => { release = resolve; });
+  const f = fixture({ async generate(context, _language, signal) {
+    if (++calls === 5) { runningSignal = signal; started(); await hold; }
+    return reply(context);
+  } });
+  try {
+    await f.delivery.request(request);
+    const other = { ...request, flowId: `code-flow:${"d".repeat(32)}` as const };
+    f.delivery.register(other.flowId, other.graphVersion, f.context, "/private/inspect.ts");
+    const pending = f.delivery.request(other); await entered;
+    await f.delivery.request({ ...request, requestId: 2 });
+    assert.equal(runningSignal?.aborted, false); assert.equal(calls, 5);
+    assert.ok(f.messages.some(message => message.flowId === request.flowId && message.requestId === 2 && message.cacheHit));
+    release(); await pending;
+    assert.equal(calls, 8); assert.equal(f.messages.at(-1)?.status, "ready");
+  } finally { release(); f.delivery.clear(); }
+});
+
 test("a slow older page cannot replace a later page's source annotations", async () => {
   const f = fixture({ async generate(context) { return reply(context); } });
   let release!: () => void;

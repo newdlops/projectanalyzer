@@ -7,6 +7,7 @@
   "command.openModuleFlow": "Open Project Module Flow",
   "command.clearFunctionNarrativeDecorations": "Clear LLM Source Annotations",
   "command.category": "Code Flow",
+  "command.openModelTasks": "Model Tasks",
   "configuration.title": "Project Analyzer: Code Flow",
   "configuration.functionNarratives.provider": "LLM used only when generating behavior scenarios. Local runs a GGUF model on this computer and releases it after each request; vscode uses a connected VS Code chat model.",
   "configuration.functionNarratives.localBinary": "Path to llama.cpp's llama-completion executable. Leave empty to use Homebrew or PATH. No server or model runs while idle.",

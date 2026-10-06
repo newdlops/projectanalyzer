@@ -4,6 +4,7 @@ import type { FunctionCallNarrativeChunk, FunctionCallNarrativeScope, FunctionCa
 import type { FunctionNarrativeFailure } from "../shared/functionNarratives";
 import type { SourceNodeToken } from "./sourceNavigation";
 import type { CodeFlowEvidenceToken } from "./functionLogic";
+import type { ModelTaskProgress } from "../shared/modelTasks";
 export type FunctionCallNarrativesRequest = FunctionCallsRequest & {
   contextId: string;
   scope: FunctionCallNarrativeScope; connectionId?: string; choices?: Array<{ key: string; value: string }>;
@@ -16,7 +17,8 @@ export type FunctionCallReadingEntry = FunctionCallReading & {
   callerEvidence?: CodeFlowEvidenceToken; calleeEvidence?: CodeFlowEvidenceToken; calleeSourceToken?: SourceNodeToken;
 };
 export type FunctionCallNarrativesResponse = FunctionCallNarrativesRequest & {
-  status: "ready" | "progress" | "stale" | FunctionNarrativeFailure;
+  status: "ready" | "progress" | "working" | "stale" | FunctionNarrativeFailure;
+  task?: ModelTaskProgress;
   modelName?: string; language?: "ko" | "en"; cacheHit?: boolean;
   narrative?: Omit<FunctionCallNarrativeChunk, "calls"> & { calls: FunctionCallReadingEntry[] };
   coverage?: { completed: number; total: number; complete: boolean; sourceLimited: boolean };

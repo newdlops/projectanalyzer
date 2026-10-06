@@ -89,6 +89,13 @@ selection and paging do not start a model; completed work can be resumed after
 cancellation. Caller and callee source actions use the same snapshot authority.
 See [call-reading contracts and verification](docs/FUNCTION_NARRATIVES.md#함수-호출의-정적-분석과-llm-해설).
 
+Guide and call explanations share a FIFO model queue within each Extension Host.
+Queued requests show their position; the three-minute execution limit starts
+when inference begins. Open **Code Flow: Model Tasks** from the Command Palette
+or the native status bar to inspect running/waiting work, cancel tasks and read
+failure categories. Completed explanations remain available. Separate VS Code
+windows have separate execution queues.
+
 **At a glance** starts with authored documentation, inputs, decisions and
 outcomes. Each reading action selects the corresponding graph node and its
 plain-language explanation in **Understand code**.

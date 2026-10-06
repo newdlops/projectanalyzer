@@ -2,7 +2,7 @@
   "name": "function-analysis",
   "displayName": "%extension.displayName%",
   "description": "%extension.description%",
-  "version": "0.0.1112",
+  "version": "0.0.1113",
   "publisher": "newdlops",
   "private": true,
   "license": "MIT",
@@ -43,7 +43,8 @@
   "activationEvents": [
     "onView:projectAnalyzer.explorerView",
     "onCommand:projectAnalyzer.visualizeCurrentFunction",
-    "onCommand:projectAnalyzer.openModuleFlow"
+    "onCommand:projectAnalyzer.openModuleFlow",
+    "onCommand:projectAnalyzer.openModelTasks"
   ],
   "main": "./out/extension/activate.js",
   "contributes": {
@@ -66,6 +67,11 @@
       ]
     },
     "commands": [
+      {
+        "command": "projectAnalyzer.openModelTasks",
+        "title": "%command.openModelTasks%",
+        "category": "%command.category%"
+      },
       {
         "command": "projectAnalyzer.visualizeCurrentFunction",
         "title": "%command.visualizeCurrentFunction%",

@@ -3,19 +3,26 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { createVsCodeFunctionNarrativeProvider, type FunctionNarrativeVsCodeApi } from "../../vscode/functionNarrativeProvider";
 import type { FunctionNarrativeContext } from "../../shared/functionNarratives";
+import { ModelTaskManager } from "../../shared/modelTasks";
 
 const context: FunctionNarrativeContext = { functionName: "describe", language: "kotlin", limited: false,
   snippets: [{ id: "root", role: "function", startLine: 1, endLine: 1, text: 'fun describe() = "ready"', truncated: false }] };
 
 /** The fake covers only external APIs; the production adapter creates prompts and handles responses. */
-function apiFixture(options: { missing?: boolean; oversized?: boolean; tokenCount?: number; deny?: boolean } = {}) {
-  const observed = { selections: 0, prompts: [] as Array<{ content: string }>, cancellations: 0, disposals: 0, sends: 0 };
+function apiFixture(options: { missing?: boolean; oversized?: boolean; tokenCount?: number; deny?: boolean; stalled?: boolean; stalledStream?: boolean } = {}) {
+  const observed = { selections: 0, prompts: [] as Array<{ content: string }>, cancellations: 0, disposals: 0, sends: 0, streamReturns: 0 };
   const model = { id: "fixture-small", name: "Fixture LLM", vendor: "fixture", family: "fixture", version: "1", maxInputTokens: 16000,
     async countTokens() { return options.tokenCount ?? 200; },
     async sendRequest(messages: Array<{ content: string }>) {
       observed.sends += 1; observed.prompts = messages;
       if (options.deny) throw Object.assign(new Error("denied"), { code: "NoPermissions" });
-      return { text: (async function*() { yield options.oversized ? "x".repeat(24001) : '{"summary":"ready"}'; })() };
+      if (options.stalled) return new Promise<never>(() => {});
+      if (options.stalledStream) return { text: { [Symbol.asyncIterator]() { return {
+        next() { return new Promise<IteratorResult<string>>(() => {}); },
+        return() { observed.streamReturns++; return new Promise<IteratorResult<string>>(() => {}); }
+      }; } } };
+      return { text: (async function*() { try { yield options.oversized ? "x".repeat(24001) : '{"summary":"ready"}'; }
+        finally { observed.streamReturns++; } })() };
     }
   };
   const api = {
@@ -50,7 +57,28 @@ test("VS Code LLM adapter cancels oversized output and rejects an already cancel
   const fixture = apiFixture({ oversized: true });
   await assert.rejects(createVsCodeFunctionNarrativeProvider(fixture.api).generate(context, "en", new AbortController().signal), { message: "invalid-response" });
   assert.ok(fixture.observed.cancellations >= 1);
+  assert.equal(fixture.observed.streamReturns, 1);
   const early = apiFixture(); const controller = new AbortController(); controller.abort();
   await assert.rejects(createVsCodeFunctionNarrativeProvider(early.api).generate(context, "en", controller.signal), { message: "cancelled" });
   assert.equal(early.observed.selections, 0);
+});
+
+test("a stalled connected request times out, signals cancellation and allows the next queued model operation", async () => {
+  const manager = new ModelTaskManager(), stalled = apiFixture({ stalled: true }), next = apiFixture();
+  const first = createVsCodeFunctionNarrativeProvider(stalled.api, manager).generate(context, "en", new AbortController().signal, { timeoutMs: 20 });
+  const rejected = assert.rejects(first, { message: "timeout" });
+  const second = createVsCodeFunctionNarrativeProvider(next.api, manager).generate(context, "en", new AbortController().signal);
+  await rejected; assert.equal((await second).text, '{"summary":"ready"}');
+  assert.equal(stalled.observed.cancellations, 1); assert.equal(stalled.observed.disposals, 1);
+  assert.deepEqual(manager.snapshot().history.map(record => record.phase), ["timeout", "completed"]);
+});
+
+test("a stalled connected stream is closed on timeout without waiting for uncooperative producer cleanup", async () => {
+  const manager = new ModelTaskManager(), stalled = apiFixture({ stalledStream: true }), next = apiFixture();
+  const first = createVsCodeFunctionNarrativeProvider(stalled.api, manager).generate(context, "en", new AbortController().signal, { timeoutMs: 20 });
+  const rejected = assert.rejects(first, { message: "timeout" });
+  const second = createVsCodeFunctionNarrativeProvider(next.api, manager).generate(context, "en", new AbortController().signal);
+  await rejected; assert.equal((await second).text, '{"summary":"ready"}');
+  assert.equal(stalled.observed.streamReturns, 1); assert.equal(stalled.observed.cancellations, 1); assert.equal(stalled.observed.disposals, 1);
+  assert.deepEqual(manager.snapshot().history.map(record => record.phase), ["timeout", "completed"]);
 });

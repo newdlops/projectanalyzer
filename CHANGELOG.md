@@ -4,6 +4,36 @@ All notable user-visible changes to Project Analyzer: Code Flow are recorded in
 this file. The changelog starts with the first distribution-documented build;
 earlier local development builds were not tracked here.
 
+## 0.0.1113 - 2026-10-06
+
+### Added
+
+- Share one bounded FIFO model task manager across Guide, call explanations,
+  local and connected providers in each Extension Host. Show queued positions
+  and preparation/running/stopping states while retaining completed prose.
+- Add **Model Tasks** in the native status bar and Command Palette. Inspect the
+  last 32 outcomes, cancel one task or cancel all current work. Report controlled
+  runner diagnostics for input limits, memory allocation, model loading,
+  unsupported options, grammar errors and process exit codes without logging
+  source, prompts, model responses or raw runner errors.
+
+### Fixed
+
+- New model requests no longer interrupt a different surface's running request.
+  Waiting time is excluded from the three-minute inference deadline. Cancellation
+  keeps the local execution slot until the child process and private files have
+  been cleaned up, and failures allow the next queued task to proceed.
+- Bound stalled connected-model API waits and keep cached Guide reads from
+  cancelling another function's pending generation. Queue updates preserve
+  focus, edited inputs and existing explanation DOM.
+
+### Known limitations
+
+- Scheduling is shared within one Extension Host, not across separate VS Code
+  windows or remote Hosts. Existing language/source and model accuracy limits
+  remain unchanged. A failed custom runner or model still needs the recovery
+  indicated in **Model Tasks**.
+
 ## 0.0.1112 - 2026-10-06
 
 ### Added

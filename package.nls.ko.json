@@ -7,6 +7,7 @@
   "command.openModuleFlow": "프로젝트 모듈 흐름 열기",
   "command.clearFunctionNarrativeDecorations": "LLM 소스 해설 표시 지우기",
   "command.category": "코드 흐름",
+  "command.openModelTasks": "모델 작업",
   "configuration.title": "프로젝트 분석기: 코드 흐름",
   "configuration.functionNarratives.provider": "동작 시나리오를 생성할 때만 사용하는 LLM입니다. local은 PC의 GGUF 모델을 실행하고 요청 후 해제하며, vscode는 VS Code에 연결된 채팅 모델을 사용합니다.",
   "configuration.functionNarratives.localBinary": "llama.cpp의 llama-completion 실행 파일 경로입니다. 비워 두면 Homebrew 또는 PATH를 사용합니다. 대기 중에는 서버나 모델을 실행하지 않습니다.",

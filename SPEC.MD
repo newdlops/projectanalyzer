@@ -1436,6 +1436,19 @@ Webview는 Project Graph, 파일 시스템, VS Code API에 직접 접근하지 �
   `--json-schema-file`로 source를 포함한 grammar도 argv 밖에서 전달한다.
   선택 가능한 VS Code adapter는 연결된 Chat model의 token 한도를 확인한 뒤 실제
   `sendRequest`/response stream을 사용한다. 모델 학습·API key 보관은 하지 않는다.
+- `shared/modelTasks.ModelTaskManager`는 한 Extension Host의 Guide·호출 해설·local/connected
+  provider와 source-free 준비를 하나의 FIFO 실행 슬롯으로 관리한다. 실행 중 1개,
+  대기 최대 32개, 종료 이력 최대 32개이며 새 요청은 다른 소유자의 작업을 선점하지 않는다.
+  각 실제 추론은 슬롯을 얻은 뒤 180초 제한을 시작한다. 대기·다운로드는 추론 시간에서 제외한다.
+  대기 취소는 adapter를 호출하지 않으며 실행 취소·timeout은 adapter 정리와 로컬 child close를
+  기다린 후 다음 작업을 시작한다. 종료·실패·응답 검증 실패 후에도 대기열을 계속 처리한다.
+  긴 함수의 경로·노드·호출 묶음은 각각 큐에 진입한다. 완료 캐시·페이지·노드 조회는 큐를
+  만들거나 다른 pending 작업을 취소하지 않는다. 설정은 한 명시적 분석의 AbortSignal에 고정한다.
+  별도 VS Code 창/원격 Host 간 추론 직렬화는 제공하지 않는다. 다운로드의 파일 lease는 유지한다.
+  native **모델 작업 / Model Tasks** 명령·status bar는 현재 작업과 종료 이력을 읽고 명시적인
+  개별/전체 취소 버튼만 대기열을 변경한다. 이력은 작업 ID·종류·함수 label·단계·시간과
+  controlled 오류 분류만 유지한다. 로그에는 label·원문·prompt·응답·stderr를 포함하지 않는다.
+  로컬 runner의 입력 한도·메모리·모델 로드·옵션·문법·종료 코드와 source-free 준비 실패를 구분한다.
 - 응답은 최대 24,000자 JSON, summary 1,200자, 시나리오 1–4개, 각 step 1–5개,
   title 160자, scenario `explanation` 1,800자, 기타 설명 600자, 조건·가정 각 4개,
   미확인 부분 6개로 제한한다. 이 상한은 응답 한 페이지이며 함수 전체의 경로 수를 제한하지 않는다.
@@ -1459,7 +1472,7 @@ Webview는 Project Graph, 파일 시스템, VS Code API에 직접 접근하지 �
 - 요청 `codeFlow/requestFunctionNarratives` / `codeFlow/cancelFunctionNarratives`는 현재
   graphVersion, opaque flowId, nonnegative safe requestId와 선택적인 cache-only pageIndex/
   pageLanguage만 받는다. Host는 최근 전달한 함수 8개를 유지하며 단일 pending 분석,
-  실제 모델 호출별 90초 timeout(이전 단일 요청 fallback 45초), 취소·중복 ID·root/graph
+  관리 provider의 실제 실행별 180초 timeout(미관리 adapter의 묶음 fallback 90초/이전 단일 요청 45초), 취소·중복 ID·root/graph
   교체를 처리한다. 주변 코드까지 포함한 content hash와 locale로 검증된 결과를 재사용한다.
   선택적 opaque `nodeId`는 해당 언어의 저장 페이지 조회만 허용하며 pageIndex와 함께 받지
   않는다. 이 조회는 진행 중인 분석·페이지 요청을 대체하거나 모델 준비를 시작하지 않는다.
@@ -1469,6 +1482,10 @@ Webview는 Project Graph, 파일 시스템, VS Code API에 직접 접근하지 �
   제한 여부, narrative, snippet 범위와 각 step의 Host-issued evidence token을 포함한다.
   전체 분석은 progress, completed/discovered/optional total/complete/sourceLimited와
   페이지 index/count/global offset을 제공한다. 열거가 끝날 때만 total을 확정한다.
+  두 해설 protocol의 `working`은 현재 요청의 검증된 `ModelTaskProgress`만 전달한다.
+  opaque task ID, prepare/inference 종류, queued/preparing/running/cancelling 단계와
+  대기 순서·대기 수(0–32)를 포함하며 원문·응답을 포함하지 않는다. Browser는 작업 갱신 때
+  상태 문구만 바꾸고 기존 문단·입력·focus를 유지한다. 오래된 task ID의 갱신은 무시한다.
   source range를 새 editor token으로 바꾸며 브라우저가 경로·prompt·모델 ID를 정하지 못한다.
 - Guide의 짧은 source-backed purpose 다음 optional section은 Kotlin/symbolic-only 및 인자 없는
   함수도 제공한다. 생성 결과는 연결된 문단을 먼저 표시하고 조건·동작 순서·판단 근거·값과 흐름의
@@ -1478,7 +1495,7 @@ Webview는 Project Graph, 파일 시스템, VS Code API에 직접 접근하지 �
   해제하고 재생을 일시정지한다. 모델이 만든 예시 입력은 편집 가능한 Values와 경로 강조에
   사용하며 정적 확인값으로 취급하지 않는다. 첫 결과만 빈 입력을 채우고 명시적 시나리오 선택/
   예시 적용은 해당 입력으로 바꾼다. 진행률·페이지·locale 갱신은 사용자 편집을 유지한다.
-  모델 없음·다운로드 실패·권한 거부·취소·timeout·invalid-response·language-mismatch·입력 한도·failed·stale 및 두 locale 지원.
+  모델 없음·다운로드 실패·권한 거부·취소·timeout·invalid-response·language-mismatch·입력 한도·queue-full·failed·stale 및 두 locale 지원.
   초기 mount, focus, disclosure와 언어 전환은 LLM을 호출하지 않는다. pending에서는 Cancel만,
   현재 언어의 완료 결과에서는 추가 생성 버튼을 숨긴다. stale 상태는 Reload를 제공한다.
   요청 후 focus는 보이는 Cancel/Reload/Generate 또는 status로 복원하고 locale 변경은 근거

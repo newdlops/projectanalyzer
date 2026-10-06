@@ -2,6 +2,7 @@
 import { buildFunctionCallNarrativePlan, buildFunctionCallNarrativeContext, parseFunctionCallNarrative, type FunctionCallNarrativePlan } from "../../application/functionCallNarratives";
 import { createProjectCallableScope } from "../../application/functionCalls";
 import type { FunctionNarrativeProvider } from "../../application/functionNarratives";
+import { requestFunctionNarrative } from "../../application/functionNarratives";
 import { FunctionNarrativeError } from "../../shared/functionNarratives";
 import type { SymbolNode } from "../../shared/types";
 import { createContentHash } from "../../shared/hash";
@@ -89,10 +90,12 @@ export class FunctionCallNarrativesHostDelivery {
     const pending = { request, controller: new AbortController() }; this.pending = pending;
     const signal = pending.controller.signal;
     this.readings.set(key, reading); while (this.readings.size > 8) this.readings.delete(this.readings.keys().next().value!);
-    let timedOut = false;
+    const operation = { label: entry.node.name, onProgress: (task: NonNullable<FunctionCallNarrativesResponse["task"]>) => {
+      if (this.pending === pending && this.active(request, entry)) void this.dependencies.postMessage({ ...request, status: "working", task }).catch(() => {});
+    } };
     const ensureActive = () => { if (signal.aborted || this.pending !== pending || !this.active(request, entry)) throw new FunctionNarrativeError("cancelled"); };
     try {
-      await provider.prepare?.(language, signal); ensureActive();
+      await provider.prepare?.(language, signal, operation); ensureActive();
       do {
         const offset = reading.calls.length;
         const context = await buildFunctionCallNarrativeContext(entry.node, entry.source, entry.slice, reading.plan, offset, async token => {
@@ -115,12 +118,11 @@ export class FunctionCallNarrativesHostDelivery {
           context.limited ||= context.callTask!.sourceLimited;
         }
         ensureActive();
-        const timer = setTimeout(() => { timedOut = true; pending.controller.abort(); }, 180000);
         let abort = () => {};
-        const cancelled = new Promise<never>((_resolve, reject) => { abort = () => reject(new FunctionNarrativeError(timedOut ? "timeout" : "cancelled")); signal.addEventListener("abort", abort, { once: true }); });
+        const cancelled = new Promise<never>((_resolve, reject) => { abort = () => reject(new FunctionNarrativeError("cancelled")); signal.addEventListener("abort", abort, { once: true }); });
         let response;
-        try { response = await Promise.race([provider.generate(context, language, signal), cancelled]); }
-        finally { clearTimeout(timer); signal.removeEventListener("abort", abort); }
+        try { response = await Promise.race([requestFunctionNarrative(provider, context, language, signal, 180000, operation), cancelled]); }
+        finally { signal.removeEventListener("abort", abort); }
         ensureActive();
         const chunk = parseFunctionCallNarrative(response.text, context, language);
         if (context.callTask!.includeSummary) { reading.summary = chunk.summary; reading.flow = chunk.flow; reading.hasSummary = true; }
@@ -145,7 +147,7 @@ export class FunctionCallNarrativesHostDelivery {
       } while (!reading.hasSummary || reading.calls.length < reading.plan.rows.length);
     } catch (error) {
       if (this.pending === pending && this.active(request, entry)) {
-        const status = timedOut ? "timeout" : signal.aborted ? "cancelled" : error instanceof FunctionNarrativeError ? error.code : "failed";
+        const status = signal.aborted ? "cancelled" : error instanceof FunctionNarrativeError ? error.code : "failed";
         if (reading.hasSummary || reading.calls.length) await this.send(request, reading, status, false); else await failure(status);
       }
     } finally { if (this.pending === pending) this.pending = undefined; }

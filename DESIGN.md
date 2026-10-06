@@ -757,3 +757,29 @@ its declared parameter types. Assignment expressions such as `name := value`
 must appear as value changes, and helper names beginning with `bulk_delete` must
 retain possible-effect styling. Unsupported concrete evaluation remains a
 visible gap and must not collapse the path catalog to a misleading single row.
+
+## Model work lifecycle
+
+All LLM explanation surfaces share one FIFO manager per Extension Host. Model
+preparation and individual inference batches are separate operations. A long
+function yields between batches; another surface never cancels it merely by
+requesting work. Inference deadlines begin with execution ownership, excluding
+queue waiting and first-use model download. Cancellation retains completed prose
+and frees the execution slot only after adapter/process cleanup.
+
+The Guide and call reader keep their existing typography, color/focus tokens and
+polite status regions. Queued work shows its position and remains cancellable;
+queue updates change only status text and preserve results, inputs and focus.
+No request starts from opening task history, changing language or reading caches.
+The native VS Code status bar summarizes active/waiting work. **Model Tasks** uses
+the native Quick Pick to inspect active work, cancel one queued/running operation
+and read bounded recent outcomes. Long labels use native clipping; no new Webview,
+animation system, cards or parallel theme is introduced.
+
+Required checks: serialize requests from both explanation surfaces and direct
+provider instances; cancelled waiting work must never spawn a model; cancellation
+and timeout must drain the previous process before the next starts; failure must
+not poison subsequent work; keep at most 32 waiting operations and 32 metadata
+history records; reject forged progress; preserve saved prose and keyboard focus
+through queue updates; verify empty/queued/running/cancelling/failure history and
+narrow/English/Korean status presentation separately from functional tests.

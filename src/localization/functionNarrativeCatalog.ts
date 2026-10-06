@@ -1,6 +1,10 @@
 /** Owned UI copy for source-reading LLM narratives; model-generated prose remains literal source-adjacent content. */
 export function getFunctionNarrativeCatalogSource(): string {
   const en = {
+    "model-task-queued": "Queued · position {position} · {waiting} waiting",
+    "model-task-preparing": "Preparing the model…", "model-task-running": "The model is reading the source…",
+    "model-task-cancelling": "Stopping the model and releasing resources…",
+    "narrative-queue-full": "The model queue is full. Wait for a task to finish or cancel a waiting task in Model Tasks, then retry.",
     "narrative-heading": "Plain-language explanation", "narrative-action": "Analyze all scenarios", "narrative-complete": "Explanation generated",
     "narrative-guide-description": "Source paths and model explanations · source code is never executed",
     "narrative-continue": "Continue scenario analysis", "narrative-progress": "Analyzed {count} scenarios; processing remaining source paths…",
@@ -18,7 +22,7 @@ export function getFunctionNarrativeCatalogSource(): string {
     "narrative-timeout": "This scenario batch timed out. Completed scenarios are retained; continue to retry the remaining paths.", "narrative-invalid-response": "The model response could not be validated. Try again.",
     "narrative-language-mismatch": "The model did not use the requested language. Generate again to retry.",
     "narrative-context-too-large": "The function exceeds the model's input window or the 32-parameter example limit. Analyze a smaller function, or choose a model with a larger input window for long source code.",
-    "narrative-failed": "The model request failed. Check the connection and try again.", "narrative-stale": "The function context expired. Reload this function, then generate again.", "narrative-refresh": "Reload function",
+    "narrative-failed": "The model request failed. Open Model Tasks to inspect the failed phase, then retry.", "narrative-stale": "The function context expired. Reload this function, then generate again.", "narrative-refresh": "Reload function",
     "narrative-when": "Conditions", "narrative-outcome": "Expected outcome", "narrative-assumptions": "Assumptions", "narrative-limitations": "Missing information",
     "narrative-reason": "Reason", "narrative-effect": "Value and flow changes",
     "narrative-syntax": "Syntax meaning", "narrative-path-reason": "Why this path",
@@ -39,6 +43,10 @@ export function getFunctionNarrativeCatalogSource(): string {
     "narrative-cached": "Reused this snapshot's result", "narrative-language": "Generated in {language}", "narrative-language-ko": "Korean", "narrative-language-en": "English"
   };
   const ko: Record<keyof typeof en, string> = {
+    "model-task-queued": "모델 작업 대기 · 순서 {position} · 대기 {waiting}개",
+    "model-task-preparing": "모델을 준비하고 있습니다…", "model-task-running": "모델이 소스를 읽고 있습니다…",
+    "model-task-cancelling": "모델을 중단하고 자원을 정리하고 있습니다…",
+    "narrative-queue-full": "모델 작업 대기열이 가득 찼습니다. 완료를 기다리거나 모델 작업에서 대기 작업을 취소한 뒤 다시 시도하세요.",
     "narrative-heading": "문장형 설명", "narrative-action": "전체 시나리오 분석", "narrative-complete": "설명 생성됨",
     "narrative-guide-description": "소스 경로와 모델 해설 · 소스 코드를 실행하지 않습니다",
     "narrative-continue": "이어서 시나리오 분석", "narrative-progress": "시나리오 {count}개 분석 · 남은 소스 경로를 처리하고 있습니다…",
@@ -56,7 +64,7 @@ export function getFunctionNarrativeCatalogSource(): string {
     "narrative-timeout": "현재 시나리오 묶음의 응답 시간이 초과됐습니다. 완료된 결과는 보존합니다. 이어서 남은 경로를 다시 분석하세요.", "narrative-invalid-response": "모델 응답의 형식이나 소스 위치를 확인하지 못했습니다. 다시 시도하세요.",
     "narrative-language-mismatch": "모델이 요청한 언어로 설명하지 않았습니다. 설명 생성을 다시 눌러 시도하세요.",
     "narrative-context-too-large": "함수가 모델 입력 한도 또는 예시값의 매개변수 32개 한도를 넘었습니다. 더 작은 함수를 분석하거나, 소스가 긴 경우 입력 한도가 더 큰 모델을 선택하세요.",
-    "narrative-failed": "모델 요청에 실패했습니다. 연결을 확인한 뒤 다시 시도하세요.", "narrative-stale": "함수 컨텍스트가 만료되었습니다. 함수를 다시 불러온 뒤 생성하세요.", "narrative-refresh": "함수 다시 불러오기",
+    "narrative-failed": "모델 요청에 실패했습니다. 모델 작업에서 실패한 단계를 확인한 뒤 다시 시도하세요.", "narrative-stale": "함수 컨텍스트가 만료되었습니다. 함수를 다시 불러온 뒤 생성하세요.", "narrative-refresh": "함수 다시 불러오기",
     "narrative-when": "조건", "narrative-outcome": "예상 결과", "narrative-assumptions": "가정", "narrative-limitations": "미확인 부분",
     "narrative-reason": "판단 근거", "narrative-effect": "값과 흐름의 변화",
     "narrative-syntax": "구문 의미", "narrative-path-reason": "이 경로를 선택하는 이유",

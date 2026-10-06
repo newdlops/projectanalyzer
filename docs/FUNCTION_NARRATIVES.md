@@ -72,7 +72,7 @@ Public API:
 3. 로컬 모델은 요청할 때만 실행하고 끝나거나 취소되면 프로세스를 종료한다.
    기본 문맥 8,192 token, 응답 2,400 token, CPU thread 2개와 GPU 자동 offload를 사용한다.
    발견한 소스 경로를 상세 해설 한 개씩 순차 분석한다. 전체 경로 수에는 3개/4개 상한을
-   적용하지 않는다. 실제 추론 호출마다 90초 제한을 사용하며, 같은 snapshot/언어의 결과를 재사용한다.
+   적용하지 않는다. 실제 추론 호출마다 실행 시작 이후 180초 제한을 사용하며, 같은 snapshot/언어의 결과를 재사용한다.
    취소·실패 후 **이어서 시나리오 분석**은 완료된 경로를 건너뛰고 미완료 묶음부터 재개한다.
    설정 변경으로 두 모델이 동시에 실행되지 않는다.
 4. 함수의 역할과 시나리오별 문단에서 조건·판단·계산·건너뛴 작업·예상 결과를 읽는다.
@@ -123,6 +123,32 @@ VS Code 연결 모델을 쓰려면 `projectAnalyzer.functionNarratives.provider`
 여러 등록 모델 중 선택하며 필요한 접근 동의는 VS Code UI를 따른다. 접근 실패, 잘못된
 응답 또는 timeout 후 재시도는 다른 모델을 선택할 수 있다. 로그인·API key를 자동 처리하지 않는다.
 
+### 모델 작업 확인과 취소
+
+Guide의 전체 시나리오와 함수 호출 해설은 한 Extension Host 안에서 같은 FIFO 대기열을 사용한다.
+동시에 한 작업만 실행하고 최대 32개가 기다린다. 새 요청은 다른 화면의 작업을 취소하지 않는다.
+화면에 **모델 작업 대기 · 순서 …**, **모델 준비 중**, **모델 실행 중**과 취소 후 정리 상태를
+표시한다. 대기 시간과 가중치 준비 시간은 실제 추론의 180초 제한에 포함하지 않는다.
+긴 함수의 각 경로·노드·호출 묶음은 새 순서로 들어가므로 다른 화면의 요청도 이어서 처리한다.
+
+상태 표시줄의 **모델 작업** 또는 Command Palette의 **코드 흐름: 모델 작업**
+(영문 **Code Flow: Model Tasks**)을 열면 진행 중·대기·최근 종료 작업을 확인할 수 있다.
+목록을 여는 동작은 준비나 모델 실행을 시작하지 않는다. 오른쪽 취소 버튼은 해당 작업만,
+상단 전체 취소 버튼은 현재 작업들을 취소한다. 완료된 설명과 저장 페이지는 유지한다.
+대기 중 취소된 작업은 runner를 실행하지 않으며 실행 중 취소는 프로세스 종료와 임시 파일
+정리를 기다린 뒤 다음 모델을 실행한다. 잘못된 응답이나 실행 실패 후에도 대기열은 이어진다.
+
+**모델 요청에 실패했습니다**가 나타나면 모델 작업의 종료 이력에서 실패 분류를 확인한다.
+로컬 runner의 메모리 할당·입력 한도·모델 파일 로드·옵션 미지원·응답 문법 준비 실패를
+구분하고 분류하지 못한 프로세스 오류는 `exit-…` 또는 `signal-…` 코드로 표시한다.
+최근 이력은 최대 32개이며 작업 정보만 유지한다. Project Analyzer 출력의 `model.task`에는
+ID·종류·단계·대기/실행 시간·오류 분류만 남기며 함수 이름·원문·prompt·응답·stderr는 기록하지 않는다.
+
+전역 대기열은 해당 Extension Host 범위다. 별도 VS Code 창이나 원격 Host는 각자의
+대기열을 갖는다. 여러 창의 모델 다운로드를 조정하는 파일 lease와 추론 스케줄링은 별개다.
+연결 공급자 취소는 VS Code cancellation token을 전달하지만 외부 서버의 실제 정리는
+그 공급자가 담당한다. context/output/thread 상한과 명시적 생성 정책은 유지한다.
+
 설명 언어는 `projectAnalyzer.uiLanguage`를 따른다. `ko`이면 한국어, `en`이면 영어로
 요약과 시나리오 문단을 요청한다. `auto`는 VS Code 표시 언어가 한국어일 때 한국어,
 그 외에는 영어를 사용하며 명시적 `ko`/`en`이 표시 언어보다 우선한다. 코드의 식·식별자·
@@ -165,7 +191,7 @@ global storage를 따르며 원격 Extension Host에서는 해당 Host의 저장
 atomic rename하며 잘못된 데이터는 사용하지 않는다. SHA-256 결과는 한 Host에서 파일 stat
 identity가 유지될 때 재사용하고 다른 Host/재시작 또는 파일 변경 시 다시 확인한다.
 여러 창은 PID/token 파일 lease로 다운로드를 공유하고 취소·Host disposal은 전송을 중단한다.
-준비 단계에는 source를 전달하지 않으며 다운로드 시간은 실제 모델 호출별 90초 추론 제한에 포함하지 않는다.
+준비 단계에는 source를 전달하지 않으며 다운로드 시간은 실제 모델 호출별 180초 추론 제한에 포함하지 않는다.
 
 ## 근거와 한계
 
@@ -214,7 +240,16 @@ LLM 설명은 항상 **추론 · 실제 실행 미검증**이다. JSON 형식과
   줄별 번호 그룹화를 제공한다.
 - `vscode/functionNarrativeProvider`: 실제 VS Code 모델 선택, token 확인, streaming, 취소와 오류 변환.
 - `llm/functionNarratives`: `createLocalFunctionNarrativeProvider`, private prompt, localized line-numbered
-  input, JSON grammar, output cap 및 종료를 기다리는 공용 process queue.
+  input, JSON grammar, output cap, controlled runner 진단과 종료를 기다리는 adapter.
+- `shared/modelTasks`: `ModelTaskManager.run/cancel/cancelAll/snapshot/subscribe/dispose`,
+  `getGlobalModelTaskManager`, `ModelTaskProgress`와 `isModelTaskProgress`.
+  framework와 무관한 FIFO/실행 deadline/취소 정리/불변 snapshot/32개 이력을 제공한다.
+- `application/functionNarratives`: `scheduleFunctionNarrativePreparation`,
+  `scheduleFunctionNarrativeRequest`, `requestFunctionNarrative`, `MODEL_INFERENCE_TIMEOUT_MS`.
+  domain 오류 변환, 중첩 adapter의 실행 슬롯 재사용, 완료 전 구조·언어 검증을 담당한다.
+  `managesDeadlines` provider는 슬롯을 받은 뒤 제한을 시작하고 미관리 port는 Host fallback을 쓴다.
+- `vscode/modelTasks.createModelTasksUi`: native status bar와 live Quick Pick.
+  목록 읽기·언어 변경은 모델 작업을 만들지 않으며 명시적인 취소만 manager에 전달한다.
 - `shared/localModels`: `ManagedLocalModelCache`, `LocalModelDescriptor`, bounded progress/error 계약.
 - `storage/localModels`: `createManagedLocalModelCache`, `DEFAULT_FUNCTION_NARRATIVE_MODEL`.
   내부 HTTPS streaming/resume/hash와 cross-window lease를 native UI에서 분리한다.
@@ -227,14 +262,14 @@ LLM 설명은 항상 **추론 · 실제 실행 미검증**이다. JSON 형식과
   임시 폴더(0700)와 검증된 JSON 페이지(0600)를 만든다. 재조회 때 다시 검증하고 owner 해제 때
   폴더를 제거한다. 전체 모델 문장을 Host 메모리에 쌓지 않는다.
 - `webview/codeFlow/functionNarrativesHostDelivery`: snapshot별 최대 8개 context, locale별 재개
-  세션과 작은 페이지 metadata, 단일 pending 분석과 실제 모델 호출별 90초 deadline, evidence token projection.
-  source graph 없는 이전 계약은 45초 단일 요청 fallback을 유지한다.
+  세션과 작은 페이지 metadata, 단일 pending 분석과 공유 provider의 실제 실행별 180초 deadline, evidence token projection.
+  미관리 adapter의 90초 묶음/45초 단일 요청 fallback을 유지한다. 완료 캐시는 다른 pending 분석을 취소하지 않는다.
   `FunctionNarrativeScenarioSession.readNodePage`는 저장된 첫 해설 페이지를 node ID로 조회하며,
   모델을 호출하거나 화면의 선택 페이지·진행 중 request ID를 바꾸지 않는다.
 - `webview/functionNarratives`: inert reading section, strict reply correlation, bounded DOM,
   literal prose, locale/focus retention, disposal cancellation.
 - `protocol/functionNarratives`: identity-only request/cancel, cache-only `pageIndex`/`pageLanguage`/`nodeId`,
-  progress/coverage/page 응답, 정확한 context/locale/페이지/단계 source action과 bounded result.
+  progress/coverage/page 응답과 source-free `working` task 갱신, 정확한 context/locale/페이지/단계 source action과 bounded result.
   source action의 optional `nodeIndex`는 해당 저장 페이지의 정확한 노드 근거를 가리킨다.
   이전 text-only 단계도 읽으며 새 prompt는 explanation/reason/effect를 요청한다.
 
@@ -346,6 +381,64 @@ Q4_K_M을 사용했다. revision `f74adce6aa16316c625447af059dbebe4983757c`,
 2,104,932,800 bytes, SHA-256
 `724fb256bec1ff062b2f65e4569e871ad2e95ab2a3989723d1769c54294730b7`을 확인했다.
 두 모델 모두 `.local-models/`에 보관하며, 비교를 위해 사용자 설정을 바꾸지 않았다.
+
+## 0.0.1113 검증 기록
+
+- 실제 설치본의 Kotlin 함수에서 기존 Qwen3.5 모델 로드와 시나리오 3개 생성까지 확인했다.
+  사용자가 알려준 단독 요청의 공통 `failed` 오류는 이 함수에서 재현하지 못했다.
+  따라서 특정 실패의 원인을 대기열 충돌로 단정하지 않는다. 새 종료 이력과 controlled
+  runner 분류는 재발 시 입력·메모리·로드·옵션·문법·종료 단계를 확인할 수 있게 한다.
+- 최신 production Host, 정적 parser/graph, source registry, configured provider와 실제 PC의
+  GGUF/`llama-completion`으로 TypeScript 호출·Kotlin 전체 Guide·Kotlin 호출을 함께 요청했다.
+  실제 모델 요청 3회가 모두 구조·언어 검증을 통과하고 34.05초에 끝났다. adapter 실행과
+  OS에서 관찰한 모델 프로세스는 최대 1개, 최대 대기 수는 2개였다. 대기 취소는 실행하지
+  않았고 캐시 재조회는 준비/추론/종료 이력을 추가하지 않았다. 추가 다운로드는 없었다.
+  이 검증의 외부 VS Code API port만 대체했으며 실제 모델 응답과 Host 검증은 대체하지 않았다.
+- FIFO, 대기 취소, 실행 시작 이후 deadline, 종료까지 슬롯 유지, 실패 후 다음 요청,
+  32개 이력/대기 상한, 불변 snapshot, malformed progress, mixed Guide/call fairness,
+  local PID 종료 및 SIGTERM 무시 시 SIGKILL 정리, controlled stderr 분류/원문 비보관,
+  connected API/stream stall과 best-effort stream close를 테스트했다.
+  완료 Guide 캐시가 다른 함수의 pending 작업을 취소하지 않는 회귀도 포함한다.
+- 최종 `npm test`의 Rust 82개는 통과했다. Node 1,013개 중 1,009개 통과,
+  실패 4개는 이전 0.0.1112에서 확인된 declared-type 입력 두 건,
+  advanced private Scenario 평가, decorated source reveal architecture 항목이다.
+  수정한 모델 작업·응답·Host·browser·native UI port 테스트에는 새 실패가 없다.
+  release metadata와 패키지 script 테스트 14개도 통과했다.
+- Safari에서 최신 production renderer를 390×844, 768×1024, 1440×900 iframe으로
+  각각 확인했다. 대기·실행·실패와 재시도, keyboard Enter 재시도/취소,
+  완료 문단을 유지한 partial+queued 및 취소 상태를 Guide와 호출 화면에서 확인했다.
+  각 크기의 문서 overflow는 false였고 replay의 JavaScript 오류는 없었다.
+  이 화면 검증은 공개 fixture의 이전 실제 모델 응답을 재생하고 큐 상태를 합성한 것이다.
+  위의 실제 동시 모델 검증과 구분한다. 물리 모바일 기기/touch gesture는 검사하지 않았다.
+- 기본/QA 프로필에 설치하고 469개 shipped JavaScript와 native binary가 빌드와 같은지,
+  각각 정확히 하나의 0.0.1113 등록을 갖는지 확인했다. native Command Palette에서
+  **Code Flow: Model Tasks** 노출을 실제 확인했다. native empty/live Quick Pick·취소·focus·
+  locale·종료 이력은 VS Code API port 테스트로 확인했다. 사용 중인 VS Code 창이 전환되어
+  도구가 추가 UI 동작을 거부했으므로 native 목록의 전체 실화면 검증은 완료하지 못했다.
+  임시 제한 모드 창은 닫았고 workspace trust나 기존 모델 설정을 바꾸지 않았다.
+- 최종 darwin-arm64 VSIX는 503개 파일로 512개 상한 안에 있다. compiled runtime closure와
+  native target 검사가 통과했고 가중치와 검증 중 기록한 원문/응답은 패키지에 포함하지 않았다.
+
+### 변경 화면의 UI audit
+
+`ui-design-workflow`의 기존 제품 변경 절차와 Impeccable scoped audit를 적용했다.
+`browserSource.ts`, `readingBrowserSource.ts`, `modelTasks/nativeUi.ts`의 detector 결과는
+finding 0개였으며 동적 browser source는 직접 검토했다. 다음 점수는 변경 영역에 대한
+검토이며 제품 전체 WCAG 인증이나 모든 테마/device 검증을 뜻하지 않는다.
+
+| 영역 | 점수 / 4 | 확인 근거와 남은 범위 |
+| --- | --- | --- |
+| 접근성 | 3 | 기존 semantic 버튼, polite live region과 focus 유지. 실제 Enter 재시도/취소. 대비 수치 전수 검사는 미실시. |
+| 성능 | 4 | `working`은 상태 text만 갱신. 기존 문단 DOM 유지 테스트, 32개 queue/history와 기존 모델 상한. |
+| 반응형 | 3 | 두 화면의 세 viewport에서 overflow 없음. 모바일 실기기/touch 미검증. |
+| 테마 | 3 | 기존 VS Code token/native component 유지. 실제 dark theme 확인, light/high-contrast 실화면 미검증. |
+| 구현 일관성 | 4 | source-free protocol, request/task 상관관계, 기존 상태 영역과 native Quick Pick 사용. 새 dependency/스타일 체계 없음. |
+| 합계 | 17 / 20 | 변경 영역에서 P0/P1 finding 없음. native 목록 실화면 확인 범위는 위 기록을 따른다. |
+
+[Web Interface Guidelines](https://raw.githubusercontent.com/vercel-labs/web-interface-guidelines/main/command.md)를
+새로 읽고 변경 파일의 live 상태 알림, button semantics, focus, long text, locale 및 오류 다음
+행동을 검토했다. 발견한 높은 우선순위의 접근성/UX 문제는 없었다. `nativeUi.ts`의 시간을
+초 단위로 보여주는 고정 `toFixed(1)`은 두 locale에서 동일한 기술 단위로 사용한다.
 
 ## 0.0.1112 검증 기록
 

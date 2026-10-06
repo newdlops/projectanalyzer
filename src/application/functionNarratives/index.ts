@@ -11,3 +11,6 @@ export { buildFunctionNarrativeScenarioFrames, getFunctionNarrativeExampleConstr
 export { parseFunctionNarrative, buildFunctionNarrativePrompt } from "./structuredResponse";
 export { buildFunctionNarrativeExplanationGuidance, buildFunctionNarrativeRichGuidance, numberFunctionNarrativeContext } from "./explanationGuidance";
 export { FunctionNarrativeError, type FunctionNarrativeProvider } from "./provider";
+export type { FunctionNarrativeModelResponse, FunctionNarrativeGenerationOptions, FunctionNarrativeOperationOptions } from "./provider";
+export { scheduleFunctionNarrativePreparation, scheduleFunctionNarrativeRequest, MODEL_INFERENCE_TIMEOUT_MS } from "./queuedProvider";
+export { requestFunctionNarrative } from "./request";

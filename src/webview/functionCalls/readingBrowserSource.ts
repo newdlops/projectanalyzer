@@ -1,7 +1,9 @@
 /** Explicit, retained call-reading UI; static facts stay separate and cached pages never load a model. */
 import { isFunctionCallNarrativeChunk, isFunctionCallNarrativeLanguage } from "../../shared/functionCallNarratives";
+import { isModelTaskProgress } from "../../shared/modelTasks";
 export function getFunctionCallReadingBrowserSource(): string {
   return /* js */ String.raw`
+    ${isModelTaskProgress.toString()}
     ${isFunctionCallNarrativeChunk.toString()}
     ${isFunctionCallNarrativeLanguage.toString()}
     function createFunctionCallReading(options) {
@@ -9,7 +11,7 @@ export function getFunctionCallReadingBrowserSource(): string {
       const section = el("section", "calls-reading"), heading = el("h3"), actions = el("div", "calls-actions");
       const status = el("p", "calls-reading-status"), content = el("div", "calls-reading-content");
       status.setAttribute("role", "status"); status.setAttribute("aria-live", "polite");
-      let view, baseKey, result, phase = "idle", pending, pagePending, nextId = 0, selected = 0;
+      let view, baseKey, result, phase = "idle", pending, pagePending, nextId = 0, selected = 0, task;
       const saved = new Map(), pages = new Map();
       const start = button("", "reading-start", () => request());
       start.className="calls-reading-request";
@@ -24,7 +26,7 @@ export function getFunctionCallReadingBrowserSource(): string {
       const remember = (map, key, value) => { map.delete(key); map.set(key, value); while (map.size > 8) map.delete(map.keys().next().value); };
       const keyFor = value => JSON.stringify([value.graphVersion, value.sourceToken, value.contextId, value.scope, value.connectionId,
         [...(value.choices || [])].sort((a,b)=>a.key.localeCompare(b.key))]);
-      function stop() { if (pending) options.postMessage({ type:"functionCalls/cancelExplanation",payload:pending.request }); pending=undefined;pagePending=undefined;phase="cancelled";render(); }
+      function stop() { if (pending) options.postMessage({ type:"functionCalls/cancelExplanation",payload:pending.request }); pending=undefined;pagePending=undefined;task=undefined;phase="cancelled";render(); }
       /** Validate bounded prose and metadata against currently displayed static relationships. */
       function valid(payload) {
         const data=payload.narrative,coverage=payload.coverage,page=payload.page;
@@ -46,10 +48,16 @@ export function getFunctionCallReadingBrowserSource(): string {
         const focusedKey=document.activeElement?.dataset?.callKey;
         const owner=[pending,pagePending].find(item=>item?.request.requestId===payload?.requestId);
         if(!owner||!view||keyFor(payload)!==baseKey||payload.graphVersion!==options.graphVersion())return;
-        const statuses=["ready","progress","stale","unavailable","download-failed","cancelled","denied","timeout","invalid-response","language-mismatch","context-too-large","failed"];
+        if(payload.status==="working"){
+          if(owner!==pagePending&&isModelTaskProgress(payload.task)&&(!task||Number(payload.task.id.split(":")[1])>=Number(task.id.split(":")[1]))){
+            task=payload.task;status.textContent=t("model-task-"+task.phase,task);
+          }
+          return;
+        }
+        const statuses=["ready","progress","queue-full","stale","unavailable","download-failed","cancelled","denied","timeout","invalid-response","language-mismatch","context-too-large","failed"];
         if(!statuses.includes(payload.status))return;
         const progress=payload.status==="progress",paging=owner===pagePending;
-        if(!progress){if(paging)pagePending=undefined;else pending=undefined;}
+        if(!progress){if(paging)pagePending=undefined;else{pending=undefined;task=undefined;}}
         phase=progress?"pending":paging&&pending?"pending":payload.status;
         if(payload.narrative){
           if(!valid(payload)){phase="invalid-response";stop();phase="invalid-response";render();return;}
@@ -70,7 +78,7 @@ export function getFunctionCallReadingBrowserSource(): string {
         const request={...view,requestId:++nextId,...(paging?{pageIndex,pageLanguage:result.language}:{})};
         const moveFocus=document.activeElement===start;
         if(paging){const cached=pages.get(baseKey+":"+result.language+":"+pageIndex);if(cached){result=cached;selected=0;render();return;}pagePending={request};}
-        else pending={request};
+        else {pending={request};task=undefined;}
         phase=paging?"page-loading":"pending";render();if(moveFocus)cancel.focus();
         options.postMessage({type:"functionCalls/explain",payload:request});
       }
@@ -82,7 +90,7 @@ export function getFunctionCallReadingBrowserSource(): string {
         cancel.textContent=t("narrative-cancel");cancel.hidden=!pending;
         refresh.textContent=t("calls-reading-refresh");refresh.hidden=phase!=="stale";
         const progress=result?.coverage;
-        status.textContent=pending?progress?progress.completed===progress.total&&!progress.complete?t("calls-reading-summarizing")
+        status.textContent=pending&&task?t("model-task-"+task.phase,task):pending?progress?progress.completed===progress.total&&!progress.complete?t("calls-reading-summarizing")
           :t("calls-reading-progress",{completed:progress.completed,total:progress.total}):t("calls-reading-preparing")
           :phase==="idle"?t(available?"calls-reading-idle":"calls-reading-unavailable")
           :phase==="ready"?t("calls-reading-ready",{completed:progress?.completed||0,total:progress?.total||0})
@@ -111,10 +119,10 @@ export function getFunctionCallReadingBrowserSource(): string {
         previous.disabled=Boolean(pagePending)||result.page.index<=0;next.disabled=Boolean(pagePending)||result.page.index>=result.page.count-1;
       }
       return { accept,cancel(){if(pending)stop();},element:section,view(value){
-        const nextKey=keyFor(value);if(nextKey!==baseKey){if(pending)stop();pagePending=undefined;baseKey=nextKey;view=value;result=saved.get(baseKey+":"+options.language());phase=result?"ready":"idle";selected=0;}
+        const nextKey=keyFor(value);if(nextKey!==baseKey){if(pending)stop();pagePending=undefined;task=undefined;baseKey=nextKey;view=value;result=saved.get(baseKey+":"+options.language());phase=result?"ready":"idle";selected=0;}
         else{view=value;result=saved.get(baseKey+":"+options.language())||result;}
         render();return section;
-      },reset(){if(pending)stop();view=undefined;baseKey=undefined;result=undefined;pending=undefined;pagePending=undefined;saved.clear();pages.clear();phase="idle";}};
+      },reset(){if(pending)stop();view=undefined;baseKey=undefined;result=undefined;pending=undefined;pagePending=undefined;task=undefined;saved.clear();pages.clear();phase="idle";}};
     }
   `;
 }

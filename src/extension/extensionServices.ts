@@ -21,6 +21,8 @@ import { SourceHighlightService } from "../vscode/sourceHighlightService";
 import { createWorkspaceAnalysisCacheKey } from "../vscode/workspaceFingerprint";
 import { VsCodeWorkspaceFileSystem } from "../vscode/workspaceFileSystem";
 import { createConfiguredFunctionNarrativeProvider } from "../vscode/configuredFunctionNarrativeProvider";
+import { createModelTasksUi, type ModelTasksUi } from "../vscode/modelTasks";
+import { getGlobalModelTaskManager, type ModelTaskManager } from "../shared/modelTasks";
 import { createFunctionNarrativePageStore } from "../storage/functionNarrativePages";
 import { createManagedLocalModelCache, DEFAULT_FUNCTION_NARRATIVE_MODEL } from "../storage/localModels";
 import { FunctionNarrativeDecorationService } from "../vscode/functionNarrativeDecorations";
@@ -33,6 +35,8 @@ import { WorkspaceGraphCoordinator } from "./workspaceAnalysis";
 
 /** Runtime services shared by command handlers. */
 export type ExtensionServices = {
+  modelTasks: ModelTaskManager;
+  modelTasksUi: ModelTasksUi;
   analyzer: AnalysisBackend;
   cacheStore: AnalysisCacheStore;
   explorerGraphPanelProvider: ExplorerGraphPanelProvider;
@@ -51,7 +55,15 @@ export function createExtensionServices(context: vscode.ExtensionContext): Exten
   const config = readProjectAnalyzerConfig();
   const localModels = createManagedLocalModelCache(context.globalStorageUri.fsPath, DEFAULT_FUNCTION_NARRATIVE_MODEL);
   context.subscriptions.push(localModels);
-  const functionNarrativeProvider = createConfiguredFunctionNarrativeProvider(localModels);
+  const modelTasks = getGlobalModelTaskManager({ onTransition(record) {
+    // Diagnostics intentionally exclude function names, model paths, prompts and responses.
+    logger.info("model.task", { taskId: record.id, kind: record.kind, phase: record.phase, failure: record.failure, detailCode: record.detailCode,
+      queueWaitMs: record.startedAt === undefined ? undefined : record.startedAt - record.queuedAt,
+      executionMs: record.startedAt === undefined || record.finishedAt === undefined ? undefined : record.finishedAt - record.startedAt });
+  } });
+  const modelTasksUi = createModelTasksUi(vscode, modelTasks, config.uiLanguage);
+  context.subscriptions.push(modelTasksUi, modelTasks);
+  const functionNarrativeProvider = createConfiguredFunctionNarrativeProvider(localModels, modelTasks);
   const sourceHighlighter = new SourceHighlightService();
   const narrativeDecorations = new FunctionNarrativeDecorationService(vscode);
   context.subscriptions.push(sourceHighlighter);
@@ -136,6 +148,8 @@ export function createExtensionServices(context: vscode.ExtensionContext): Exten
   });
 
   return {
+    modelTasks,
+    modelTasksUi,
     analyzer,
     cacheStore,
     explorerGraphPanelProvider,

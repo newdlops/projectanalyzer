@@ -11,6 +11,25 @@ const contextId = "narrative-context:" + "c".repeat(32);
 const narrative = { summary: "<img src=x onerror=run()>", scenarios: [{ title: "Ready", when: ["LIMIT > 0"],
   steps: [{ text: "Print ready.", reason: "LIMIT=3 makes LIMIT > 0 true.", effect: "The else branch is skipped.", source: { snippetId: "root", startLine: 4, endLine: 4 } }], outcome: "Return after printing.", assumptions: ["Output is available."] }], limitations: [] };
 
+test("queue state keeps a Guide request correlated, preserves focus and does not rebuild saved prose", () => {
+  const runtime=installSidebarWebviewRuntime();try{
+    const posts:Array<{type:string;payload:Record<string,unknown>}>=[],state={graph:{version:"fixture"},uiLanguage:"en"};
+    const browser=new Function("state","vscode",getBrowserLocalizationSource()+getFunctionNarrativesBrowserSource()+"return {create:createFunctionNarratives,accept:acceptFunctionNarrativesResponse};")(state,{postMessage(message:typeof posts[number]){posts.push(message);}});
+    const widget=browser.create({functionId:flowId,narratives:{available:true,contextId}},{});document.getElementById("narrative-root")!.append(widget.element);
+    runtime.focusRenderedByClassNth("narrative-root","logic-narrative-request",0);runtime.clickRenderedByClassNth("narrative-root","logic-narrative-request",0);
+    const focused=runtime.getFocusedElementId(),request=posts[0].payload;
+    browser.accept({...request,status:"working",task:{id:"model-task:1",kind:"inference",phase:"queued",position:1,waiting:1}});
+    assert.ok(runtime.getRenderedText("narrative-root").some(text=>text.includes("position 1")));assert.equal(runtime.getFocusedElementId(),focused);
+    const partial={...request,status:"progress",language:"en",modelName:"Model",narrative,snippets:[{id:"root",startLine:3,endLine:6}],evidenceTokens:[["code-evidence:"+"b".repeat(64)]],limited:false,cacheHit:false,
+      coverage:{completed:1,discovered:2,complete:false,sourceLimited:false},page:{index:0,count:1,offset:0}};
+    browser.accept(partial);const identity=runtime.getRenderedIdentityByClassNth("narrative-root","logic-narrative-scenario",0);
+    browser.accept({...request,status:"working",task:{id:"model-task:2",kind:"inference",phase:"queued",position:2,waiting:2}});
+    assert.equal(runtime.getRenderedIdentityByClassNth("narrative-root","logic-narrative-scenario",0),identity);assert.equal(posts.length,1);
+    browser.accept({...partial,status:"ready"});assert.equal(runtime.countRenderedByClass("narrative-root","logic-narrative-scenario"),1);
+    widget.dispose();
+  }finally{runtime.restore();}
+});
+
 test("English output mislabeled Korean stays out of rendered results and permits explicit keyboard retry", () => {
   const runtime = installSidebarWebviewRuntime();
   try {

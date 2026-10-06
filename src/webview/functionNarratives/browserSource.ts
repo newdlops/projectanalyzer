@@ -1,9 +1,11 @@
 /** Explicit LLM generation controls; construction never evaluates scenarios or contacts a model. */
 import { createFunctionNarrativeValidator, isFunctionNarrativeLanguage, isFunctionNarrativeExample } from "../../shared/functionNarratives";
 import { getFunctionNarrativeInterpretationBrowserSource } from "./interpretationBrowserSource";
+import { isModelTaskProgress } from "../../shared/modelTasks";
 
 export function getFunctionNarrativesBrowserSource(): string {
   return /* js */ `
+    ${isModelTaskProgress.toString()}
     ${isFunctionNarrativeExample.toString()}
     ${createFunctionNarrativeValidator.toString()}
     const isFunctionNarrative = createFunctionNarrativeValidator(isFunctionNarrativeExample);
@@ -19,7 +21,7 @@ export function getFunctionNarrativesBrowserSource(): string {
       const pending = functionNarrativeRequests.get(payload?.requestId);
       if (!pending || pending.request.flowId !== payload.flowId || pending.request.graphVersion !== payload.graphVersion
         || state.graph?.version !== payload.graphVersion) return;
-      if (payload.status !== "progress") functionNarrativeRequests.delete(payload.requestId);
+      if (payload.status !== "progress" && payload.status !== "working") functionNarrativeRequests.delete(payload.requestId);
       pending.accept(payload);
     }
 
@@ -72,6 +74,7 @@ export function getFunctionNarrativesBrowserSource(): string {
       actions.append(requestButton, cancelButton, refreshButton); element.append(heading, actions, help, status, results, pager);
       let result = functionNarrativeResults.get(key + ":" + state.uiLanguage);
       let phase = result ? "ready" : "idle"; let request; let disposed = false; let requestLanguage;
+      let task;
       let selectedScenarioIndex=0;let selectedScenarioIdentity;let initialExamplesApplied=false;let nodeRequest;let nodeLookupKey;
       const nodeReader=createFunctionNarrativeNodeReader(callbacks,{id:widgetId,result:()=>result,index:()=>selectedScenarioIndex,scenario:()=>result?.narrative.scenarios[selectedScenarioIndex],
         loadNode:queryNode,openNodeSource(data,nodeIndex){if(disposed||state.graph?.version!==graphVersion)return;vscode.postMessage({type:"codeFlow/openFunctionNarrativeSource",payload:{graphVersion,flowId:tutor.functionId,contextId:tutor.narratives.contextId,language:data.language,scenarioIndex:data.scenarioIndex,stepIndex:0,nodeIndex,...(data.pageIndex!==undefined?{pageIndex:data.pageIndex}:{})}});}});
@@ -95,7 +98,9 @@ export function getFunctionNarrativesBrowserSource(): string {
         help.textContent = projectAnalyzerText("narrative-help");
         help.hidden = Boolean(result);
         const coverage = phase === "pending" && result?.language !== requestLanguage ? undefined : result?.coverage;
-        status.textContent = phase === "pending" && coverage ? projectAnalyzerText(coverage.total === undefined ? "narrative-progress" : "narrative-progress-total", { count: coverage.completed, total: coverage.total })
+        status.textContent = task && phase === "pending" ? projectAnalyzerText("model-task-" + task.phase, task)
+          + (coverage ? " · " + projectAnalyzerText(coverage.total === undefined ? "narrative-progress" : "narrative-progress-total", { count: coverage.completed, total: coverage.total }) : "")
+          : phase === "pending" && coverage ? projectAnalyzerText(coverage.total === undefined ? "narrative-progress" : "narrative-progress-total", { count: coverage.completed, total: coverage.total })
           : phase === "ready" && result ? projectAnalyzerText(coverage?.complete === false ? "narrative-partial-status" : "narrative-completion-status", { count: coverage?.completed ?? result.narrative.scenarios.length }) : projectAnalyzerText("narrative-" + phase);
         element.setAttribute("aria-busy", phase === "pending" || phase === "page-loading" ? "true" : "false");
         pager.hidden = !result?.page || result.page.count < 2;
@@ -196,7 +201,7 @@ export function getFunctionNarrativesBrowserSource(): string {
         if (!request) return;
         functionNarrativeRequests.delete(request.requestId);
         vscode.postMessage({ type: "codeFlow/cancelFunctionNarratives", payload: request });
-        request = undefined; phase = "cancelled"; if (!disposed) render();
+        request = undefined; task = undefined; phase = "cancelled"; if (!disposed) render();
       }
       /** Pagination only asks the Host for stored prose; the action without pageIndex analyzes remaining paths. */
       function startRequest(pageIndex) {
@@ -205,14 +210,23 @@ export function getFunctionNarrativesBrowserSource(): string {
         const movePendingFocus = document.activeElement === requestButton;
         const pageFocus = document.activeElement;
         requestLanguage = paging ? result.language : state.uiLanguage;
+        task = undefined;
         request = { graphVersion, flowId: tutor.functionId, requestId: ++nextFunctionNarrativeRequestId,
           ...(paging ? { pageIndex, pageLanguage: result.language } : {}) };
         functionNarrativeRequests.set(request.requestId, { request, accept(payload) {
           if (disposed || !request || request.requestId !== payload.requestId) return;
+          if (payload.status === "working") {
+            if (!paging && isModelTaskProgress(payload.task) && (!task || Number(payload.task.id.split(":")[1]) >= Number(task.id.split(":")[1]))) {
+              task = payload.task;
+              // Queue transitions update one live region, preserving model prose, editable inputs and keyboard focus.
+              status.textContent = projectAnalyzerText("model-task-" + task.phase, task);
+            }
+            return;
+          }
           const restoreFocus = document.activeElement === cancelButton;
           const progress = payload.status === "progress";
-          if (!progress) request = undefined;
-          const statuses = ["ready", "progress", "unavailable", "download-failed", "cancelled", "denied", "timeout", "invalid-response", "language-mismatch", "context-too-large", "failed", "stale"];
+          if (!progress) { request = undefined; task = undefined; }
+          const statuses = ["ready", "progress", "queue-full", "unavailable", "download-failed", "cancelled", "denied", "timeout", "invalid-response", "language-mismatch", "context-too-large", "failed", "stale"];
           phase = progress ? "pending" : statuses.includes(payload.status) ? payload.status : "failed";
           if (payload.narrative || phase === "ready" || progress) {
             if (!validFunctionNarrativesResponse(payload)) phase = "invalid-response";
