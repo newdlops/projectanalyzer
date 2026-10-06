@@ -1,6 +1,7 @@
 /** Short localized instructions and explicit source line numbers suit small instruction-tuned models. */
 import type { FunctionNarrativeContext } from "../../shared/functionNarratives";
 import { createLocalNarrativeSchema } from "./responseSchema";
+import { buildFunctionCallNarrativePrompt } from "../../application/functionCallNarratives";
 import { buildFunctionNarrativeExplanationGuidance, buildFunctionNarrativeRichGuidance, buildFunctionNarrativeFlowGuidance, numberFunctionNarrativeContext } from "../../application/functionNarratives";
 
 /** A separate system message keeps the requested language above the large source/schema user message. */
@@ -11,6 +12,7 @@ export function buildLocalNarrativeSystemPrompt(language: "ko" | "en"): string {
 }
 
 export function buildLocalNarrativePrompt(context: FunctionNarrativeContext, language: "ko" | "en"): string {
+  if (context.callTask) return buildFunctionCallNarrativePrompt(context, language).join("\nSOURCE DATA:\n");
   if (context.detailLevel === "rich") return buildRichLocalPrompt(context, language);
   const instructions = language === "ko" ? [
     "한국어 코드 읽기 도우미로서 선택한 함수의 목적과 자세한 동작 시나리오를 설명하세요. 설명 문장은 반드시 한국어로 쓰세요.",

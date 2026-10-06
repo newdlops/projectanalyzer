@@ -1,10 +1,12 @@
 /**
- * VSIX package boundary and size-budget checker. It reads ZIP metadata with only
- * Node.js built-ins so packaging regressions can fail CI without a new dependency.
+ * VSIX package boundary and size-budget checker. ZIP metadata uses Node built-ins;
+ * compiled dependency checks reuse TypeScript already present in this project.
  */
 
 import { open, stat } from "node:fs/promises";
-import { pathToFileURL } from "node:url";
+import path from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
+import { validateRuntimeClosure } from "./check-runtime-closure.mjs";
 
 const MEBIBYTE = 1024 * 1024;
 const END_OF_CENTRAL_DIRECTORY_SIGNATURE = 0x06054b50;
@@ -279,11 +281,18 @@ function formatBytes(bytes) {
 async function main() {
   const vsixPath = process.argv[2];
   if (!vsixPath) {
-    throw new Error("Usage: node scripts/check-vsix-package.mjs <extension.vsix>");
+    throw new Error("Usage: node scripts/check-vsix-package.mjs <extension.vsix> [--compiled-runtime]");
   }
+  if (process.argv[3] !== undefined && process.argv[3] !== "--compiled-runtime") throw new Error("Unknown package check option.");
 
   const [entries, metadata] = await Promise.all([readVsixEntries(vsixPath), stat(vsixPath)]);
   const result = validateVsixPackage(entries, metadata.size);
+  // Build packaging checks local compiled dependencies. Artifact-only checks
+  // (including a clean publish job) remain independent of a platform's output tree.
+  if (result.errors.length === 0 && process.argv[3] === "--compiled-runtime") {
+    const outputDirectory = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../out");
+    result.errors.push(...await validateRuntimeClosure(entries, outputDirectory));
+  }
   const summary =
     `${vsixPath}: ${result.fileCount} files, ${formatBytes(result.archiveBytes)} archive, ` +
     `${formatBytes(result.unpackedBytes)} unpacked`;

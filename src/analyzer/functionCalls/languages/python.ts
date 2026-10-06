@@ -35,8 +35,21 @@ export function createPythonCallGuardReader(source: string, maxDepth: number) {
       }
       node = node.parent;
     }
-    return { guards, order: call ? pythonEvaluationOrder(call, maxDepth) : undefined, deferred, limited: Boolean(node && visited.size >= maxDepth) };
+    return { guards, order: call ? pythonEvaluationOrder(call, maxDepth) : undefined, argumentsText: call ? readArguments(call, source) : undefined, deferred, limited: Boolean(node && visited.size >= maxDepth) };
   };
+}
+
+/** Splits only parser-owned top-level commas, retaining keyword and spread argument syntax. */
+function readArguments(call: SyntaxNode, source: string): string[] | undefined {
+  const list=call.getChild("ArgList");if(!list)return undefined;
+  const result:string[]=[];let start:number|undefined,end=0;
+  for(let child=list.firstChild;child;child=child.nextSibling){
+    if(child.name==="("||child.name===")")continue;
+    if(child.name===","){if(start!==undefined)result.push(source.slice(start,end));start=undefined;continue;}
+    start??=child.from;end=child.to;
+  }
+  if(start!==undefined)result.push(source.slice(start,end));
+  return result.length<=8&&result.every(argument=>argument.length<=160)?result:undefined;
 }
 
 /** Postorder path keys put argument calls before their consumer and Python ternary tests before either arm. */

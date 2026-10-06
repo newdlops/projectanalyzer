@@ -83,6 +83,8 @@ export class FunctionVisualizerPanelProvider {
     this.uiLanguage = dependencies.config.uiLanguage;
     this.functionCallsDelivery = new FunctionCallsHostDelivery({ graphDelivery: this.graphDelivery,
       sourceNodeTokens: this.sourceNodeTokens, evidenceTokens: this.evidenceTokens, readSourceText,
+      provider: dependencies.functionNarrativeProvider, getLanguage: () => this.uiLanguage,
+      postNarratives: (payload) => this.postMessage({ type: "functionCalls/explanationLoaded", payload }),
       postMessage: (payload) => this.postMessage({ type: "functionCalls/loaded", payload }) });
     this.codeFlowDelivery = new CodeFlowHostDelivery({
       graphDelivery: this.graphDelivery,
@@ -158,6 +160,8 @@ export class FunctionVisualizerPanelProvider {
 
   /** Handles only the shared requests meaningful inside this focused panel. */
   private async handleMessage(message: WebviewRequest): Promise<void> {
+    if (message.type === "functionCalls/explain") { await this.functionCallsDelivery.explain(message.payload); return; }
+    if (message.type === "functionCalls/cancelExplanation") { this.functionCallsDelivery.cancelExplanation(message.payload); return; }
     if (message.type === "functionCalls/load") { await this.functionCallsDelivery.load(message.payload); return; }
     if (message.type === "codeFlow/requestFunctionNarratives") { await this.codeFlowDelivery.requestFunctionNarratives(message.payload); return; }
     if (message.type === "codeFlow/cancelFunctionNarratives") { this.codeFlowDelivery.cancelFunctionNarratives(message.payload); return; }

@@ -4,6 +4,33 @@ All notable user-visible changes to Project Analyzer: Code Flow are recorded in
 this file. The changelog starts with the first distribution-documented build;
 earlier local development builds were not tracked here.
 
+## 0.0.1112 - 2026-10-06
+
+### Added
+
+- Combine static function-call structure, assumed source routes and selected
+  callsites with on-demand local model explanations of role, argument transfer,
+  return use, effects and reaching conditions. Read cross-file callee source and
+  retain static target confidence, deferred dispatch and distinct visits.
+- Read at most two callsites per model request and finalize whole-flow summaries
+  after all call details. Preserve completed chunks on cancellation, resume only
+  remaining work and serve cached pages without loading a model. Keep existing
+  local memory/output limits and automatic model preparation.
+- Use identical bounded static route traversal in Host and browser. Add Kotlin
+  parser-backed evaluation order and if/short-circuit/Elvis/safe-call guards.
+- Ground explicit call arguments in TypeScript, JavaScript, Kotlin and Python
+  syntax. Empty argument lists have fixed input wording so descriptions cannot
+  invent arguments. Open caller and callee evidence through snapshot-owned tokens.
+- Exclude dormant feature outputs from VSIX delivery and verify shipped runtime
+  dependencies, preserving the existing package file budget and source modules.
+
+### Known limitations
+
+- Model prose remains inferred and can be inaccurate; source relationships and
+  argument facts do not prove runtime results, dispatch or effects. Existing
+  language/source gaps remain visible. Detailed call pages contain two entries;
+  final summaries use bounded callee evidence.
+
 ## 0.0.1111 - 2026-10-06
 
 ### Improved

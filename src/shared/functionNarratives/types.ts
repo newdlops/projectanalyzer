@@ -52,6 +52,8 @@ export type FunctionNarrativeSnippet = {
 export type FunctionNarrativeContext = {
   functionName: string;
   language: string;
+  /** Independent call-reading task using the same on-demand provider/process lifecycle. */
+  callTask?: import("../functionCallNarratives").FunctionCallNarrativeTask;
   snippets: FunctionNarrativeSnippet[];
   /** Optional bounded syntax routes, not evaluated inputs or observed program execution. */
   sourceFlow?: FunctionNarrativeSourceFlow;

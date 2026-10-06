@@ -4,6 +4,7 @@ export { isFunctionNarrative, createFunctionNarrativeValidator } from "./validat
 export { isFunctionNarrativeExample } from "./exampleValidation";
 export type { FunctionNarrativeExample, FunctionNarrativeNodeDetail } from "./types";
 export { isFunctionNarrativeLanguage } from "./language";
+export { FunctionNarrativeError, type FunctionNarrativeFailure } from "./errors";
 export type { FunctionNarrativePageStore, FunctionNarrativePageStoreFactory } from "./pageStore";
 export { buildFunctionNarrativeSourceAnnotations } from "./sourceAnnotations";
 export type { FunctionNarrativeSourcePresentation, FunctionNarrativeSourcePresenter, FunctionNarrativeSourceAnnotation, FunctionNarrativeSourceReference } from "./sourceAnnotations";

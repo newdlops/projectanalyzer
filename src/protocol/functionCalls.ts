@@ -38,6 +38,8 @@ export type FunctionCallControlPlan = {
   unorderedCallIds: string[]; limited: boolean;
 };
 export type FunctionCallsResponse = FunctionCallsRequest & {
+  /** Available only after this static snapshot is registered with the optional on-demand provider. */
+  narratives?: { available: boolean; contextId?: string };
   status: "ready" | "unavailable" | "stale" | "failed";
   nodes: FunctionCallNode[]; connections: FunctionCallConnection[];
   omittedCount: number; limited: boolean;

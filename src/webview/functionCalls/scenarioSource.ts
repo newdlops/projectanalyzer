@@ -55,6 +55,7 @@ export function getFunctionCallsScenarioSource(): string {
         preset.addEventListener("change", () => { draft.example = preset.value; draft.selection = new Map(draft.examples[Number(preset.value)]?.selection || []); draft.copyStatus = ""; options.render(); });
         presetLabel.append(preset); presets.append(presetLabel, button(t("calls-order-new"), "scenario-new", () => { draft.selection.clear(); draft.example = "custom"; draft.copyStatus = ""; options.render(); }));
         section.append(presets, el("p", "calls-order-note", t("calls-order-assumed")), visuals.legend(["condition", "loop", "call", "return"]));
+        if(options.reading)section.append(options.reading(parentId,[...draft.selection].map(([key,value])=>({key,value}))));
         const decisionIndices = new Map(trace.decisions.map((decision, index) => [decision.key, index + 1]));
         const decisionText = decision => decision?.value ? labelOption(decision.options.find(option => option.value === decision.value)) : t("calls-order-choose");
         const workspace = el("div", "calls-order-workspace"), conditions = el("div", "calls-order-conditions"), sequence = el("div", "calls-order-sequence");

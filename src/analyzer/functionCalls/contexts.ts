@@ -2,6 +2,7 @@
 import type { FunctionLogicAnalysis, FunctionLogicBlock, FunctionLogicCallsite } from "../functionLogic";
 import { createPythonCallGuardReader } from "./languages/python";
 import { createTypeScriptCallGuardReader } from "./languages/typescript";
+import { createKotlinCallGuardReader } from "./languages/kotlin";
 
 export type FunctionCallContext = {
   site: FunctionLogicCallsite;
@@ -21,7 +22,8 @@ export function createFunctionCallContexts(analysis: FunctionLogicAnalysis, opti
   const syntaxGuards = options.sourceText === undefined ? undefined : analysis.language === "python"
     ? createPythonCallGuardReader(options.sourceText, maxDepth)
     : ["typescript", "javascript"].includes(analysis.language)
-      ? createTypeScriptCallGuardReader(options.sourceText, analysis.functionNode.filePath, maxDepth) : undefined;
+      ? createTypeScriptCallGuardReader(options.sourceText, analysis.functionNode.filePath, maxDepth)
+      : analysis.language === "kotlin" ? createKotlinCallGuardReader(options.sourceText, analysis.functionNode.filePath, maxDepth) : undefined;
   const blocks = analysis.blocks.slice(0, 512); const byId = new Map(blocks.map((block) => [block.id, block]));
   const ownedEdges = analysis.edges.filter(edge => byId.has(edge.sourceId) && byId.has(edge.targetId));
   const isLoopBackedge = (from: string, to: string): boolean => {

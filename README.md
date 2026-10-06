@@ -80,6 +80,15 @@ Selected nodes explain the actual language syntax and substitute the same inputs
 into comparisons and calculations. Kotlin constructs are explained when present
 in the source. These model examples remain unverified inferences.
 
+In **Function calls**, choose **Explain this source route** after selecting its
+static conditions, or **Explain call structure / Explain this callsite** in the
+relationships view. Callers and cross-file callees supply the original source;
+the model explains purpose, argument transfer, return use and effects. Static
+order, guards, confidence and explicit arguments stay source-owned. Cached call
+selection and paging do not start a model; completed work can be resumed after
+cancellation. Caller and callee source actions use the same snapshot authority.
+See [call-reading contracts and verification](docs/FUNCTION_NARRATIVES.md#함수-호출의-정적-분석과-llm-해설).
+
 **At a glance** starts with authored documentation, inputs, decisions and
 outcomes. Each reading action selects the corresponding graph node and its
 plain-language explanation in **Understand code**.

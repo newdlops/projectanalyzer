@@ -194,6 +194,19 @@ function validateReadableWebviewRequest(value: unknown): WebviewRequestValidatio
       payloadIsValid = isRecord(payload) && hasOnlyKeys(payload, ["graphVersion", "sourceToken", "requestId"])
         && isCodeFlowSelectSourcePayload(payload) && isNonNegativeInteger(payload.requestId);
       break;
+    case "functionCalls/explain":
+    case "functionCalls/cancelExplanation":
+      payloadIsValid = isRecord(payload) && hasOnlyKeys(payload, ["graphVersion", "sourceToken", "requestId", "contextId", "scope", "connectionId", "choices", "pageIndex", "pageLanguage"])
+        && isCodeFlowSelectSourcePayload(payload) && isNonNegativeInteger(payload.requestId)
+        && typeof payload.contextId === "string" && /^call-reading:[0-9a-f]{32}$/u.test(payload.contextId)
+        && isOneOf(payload.scope, ["overview", "scenario", "call"])
+        && (payload.scope === "call" ? typeof payload.connectionId === "string" && /^function-call:[0-9a-f]{64}$/u.test(payload.connectionId) : payload.connectionId === undefined)
+        && (payload.choices === undefined || payload.scope === "scenario" && Array.isArray(payload.choices) && payload.choices.length <= 256
+          && payload.choices.every(choice => isRecord(choice) && hasOnlyKeys(choice, ["key", "value"])
+            && typeof choice.key === "string" && choice.key.length <= 256 && typeof choice.value === "string" && choice.value.length <= 140))
+        && (payload.pageIndex === undefined ? payload.pageLanguage === undefined : isNonNegativeInteger(payload.pageIndex) && payload.pageIndex < 128
+          && (payload.pageLanguage === undefined || isOneOf(payload.pageLanguage, ["ko", "en"])));
+      break;
     case "codeFlow/openEvidence":
       payloadIsValid = isCodeFlowOpenEvidencePayload(payload);
       break;

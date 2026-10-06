@@ -1,5 +1,37 @@
 # Function reading workspace
 
+## Static and model-assisted call reading — October 2026
+
+Developers keep the existing Function Calls order/relations views and use one
+explicit explanation action for the current parent, chosen route or callsite.
+Static source order, guards, repeated visits, deferred boundaries and confidence
+remain authoritative. Model prose explains purpose, argument transfer, use of
+the return value and possible effects from the caller and bounded callee excerpts.
+The model cannot add graph nodes, select branches or upgrade inferred relations.
+
+Use a flat reading section after the static route, and the same section after a
+selected relation's source facts. Preserve VS Code fonts/theme/focus tokens and
+4/8/12 spacing. Show the generation action/status first, then a connected flow
+summary and a native call selector with role/input/output/effect explanations.
+Keep exact source actions alongside each explanation and retain the inference
+label. Stack facts/actions on narrow screens; wrap code, identifiers and long
+prose. Add no decorative cards, new palette or motion.
+
+Generation runs only after a click; source exploration, mode/locale changes and
+condition edits remain local. Every model request reads at most two callsites.
+Completed explanations survive cancellation and can be resumed; cached reads
+do not load a model. A changed route keeps its own cache and does not borrow the
+previous path's prose. Snapshot changes cancel pending work and expire authority.
+Show idle, missing model/source, preparing, progress, partial/cancel/retry,
+invalid response, stale and successful states without hiding the static graph.
+
+Acceptance: real local TypeScript and Kotlin caller/callee readings; cross-file
+evidence, strict fixed call references, distinct repeated sites/visits, static
+guard/order parity in Host and browser, deferred/unknown outcomes and source
+truncation. Verify cancellation/resume, stale replies, cache-only selection,
+edited condition preservation and source actions at 390×844, 768×1024 and
+1440×900. Functional tests and rendered inspection are separate gates.
+
 ## Rich causal reading — October 2026
 
 The reader follows one input set through source operations and understands why

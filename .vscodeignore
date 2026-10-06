@@ -41,6 +41,22 @@ engine/analyzer/Cargo.lock
 out/test/**
 out/**/*.map
 
+# Dormant feature modules are not reached by the extension entrypoint. Keep their
+# editable sources/tests; the runtime-closure checker catches future wiring.
+out/application/guidedTour/**
+out/application/projectOverview/**
+out/application/projectReadingGuide/**
+out/insights/guidedTour/**
+out/insights/projectOverview/**
+out/insights/projectReadingGuide/**
+out/shared/projectLearningJourney/**
+out/shared/frameworkBehavior.js
+out/webview/explorerFrameworkTree.js
+out/webview/explorerFunctionCallTree.js
+out/webview/explorerFunctionFlows.js
+out/webview/explorerFunctionInventory.js
+out/webview/explorerVirtualTree.js
+
 # The fallback parser only needs TypeScript's self-contained runtime module.
 node_modules/typescript/README.md
 node_modules/typescript/SECURITY.md

@@ -12,12 +12,16 @@ export function createTypeScriptCallGuardReader(source: string, filePath: string
     const guards: Array<{ expression: string; outcome: string; from: number; to: number }> = [];
     const guard = (expression: ts.Node, outcome: string) => ({ expression: expression.getText(file), outcome, from: expression.getStart(file), to: expression.end });
     const end = (lineStarts[site.range.endLine] ?? source.length) + site.range.endCharacter;
-    const path: number[] = []; let order: number[] | undefined;
+    const path: number[] = []; let order: number[] | undefined; let argumentsText: string[] | undefined;
     const visited = new Set<ts.Node>();
     let node: ts.Node | undefined = file;
     while (node && visited.size < maxDepth && !visited.has(node)) {
       visited.add(node);
-      if ((ts.isCallExpression(node) || ts.isNewExpression(node)) && node.getStart(file) === offset && node.end === end) order = [...path, Number.MAX_SAFE_INTEGER];
+      if ((ts.isCallExpression(node) || ts.isNewExpression(node)) && node.getStart(file) === offset && node.end === end) {
+        order = [...path, Number.MAX_SAFE_INTEGER];
+        const args = [...(node.arguments ?? [])].map(argument => argument.getText(file));
+        if (args.length <= 8 && args.every(argument => argument.length <= 160)) argumentsText = args;
+      }
       // Conditions that created a closure are not invocation prerequisites of
       // that closure. Only expression owners inside its own function apply.
       if (ts.isFunctionLike(node)) guards.length = 0;
@@ -51,7 +55,7 @@ export function createTypeScriptCallGuardReader(source: string, filePath: string
       path.push(selectedIndex);
       node = child;
     }
-    return { guards, order, deferred: false, limited: Boolean(node && visited.size >= maxDepth) };
+    return { guards, order, argumentsText, deferred: false, limited: Boolean(node && visited.size >= maxDepth) };
   };
 }
 

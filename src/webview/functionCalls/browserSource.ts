@@ -2,23 +2,26 @@
 import { getFunctionCallsGraphSource } from "./graphSource";
 import { getFunctionCallsScenarioSource } from "./scenarioSource";
 import { getFunctionCallsPresentationSource } from "./presentationSource";
+import { getFunctionCallReadingBrowserSource } from "./readingBrowserSource";
 
 export function getFunctionCallsBrowserSource(): string {
   return /* js */ String.raw`
     ${getFunctionCallsGraphSource()}
     ${getFunctionCallsPresentationSource()}
     ${getFunctionCallsScenarioSource()}
+    ${getFunctionCallReadingBrowserSource()}
     /** Owns only call-mode state; switching never reconstructs or edits the statement workspace. */
     function createFunctionCallsMode(options) {
       const container = document.getElementById("function-calls");
       const switches = [document.getElementById("function-mode-statements"), document.getElementById("function-mode-calls")];
-      if (!container || switches.some(button => !button)) return { reset() {}, accept() {}, localize() {}, isActive() { return false; } };
+      if (!container || switches.some(button => !button)) return { reset() {}, accept() {}, acceptExplanation() {}, localize() {}, isActive() { return false; } };
       let active = false, root, graphVersion, requestId = 0, pending, timeout;
       let nodes = new Map(), connections = new Map(), loaded = new Set(), failures = new Map();
       let selectedId, selectedGroup, zoom = 1, omitted = 0, limited = false, listOpen = false;
       let viewport, canvas, layout, dragging, needsLocalization = false, centerRoot = false;
       let camera = { left: 0, top: 0 };
       let callView = "order", relationSurface;
+      let readingCallId; const readingContexts = new Map();
       const t = (key, params) => projectAnalyzerText(key, params);
       const el = (tag, className, text) => { const element = document.createElement(tag); if (className) element.className = className; if (text !== undefined) element.textContent = text; return element; };
       const button = (text, key, action) => { const item = el("button", "", text); item.type = "button"; item.dataset.callKey = key; item.addEventListener("click", action); return item; };
@@ -30,7 +33,16 @@ export function getFunctionCallsBrowserSource(): string {
       const pairKey = edge => edge.from + ">" + edge.to;
       const groupName = group => (nodes.get(group.from)?.name || "?") + " → " + (nodes.get(group.to)?.name || "?");
       const depthOf = id => layout?.positions.get(id)?.depth ?? 0;
+      const reading = createFunctionCallReading({ el,button,t,postMessage:options.postMessage,
+        graphVersion:()=>graphVersion,language:()=>state.uiLanguage,connection:id=>connections.get(id),node:id=>nodes.get(id),
+        reload(id){loaded.delete(id);failures.delete(id);load(id);},
+        openEvidence:evidenceToken=>options.postMessage({type:"codeFlow/openEvidence",payload:{graphVersion,evidenceToken}}),
+        openFunction(node){setMode("statements");options.openFunction(node);}
+      });
+      const readingView = (sourceToken,scope,extra={}) => reading.view({graphVersion,sourceToken,scope,...extra,
+        ...(readingContexts.get(sourceToken)?.available?{contextId:readingContexts.get(sourceToken).contextId}:{})});
       const scenarios = createFunctionCallScenarioView({ el, button, t, visuals, load, render,
+        reading:(id,choices)=>readingView(id,"scenario",{choices}),
         openInputs(node) { setMode("statements"); options.openFunction(node, "values"); },
         selectConnection(edge) { if (edge) { selectedGroup = pairKey(edge); callView = "relations"; render(); } },
         openEvidence(evidenceToken) { options.postMessage({ type: "codeFlow/openEvidence", payload: { graphVersion, evidenceToken } }); }
@@ -39,6 +51,7 @@ export function getFunctionCallsBrowserSource(): string {
       function setMode(value) {
         if (active && viewport && !relationSurface?.hidden) camera = { left: viewport.scrollLeft, top: viewport.scrollTop };
         active = value === "calls";
+        if (!active) reading.cancel();
         container.hidden = !active;
         document.body.classList.toggle("calls-mode-active", active);
         switches.forEach((item, index) => item.setAttribute("aria-pressed", String(index === (active ? 1 : 0))));
@@ -64,6 +77,7 @@ export function getFunctionCallsBrowserSource(): string {
       function reset(payload) {
         clearTimeout(timeout); root = payload?.root; graphVersion = payload?.graphVersion; pending = undefined;
         nodes = new Map(); connections = new Map(); loaded = new Set(); failures = new Map();
+        reading.reset();readingContexts.clear();readingCallId=undefined;
         scenarios.reset(); callView = "order"; relationSurface = undefined;
         selectedId = root?.sourceToken; selectedGroup = undefined; zoom = 1; omitted = 0; limited = false;
         viewport = undefined; layout = undefined; camera = { left: 0, top: 0 }; listOpen = false;
@@ -87,10 +101,11 @@ export function getFunctionCallsBrowserSource(): string {
         }
         if (id === root?.sourceToken && !loaded.has(id)) centerRoot = true;
         scenarios.accept(id, payload.control);
+        readingContexts.set(id,payload.narratives);
         loaded.add(id); omitted += payload.omittedCount || 0; limited = limited || Boolean(payload.limited); render();
       }
       function selectNode(id) { selectedId = id; selectedGroup = undefined; render(); }
-      function selectEdge(key) { selectedGroup = key; render(); }
+      function selectEdge(key) { selectedGroup = key; readingCallId=undefined;render(); }
       function revealRoot() {
         if (!centerRoot || !active || callView !== "relations" || !viewport || !layout) return;
         const position = layout.positions.get(root?.sourceToken);
@@ -165,7 +180,7 @@ export function getFunctionCallsBrowserSource(): string {
           dragging = { x: event.clientX, y: event.clientY, left: viewport.scrollLeft, top: viewport.scrollTop }; viewport.setPointerCapture(event.pointerId); viewport.classList.add("dragging"); });
         viewport.addEventListener("pointermove", event => { if (dragging) { viewport.scrollLeft = dragging.left + dragging.x - event.clientX; viewport.scrollTop = dragging.top + dragging.y - event.clientY; } });
         const stop = () => { dragging = undefined; viewport.classList.remove("dragging"); }; viewport.addEventListener("pointerup", stop); viewport.addEventListener("pointercancel", stop);
-        const detail = el("aside", "calls-detail"); detail.setAttribute("aria-label", t("reading-details")); renderDetail(detail);
+        const detail = el("aside", "calls-detail"); detail.setAttribute("aria-label", t("reading-details")); if(callView==="relations")renderDetail(detail);
         relationSurface = el("div", "calls-relations"); relationSurface.hidden = callView !== "relations";
         workspace.append(viewport, detail); relationSurface.append(visuals.legend(["call", "condition", "loop", "deferred"]), workspace, el("p", "calls-legend", t("calls-legend")));
         container.append(header, views, status);
@@ -181,7 +196,13 @@ export function getFunctionCallsBrowserSource(): string {
       function renderDetail(detail) {
         const group = layout.groups.find(item => item.key === selectedGroup);
         if (group) { detail.append(el("h3", "", groupName(group)), el("p", "calls-muted", t("calls-selected-edge")));
-          if (group.cycle) detail.append(el("p", "", t("calls-cycle"))); for (const edge of group.edges) detail.append(siteDetail(edge)); return; }
+          if (group.cycle) detail.append(el("p", "", t("calls-cycle")));
+          if(!group.edges.some(edge=>edge.id===readingCallId))readingCallId=group.edges[0].id;
+          if(group.edges.length>1){const label=el("label","calls-reading-selector",t("calls-reading-site-select")),select=el("select");select.dataset.callKey="reading-site";
+            group.edges.forEach(edge=>{const option=el("option","",edge.label+(edge.sourceLocation?" · "+edge.sourceLocation:""));option.value=edge.id;select.append(option);});select.value=readingCallId;
+            select.addEventListener("change",()=>{readingCallId=select.value;render();});label.append(select);detail.append(label);}
+          detail.append(readingView(group.from,"call",{connectionId:readingCallId}));
+          for (const edge of group.edges) detail.append(siteDetail(edge)); return; }
         const node = nodes.get(selectedId); if (!node) return;
         detail.append(el("h3", "", node.qualifiedName), el("p", "calls-muted", node.sourceLocation || t(node.resolution === "unresolved" ? "calls-unknown" : "calls-root")));
         const actions = el("div", "calls-actions");
@@ -190,7 +211,7 @@ export function getFunctionCallsBrowserSource(): string {
         actions.append(expand);
         if (node.sourceToken) actions.append(button(t("calls-view-order"), "order:" + node.id, () => { scenarios.setParent(node.id); callView = "order"; load(node.id); render(); }));
         if (node.sourceToken) actions.append(button(t("calls-open"), "open:" + node.id, () => { setMode("statements"); options.openFunction(node); }));
-        detail.append(actions);
+        detail.append(actions,readingView(node.id,"overview"));
         if (failures.has(node.id)) detail.append(el("p", "", t("calls-" + failures.get(node.id))));
         if (depthOf(node.id) >= 6) detail.append(el("p", "", t("calls-depth")));
         if (nodes.size >= 32) detail.append(el("p", "", t("calls-limited")));
@@ -204,7 +225,7 @@ export function getFunctionCallsBrowserSource(): string {
         const section = el("section", "calls-site");
         section.dataset.callTone = functionCallRelationTone([edge]);
         section.append(visuals.cue(section.dataset.callTone, t("calls-color-" + section.dataset.callTone)));
-        section.append(el("code", "", groupName(edge)), el("p", "calls-muted", t("calls-relation-" + edge.relation) + " · " + t(edge.confidence)));
+        section.append(el("code", "", groupName(edge)), el("p", "calls-muted", t("calls-relation-" + edge.relation) + " · " + t("calls-reading-confidence-"+edge.confidence)));
         const facts = el("ul");
         const guards = edge.guards.map(formatGuard);
         for (const text of [...(guards.length ? guards : [conditionText(edge)]), ...edge.loops.map(loop => t("calls-loop") + ": " + loop), ...(edge.deferred ? [t("calls-deferred")] : [])]) facts.append(el("li", "", text));
@@ -224,7 +245,7 @@ export function getFunctionCallsBrowserSource(): string {
         }
         if (!connections.size) rows.append(el("p", "", t("calls-no-connections"))); list.append(rows); target.append(list);
       }
-      return { reset, accept, isActive: () => active, localize() { if (active) render(); else needsLocalization = true; } };
+      return { reset, accept, acceptExplanation:payload=>reading.accept(payload), isActive: () => active, localize() { if (active) render(); else needsLocalization = true; } };
     }
   `;
 }

@@ -87,6 +87,22 @@ export function getFunctionCallsStyles(): string {
     .calls-list button[aria-pressed="true"] { border-color:var(--vscode-focusBorder); }
     .calls-list small { color:var(--vscode-descriptionForeground); line-height:1.5; }
     .calls-legend { margin:0; line-height:1.5; overflow-wrap:anywhere; }
+    .calls-reading { min-width:0; padding:12px 0; border-top:1px solid var(--vscode-panel-border); }
+    .calls-reading [hidden] { display:none !important; }
+    .calls-reading h3 { margin:0 0 8px; font-size:14px; }
+    .calls-reading p { margin:8px 0; line-height:1.6; overflow-wrap:anywhere; max-width:75ch; }
+    .calls-reading-help,.calls-reading-inference,.calls-reading-status { color:var(--vscode-descriptionForeground); font-size:12px; }
+    .calls-reading-summary { font-weight:600; }
+    .calls-reading-selector { display:grid; gap:6px; margin:12px 0; min-width:0; }
+    .calls-reading-selector select { width:100%; min-width:0; max-width:100%; min-height:32px; padding:6px 8px; border:1px solid var(--vscode-dropdown-border,var(--vscode-panel-border)); background:var(--vscode-dropdown-background); color:var(--vscode-dropdown-foreground); font:inherit; }
+    .calls-reading-code { white-space:pre-wrap; overflow-wrap:anywhere; font:12px/1.6 var(--vscode-editor-font-family,monospace); background:var(--vscode-textCodeBlock-background); padding:8px; }
+    .calls-reading-facts { display:grid; grid-template-columns:minmax(100px,150px) minmax(0,1fr); gap:8px 12px; line-height:1.6; }
+    .calls-reading-facts dt { font-weight:600; overflow-wrap:anywhere; }
+    .calls-reading-facts dd { margin:0; min-width:0; overflow-wrap:anywhere; }
+    .calls-reading-pager { display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin-top:12px; font-variant-numeric:tabular-nums; }
+    .calls-reading-limitations { line-height:1.6; padding-left:18px; overflow-wrap:anywhere; }
+    .calls-reading :is(button,select):focus-visible { outline:2px solid var(--vscode-focusBorder); outline-offset:2px; }
+    @media(max-width:560px) { .calls-reading-facts { grid-template-columns:minmax(0,1fr); gap:4px; } .calls-reading-facts dd { margin-bottom:8px; } }
     @media(max-width:1000px) { .calls-workspace { grid-template-columns:minmax(0,1fr); } .calls-detail { border-left:0; border-top:1px solid var(--vscode-panel-border); max-height:none; } }
     @media(max-width:480px) { .calls-viewport { height:400px; } .calls-header { display:grid; } .calls-detail { padding:12px; } }
     @media(pointer:coarse) { .visualizer-modes button, .function-calls button, .calls-list summary { min-height:44px; } }

@@ -1,8 +1,10 @@
 /** A small constrained JSON grammar guides local generation; Host validation still verifies snippet ownership. */
 import type { FunctionNarrativeContext } from "../../shared/functionNarratives";
+import { createFunctionCallNarrativeSchema } from "../../shared/functionCallNarratives";
 import { buildFunctionNarrativeScenarioFrames, getFunctionNarrativeExampleConstraints } from "../../application/functionNarratives";
 
 export function createLocalNarrativeSchema(context: FunctionNarrativeContext, language: "ko" | "en" = "en"): Record<string, unknown> {
+  if (context.callTask) return createFunctionCallNarrativeSchema(context.callTask, language);
   // Anchored character classes are supported by llama.cpp's JSON grammar. A
   // Korean start guides the decoder's language while source const/enum fields
   // remain untouched. Bounds are in the pattern because pattern takes precedence.

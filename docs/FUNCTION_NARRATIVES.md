@@ -7,6 +7,57 @@ Kotlin과 인자 없는 함수도 사용할 수 있다. 숫자 입력을 찾는 
 문장형 설명은 로컬 LLM이 작성한다. 기본 함수 요약과 그래프, 생성에 쓰는 조건·소스 경로는
 기존 정적 분석이 제공한다.
 
+## 함수 호출의 정적 분석과 LLM 해설
+
+**함수 호출**의 정적 호출 관계·순서는 모델 없이 읽는다. **호출 순서**에서 분기와 반복을
+선택한 뒤 **이 소스 경로 설명**을 누르면 그 가정의 경로를 설명한다. **호출 관계**에서는
+선택한 함수의 **호출 구조 설명**, 연결의 **이 호출부 설명**으로 범위를 좁힌다.
+역할, 명시적 인자 전달, 반환과 호출부의 사용, 상태/부수 효과, 도달 조건을 함께 읽고
+**호출 위치 / 대상 함수 소스 열기 / 대상 함수 흐름 보기**로 근거와 다음 함수를 확인한다.
+
+Host와 브라우저는 `shared/functionCalls`의 동일한 반복 기반 순서 계산을 사용한다.
+정적 대상·분기·반복 방문·confidence·별도 dispatch를 고정하고 모델은 그 의미를 서술한다.
+TypeScript/JavaScript, Kotlin, Python parser가 명시적 호출 인자를 읽으며 빈 목록을
+확인했을 때의 입력 설명은 정적 문구로 고정한다. 미지원/생략 목록을 인자 없음으로 취급하지
+않는다. Kotlin은 nested argument의 postorder, if arm, &&/||, Elvis와 safe-call 조건을
+추가로 읽지만 기존 symbolic-only·scope/coroutine/dispatch 한계는 유지한다.
+
+한 요청은 최대 두 호출부/방문, 최대 다섯 원문 스니펫이다. 부모 100줄/4,200자,
+각 호출부 12줄/600자, 각 대상 60줄/1,800자로 제한하고 줄 번호·선언 범위를 보존한다.
+두 호출보다 큰 묶음은 호출별 해설을 먼저 저장하고 마지막에 전체 흐름을 요약한다.
+전체 요약은 최대 여덟 대상의 실제 원문 450자씩과 최대 여덟 이전 모델 해설을 받는다.
+이전 모델 해설은 정적 사실로 승격하지 않는다. 생략·잘린 근거는 sourceLimited로 표시한다.
+무인 실행, daemon, source 실행, 새 dependency, 기존 모델 context/output 상한 증가는 없다.
+
+취소와 오류 후 완료된 호출을 유지한다. 이어서 생성은 남은 호출 또는 마지막 요약을 처리한다.
+한 페이지는 두 호출을 전달하고 renderer는 선택한 호출 하나의 상세를 펼친다. 최대 여덟
+최근 결과/페이지를 유지하며 캐시 조회는 준비·추론을 요청하거나 진행 중인 생성을 대체하지
+않는다. locale 변경은 생성 언어를 표시하고 기존 설명을 유지한다. 조건/범위가 달라지면
+별도의 결과를 사용한다. source snapshot/root/disposal 변경은 작업과 권한을 지운다.
+
+Public API:
+
+- `shared/functionCalls`: `traceFunctionCalls`, `exampleFunctionCallScenarios`와 portable
+  route contracts. source expressions를 실행하지 않고 step/cycle bounds를 유지한다.
+- `analyzer/functionCalls.readFunctionCallArguments`: parser가 확인한 명시적 인자 텍스트.
+  최대 여덟 인자/각 160자이며 미확인은 `undefined`, 확인한 빈 호출은 `[]`다.
+- `shared/functionCallNarratives`: task/target/chunk 계약, fixed empty-input wording,
+  local JSON schema, 구조·언어 script 검증. 모델 사실성 검증 API는 아니다.
+- `application/functionCallNarratives`: `buildFunctionCallNarrativePlan`,
+  `buildFunctionCallNarrativeContext`, `buildFunctionCallNarrativePrompt`,
+  `parseFunctionCallNarrative`. opaque 요청을 정적 계획과 bounded 원문으로 바꾸고 고정된
+  alias 슬롯/입력 문구를 검증한다. 상한에서 끊긴 요약은 마지막 완전한 문장까지 표시한다.
+- `FunctionCallsHostDelivery.explain/cancelExplanation/reset`: 최대 32개 정적 컨텍스트와
+  여덟 해설 결과의 snapshot lifecycle. 기존 `FunctionNarrativeProvider`의 prepare/generate와
+  동일한 로컬 프로세스/모델 준비를 공유한다. 준비는 추론 deadline 전에 실행한다.
+- `protocol/functionCallNarratives`: `functionCalls/explain`, `cancelExplanation`,
+  `explanationLoaded`; context ID, source token, scope, parser-owned 선택 key/value,
+  cache-only page를 사용한다. browser의 원문·파일 경로·임의 graph identity는 거부한다.
+
+모델은 여전히 문장을 잘못 설명하거나 지시 문구를 반복할 수 있다. JSON 구조·정적 대상·
+인자·소스 위치 검증은 임의의 런타임 결과나 효과를 입증하지 않는다. Source 관계와
+**LLM 추론 · 실제 실행 미검증**을 구분해서 읽는다.
+
 ## 사용 및 연결
 
 1. 확장을 설치하고 PC에 llama.cpp의 `llama-completion` 실행 도구를 미리 준비한다.
@@ -295,6 +346,73 @@ Q4_K_M을 사용했다. revision `f74adce6aa16316c625447af059dbebe4983757c`,
 2,104,932,800 bytes, SHA-256
 `724fb256bec1ff062b2f65e4569e871ad2e95ab2a3989723d1769c54294730b7`을 확인했다.
 두 모델 모두 `.local-models/`에 보관하며, 비교를 위해 사용자 설정을 바꾸지 않았다.
+
+## 0.0.1112 검증 기록
+
+- 자동 준비한 Qwen3.5-4B Q4_K_M와 실제 `llama-completion`으로 production 호출 Host,
+  언어별 parser, source token/evidence registry, configured local provider를 연결했다.
+  기존 GGUF 캐시를 재사용했고 추가 네트워크 요청은 0회였다. TypeScript의 구조와 선택
+  경로는 각각 준비/캐시 확인 1회, Kotlin의 구조는 준비/캐시 확인 1회였다. VS Code 설정과
+  native 진행 알림 API만 QA port로 대체했다. 이번 검사는 전체 가중치를 다시 받지 않았다.
+
+  | 소스 / 해설 언어 | 완료한 호출 해설 | 실제 모델 호출 | 전체 소요 시간 |
+  | --- | --- | ---: | ---: |
+  | TypeScript / 영어 | 구조 3/3·2페이지 + 선택 경로 2/2·1페이지 | 4 | 73.123초 |
+  | Kotlin / 한국어 | 구조 3/3·2페이지 | 3 | 36.575초 |
+
+  작은 fixture 각 1회 측정이다. 다른 파일에서 `addFee`의 `value + 5`와 `double`의 `value * 2`
+  원문이 실제 입력에 포함되고, 정적 대상·confidence·순서·조건은 모델 생성 후에도 동일했다.
+  마지막 구조 요약은 모든 호출 해설이 끝난 뒤 실제 대상 원문과 이전 해설을 함께 읽었다.
+  정적 화면 로드, 완료 결과/페이지 재조회는 모델 준비와 추론을 만들지 않았다.
+- 실제 Kotlin 응답이 `zero()`에 `enabled` 인자를 넘기는 것으로 잘못 설명해 parser가
+  확인한 명시적 인자 목록을 입력에 추가했다. 확인된 빈 목록의 입력 문구는 정적 계약으로
+  고정하고 다른 설명은 거부한다. 최종 실제 응답과 화면은 인자 없음 문구를 사용했다.
+  문장 전체의 의미는 검증하지 않는다. 최종 Kotlin `double` 해설에도 `!enabled`가 거짓일
+  때 호출되지 않는다는 잘못된 도달 설명이 남았고, limitations에는 지시 문구 반복이 있었다.
+  조건 표시는 원래 정적 결과를 유지하며 **LLM 추론 · 실제 실행 미검증**을 함께 표시한다.
+- production Function Visualizer HTML과 실제 기록한 해설을 Safari에서 재생했다.
+  TypeScript를 390×844·1440×900, Kotlin을 390×844·768×1024에서 검사했다.
+  호출 순서/관계 전환, 구조·선택 경로·개별 호출의 생성 버튼, native select의 키보드 선택,
+  locale 변경 후 생성 언어/설명 보존, 캐시 다음 페이지, source 메시지, 좁은 화면의 상세
+  줄바꿈을 확인했다. 검사한 화면에 가로 overflow와 계측된 JavaScript 오류는 없었다.
+  초기 상태의 빈 페이지 버튼, 요약 상한에서 끊긴 문장, 미번역 confidence를 수정한 뒤
+  다시 확인했다. 준비/다운로드 실패/부분 완료 후 취소와 재시도·이어서 생성 버튼은
+  synthetic Host fixture로 검사했다. 취소 후 완료된 해설은 유지됐다.
+  브라우저 생성 버튼은 실제 모델을 다시 실행하지 않는 replay adapter다. 개별 호출 UI는
+  구조 응답의 해당 호출을 재사용하고, 개별 호출의 실제 요청 범위는 Host 통합 테스트로
+  확인했다. source 버튼은 메시지만 기록했으며 native editor reveal, 대상 함수 흐름의
+  후속 분석, VS Code 다운로드 알림의 시각 검증을 대신하지 않는다.
+- Impeccable detector는 변경한 호출 renderer 범위에서 지적 사항을 반환하지 않았다.
+  [Web Interface Guidelines](https://raw.githubusercontent.com/vercel-labs/web-interface-guidelines/main/command.md)로
+  native button/select, label, 의미 있는 `dl`, polite 상태 안내, focus 복구, locale/literal
+  출력, hidden 상태와 overflow를 코드 검토했다. 점수는 변경 범위의 기술적 점검이다.
+
+  | 차원 | 점수 / 4 | 근거와 검증 한계 |
+  | --- | ---: | --- |
+  | 접근성 | 3 | label·의미 구조·focus 확인; 전체 키보드/스크린리더/대비 계측 미완료 |
+  | 성능 | 3 | 요청당 2개 호출·선택한 상세 1개·bounded 캐시; heap/CPU 정량 측정 없음 |
+  | 테마 | 3 | 기존 VS Code 색상·폰트·focus 토큰; 전체 테마 대비 미검증 |
+  | 반응형 | 3 | 세 viewport의 긴 문장과 상태 확인; 실제 터치/큰 글자 미검증 |
+  | 구현 일관성 | 4 | 기존 호출 UI·provider·typed source 계약 재사용; detector 지적 없음 |
+  | 합계 | **16 / 20** | 검사한 변경 범위에 한정하며 WCAG 인증이 아님 |
+
+- 최종 전체 TypeScript 테스트 998개 중 993개가 통과하고 5개가 실패했다. 기존
+  Function Guide declared-type 대표값 2개, advanced private Scenario, decorated
+  source-reveal의 실패 4개와 로컬 프로세스 최초 기동 시간 테스트 1개다. 실제 추론이
+  끝난 뒤 호출 해설/production Webview/Kotlin 인자/local provider의 관련 테스트 15개를
+  다시 실행해 모두 통과했으며 프로세스 기동·종료 순서 테스트도 통과했다.
+  별도 호출/순서/언어 기능·architecture 테스트 50개, Rust 82개, 패키징 script 14개도
+  통과했다. compile, release metadata, diff check를 완료했다.
+- 처음 만든 VSIX는 528개 파일로 512개 상한을 초과했다. 확장 진입점에서 도달하지 않는
+  기존 런타임 출력 34개를 패키지에서 제외하고, 포함한 모듈의 정적 상대 `require` 의존성
+  검사를 추가했다. 소스/테스트와 기존 파일 수·byte 예산은 유지했다. artifact-only CI
+  검사는 플랫폼별 컴파일 출력 없이 기존 ZIP 경계를 검사한다.
+- 최종 0.0.1112 darwin-arm64 VSIX는 494개 파일, 압축 3.57 MiB·해제 15.30 MiB다.
+  기본 및 `Function Language QA 1107` 프로필에 설치하고 등록 버전과 런타임 460개의
+  빌드 출력 byte 일치, native analyzer byte 일치를 확인했다. 기본 프로필의 기존 GGUF
+  설정과 QA 프로필의 자동 다운로드 설정을 유지했다. 모델 가중치는 패키지에 포함하지
+  않는다. QA용 Safari 탭과 서버를 닫았다. 설치 후 열린 native VS Code 창을 다시
+  불러온 시각 검증은 수행하지 않았다.
 
 ## 0.0.1111 검증 기록
 

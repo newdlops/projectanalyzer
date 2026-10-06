@@ -72,6 +72,7 @@ export function getFunctionVisualizerBrowserSource(): string {
       const message = event.data;
       if (!message || typeof message.type !== "string") return;
       if (message.type === "functionCalls/loaded") { callMode.accept(message.payload); return; }
+      if (message.type === "functionCalls/explanationLoaded") { callMode.acceptExplanation(message.payload); return; }
       if (message.type === "codeFlow/scenarioInputsLoaded") { acceptScenarioInputsResponse(message.payload); return; }
       if (message.type === "codeFlow/functionNarrativesLoaded") { acceptFunctionNarrativesResponse(message.payload); return; }
 

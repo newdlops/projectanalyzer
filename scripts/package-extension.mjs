@@ -24,7 +24,7 @@ run(process.platform === "win32" ? "vsce.cmd" : "vsce", [
   "--out",
   outputPath
 ]);
-run(process.execPath, [path.join(projectRoot, "scripts", "check-vsix-package.mjs"), outputPath]);
+run(process.execPath, [path.join(projectRoot, "scripts", "check-vsix-package.mjs"), outputPath, "--compiled-runtime"]);
 
 /** Maps the native Node runtime pair to a VS Code Marketplace target name. */
 function getVsceTarget(platform, arch) {

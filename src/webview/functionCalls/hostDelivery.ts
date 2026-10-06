@@ -5,11 +5,16 @@ import type { FunctionCallsRequest, FunctionCallsResponse } from "../../protocol
 import type { WebviewGraphDelivery } from "../sidebarGraphDelivery";
 import type { SourceNodeTokenRegistry } from "../sourceNavigation";
 import type { CodeFlowEvidenceTokenRegistry } from "../codeFlow";
+import { FunctionCallNarrativesHostDelivery } from "./narrativesHostDelivery";
+import type { FunctionNarrativeProvider } from "../../application/functionNarratives";
+import type { FunctionCallNarrativesRequest, FunctionCallNarrativesResponse } from "../../protocol/functionCallNarratives";
 
 type Dependencies = {
   graphDelivery: WebviewGraphDelivery; sourceNodeTokens: SourceNodeTokenRegistry; evidenceTokens: CodeFlowEvidenceTokenRegistry;
   readSourceText(filePath: string): Promise<string | undefined>;
   postMessage(payload: FunctionCallsResponse): Promise<void>;
+  provider?: FunctionNarrativeProvider; getLanguage?(): "ko" | "en";
+  postNarratives?(payload: FunctionCallNarrativesResponse): Promise<void>;
 };
 
 /** One bounded request stream per panel session, with late-response invalidation on root changes. */
@@ -17,10 +22,17 @@ export class FunctionCallsHostDelivery {
   private generation = 0;
   private lastRequestId = -1;
   private rootSource?: { nodeId: string; text: string };
-  public constructor(private readonly dependencies: Dependencies) {}
+  private readonly narratives: FunctionCallNarrativesHostDelivery;
+  public constructor(private readonly dependencies: Dependencies) {
+    this.narratives = new FunctionCallNarrativesHostDelivery({ ...dependencies,
+      getLanguage: dependencies.getLanguage ?? (() => "en"), postMessage: dependencies.postNarratives ?? (async () => {}) });
+  }
+  public explain(request: FunctionCallNarrativesRequest): Promise<void> { return this.narratives.request(request); }
+  public cancelExplanation(request: FunctionCallNarrativesRequest): void { this.narratives.cancel(request); }
 
   /** Retains an explicitly supplied dirty root snapshot without authorizing any new source path. */
   public reset(nodeId?: string, text?: string): void {
+    this.narratives.clear();
     this.generation += 1; this.lastRequestId = -1;
     this.rootSource = nodeId && text !== undefined ? { nodeId, text } : undefined;
   }
@@ -40,6 +52,10 @@ export class FunctionCallsHostDelivery {
       response = source === undefined ? empty("unavailable") : createFunctionCallsSlice(snapshot.graph,
         analyzeFunctionLogic({ functionNode: node, sourceText: source, maxBlocks: 512 }), request,
         (id) => sourceNodeTokens.createToken(id), (path, range) => evidenceTokens.createToken(path, range), source);
+      if (response.status === "ready" && source !== undefined && generation === this.generation && graphDelivery.matches(request.graphVersion)) {
+        const contextId = this.narratives.register(response, node, source);
+        response.narratives = { available: Boolean(contextId), ...(contextId ? { contextId } : {}) };
+      }
     } catch { response = empty("failed"); }
     if (generation !== this.generation || !graphDelivery.matches(request.graphVersion) || this.lastRequestId !== request.requestId) return;
     await this.dependencies.postMessage(response);

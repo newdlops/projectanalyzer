@@ -186,12 +186,15 @@ export function installSidebarWebviewRuntime(
         listeners.set(type, handlers.filter((candidate) => candidate !== handler));
       },
       append(...appendedChildren) {
-        children.push(...appendedChildren);
+        for (const child of appendedChildren) {
+          child.parentElement?.removeChild(child); child.parentElement=element; children.push(child);
+        }
       },
       removeChild(child) {
         const index = children.indexOf(child);
         if (index >= 0) {
           children.splice(index, 1);
+          child.parentElement=undefined;
         }
         return child;
       },
@@ -200,6 +203,11 @@ export function installSidebarWebviewRuntime(
       },
       focus() {
         focusedElementId = id;
+      },
+      contains(candidate) {
+        const pending = [element], visited = new Set<SidebarFakeElement>();
+        while (pending.length) { const item=pending.pop()!;if(visited.has(item))continue;visited.add(item);if(item===candidate)return true;pending.push(...item.children); }
+        return false;
       },
       closest() {
         return undefined;
@@ -218,7 +226,7 @@ export function installSidebarWebviewRuntime(
       },
       querySelectorAll(selector) {
         if (selector !== ".explorer-tree") {
-          return [];
+          return querySidebarElements(element, selector);
         }
         if (id === "call-panel") {
           return [getOrCreateElement("call-tree")];
@@ -231,8 +239,10 @@ export function installSidebarWebviewRuntime(
         }
         return [];
       },
+      querySelector(selector) { return element.querySelectorAll(selector)[0]; },
       replaceChildren(...replacementChildren) {
-        children.splice(0, children.length, ...replacementChildren);
+        for (const child of children) child.parentElement=undefined;
+        children.splice(0, children.length);element.append(...replacementChildren);
       },
       setAttribute(name, value) {
         attributes.set(name, value);
@@ -289,6 +299,7 @@ export function installSidebarWebviewRuntime(
     }
   });
   Reflect.set(globalThis, "document", {
+    body: getOrCreateElement("body"),
     // Browser catalog formatting keys off the document language even when this
     // small runtime does not implement the static-markup query APIs.
     documentElement: { lang: "en" },
@@ -687,6 +698,7 @@ type SidebarFakeElement = {
   id: string;
   tagName: string;
   children: SidebarFakeElement[];
+  parentElement?: SidebarFakeElement;
   readonly firstChild?: SidebarFakeElement;
   className: string;
   classList: {
@@ -717,6 +729,7 @@ type SidebarFakeElement = {
   removeChild: (child: SidebarFakeElement) => SidebarFakeElement;
   removeAttribute: (name: string) => void;
   focus: () => void;
+  contains: (candidate?: SidebarFakeElement) => boolean;
   closest: (selector: string) => SidebarFakeElement | undefined;
   getBoundingClientRect: () => {
     left: number;
@@ -728,6 +741,18 @@ type SidebarFakeElement = {
   hasPointerCapture: (pointerId: number) => boolean;
   releasePointerCapture: (pointerId: number) => void;
   querySelectorAll: (selector: string) => SidebarFakeElement[];
+  querySelector: (selector: string) => SidebarFakeElement | undefined;
   replaceChildren: (...children: SidebarFakeElement[]) => void;
   setAttribute: (name: string, value: string) => void;
 };
+
+/** Minimal native selectors needed for retained call-mode focus and scroll tests; not a full browser DOM. */
+function querySidebarElements(root: SidebarFakeElement, selector: string): SidebarFakeElement[] {
+  const results:SidebarFakeElement[]=[],pending=[...root.children],visited=new Set<SidebarFakeElement>();
+  const match=selector.match(/^([a-z]+)?(?:\.([\w-]+))?(?:\[data-([\w-]+)\])?$/u);if(!match)return results;
+  const attribute=match[3]?.replace(/-([a-z])/gu,(_text,letter:string)=>letter.toUpperCase());
+  while(pending.length){const item=pending.shift()!;if(visited.has(item))continue;visited.add(item);
+    if((!match[1]||item.tagName.toLowerCase()===match[1])&&(!match[2]||item.className.split(/\s/u).includes(match[2]))&&(!attribute||item.dataset[attribute]!==undefined))results.push(item);
+    pending.push(...item.children);
+  }return results;
+}

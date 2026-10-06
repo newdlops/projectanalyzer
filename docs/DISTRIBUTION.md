@@ -52,6 +52,14 @@ function-analysis-<version>-<target>.vsix
 - Marketplace PNG, README, CHANGELOG, SUPPORT 존재
 - 개발 소스와 다른 플랫폼 binary가 포함되지 않음
 - archive, unpacked size, file count, 단일 파일 크기 예산 준수
+- 포함한 런타임의 모든 정적 상대 경로 `require` 대상 존재. 확장 진입점에서 사용하지 않는
+  기존 기능 출력은 `.vscodeignore`에서 제외하되 소스와 테스트는 유지한다. 나중에 해당 기능을
+  연결하면 검사기가 누락된 의존성을 거부하므로 필요한 출력을 패키지에 다시 포함해야 한다.
+  동적 `require`는 정적으로 확인할 수 없으므로 패키징을 거부한다.
+
+빌드 패키징은 검사기에 `--compiled-runtime`을 전달해 현재 `out`과 VSIX 의존성을 비교한다.
+이미 만든 다른 플랫폼 artifact를 확인하는 `npm run package:check -- <vsix>`는 기존처럼
+ZIP metadata와 allowlist/예산을 검사하며 해당 플랫폼의 컴파일 출력은 필요하지 않다.
 
 테스트 후에는 다음도 확인한다.
 

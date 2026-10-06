@@ -18,6 +18,7 @@ import type {
 } from "./functionExplorer";
 import type { FunctionVisualizerSessionPayload } from "./functionVisualizer";
 import type { FunctionCallsRequest, FunctionCallsResponse } from "./functionCalls";
+import type { FunctionCallNarrativesRequest, FunctionCallNarrativesResponse } from "./functionCallNarratives";
 import type { ScenarioInputsResponse } from "./scenarioInputs";
 import type { FunctionNarrativesResponse } from "./functionNarratives";
 import type {
@@ -98,6 +99,8 @@ export type WebviewRequest =
   | { type: "export/run"; payload: ExportRequest }
   | CodeFlowRequest
   | { type: "functionCalls/load"; payload: FunctionCallsRequest }
+  | { type: "functionCalls/explain"; payload: FunctionCallNarrativesRequest }
+  | { type: "functionCalls/cancelExplanation"; payload: FunctionCallNarrativesRequest }
   | FunctionExplorerRequest
   | ModuleFlowLaunchRequest
   | ModuleFlowRequest
@@ -140,6 +143,7 @@ export type ExtensionResponse =
   | { type: "codeFlow/functionNarrativesLoaded"; payload: FunctionNarrativesResponse }
   | { type: "functionVisualizer/sessionLoaded"; payload: FunctionVisualizerSessionPayload }
   | { type: "functionCalls/loaded"; payload: FunctionCallsResponse }
+  | { type: "functionCalls/explanationLoaded"; payload: FunctionCallNarrativesResponse }
   | { type: "function/indexLoaded"; payload: FunctionExplorerPayload }
   | { type: "function/searchLoaded"; payload: FunctionExplorerSearchPayload }
   | { type: "function/searchFailed"; payload: FunctionExplorerSearchFailurePayload }
