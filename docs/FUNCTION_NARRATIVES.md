@@ -443,7 +443,11 @@ Q4_K_M을 사용했다. revision `f74adce6aa16316c625447af059dbebe4983757c`,
   disposal·언어·60개 노트의 상세 DOM 40개 상한·touch scroll·단일 Tab 진입을 포함한다.
   패키징 script 14개, compile, release metadata와 diff check도 통과했다. Rust 구현은
   변경하지 않았으며 Rust unit suite를 별도로 재실행하지 않았다.
-- Impeccable 기계 검사 결과는 빈 배열이었다. 수동 UX/접근성 검토에서 버튼·disclosure·
+- 새 노트 모듈·뷰포트·해설 renderer 범위의 Impeccable 기계 검사 결과는 빈 배열이었다.
+  최종 hook의 기존 graph-node `side-tab` 지적은 별도로 검토했다. 해당 테두리는 commit
+  `c1f3407`부터 종류별 의미색을 표시하며 DESIGN.md의 기존 graph token 유지 원칙에 따른다.
+  UI는 유지하고 `functionLogicGraphStyles.ts`의 해당 규칙만 공유 검사 예외에 등록했다.
+  수동 UX/접근성 검토에서 버튼·disclosure·
   focus·overflow·기존 테마 token 사용을 확인했다. 실제 터치 장치와 light/forced-colors
   테마의 시각 검증은 하지 않았다. touch event 동작은 단위 테스트로 검증했다.
 

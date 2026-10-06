@@ -1,0 +1,17 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "side-tab",
+        "value": "*",
+        "files": [
+          "src/webview/codeFlow/functionLogicGraphStyles.ts"
+        ],
+        "createdAt": "2026-10-06T07:05:40.539Z",
+        "reason": "Codex review: Existing semantic graph-node type markers distinguish entry and exit, decisions, mutations, and returns; present since commit c1f3407. DESIGN.md preserves existing semantic graph tokens. Retain this intentional graph-reading vocabulary."
+      }
+    ]
+  }
+}
