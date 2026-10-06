@@ -140,6 +140,7 @@ function buildFunctionalAnalysis(
   const gaps = createFunctionalGaps(source, chains, candidates.length - visibleCandidates.length);
   return {
     functionNode: input.functionNode,
+    sourceRange: functionalOffsetsRange(source.lines, callable.declarationFrom, callable.declarationTo),
     language: source.profile.language,
     signature: callable.signature,
     lexicalOwnerQualifiedName: callable.qualifiedName.split(".").slice(0, -1).join(".") || undefined,

@@ -2,7 +2,7 @@
 import type { FunctionNarrativeContext } from "../../shared/functionNarratives";
 import { createLocalNarrativeSchema } from "./responseSchema";
 import { buildFunctionCallNarrativePrompt } from "../../application/functionCallNarratives";
-import { buildFunctionNarrativeExplanationGuidance, buildFunctionNarrativeRichGuidance, buildFunctionNarrativeFlowGuidance, numberFunctionNarrativeContext } from "../../application/functionNarratives";
+import { buildFunctionNarrativeExplanationGuidance, buildFunctionNarrativeRichGuidance, buildFunctionNarrativeEmptyRouteGuidance, buildFunctionNarrativeFlowGuidance, numberFunctionNarrativeContext } from "../../application/functionNarratives";
 
 /** A separate system message keeps the requested language above the large source/schema user message. */
 export function buildLocalNarrativeSystemPrompt(language: "ko" | "en"): string {
@@ -63,7 +63,7 @@ function buildRichLocalPrompt(context: FunctionNarrativeContext, language: "ko" 
     task ? "노드 해설 요청입니다. 응답은 steps만 있는 객체입니다. targets 순서대로 각 구문을 정확히 하나의 단계로 설명하고 code와 source를 그대로 복사하세요. summary/scenarios/example/analysis를 응답에 넣지 마세요."
       : "sourceFlow.paths의 고정 경로를 모두 해설하세요. summary는 입력 역할과 함수 목적, explanation은 3~6문장의 연결된 해설, analysis는 경로 판단·상태 변화·다른 분기입니다. when/outcome/source는 schema의 고정 소스 근거를 그대로 사용하세요.",
     task ? "같은 예시 입력과 앞 노드의 모델 상태를 사용하세요. targets의 구문만 설명하되 앞 조건들이 이 구문에 도달시키는 이유를 고려하세요."
-      : "exampleInputs에 모든 parameters의 name과 경로에 맞는 구체적인 JSON 입력을 먼저 쓰세요. explanation/analysis/steps에서 그 입력으로 실제 계산한 뒤 마지막 exampleResult에 결과를 쓰세요. 미완성/외부 결과 미확인은 null입니다. assumptions/limitations는 미확인 정보만이며 없으면 빈 배열입니다.",
+      : "exampleInputs에 모든 parameters의 name과 value를 먼저 쓰세요. value는 문자열로 인코딩한 코드가 아닌 실제 JSON 값입니다. 객체·배열은 JSON의 큰따옴표를 쓰고 True/False/None이나 Python 리터럴은 쓰지 마세요. explanation/analysis/steps에서 그 입력으로 계산한 뒤 마지막 exampleResult에 결과를 쓰세요. 미완성/외부 결과 미확인은 null입니다. assumptions/limitations는 미확인 정보만이며 없으면 빈 배열입니다.",
     "응답 예산: summary 240자, explanation 600자, analysis 각 필드 220자, 단계 최대 2개. text 120자, syntax 160자, reason 180자, effect 160자 이내입니다. values는 구문 직전/직후의 모델 예시 값이며 최대 2개입니다. 원래 입력값은 바꾸지 마세요.",
     "조건·계산은 예시의 실제 숫자/Boolean/문자열 값을 식에 대입해 설명하세요. explanation을 제외한 각 필드는 길이 상한 전에 끝나는 1~2개의 짧고 완전한 문장입니다. summary는 함수 전체의 역할입니다. 모든 설명 문장은 한국어로, 식별자와 소스 문자열은 원문으로 유지하세요."
   ] : [
@@ -71,11 +71,12 @@ function buildRichLocalPrompt(context: FunctionNarrativeContext, language: "ko" 
     task ? "This is a NODE TASK. Return an object containing only steps. Describe exactly one operation per target in target order and copy each code and source exactly. Do not return summary/scenarios/example/analysis."
       : "Explain every fixed sourceFlow.paths route. summary states input roles and purpose; explanation is 3-6 connected sentences; analysis covers path reasoning, state changes and an alternate branch. Copy schema-owned when/outcome/source.",
     task ? "Use the original example inputs and earlier model state. Explain only targets while considering the earlier decisions that reach them."
-      : "Write exampleInputs first using every parameters name and matching JSON input text. Then derive the calculation in explanation/analysis/steps and write exampleResult LAST using that same derived value. Partial/unknown external results are null. assumptions/limitations contain unverified information only, otherwise empty arrays.",
+      : "Write exampleInputs first using every parameters name and value. value is an actual JSON value, not encoded source code. Use JSON double quotes in objects/arrays, never Python literals or True/False/None. Then derive the calculation in explanation/analysis/steps and write exampleResult LAST using that same derived value. Partial/unknown external results are null. assumptions/limitations contain unverified information only, otherwise empty arrays.",
     "Budget: summary 240 chars, explanation 600, each analysis field 220, at most 2 steps. text 120, syntax 160, reason 180, effect 160 chars. values are immediate before/after MODEL examples, at most 2 per operation. Keep original inputs unchanged.",
     "Substitute the actual numeric/Boolean/string example values into comparisons/calculations. Each prose field except explanation uses 1-2 short complete sentences, finishing BEFORE its length cap. summary describes the whole function. Preserve identifiers/literals; write prose in English."
   ];
   return rules.join("\n") + "\n" + buildFunctionNarrativeRichGuidance(language)
+    + "\n" + buildFunctionNarrativeEmptyRouteGuidance(context, language)
     + "\nJSON schema:\n" + JSON.stringify(createLocalNarrativeSchema(context, language))
     + "\nSOURCE DATA:\n" + JSON.stringify(numberFunctionNarrativeContext(context))
     + (context.valueFacts?.length ? "\n" + buildFunctionNarrativeFlowGuidance({ ...context, sourceFlow: undefined }, language) : "")

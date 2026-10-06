@@ -24,6 +24,52 @@ function fixture(language: "kotlin" | "typescript") {
   return { node, source, analysis, context: buildFunctionNarrativeContext(node, source, [], analysis) };
 }
 
+test("declaration-only native symbols retain parser-owned bodies without adjoining functions", () => {
+  for (const [language, filePath, source, nameColumn] of [
+    ["python", "/fixture/reading.py", 'def inspect(enabled):\n    if not enabled:\n        return "disabled"\n    return "ready"\n\ndef later():\n    return "unrelated"\n', 4],
+    ["kotlin", "/fixture/reading.kt", 'fun inspect(enabled: Boolean): String {\n if (!enabled) return "disabled"\n return "ready"\n}\nfun later() = "unrelated"\n', 4],
+    ["java", "/fixture/Reading.java", 'class Reading {\nString inspect(boolean enabled) {\n if (!enabled) return "disabled";\n return "ready";\n}\nString later() { return "unrelated"; }\n}\n', 7]
+  ] as const) {
+    const declarationLine = language === "java" ? 1 : 0;
+    const declaration = source.split("\n")[declarationLine];
+    const node: SymbolNode = { id: `native:${language}`, name: "inspect", qualifiedName: "inspect", filePath, kind: "function", language,
+      range: { startLine: declarationLine, startCharacter: 0, endLine: declarationLine, endCharacter: declaration.length },
+      selectionRange: { startLine: declarationLine, startCharacter: nameColumn, endLine: declarationLine, endCharacter: nameColumn + 7 } };
+    const analysis = analyzeFunctionLogic({ functionNode: node, sourceText: source });
+    assert.ok(analysis.sourceRange && analysis.sourceRange.endLine >= 3, language);
+    assert.equal(analysis.functionNode, node, "the graph identity and declaration range stay intact");
+    const context = buildFunctionNarrativeContext(node, source, [], analysis);
+    assert.match(context.snippets[0].text, /return "ready"/u);
+    assert.ok(!context.snippets[0].text.includes("later"), language);
+    assert.ok(!context.snippets[0].text.includes("unrelated"), language);
+    assert.equal(context.sourceFlow?.paths.length, 2, language);
+    assert.ok(context.sourceFlow!.paths.every(path => path.steps.length > 0 && path.status === "source-terminal"), language);
+    const mismatched = buildFunctionNarrativeContext(node, source, [], { ...analysis, functionNode: { ...node, id: "other" } });
+    assert.equal(mismatched.snippets[0].text, declaration, "a foreign analysis cannot extend this declaration");
+    assert.equal(mismatched.sourceFlow, undefined);
+  }
+});
+
+test("parser-owned root ranges preserve inline ownership and excerpt budgets", () => {
+  const source = 'function earlier() { return "foreign"; } function inspect() { return "ready"; } function later() { return "unrelated"; }';
+  const start = source.indexOf("function inspect");
+  const node: SymbolNode = { id: "inline", name: "inspect", qualifiedName: "inspect", filePath: "/fixture/inline.ts", kind: "function", language: "typescript",
+    range: { startLine: 0, startCharacter: start, endLine: 0, endCharacter: start + 27 },
+    selectionRange: { startLine: 0, startCharacter: start + 9, endLine: 0, endCharacter: start + 16 } };
+  const logic = analyzeFunctionLogic({ functionNode: node, sourceText: source });
+  const context = buildFunctionNarrativeContext(node, source, [], logic);
+  assert.equal(context.snippets[0].text, 'function inspect() { return "ready"; }');
+  const large = 'def inspect():\n' + Array.from({ length: 200 }, (_, index) => `    value${index} = ${index}`).join("\n") + '\n    return "ready"\n\ndef later():\n    return "unrelated"\n';
+  const python: SymbolNode = { ...node, filePath: "/fixture/large.py", language: "python", range: { startLine: 0, startCharacter: 0, endLine: 0, endCharacter: 14 },
+    selectionRange: { startLine: 0, startCharacter: 4, endLine: 0, endCharacter: 11 } };
+  const bounded = buildFunctionNarrativeContext(python, large, [], analyzeFunctionLogic({ functionNode: python, sourceText: large }));
+  assert.equal(bounded.limited, true);
+  assert.equal(bounded.snippets[0].endLine, 160);
+  assert.match(bounded.snippets.find(snippet => snippet.id === "root-tail")!.text, /return "ready"/u);
+  assert.ok(bounded.snippets.every(snippet => !snippet.text.includes("unrelated")));
+  assert.ok(bounded.snippets.reduce((sum, snippet) => sum + snippet.text.length, 0) <= 18000);
+});
+
 test("Kotlin grounding snapshots three guard routes and never continues after their first return", () => {
   const { context } = fixture("kotlin");
   assert.equal(context.sourceFlow?.basis, "source-control-flow");

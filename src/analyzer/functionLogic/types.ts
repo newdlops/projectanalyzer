@@ -192,6 +192,8 @@ export type FunctionLogicSummary = {
 /** Complete static internal-flow result for one concrete callable. */
 export type FunctionLogicAnalysis = {
   functionNode: SymbolNode;
+  /** Full callable range from the same parsed snapshot, independent of graph declaration-only ranges. */
+  sourceRange?: SourceRange;
   language: FunctionLogicLanguage;
   signature: string;
   /** Parser-proven lexical class/type owner used only for conservative call matching. */

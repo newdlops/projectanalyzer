@@ -11,8 +11,13 @@ export function buildFunctionNarrativeContext(node: SymbolNode, source: string, 
   const snippets: FunctionNarrativeSnippet[] = [];
   let remaining = 18000;
   let limited = false;
-  const start = Math.max(0, node.range.startLine);
-  const end = Math.min(lines.length - 1, node.range.endLine - (node.range.endCharacter === 0 ? 1 : 0));
+  const matchedAnalysis = analysis?.functionNode.id === node.id && analysis.functionNode.filePath === node.filePath
+    ? analysis : undefined;
+  // Native graph symbols may cover only the declaration line. Reuse the
+  // parser-owned callable extent already computed for this source snapshot.
+  const rootRange = matchedAnalysis?.sourceRange ?? node.range;
+  const start = Math.max(0, rootRange.startLine);
+  const end = Math.min(lines.length - 1, rootRange.endLine - (rootRange.endCharacter === 0 ? 1 : 0));
   /** Each excerpt consumes the shared character budget and retains only the actual source-line range. */
   const append = (id: string, role: FunctionNarrativeSnippet["role"], from: number, to: number, lineLimit: number, characterLimit: number, boundary?: SourceRange): boolean => {
     from = Math.max(0, from); to = Math.min(lines.length - 1, to);
@@ -40,8 +45,8 @@ export function buildFunctionNarrativeContext(node: SymbolNode, source: string, 
     snippets.push({ id, role, startLine: from + 1, endLine: last + 1, text: chunks.join("\n"), truncated });
     return !truncated;
   };
-  const completeRoot = append("root", "function", start, end, 160, 10000, node.range);
-  if (!completeRoot && end > (snippets[0]?.endLine ?? start + 1) - 1) append("root-tail", "function", Math.max(start, end - 19), end, 20, 2000, node.range);
+  const completeRoot = append("root", "function", start, end, 160, 10000, rootRange);
+  if (!completeRoot && end > (snippets[0]?.endLine ?? start + 1) - 1) append("root-tail", "function", Math.max(start, end - 19), end, 20, 2000, rootRange);
   append("nearby", "nearby", start - 16, start - 1, 16, 2000);
   const visited = new Set([node.id]);
   for (const candidate of related) {
@@ -53,9 +58,9 @@ export function buildFunctionNarrativeContext(node: SymbolNode, source: string, 
   const context: FunctionNarrativeContext = { functionName: node.name.slice(0, 240), language: node.language.slice(0, 40), snippets, limited };
   // Only the exact selected source snapshot can contribute source routes. The
   // host already owns this analysis; legacy callers remain source-only.
-  if (analysis && analysis.functionNode.id === node.id && analysis.functionNode.filePath === node.filePath) {
-    context.sourceFlow = buildFunctionNarrativeSourceFlow(analysis, source, context);
-    context.scenarioGraph = buildFunctionNarrativeScenarioGraph(analysis, source, context);
+  if (matchedAnalysis) {
+    context.sourceFlow = buildFunctionNarrativeSourceFlow(matchedAnalysis, source, context);
+    context.scenarioGraph = buildFunctionNarrativeScenarioGraph(matchedAnalysis, source, context);
   }
   return context;
 }

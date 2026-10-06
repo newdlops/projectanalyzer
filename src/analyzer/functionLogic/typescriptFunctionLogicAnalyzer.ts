@@ -314,6 +314,7 @@ function buildFunctionLogic(
 
   return {
     functionNode: graphNode,
+    sourceRange: toSourceRange(sourceFile, functionNode),
     language: getSupportedLanguage(graphNode),
     signature: createFunctionSignature(sourceFile, functionNode),
     blocks: dataFlow.blocks,
@@ -478,6 +479,7 @@ function finalizeSimpleExpressionAnalysis(
   const combinedCallsites = [...callsites, ...embeddedExpansion.callsites];
   return {
     functionNode: graphNode,
+    sourceRange: toSourceRange(sourceFile, functionNode),
     language: getSupportedLanguage(graphNode),
     signature: createFunctionSignature(sourceFile, functionNode),
     blocks: dataFlow.blocks,

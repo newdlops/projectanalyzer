@@ -37,6 +37,7 @@ export function findSelectedKotlinCallable(source: KotlinSource, node: SymbolNod
   return {
     node: callable.node, body: callable.body,
     signature: normalizeKotlinText(source.text.slice(callable.node.from, callable.body.from)),
+    sourceRange: kotlinNodeRange(source, callable.node),
     bodyRange: kotlinNodeRange(source, callable.body), expressionBody: callable.expressionBody,
     lexicalOwnerQualifiedName: callable.lexicalTypeOwner || undefined
   };

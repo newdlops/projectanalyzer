@@ -7,6 +7,7 @@ import { FunctionNarrativeError, scheduleFunctionNarrativeRequest, type Function
 import { getGlobalModelTaskManager, type ModelTaskManager } from "../../shared/modelTasks";
 import { createLocalNarrativeSchema } from "./responseSchema";
 import { buildLocalNarrativePrompt, buildLocalNarrativeSystemPrompt } from "./localPrompt";
+import { normalizeLocalNarrativeResponse } from "./localResponse";
 export type LocalFunctionNarrativeOptions = { binaryPath: string; modelPath: string; taskManager?: ModelTaskManager };
 
 /** No daemon, model download or activation-time work. Concurrent surfaces share one request queue. */
@@ -37,7 +38,7 @@ export function createLocalFunctionNarrativeProvider(options: LocalFunctionNarra
         "--single-turn", "--simple-io", "--no-display-prompt", "--no-escape", "--offline", "--no-warmup",
         "--ctx-size", "8192", "--predict", "2400", "--threads", "2", "--threads-batch", "2", "--poll", "0",
         "--temp", "0.2", "--seed", "42", "--json-schema-file", schemaFile], signal);
-      return { modelName: ("Local · " + basename(options.modelPath, ".gguf")).slice(0, 100), text };
+      return { modelName: ("Local · " + basename(options.modelPath, ".gguf")).slice(0, 100), text: normalizeLocalNarrativeResponse(text, context) };
     } finally {
       if (directory) await rm(directory, { recursive: true, force: true });
     }
@@ -84,6 +85,6 @@ function classifyRunnerFailure(diagnostics: string): string | undefined {
   if (/out of memory|cannot allocate|failed to allocate|bad_alloc|insufficient memory/iu.test(diagnostics)) return "memory-allocation";
   if (/failed to (?:load|open) (?:model|gguf)|invalid gguf|error loading model/iu.test(diagnostics)) return "model-load";
   if (/unrecognized (?:argument|option)|unknown (?:argument|option)|invalid (?:argument|option)/iu.test(diagnostics)) return "runner-arguments";
-  if (/failed to (?:parse|build) grammar|error (?:parsing|building) grammar|grammar[^\n]*(?:error|invalid)/iu.test(diagnostics)) return "response-grammar";
+  if (/JSON schema (?:conversion failed|error)|failed to (?:parse|build) grammar|error (?:parsing|building) grammar|grammar[^\n]*(?:error|invalid)/iu.test(diagnostics)) return "response-grammar";
   return undefined;
 }

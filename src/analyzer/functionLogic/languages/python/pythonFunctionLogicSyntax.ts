@@ -232,6 +232,7 @@ function createPythonDescriptor(
     node: callable.node,
     body: callable.body,
     signature: createPythonCallableSignature(source, callable),
+    sourceRange: lezerNodeRange(source, callable.declarationNode),
     bodyRange: getPythonCallableBodyRange(source, callable),
     expressionBody: callable.expressionBody,
     lexicalOwnerQualifiedName: callable.lexicalClassOwner || undefined

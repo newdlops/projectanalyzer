@@ -1,6 +1,14 @@
 /** Shared prose guidance and source numbering for concrete, statement-level explanations. */
 import type { FunctionNarrativeContext } from "../../shared/functionNarratives";
 
+/** A source gap may yield no ordered operations; keep its declaration evidence without manufacturing a statement. */
+export function buildFunctionNarrativeEmptyRouteGuidance(context: FunctionNarrativeContext, language: "ko" | "en"): string {
+  if (!context.sourceFlow?.paths.some(path => !path.steps.length)) return "";
+  return language === "ko"
+    ? "소스 단계가 비어 있는 경로: steps에는 code 필드를 넣지 마세요. 고정 SOURCE FRAME의 함수 선언 근거를 인용하고 확인된 동작 순서가 없음을 설명하세요. partial 경로의 분기·계산·반환을 만들지 말고 exampleResult는 null로 유지하세요. source-terminal은 구문 없는 암시적 종료이며 실행 관찰이 아닙니다."
+    : "STEP-LESS SOURCE ROUTES: omit code from steps. Cite the fixed SOURCE FRAME's owned function declaration and explain that no ordered operations are available. Never invent branches, calculations or returns for a partial route; retain null exampleResult. A source-terminal route with no operations is an implicit end, not an execution observation.";
+}
+
 /** Rich tasks distinguish language semantics, concrete causality and nearby alternatives without extra inference. */
 export function buildFunctionNarrativeRichGuidance(language: "ko" | "en"): string {
   return (language === "ko" ? [

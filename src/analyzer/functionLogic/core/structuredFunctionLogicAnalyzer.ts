@@ -42,6 +42,8 @@ export type StructuredCallableDescriptor<TNode> = {
   node: TNode;
   body: TNode;
   signature: string;
+  /** Parser-owned declaration and body extent; never inferred from neighboring symbols. */
+  sourceRange: SourceRange;
   bodyRange: SourceRange;
   expressionBody?: boolean;
   lexicalOwnerQualifiedName?: string;
@@ -284,6 +286,7 @@ function buildStructuredFunctionLogic<TSource, TNode>(
   const projectedBlocks = dataFlow?.blocks ?? blocks;
   return {
     functionNode: graphNode,
+    sourceRange: callable.sourceRange,
     language: adapter.language,
     signature: callable.signature,
     lexicalOwnerQualifiedName: callable.lexicalOwnerQualifiedName || undefined,

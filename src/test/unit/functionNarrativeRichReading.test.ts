@@ -5,7 +5,7 @@ import { analyzeFunctionLogic } from "../../analyzer/functionLogic";
 import { bindFunctionNarrativeGraph, buildFunctionNarrativeContext, buildFunctionNarrativeScenarioFrames,
   createFunctionNarrativeNodeTask, createFunctionNarrativeScenarioIterator, initializeFunctionNarrativeNodes,
   appendFunctionNarrativeNodes, finalizeFunctionNarrativeNodes, parseFunctionNarrative, FunctionNarrativeScenarioRun,
-  FunctionNarrativeError, getFunctionNarrativeExampleConstraints } from "../../application/functionNarratives";
+  FunctionNarrativeError, getFunctionNarrativeExampleConstraints, buildFunctionNarrativePrompt } from "../../application/functionNarratives";
 import { FunctionNarrativeScenarioSession } from "../../webview/codeFlow/functionNarrativeScenarioSession";
 import { isFunctionNarrative, isFunctionNarrativeLanguage, type FunctionNarrative, type FunctionNarrativeContext } from "../../shared/functionNarratives";
 import { buildLocalNarrativePrompt } from "../../llm/functionNarratives/localPrompt";
@@ -35,6 +35,38 @@ function output(context: FunctionNarrativeContext): string {
     example: { inputs: [{ name: "value", json: "5" }], result: "10" }, steps: steps([frame.sources[0]])
   })), limitations: [] });
 }
+
+test("step-less partial and implicit-end routes produce valid local schemas and retain only owned declaration evidence", () => {
+  const batch = new FunctionNarrativeScenarioRun(contextFor()).nextBatch()!;
+  for (const status of ["partial", "source-terminal"] as const) {
+    const context: FunctionNarrativeContext = { ...batch, sourceFlow: { basis: "source-control-flow", limited: status === "partial",
+      paths: [{ steps: [], status, confidence: "exact", ...(status === "partial" ? { reason: "control-gap" as const } : {}) }] } };
+    const frame = buildFunctionNarrativeScenarioFrames(context)[0];
+    assert.deepEqual(frame.sources, [{ snippetId: "root", startLine: 1, endLine: 1 }]);
+    for (const language of ["ko", "en"] as const) {
+      const schema = createLocalNarrativeSchema(context, language) as any;
+      const properties = schema.properties.scenarios.items[0].properties.steps.items.properties;
+      assert.equal(Object.hasOwn(properties, "code"), false);
+      assert.deepEqual(properties.source.enum, frame.sources);
+      const pending: unknown[] = [schema];
+      while (pending.length) {
+        const item = pending.pop(); if (!item || typeof item !== "object") continue;
+        if ("enum" in item) assert.ok(Array.isArray(item.enum) && item.enum.length > 0, "llama.cpp rejects empty enums before model loading");
+        pending.push(...Object.values(item));
+      }
+      assert.match(buildLocalNarrativePrompt(context, language), language === "ko" ? /code 필드를 넣지/u : /STEP-LESS SOURCE ROUTES/u);
+    }
+    assert.match(buildFunctionNarrativePrompt(context, "en")[0], /STEP-LESS SOURCE ROUTES/u);
+    const narrative = JSON.parse(output(context)) as FunctionNarrative;
+    if (status === "partial") narrative.scenarios[0].example!.result = "null";
+    assert.doesNotThrow(() => parseFunctionNarrative(JSON.stringify(narrative), context, "en"));
+    const invented = structuredClone(narrative); invented.scenarios[0].steps[0].code = "return 0";
+    assert.throws(() => parseFunctionNarrative(JSON.stringify(invented), context, "en"), /invalid-response/u);
+    const wrongSource = structuredClone(narrative); wrongSource.scenarios[0].steps[0].source.startLine = 2;
+    assert.throws(() => parseFunctionNarrative(JSON.stringify(wrongSource), context, "en"), /invalid-response/u);
+    assert.equal(context.sourceFlow!.paths[0].steps.length, 0, "schema construction must not manufacture ordered source operations");
+  }
+});
 
 test("rich source readings require complete causal fields and syntax; legacy readings remain valid", () => {
   const run = new FunctionNarrativeScenarioRun(contextFor()), context = run.nextBatch()!;

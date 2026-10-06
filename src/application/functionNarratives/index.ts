@@ -9,7 +9,7 @@ export { buildFunctionNarrativeFlowGuidance } from "./flowGuidance";
 export { addFunctionNarrativeValueGrounding } from "./valueGrounding";
 export { buildFunctionNarrativeScenarioFrames, getFunctionNarrativeExampleConstraints, type FunctionNarrativeScenarioFrame } from "./scenarioFrames";
 export { parseFunctionNarrative, buildFunctionNarrativePrompt } from "./structuredResponse";
-export { buildFunctionNarrativeExplanationGuidance, buildFunctionNarrativeRichGuidance, numberFunctionNarrativeContext } from "./explanationGuidance";
+export { buildFunctionNarrativeExplanationGuidance, buildFunctionNarrativeRichGuidance, buildFunctionNarrativeEmptyRouteGuidance, numberFunctionNarrativeContext } from "./explanationGuidance";
 export { FunctionNarrativeError, type FunctionNarrativeProvider } from "./provider";
 export type { FunctionNarrativeModelResponse, FunctionNarrativeGenerationOptions, FunctionNarrativeOperationOptions } from "./provider";
 export { scheduleFunctionNarrativePreparation, scheduleFunctionNarrativeRequest, MODEL_INFERENCE_TIMEOUT_MS } from "./queuedProvider";

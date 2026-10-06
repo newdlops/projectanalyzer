@@ -110,6 +110,7 @@ test("local runner failures expose controlled recovery categories without retain
     ["failed to load model", "failed", "model-load"],
     ["unrecognized argument", "failed", "runner-arguments"],
     ["failed to parse grammar", "failed", "response-grammar"],
+    ["JSON schema conversion failed: enum must be a non-empty array", "failed", "response-grammar"],
     ["private unrelated diagnostics", "failed", "exit-2"]
   ];
   for (const [diagnostic, code, detailCode] of cases) {

@@ -2,7 +2,7 @@
 import { isFunctionNarrative, isFunctionNarrativeLanguage, type FunctionNarrative, type FunctionNarrativeContext } from "../../shared/functionNarratives";
 import { FunctionNarrativeError } from "./provider";
 import { buildFunctionCallNarrativePrompt } from "../functionCallNarratives";
-import { buildFunctionNarrativeExplanationGuidance, buildFunctionNarrativeRichGuidance, numberFunctionNarrativeContext } from "./explanationGuidance";
+import { buildFunctionNarrativeExplanationGuidance, buildFunctionNarrativeRichGuidance, buildFunctionNarrativeEmptyRouteGuidance, numberFunctionNarrativeContext } from "./explanationGuidance";
 import { buildFunctionNarrativeScenarioFrames, getFunctionNarrativeExampleConstraints } from "./scenarioFrames";
 
 /** Source is untrusted data. The request neither enables tools nor executes code. */
@@ -22,6 +22,7 @@ export function buildFunctionNarrativePrompt(context: FunctionNarrativeContext, 
     "A helper snippet provides implementation context, not proof it executes. Missing dependencies, omitted source and unknown external outcomes belong in limitations or assumptions.",
     "All descriptions are LLM inference, never verified execution or exhaustive coverage. Use original one-based line numbers for each step's source.",
     buildFunctionNarrativeExplanationGuidance(language),
+    buildFunctionNarrativeEmptyRouteGuidance(context, language),
     ...(context.detailLevel === "rich" ? [buildFunctionNarrativeRichGuidance(language),
       'Use exampleInputs (the named JSON input array) BEFORE the explanation and exampleResult (display text) AFTER the steps, so the result follows the completed reasoning. Do not return example in the new shape.',
       'Every scenario also requires "analysis":{"pathReason":"input-substituted accumulated conditions","stateChange":"ordered reached writes/calls/return and skipped work","alternative":"a source predicate change that selects another path"}, each at most 600 characters. Every step requires "syntax":"explain its actual language semantics, at most 600 characters".',

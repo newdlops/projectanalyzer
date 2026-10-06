@@ -290,6 +290,12 @@ portable validator의 시나리오 4개×step 5개는 응답 상한이며 함수
 정규화하며 두 형태를 섞은 응답을 거부한다. 직접 Boolean의 고정 JSON 값과 Kotlin의
 null 선택을 검사하고, partial 결과는 `null`을 요구한다. 수정/optional/nullable/alias Boolean
 입력을 단순한 false로 고정하지 않는다. 숫자 결과의 의미 정확성은 이 구조 검사의 범위 밖이다.
+로컬 primary 생성은 `{name, value}`의 실제 JSON 입력을 사용하고 provider adapter에서
+`{name, json}` 문자열 계약으로 인코딩한다. Python 객체·배열 표기를 JSON 문자열로 반환하는
+실패를 방지하며 기존 크기·깊이·유한 숫자·금지 key 검사를 유지한다. node/call 및 connected
+모델의 계약은 변경하지 않는다. grammar의 generic JSON 값과 non-null union은
+[llama.cpp의 JSON Schema 지원 범위](https://github.com/ggml-org/llama.cpp/blob/master/grammars/README.md)를
+따르며 Host 검증을 대신하지 않는다.
 고정 source 식이 포함된 JSON grammar도 0600 임시 파일로 전달하고 source를 argv에 넣지 않는다.
 cache는 owning surface/root의 수명에 속하고 새 snapshot 또는 disposal에서 해제한다.
 주변 상수/helper까지 content identity에 포함한다. 확장이 백그라운드 모델을 유지하지 않는다.
@@ -297,7 +303,10 @@ cache는 owning surface/root의 수명에 속하고 새 snapshot 또는 disposal
 ### 정적 근거와 LLM 문장의 경계
 
 `buildFunctionNarrativeContext(node, source, helpers, analysis?)`는 같은 source snapshot의
-기존 Function Logic을 받아 optional source route를 붙인다. `buildFunctionNarrativeSourceFlow`
+기존 Function Logic을 받아 optional source route를 붙인다. source excerpt는 같은 identity·파일의
+parser-owned `sourceRange`를 재사용한다. native
+graph의 선언 줄 범위 때문에 본문이 사라지지 않으며 추가 파싱이나 인접 함수 범위 추측은 없다.
+기존 snippet 문자·줄·tail 예산은 유지한다. `buildFunctionNarrativeSourceFlow`
 는 언어별 parser를 다시 실행하지 않고 최대 3개 route, depth 24, 탐색 128회, 출력 4,000자로
 투영한다. 옵션의 depth/path/character 상한은 각각 48/3/6,000이다. 첫 return/throw에서
 멈추며 route별 visited set과 duplicate edge 제거를 사용한다. callback 정의·deferred route,
@@ -381,6 +390,36 @@ Q4_K_M을 사용했다. revision `f74adce6aa16316c625447af059dbebe4983757c`,
 2,104,932,800 bytes, SHA-256
 `724fb256bec1ff062b2f65e4569e871ad2e95ab2a3989723d1769c54294730b7`을 확인했다.
 두 모델 모두 `.local-models/`에 보관하며, 비교를 위해 사용자 설정을 바꾸지 않았다.
+
+## 0.0.1114 검증 기록
+
+실제 신고된 Python 함수의 native 요청을 재현했다. 실행기가 `enum: []`를 거부하여 모델을
+불러오기 전에 종료했고, native graph의 선언 줄 범위 때문에 본문이 입력에서 빠져 있었다.
+본문 복원 뒤에는 모델이 예시 객체·배열을 Python 표기로 반환해 JSON 입력 검증에 실패하는
+문제도 확인했다. 빈 경로의 code 생략, 기존 parser 범위 재사용, 로컬 JSON value 인코딩으로
+세 원인을 수정했다. 경로·인용·입력 검증을 완화하거나 자동 재시도를 추가하지 않았다.
+
+- 최초 실패 native 입력을 그대로 재생한 빈 partial 경로는 수정된 grammar에서 모델 실행과
+  응답 검증을 통과했다. 다음으로 생산 Rust graph와 실제 신고 함수의 전체 본문을 사용한
+  Host 검증에서 첫 두 시나리오의 모든 노드가 완료됐다. 그 뒤 일부 노드까지 총 19회 추론이
+  정상 종료·검증됐다. 임시 CLI QA는 이후 진행 중인 자식 프로세스만 수동 종료했다.
+- 설치한 기본 VS Code 0.0.1114를 해당 창에서 Reload Window한 뒤 같은 함수를 다시 분석했다.
+  CFG 22블록·28연결을 유지했고, 한국어 시나리오·예시 입력·구문 해설이 실제 화면에 표시됐다.
+  취소 버튼으로 종료한 뒤 완료 문장과 입력 예시, 이어서 분석 버튼이 보존됐다. native 로그의
+  준비 작업과 완료 추론에 기존 `exit-1` 실패는 없었다.
+- 전체 unit 1,019개 중 1,015개 통과. 신규 회귀 6개를 포함하며 기존 declared-type 입력
+  대표값 2개, advanced private Scenario, decorated source-reveal 실패 4개는 그대로다.
+  패키징 script 14개, compile, release metadata 및 diff check도 통과했다. Rust 구현은
+  변경하지 않았으며 Rust unit suite를 별도로 재실행하지 않았다.
+- VSIX는 504개 파일, 압축 3.59MiB·해제 15.35MiB로 기존 상한을 통과했다. 기본·
+  `Function Language QA 1107` 프로필의 manifest는 0.0.1114이며, 설치 런타임 JS 470개와
+  native binary가 빌드 출력과 일치하고 runtime closure 오류는 없다.
+
+실제 신고 함수의 28개 경로 전체가 완료됐다는 검증은 아니다. native UI는 접근성 트리와
+실제 생성·취소 상호작용으로 확인했으며 이번 backend 수정에서 새 viewport visual QA는
+실행하지 않았다. 부정 조건을 반대로 설명한 모델 문장도 관찰했다. 형식·언어·인용 검증을
+의미 정확성이나 실제 실행 검증으로 취급하지 않으며 기존 미검증 표시를 유지한다.
+실제 소스·prompt·응답·runner stderr는 로컬 0600 QA 파일에만 두고 저장소·VSIX에 포함하지 않았다.
 
 ## 0.0.1113 검증 기록
 

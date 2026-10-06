@@ -42,8 +42,8 @@ export function createLocalNarrativeSchema(context: FunctionNarrativeContext, la
     properties: { pathReason: description(220), stateChange: description(220), alternative: description(220) } };
   const example = context.nodeTask ? { const: context.nodeTask.example } : { type: "object", additionalProperties: false, required: ["inputs", "result"], properties: {
     inputs: { type: "array", minItems: context.parameters?.length ?? 0, maxItems: context.parameters?.length ?? 0,
-      ...(context.parameters?.length ? { items: context.parameters.map((parameter) => ({ type: "object", additionalProperties: false, required: ["name", "json"],
-        properties: { name: { const: parameter.name }, json: { type: "string", minLength: 1, maxLength: 1200 } } })) } : { items: { type: "object" } }) },
+      ...(context.parameters?.length ? { items: context.parameters.map((parameter) => ({ type: "object", additionalProperties: false, required: ["name", rich ? "value" : "json"],
+        properties: { name: { const: parameter.name }, ...(rich ? { value: {} } : { json: { type: "string", minLength: 1, maxLength: 1200 } }) } })) } : { items: { type: "object" } }) },
     result: { type: "string", minLength: 1, maxLength: 1200 }
   } };
   const scenario = { type: "object", additionalProperties: false, required: ["title", "when", "explanation", "steps", "outcome", "assumptions", ...(rich ? ["analysis"] : []), ...(context.parameters ? ["example"] : [])], properties: {
@@ -64,25 +64,40 @@ export function createLocalNarrativeSchema(context: FunctionNarrativeContext, la
       ...(rich && context.parameters ? { exampleInputs: constrainedExample(index).properties.inputs,
         exampleResult: constrainedExample(index).properties.result } : {}),
       steps: targetedSteps ?? (rich && context.sourceFlow?.paths[index]?.steps.length ? terminalEvidence(index) :
-        { ...scenario.properties.steps, items: { ...step, properties: { ...step.properties,
-          ...(rich && context.sourceFlow?.paths[index] ? { code: { enum: context.sourceFlow.paths[index].steps.map((step) => step.code) } } : {}), source: { enum: frame.sources } } } }) }
+        { ...scenario.properties.steps, items: { ...step, properties: {
+          ...(!rich || !context.sourceFlow?.paths[index] ? step.properties : sourceStepProperties(index)),
+          source: { enum: frame.sources } } } }) }
   })) } : { type: "array", minItems: 1, maxItems: 3, items: scenario };
   return { type: "object", additionalProperties: false, required: ["summary", "scenarios", "limitations"], properties: {
     summary: description(rich ? 240 : batched ? context.parameters ? 160 : 240 : 1200), scenarios,
     limitations: { ...facts, maxItems: batched ? 2 : 6 }
   } };
 
+  /** Empty partial/implicit routes cite the owned declaration without inventing an executable code step. */
+  function sourceStepProperties(index: number) {
+    const operations = context.sourceFlow!.paths[index].steps;
+    const { code: _freeCode, ...properties } = step.properties;
+    // llama.cpp rejects enum: [] before loading the model. Omitting code for
+    // a step-less route also preserves the Host's
+    // existing rejection of fabricated statements on that route.
+    return operations.length ? { ...properties, code: { enum: operations.map(operation => operation.code) } } : properties;
+  }
+
   /** Emit fixed entry choices before prose so generation anchors on the correct scenario. */
   function constrainedExample(index: number) {
     const constraints = getFunctionNarrativeExampleConstraints(context, index);
     return { ...example, properties: { ...example.properties,
       inputs: { type: "array", minItems: context.parameters!.length, maxItems: context.parameters!.length,
-        items: context.parameters!.length ? context.parameters!.map((parameter) => ({ type: "object", additionalProperties: false, required: ["name", "json"], properties: {
-          name: { const: parameter.name }, json: constraints.booleans.some((input) => input.name === parameter.name)
-            ? { const: constraints.booleans.find((input) => input.name === parameter.name)!.json }
-            : constraints.nullInputs.includes(parameter.name) ? { const: "null" }
-              : { type: "string", minLength: 1, maxLength: 1200, ...(constraints.nonNullInputs.includes(parameter.name)
-                ? { pattern: "^[-0-9\"\\[\\{tf][^\\x00-\\x1F]{0,1199}$" } : {}) }
+        // Decoding a JSON value directly prevents Python/Kotlin literals from
+        // masquerading as JSON text. The adapter encodes it for portable inputs.
+        items: context.parameters!.length ? context.parameters!.map((parameter) => ({ type: "object", additionalProperties: false, required: ["name", "value"], properties: {
+          name: { const: parameter.name }, value: constraints.booleans.some((input) => input.name === parameter.name)
+            ? { const: constraints.booleans.find((input) => input.name === parameter.name)!.json === "true" }
+            : constraints.nullInputs.includes(parameter.name) ? { const: null }
+              : constraints.nonNullInputs.includes(parameter.name) ? { anyOf: [
+                { type: "string", maxLength: 1200 }, { type: "number" }, { type: "boolean" },
+                { type: "array", items: {} }, { type: "object", additionalProperties: true }
+              ] } : {}
         } })) : { type: "object" } }, ...(constraints.partial ? { result: { const: "null" } } : {}) } };
   }
 

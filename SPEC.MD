@@ -1400,6 +1400,9 @@ Webview는 Project Graph, 파일 시스템, VS Code API에 직접 접근하지 �
   합계 18,000자 스니펫을 구성한다. 본문 160줄/10,000자, 생략 시 별도 끝 20줄/2,000자,
   앞의 문서·상수 16줄/2,000자와 같은 파일의 직접 helper 최대 60줄/2,000자를 사용한다.
   raw 파일 경로와 analyzer identity를 LLM 또는 Webview에 전달하지 않는다.
+  같은 identity·파일의 Function Logic이 제공하는 parser-owned `sourceRange`를 본문 범위로
+  재사용한다. native graph가 선언 줄만 보존해도 실제 함수 본문을 포함하며 인접 함수의
+  범위를 추측하지 않는다. graph identity·range와 기존 snippet 예산은 유지하고 추가 파싱은 없다.
 - 같은 snapshot의 이미 계산된 Function Logic으로 optional `sourceFlow`를 구성한다.
   source route는 최대 3개/24 depth/128 탐색 작업/4,000자이며 entry 이후 첫 return/throw에서
   멈춘다. visited set은 route별로 유지하고 duplicate edge, deferred/callable boundary를
@@ -1422,6 +1425,9 @@ Webview는 Project Graph, 파일 시스템, VS Code API에 직접 접근하지 �
   Host가 조건을 ` · `로 연결한 최대 160자로 표시한다. 조건이 없으면 terminal을 사용한다.
   전체 조건은 근거에 유지하고 provider prompt/grammar와 모델의 문장은 변경하지 않는다.
   새 전체 분석은 complete/inferred/partial/implicit exit 경로 모두에 별도 고정 slot을 제공한다.
+  실행 step이 없는 경로는 소유한 선언 인용만 제공하고 `code`를 생략한다. 로컬 JSON schema는
+  빈 enum을 만들지 않으며 partial 예시의 결과는 `null`로 고정한다. Host는 해당 경로의
+  지어낸 code를 계속 거부한다. implicit exit를 실제 실행이나 반환값 증거로 취급하지 않는다.
   `scenarioBatch.offset`이 없는 이전 context만 자유형 fallback을 유지한다.
   이 검사는 문장의 의미 정확성을
   보장하지 않는다. context identity에는 위의 source fact와 static check도 포함한다.
@@ -1434,6 +1440,11 @@ Webview는 Project Graph, 파일 시스템, VS Code API에 직접 접근하지 �
   전달한다. 한국어의 자유 서술 필드는 한글로 시작하도록 bounded JSON grammar로 유도하고
   고정된 source 식은 유지한다. private 임시 user/system prompt와 JSON schema는 요청 종료 시 삭제한다.
   `--json-schema-file`로 source를 포함한 grammar도 argv 밖에서 전달한다.
+  rich primary 응답의 `exampleInputs`는 `{name, value}`의 실제 JSON 값을 생성한다. 로컬
+  adapter는 이를 기존 `{name, json}` 문자열 계약으로 인코딩하며 Boolean/null 경로 선택,
+  입력 크기·깊이·유한 숫자·금지 key 검사와 Host의 source/route 검증은 유지한다. 소스 언어의
+  객체·배열 리터럴 문자열을 JSON으로 추측 변환하거나 실행하지 않는다. node/call과 connected
+  provider의 기존 응답 계약은 유지한다.
   선택 가능한 VS Code adapter는 연결된 Chat model의 token 한도를 확인한 뒤 실제
   `sendRequest`/response stream을 사용한다. 모델 학습·API key 보관은 하지 않는다.
 - `shared/modelTasks.ModelTaskManager`는 한 Extension Host의 Guide·호출 해설·local/connected

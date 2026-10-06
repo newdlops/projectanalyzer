@@ -4,6 +4,23 @@ All notable user-visible changes to Project Analyzer: Code Flow are recorded in
 this file. The changelog starts with the first distribution-documented build;
 earlier local development builds were not tracked here.
 
+## 0.0.1114 - 2026-10-06
+
+### Fixed
+
+- Keep step-less partial and implicit-end routes valid for the local runner:
+  omit executable code constraints instead of emitting an invalid empty enum.
+  Preserve declaration citations and reject invented operations on those routes.
+- Build model excerpts from the callable range already confirmed by Function
+  Logic. Native declaration-only symbols now include their Python, Java and
+  Kotlin bodies while preserving neighboring function boundaries and existing
+  source budgets, without another parse.
+- Generate local example inputs as JSON values and encode them at the provider
+  boundary. Python object/array notation can no longer be returned as invalid
+  JSON input text; the existing input, source and route validation remains strict.
+- Classify JSON schema conversion failures as response grammar errors in Model
+  Tasks so the failure before model inference can be identified.
+
 ## 0.0.1113 - 2026-10-06
 
 ### Added

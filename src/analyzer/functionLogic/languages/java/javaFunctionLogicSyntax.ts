@@ -241,6 +241,7 @@ function createJavaDescriptor(
     node: callable.node,
     body: callable.body,
     signature: createJavaCallableSignature(source, callable),
+    sourceRange: lezerNodeRange(source, callable.declarationNode),
     bodyRange: getJavaCallableBodyRange(source, callable),
     expressionBody: callable.expressionBody,
     lexicalOwnerQualifiedName: callable.lexicalTypeOwner || undefined
