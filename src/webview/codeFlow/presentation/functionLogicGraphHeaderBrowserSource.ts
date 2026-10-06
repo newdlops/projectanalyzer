@@ -15,7 +15,8 @@ export function getFunctionLogicGraphHeaderBrowserSource(): string {
       graphTitle,
       extraControl,
       outlineToggle,
-      understanding
+      understanding,
+      notesToggle
     ) {
       const header = document.createElement("div");
       const title = document.createElement("strong");
@@ -44,6 +45,7 @@ export function getFunctionLogicGraphHeaderBrowserSource(): string {
       if (understanding) toolsBody.append(understanding);
       // Keep the original Fit action outside advanced tools without duplicating listeners or camera state.
       if (extraControl) controls.append(extraControl);
+      if (notesToggle) controls.append(notesToggle);
       controls.append(viewportControls.primaryFit);
       header.append(title, controls, tools);
       // Keep stable header nodes: a language update must not replace controls

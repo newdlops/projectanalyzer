@@ -2,7 +2,7 @@
 
 export function getFunctionTutorIntegrationBrowserSource(): string {
   return /* js */ `
-    function createFunctionTutorIntegration(logic, comprehension, valueFlowRendering, viewportController, inspector, scenarioWorkspace, identity) {
+    function createFunctionTutorIntegration(logic, comprehension, valueFlowRendering, viewportController, inspector, scenarioWorkspace, identity, narrativeNotes) {
       const visibleBlockId = (id) => identity?.resolveScenarioBlockId?.(id) || id;
       const visibleEdgeId = (id) => identity?.resolveScenarioEdgeId?.(id) || id;
       function applyGuideFocus(chapter) {
@@ -14,6 +14,7 @@ export function getFunctionTutorIntegrationBrowserSource(): string {
       }
       const panel = createFunctionTutorPanel(logic, {
         scenarioWorkspace,
+        onNarrativeNotes(data) { narrativeNotes?.setScenario(data); },
         readNarrativeNode() { const id=comprehension.getState().selectedBlockId; return id && (identity?.resolveSourceScenarioBlockId?.(id) || id); },
         subscribeNarrativeNode(listener) { return comprehension.subscribe(listener); },
         onNarrativeScenario(scenario, options) {

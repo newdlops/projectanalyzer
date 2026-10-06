@@ -4,6 +4,18 @@ All notable user-visible changes to Project Analyzer: Code Flow are recorded in
 this file. The changelog starts with the first distribution-documented build;
 earlier local development builds were not tracked here.
 
+## 0.0.1115 - 2026-10-06
+
+### Added
+
+- Show each selected model scenario's saved explanations as graph notes with
+  numbered node links, syntax/reason/effect, example value changes and source
+  actions. Keep repeated visits together without borrowing another route's prose.
+- Add a Graph notes control. Note navigation preserves zoom, moves only as far
+  as needed, and returns to the selected source node when notes are hidden.
+  Detailed note DOM is limited to 40 nearby notes; selection, paging, language
+  changes and note reading never start model inference.
+
 ## 0.0.1114 - 2026-10-06
 
 ### Fixed

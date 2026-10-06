@@ -7,6 +7,27 @@ Kotlin과 인자 없는 함수도 사용할 수 있다. 숫자 입력을 찾는 
 문장형 설명은 로컬 LLM이 작성한다. 기본 함수 요약과 그래프, 생성에 쓰는 조건·소스 경로는
 기존 정적 분석이 제공한다.
 
+## 시나리오 그래프 노트
+
+생성한 시나리오를 선택하거나 **그래프에서 보기**를 누르면 그 경로의 해설을 그래프 옆
+노트로 읽는다. 각 노드의 `1.2` 같은 번호 버튼으로 해당 노트에 이동하며 현재 배율을
+유지한다. **해설 펼치기**에서 실제 구문의 의미, 그 예시에서의 판단 근거, 값과 흐름의
+변화, 모델 예시값과 **소스 열기**를 확인한다. 반복 방문은 같은 노트 안에서 별도로 표시한다.
+**그래프 노트**로 숨기면 선택한 소스 노드로 돌아오고, 다시 열어도 모델을 실행하지 않는다.
+
+페이지·선택·UI 언어가 바뀌면 그 시나리오의 저장된 노트를 사용한다. 다른 경로의 해설을
+현재 경로의 것으로 표시하지 않으며 원문 수정·graph 교체·context 만료는 권한을 해제한다.
+모든 노트에는 LLM 미검증과 생성 언어를 표시하고 예시값을 실제 실행이나 사용자 편집값으로
+취급하지 않는다. 모델 준비/생성은 기존의 명시적 분석 버튼을 통해서만 실행한다.
+
+모듈 public surface는 `webview/codeFlow/narrativeNotes`다. `projectNarrativeGraphNotes`
+(scenario, visible node layouts, identity resolver)는 현재 경로의 해설만 결합하고 원래 node
+index를 보존한다. `layoutNarrativeGraphNotes`는 원본 위치를 수정하지 않는 노트 배치를
+계산한다. `getNarrativeGraphNotesBrowserSource`와 `getNarrativeGraphNoteStyles`는 렌더링과
+테마를 제공한다. source action은 기존 검증된 Webview protocol을 재사용한다.
+한 번에 상세 DOM은 최대 40개이며 viewport 근처 노트만 mount한다. 화면 밖 노트는 번호와
+가벼운 anchor를 유지한다. 재귀, 상시 timer/animation, 추가 모델 호출이나 의존성을 추가하지 않는다.
+
 ## 함수 호출의 정적 분석과 LLM 해설
 
 **함수 호출**의 정적 호출 관계·순서는 모델 없이 읽는다. **호출 순서**에서 분기와 반복을
@@ -390,6 +411,45 @@ Q4_K_M을 사용했다. revision `f74adce6aa16316c625447af059dbebe4983757c`,
 2,104,932,800 bytes, SHA-256
 `724fb256bec1ff062b2f65e4569e871ad2e95ab2a3989723d1769c54294730b7`을 확인했다.
 두 모델 모두 `.local-models/`에 보관하며, 비교를 위해 사용자 설정을 바꾸지 않았다.
+
+## 0.0.1115 검증 기록
+
+- 기본·`Function Language QA 1107` 프로필에 0.0.1115를 설치했다. 설치된 JavaScript
+  474개와 native binary가 빌드 출력과 일치하며 두 프로필의 버전 등록과 runtime closure를
+  확인했다. VSIX는 508개 파일, 압축 3.60MiB·해제 15.37MiB로 패키지 상한을 통과했다.
+  개발 도구의 `.impeccable` 캐시와 모델 가중치는 패키지에 포함하지 않는다.
+- 공개 fixture `src/test/fixtures/functionNarrativeGraphNotesQaWorkspace/GraphNotes.kt`를
+  실제 설치된 VS Code에서 분석했다. 자동 모델 준비 설정으로 기존 Qwen3.5-4B Q4_K_M
+  캐시의 무결성을 확인했고 조기 반환·계산 경로 두 개가 모두 완료됐다. 준비 1회와 추론
+  5회가 정상 종료됐으며 준비를 포함한 이번 작은 함수의 실행은 약 65초였다. 새 다운로드나
+  설정 변경을 하지 않았고 이 단일 측정으로 일반적인 속도나 정확도를 보장하지 않는다.
+- native 시나리오 1과 2에서 각각 해당 경로의 번호·노트·예시값을 확인했다. 저장된 두 번째
+  페이지로 전환한 뒤에도 모델 작업은 완료 상태였다. 노트의 조건 줄·반환 줄 소스 버튼은
+  기존 source protocol로 원본 편집기를 열었고 이후 추론 요청은 추가되지 않았다.
+  완료 후 `llama` 실행 프로세스가 남아 있지 않았다.
+- 이전에 실제 Qwen 모델이 생성한 공개 Kotlin `inspect` 응답 5개를 production HTML에
+  재생해 Safari에서 확인했다. 이 fixture의 Host 응답은 재생용이며 새 추론은 아니다.
+  세 저장 페이지의 노트가 시나리오 1부터 5까지 각각 4/5/6/7/7개 anchor로 바뀌었다.
+  명시적 선택·그래프 표시·소스 열기·한영 전환이 추가 생성 없이 동작했고 UI 언어를
+  영어로 바꿔도 한국어 모델 원문과 생성 언어 표시를 유지했다.
+- CSS viewport 390×844, 768×1024, 1440×900의 실제 화면과 접근성 트리를 확인했다.
+  모바일에서 전체 노트 본문을 펼치고 번호 이동·숨기기 후 선택한 소스 노드 복귀를
+  확인했다. 확대율은 100%를 유지했고 계측된 가로 overflow와 브라우저 오류는 없었다.
+  오류 안내와 부분 완료 후 대기·취소는 별도의 합성 Host 응답으로 확인했다. 취소 뒤에도
+  완료된 4개 anchor·3개 상세 노트가 보존됐고 추가 분석 요청이 발생하지 않았다.
+- 전체 Node 테스트 1,025개 중 1,021개 통과. 기존 declared-type 입력 대표값 두 건,
+  advanced private Scenario, decorated source-reveal 실패 네 건은 0.0.1114와 같다.
+  새 노트 테스트는 경로/복합 identity·반복 방문·literal text·원본 index·시나리오 권한·
+  disposal·언어·60개 노트의 상세 DOM 40개 상한·touch scroll·단일 Tab 진입을 포함한다.
+  패키징 script 14개, compile, release metadata와 diff check도 통과했다. Rust 구현은
+  변경하지 않았으며 Rust unit suite를 별도로 재실행하지 않았다.
+- Impeccable 기계 검사 결과는 빈 배열이었다. 수동 UX/접근성 검토에서 버튼·disclosure·
+  focus·overflow·기존 테마 token 사용을 확인했다. 실제 터치 장치와 light/forced-colors
+  테마의 시각 검증은 하지 않았다. touch event 동작은 단위 테스트로 검증했다.
+
+모델이 활성 경로의 조건이나 대입을 실행되지 않는다고 설명하는 의미 오류도 관찰했다.
+그래프 노트는 저장된 모델 해설을 보여 주며, 형식·소스 연결 검증을 내용의 사실성이나
+실제 실행 검증으로 취급하지 않는다. 모든 노트의 기존 미검증 표시를 유지한다.
 
 ## 0.0.1114 검증 기록
 

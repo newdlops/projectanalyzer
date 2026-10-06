@@ -22,6 +22,8 @@ export function getFunctionLogicViewportBrowserSource(): string {
       const stage = options.stage;
       const canvas = options.canvas;
       const layout = options.layout;
+      // Optional annotations extend camera bounds independently of immutable source geometry.
+      let contentBounds = { width: layout.width, height: layout.height };
       let transform;
       let controls;
       let active = false;
@@ -48,8 +50,8 @@ export function getFunctionLogicViewportBrowserSource(): string {
       function geometry() {
         const size = readViewportSize();
         return {
-          worldWidth: layout.width,
-          worldHeight: layout.height,
+          worldWidth: contentBounds.width,
+          worldHeight: contentBounds.height,
           viewportWidth: size.width,
           viewportHeight: size.height,
           padding: FUNCTION_LOGIC_VIEW_PADDING
@@ -290,6 +292,14 @@ export function getFunctionLogicViewportBrowserSource(): string {
         const top = Math.min(...nodes.map((node) => node.y));
         const right = Math.max(...nodes.map((node) => node.x + node.width));
         const bottom = Math.max(...nodes.map((node) => node.y + node.height));
+        revealBounds({ left, top, right, bottom }, options);
+      }
+
+      /** Explicit annotation navigation reuses source reveal geometry and preserves reader zoom. */
+      function revealBounds(bounds, options) {
+        if (!transform || !bounds) return;
+        cancelAutoFollow();
+        const { left, top, right, bottom } = bounds;
         const size = readViewportSize();
         const visibleLeft = -transform.x / transform.scale;
         const visibleTop = -transform.y / transform.scale;
@@ -297,6 +307,15 @@ export function getFunctionLogicViewportBrowserSource(): string {
         const visibleBottom = visibleTop + size.height / transform.scale;
         if (left >= visibleLeft && top >= visibleTop && right <= visibleRight && bottom <= visibleBottom) return;
         const padding = Math.max(12, Number(options?.padding) || FUNCTION_LOGIC_VIEW_PADDING);
+        // Notes should enter view with the least translation, retaining nearby
+        // source nodes rather than centering a small annotation in empty space.
+        if (options?.nearest) {
+          const screenLeft=left*transform.scale+transform.x,screenRight=right*transform.scale+transform.x;
+          const screenTop=top*transform.scale+transform.y,screenBottom=bottom*transform.scale+transform.y;
+          const dx=screenLeft<padding?padding-screenLeft:screenRight>size.width-padding?size.width-padding-screenRight:0;
+          const dy=screenTop<padding?padding-screenTop:screenBottom>size.height-padding?size.height-padding-screenBottom:0;
+          commit({...transform,x:transform.x+dx,y:transform.y+dy},Boolean(options.announce));return;
+        }
         const boundsWidth = Math.max(1, right - left);
         const boundsHeight = Math.max(1, bottom - top);
         let scale = transform.scale;
@@ -320,6 +339,8 @@ export function getFunctionLogicViewportBrowserSource(): string {
       /** Converts trackpad units into pan or cursor-centered pinch zoom. */
       function handleWheel(event) {
         if (!transform) return;
+        // Expanded prose scrolls/selects like native text; pinch still zooms the shared canvas.
+        if (!event.ctrlKey && !event.metaKey && event.target?.closest?.(".logic-narrative-note-body")) return;
         event.preventDefault();
         const size = readViewportSize();
         const unit = event.deltaMode === 1
@@ -348,7 +369,7 @@ export function getFunctionLogicViewportBrowserSource(): string {
       function handlePointerDown(event) {
         const target = event.target;
         const interactive = target && typeof target.closest === "function"
-          ? target.closest("button, input, a, [role='button'], .logic-graph-node")
+          ? target.closest("button, input, a, summary, [role='button'], .logic-graph-node, .logic-narrative-graph-note")
           : undefined;
         if (event.button !== 1 && (event.button !== 0 || interactive)) return;
         if (!transform) return;
@@ -444,6 +465,8 @@ export function getFunctionLogicViewportBrowserSource(): string {
         center,
         fit,
         revealBlocks,
+        revealBounds,
+        setContentBounds(bounds) { contentBounds={width:Math.max(layout.width,bounds.width),height:Math.max(layout.height,bounds.height)};canvas.style.setProperty("width",contentBounds.width+"px");canvas.style.setProperty("height",contentBounds.height+"px"); },
         beginAutoFollow,
         followWorldPoint,
         settleAutoFollow,

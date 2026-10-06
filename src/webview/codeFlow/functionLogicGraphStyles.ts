@@ -6,6 +6,7 @@ import { getFunctionLogicBodyFocusStyles } from "./bodyFocus";
 import { getFunctionLogicDataFlowStyles } from "./dataFlow";
 import { getFunctionLogicInspectorStyles } from "./inspector";
 import { getFunctionLogicTypographyStyles } from "./typography";
+import { getNarrativeGraphNoteStyles } from "./narrativeNotes";
 import {
   getFunctionLogicScenarioTraceStyles,
   getFunctionLogicValuePreviewStyles
@@ -721,6 +722,7 @@ export function getFunctionLogicGraphStyles(): string {
       }
     }
 
+    ${getNarrativeGraphNoteStyles()}
     ${getFunctionLogicDataFlowStyles()}
     ${getFunctionLogicInspectorStyles()}
     ${getFunctionLogicValuePreviewStyles()}

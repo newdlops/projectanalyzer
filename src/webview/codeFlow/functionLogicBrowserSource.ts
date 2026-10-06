@@ -26,6 +26,7 @@ import { getScenarioInputsBrowserSource } from "./scenarioInputsBrowserSource";
 import { getFunctionLogicScenarioEvaluationBrowserSource } from "./scenarioEvaluation";
 import { getFunctionReadingBrowserSource } from "./reading";
 import { getFunctionUnderstandingBrowserSource } from "./understanding";
+import { getNarrativeGraphNotesBrowserSource } from "./narrativeNotes";
 /** Returns browser functions for rendering the function-local control graph. */
 export function getFunctionLogicBrowserSource(): string {
   return /* js */ `
@@ -49,6 +50,7 @@ export function getFunctionLogicBrowserSource(): string {
     ${getFunctionLogicSelectionBrowserSource()}
     ${getFunctionLogicComprehensionBrowserSource()}
     ${getFunctionLogicGraphHeaderBrowserSource()}
+    ${getNarrativeGraphNotesBrowserSource()}
     ${getFunctionLogicViewportBrowserSource()}
     ${getFunctionTutorBrowserSource()}
     ${getFunctionTutorIntegrationBrowserSource()}
@@ -107,6 +109,8 @@ export function getFunctionLogicBrowserSource(): string {
       const viewport = document.createElement("div");
       const stage = document.createElement("div");
       const canvas = document.createElement("div");
+      canvas.style.setProperty("width", logic.layout.width + "px");
+      canvas.style.setProperty("height", logic.layout.height + "px");
       const nodeButtonsById = new Map();
       const rootBlock = logic.blocks.find((block) => block.kind === "entry") || logic.blocks[0];
       const choiceSessionKey = (state.graph?.version || "graph") + "::" + rootBlock.id;
@@ -272,9 +276,11 @@ export function getFunctionLogicBrowserSource(): string {
         },
         selectionGraphContext
       );
+      const narrativeNotes = createNarrativeGraphNotes({sessionKey:choiceSessionKey,layout:logic.layout,viewport,viewportController,comprehension,
+        resolveBlockId:selectionGraphContext.resolveScenarioBlockId});
       const tutorRendering = createFunctionTutorIntegration(
         logic, comprehension, valueFlowRendering, viewportController, inspector,
-        valueFlowRendering?.scenarioWorkspaceSession, selectionGraphContext);
+        valueFlowRendering?.scenarioWorkspaceSession, selectionGraphContext, narrativeNotes);
       const hasJsxFlow = logic.blocks.some((block) => block.kind === "render");
       const hasEventFlow = logic.blocks.some((block) => block.kind === "event");
       const hasRenderFlow = hasJsxFlow || hasEventFlow;
@@ -299,7 +305,8 @@ export function getFunctionLogicBrowserSource(): string {
         graphTitle,
         tutorRendering?.toggle,
         reading.toggle,
-        understanding.element
+        understanding.element,
+        narrativeNotes.toggle
       );
       graph.className = "logic-graph";
       viewport.className = "logic-graph-viewport";
@@ -314,8 +321,6 @@ export function getFunctionLogicBrowserSource(): string {
       viewport.tabIndex = 0;
       stage.className = "logic-graph-stage";
       canvas.className = "logic-graph-canvas";
-      canvas.style.setProperty("width", logic.layout.width + "px");
-      canvas.style.setProperty("height", logic.layout.height + "px");
       canvas.append(bodyFocusController.layer, edgeRendering.svg);
       if (valueFlowRendering?.svg) canvas.append(valueFlowRendering.svg);
       for (const nodeLayout of logic.layout.nodes) {
@@ -345,6 +350,7 @@ export function getFunctionLogicBrowserSource(): string {
       if (valueFlowRendering?.foreground) canvas.append(valueFlowRendering.foreground);
       if (valueFlowRendering?.calculationPlaque) canvas.append(valueFlowRendering.calculationPlaque);
       canvas.append(edgeChoiceLayer);
+      canvas.append(narrativeNotes.layer);
       bodyFocusController.refresh();
       comprehension.refresh();
       applyFunctionLogicBranchChoicePresentation(
@@ -406,9 +412,10 @@ export function getFunctionLogicBrowserSource(): string {
         openValues() { inspector.openInspect("values"); },
         // Guide subscribes to the shared workspace just like Values; release
         // that consumer before a relayout leaves its old DOM detached.
-        dispose() { tutorRendering?.dispose(); clearFunctionLogicValuePreviewLabels(); reading.dispose(); understanding.dispose(); },
+        dispose() { tutorRendering?.dispose(); narrativeNotes.dispose(); clearFunctionLogicValuePreviewLabels(); reading.dispose(); understanding.dispose(); },
         /** Rewrites retained locale copy without rebuilding graph geometry or state. */
         updateLanguage(language) {
+          narrativeNotes.refreshLanguage();
           edgeRendering.svg.setAttribute("aria-label", projectAnalyzerText("control-paths"));
           edgeChoiceLayer.setAttribute("aria-label", projectAnalyzerText("branch-choices"));
           const semantics = [projectAnalyzerText("function-control")];

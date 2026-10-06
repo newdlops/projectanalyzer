@@ -18,7 +18,9 @@ function fixture() {
     (state, { postMessage(message: typeof posts[number]) { posts.push(message); } });
   const values = new Map<string, string>(), selections: string[] = [], opened: string[] = [], listeners = new Set<() => void>();
   let selected = nodeId(0);
+  const notes: any[] = [];
   const widget = browser.create({ functionId: flowId, narratives: { available: true, contextId } }, {
+    onNarrativeNotes(data: unknown) { notes.push(data); },
     readNarrativeNode: () => selected,
     subscribeNarrativeNode(listener: () => void) { listeners.add(listener); return () => listeners.delete(listener); },
     onNarrativeScenario(scenario: { example: { inputs: Array<{ name: string; json: string }> } }, options: { apply: string }) {
@@ -45,7 +47,7 @@ function fixture() {
     snippets: [{ id: "root", startLine: 1, endLine: 8 }], evidenceTokens: Array.from({ length: index ? 1 : 2 }, () => ["code-evidence:" + "b".repeat(64)]),
     limited: false, cacheHit: true, page: { index, count: 2, offset: index ? 2 : 0 },
     coverage: { completed: 3, discovered: 3, total: 3, complete: true, sourceLimited: false } });
-  return { runtime, posts, state, browser, widget, values, selections, opened, listeners, click, response,
+  return { runtime, posts, state, browser, widget, values, selections, opened, listeners, notes, click, response,
     selectNode(id: string) { selected = id; for (const listener of listeners) listener(); },
     dispose() { widget.dispose(); runtime.restore(); } };
 }
@@ -70,6 +72,22 @@ test("model examples fill empty inputs once; explicit selection/apply works whil
     f.runtime.focusRenderedByClassNth("narrative-root", "logic-narrative-select", 0);
     assert.equal(f.runtime.getFocusedRenderedAttribute("aria-pressed"), "true", "the new page starts with its first scenario selected");
     assert.equal(f.posts.filter((post) => post.payload.pageIndex === undefined && post.payload.nodeId === undefined).length, 1);
+  } finally { f.dispose(); }
+});
+
+test("graph notes follow explicit scenario/graph selection and saved paging; stale note actions cannot open another scenario", () => {
+  const f = fixture();
+  try {
+    f.click("request"); f.browser.accept(f.response());
+    const first = f.notes.at(-1); assert.equal(first.ordinal, 1);
+    f.click("graph", 1); assert.equal(f.notes.at(-1).ordinal, 2);
+    const count = f.posts.length; first.openSource(0); assert.equal(f.posts.length, count);
+    f.notes.at(-1).openSource(1);
+    assert.equal(f.posts.at(-1)!.payload.scenarioIndex, 1); assert.equal(f.posts.at(-1)!.payload.nodeIndex, 1);
+    assert.equal(validateWebviewRequest(f.posts.at(-1)).ok, true);
+    f.click("next"); f.browser.accept(f.response(1)); assert.equal(f.notes.at(-1).ordinal, 3);
+    assert.equal(f.posts.filter(post => post.type === "codeFlow/requestFunctionNarratives" && post.payload.pageIndex === undefined).length, 1);
+    f.widget.dispose(); assert.equal(f.notes.at(-1), undefined);
   } finally { f.dispose(); }
 });
 

@@ -1396,6 +1396,19 @@ Webview는 Project Graph, 파일 시스템, VS Code API에 직접 접근하지 �
 
 #### `application/functionNarratives` 및 `webview/functionNarratives`
 
+- `webview/codeFlow/narrativeNotes`는 선택한 저장 시나리오의 `nodeDetails`를 현재 graph의
+  verified identity adapter·layout과 결합한다. 해당 시나리오의 `graph.nodeIds`에 없는 노드와
+  미해결 identity는 제외하고 반복 방문의 원래 node index·예시값·source를 보존한다.
+  각 source node의 번호 버튼과 점선 참조로 graph 옆 노트를 열며 점선은 control edge가 아니다.
+  노트는 구문·이유·효과·모델 예시값의 변화·원본 열기를 제공하고 LLM 미검증·생성 언어를 표시한다.
+- 노트는 원본 graph geometry를 이동하지 않는 별도 rail에 배치한다. 열리는 긴 노트가 다음
+  노트와 겹치지 않도록 배치하며 camera bounds만 확장한다. 번호 클릭은 배율을 유지한 최소
+  pan, 숨기기는 선택한 source node로 복귀한다. hide/show 선택은 최대 16개 graph session에
+  보존한다. IntersectionObserver로 상세 DOM을 최대 40개만 mount하고 모든 source anchor는
+  유지한다. node/locale/paging/visibility는 inference를 요청하지 않으며 snapshot 교체·disposal은
+  observer·subscription·note authority를 해제한다. source action은 저장 page/scenario/node index를
+  고정하고 오래된 page/scenario에서 발생한 action을 거부한다.
+
 - `buildFunctionNarrativeContext`는 선택 함수의 immutable source snapshot에서 최대 5개,
   합계 18,000자 스니펫을 구성한다. 본문 160줄/10,000자, 생략 시 별도 끝 20줄/2,000자,
   앞의 문서·상수 16줄/2,000자와 같은 파일의 직접 helper 최대 60줄/2,000자를 사용한다.

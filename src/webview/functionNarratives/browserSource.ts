@@ -175,11 +175,14 @@ export function getFunctionNarrativesBrowserSource(): string {
           }
           appendFacts(results, "narrative-limitations", result.narrative.limitations);
         }
-        nodeReader.refresh();
+        publishNotes();nodeReader.refresh();
         if (focusedId?.startsWith(widgetId + "-source-") || focusedId?.startsWith(widgetId + "-evidence-") || focusedId?.startsWith(widgetId + "-scenario-")) document.getElementById(focusedId)?.focus();
       }
       /** A scenario selection changes graph examples; cached navigation and progress preserve edited inputs. */
-      function selectScenario(index,apply){selectedScenarioIndex=index;const scenario=result?.narrative.scenarios[index];if(scenario)callbacks?.onNarrativeScenario?.(scenario,{apply});nodeLookupKey=undefined;}
+      function selectScenario(index,apply){selectedScenarioIndex=index;const scenario=result?.narrative.scenarios[index];if(scenario)callbacks?.onNarrativeScenario?.(scenario,{apply});nodeLookupKey=undefined;publishNotes();}
+      /** Graph annotations reuse the selected saved page and the same source-navigation owner. */
+      function publishNotes(){const saved=result,index=selectedScenarioIndex,scenario=phase!=="stale"&&saved?.narrative.scenarios[index];callbacks?.onNarrativeNotes?.(scenario?{scenario,ordinal:(saved.page?.offset||0)+index+1,language:saved.language,modelName:saved.modelName,
+        openSource(nodeIndex){if(disposed||phase==="stale"||state.graph?.version!==graphVersion||result!==saved||selectedScenarioIndex!==index)return;vscode.postMessage({type:"codeFlow/openFunctionNarrativeSource",payload:{graphVersion,flowId:tutor.functionId,contextId:tutor.narratives.contextId,language:saved.language,scenarioIndex:index,stepIndex:0,nodeIndex,...(saved.page?{pageIndex:saved.page.index}:{})}});}}:undefined);}
       /** Out-of-page node descriptions use the stored result index and never authorize inference. */
       function queryNode(nodeId){
         if(disposed||!result||state.graph?.version!==graphVersion||!/^function-logic-block:[0-9a-f]{32}$/.test(nodeId))return;
@@ -264,7 +267,7 @@ export function getFunctionNarrativesBrowserSource(): string {
       refreshButton.addEventListener("click", () => { if (!disposed && phase === "stale" && state.graph?.version === graphVersion) callbacks?.onRefreshFunction?.(tutor.narratives.sourceToken); });
       render();
       return { element,start:()=>startRequest(), refreshLanguage() { result = functionNarrativeResults.get(key + ":" + state.uiLanguage) || result; render(); },
-        dispose() { disposed = true; cancel();if(nodeRequest)functionNarrativeRequests.delete(nodeRequest.requestId);nodeReader.dispose(); } };
+        dispose() { disposed = true; cancel();callbacks?.onNarrativeNotes?.(undefined);if(nodeRequest)functionNarrativeRequests.delete(nodeRequest.requestId);nodeReader.dispose(); } };
     }
   `;
 }

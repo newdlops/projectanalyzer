@@ -6,6 +6,7 @@
 .vscode-test/**
 .local-models/**
 .codex/**
+.impeccable/**
 .plan/**
 .codeidx/**
 .portmanager/**
