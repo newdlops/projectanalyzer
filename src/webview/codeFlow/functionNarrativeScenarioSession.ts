@@ -69,7 +69,12 @@ export class FunctionNarrativeScenarioSession {
         const summaryTask = createFunctionNarrativeSummaryTask(batch, path, scenario);
         if (hasCompleteSourceWorksheet(summaryTask)) summaryTask.summaryTask!.sourceAlternative =
           selectPrimitiveNarrativeAlternative(this.context, path, summaryTask.summaryTask!.inputs, language);
-        summaryTask.summaryTask!.sourceFunctionPurpose = buildFunctionNarrativeSourcePurpose(this.context, summaryTask, language);
+        // One immutable session already validated this snapshot/locale's whole
+        // purpose. Later pages still prove their own calculations and alternate
+        // before synthesis; repeating every route's purpose proof adds no facts.
+        if (this.purpose?.language !== language) {
+          summaryTask.summaryTask!.sourceFunctionPurpose = buildFunctionNarrativeSourcePurpose(this.context, summaryTask, language);
+        }
         if (this.purpose?.language === language) {
           summaryTask.summaryTask!.knownFunctionSummary = this.purpose.text;
           summaryTask.summaryTask!.knownModelName = this.purpose.modelName;

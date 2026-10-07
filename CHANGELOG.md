@@ -4,6 +4,18 @@ All notable user-visible changes to Project Analyzer: Code Flow are recorded in
 this file. The changelog starts with the first distribution-documented build;
 earlier local development builds were not tracked here.
 
+## 0.0.1127 - 2026-10-08
+
+### Improved
+
+- Read checked Kotlin Elvis declarations in complete source purposes, retaining
+  both selected operands and their binding. Distinguish null from zero, false
+  and empty strings; unproved nullable smart casts remain model work.
+- Factor verified serial branch joins without repeating shared later writes.
+  Preserve both branch actions and every predicate's position within 240 chars.
+- Reuse the validated whole-function purpose on later pages of one immutable
+  snapshot/locale, while checking each page's calculations and alternative again.
+
 ## 0.0.1126 - 2026-10-08
 
 ### Improved

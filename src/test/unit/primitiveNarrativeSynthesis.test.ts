@@ -14,6 +14,7 @@ import { createLocalFunctionNarrativeProvider } from "../../llm/functionNarrativ
 import { FunctionNarrativeScenarioSession } from "../../webview/codeFlow/functionNarrativeScenarioSession";
 import { ModelTaskManager } from "../../shared/modelTasks";
 import { hasSimplePrimitiveScopes } from "../../application/functionNarratives/primitiveWorksheet/scope";
+import { tracePrimitiveRoute } from "../../application/functionNarratives/primitiveWorksheet/trace";
 import type { FunctionNarrative, FunctionNarrativeContext } from "../../shared/functionNarratives";
 import type { SymbolNode } from "../../shared/types";
 
@@ -124,6 +125,44 @@ test("an unchecked route and a larger Cartesian graph cannot be hidden by two ve
     const task = completed(original, "ko");
     assert.equal(buildFunctionNarrativeSourcePurpose(original, task, "ko"), undefined, source);
   }
+});
+
+test("nullable Elvis purposes retain each selected operand and declaration, distinguishing null from zero, false and an empty string", () => {
+  const examples = [
+    { name: "amount", type: "Int?", result: "Int", fallback: "5", value: 0 },
+    { name: "label", type: "String?", result: "String", fallback: '"guest"', value: "" },
+    { name: "enabled", type: "Boolean?", result: "Boolean", fallback: "true", value: false }
+  ];
+  for (const example of examples) for (const locale of ["ko", "en"] as const) {
+    const original = fixture(`fun inspect(${example.name}: ${example.type}): ${example.result} {\n val adjusted = ${example.name} ?: ${example.fallback}\n return adjusted\n}`,
+      "kotlin", [{ name: example.name, type: example.type }]);
+    const task = completed(original, locale), purpose = buildFunctionNarrativeSourcePurpose(original, task, locale); assert.ok(purpose);
+    for (const text of [`${example.name} != null=true`, `${example.name} != null=false`, "adjusted", example.fallback]) assert.ok(purpose.includes(text), text);
+    assert.match(purpose, locale === "ko" ? /초기화/u : /Initialize/u);
+    const path = task.sourceFlow!.paths[0], trace = tracePrimitiveRoute(original, path, new Map([[example.name, example.value]]), locale);
+    assert.ok(trace); assert.equal(trace.result, JSON.stringify(example.value), "only null selects the fallback operand");
+    const defaulted = { ...original, snippets: original.snippets.map(snippet => ({ ...snippet,
+      text: snippet.text.replace(`${example.name}: ${example.type}`, `${example.name}: ${example.type} = load()`) })) };
+    assert.equal(buildFunctionNarrativeSourcePurpose(defaulted, task, locale), undefined);
+  }
+});
+
+test("joined branch purposes preserve both mutation arms and perform later writes before the next decision", () => {
+  const original = fixture('fun inspect(a: Boolean, b: Boolean, amount: Int): Int {\n var adjusted = amount\n if (a) { adjusted += 1 } else { adjusted -= 2 }\n adjusted *= 2\n if (b) { adjusted += 3 }\n return adjusted\n}',
+    "kotlin", [{ name: "a", type: "Boolean" }, { name: "b", type: "Boolean" }, { name: "amount", type: "Int" }]);
+  for (const locale of ["ko", "en"] as const) {
+    const task = completed(original, locale), purpose = buildFunctionNarrativeSourcePurpose(original, task, locale); assert.ok(purpose);
+    for (const text of ["a=true", "a=false", "b=true", "b=false", "adjusted += 1", "adjusted -= 2", "adjusted *= 2", "adjusted += 3"]) assert.ok(purpose.includes(text), text);
+    assert.equal(purpose.match(/adjusted \*= 2/gu)?.length, 1, "the shared write must appear once after either arm");
+    assert.ok(purpose.indexOf("adjusted -= 2") < purpose.indexOf("adjusted *= 2"));
+    assert.ok(purpose.indexOf("adjusted *= 2") < purpose.indexOf("b=true"));
+  }
+});
+
+test("nullable parameters without a checked Elvis declaration retain model purpose rather than claiming a type proof", () => {
+  const original = fixture('fun inspect(enabled: Boolean?): Int {\n if (enabled) return 1\n return 0\n}', "kotlin", [{ name: "enabled", type: "Boolean?" }]);
+  const task = completed(original, "en");
+  assert.equal(buildFunctionNarrativeSourcePurpose(original, task, "en"), undefined);
 });
 
 test("unsupported alternate computations and omitted completed values retain the full model synthesis", () => {
@@ -374,25 +413,18 @@ test("closed literal conditions omit impossible branches, while names and extern
   }
 });
 
-test("all eight detailed paths use one actual model purpose and cache navigation never spawns another runner", async () => {
+test("all eight detailed paths preserve shared control and cache navigation without a model or runner", async () => {
   const original = fixture('function inspect(a: boolean, b: boolean, c: boolean): number {\n let adjusted = 0;\n if (a) adjusted += 1;\n if (b) adjusted += 2;\n if (c) adjusted += 4;\n return adjusted;\n}',
     "typescript", ["a", "b", "c"].map(name => ({ name, type: "boolean" })));
-  const directory = await mkdtemp(join(tmpdir(), "source-purpose-")), modelPath = join(directory, "fixture.gguf"), binaryPath = join(directory, "runner");
   const manager = new ModelTaskManager(), pages = new Map<number, FunctionNarrative>();
   const session = new FunctionNarrativeScenarioSession(original, { async write(index, narrative) { pages.set(index, narrative); },
     async read(index) { return pages.get(index); }, async dispose() { pages.clear(); } });
-  await writeFile(modelPath, "GGUF fixture");
-  await writeFile(binaryPath, `#!${process.execPath}\nconst fs=require('node:fs'); const path=require('node:path'); const args=process.argv.slice(2);
-    const schema=JSON.parse(fs.readFileSync(args[args.indexOf('--json-schema-file')+1],'utf8'));
-    const prompt=fs.readFileSync(args[args.indexOf('--file')+1],'utf8');
-    if(schema.properties.scenarios || Object.keys(schema.properties).join(',')!=='summary' || !prompt.includes('if (c)')
-      || prompt.includes('selectedRoutes') || prompt.includes('sourceAlternative')) process.exit(2);
-    fs.appendFileSync(path.join(__dirname,'requests'),'1');
-    process.stdout.write(JSON.stringify({summary:'세 부울 조건에 따라 지역 값에 1·2·4를 누적하고 반환합니다.'}));`, { mode: 0o700 });
-  const provider = createLocalFunctionNarrativeProvider({ binaryPath, modelPath, taskManager: manager });
+  let requests = 0;
+  const provider = createLocalFunctionNarrativeProvider({ binaryPath: "/missing/serial-branch-runner", modelPath: "/missing/serial-branch-model.gguf",
+    taskManager: manager, onMetrics() { requests++; } });
   try {
     while (!session.complete) await session.analyzeNext(provider, "ko", new AbortController().signal, { reselectModel: false });
-    assert.equal(session.pageCount, 8); assert.equal(await readFile(join(directory, "requests"), "utf8"), "1");
+    assert.equal(session.pageCount, 8); assert.equal(requests, 0);
     let nodes = 0;
     for (const page of pages.values()) for (const scenario of page.scenarios) {
       const inputs = Object.fromEntries(scenario.example!.inputs.map(input => [input.name, JSON.parse(input.json)]));
@@ -400,10 +432,40 @@ test("all eight detailed paths use one actual model purpose and cache navigation
       assert.equal(JSON.parse(scenario.example!.result), expected);
       assert.match(scenario.explanation!, /입력은/u); assert.match(scenario.explanation!, /return adjusted/u);
       assert.match(scenario.analysis!.alternative, /다른 예시/u);
+      for (const name of ["a", "b", "c"]) for (const choice of ["true", "false"]) assert.ok(page.summary.includes(`${name}=${choice}`));
       for (const node of scenario.nodeDetails!) if (node.code) assert.ok(node.syntax && node.text && node.reason && node.effect);
       nodes += scenario.nodeDetails!.length;
     }
     assert.equal(nodes, 68); await session.readPage(0); await session.readPage(7);
+    assert.equal(requests, 0); assert.equal((await session.readPage(7))!.modelName, "소스 분석");
+  } finally { await session.dispose(); await manager.dispose(); }
+});
+
+test("unproved default setup still receives one whole-source model purpose with all branches, then reuses its producer across eight pages", async () => {
+  const original = fixture('function inspect(a: boolean = unknown(), b: boolean, c: boolean): number {\n let adjusted = 0;\n if (a) adjusted += 1;\n if (b) adjusted += 2;\n if (c) adjusted += 4;\n return adjusted;\n}',
+    "typescript", ["a", "b", "c"].map(name => ({ name, type: "boolean" })));
+  const directory = await mkdtemp(join(tmpdir(), "source-default-purpose-")), modelPath = join(directory, "fixture.gguf"), binaryPath = join(directory, "runner");
+  const manager = new ModelTaskManager(), pages = new Map<number, FunctionNarrative>();
+  const session = new FunctionNarrativeScenarioSession(original, { async write(index, narrative) { pages.set(index, narrative); },
+    async read(index) { return pages.get(index); }, async dispose() { pages.clear(); } });
+  await writeFile(modelPath, "GGUF fixture");
+  await writeFile(binaryPath, `#!${process.execPath}\nconst fs=require('node:fs'); const path=require('node:path'); const args=process.argv.slice(2);
+    const schema=JSON.parse(fs.readFileSync(args[args.indexOf('--json-schema-file')+1],'utf8'));
+    const prompt=fs.readFileSync(args[args.indexOf('--file')+1],'utf8');
+    if(Object.keys(schema.properties).join(',')!=='summary' || !['if (a)','if (b)','if (c)','unknown()'].every(text=>prompt.includes(text))
+      || prompt.includes('selectedRoutes') || prompt.includes('sourceAlternative')) process.exit(2);
+    fs.appendFileSync(path.join(__dirname,'requests'),'1');
+    process.stdout.write(JSON.stringify({summary:'주어진 부울 입력에 따라 1·2·4를 누적해 반환합니다. 생략된 a의 기본값 호출 결과는 미확인입니다.'}));`, { mode: 0o700 });
+  const provider = createLocalFunctionNarrativeProvider({ binaryPath, modelPath, taskManager: manager });
+  try {
+    while (!session.complete) await session.analyzeNext(provider, "ko", new AbortController().signal, { reselectModel: false });
+    assert.equal(session.pageCount, 8); assert.equal(await readFile(join(directory, "requests"), "utf8"), "1");
+    for (const page of pages.values()) for (const scenario of page.scenarios) {
+      const inputs = Object.fromEntries(scenario.example!.inputs.map(input => [input.name, JSON.parse(input.json)]));
+      assert.equal(JSON.parse(scenario.example!.result), (inputs.a ? 1 : 0) + (inputs.b ? 2 : 0) + (inputs.c ? 4 : 0));
+      assert.match(page.summary, /기본값.*미확인/u);
+    }
+    assert.match((await session.readPage(7))!.modelName, /^Local/u); await session.readPage(0);
     assert.equal(await readFile(join(directory, "requests"), "utf8"), "1");
   } finally { await session.dispose(); await manager.dispose(); await rm(directory, { recursive: true, force: true }); }
 });

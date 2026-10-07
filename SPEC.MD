@@ -1607,6 +1607,20 @@ Webview는 Project Graph, 파일 시스템, VS Code API에 직접 접근하지 �
   parser-owned header proof를 구분하고, 전체 purpose가 240자를 넘거나 route 하나라도
   검증되지 않거나 최대 route 수를 넘으면 자르지 않고 모델을 유지한다. 기존 explicit
   connected provider 선택·취소·모델 목적 캐시·Host validation은 유지한다.
+  0.0.1127은 nullable Int/Boolean/String header 중 parser-lowered `name != null`
+  Elvis 선언이 있고 두 피연산자를 포함한 모든 경로가 독립 확인된 경우에만 complete
+  source purpose를 허용한다. operand-only mutation의 같은 source 인용에서 val/var와
+  write target을 확인해 각 선택의 초기화 대상과 값을 보존한다. null만 대체 값을 선택하며
+  0·false·빈 문자열은 null로 취급하지 않는다. nullable smart cast나 타입 컴파일 검증을
+  대신하지 않으며 default/미확인 호출/불완전 경로는 계속 모델에 남긴다.
+  모든 경로를 먼저 확인한 후 240자를 넘는 반복 요약에는 serial CFG join recipe를
+  시도할 수 있다. true/false successor의 mutation-only arm을 visited set으로 확인하고
+  첫 공통 node에서 합류한다. 각각의 action과 빈 arm의 값 유지, 합류 이후 갱신·조건·
+  반환을 실제 순서로 한 번씩 보존해야 한다. nested control·cycle·미포함 node·길이 초과는
+  그대로 모델을 유지한다. 기존 32 node·8 route·depth 64 한도는 올리지 않는다.
+  session은 같은 immutable snapshot/locale의 validated source/model purpose를 이후
+  페이지에서 재사용해 전체 purpose proof를 반복하지 않는다. 각 페이지의 completed
+  값·현재 trace·대안은 계속 독립 검증하고 원래 producer·취소·disposal 동작을 보존한다.
   rich primary 응답의 `exampleInputs`는 `{name, value}`의 실제 JSON 값을 생성한다. 로컬
   adapter는 이를 기존 `{name, json}` 문자열 계약으로 인코딩하며 Boolean/null 경로 선택,
   입력 크기·깊이·유한 숫자·금지 key 검사와 Host의 source/route 검증은 유지한다. 소스 언어의

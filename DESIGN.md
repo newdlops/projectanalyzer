@@ -127,6 +127,13 @@ writes retain their original relationship to predicates. Longer or incompletely
 verified purposes remain model work. Existing layout, semantic graph colors,
 producer labels and execution-unverified text are preserved.
 
+As of 0.0.1127, an Elvis purpose names its target binding and both operand
+choices. Serial branch purposes show true/false actions in control order and
+shared following operations once, rather than listing every Boolean combination.
+Keep per-scenario paragraphs, alternatives and before/after rows complete.
+Reusing a snapshot's checked purpose must preserve its original producer.
+No layout, style, graph color or interaction controls change.
+
 Acceptance: real local Kotlin and TypeScript responses include numerical/Boolean
 substitution, ordered calculation/effect and alternate-path explanation. Every
 reached source operation has a syntax explanation; repeated visits and partial

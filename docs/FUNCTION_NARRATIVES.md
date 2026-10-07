@@ -142,6 +142,75 @@ loop/exception transfer, inferred/partial/truncated evidence, 긴 식과 알 수
 초기 준비 문구는 저장하지 않는다. 각 시나리오의 상세 문단·대안은 계속 모델이 새로 작성한다.
 기존 노드 구문·동작·근거·효과·인용을 모두 유지하며 화면 배치도 유지한다.
 
+### 0.0.1127 nullable Elvis와 분기 합류 요약의 재계산 제거
+
+설치된 0.0.1126의 공개 기존 corpus를 다시 측정했다. 12개 예제의 상세 계산은 이미
+source로 확인됐지만 nullable Int/String의 Elvis 목적과 8개 Boolean 조합의 목적에는
+각각 모델 요청 1회가 남아 있었다. 그 세 요청의 약 3.4~4.4초를 제거한다.
+
+Kotlin nullable Int/Boolean/String 중 parser-lowered Elvis 선언이 있는 경우만 header
+proof를 확장한다. 모든 경로의 조건·선택 피연산자·값·인용은 기존 독립 worksheet로
+다시 확인한다. `name != null`의 참·거짓 선택과, operand-only mutation의 원래 val/var
+선언 및 write target을 연결해 어떤 값으로 어느 binding을 초기화하는지 목적에 남긴다.
+null일 때만 오른쪽 피연산자를 평가한다는 [Kotlin 공식 Elvis 규칙](https://kotlinlang.org/docs/null-safety.html#elvis-operator)에
+맞춰 0·false·빈 문자열이 대체 값을 선택하지 않는 검사를 포함한다. JVM 컴파일 검증이나
+일반 nullable smart cast를 대신하지 않으며, header default·불확실한 피연산자·경로는
+모델을 유지한다. 이 단계에서 Float/Long 등의 숫자 범위를 확대하지 않았다.
+
+전체 경로를 먼저 확인한 후, 반복 목적이 240자를 넘으면 serial CFG join을 읽는다.
+true/false successor를 mutation-only arm으로 따라가며 visited set과 32-node 한도를
+유지한다. 첫 공통 node에서 합류하고 두 arm의 갱신 및 빈 arm의 값 유지, 그 뒤의
+갱신·다음 조건·반환을 실제 순서대로 한 번씩 읽는다. 8개 조합을 모두 다시 나열하지
+않지만 각 조합의 전체 문단·대안·before/after 값 표는 기존처럼 보존한다. nested control,
+cycle, 미포함 node와 길이가 넘는 목적은 잘라 넣지 않고 모델을 유지한다. 32 node·
+8 route·depth 64 등의 기존 한도는 올리지 않았다.
+
+같은 immutable session snapshot/locale에서 검증된 목적 하나를 이후 페이지에서
+재사용한다. 원래 producer는 그대로 유지하고, 매 페이지의 completed 값·현재 source
+trace·대안은 계속 독립 확인한다. 반복 전체 purpose proof만 생략한다.
+
+| 예제 | 설치된 0.0.1126 | 후보 생성 시간 | 실제 모델 추론 |
+| --- | ---: | ---: | --- |
+| Kotlin Int? Elvis | 4.44초 | 14.36ms | 1 → 0 |
+| Kotlin String? Elvis | 3.37초 | 27.77ms | 1 → 0 |
+| TypeScript Boolean 8조합 | 3.54초 | 41.77ms | 1 → 0 |
+
+시간은 setup·generation·저장·runner 정리를 포함하고 parser/context 구성은 제외한다.
+12개 예제의 반환 30/30·node 174/174·syntax/text/reason/effect 상세 114/114와 상세
+문자 수 13,817자가 기존 버전과 같고 quality failure가 없다. 없는 binary/weights 경로의
+configured adapter에서도 factory·managed ensure·준비·추론·잔여 runner가 0이다.
+단일 공개 corpus의 측정이며 모든 함수의 정확도나 end-to-end 지연을 일반화하지 않는다.
+
+관련 unit 58/58, 전체 unit 1,111개 중 1,107개 통과이며 기존 같은 4개 실패가 남았다.
+실제 local provider 경계의 default setup 회귀에서는 전체 a/b/c 분기와 미확인 기본값
+호출을 목적 prompt에 전달하고 purpose 요청 1회만 수행한 뒤 8개 페이지의 원래 producer를
+재사용했다. 목적 스키마는 summary 하나이며 선택 경로나 private alternative가 prompt에
+들어가지 않았다. source-only 8개 페이지는 모델/실행기 파일 없이 결과 0~7과 68개 node를
+완료했고 cache 읽기도 모델을 호출하지 않았다. package/closure 테스트 15/15와 release
+metadata check를 통과했다. 기존 모듈 안에서 구현해 runtime 파일 수는 늘리지 않았다.
+
+최종 VSIX를 격리 profile에 설치해 다시 실행한 12개 corpus도 같은 반환·node·상세
+수와 문자 수를 유지했다. Int? Elvis 10.39ms, String? Elvis 7.56ms, Boolean 8조합
+79.05ms로 완료됐다. 별도로 병렬 실행한 기존 loop/call 7개는 반환 12/12·node 78/78·
+상세 54/54, Double 3개는 반환 4/4·node 22/22·상세 14/14, object/helper/array 5개는
+반환 8/8·node 36/36·상세 20/20이다. 모두 configured adapter의 model factory·ensure·
+준비·실제 추론·잔여 runner가 0이다. 단일 측정의 ms 값은 캐시·동시 실행 등에 따라 달라진다.
+
+실제 격리 VS Code 1.141.0에서 없는 runtime/weights 설정으로 Nullable.kt와 Flags.ts의
+전체 분석을 완료했다. nullable 입력 10→반환 10과 null→대체값 5를 확인했고 다음
+페이지에서도 producer `소스 분석`과 snapshot 요약 재사용을 유지했다. `val adjusted`
+초기화의 상세/값 표 및 소스 이동이 실제 Nullable.kt 2행 Elvis 선언을 선택하는 것도
+확인했다. Flags.ts는 8개 결과가 생성됐으며 1~8번 모든 페이지를 실제로 이동해 같은
+producer/완전한 요약을 재사용했고 마지막 a/b/c=false 결과 0을 확인했다.
+1440×900 및 770×900 논리 크기에서 요약·문단의 줄바꿈/스크롤을 시각 확인했다.
+모바일·다른 테마·전체 접근성 감사는 하지 않았다. 기존 UI workflow/Impeccable의
+디자인 보존 기준을 유지하고 새 markup/style·의미 색상 graph border 변경은 없다.
+
+Default와 `Function Language QA 1107`에 최종 0.0.1127을 설치했다. 각 profile 등록과
+설치된 JS 478개 및 native binary의 byte 일치, package/closure 오류 없음까지 확인했다.
+최종 VSIX는 기존과 같은 512개 파일·약 3.65MiB이며 실제 profile 모델 설정을 바꾸지 않았다.
+더 넓은 숫자 타입·복잡한 호출처럼 모델이 필요한 경로의 최적화는 계속 남아 있다.
+
 ### 0.0.1126 전체 분기·객체·배열 목적의 모델 요청 제거
 
 개별 노드·문단·대안 계산이 이미 source로 확인되는 함수에서 마지막 목적 문장만

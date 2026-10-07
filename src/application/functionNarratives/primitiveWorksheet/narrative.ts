@@ -1,4 +1,4 @@
-/** Exact source narratives retain concrete operation order; the local model supplies the function-wide purpose once. */
+/** Exact source narratives preserve operation order and complete recipe purposes; uncertain meanings retain the local model. */
 import type { FunctionNarrative, FunctionNarrativeContext, FunctionNarrativeFlowPath, FunctionNarrativeFlowStep, FunctionNarrativeExample } from "../../../shared/functionNarratives";
 import { createFunctionNarrativeScenarioIterator } from "../scenarioIterator";
 import { buildFunctionNarrativeScenarioFrames } from "../scenarioFrames";
@@ -216,8 +216,13 @@ function buildAcyclicSourcePurpose(context: FunctionNarrativeContext, language: 
     || graph.nodes.some(node => node.confidence !== "exact" || !["entry", "exit", "mutation", "condition", "return"].includes(node.kind)
       || node.next.some(edge => edge.confidence !== "exact" || edge.target < 0 || edge.target >= graph.nodes.length))) return;
   const source = context.snippets.find(snippet => snippet.role === "function")?.text ?? "";
-  const primitiveHeader = context.parameters?.every(parameter => /^(?:Int|Double|Boolean|String|number|boolean|string)$/u
-    .test(parameter.type?.replace(/\s/gu, "") ?? "")) && hasSimplePrimitiveScopes(source, context.language === "kotlin", false, true);
+  // Nullable numeric smart casts are outside this reader. Accept only the
+  // parser-lowered Elvis guards already independently proved on both operands.
+  const nullableElvis = context.parameters?.filter(parameter => parameter.type?.replace(/\s/gu, "").endsWith("?"))
+    .every(parameter => graph.nodes.some(node => node.kind === "condition" && node.step?.loweredPredicate === `${parameter.name} != null`
+      && node.step.code.includes("?:") && /^(?:val|var)\s/u.test(node.step.code))) ?? false;
+  const primitiveHeader = context.parameters?.every(parameter => /^(?:(?:Int|Boolean|String)\??|Double|number|boolean|string)$/u
+    .test(parameter.type?.replace(/\s/gu, "") ?? "")) && nullableElvis && hasSimplePrimitiveScopes(source, context.language === "kotlin", false, true);
   // Object type braces and array annotations require the parser-owned header
   // certificate. A body trace alone cannot account for default argument effects.
   if (!primitiveHeader && !(context.sourceWorksheet?.bodyOnlyParameters && context.sourceWorksheet.owns(context))) return;
@@ -232,10 +237,11 @@ function buildAcyclicSourcePurpose(context: FunctionNarrativeContext, language: 
       // stays on its own route, so factoring cannot move a write past a test.
       let shared = 0;
       while (shared < routes[0].length && routes.every(route => route[shared] && JSON.stringify(route[shared]) === JSON.stringify(routes[0][shared]))) shared++;
-      const pieces = [...routes[0].slice(0, shared).map(step => describeSourceOperation(step, language)),
-        ...routes.map(route => route.slice(shared).map(step => describeSourceOperation(step, language)).join(" ")).filter(Boolean)];
+      const sourceSteps = graph.nodes.flatMap(node => node.step ? [node.step] : []);
+      const pieces = [...routes[0].slice(0, shared).map(step => describeSourceOperation(step, language, sourceSteps)),
+        ...routes.map(route => route.slice(shared).map(step => describeSourceOperation(step, language, sourceSteps)).join(" ")).filter(Boolean)];
       const purpose = pieces.join(" ");
-      return purpose.length <= 240 ? purpose : undefined;
+      return purpose.length <= 240 ? purpose : buildJoinedSourcePurpose(context, language);
     }
     if (count === 8) return; // Never summarize a prefix of a larger route set.
     const path = candidate.value;
@@ -258,13 +264,74 @@ function buildAcyclicSourcePurpose(context: FunctionNarrativeContext, language: 
 }
 
 /** Full expressions stay intact; the caller rejects the complete recipe if it exceeds the existing purpose limit. */
-function describeSourceOperation(step: FunctionNarrativeFlowStep, language: "ko" | "en"): string {
+function describeSourceOperation(step: FunctionNarrativeFlowStep, language: "ko" | "en", sourceSteps: FunctionNarrativeFlowStep[] = []): string {
   const code = step.code.replace(/;$/u, ""), ko = language === "ko";
   if (step.kind === "condition") return ko ? `${step.loweredPredicate ?? code}=${step.branch!.outcome}인 경로에서,`
     : `On the ${step.loweredPredicate ?? code}=${step.branch!.outcome} route,`;
   if (step.kind === "return") return ko ? `${code.replace(/^return\s+/u, "")}의 값을 반환합니다.`
     : `Return ${code.replace(/^return\s+/u, "")}.`;
-  const declaration = /^(?:val|var|let|const)\s+([\p{L}_$][\p{L}\p{N}_$]*)\s*=\s*(.+)$/u.exec(code);
+  let declaration: string[] | undefined = /^(?:val|var|let|const)\s+([\p{L}_$][\p{L}\p{N}_$]*)\s*=\s*(.+)$/u.exec(code) ?? undefined;
+  // Elvis lowering retains operand-only mutation text. Its source-owned guard
+  // supplies the declaration identity; never describe a bare operand as a write.
+  if (!declaration && step.writeTargets?.length === 1) {
+    const guard = sourceSteps.find(candidate => candidate.loweredPredicate && candidate.code.includes("?:")
+      && candidate.source.snippetId === step.source.snippetId && candidate.source.startLine === step.source.startLine);
+    const owner = guard && /^(?:val|var)\s+([\p{L}_$][\p{L}\p{N}_$]*)\s*=/u.exec(guard.code);
+    if (owner?.[1] === step.writeTargets[0]) declaration = ["", owner[1], code];
+  }
   return declaration ? ko ? `${declaration[2]}로 ${declaration[1]}를 초기화합니다.` : `Initialize ${declaration[1]} with ${declaration[2]}.`
     : ko ? `${code} 계산을 수행합니다.` : `Apply ${code}.`;
+}
+
+/** After every route is independently proved, factor serial CFG joins instead of repeating later work for each Boolean combination. */
+function buildJoinedSourcePurpose(context: FunctionNarrativeContext, language: "ko" | "en"): string | undefined {
+  const graph = context.scenarioGraph!, ko = language === "ko", entry = graph.nodes[graph.entry];
+  if (entry.kind !== "entry" || entry.next.length !== 1) return;
+  const sourceSteps = graph.nodes.flatMap(node => node.step ? [node.step] : []), pieces: string[] = [], emitted = new Set<number>();
+  /** A mutation-only arm ends at its next decision/return; nested control is deliberately not flattened. */
+  const arm = (start: number): number[] | undefined => {
+    const result: number[] = [], visited = new Set<number>(); let current = start;
+    while (result.length <= 32) {
+      const node = graph.nodes[current];
+      if (!node || visited.has(current)) return;
+      visited.add(current); result.push(current);
+      if (node.kind !== "mutation") return result;
+      if (node.next.length !== 1) return;
+      current = node.next[0].target;
+    }
+    return undefined;
+  };
+  let current = entry.next[0].target;
+  while (emitted.size < 32) {
+    const node = graph.nodes[current];
+    if (!node?.step || emitted.has(current)) return;
+    emitted.add(current);
+    if (node.kind === "return") {
+      pieces.push(describeSourceOperation(node.step, language, sourceSteps));
+      if (graph.nodes.some((candidate, index) => !["entry", "exit"].includes(candidate.kind) && !emitted.has(index))) return;
+      const purpose = pieces.join(" "); return purpose.length <= 240 ? purpose : undefined;
+    }
+    if (node.kind === "mutation" && node.next.length === 1) {
+      pieces.push(describeSourceOperation(node.step, language, sourceSteps)); current = node.next[0].target; continue;
+    }
+    if (node.kind !== "condition" || node.next.length !== 2) return;
+    const positive = node.next.find(edge => edge.outcome === "true"), negative = node.next.find(edge => edge.outcome === "false");
+    if (!positive || !negative) return;
+    const yes = arm(positive.target), no = arm(negative.target);
+    if (!yes || !no) return;
+    const yesSet = new Set(yes), join = no.find(index => yesSet.has(index));
+    if (join === undefined) return;
+    const predicate = node.step.loweredPredicate ?? node.step.code;
+    for (const [choice, route] of [["true", yes], ["false", no]] as const) {
+      const operations: string[] = [];
+      for (const index of route.slice(0, route.indexOf(join))) {
+        if (emitted.has(index) || graph.nodes[index].kind !== "mutation" || !graph.nodes[index].step) return;
+        emitted.add(index); operations.push(describeSourceOperation(graph.nodes[index].step!, language, sourceSteps));
+      }
+      pieces.push(ko ? `${predicate}=${choice}이면 ${operations.join(" ") || "값을 유지합니다."}`
+        : `If ${predicate}=${choice}: ${operations.join(" ") || "no write."}`);
+    }
+    current = join; // Shared writes/tests execute only after the chosen arm.
+  }
+  return undefined;
 }
