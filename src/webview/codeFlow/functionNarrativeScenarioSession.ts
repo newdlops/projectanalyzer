@@ -13,7 +13,7 @@ export class FunctionNarrativeScenarioSession {
   /** Small source-node → first saved page index; prose stays on disk. */
   private readonly nodePages = new Map<string, number>();
   /** One bounded model purpose can be reused across this snapshot's paths; full prose still stays on disk. */
-  private purpose?: { language: "ko" | "en"; text: string };
+  private purpose?: { language: "ko" | "en"; text: string; modelName: string };
   /** One bounded unfinished page retains validated primary/node work across cancellation or failure. */
   private pending?: { batch: FunctionNarrativeContext; narrative: FunctionNarrative; modelName: string; scenarioIndex: number;
     finalSummary: boolean; summarized: Set<number> };
@@ -70,7 +70,10 @@ export class FunctionNarrativeScenarioSession {
         if (hasCompleteSourceWorksheet(summaryTask)) summaryTask.summaryTask!.sourceAlternative =
           selectPrimitiveNarrativeAlternative(this.context, path, summaryTask.summaryTask!.inputs, language);
         summaryTask.summaryTask!.sourceFunctionPurpose = buildFunctionNarrativeSourcePurpose(this.context, summaryTask, language);
-        if (this.purpose?.language === language) summaryTask.summaryTask!.knownFunctionSummary = this.purpose.text;
+        if (this.purpose?.language === language) {
+          summaryTask.summaryTask!.knownFunctionSummary = this.purpose.text;
+          summaryTask.summaryTask!.knownModelName = this.purpose.modelName;
+        }
         const response = await provider.generate(summaryTask, language, signal, { reselectModel: false });
         if (signal.aborted) throw new FunctionNarrativeError("cancelled");
         const completed = parseFunctionNarrative(response.text, summaryTask, language);
@@ -78,7 +81,7 @@ export class FunctionNarrativeScenarioSession {
         // completed node work private and resumes this exact stage next time.
         Object.assign(scenario, completed.scenarios[0], { nodeDetails: scenario.nodeDetails, graph: scenario.graph });
         pending.narrative.summary = completed.summary; pending.narrative.limitations = completed.limitations;
-        if (completed.summary.length <= 240) this.purpose = { language, text: completed.summary };
+        if (completed.summary.length <= 240) this.purpose = { language, text: completed.summary, modelName: response.modelName.slice(0, 100) };
         pending.modelName = response.modelName; pending.summarized.add(pending.scenarioIndex);
       }
       if (path) finalizeFunctionNarrativeNodes(batch, path, scenario, pending.narrative.summary);

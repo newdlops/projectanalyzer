@@ -1,5 +1,5 @@
 /** Public production-parser/LLM benchmark, run after compile. Source is read as syntax, never executed.
- * Usage: node scripts/benchmark-function-narratives.mjs [runtime-root|-] [tag] [fixture|-] [model] [runner] [full-run]
+ * Usage: node scripts/benchmark-function-narratives.mjs [runtime-root|-] [tag] [fixture|-] [model] [runner] [full-run] [configured|configured-source]
  * Omit runtime-root for the current workspace; use an installed older extension for the baseline.
  * Reports and raw public-fixture responses are written only to a private temporary directory.
  */
@@ -86,7 +86,8 @@ const outputDirectory = await fs.promises.mkdtemp(path.join(tmpdir(), 'fn-benchm
 const modelPath = process.argv[5] && process.argv[5] !== '-' ? process.argv[5] : path.join(repo, '.local-models/Qwen3.5-4B-Q4_K_M.gguf');
 const binaryPath = await require(repo + '/out/vscode/functionNarrativeSetup/localBinary').resolveLocalBinary(process.argv[6] || '');
 const fullRun = process.argv[7] === 'full-run';
-console.log(JSON.stringify({ outputDirectory, tag, runtime, fullRun, model: path.basename(modelPath), note: 'Public fixed-formula corpus and a narrow causal-language check, not a general accuracy guarantee.' }));
+const configurationMode = ['configured', 'configured-source'].includes(process.argv[8]) ? process.argv[8] : undefined;
+console.log(JSON.stringify({ outputDirectory, tag, runtime, fullRun, configurationMode, model: path.basename(modelPath), note: 'Public fixed-formula corpus and a narrow causal-language check, not a general accuracy guarantee.' }));
 
 async function contextFor(fixture) {
   const lines = fixture.source.split('\n');
@@ -219,7 +220,7 @@ function score(fixture, pages, context) {
     const pages = new Map(), traces = [], metrics = [], watchdogPids = [], runnerPids = new Set();
     let peakObservedRunnerRssKiB = 0;
     const manager = new ModelTaskManager();
-    const local = createLocalFunctionNarrativeProvider({ binaryPath, modelPath, taskManager: manager, onMetrics(value) {
+    const onMetrics = value => {
       metrics.push(value);
       // Observe this benchmark's own watchdog only, never another window's
       // model. Equal consecutive PIDs prove reuse across async page work.
@@ -238,7 +239,23 @@ function score(fixture, pages, context) {
         }
         catch { watchdogPids.push([]); }
       }
-    } });
+    };
+    const setup = { factories: 0, managedEnsures: 0, notifications: 0 };
+    let local;
+    if (configurationMode) {
+      const api = { workspace: { getConfiguration() { return { get(key, fallback) {
+        return { provider: 'local', localBinary: configurationMode === 'configured-source' ? '/missing-runtime/llama-completion' : binaryPath,
+          localModel: configurationMode === 'configured-source' ? '/missing-runtime/model.gguf' : modelPath }[key] ?? fallback;
+      } }; } }, ProgressLocation: { Notification: 15 }, window: {
+        async withProgress(_settings, operation) { setup.notifications++; return operation({ report() {} }, { isCancellationRequested: false, onCancellationRequested() { return { dispose() {} }; } }); },
+        showErrorMessage() { return Promise.resolve(undefined); }, showQuickPick() { return Promise.resolve(undefined); }
+      }, lm: { async selectChatModels() { throw new Error('Unexpected connected provider'); } },
+      LanguageModelChatMessage: { User(content) { return { content }; } }, CancellationTokenSource: class { token = {}; cancel() {} dispose() {} } };
+      const models = { model: { id: 'benchmark', name: 'Benchmark', fileName: path.basename(modelPath), url: 'https://example.invalid', bytes: 2740937888, sha256: 'a'.repeat(64) },
+        async ensure() { setup.managedEnsures++; throw new Error('Unexpected managed model transfer in public source benchmark'); }, dispose() {} };
+      local = require(runtime + '/out/vscode/functionNarrativeSetup').createConfiguredNarrativeProvider(api, models,
+        options => { setup.factories++; return createLocalFunctionNarrativeProvider({ ...options, taskManager: manager, onMetrics }); }, manager);
+    } else local = createLocalFunctionNarrativeProvider({ binaryPath, modelPath, taskManager: manager, onMetrics });
     const provider = { supportsFinalSummary: signal => local.supportsFinalSummary?.(signal) === true,
       withRun: (language, signal, operation) => local.withRun ? local.withRun(language, signal, operation) : operation(), async generate(batch, language, signal, options) {
       const began = performance.now();
@@ -254,11 +271,15 @@ function score(fixture, pages, context) {
     let error;
     const signal = new AbortController().signal;
     const analyze = async () => { while (!session.complete) { const page = await session.analyzeNext(provider, 'ko', signal, { reselectModel: false }); if (!page) break; } };
-    try { if (fullRun) await provider.withRun('ko', signal, analyze); else await analyze(); }
+    try {
+      if (configurationMode && local.prepare) await local.prepare('ko', signal, { sourceReading: true, label: fixture.name });
+      if (fullRun) await provider.withRun('ko', signal, analyze); else await analyze();
+    }
     catch (failure) { error = { code: failure.code || failure.message, detail: failure.detailCode }; }
     const renderedPages = [...pages.entries()].map(([index, narrative]) => ({ index, narrative }));
     const remainingRunnerPids = [...runnerPids].filter(pid => { try { process.kill(pid, 0); return true; } catch { return false; } });
-    const record = { name: fixture.name, milliseconds: performance.now() - began, requests: traces.length, complete: session.complete, coverage: session.coverage, score: score(fixture, renderedPages, context), error, traces, metrics, watchdogPids, peakObservedRunnerRssKiB, remainingRunnerPids };
+    const record = { name: fixture.name, milliseconds: performance.now() - began, requests: traces.length, complete: session.complete, coverage: session.coverage, score: score(fixture, renderedPages, context), error, traces, metrics,
+      ...(configurationMode ? { setup, tasks: manager.snapshot().history.map(task => ({ kind: task.kind, phase: task.phase })) } : {}), watchdogPids, peakObservedRunnerRssKiB, remainingRunnerPids };
     fs.writeFileSync(outputDirectory + '/narrative-bench-' + tag + '-' + fixture.name + '-pages.json', JSON.stringify(renderedPages, null, 2), { mode: 0o600 });
     records.push(record); console.log(JSON.stringify({ tag, completedFixture: record }));
     await session.dispose(); await manager.dispose();

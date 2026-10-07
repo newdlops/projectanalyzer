@@ -2,10 +2,24 @@
 import type { FunctionNarrative, FunctionNarrativeContext, FunctionNarrativeFlowPath, FunctionNarrativeExample } from "../../../shared/functionNarratives";
 import { createFunctionNarrativeScenarioIterator } from "../scenarioIterator";
 import { buildFunctionNarrativeScenarioFrames } from "../scenarioFrames";
-import { getPrimitiveWorksheetAnalysis, readCompletedPrimitiveTrace, readCompletedSourceTrace, traceSourceWorksheet } from "./index";
+import { buildPrimitiveWorksheetResponse, getPrimitiveWorksheetAnalysis, readCompletedPrimitiveTrace, readCompletedSourceTrace, traceSourceWorksheet } from "./index";
 import type { PrimitiveTrace } from "./trace";
 
 type Alternative = NonNullable<FunctionNarrativeContext["summaryTask"]>["sourceAlternative"];
+
+/** Source/cached readings do not require a runtime, weights or provider selection; all structured Host validation still applies. */
+export function buildSourceFunctionNarrativeResponse(context: FunctionNarrativeContext, language: "ko" | "en"):
+  { modelName: string; text: string } | undefined {
+  const sourceName = language === "ko" ? "소스 분석" : "Source analysis";
+  const worksheet = buildPrimitiveWorksheetResponse(context, language);
+  if (worksheet !== undefined) return { modelName: sourceName, text: worksheet };
+  const task = context.summaryTask;
+  if (!task?.sourceFunctionPurpose && !(task?.knownFunctionSummary && task.knownModelName)) return;
+  const synthesis = buildPrimitiveNarrativeSynthesis(context, language);
+  if (!synthesis) return;
+  return { modelName: task.sourceFunctionPurpose ? sourceName : task.knownModelName!.slice(0, 100),
+    text: JSON.stringify({ ...synthesis, summary: task.sourceFunctionPurpose ?? task.knownFunctionSummary }) };
+}
 
 /** Whole-graph recipes retain every operation and call uncertainty; other function meanings remain model work. */
 export function buildFunctionNarrativeSourcePurpose(original: FunctionNarrativeContext, task: FunctionNarrativeContext,

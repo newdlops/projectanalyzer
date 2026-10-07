@@ -1568,6 +1568,20 @@ Webview는 Project Graph, 파일 시스템, VS Code API에 직접 접근하지 �
   모든 인용과 계산이 맞는 경우 목적을 구성한다. 추가 분기·interleaved 계산·반환식,
   source 누락·helper·inferred edge는 이 recipe에서 제외한다. 정상 복귀와 지역 값 유지,
   내부 동작 미확인 조건을 목적에도 보존하고 240자를 넘으면 모델을 사용한다.
+  0.0.1124의 complete Host는 `prepare`에 source-free `sourceReading` hint를 전달한다.
+  local 설정에서는 이때 machine 설정만 AbortSignal별로 고정하고 binary/model의 stat,
+  managed cache 검증·다운로드, local provider 생성과 모델 준비 작업을 시작하지 않는다.
+  `buildSourceFunctionNarrativeResponse`가 기존 source worksheet 또는 현재·대안의
+  matched synthesis를 만들 수 있으면 같은 Host validation을 거쳐 바로 사용한다.
+  source만으로 목적이 불충분한 첫 단계는 기존 prepare queue에서 자동 모델 준비를
+  수행한 뒤 inference queue에 들어간다. 다운로드·대기 시간은 inference deadline에
+  포함하지 않고 binary 확인은 계속 대용량 다운로드보다 먼저 수행한다.
+  withRun은 첫 실제 model 단계에서 provider의 기존 resource scope를 지연 획득해
+  페이지·source 계산·비동기 저장 사이에도 유지하고, 취소·실패·종료 시 정리를 기다린다.
+  cached purpose에는 Host-only `knownModelName`을 함께 보존해 새 AbortSignal이나
+  변경된 설정에서 source-only 다음 페이지를 읽어도 원래 producer를 유지한다.
+  이 필드는 외부 prompt에서 제거한다. explicit model-only prepare와 vscode 공급자 선택은
+  기존 동작을 유지하고, manager disposal 이후에는 새 source 생성도 취소로 거부한다.
   rich primary 응답의 `exampleInputs`는 `{name, value}`의 실제 JSON 값을 생성한다. 로컬
   adapter는 이를 기존 `{name, json}` 문자열 계약으로 인코딩하며 Boolean/null 경로 선택,
   입력 크기·깊이·유한 숫자·금지 key 검사와 Host의 source/route 검증은 유지한다. 소스 언어의

@@ -206,7 +206,8 @@ export class FunctionNarrativesHostDelivery {
       if (current()) void send({ status: "working", task }).catch(() => {});
     } };
     try {
-      if (!session.complete && provider.prepare) await this.prepareProvider(provider, language, controller.signal, operation);
+      if (!session.complete && provider.prepare) await this.prepareProvider(provider, language, controller.signal,
+        { ...operation, sourceReading: entry.context.detailLevel === "rich" });
       if (!current()) return;
       // Keep weights loaded only for this explicit whole-function request.
       // Each inference still queues independently; cancellation overrides retention.

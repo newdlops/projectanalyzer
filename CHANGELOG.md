@@ -4,6 +4,21 @@ All notable user-visible changes to Project Analyzer: Code Flow are recorded in
 this file. The changelog starts with the first distribution-documented build;
 earlier local development builds were not tracked here.
 
+## 0.0.1124 - 2026-10-08
+
+### Improved
+
+- Read validated source scenarios before probing a local runner, verifying
+  weights or downloading a model. Complete source recipes now work even when
+  the local model/runtime is absent. Automatic setup starts at the first
+  model-dependent stage; explicit model-only preparation remains available.
+- Capture machine settings once per action and retain the actual provider's
+  resource scope from its first inference through later source pages/storage.
+  Preserve cancellation, queued deadlines and cleanup before action completion.
+- Reuse a validated purpose with its original producer when another page resumes,
+  without preparing a model again. Keep producer metadata out of external prompts
+  and reject new source generation after model-task manager disposal.
+
 ## 0.0.1123 - 2026-10-08
 
 ### Improved

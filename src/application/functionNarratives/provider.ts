@@ -4,7 +4,9 @@ import type { ModelTaskProgress, ModelTaskResource } from "../../shared/modelTas
 
 export { FunctionNarrativeError, type FunctionNarrativeFailure } from "../../shared/functionNarratives";
 export type FunctionNarrativeModelResponse = { modelName: string; text: string };
-export type FunctionNarrativeOperationOptions = { label?: string; onProgress?(progress: ModelTaskProgress): void };
+export type FunctionNarrativeOperationOptions = { label?: string; onProgress?(progress: ModelTaskProgress): void;
+  /** Host-owned node-reading pipeline may defer local weights until its first model-dependent stage; contains no source. */
+  sourceReading?: boolean };
 export type FunctionNarrativeGenerationOptions = FunctionNarrativeOperationOptions & {
   reselectModel?: boolean;
   /** Validates before a managed operation is recorded as successful. */

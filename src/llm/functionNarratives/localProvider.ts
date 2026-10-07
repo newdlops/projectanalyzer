@@ -3,7 +3,7 @@ import { spawn } from "node:child_process";
 import { access, mkdtemp, writeFile, rm } from "node:fs/promises";
 import { basename, join } from "node:path";
 import { tmpdir } from "node:os";
-import { FunctionNarrativeError, scheduleFunctionNarrativeRequest, buildPrimitiveWorksheetResponse, buildPrimitiveNarrativeSynthesis, type FunctionNarrativeProvider } from "../../application/functionNarratives";
+import { FunctionNarrativeError, scheduleFunctionNarrativeRequest, buildSourceFunctionNarrativeResponse, buildPrimitiveNarrativeSynthesis, type FunctionNarrativeProvider } from "../../application/functionNarratives";
 import { getGlobalModelTaskManager, type ModelTaskManager } from "../../shared/modelTasks";
 import { createLocalNarrativeSchema } from "./responseSchema";
 import { buildLocalNarrativePrompt, buildLocalNarrativeSystemPrompt, buildLocalNarrativeUserMessages, buildLocalFunctionPurposeMessages } from "./localPrompt";
@@ -18,18 +18,16 @@ export function createLocalFunctionNarrativeProvider(options: LocalFunctionNarra
   let serverProbe: Promise<LocalNarrativeServer | undefined> | undefined;
   return { managesDeadlines: true, supportsFinalSummary: () => true,
     async withRun(_language, signal, operation) {
+      if (signal.aborted || manager.disposed) throw new FunctionNarrativeError("cancelled");
       const server = await (serverProbe ??= getLocalNarrativeServer(manager, options));
       if (signal.aborted) throw new FunctionNarrativeError("cancelled");
       return server ? manager.withResource(server, operation, signal) : operation();
     }, async generate(context, language, signal, generation) {
-    if (signal.aborted) throw new FunctionNarrativeError("cancelled");
-    const worksheet = buildPrimitiveWorksheetResponse(context, language);
-    if (worksheet !== undefined) return { modelName: ("Local · " + basename(options.modelPath, ".gguf")).slice(0, 100), text: worksheet };
+    if (signal.aborted || manager.disposed) throw new FunctionNarrativeError("cancelled");
+    const source = buildSourceFunctionNarrativeResponse(context, language);
+    if (source) return source;
     const synthesis = buildPrimitiveNarrativeSynthesis(context, language);
     const modelName = ("Local · " + basename(options.modelPath, ".gguf")).slice(0, 100);
-    if (synthesis && context.summaryTask?.sourceFunctionPurpose) {
-      return { modelName: language === "ko" ? "소스 분석" : "Source analysis", text: JSON.stringify({ ...synthesis, summary: context.summaryTask.sourceFunctionPurpose }) };
-    }
     if (synthesis && context.summaryTask?.knownFunctionSummary) {
       return { modelName, text: JSON.stringify({ ...synthesis, summary: context.summaryTask.knownFunctionSummary }) };
     }

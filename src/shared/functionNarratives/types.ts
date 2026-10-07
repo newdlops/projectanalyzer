@@ -87,6 +87,8 @@ export type FunctionNarrativeContext = {
   summaryTask?: { inputs: FunctionNarrativeExample["inputs"]; steps: FunctionNarrativeStep[];
     /** Validated purpose from this same source snapshot/locale, never provisional preparation text. */
     knownFunctionSummary?: string;
+    /** Original validated producer for a cached purpose; Host-only, never prompt evidence. */
+    knownModelName?: string;
     /** Host-selected nearby source route and typed inputs; source synthesis independently checks every operation again. */
     sourceAlternative?: { path: FunctionNarrativeFlowPath; inputs: FunctionNarrativeExample["inputs"] };
     /** Host-owned whole-function recipe with any call assumptions preserved; independently matched, never model-authored. */

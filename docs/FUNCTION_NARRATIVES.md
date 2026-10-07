@@ -142,6 +142,60 @@ loop/exception transfer, inferred/partial/truncated evidence, 긴 식과 알 수
 초기 준비 문구는 저장하지 않는다. 각 시나리오의 상세 문단·대안은 계속 모델이 새로 작성한다.
 기존 노드 구문·동작·근거·효과·인용을 모두 유지하며 화면 배치도 유지한다.
 
+### 0.0.1124 소스 읽기 이후 필요한 모델만 지연 준비
+
+`buildSourceFunctionNarrativeResponse(context, language)`는 기존 worksheet 및 matched
+synthesis를 공통 public API로 제공한다. local provider와 native configured adapter가
+같은 source 판단을 사용하고 Host의 JSON·언어·소스·입력·페이지 검증을 유지한다.
+complete Host의 `sourceReading` hint는 소스를 전달하지 않으며, 모델 준비 전 설정
+binding을 허용한다. 이때 binary/model stat이나 모델 cache 검증·다운로드·provider
+생성은 하지 않는다. source로 구성 가능한 단계는 즉시 완료하고, 모델 목적 등이 필요한
+첫 단계에서 기존 source-free prepare queue와 자동 다운로드를 사용한다.
+
+machine provider/binary/model 선택은 AbortSignal별로 한 번 고정한다. 지연 준비 중에
+설정을 바꾸어도 같은 명시적 실행의 이후 묶음을 다른 공급자나 실행기로 보내지 않는다.
+`withRun`은 source-only 실행에 model scope를 열지 않고, 첫 실제 model 작업에서
+선택된 provider의 기존 scope를 열어 전체 실행이 끝날 때까지 유지한다. 비동기 저장이나
+source-only 다음 페이지 사이에서도 warm resource를 유지하고 종료·실패·취소 시
+cleanup을 기다린다. resource acquisition 실패도 원래 failure category를 보존한다.
+명시적인 모델-only `prepare`와 vscode 공급자 선택은 그대로 유지한다.
+
+cached purpose는 original producer `knownModelName`을 Host 내부에 함께 보존한다.
+source snapshot과 언어가 같은 다음 페이지를 새 signal로 읽을 때 모델 파일이 없거나
+설정이 달라져도 준비를 반복하지 않고 원래 model 표시를 유지할 수 있다. producer는
+외부 prompt에서 제거하며, source recipe가 목적을 구성한 경우에는 `소스 분석`으로
+표시한다. model-task manager disposal 이후의 새 생성은 source-only여도 취소로 거부한다.
+
+공개 production-parser 예제 7종(기존 반복 5종과 계산 뒤 직접 호출 2종)을 설정 어댑터를
+통해 검사했다. binary/model 경로는 의도적으로 존재하지 않는 경로로 지정했고 managed
+cache port는 호출되면 실패하도록 했다. 실제 다운로드 속도를 시뮬레이션한 수치는 아니다.
+설치된 0.0.1123은 7/7에서 준비 단계 `unavailable`로 실패했고 새 구현은 7/7을
+5.62–30.52ms에 완료했다(parser/context 구성 제외, 설정 준비·generation·저장 포함).
+최종 배포 번들의 같은 검사는 5.96–22.51ms를 기록했다.
+반환 12/12, graph node 78/78, 상세 구문 54/54와 7,808자를 보존했고 model factory,
+managed ensure, 준비 알림·prepare task·실제 inference는 모두 0회였다.
+
+실제 Qwen3.5/llama.cpp로 모델이 필요한 Kotlin guard 목적도 검사했다. 5.60초에
+두 시나리오의 0/15 반환과 9개 노드·5개 상세를 완료했고 prepare 1회, inference 1회,
+model factory 1회였다. 이미 있는 custom GGUF를 사용해 managed download는 0회였고,
+마지막에는 자체 runner가 남지 않았다. 취소·acquisition failure·비동기 storage·settings
+binding·cached producer·disposal 및 source fast-path validation 회귀를 포함한 관련
+unit 52/52를 통과했다. 전체 unit은 1,099개 중 1,095개 통과, 기존 4개 실패를 유지했다.
+최종 번들의 실제 guard 검증은 7.26초, 같은 prepare/inference 각 1회와 모든 값·상세,
+runner 정리를 확인했다. 시간 차이는 모델 로딩과 PC 부하도 포함한다.
+패키지 검사 15/15와 512파일·약 3.65MiB VSIX budget을 통과했다.
+
+별도의 공식 VS Code 1.141.0 user-data 환경에 존재하지 않는 binary/model 설정을 넣고
+최종 0.0.1124를 설치했다. Kotlin `do-while` 전체 시나리오가 준비 오류나 다운로드
+알림 없이 `소스 분석`으로 완료됐고 `1→2→3`, 대안 `10→11`과 반환 3/11, cache-only
+페이지 이동을 확인했다. 1440×900과 770×900 창(2× Retina 캡처)에서 실제 결과·
+줄바꿈·스크롤을 시각 검증했다. 터치·390px 모바일·다른 테마·전체 접근성 감사는
+수행하지 않았다. 기존 그래프 의미 경계선과 layout/token을 유지했고 새 hook ignore는
+없다. Default와 `Function Language QA 1107`에 최종 VSIX를 설치해 0.0.1124 등록을
+확인했다. 설치본의 JavaScript 478개와 native binary는 배포본과 byte 단위로 같으며
+runtime closure에도 오류가 없었다.
+더 복잡한 미확인 코드의 모델 추론 비용은 아직 남아 있다.
+
 ### 0.0.1123 직접 호출의 미확인 결과와 조건부 계산 보존
 
 `tracePrimitiveRoute`의 opt-in 호출 읽기는 primitive 입력과 지역 값만 사용한다. 직접 호출의

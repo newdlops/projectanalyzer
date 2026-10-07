@@ -107,6 +107,13 @@ proofs remain separate. Entire single-counter calculation/call/return recipes ca
 also show **Source analysis** as producer; preserve every constant, source
 operation and uncertainty. Reuse the current note, guide and value-table layout.
 
+As of 0.0.1124, a source-readable request must not wait for or fail on unrelated
+model installation. Show the existing source producer and execution-unverified
+labels directly. Display automatic model preparation only when the request reaches
+a model-dependent stage, retaining cancellable progress and normal error guidance.
+Cached model purposes keep their original producer even when current settings
+change. No new controls, layout or visual tokens are introduced.
+
 Acceptance: real local Kotlin and TypeScript responses include numerical/Boolean
 substitution, ordered calculation/effect and alternate-path explanation. Every
 reached source operation has a syntax explanation; repeated visits and partial
