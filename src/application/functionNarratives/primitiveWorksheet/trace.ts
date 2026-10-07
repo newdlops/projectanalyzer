@@ -11,6 +11,15 @@ export function tracePrimitiveRoute(context: FunctionNarrativeContext, path: Fun
   inputs: ReadonlyMap<string, Primitive>, language: "ko" | "en"): PrimitiveTrace | undefined {
   const integer = context.language === "kotlin", ko = language === "ko";
   if (path.confidence !== "exact" || path.status !== "source-terminal" || path.steps.length > 32) return undefined;
+  if (!context.parameters || inputs.size !== context.parameters.length || context.parameters.some(parameter => {
+    const type = parameter.type?.replace(/\s/gu, "") ?? "", value = inputs.get(parameter.name);
+    if (!inputs.has(parameter.name)) return true;
+    if (value === null) return !type.endsWith("?");
+    return /^(?:Int\??|number)$/u.test(type) ? typeof value !== "number" || !Number.isFinite(value) || Math.abs(value) > Number.MAX_SAFE_INTEGER
+      || /^Int/u.test(type) && (!Number.isInteger(value) || value < -2147483648 || value > 2147483647)
+      : /^(?:Boolean\??|boolean)$/u.test(type) ? typeof value !== "boolean"
+        : /^(?:String\??|string)$/u.test(type) ? typeof value !== "string" || value.length > 40 : true;
+  })) return undefined;
   const state = new Map(inputs), steps: FunctionNarrativeStep[] = [], visited = new Set<string>(), substitutions: string[] = [];
   const immutable = new Set(context.language === "kotlin" ? inputs.keys() : []);
   let result: string | undefined;
@@ -29,7 +38,7 @@ export function tracePrimitiveRoute(context: FunctionNarrativeContext, path: Fun
       expression = match[1]; name = "result"; before = ko ? "반환 전" : "not returned";
     } else if (target.kind === "mutation" && target.writeTargets?.length === 1) {
       name = target.writeTargets[0];
-      const write = /^(?:(val|var|let|const)\s+)?([\p{L}_$][\p{L}\p{N}_$]*)\s*(?:=|([+*-])=)\s*(.+)$/u.exec(expression);
+      const write = /^(?:(val|var|let|const)\s+)?([\p{L}_$][\p{L}\p{N}_$]*)\s*(?:=|([+*/%-])=)\s*(.+)$/u.exec(expression);
       if (write?.[2] === name) {
         declaration = write[1]; compound = write[3]; expression = write[4];
         if (declaration && state.has(name)) return undefined; // Scope/shadowing needs binding identities.
@@ -61,6 +70,8 @@ export function tracePrimitiveRoute(context: FunctionNarrativeContext, path: Fun
           : compound ? ko ? `${compound}=는 기존 값에 ${compound} 연산을 적용한 뒤 같은 변수에 저장합니다.` : `${compound}= applies ${compound} to the current value and stores it in the same binding.`
             : ko ? "대입은 선택한 식의 값을 현재 지역 변수에 저장합니다." : "Assignment stores the selected expression's value in the local binding.";
     const terms: Record<string, [string, string]> = { "+": ["덧셈", "addition"], "-": ["뺄셈", "subtraction"], "*": ["곱셈", "multiplication"],
+      "/": [integer ? "정수 나눗셈: 소수 부분을 0 방향으로 버림" : "나눗셈", integer ? "integer division truncates toward zero" : "division"],
+      "%": ["나머지", "remainder"],
       "u-": ["수치 부호 반전", "numeric negation"], "u+": ["수치 값 유지", "numeric identity"],
       "s+": ["문자열 연결", "string concatenation"],
       "!": ["Boolean 부정", "Boolean negation"], ">": ["초과 비교", "greater-than comparison"], ">=": ["이상 비교", "inclusive lower-bound comparison"],

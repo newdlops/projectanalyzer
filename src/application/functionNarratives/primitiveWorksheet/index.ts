@@ -1,8 +1,9 @@
-/** Public conservative source worksheet boundary; final purpose/paragraph synthesis always remains with the selected LLM. */
+/** Conservative primitive worksheet boundary; source facts stay separate from the selected model's purpose. */
 import type { FunctionNarrativeContext } from "../../../shared/functionNarratives";
-import { buildFunctionNarrativeScenarioFrames, getFunctionNarrativeExampleConstraints } from "../scenarioFrames";
+import { buildFunctionNarrativeScenarioFrames } from "../scenarioFrames";
 import { tracePrimitiveRoute, type PrimitiveTrace } from "./trace";
-import type { Primitive } from "./expression";
+import { selectPrimitiveTrace } from "./candidates";
+import { hasSimplePrimitiveScopes } from "./scope";
 
 /** Returns the existing validated response contract only for fully proved primitive preparation/node tasks. */
 export function buildPrimitiveWorksheetResponse(context: FunctionNarrativeContext, language: "ko" | "en"): string | undefined {
@@ -15,36 +16,7 @@ export function buildPrimitiveWorksheetResponse(context: FunctionNarrativeContex
     if (context.nodeTask) {
       try { trace = tracePrimitiveRoute(context, path, new Map(context.nodeTask.example.inputs.map(input => [input.name, JSON.parse(input.json)])), language); }
       catch { return undefined; }
-    } else {
-      const constraints = getFunctionNarrativeExampleConstraints(context, index);
-      const numeric = new Set([10, 0, 1, -1]);
-      for (const step of path.steps.filter(step => step.kind === "condition")) {
-        for (const match of (step.loweredPredicate ?? step.code).matchAll(/\b\d+(?:\.\d+)?\b/gu)) {
-          const value = Number(match[0]); numeric.add(value); numeric.add(value + 1); numeric.add(value - 1);
-        }
-      }
-      // A bounded queue of Cartesian candidates proves route feasibility without executing source or enumerating unbounded inputs.
-      let candidates: Map<string, Primitive>[] = [new Map()];
-      for (const parameter of context.parameters!) {
-        if (parameter.name.length > 32) return undefined;
-        const type = parameter.type?.replace(/\s/gu, "") ?? "";
-        const boolean = constraints.booleans.find(value => value.name === parameter.name);
-        if (constraints.nullInputs.includes(parameter.name) && !type.endsWith("?")
-          || boolean && !/^(?:Boolean\??|boolean)$/u.test(type)) return undefined;
-        const options: Primitive[] | undefined = constraints.nullInputs.includes(parameter.name) ? [null] : boolean ? [boolean.json === "true"]
-          : /^(?:Boolean\??|boolean)$/u.test(type) ? [true, false]
-            : /^(?:Int\??|number)$/u.test(type) ? [...numeric].slice(0, 12)
-              : /^(?:String\??|string)$/u.test(type) ? ["sample"] : undefined;
-        if (!options) return undefined;
-        const next: Map<string, Primitive>[] = [];
-        for (const candidate of candidates) for (const value of options) {
-          if (next.length >= 128) break;
-          next.push(new Map([...candidate, [parameter.name, value]]));
-        }
-        candidates = next;
-      }
-      for (const candidate of candidates) { trace = tracePrimitiveRoute(context, path, candidate, language); if (trace) break; }
-    }
+    } else trace = selectPrimitiveTrace(context, path, language);
     if (!trace) return undefined;
     traces.push(trace);
   }
@@ -90,20 +62,9 @@ export function hasCompletePrimitiveWorksheet(context: FunctionNarrativeContext)
 /** Reuses complete, matching source evidence for the two factual summary fields; free explanation/alternative stay model-written. */
 export function getPrimitiveWorksheetAnalysis(context: FunctionNarrativeContext, language: "ko" | "en"):
   { pathReason: string; stateChange: string; sourceSequence: string[] } | undefined {
-  if (!hasCompletePrimitiveWorksheet(context) || context.summaryTask!.omittedValues) return undefined;
-  const path = context.sourceFlow!.paths[0], completed = context.summaryTask!.completed;
-  const trace = tracePrimitiveRoute(context, path, new Map(context.summaryTask!.inputs.map(input => [input.name, JSON.parse(input.json)])), language)!;
-  if (completed.length !== path.steps.length) return undefined;
-  for (let index = 0; index < completed.length; index++) {
-    if (completed[index].code !== path.steps[index].code) return undefined;
-    for (const value of trace.steps[index].values ?? []) {
-      const actual = completed[index].values?.find(candidate => candidate.name === value.name);
-      if (actual?.before !== value.before) return undefined;
-      try { if (JSON.stringify(JSON.parse(actual.after)) !== value.after) return undefined; }
-      catch { return undefined; }
-    }
-  }
-  const ko = language === "ko";
+  const trace = readCompletedPrimitiveTrace(context, language);
+  if (!trace) return undefined;
+  const path = context.sourceFlow!.paths[0], ko = language === "ko";
   const choices = path.steps.flatMap((step, index) => step.kind === "condition"
     ? [`${step.loweredPredicate ?? step.code} (${trace.substitutions[index]}) = ${trace.steps[index].values![0].after}`] : []);
   const writes = path.steps.flatMap((step, index) => step.kind === "mutation"
@@ -119,6 +80,24 @@ export function getPrimitiveWorksheetAnalysis(context: FunctionNarrativeContext,
     sourceSequence: trace.steps.map(step => `${step.code}: ${step.reason} ${step.effect}`) } : undefined;
 }
 
+/** Internal sibling-module proof: every completed source operation and immediate value must match the independent trace. */
+export function readCompletedPrimitiveTrace(context: FunctionNarrativeContext, language: "ko" | "en"): PrimitiveTrace | undefined {
+  if (!hasCompletePrimitiveWorksheet(context) || context.summaryTask!.omittedValues) return undefined;
+  const path = context.sourceFlow!.paths[0], completed = context.summaryTask!.completed;
+  const trace = tracePrimitiveRoute(context, path, new Map(context.summaryTask!.inputs.map(input => [input.name, JSON.parse(input.json)])), language)!;
+  if (completed.length !== path.steps.length) return undefined;
+  for (let index = 0; index < completed.length; index++) {
+    if (completed[index].code !== path.steps[index].code) return undefined;
+    for (const value of trace.steps[index].values ?? []) {
+      const actual = completed[index].values?.find(candidate => candidate.name === value.name);
+      if (actual?.before !== value.before) return undefined;
+      try { if (JSON.stringify(JSON.parse(actual.after)) !== value.after) return undefined; }
+      catch { return undefined; }
+    }
+  }
+  return trace;
+}
+
 /** Independent capability guard shared by preparation, focused reads and final-summary evidence checks. */
 function supportedContext(context: FunctionNarrativeContext): boolean {
   if (context.callTask || context.detailLevel !== "rich" || !["kotlin", "typescript", "javascript"].includes(context.language)
@@ -129,7 +108,7 @@ function supportedContext(context: FunctionNarrativeContext): boolean {
     || !context.parameters || context.parameters.length > 8 || !context.sourceFlow?.paths.length
     || context.parameters.some(parameter => !/^(?:Boolean\??|Int\??|String\??|boolean|number|string)$/u.test(parameter.type?.replace(/\s/gu, "") ?? ""))) return false;
   const source = context.snippets.find(snippet => snippet.role === "function")?.text ?? "";
-  // Nested lexical scopes, loops and exception transfers need richer binding/runtime semantics.
-  return (source.match(/\{/gu)?.length ?? 0) === 1 && (source.match(/\}/gu)?.length ?? 0) === 1
-    && !/\b(?:for|while|do|try|catch|throw|defer)\b/u.test(source);
+  // Nested control blocks may only mutate existing function-scope bindings.
+  // Shadowing/declarations in those blocks still require binding identities.
+  return hasSimplePrimitiveScopes(source, context.language === "kotlin");
 }

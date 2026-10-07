@@ -67,6 +67,15 @@ the model; facts are never shortened to fit. Scenario paragraphs and alternate
 paths still come from the selected LLM. Layout, source actions and all four node
 detail fields stay unchanged.
 
+As of 0.0.1120, complete matched primitive traces and independently checked
+alternate inputs supply the connected scenario paragraph as well. The local
+model writes one whole-function purpose, with all branches available in source.
+Every source operation, predicate substitution, ordered before/after value and
+return calculation stays visible. Unsupported or incomplete work retains model
+analysis. Labels say **Model/source reading** and **Input example**, and continue
+to state that execution is unverified. Existing layout, node kinds, source
+actions, paging, edited inputs and keyboard focus remain the visual contract.
+
 Acceptance: real local Kotlin and TypeScript responses include numerical/Boolean
 substitution, ordered calculation/effect and alternate-path explanation. Every
 reached source operation has a syntax explanation; repeated visits and partial

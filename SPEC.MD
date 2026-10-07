@@ -1506,14 +1506,26 @@ Webview는 Project Graph, 파일 시스템, VS Code API에 직접 접근하지 �
   즉시 구성할 수 있다. 최대 8개 typed input, 128개 후보, 32개 unique source operation과
   160자·64 token의 iterative primitive expression substitution만 허용한다. 조건 선택,
   직전/직후 지역 값, 연산자 의미·계산식·다음 구문과 원본 인용을 보존한다. call/access,
-  unknown type/operator, coercion, division/modulo, Kotlin overflow/Float, lexical scope,
+  unknown type/operator, coercion, zero divisor, Kotlin overflow/Float, nested binding declarations,
   loop/exception, inferred/partial/source gap 또는 carried model state 충돌은 기존 LLM으로
-  넘긴다. source는 실행하지 않으며 최종 시나리오 synthesis는 항상 선택한 LLM이 수행한다.
+  넘긴다. 0.0.1120에서는 Kotlin Int의 0 방향 정수 나눗셈/나머지도 다루며, 0 divisor와
+  overflow는 모델 분석으로 넘긴다. nested control block은 함수 scope의 기존 binding
+  갱신만 허용하고 그 안의 선언·shadowing·nested callable은 거부한다. source는 실행하지 않는다.
   동일 snapshot·언어의 검증된 목적 요약 240자 하나만 재사용한다. 완료된 노드의 code·값과
   독립 source trace가 모두 일치하고 누락된 값이 없으면 최종 pathReason/stateChange를
   concrete 조건 대입·모든 지역 before/after·반환 근거로 고정할 수 있다. 220자를 넘는
   근거는 자르지 않고 기존 LLM에 맡긴다. 이 고정 근거는 현재 task에도 전달해 문단의
-  판단·계산과 일관되게 설명하며, explanation·alternative는 계속 LLM이 작성한다.
+  판단·계산과 일관되게 설명한다. 0.0.1120은 complete 현재 trace와 독립적으로 계산한 다른
+  source route/input이 있을 때 explanation·alternative도 소스 근거로 구성한다. 문단 1,800자,
+  대안 600자를 넘는 근거는 자르지 않고 기존 모델 분석을 유지한다. 다른 route 탐색은 최대
+  32개·depth 64로 제한하되 전체 lazy 경로 열거는 제한하지 않는다. 함수 전체의 목적만
+  최초 한 번 선택한 local LLM이 summary 240자로 설명하고 이후 같은 snapshot·언어에서 재사용한다.
+  미확인 call/access/type/effect는 source synthesis로 처리하지 않는다. Kotlin interpolation/Double
+  literal과 JSON이 구분을 잃는 JS -0도 primitive worksheet에서 제외한다. 이름 없는 완전한
+  Boolean constant source 조건은 TS/JS/Kotlin의 불가능한 if 선택을 열거에서 제외할 수 있지만,
+  unknown 조건·다른 언어·symbolic loop pass는 그대로 보존한다. Host-only alternate path의
+  graph identity는 외부 모델 prompt에 전달하지 않는다. UI는 모델·소스 해설/입력 예시와
+  실제 실행 미검증을 표시하며, 전체 노드의 syntax/text/reason/effect/source/value는 보존한다.
   rich primary 응답의 `exampleInputs`는 `{name, value}`의 실제 JSON 값을 생성한다. 로컬
   adapter는 이를 기존 `{name, json}` 문자열 계약으로 인코딩하며 Boolean/null 경로 선택,
   입력 크기·깊이·유한 숫자·금지 key 검사와 Host의 source/route 검증은 유지한다. 소스 언어의

@@ -79,7 +79,7 @@ test("production Kotlin Guide offers actual LLM requests without changing static
     assert.equal(runtime.messages.filter((message) => message.type === "codeFlow/requestScenarioInputs").length, 0);
     preference = "ko";
     runtime.dispatchMessage({ type: "ui/language", payload: { language: preference } }); assert.equal(calls, 1);
-    assert.ok(runtime.getRenderedText("flow-steps").some((text) => text.includes("LLM 추론 · 실제 실행 미검증")));
+    assert.ok(runtime.getRenderedText("flow-steps").some((text) => text.includes("모델·소스 해설 · 실제 실행 미검증")));
     runtime.clickRenderedByClassNth("flow-steps", "logic-narrative-request", 0);
     const koreanRequest = runtime.messages.at(-1); assert.equal(koreanRequest?.type, "codeFlow/requestFunctionNarratives");
     await delivery.requestFunctionNarratives(koreanRequest!.payload as FunctionNarrativesRequest);

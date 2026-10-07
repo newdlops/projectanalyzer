@@ -35,8 +35,8 @@ const corpus = [
   { name: 'typescript-independent-guards', language: 'typescript', extension: 'ts', stress: true, source: 'export function inspect(a: boolean, b: boolean, c: boolean): number {\n    let adjusted = 0;\n    if (a) adjusted += 1;\n    if (b) adjusted += 2;\n    if (c) adjusted += 4;\n    return adjusted;\n}', operation: 'adjusted',
     writeValue: (inputs, code) => code.includes('+= 1') ? 1 : code.includes('+= 2') ? (inputs.a ? 1 : 0) + 2 : code.includes('+= 4') ? (inputs.a ? 1 : 0) + (inputs.b ? 2 : 0) + 4 : 0,
     expected: inputs => (inputs.a ? 1 : 0) + (inputs.b ? 2 : 0) + (inputs.c ? 4 : 0) },
-  // These closed public formulas deliberately exceed the worksheet's supported
-  // operators/scopes. Real model work must still preserve complete causal detail.
+  // Additional language cases cover Kotlin integer truncation and nested
+  // writes to outer bindings; source calculations must preserve causal detail.
   { name: 'kotlin-integer-division', language: 'kotlin', extension: 'kt', fallback: true,
     source: 'fun inspect(enabled: Boolean, amount: Int): Int {\n    if (!enabled) return 0\n    val adjusted = amount / 2\n    return adjusted + 3\n}',
     expected: inputs => inputs.enabled ? Math.trunc(inputs.amount / 2) + 3 : 0 },

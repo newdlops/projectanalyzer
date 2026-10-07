@@ -3,10 +3,10 @@ import { spawn } from "node:child_process";
 import { access, mkdtemp, writeFile, rm } from "node:fs/promises";
 import { basename, join } from "node:path";
 import { tmpdir } from "node:os";
-import { FunctionNarrativeError, scheduleFunctionNarrativeRequest, buildPrimitiveWorksheetResponse, type FunctionNarrativeProvider } from "../../application/functionNarratives";
+import { FunctionNarrativeError, scheduleFunctionNarrativeRequest, buildPrimitiveWorksheetResponse, buildPrimitiveNarrativeSynthesis, type FunctionNarrativeProvider } from "../../application/functionNarratives";
 import { getGlobalModelTaskManager, type ModelTaskManager } from "../../shared/modelTasks";
 import { createLocalNarrativeSchema } from "./responseSchema";
-import { buildLocalNarrativePrompt, buildLocalNarrativeSystemPrompt, buildLocalNarrativeUserMessages } from "./localPrompt";
+import { buildLocalNarrativePrompt, buildLocalNarrativeSystemPrompt, buildLocalNarrativeUserMessages, buildLocalFunctionPurposeMessages } from "./localPrompt";
 import { normalizeLocalNarrativeResponse } from "./localResponse";
 import { createLocalNarrativeWire } from "./localWire";
 import { classifyRunnerFailure, getLocalNarrativeServer, type LocalNarrativeMetrics, type LocalNarrativeServer } from "./localServer";
@@ -25,6 +25,11 @@ export function createLocalFunctionNarrativeProvider(options: LocalFunctionNarra
     if (signal.aborted) throw new FunctionNarrativeError("cancelled");
     const worksheet = buildPrimitiveWorksheetResponse(context, language);
     if (worksheet !== undefined) return { modelName: ("Local · " + basename(options.modelPath, ".gguf")).slice(0, 100), text: worksheet };
+    const synthesis = buildPrimitiveNarrativeSynthesis(context, language);
+    const modelName = ("Local · " + basename(options.modelPath, ".gguf")).slice(0, 100);
+    if (synthesis && context.summaryTask?.knownFunctionSummary) {
+      return { modelName, text: JSON.stringify({ ...synthesis, summary: context.summaryTask.knownFunctionSummary }) };
+    }
     const server = await (serverProbe ??= getLocalNarrativeServer(manager, options));
     return scheduleFunctionNarrativeRequest(manager, context.functionName, signal, async signal => {
     let directory: string | undefined;
@@ -33,15 +38,28 @@ export function createLocalFunctionNarrativeProvider(options: LocalFunctionNarra
       await access(options.modelPath).catch(() => { throw new FunctionNarrativeError("unavailable", "model-not-found"); });
       if (signal.aborted) throw new FunctionNarrativeError("cancelled");
       const fullSchema = createLocalNarrativeSchema(context, language);
-      const wire = context.detailLevel === "rich" || context.callTask ? createLocalNarrativeWire(fullSchema) : undefined;
-      const prompt = buildLocalNarrativePrompt(context, language, wire?.schema);
+      const wire = !synthesis && (context.detailLevel === "rich" || context.callTask) ? createLocalNarrativeWire(fullSchema) : undefined;
+      const schema = synthesis ? { type: "object", additionalProperties: false, required: ["summary"],
+        properties: { summary: (fullSchema.properties as Record<string, unknown>).summary } } : wire?.schema ?? fullSchema;
+      const purposeMessages = synthesis && buildLocalFunctionPurposeMessages(context, language, schema);
+      const prompt = purposeMessages ? purposeMessages.join("\n") : buildLocalNarrativePrompt(context, language, wire?.schema);
+      const complete = (text: string) => {
+        if (!synthesis) return normalizeLocalNarrativeResponse(wire?.decode(text) ?? text, context);
+        let purpose: unknown;
+        try { purpose = JSON.parse(text); } catch { throw new FunctionNarrativeError("invalid-response"); }
+        if (!purpose || typeof purpose !== "object" || Array.isArray(purpose) || Object.keys(purpose).length !== 1
+          || !("summary" in purpose) || typeof purpose.summary !== "string" || !purpose.summary.trim() || purpose.summary.length > 240) {
+          throw new FunctionNarrativeError("invalid-response");
+        }
+        return JSON.stringify({ ...synthesis, summary: purpose.summary });
+      };
       if (server) {
         // Only the explicit ChatML adapter accepts adjacent user evidence/task
         // messages. Other model templates retain their single-user contract.
-        const messages = /^qwen3[.\-]/iu.test(basename(options.modelPath)) ? buildLocalNarrativeUserMessages(context, language, wire?.schema) : prompt;
+        const messages = /^qwen3[.\-]/iu.test(basename(options.modelPath)) ? purposeMessages || buildLocalNarrativeUserMessages(context, language, wire?.schema) : prompt;
         const text = await server.generate(messages,
-          buildLocalNarrativeSystemPrompt(language), wire?.schema ?? fullSchema, signal, options.onMetrics);
-        return { modelName: ("Local · " + basename(options.modelPath, ".gguf")).slice(0, 100), text: normalizeLocalNarrativeResponse(wire?.decode(text) ?? text, context) };
+          buildLocalNarrativeSystemPrompt(language), schema, signal, options.onMetrics);
+        return { modelName, text: complete(text) };
       }
       // The socket path uses memory only. Create private prompt files solely
       // when a legacy/custom runner actually needs the CLI fallback.
@@ -53,7 +71,7 @@ export function createLocalFunctionNarrativeProvider(options: LocalFunctionNarra
       await writeFile(systemFile, buildLocalNarrativeSystemPrompt(language), { encoding: "utf8", mode: 0o600 });
       // Fixed grammar fields contain source predicates/operations too. Keep
       // them in the same private lifecycle as prompts, never in process argv.
-      await writeFile(schemaFile, JSON.stringify(wire?.schema ?? fullSchema), { encoding: "utf8", mode: 0o600 });
+      await writeFile(schemaFile, JSON.stringify(schema), { encoding: "utf8", mode: 0o600 });
       const text = await runLocalModel(options.binaryPath, ["--model", options.modelPath, "--file", promptFile, "--system-prompt-file", systemFile,
         // The completion runner's Jinja tool-template probe rejects Qwen3.5's
         // current template before inference. These text-only, tool-free requests
@@ -62,7 +80,7 @@ export function createLocalFunctionNarrativeProvider(options: LocalFunctionNarra
         "--single-turn", "--simple-io", "--no-display-prompt", "--no-escape", "--offline", "--no-warmup",
         "--ctx-size", "8192", "--predict", "2400", "--threads", "2", "--threads-batch", "2", "--poll", "0",
         "--temp", "0.2", "--seed", "42", "--json-schema-file", schemaFile], signal);
-      return { modelName: ("Local · " + basename(options.modelPath, ".gguf")).slice(0, 100), text: normalizeLocalNarrativeResponse(wire?.decode(text) ?? text, context) };
+      return { modelName, text: complete(text) };
     } finally {
       if (directory) await rm(directory, { recursive: true, force: true });
     }

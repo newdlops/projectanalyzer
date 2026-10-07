@@ -1,6 +1,7 @@
 /** Host run lifecycle: validated batches are paged to storage and resumed without reanalyzing completed paths. */
 import { FunctionNarrativeError, FunctionNarrativeScenarioRun, parseFunctionNarrative, initializeFunctionNarrativeNodes,
-  createFunctionNarrativeNodeTask, createFunctionNarrativeSummaryTask, appendFunctionNarrativeNodes, finalizeFunctionNarrativeNodes, type FunctionNarrativeProvider } from "../../application/functionNarratives";
+  createFunctionNarrativeNodeTask, createFunctionNarrativeSummaryTask, appendFunctionNarrativeNodes, finalizeFunctionNarrativeNodes,
+  selectPrimitiveNarrativeAlternative, hasCompletePrimitiveWorksheet, type FunctionNarrativeProvider } from "../../application/functionNarratives";
 import type { FunctionNarrative, FunctionNarrativeContext, FunctionNarrativePageStore } from "../../shared/functionNarratives";
 
 export type FunctionNarrativeStoredPage = { narrative: FunctionNarrative; modelName: string; offset: number; index: number };
@@ -66,6 +67,8 @@ export class FunctionNarrativeScenarioSession {
       }
       if (path && pending.finalSummary && !pending.summarized.has(pending.scenarioIndex)) {
         const summaryTask = createFunctionNarrativeSummaryTask(batch, path, scenario);
+        if (hasCompletePrimitiveWorksheet(summaryTask)) summaryTask.summaryTask!.sourceAlternative =
+          selectPrimitiveNarrativeAlternative(this.context, path, summaryTask.summaryTask!.inputs, language);
         if (this.purpose?.language === language) summaryTask.summaryTask!.knownFunctionSummary = this.purpose.text;
         const response = await provider.generate(summaryTask, language, signal, { reselectModel: false });
         if (signal.aborted) throw new FunctionNarrativeError("cancelled");

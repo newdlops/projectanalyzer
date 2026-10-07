@@ -31,7 +31,15 @@ test("primitive expression stacks preserve precedence, parentheses, unary operat
   assert.equal(readPrimitiveExpression('"a" + "b"', state, true)!.value, 'ab');
   assert.deepEqual(readPrimitiveExpression('"a" + "b"', state, true)!.operations, ['s+']);
   assert.equal(readPrimitiveExpression('true', new Map([['true', 10]]), true)!.value, true);
-  for (const expression of ['load()', 'amount.value', 'amount / 2', 'amount % 3', 'amount + missing', '2147483647 + 1', 'amount (2)', '(amount + 2', 'amount; 2', '1 == true']) {
+  assert.equal(readPrimitiveExpression('"$amount"', state, true), undefined, "Kotlin interpolation is not a JSON string literal");
+  assert.equal(readPrimitiveExpression('amount * 1.0', state, true), undefined, "Kotlin Double literals retain model fallback");
+  assert.equal(readPrimitiveExpression('amount === adjusted', state, true), undefined, "Kotlin boxed identity is not primitive value equality");
+  assert.equal(readPrimitiveExpression('-0', state, false), undefined, "JS negative zero must not silently become JSON zero");
+  assert.equal(readPrimitiveExpression('-7 / 2', state, true)!.value, -3);
+  assert.equal(readPrimitiveExpression('7 / -2', state, true)!.value, -3);
+  assert.equal(readPrimitiveExpression('-7 % 2', state, true)!.value, -1);
+  assert.equal(readPrimitiveExpression('7 / 2', state, false)!.value, 3.5);
+  for (const expression of ['load()', 'amount.value', 'amount / 0', 'amount % 0', 'amount + missing', '2147483647 + 1', 'amount (2)', '(amount + 2', 'amount; 2', '1 == true']) {
     assert.equal(readPrimitiveExpression(expression, state, true), undefined, expression);
   }
 });

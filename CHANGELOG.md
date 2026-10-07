@@ -4,6 +4,23 @@ All notable user-visible changes to Project Analyzer: Code Flow are recorded in
 this file. The changelog starts with the first distribution-documented build;
 earlier local development builds were not tracked here.
 
+## 0.0.1120 - 2026-10-08
+
+### Improved
+
+- Generate one local model purpose for the whole function. Complete primitive
+  routes immediately receive ordered source-derived paragraphs and independently
+  calculated alternate examples, preserving every node's syntax, cause and values.
+- Support Kotlin integer division/remainder and nested control blocks that
+  update existing function-scope bindings. Keep calls, shadowing, unsupported
+  types, zero divisors, overflow and incomplete evidence on the model pipeline.
+- Exclude source-proved impossible constant Boolean choices from lazy scenario
+  enumeration. Unknown predicates and symbolic loop passes retain their behavior.
+- Keep Kotlin interpolation/Double literals and JavaScript negative zero out of
+  primitive worksheets instead of treating them as ordinary JSON literals.
+- Label explanations and examples neutrally as model/source readings and input
+  examples while preserving the execution-unverified notice and source actions.
+
 ## 0.0.1119 - 2026-10-08
 
 ### Improved

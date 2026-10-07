@@ -132,7 +132,7 @@ test("Kotlin LLM controls are inert until clicked and preserve literal output, s
     assert.equal(runtime.countRenderedByClass("narrative-root", "logic-narrative-scenario"), 0);
     browser.accept(result);
     assert.ok(runtime.getRenderedText("narrative-root").includes("<img src=x onerror=run()>"));
-    assert.ok(runtime.getRenderedText("narrative-root").some((text) => text.includes("LLM inference · execution unverified")));
+    assert.ok(runtime.getRenderedText("narrative-root").some((text) => text.includes("Model/source reading · execution unverified")));
     assert.ok(runtime.getRenderedText("narrative-root").includes("LIMIT=3 makes LIMIT > 0 true."));
     assert.ok(runtime.getRenderedText("narrative-root").includes("The else branch is skipped."));
     runtime.clickRenderedByClassNth("narrative-root", "logic-narrative-source", 0);
@@ -140,7 +140,7 @@ test("Kotlin LLM controls are inert until clicked and preserve literal output, s
     assert.deepEqual(posts[1], { type: "codeFlow/openFunctionNarrativeSource", payload: { graphVersion: "fixture", flowId, contextId, language: "en", scenarioIndex: 0, stepIndex: 0 } });
     state.uiLanguage = "ko"; browser.locale("ko"); widget.refreshLanguage();
     assert.equal(posts.length, 2); assert.equal(runtime.countRenderedByClass("narrative-root", "logic-narrative-scenario"), 1);
-    assert.ok(runtime.getRenderedText("narrative-root").some((text) => text.includes("LLM 추론 · 실제 실행 미검증")));
+    assert.ok(runtime.getRenderedText("narrative-root").some((text) => text.includes("모델·소스 해설 · 실제 실행 미검증")));
     widget.dispose();
   } finally { runtime.restore(); }
 });

@@ -2,7 +2,7 @@
 export type Primitive = number | boolean | string | null;
 export type Reading = { value: Primitive; substituted: string; operations: string[] };
 const precedence: Record<string, number> = { "||": 1, "&&": 2, "==": 3, "!=": 3, "===": 3, "!==": 3,
-  "<": 4, "<=": 4, ">": 4, ">=": 4, "+": 5, "-": 5, "*": 6, "u-": 7, "u+": 7, "!": 7 };
+  "<": 4, "<=": 4, ">": 4, ">=": 4, "+": 5, "-": 5, "*": 6, "/": 6, "%": 6, "u-": 7, "u+": 7, "!": 7 };
 
 /** Shunting-yard stacks keep parsing and evaluation iterative, with explicit expression/token/value bounds. */
 export function readPrimitiveExpression(expression: string, state: ReadonlyMap<string, Primitive>, integer: boolean): Reading | undefined {
@@ -11,8 +11,9 @@ export function readPrimitiveExpression(expression: string, state: ReadonlyMap<s
   let rest = expression.trim();
   while (rest) {
     if (tokens.length >= 64) return undefined;
-    const token = /^(?:"(?:[^"\\\r\n]|\\.)*"|\d+(?:\.\d+)?|[\p{L}_$][\p{L}\p{N}_$]*|===|!==|==|!=|<=|>=|&&|\|\||[()+*!<>-])/u.exec(rest)?.[0];
+    const token = /^(?:"(?:[^"\\\r\n]|\\.)*"|\d+(?:\.\d+)?|[\p{L}_$][\p{L}\p{N}_$]*|===|!==|==|!=|<=|>=|&&|\|\||[()+*!<>/%-])/u.exec(rest)?.[0];
     if (!token) return undefined;
+    if (integer && ["===", "!=="].includes(token)) return undefined; // Kotlin boxing/reference identity is not primitive equality.
     tokens.push(token); rest = rest.slice(token.length).trimStart();
   }
   const values: Primitive[] = [], operators: string[] = [], operations = new Set<string>();
@@ -36,10 +37,12 @@ export function readPrimitiveExpression(expression: string, state: ReadonlyMap<s
       } else if (["&&", "||"].includes(op) && typeof left === "boolean" && typeof right === "boolean") {
         values.push(op === "&&" ? left && right : left || right);
       } else if (typeof left === "number" && typeof right === "number") {
+        if (["/", "%"].includes(op) && right === 0) return false; // No fabricated result for an exception/non-finite value.
         const result = op === "+" ? left + right : op === "-" ? left - right : op === "*" ? left * right
+          : op === "/" ? integer ? Math.trunc(left / right) : left / right : op === "%" ? left % right
           : op === "<" ? left < right : op === "<=" ? left <= right : op === ">" ? left > right : op === ">=" ? left >= right : undefined;
         if (result === undefined) return false;
-        values.push(result);
+        values.push(integer && Object.is(result, -0) ? 0 : result);
       } else if (op === "+" && typeof left === "string" && typeof right === "string") { values.push(left + right); operation = "s+"; }
       else return false;
     }
@@ -64,6 +67,10 @@ export function readPrimitiveExpression(expression: string, state: ReadonlyMap<s
     }
     if (!operand) return undefined;
     let value: Primitive | undefined;
+    // Kotlin decimals introduce floating semantics, and a source string with a
+    // dollar identifier is interpolation rather than a closed JSON literal.
+    if (integer && (/^\d+\.\d+$/u.test(token)
+      || token.startsWith('"') && /\$(?:\{|[\p{L}_])/u.test(token))) return undefined;
     if (["true", "false", "null"].includes(token) || /^\d|^"/u.test(token)) {
       try { value = JSON.parse(token); } catch { return undefined; }
     } else if (state.has(token)) value = state.get(token);
@@ -79,6 +86,7 @@ export function readPrimitiveExpression(expression: string, state: ReadonlyMap<s
 /** Kotlin Int overflow/Float rounding, huge JS values and long strings deliberately fall back. */
 function bounded(value: Primitive, integer: boolean): boolean {
   return typeof value === "number" ? Number.isFinite(value) && Math.abs(value) <= Number.MAX_SAFE_INTEGER
+    && (integer || !Object.is(value, -0)) // JSON serialization would silently erase JS negative zero.
     && (!integer || Number.isInteger(value) && value >= -2147483648 && value <= 2147483647)
     : value === null || typeof value === "boolean" || typeof value === "string" && value.length <= 40;
 }

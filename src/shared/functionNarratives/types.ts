@@ -12,7 +12,7 @@ export type FunctionNarrativeStep = {
   reason?: string;
   effect?: string;
   source: FunctionNarrativeSource;
-  /** Hypothetical JSON values produced by a model, never evaluator observations. */
+  /** Hypothetical JSON values from a model or closed source substitution, never runtime observations. */
   values?: Array<{ name: string; before: string; after: string }>;
 };
 /** JSON text keeps model inputs portable without evaluating expressions or constructing user objects. */
@@ -24,7 +24,7 @@ export type FunctionNarrativeScenario = {
   when: string[];
   /** Connected reading paragraph, up to 1800 characters; optional for older cached responses. */
   explanation?: string;
-  /** Source-grounded causal reading; these model interpretations are never checked execution facts. */
+  /** Source/model causal reading; this never asserts observed execution. */
   analysis?: { pathReason: string; stateChange: string; alternative: string };
   steps: FunctionNarrativeStep[];
   outcome: string;
@@ -84,6 +84,8 @@ export type FunctionNarrativeContext = {
   summaryTask?: { inputs: FunctionNarrativeExample["inputs"]; steps: FunctionNarrativeStep[];
     /** Validated purpose from this same source snapshot/locale, never provisional preparation text. */
     knownFunctionSummary?: string;
+    /** Host-selected nearby source route and typed inputs; source synthesis independently checks every operation again. */
+    sourceAlternative?: { path: FunctionNarrativeFlowPath; inputs: FunctionNarrativeExample["inputs"] };
     resultJson?: string; completed: Array<{ code: string; predicateResult?: string; values: FunctionNarrativeStep["values"] }>;
     omittedValues: number };
   /** True only when source excerpts were omitted or truncated. */

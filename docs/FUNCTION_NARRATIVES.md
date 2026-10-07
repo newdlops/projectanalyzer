@@ -108,13 +108,14 @@ target model이 검증하는 `ngram-map-k`(lookup 4·draft 8)를 사용했으나
 `application/functionNarratives/primitiveWorksheet.buildPrimitiveWorksheetResponse(context, language)`는
 rich 준비·노드 요청의 소스가 완전하고 정확한 primitive 경로일 때만 기존 응답 계약을 즉시
 구성한다. Kotlin Int/Boolean/String와 TypeScript/JavaScript number/boolean/string의
-작은 지역 대입, 비교, 부정, 덧셈·뺄셈·곱셈, lowered Elvis와 반환을 다룬다. 입력 후보는
+작은 지역 대입, 비교, 부정, 덧셈·뺄셈·곱셈·나눗셈·나머지, lowered Elvis와 반환을 다룬다. 입력 후보는
 최대 128개, 매개변수 8개, source operation 32개, expression 160자·token 64개로 제한한다.
 각 조건이 선택 경로와 일치하는지 확인하고 source 순서의 직전/직후 값, 실제 연산자의 의미,
 대입한 계산식과 다음 구문을 만든다. 코드를 실행하거나 외부 결과를 관찰하지 않는다.
-최종 목적·시나리오 문단·대안 설명은 항상 사용자가 선택한 로컬 LLM이 작성한다.
+0.0.1118–1119의 최종 목적·시나리오 문단·대안 설명은 로컬 LLM이 작성했다. 0.0.1120부터
+완전한 소스 trace는 문단·대안도 구성하고, 선택한 로컬 LLM이 함수 전체 목적을 한 번 설명한다.
 
-call/property access, coercion, division/modulo, Kotlin overflow/Float rounding, 중첩 lexical scope,
+call/property access, coercion, 0 divisor, Kotlin overflow/Float·Double·interpolation, JS -0, 중첩 scope의 새 선언·shadowing,
 loop/exception transfer, inferred/partial/truncated evidence, 긴 식과 알 수 없는 타입은
 기존 LLM 요청으로 처리한다. focused worksheet는 이미 저장된 모델의 priorState와도 비교해
 다른 값으로 조용히 덮어쓰지 않는다. 기존 JSON·언어·source/route·페이지·cache validation은
@@ -135,6 +136,84 @@ loop/exception transfer, inferred/partial/truncated evidence, 긴 식과 알 수
 같은 source snapshot·언어의 검증된 함수 목적 요약 240자 하나를 다음 시나리오에서 재사용하고,
 초기 준비 문구는 저장하지 않는다. 각 시나리오의 상세 문단·대안은 계속 모델이 새로 작성한다.
 기존 노드 구문·동작·근거·효과·인용을 모두 유지하며 화면 배치도 유지한다.
+
+### 0.0.1120 소스 설명과 모델 목적
+
+`primitiveWorksheet/narrative.selectPrimitiveNarrativeAlternative(context, path, inputs, language)`는
+Host의 원본 CFG에서 최대 32개 경로·depth 64의 후보를 보고, 현재 조건 선택과 가까운
+다른 source route의 typed 입력을 독립 계산한다. 총 경로 수를 제한하거나 다음 페이지를
+생략하지 않는다. 분기가 없으면 다른 입력 예시로 같은 식을 계산하고, 추가 입력도 없으면
+같은 반환 구문과 조건 분기 없음만 설명한다. 미확인 alternate 계산은 기존 모델 분석을 유지한다.
+
+`buildPrimitiveNarrativeSynthesis(context, language)`는 현재 완료된 code·before/after·반환과
+독립 source trace의 일치를 다시 확인한다. 문단에는 원래 입력, 각 조건의 대입/Boolean 결과,
+실제 다음 구문, 모든 지역 계산·직전/직후 값과 전체 반환식을 순서대로 넣는다. 다른 입력 예시의
+조건·지역 값과 반환도 독립 source trace에서 구성한다. 문단 1,800자·대안 600자를 넘으면
+자르지 않고 모델 분석으로 넘긴다. 기존 구문/동작/근거/효과/인용/값 표는 모두 유지한다.
+
+첫 complete source summary는 local provider가 **함수 전체 목적**만 모델에 요청한다.
+선택 경로·모델 예시를 이 목적 prompt에 넣지 않아 조기 반환 한 경로에 목적이 편향되는 일을
+줄인다. 이후 같은 snapshot·언어의 페이지는 source 문단과 저장한 목적을 즉시 합친다.
+기존 모델·sampling·context/output/thread·FIFO·취소/정리 한도는 유지하고 background 추론은 없다.
+Host-only `sourceAlternative`는 외부 모델 prompt에서 제거한다. 모델 목적의 의미까지 형식
+검증으로 입증하는 것은 아니며 실제 실행도 미검증이다.
+
+Kotlin Int `/`는 0 방향으로 소수 부분을 버리고 `%`는 나머지를 계산한다. 0 divisor,
+Int overflow, Double literal, interpolation, boxed identity 비교, JSON이 구분을 잃는 JS -0는 소스 worksheet에서
+제외한다. nested control block은 함수 scope의 기존 binding 갱신만 허용한다. 내부의 새 선언,
+shadowing, nested callable, loop/exception은 모델 분석으로 넘긴다. 주석·문자열의 괄호와
+keyword를 scope scanner가 코드로 오인하지 않고 Kotlin nested block comment도 처리한다.
+정수/부동소수·boxing 구분은 [Kotlin 숫자 문서](https://kotlinlang.org/docs/numbers.html), nested comment는
+[Kotlin 기본 문법](https://kotlinlang.org/docs/basic-syntax.html#comments)을 근거로 한다.
+TS/JS/Kotlin의 이름 없는 complete
+Boolean constant는 불가능한 if 선택만 제거하며 unknown predicate와 symbolic loop는 유지한다.
+
+공개 production-parser corpus의 최종 관측은 다음과 같다. 모델 시작·전체 경로 생성·정리를
+포함하며 PC 부하가 달라 수치 비율을 모든 함수에 적용할 수 없다.
+
+| 공개 함수 | 0.0.1119 | 0.0.1120 | 실제 모델 요청 | 반환 / 노드 |
+| --- | ---: | ---: | --- | --- |
+| Kotlin guard | 16.13초 | 5.17초 | 2 → 1 | 2/2 · 9/9 |
+| TypeScript 연속 대입 | 14.25초 | 4.58초 | 2 → 1 | 2/2 · 10/10 |
+| Kotlin 숫자 Elvis | 13.09초 | 2.50초 | 2 → 1 | 2/2 · 10/10 |
+| Kotlin mutable 계산 | 15.77초 | 5.73초 | 2 → 1 | 2/2 · 10/10 |
+| Kotlin 숫자 분기 | 11.37초 | 5.37초 | 2 → 1 | 2/2 · 8/8 |
+| Kotlin Boolean 반환 | 13.78초 | 4.35초 | 2 → 1 | 2/2 · 8/8 |
+| Kotlin 두 guard | 27.18초 | 5.19초 | 3 → 1 | 3/3 · 14/14 |
+| TypeScript 긴 계산 | 12.44초 | 4.44초 | 1 → 1 | 1/1 · 7/7 |
+| Kotlin 문자열 Elvis | 13.15초 | 2.98초 | 2 → 1 | 2/2 · 10/10 |
+| TypeScript 독립 guard·8경로 | 53.95초 | 2.92초 | 8 → 1 | 8/8 · 68/68 |
+| Kotlin 정수 나눗셈 | 22.57초 | 5.00초 | 4 → 1 | 2/2 · 9/9 |
+| TypeScript nested 외부 binding 갱신 | 48.60초 | 4.89초 | 6 → 1 | 2/2 · 11/11 |
+
+12개 함수·30개 시나리오·174개 노드의 반환과 구문/동작/근거/효과가 통과했다.
+8경로의 20개 갱신과 노드 해설 5,780자도 유지됐다. 초기 8경로 smoke는 7.16초,
+그 다음 corpus 측정은 4.40초, 최종 관측은 2.92초였으며 모두 실제 추론 1회였다.
+이 시간 편차를 숨기거나 2.92초를 지연 상한으로 주장하지 않는다. 원래 0.0.1117의
+관측 221.63초와 비교할 때에도 같은 작은 공개 corpus의 비교라는 제약은 같다.
+수동 문단 검토에서는 참/거짓 판단과 실제 next source operation·모든 계산·정확한
+alternate 결과가 source trace와 일치했다. 호출·객체 접근·가려진 binding·다른 언어와
+부분 source는 이 성능 증거의 범위가 아니며 기존 모델 pipeline이 남아 있다.
+
+전체 회귀 1,070개 중 1,066개·패키징 15개가 통과했다. 기존 Function Guide 3개와
+source-reveal architecture 1개 실패는 그대로다. 새 의존성·Rust source 변경은 없다.
+
+실제 VS Code 1.115.0의 분리 QA 인스턴스에서 0.0.1120을 설치하고 Kotlin `GraphNotes.kt`의
+**전체 시나리오 분석**을 눌렀다. 두 경로의 0/15 반환과 source paragraph·대안, val 구문·
+10 + 5 = 15 근거·선언 전→15 값 표, L4 원본 줄 선택과 번호 표기를 확인했다.
+페이지·노드·소스 이동 뒤 모델 이력은 준비 1회(0.0초)와 추론 1회(5.1초)만 남았고 대기는 0개였다.
+원본/예시값을 편집하지 않고 1440×900과 769×1025 native 창에서 표시를 점검했다.
+좁은 창의 Webview 폭은 약 421px이며 줄바꿈·내부 스크롤·값 표·소스 버튼 접근을 확인했다.
+정확한 mobile browser viewport, 터치·다른 theme/locale·전체 접근성 인증은 이번 증거에 없다.
+검사 후 전용 QA 인스턴스를 종료했다. 사용자의 기존 Code 창에는 재시작을 강제하지 않았다.
+
+VSIX는 511파일·3.63 MiB로 기존 512파일 한도와 runtime closure를 통과했다. Default와
+Function Language QA 1107에 0.0.1120이 등록됐고 설치된 JS 477개·native binary가
+패키지와 일치했다. 설치본 cursor/native graph/Host replay도 7.67초에 반환 0/15,
+9개 노드·실제 추론 1회·cache-only 페이지와 소스 이동을 확인했다. 현재 데이터는 source-proved
+계산의 큰 속도 개선을 입증하지만 모든 call/property/loop나 모든 언어의 지연 감소를 입증하지 않는다.
+Impeccable detector는 locale/session/graph styles에서 새 finding 0개였고, 기존 semantic
+노드 표시의 파일 한정 side-tab 예외를 유지했다. 새 ignore는 추가하지 않았다.
 
 ### 0.0.1119 처리 시간과 품질 확인
 

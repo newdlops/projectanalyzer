@@ -1,5 +1,6 @@
 /** Lazy iterative scenario enumeration: batch sizes never impose a total-path limit. */
 import type { FunctionNarrativeContext, FunctionNarrativeFlowPath, FunctionNarrativeFlowStep } from "../../shared/functionNarratives";
+import { readPrimitiveExpression } from "./primitiveWorksheet/expression";
 
 type Frame = { index: number; steps: FunctionNarrativeFlowStep[]; visited: Set<number>; exitedLoops: Set<number>;
   depth: number; confidence: "exact" | "inferred"; nodeIds: string[]; edgeIds: string[] };
@@ -40,7 +41,13 @@ export function createFunctionNarrativeScenarioIterator(context: FunctionNarrati
         if (node.kind !== "entry" && node.kind !== "exit" && !node.step) return { done: false, value: path({ ...frame, confidence }, "partial", "missing-source") };
         const step = node.step && { ...node.step, ...(node.graphNodeId ? { graphNodeId: node.graphNodeId, graphOccurrence: nodeIds.length - 1 } : {}) };
         const steps = step ? [...frame.steps, step] : frame.steps;
-        const exitsOnly = repeated ? node.next.filter((edge) => edge.outcome === "exit" || edge.outcome === "false") : node.next;
+        const constant = node.kind === "condition" && node.confidence === "exact" && node.step
+          && ["typescript", "javascript", "kotlin"].includes(context.language)
+          ? readPrimitiveExpression(node.step.loweredPredicate ?? node.step.code, new Map(), context.language === "kotlin")?.value : undefined;
+        // With no names or external state, a closed Boolean literal/expression
+        // proves one choice impossible. Loops keep their explicit symbolic pass.
+        const exitsOnly = repeated ? node.next.filter((edge) => edge.outcome === "exit" || edge.outcome === "false")
+          : typeof constant === "boolean" ? node.next.filter(edge => !["true", "false"].includes(edge.outcome) || edge.outcome === String(constant)) : node.next;
         const terminal = node.kind === "exit" || ["return", "throw"].includes(node.kind)
           && (!exitsOnly.length || exitsOnly.every((edge) => edge.outcome === node.kind && graph.nodes[edge.target]?.kind === "exit"));
         if (terminal) {
