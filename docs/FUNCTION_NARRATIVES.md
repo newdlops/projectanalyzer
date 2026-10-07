@@ -142,6 +142,71 @@ loop/exception transfer, inferred/partial/truncated evidence, 긴 식과 알 수
 초기 준비 문구는 저장하지 않는다. 각 시나리오의 상세 문단·대안은 계속 모델이 새로 작성한다.
 기존 노드 구문·동작·근거·효과·인용을 모두 유지하며 화면 배치도 유지한다.
 
+### 0.0.1125 Kotlin 숫자 타입과 완전한 직선 계산 목적
+
+기존 primitive reader는 Kotlin 계산 전체를 Int로 제한했다. 이제 각 피연산자와 inferred
+local binding의 `Int`/`Double` kind를 별도로 보존한다. 현재 값이 7이라고 해서 Double
+parameter를 Int로 추측하지 않는다. `Double(7) / Int(2)`는 3.5이고 `Int(7) / Int(2)`는
+3이며, 두 계산이 같은 식 안에 있어도 해당 타입으로 먼저 계산한다. Kotlin의 arithmetic
+result는 피연산자 타입에 따르고 Double은 IEEE 754 binary64라는
+[공식 숫자 규칙](https://kotlinlang.org/docs/numbers.html)에 맞춘다.
+
+mutable numeric binding은 선언 이후 kind를 유지한다. Int 변수에 Double 결과를 쓰거나
+Double 변수에 Int를 그대로 대입하는 narrowing/불일치 구문은 source proof로 승인하지
+않는다. division kind를 syntax에 보존해 Double 나눗셈을 정수 버림이라고 설명하지 않는다.
+non-null Double과 Int를 다루고 Float, nullable numeric smart cast, identity 비교,
+non-finite·huge 값, signed-zero 손실, Int overflow와 미지원 conversion은 모델을 유지한다.
+기존 160자/64-token expression, 32구문·128후보 등의 한도는 올리지 않는다. Kotlin
+compiler가 이 PC에 설치되어 있지 않아 JVM 실행 대조는 하지 않았으며, 공식 타입 규칙과
+독립 산술 기대값·production parser/Host validation으로 검증했다. 사용자 코드는 실행하지 않는다.
+
+전체 source graph가 primitive header의 초기화·갱신 → 단일 return뿐인 경우 목적도 구성한다.
+현재·대안 계산이 모든 구문·값·인용과 맞고 node/edge가 exact여야 하며 모든 binding,
+연산자·상수·반환 식을 소스 순서대로 읽는다. default-argument 효과처럼 body graph에 없는
+setup은 lexical header guard로 거부한다. 분기·helper·source 누락·inferred edge 또는
+240자를 넘는 목적은 모델을 유지한다. 기존 loop와 conditional call recipe도 유지한다.
+
+공개 production-parser corpus의 설치된 0.0.1124와 최종 0.0.1125 VSIX 비교다. 시간은 설정 준비·
+generation·페이지 저장·runner 정리를 포함하고 parser/context 구성은 제외한다.
+
+| Kotlin 예제 | 설치된 0.0.1124 | 새 생성 시간 | 실제 모델 추론 | 반환 / 노드 |
+| --- | ---: | ---: | --- | --- |
+| Double 나눗셈·갱신·반환 식 | 31.64초 | 11.76ms | 3 → 0 | 1/1 · 5/5 |
+| Int/Double 혼합 나눗셈 | 35.45초 | 5.20ms | 3 → 0 | 1/1 · 5/5 |
+| Double while | 68.05초 | 11.31ms | 7 → 0 | 2/2 · 12/12 |
+
+`amount=10`의 첫 예제는 5 → 5.5 → 16.5, 혼합 예제 `amount=10/count=10`은
+Int whole=5 → Double adjusted=15 → 7.5를 읽는다. `count=7`의 독립 expression 검사는
+Int whole=3과 Double 나눗셈 3.5를 구분한다. 반복은 2 → 3과 10 반환을 보존한다.
+반환 4/4, graph node 22/22, syntax/text/reason/effect 상세 14/14를 확인했다. 기존
+모델은 반복 반환 2개를 틀렸고 양수/0이 아닌 입력만 허용한다는 없는 제약을 추가했다.
+이 corpus는 일반 정확도 보장이 아니며 runtime 관찰도 아니다.
+
+최종 패키지의 위 3개 예제와 기존 loop/conditional-call 7개 예제 모두 없는 binary/model
+경로를 사용하는 configured adapter로 검증했다. provider factory·managed ensure·준비 작업·
+실제 모델 추론이 각각 0이며 종료 후 runner가 없었다. 기존 7개는 4.58~17.12ms,
+반환 12/12·node 78/78·상세 54/54로 완료됐다. parser/context 준비나 모든 함수의
+end-to-end 비용이 이 수치만큼 감소했다는 의미는 아니다.
+
+격리된 VS Code 1.141.0에서 최종 VSIX를 설치하고 같은 없는 runtime/weights 설정으로
+혼합 타입 함수의 전체 시나리오를 생성했다. producer는 `소스 분석`이고 whole=5 →
+adjusted=15 → 반환 7.5 및 대안 count=0의 반환 5를 확인했다. L2의 정수 버림 설명과
+L4의 `Double 나눗셈: 소수 부분 유지`, 판단 근거·변화·반환 표를 직접 확인했다.
+TypeScript `number` 나눗셈은 기존 일반 나눗셈 표현을 유지하며 Kotlin 타입 용어를
+붙이지 않는 한국어/영어 검사를 포함한다.
+1440×900 및 770×900 논리 크기에서 Guide 스크롤과 줄바꿈을 시각 검증했으며
+`소스 열기 · L4`가 Double.kt의 실제 반환 식을 선택했다. 모바일·다른 테마·전체
+접근성 감사는 수행하지 않았다. 기존 의미 색상의 graph border와 화면 구조는 유지했다.
+
+관련 unit 41/41, 전체 unit 1,103개 중 1,099개 통과이며 같은 기존 4개 실패가 남았다.
+패키지/closure 관련 테스트 15/15와 release check를 통과했다. 최종 VSIX는 512개 파일,
+약 3.65MiB이며 실행 JS 478개와 기존 native binary를 포함한다.
+Default와 `Function Language QA 1107` 프로필에 최종 0.0.1125를 설치하고 각 등록
+버전이 하나씩 0.0.1125임을 확인했다. 설치된 478개 JS 및 native binary가 최종
+workspace/package와 byte 단위로 일치하며 closure 오류가 없다. 실제 프로필의 모델
+선택 설정은 바꾸지 않았다.
+더 복잡한 함수·호출·숫자 타입의 최적화는 계속 남아 있다.
+
 ### 0.0.1124 소스 읽기 이후 필요한 모델만 지연 준비
 
 `buildSourceFunctionNarrativeResponse(context, language)`는 기존 worksheet 및 matched

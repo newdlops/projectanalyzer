@@ -1,7 +1,7 @@
 /** Source scope guard allows nested control blocks only when all bindings remain at function-body scope. */
 
 /** Linear lexical scan excludes comments/strings and rejects nested declarations, loops and exception transfers. */
-export function hasSimplePrimitiveScopes(source: string, kotlin = false, checkedLoopRoute = false): boolean {
+export function hasSimplePrimitiveScopes(source: string, kotlin = false, checkedLoopRoute = false, plainHeader = false): boolean {
   let depth = 0, roots = 0, quote = "", lineComment = false, commentDepth = 0;
   for (let index = 0; index < source.length; index++) {
     const char = source[index], next = source[index + 1];
@@ -15,6 +15,7 @@ export function hasSimplePrimitiveScopes(source: string, kotlin = false, checked
     if (char === "/" && next === "/") { lineComment = true; index++; continue; }
     if (char === "/" && next === "*") { commentDepth = 1; index++; continue; }
     if (["\"", "'", "`"].includes(char)) { quote = char; continue; }
+    if (plainHeader && depth === 0 && char === "=") return false; // Defaults/arrow setup are not body-only graph operations.
     if (char === "{") { if (depth === 0) roots++; if (++depth > 32 || roots > 1) return false; continue; }
     if (char === "}") { if (--depth < 0) return false; continue; }
     if (/[\p{L}_$]/u.test(char)) {

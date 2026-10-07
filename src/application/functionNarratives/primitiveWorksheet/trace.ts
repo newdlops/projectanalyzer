@@ -1,6 +1,6 @@
 /** Exact source-route worksheets retain statement order, immediate values and language syntax without a model round-trip. */
 import type { FunctionNarrativeContext, FunctionNarrativeFlowPath, FunctionNarrativeFlowStep, FunctionNarrativeStep } from "../../../shared/functionNarratives";
-import { readPrimitiveExpression, type Primitive } from "./expression";
+import { readPrimitiveExpression, type NumericKind, type Primitive } from "./expression";
 
 export type PrimitiveTrace = { inputs: Array<{ name: string; json: string }>; steps: FunctionNarrativeStep[]; result: string;
   /** Source-ordered operand substitutions keep summary reasons concrete without reparsing prose. */
@@ -17,12 +17,19 @@ export function tracePrimitiveRoute(context: FunctionNarrativeContext, path: Fun
     const type = parameter.type?.replace(/\s/gu, "") ?? "", value = inputs.get(parameter.name);
     if (!inputs.has(parameter.name)) return true;
     if (value === null) return !type.endsWith("?");
-    return /^(?:Int\??|number)$/u.test(type) ? typeof value !== "number" || !Number.isFinite(value) || Math.abs(value) > Number.MAX_SAFE_INTEGER
+    return /^(?:Int\??|Double|number)$/u.test(type) ? typeof value !== "number" || !Number.isFinite(value) || Math.abs(value) > Number.MAX_SAFE_INTEGER
       || /^Int/u.test(type) && (!Number.isInteger(value) || value < -2147483648 || value > 2147483647)
       : /^(?:Boolean\??|boolean)$/u.test(type) ? typeof value !== "boolean"
         : /^(?:String\??|string)$/u.test(type) ? typeof value !== "string" || value.length > 40 : true;
   })) return undefined;
   const state = new Map(inputs), steps: FunctionNarrativeStep[] = [], visited = new Set<string>(), substitutions: string[] = [];
+  const numericParameters = context.parameters.map(parameter => ({ name: parameter.name, type: parameter.type?.replace(/\s/gu, "") }));
+  const typedNumbers = integer && !numericParameters.some(parameter => parameter.type === "Int?");
+  // Nullable numeric inference/smart casts require a separate type proof.
+  // Existing Int-only nullable worksheets retain their original reader.
+  if (integer && !typedNumbers && numericParameters.some(parameter => parameter.type === "Double")) return undefined;
+  const numericTypes = typedNumbers ? new Map<string, NumericKind>(numericParameters.flatMap(parameter => /^(?:Int|Double)$/u.test(parameter.type ?? "")
+    ? [[parameter.name, parameter.type === "Double" ? "Double" as const : "Int" as const]] : [])) : undefined;
   const immutable = new Set(context.language === "kotlin" ? inputs.keys() : []);
   const loopRoute = path.steps.some(step => step.kind === "loop");
   if (allowUnverifiedCalls && loopRoute) return undefined;
@@ -38,7 +45,7 @@ export function tracePrimitiveRoute(context: FunctionNarrativeContext, path: Fun
     const visitKey = loopRoute ? identity + ":" + JSON.stringify([...state]) : identity;
     if (visited.has(visitKey)) return undefined; visited.add(visitKey);
     if (allowUnverifiedCalls && target.kind === "call") {
-      const reading = readPrimitiveCall(target, state, integer, language, path.steps[index + 1]?.code);
+      const reading = readPrimitiveCall(target, state, integer, language, path.steps[index + 1]?.code, numericTypes);
       if (!reading || unverifiedCalls.length >= 4 || context.valueNames?.length && !context.valueNames.includes("result")) return undefined;
       const step = unverifiedCalls.length ? withPrimitiveCallAssumption(reading.step, language) : reading.step;
       if (!step) return undefined;
@@ -77,12 +84,18 @@ export function tracePrimitiveRoute(context: FunctionNarrativeContext, path: Fun
       if (!declaration && (!state.has(name) || immutable.has(name))) return undefined;
       before = state.has(name) ? JSON.stringify(state.get(name)) : ko ? "선언 전" : "not declared";
     } else return undefined;
-    const reading = readPrimitiveExpression(expression, state, integer); if (!reading) return undefined;
+    const reading = readPrimitiveExpression(expression, state, integer, numericTypes); if (!reading) return undefined;
     const after = JSON.stringify(reading.value);
     if (isPredicate) {
       if (typeof reading.value !== "boolean" || String(reading.value) !== expected) return undefined;
     } else if (target.kind === "return") result = after;
-    else { state.set(name, reading.value); if (declaration === "val" || declaration === "const") immutable.add(name); }
+    else {
+      // Inferred Kotlin local types are fixed at declaration; a later value
+      // cannot turn an Int binding into Double or narrow Double back to Int.
+      if (numericTypes && !declaration && numericTypes.get(name) !== reading.numericKind) return undefined;
+      state.set(name, reading.value); if (reading.numericKind) numericTypes?.set(name, reading.numericKind);
+      if (declaration === "val" || declaration === "const") immutable.add(name);
+    }
     const next = path.steps[index + 1]?.code;
     const syntax = target.kind === "loop" ? ko ? "반복 조건은 이 방문의 현재 값으로 본문 진행 또는 반복 종료를 판단합니다." : "The loop predicate selects its body or exit using this visit's current values."
       : target.kind === "condition" ? target.loweredPredicate && target.code.includes("?:")
@@ -94,7 +107,8 @@ export function tracePrimitiveRoute(context: FunctionNarrativeContext, path: Fun
           : compound ? ko ? `${compound}=는 기존 값에 ${compound} 연산을 적용한 뒤 같은 변수에 저장합니다.` : `${compound}= applies ${compound} to the current value and stores it in the same binding.`
             : ko ? "대입은 선택한 식의 값을 현재 지역 변수에 저장합니다." : "Assignment stores the selected expression's value in the local binding.";
     const terms: Record<string, [string, string]> = { "+": ["덧셈", "addition"], "-": ["뺄셈", "subtraction"], "*": ["곱셈", "multiplication"],
-      "/": [integer ? "정수 나눗셈: 소수 부분을 0 방향으로 버림" : "나눗셈", integer ? "integer division truncates toward zero" : "division"],
+      "/": [!integer ? "나눗셈" : reading.divisionKinds?.includes("Int") ? reading.divisionKinds.includes("Double") ? "Int끼리의 나눗셈은 소수 부분을 버리고 Double이 포함된 나눗셈은 소수를 유지" : "정수 나눗셈: 소수 부분을 0 방향으로 버림" : "Double 나눗셈: 소수 부분 유지",
+        !integer ? "division" : reading.divisionKinds?.includes("Int") ? reading.divisionKinds.includes("Double") ? "Int division truncates; division with Double retains fractions" : "integer division truncates toward zero" : "Double division retains fractions"],
       "%": ["나머지", "remainder"],
       "u-": ["수치 부호 반전", "numeric negation"], "u+": ["수치 값 유지", "numeric identity"],
       "s+": ["문자열 연결", "string concatenation"],
@@ -124,7 +138,7 @@ export function tracePrimitiveRoute(context: FunctionNarrativeContext, path: Fun
 }
 /** No user function is invoked. Only a direct, unused-result call with primitive arguments is represented, conditional on normal return. */
 export function readPrimitiveCall(target: FunctionNarrativeFlowStep, state: ReadonlyMap<string, Primitive>,
-  integer: boolean, language: "ko" | "en", next?: string): { step: FunctionNarrativeStep; substituted: string } | undefined {
+  integer: boolean, language: "ko" | "en", next?: string, numericTypes?: ReadonlyMap<string, NumericKind>): { step: FunctionNarrativeStep; substituted: string } | undefined {
   if (target.kind !== "call" || target.branch || target.code.length > 480) return;
   const match = /^([\p{L}_$][\p{L}\p{N}_$]*)\s*\(([\s\S]*)\)\s*;?$/u.exec(target.code.trim());
   // Direct eval can change the caller's local bindings. Local callees can be
@@ -132,7 +146,7 @@ export function readPrimitiveCall(target: FunctionNarrativeFlowStep, state: Read
   if (!match || match[1] === "eval" || state.has(match[1])) return;
   const argumentsText = splitArguments(match[2]);
   if (!argumentsText || argumentsText.length > 8) return;
-  const argumentsRead = argumentsText.map(expression => readPrimitiveExpression(expression, state, integer));
+  const argumentsRead = argumentsText.map(expression => readPrimitiveExpression(expression, state, integer, numericTypes));
   if (argumentsRead.some(reading => !reading)) return;
   const operands = argumentsRead.map(reading => `${reading!.substituted} = ${JSON.stringify(reading!.value)}`).join(", ");
   const ko = language === "ko", unknown = ko ? "미확인" : "unknown";

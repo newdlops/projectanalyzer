@@ -79,7 +79,16 @@ const corpus = [
   { name: 'typescript-effect-prefix', language: 'typescript', extension: 'ts', effects: true, gaps: true,
     source: 'export function inspect(amount: number): number {\n    let adjusted = amount + 5;\n    adjusted -= 2;\n    adjusted *= 3;\n    adjusted += 4;\n    audit(adjusted);\n    return adjusted;\n}',
     operation: 'adjusted', writeValue: (inputs, code) => code.includes('-=') ? inputs.amount + 3 : code.includes('*=') ? (inputs.amount + 3) * 3 : code.includes('+=') ? (inputs.amount + 3) * 3 + 4 : inputs.amount + 5,
-    expected: inputs => (inputs.amount + 3) * 3 + 4 }
+    expected: inputs => (inputs.amount + 3) * 3 + 4 },
+  { name: 'kotlin-double-updates', language: 'kotlin', extension: 'kt', doubles: true,
+    source: 'fun inspect(amount: Double): Double {\n    var adjusted = amount / 2\n    adjusted += 0.5\n    return adjusted * 3.0\n}',
+    expected: inputs => (inputs.amount / 2 + 0.5) * 3 },
+  { name: 'kotlin-mixed-division', language: 'kotlin', extension: 'kt', doubles: true,
+    source: 'fun inspect(amount: Double, count: Int): Double {\n    val whole = count / 2\n    val adjusted = amount + whole\n    return adjusted / 2.0\n}',
+    expected: inputs => (inputs.amount + Math.trunc(inputs.count / 2)) / 2 },
+  { name: 'kotlin-double-loop', language: 'kotlin', extension: 'kt', doubles: true,
+    source: 'fun inspect(amount: Double): Double {\n    var adjusted = amount\n    while (adjusted < 3.0) {\n        adjusted += 1.0\n    }\n    return adjusted\n}',
+    expected: inputs => inputs.amount < 3 ? inputs.amount + Math.ceil(3 - inputs.amount) : inputs.amount }
 ];
 const only = process.argv[4] && process.argv[4] !== '-' ? process.argv[4] : undefined;
 const outputDirectory = await fs.promises.mkdtemp(path.join(tmpdir(), 'fn-benchmark-'));
@@ -204,9 +213,9 @@ function score(fixture, pages, context) {
 
 (async () => {
   const records = [];
-  for (const fixture of corpus.filter(item => only === 'source-release' ? item.loops || item.effects : only === 'effects' ? item.effects : only === 'release' ? !item.complex && !item.loops && !item.effects : only === 'loops' ? item.loops : only === 'complex' ? item.complex : only === 'complex-supported' ? item.complex && !item.gaps : only === 'all' ? !item.stress && !item.fallback && !item.complex && !item.loops && !item.effects : only === 'stress' ? item.stress
+  for (const fixture of corpus.filter(item => only === 'doubles' ? item.doubles : only === 'source-release' ? item.loops || item.effects : only === 'effects' ? item.effects : only === 'release' ? !item.complex && !item.loops && !item.effects && !item.doubles : only === 'loops' ? item.loops : only === 'complex' ? item.complex : only === 'complex-supported' ? item.complex && !item.gaps : only === 'all' ? !item.stress && !item.fallback && !item.complex && !item.loops && !item.effects && !item.doubles : only === 'stress' ? item.stress
     : only === 'fallback' ? item.fallback : only === 'extended' ? item.extended
-      : only ? item.name === only : !item.extended && !item.stress && !item.fallback && !item.complex && !item.loops && !item.effects)) {
+      : only ? item.name === only : !item.extended && !item.stress && !item.fallback && !item.complex && !item.loops && !item.effects && !item.doubles)) {
     const context = await contextFor(fixture);
     if (process.argv[8] === 'context-only') {
       const batch = new application.FunctionNarrativeScenarioRun(context).nextBatch();

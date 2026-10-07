@@ -79,6 +79,23 @@ test("an unchanged arithmetic route explains another typed input and retains eve
   assert.match(reading.scenarios[0].explanation!, /\( 43 - 1 \) \* 2 = 84/u);
   assert.match(reading.scenarios[0].analysis!.alternative, /amount=0/u);
   assert.match(reading.scenarios[0].analysis!.alternative, /= 24/u);
+  const purpose = buildFunctionNarrativeSourcePurpose(original, task, "en"); assert.ok(purpose);
+  for (const code of ["amount + 5", "adjusted -= 2", "adjusted *= 3", "adjusted += 4", "(adjusted - 1) * 2"]) assert.ok(purpose.includes(code));
+});
+
+test("whole straight-line purposes include every binding and numeric return without dropping defaults or inferred graph operations", () => {
+  const original = fixture('fun inspect(amount: Double, count: Int): Double {\n val whole = count / 2\n val adjusted = amount + whole\n return adjusted / 2.0\n}',
+    "kotlin", [{ name: "amount", type: "Double" }, { name: "count", type: "Int" }]);
+  original.valueNames!.push("count", "whole");
+  for (const locale of ["ko", "en"] as const) {
+    const task = completed(original, locale), purpose = buildFunctionNarrativeSourcePurpose(original, task, locale); assert.ok(purpose);
+    for (const code of ["count / 2", "amount + whole", "adjusted / 2.0"]) assert.ok(purpose.includes(code));
+    assert.equal(buildFunctionNarrativeSourcePurpose({ ...original, limited: true }, task, locale), undefined);
+    const inferred = { ...original, scenarioGraph: { ...original.scenarioGraph!, nodes: original.scenarioGraph!.nodes.map(node => ({ ...node, confidence: "inferred" as const })) } };
+    assert.equal(buildFunctionNarrativeSourcePurpose(inferred, task, locale), undefined);
+    const defaulted = { ...original, snippets: original.snippets.map(snippet => ({ ...snippet, text: snippet.text.replace('count: Int', 'count: Int = load()') })) };
+    assert.equal(buildFunctionNarrativeSourcePurpose(defaulted, task, locale), undefined, "body-only proof cannot hide default-argument effects");
+  }
 });
 
 test("unsupported alternate computations and omitted completed values retain the full model synthesis", () => {

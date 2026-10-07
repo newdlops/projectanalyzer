@@ -44,10 +44,64 @@ test("primitive expression stacks preserve precedence, parentheses, unary operat
   }
 });
 
+test("Kotlin typed operands distinguish integral Double values from Int, retain mixed subexpression types and reject unsafe conversions", () => {
+  const state = new Map([['amount', 7], ['count', 7]]), types = new Map<string, "Int" | "Double">([['amount', 'Double'], ['count', 'Int']]);
+  assert.equal(readPrimitiveExpression('amount / 2', state, true, types)!.value, 3.5);
+  assert.equal(readPrimitiveExpression('count / 2', state, true, types)!.value, 3);
+  assert.equal(readPrimitiveExpression('(count / 2) + amount / 2', state, true, types)!.value, 6.5);
+  assert.deepEqual(readPrimitiveExpression('(count / 2) + amount / 2', state, true, types)!.divisionKinds, ['Int', 'Double']);
+  assert.equal(readPrimitiveExpression('amount * 1.0', state, true, types)!.numericKind, 'Double');
+  assert.equal(readPrimitiveExpression('count * 2', state, true, types)!.numericKind, 'Int');
+  assert.equal(readPrimitiveExpression('-amount / 2', state, true, types)!.value, -3.5);
+  assert.equal(readPrimitiveExpression('-count / 2', state, true, types)!.value, -3);
+  for (const expression of ['amount == count', 'amount / 0.0', '0.0 / -amount', '2147483647 + 1', 'amount * 1.0f', 'amount.toInt()', 'amount === amount']) {
+    assert.equal(readPrimitiveExpression(expression, state, true, types), undefined, expression);
+  }
+  assert.equal(readPrimitiveExpression('count / 2', state, true, new Map([['amount', 'Double']])), undefined, 'numeric bindings without a static kind cannot borrow Int semantics');
+});
+
+test("Kotlin Double worksheets preserve fractional writes, Int division inside mixed expressions, precise floating results and loop exit values", () => {
+  const examples = [
+    { source: 'fun inspect(amount: Double): Double {\n var adjusted = amount / 2\n adjusted += 0.5\n return adjusted * 3.0\n}', parameters: [{ name: "amount", type: " Double " }], result: "16.5", fraction: true },
+    { source: 'fun inspect(amount: Double, count: Int): Double {\n val whole = count / 2\n val adjusted = amount + whole\n return adjusted / 2.0\n}', parameters: [{ name: "amount", type: "Double" }, { name: "count", type: "Int" }], result: "7.5", fraction: true },
+    { source: 'fun inspect(amount: Double): Double {\n var adjusted = amount\n while (adjusted < 3.0) { adjusted += 1.0 }\n return adjusted\n}', parameters: [{ name: "amount", type: "Double" }], result: "3", fraction: false }
+  ];
+  for (const example of examples) for (const locale of ["ko", "en"] as const) {
+    const run = fixture(example.source, "kotlin", example.parameters), batch = run.nextBatch()!, preparation = { ...batch, valueNames: [...batch.valueNames!, "whole"], nodePreparation: true };
+    const response = buildPrimitiveWorksheetResponse(preparation, locale); assert.ok(response, example.source);
+    const path = batch.sourceFlow!.paths[0], scenario = parseFunctionNarrative(response, preparation, locale).scenarios[0];
+    initializeFunctionNarrativeNodes(path, scenario, "rich");
+    let task;
+    while ((task = createFunctionNarrativeNodeTask(preparation, path, scenario))) {
+      const reading = buildPrimitiveWorksheetResponse(task, locale); assert.ok(reading, example.source);
+      appendFunctionNarrativeNodes(task, scenario, parseFunctionNarrative(reading, task, locale).scenarios[0]);
+    }
+    assert.equal(scenario.nodeDetails!.at(-1)!.values![0].after, example.result);
+    if (example.fraction) assert.ok(scenario.nodeDetails!.some(step => /Double/u.test(step.syntax!)), "Double division must not be described as Int truncation");
+    if (example.source.includes("count")) {
+      const integer = scenario.nodeDetails!.find(step => step.code === "val whole = count / 2")!;
+      assert.match(integer.syntax!, locale === "ko" ? /정수 나눗셈/u : /integer division/u);
+    }
+  }
+});
+
+test("Float rounding, nullable numeric smart casts, negative-zero and narrowing writes remain explicit model fallbacks", () => {
+  for (const [source, parameters] of [
+    ['fun inspect(amount: Float): Float { return amount / 2f }', [{ name: "amount", type: "Float" }]],
+    ['fun inspect(amount: Double?): Double { return amount ?: 0.0 }', [{ name: "amount", type: "Double?" }]],
+    ['fun inspect(amount: Double, count: Int?): Double { return amount + (count ?: 0) }', [{ name: "amount", type: "Double" }, { name: "count", type: "Int?" }]],
+    ['fun inspect(amount: Double): Int { var adjusted = 1\n adjusted += amount\n return adjusted }', [{ name: "amount", type: "Double" }]],
+    ['fun inspect(amount: Double): Double { var adjusted = amount\n adjusted = 2\n return adjusted }', [{ name: "amount", type: "Double" }]]
+  ] as const) {
+    const batch = fixture(source, "kotlin", [...parameters]).nextBatch()!;
+    assert.equal(buildPrimitiveWorksheetResponse({ ...batch, nodePreparation: true }, "en"), undefined, source);
+  }
+});
+
 test("Kotlin and TypeScript worksheets preserve route-selected inputs, current writes and full return expressions", () => {
   for (const language of ["kotlin", "typescript"] as const) for (const locale of ["ko", "en"] as const) {
     const source = language === "kotlin" ? 'fun inspect(enabled: Boolean, amount: Int): Int {\n if (!enabled) return 0\n var adjusted = amount + 5\n adjusted -= 2\n return adjusted * 2\n}'
-      : 'function inspect(enabled: boolean, amount: number): number {\n if (!enabled) return 0;\n let adjusted = amount + 5;\n adjusted -= 2;\n return adjusted * 2;\n}';
+      : 'function inspect(enabled: boolean, amount: number): number {\n if (!enabled) return 0;\n let adjusted = amount + 5;\n adjusted -= 2;\n return adjusted / 2;\n}';
     const run = fixture(source, language);
     let covered = 0;
     while (!run.complete) {
@@ -64,10 +118,15 @@ test("Kotlin and TypeScript worksheets preserve route-selected inputs, current w
         }
         const inputs = Object.fromEntries(scenario.example!.inputs.map(input => [input.name, JSON.parse(input.json)]));
         const result = scenario.nodeDetails!.at(-1)!.values![0].after;
-        assert.equal(JSON.parse(result), inputs.enabled ? (inputs.amount + 3) * 2 : 0);
+        assert.equal(JSON.parse(result), inputs.enabled ? language === "kotlin" ? (inputs.amount + 3) * 2 : (inputs.amount + 3) / 2 : 0);
         for (const step of scenario.nodeDetails!) {
           assert.ok(step.syntax && step.text && step.reason && step.effect && step.values?.length);
           if (step.code === 'return adjusted * 2' || step.code === 'return adjusted * 2;') assert.match(step.reason!, /13 \* 2 = 26/u);
+          if (step.code === 'return adjusted / 2;') {
+            assert.match(step.reason!, /13 \/ 2 = 6\.5/u);
+            assert.match(step.syntax!, locale === "ko" ? /나눗셈/u : /division/u);
+            assert.doesNotMatch(step.syntax!, /Double|Int\b|정수|truncat/u, "TypeScript number division must not borrow Kotlin type labels");
+          }
         }
         covered++;
       }

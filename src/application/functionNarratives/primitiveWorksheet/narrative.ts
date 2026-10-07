@@ -4,6 +4,7 @@ import { createFunctionNarrativeScenarioIterator } from "../scenarioIterator";
 import { buildFunctionNarrativeScenarioFrames } from "../scenarioFrames";
 import { buildPrimitiveWorksheetResponse, getPrimitiveWorksheetAnalysis, readCompletedPrimitiveTrace, readCompletedSourceTrace, traceSourceWorksheet } from "./index";
 import type { PrimitiveTrace } from "./trace";
+import { hasSimplePrimitiveScopes } from "./scope";
 
 type Alternative = NonNullable<FunctionNarrativeContext["summaryTask"]>["sourceAlternative"];
 
@@ -27,16 +28,32 @@ export function buildFunctionNarrativeSourcePurpose(original: FunctionNarrativeC
   const loop = buildFunctionNarrativeLoopPurpose(original, task, language);
   if (loop) return loop;
   const graph = original.scenarioGraph, current = readCompletedSourceTrace(task, language), alternative = task.summaryTask?.sourceAlternative;
-  if (!graph || original.limited || !current?.unverifiedCalls?.length || !alternative
+  if (!graph || original.limited || !current || !alternative
     || original.snippets.some(snippet => snippet.truncated || snippet.role === "helper")
     || graph.nodes.some(node => node.confidence !== "exact" || node.next.some(edge => edge.confidence !== "exact"
       || edge.target < 0 || edge.target >= graph.nodes.length))) return;
   const other = traceSourceWorksheet(original, alternative.path, alternative.inputs, language);
-  if (!other?.unverifiedCalls?.length) return;
+  if (!other) return;
   const nodes = graph.nodes.filter(node => !["entry", "exit"].includes(node.kind)), path = task.sourceFlow!.paths[0];
   if (nodes.length !== path.steps.length || nodes.some(node => !node.step || !["mutation", "call", "return"].includes(node.kind)
     || !path.steps.some(step => step.kind === node.kind && step.code === node.step!.code
       && JSON.stringify(step.source) === JSON.stringify(node.step!.source))) || nodes.filter(node => node.kind === "return").length !== 1) return;
+  if (!current.unverifiedCalls?.length && !other.unverifiedCalls?.length && nodes.every(node => ["mutation", "return"].includes(node.kind))) {
+    const source = original.snippets.find(snippet => snippet.role === "function")?.text ?? "";
+    // Primitive headers have no type-object braces; this guard rejects default
+    // setup omitted from the body graph and never treats it as a pure function.
+    if (!original.parameters?.every(parameter => /^(?:Int|Double|Boolean|String|number|boolean|string)$/u.test(parameter.type?.replace(/\s/gu, "") ?? ""))
+      || !hasSimplePrimitiveScopes(source, original.language === "kotlin", false, true)) return;
+    const pieces = path.steps.map(step => {
+      const code = step.code.replace(/;$/u, ""), declaration = /^(?:val|var|let|const)\s+([\p{L}_$][\p{L}\p{N}_$]*)\s*=\s*(.+)$/u.exec(code);
+      return step.kind === "return" ? language === "ko" ? `${code.replace(/^return\s+/u, "")}의 값을 반환합니다.` : `Return ${code.replace(/^return\s+/u, "")}.`
+        : declaration ? language === "ko" ? `${declaration[2]}로 ${declaration[1]}를 초기화합니다.` : `Initialize ${declaration[1]} with ${declaration[2]}.`
+          : language === "ko" ? `${code} 계산을 수행합니다.` : `Apply ${code}.`;
+    });
+    const purpose = pieces.join(" ");
+    return purpose.length <= 240 ? purpose : undefined;
+  }
+  if (!current.unverifiedCalls?.length || !other.unverifiedCalls?.length) return;
   // The recipe explicitly describes calculations before calls. Interleaved work
   // or additional return expressions keep the model rather than being reordered.
   const firstCall = path.steps.findIndex(step => step.kind === "call"), last = path.steps.at(-1)!;

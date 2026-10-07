@@ -143,7 +143,7 @@ function supportedContext(context: FunctionNarrativeContext): boolean {
     // inferred/partial/unsupported paths still fail the complete trace check.
     || context.limited || context.snippets.some(snippet => snippet.truncated)
     || !context.parameters || context.parameters.length > 8 || !context.sourceFlow?.paths.length
-    || context.parameters.some(parameter => !/^(?:Boolean\??|Int\??|String\??|boolean|number|string)$/u.test(parameter.type?.replace(/\s/gu, "") ?? ""))) return false;
+    || context.parameters.some(parameter => !/^(?:Boolean\??|Int\??|Double|String\??|boolean|number|string)$/u.test(parameter.type?.replace(/\s/gu, "") ?? ""))) return false;
   const source = context.snippets.find(snippet => snippet.role === "function")?.text ?? "";
   // Nested control blocks may only mutate existing function-scope bindings.
   // Shadowing/declarations in those blocks still require binding identities.

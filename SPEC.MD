@@ -1582,6 +1582,19 @@ Webview는 Project Graph, 파일 시스템, VS Code API에 직접 접근하지 �
   변경된 설정에서 source-only 다음 페이지를 읽어도 원래 producer를 유지한다.
   이 필드는 외부 prompt에서 제거한다. explicit model-only prepare와 vscode 공급자 선택은
   기존 동작을 유지하고, manager disposal 이후에는 새 source 생성도 취소로 거부한다.
+  0.0.1125는 non-null Kotlin Double과 Int의 numeric kind를 각 피연산자·inferred local
+  binding별로 보존한다. Double 값이 현재 정수처럼 보여도 Int로 추측하지 않는다.
+  Int / Int는 0 방향으로 버리고 Double이 포함된 나눗셈은 소수를 유지한다. 한 식 안의
+  Int division과 Double division을 독립적으로 계산하고 syntax 설명도 각 실제 kind에
+  맞춘다. mutable local의 numeric kind는 선언 뒤 바뀌지 않으며 narrowing/불일치 대입은
+  거부한다. 기존 expression 160자·64 token, source 32구문·128후보 등의 한도는 유지한다.
+  Float, Double?, Double과 Int?의 혼합 smart cast, identity 비교, signed-zero 구분 손실,
+  non-finite·huge 값·Int overflow·미지원 변환은 모델 경로를 유지한다. 이 규칙은
+  사용자 코드를 실행하거나 JVM typechecker를 대체하는 기능이 아니다.
+  전체 graph가 primitive header의 mutation들 → 단일 return뿐이고 현재·대안 trace의
+  모든 구문·값·인용이 맞으면 `buildFunctionNarrativeSourcePurpose`가 각 초기화·갱신과
+  실제 반환 식을 모두 240자 안에서 읽어 목적을 구성한다. header의 default/arrow setup,
+  추가 분기·helper·source 누락·inferred edge는 제외하고, 길이가 넘으면 모델을 유지한다.
   rich primary 응답의 `exampleInputs`는 `{name, value}`의 실제 JSON 값을 생성한다. 로컬
   adapter는 이를 기존 `{name, json}` 문자열 계약으로 인코딩하며 Boolean/null 경로 선택,
   입력 크기·깊이·유한 숫자·금지 key 검사와 Host의 source/route 검증은 유지한다. 소스 언어의

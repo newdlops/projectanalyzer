@@ -23,7 +23,7 @@ export function selectPrimitiveTrace(context: FunctionNarrativeContext, path: Fu
       || boolean && !/^(?:Boolean\??|boolean)$/u.test(type)) return undefined;
     const options: Primitive[] | undefined = constraints.nullInputs.includes(parameter.name) ? [null] : boolean ? [boolean.json === "true"]
       : /^(?:Boolean\??|boolean)$/u.test(type) ? [true, false]
-        : /^(?:Int\??|number)$/u.test(type) ? [...numeric].slice(0, 12)
+        : /^(?:Int\??|Double|number)$/u.test(type) ? [...numeric].slice(0, 12)
           : /^(?:String\??|string)$/u.test(type) ? ["sample", "other"] : undefined;
     if (!options) return undefined;
     const next: Map<string, Primitive>[] = [];

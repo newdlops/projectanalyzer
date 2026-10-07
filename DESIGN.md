@@ -114,6 +114,12 @@ a model-dependent stage, retaining cancellable progress and normal error guidanc
 Cached model purposes keep their original producer even when current settings
 change. No new controls, layout or visual tokens are introduced.
 
+As of 0.0.1125, numerical readings retain Kotlin's operand types even when a
+Double example has an integral value. Distinguish integer truncation and floating
+division in the syntax explanation, including mixed expressions. Straight-line
+source purposes preserve every initialization/update and the full return
+expression. Reuse the existing producer, note and value-table presentation.
+
 Acceptance: real local Kotlin and TypeScript responses include numerical/Boolean
 substitution, ordered calculation/effect and alternate-path explanation. Every
 reached source operation has a syntax explanation; repeated visits and partial
