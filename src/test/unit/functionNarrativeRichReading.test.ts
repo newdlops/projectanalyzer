@@ -8,7 +8,7 @@ import { bindFunctionNarrativeGraph, buildFunctionNarrativeContext, buildFunctio
   FunctionNarrativeError, getFunctionNarrativeExampleConstraints, buildFunctionNarrativePrompt } from "../../application/functionNarratives";
 import { FunctionNarrativeScenarioSession } from "../../webview/codeFlow/functionNarrativeScenarioSession";
 import { isFunctionNarrative, isFunctionNarrativeLanguage, type FunctionNarrative, type FunctionNarrativeContext } from "../../shared/functionNarratives";
-import { buildLocalNarrativePrompt } from "../../llm/functionNarratives/localPrompt";
+import { buildLocalNarrativePrompt, buildLocalNarrativeUserMessages } from "../../llm/functionNarratives/localPrompt";
 import { createLocalNarrativeSchema } from "../../llm/functionNarratives/responseSchema";
 import type { SymbolNode } from "../../shared/types";
 
@@ -35,6 +35,30 @@ function output(context: FunctionNarrativeContext): string {
     example: { inputs: [{ name: "value", json: "5" }], result: "10" }, steps: steps([frame.sources[0]])
   })), limitations: [] });
 }
+
+test("local phases share an untrusted source message without moving prior model state into the reusable prefix", () => {
+  const batch = new FunctionNarrativeScenarioRun(contextFor()).nextBatch()!;
+  const prep = { ...batch, nodePreparation: true };
+  const narrative = parseFunctionNarrative(output(batch), batch, "en");
+  const scenario = narrative.scenarios[0], path = batch.sourceFlow!.paths[0];
+  initializeFunctionNarrativeNodes(path, scenario, "rich");
+  const task = createFunctionNarrativeNodeTask(batch, path, scenario)!;
+  assert.ok(task);
+  task.nodeTask!.reading = { explanation: "Earlier private model prose", priorState: [{ name: "total", value: "987654" }] };
+  for (const language of ["ko", "en"] as const) {
+    const initial = buildLocalNarrativeUserMessages(prep, language);
+    const focused = buildLocalNarrativeUserMessages(task, language);
+    assert.equal(initial.length, 2); assert.equal(focused.length, 2);
+    assert.equal(initial[0], focused[0]);
+    assert.equal(initial.join("\n"), buildLocalNarrativePrompt(prep, language));
+    assert.equal(focused.join("\n"), buildLocalNarrativePrompt(task, language));
+    assert.ok(focused.every(message => !message.startsWith("\n")), "ChatML delimiters must remain exact token sequences");
+    assert.match(initial[0], /fun inspect|var total = value \+ 5/u);
+    assert.doesNotMatch(focused[0], /987654|Earlier private model prose|scenarioBatch|selectedRoute/u);
+    assert.match(focused[1], /987654/u);
+    assert.doesNotMatch(focused.join(""), /Earlier private model prose/u);
+  }
+});
 
 test("step-less partial and implicit-end routes produce valid local schemas and retain only owned declaration evidence", () => {
   const batch = new FunctionNarrativeScenarioRun(contextFor()).nextBatch()!;

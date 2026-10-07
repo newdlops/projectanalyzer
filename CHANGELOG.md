@@ -4,6 +4,27 @@ All notable user-visible changes to Project Analyzer: Code Flow are recorded in
 this file. The changelog starts with the first distribution-documented build;
 earlier local development builds were not tracked here.
 
+## 0.0.1118 - 2026-10-07
+
+### Improved
+
+- Build bounded, exact primitive node worksheets directly from source routes.
+  Preserve language syntax, substituted calculations, immediate values and every
+  source citation; the selected local LLM still writes final scenario paragraphs.
+  Calls, accesses, unsupported types/operators, overflow, lexical scopes, loops,
+  inferred routes and conflicting carried model values retain the LLM pipeline.
+- Keep one local model throughout an explicit whole-function request, with each
+  inference still entering FIFO independently. Release it after completion,
+  failure, cancellation or Host shutdown; cached reading stays inert.
+- Reuse a separate untrusted source message before each changing ChatML task.
+  Detect runner capabilities with bounded help output before applying bounded
+  checkpoint/cache and target-verified n-gram acceleration. Preserve existing
+  models, sampling, response detail and context/output/thread limits.
+- Extend the public performance/quality corpus with multiple guards, long writes
+  and nullable strings, full detail checks, observed process RSS and cleanup.
+- Bundle the local narrative distribution while retaining modular source and a
+  standalone watchdog, keeping the existing 512-file package budget.
+
 ## 0.0.1117 - 2026-10-07
 
 ### Improved

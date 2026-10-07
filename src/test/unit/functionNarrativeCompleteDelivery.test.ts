@@ -70,7 +70,7 @@ test("one explicit generation analyzes all eight paths and exposes bounded cache
   assert.equal(f.state.disposed, 1);
 });
 
-test("the native deadline adapter preserves page scope and final-summary capabilities through delivery and cache reads", async () => {
+test("the native deadline adapter retains one whole-function scope and final synthesis, then cache reads stay inert", async () => {
   let active = false, scopes = 0, releases = 0;
   let scopeFailure: unknown;
   const phases: string[] = [];
@@ -101,12 +101,30 @@ test("the native deadline adapter preserves page scope and final-summary capabil
   try {
     await f.delivery.request(request);
     assert.equal(f.messages.at(-1)!.status, "ready", scopeFailure instanceof Error ? scopeFailure.stack : phases.join(","));
-    assert.equal(phases[0], "nodes"); assert.equal(phases.at(-1), "summary"); assert.equal(scopes, 8); assert.equal(releases, 8);
+    assert.equal(phases[0], "nodes"); assert.equal(phases.at(-1), "summary"); assert.equal(scopes, 1); assert.equal(releases, 1);
     assert.equal(phases.filter(phase => phase === "summary").length, 8);
     assert.equal(f.messages.at(-1)!.narrative!.summary, "Final source synthesis.");
     const count = phases.length;
     await f.delivery.request({ ...request, requestId: 2, pageIndex: 0, pageLanguage: "en" });
-    assert.equal(f.messages.at(-1)!.cacheHit, true); assert.equal(scopes, 8); assert.equal(phases.length, count);
+    assert.equal(f.messages.at(-1)!.cacheHit, true); assert.equal(scopes, 1); assert.equal(phases.length, count);
+  } finally { f.delivery.clear(); }
+});
+
+test("a progress delivery failure releases the whole-function scope and a retry resumes saved pages", async () => {
+  let active = false, scopes = 0, releases = 0, calls = 0, failProgress = true;
+  const f = fixture({ async withRun(_language, _signal, operation) {
+    assert.equal(active, false); active = true; scopes++;
+    try { return await operation(); } finally { active = false; releases++; }
+  }, async generate(context) { assert.equal(active, true); calls++; return reply(context); } }, message => {
+    if (message.status === "progress" && failProgress) { failProgress = false; throw new Error("fixture delivery failure"); }
+  });
+  try {
+    await f.delivery.request(request);
+    assert.equal(f.messages.at(-1)!.status, "failed"); assert.equal(active, false);
+    assert.equal(calls, 1); assert.equal(releases, 1); assert.equal(f.messages.at(-1)!.coverage!.completed, 2);
+    await f.delivery.request({ ...request, requestId: 2 });
+    assert.equal(f.messages.at(-1)!.status, "ready"); assert.equal(calls, 4);
+    assert.equal(scopes, 2); assert.equal(releases, 2); assert.equal(active, false);
   } finally { f.delivery.clear(); }
 });
 

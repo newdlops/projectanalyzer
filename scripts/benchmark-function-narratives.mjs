@@ -1,5 +1,5 @@
 /** Public production-parser/LLM benchmark, run after compile. Source is read as syntax, never executed.
- * Usage: node scripts/benchmark-function-narratives.mjs [runtime-root|-] [tag] [fixture|-] [model] [runner]
+ * Usage: node scripts/benchmark-function-narratives.mjs [runtime-root|-] [tag] [fixture|-] [model] [runner] [full-run]
  * Omit runtime-root for the current workspace; use an installed older extension for the baseline.
  * Reports and raw public-fixture responses are written only to a private temporary directory.
  */
@@ -26,13 +26,22 @@ const corpus = [
   { name: 'kotlin-elvis', language: 'kotlin', extension: 'kt', source: 'fun inspect(amount: Int?): Int {\n    val adjusted = amount ?: 5\n    return adjusted\n}', operation: 'adjusted', expected: inputs => inputs.amount ?? 5 },
   { name: 'kotlin-mutable', language: 'kotlin', extension: 'kt', extended: true, source: 'fun inspect(enabled: Boolean, amount: Int): Int {\n    if (!enabled) return 0\n    var adjusted = amount + 5\n    adjusted -= 2\n    return adjusted * 2\n}', operation: 'adjusted', expected: inputs => inputs.enabled ? (inputs.amount + 5 - 2) * 2 : 0 },
   { name: 'kotlin-threshold', language: 'kotlin', extension: 'kt', extended: true, source: 'fun inspect(amount: Int): Int {\n    if (amount > 10) return amount + 5\n    return amount - 5\n}', expected: inputs => inputs.amount > 10 ? inputs.amount + 5 : inputs.amount - 5 },
-  { name: 'kotlin-boolean', language: 'kotlin', extension: 'kt', extended: true, source: 'fun inspect(enabled: Boolean): Boolean {\n    if (!enabled) return false\n    return true\n}', expected: inputs => inputs.enabled }
+  { name: 'kotlin-boolean', language: 'kotlin', extension: 'kt', extended: true, source: 'fun inspect(enabled: Boolean): Boolean {\n    if (!enabled) return false\n    return true\n}', expected: inputs => inputs.enabled },
+  { name: 'kotlin-double-guard', language: 'kotlin', extension: 'kt', stress: true, source: 'fun inspect(enabled: Boolean, amount: Int): Int {\n    if (!enabled) return 0\n    if (amount >= 10) return amount * 3\n    return amount + 7\n}', expected: inputs => !inputs.enabled ? 0 : inputs.amount >= 10 ? inputs.amount * 3 : inputs.amount + 7 },
+  { name: 'typescript-long-updates', language: 'typescript', extension: 'ts', stress: true, source: 'export function inspect(amount: number): number {\n    let adjusted = amount + 5;\n    adjusted -= 2;\n    adjusted *= 3;\n    adjusted += 4;\n    return (adjusted - 1) * 2;\n}', operation: 'adjusted',
+    writeValue: (inputs, code) => code.includes('-=') ? inputs.amount + 3 : code.includes('*=') ? (inputs.amount + 3) * 3 : code.includes('+=') ? (inputs.amount + 3) * 3 + 4 : inputs.amount + 5,
+    expected: inputs => ((inputs.amount + 3) * 3 + 3) * 2 },
+  { name: 'kotlin-elvis-string', language: 'kotlin', extension: 'kt', stress: true, source: 'fun inspect(label: String?): String {\n    val adjusted = label ?: "guest"\n    return adjusted\n}', operation: 'adjusted', writeValue: inputs => inputs.label ?? 'guest', expected: inputs => inputs.label ?? 'guest' },
+  { name: 'typescript-independent-guards', language: 'typescript', extension: 'ts', stress: true, source: 'export function inspect(a: boolean, b: boolean, c: boolean): number {\n    let adjusted = 0;\n    if (a) adjusted += 1;\n    if (b) adjusted += 2;\n    if (c) adjusted += 4;\n    return adjusted;\n}', operation: 'adjusted',
+    writeValue: (inputs, code) => code.includes('+= 1') ? 1 : code.includes('+= 2') ? (inputs.a ? 1 : 0) + 2 : code.includes('+= 4') ? (inputs.a ? 1 : 0) + (inputs.b ? 2 : 0) + 4 : 0,
+    expected: inputs => (inputs.a ? 1 : 0) + (inputs.b ? 2 : 0) + (inputs.c ? 4 : 0) }
 ];
 const only = process.argv[4] && process.argv[4] !== '-' ? process.argv[4] : undefined;
 const outputDirectory = await fs.promises.mkdtemp(path.join(tmpdir(), 'fn-benchmark-'));
 const modelPath = process.argv[5] || path.join(repo, '.local-models/Qwen3.5-4B-Q4_K_M.gguf');
 const binaryPath = await require(repo + '/out/vscode/functionNarrativeSetup/localBinary').resolveLocalBinary(process.argv[6] || '');
-console.log(JSON.stringify({ outputDirectory, tag, runtime, model: path.basename(modelPath), note: 'Public fixed-formula corpus and a narrow causal-language check, not a general accuracy guarantee.' }));
+const fullRun = process.argv[7] === 'full-run';
+console.log(JSON.stringify({ outputDirectory, tag, runtime, fullRun, model: path.basename(modelPath), note: 'Public fixed-formula corpus and a narrow causal-language check, not a general accuracy guarantee.' }));
 
 async function contextFor(fixture) {
   const lines = fixture.source.split('\n');
@@ -57,7 +66,7 @@ async function contextFor(fixture) {
 }
 
 function score(fixture, pages, context) {
-  let scenarios = 0, correctResults = 0, reachedWrites = 0, contradictoryWrites = 0, falseGuardExitClaims = 0, falseGuardBodyClaims = 0, copiedOperationProse = 0, operationMismatches = 0, incorrectWriteValues = 0, completeNodes = 0, totalNodes = 0;
+  let scenarios = 0, correctResults = 0, reachedWrites = 0, contradictoryWrites = 0, falseGuardExitClaims = 0, falseGuardBodyClaims = 0, copiedOperationProse = 0, operationMismatches = 0, incorrectWriteValues = 0, completeNodes = 0, totalNodes = 0, detailedSourceNodes = 0, sourceDetailCharacters = 0;
   const failures = [];
   const kinds = new Map((context.scenarioGraph?.nodes || []).map(node => [node.graphNodeId, node.kind]));
   for (const page of pages) for (const scenario of page.narrative.scenarios) {
@@ -69,6 +78,12 @@ function score(fixture, pages, context) {
     else failures.push({ kind: 'result', scenario: scenarios, expected, actual: scenario.example.result });
     totalNodes += scenario.graph.nodeIds.length;
     completeNodes += scenario.nodeDetails.length;
+    for (const detail of scenario.nodeDetails) if (detail.code) {
+      const prose = [detail.syntax, detail.text, detail.reason, detail.effect];
+      if (prose.every(value => typeof value === 'string' && value.trim())) detailedSourceNodes++;
+      else failures.push({ kind: 'missing-detailed-source-reading', scenario: scenarios, line: detail.source.startLine });
+      sourceDetailCharacters += prose.reduce((sum, value) => sum + (value?.length || 0), 0);
+    }
     // This public corpus contains complete primitive expressions and no external
     // dependencies; fabricated prerequisites are a quality failure, not a gap.
     if (scenario.assumptions.length || page.narrative.limitations.length) failures.push({ kind: 'unsupported-prerequisites', scenario: scenarios,
@@ -108,10 +123,13 @@ function score(fixture, pages, context) {
       if (/부정|반전|negat|if\s*(?:블록|본문)/i.test(currentProse) && !/더|합|곱|\+|\*|assign|add|sum|multipl/i.test(currentProse)) {
         operationMismatches++; failures.push({ kind: 'write-described-as-predicate', scenario: scenarios, line: detail.source.startLine });
       }
-      const expectedAfter = fixture.name === 'kotlin-elvis' ? inputs.amount ?? 5
+      const expectedAfter = fixture.writeValue ? fixture.writeValue(inputs, detail.code) : fixture.name === 'kotlin-elvis' ? inputs.amount ?? 5
         : detail.code.includes('*=') ? (inputs.amount + 5) * 2 : detail.code.includes('-=') ? inputs.amount + 5 - 2 : inputs.amount + 5;
       const after = detail.values?.find(value => value.name === 'adjusted')?.after;
       let actualAfter; try { actualAfter = JSON.parse(after); } catch {}
+      // Portable value rows are display strings. A known string may be stored
+      // as raw text by legacy providers, while numeric calculations must parse.
+      if (actualAfter === undefined && typeof expectedAfter === 'string') actualAfter = after;
       if (actualAfter !== expectedAfter) {
         incorrectWriteValues++; failures.push({ kind: 'incorrect-current-write-value', scenario: scenarios, line: detail.source.startLine, expected: expectedAfter, actual: after });
       }
@@ -120,21 +138,43 @@ function score(fixture, pages, context) {
       }
     }
   }
-  return { scenarios, correctResults, reachedWrites, contradictoryWrites, falseGuardExitClaims, falseGuardBodyClaims, copiedOperationProse, operationMismatches, incorrectWriteValues, completeNodes, totalNodes, failures };
+  return { scenarios, correctResults, reachedWrites, contradictoryWrites, falseGuardExitClaims, falseGuardBodyClaims, copiedOperationProse, operationMismatches, incorrectWriteValues, completeNodes, totalNodes, detailedSourceNodes, sourceDetailCharacters, failures };
 }
 
 (async () => {
   const records = [];
-  for (const fixture of corpus.filter(item => only === 'all' || (only === 'extended' ? item.extended : only ? item.name === only : !item.extended))) {
+  for (const fixture of corpus.filter(item => only === 'all' ? !item.stress : only === 'stress' ? item.stress
+    : only === 'extended' ? item.extended : only ? item.name === only : !item.extended && !item.stress)) {
     const context = await contextFor(fixture);
-    const pages = new Map(), traces = [], metrics = [], watchdogPids = [];
+    if (process.argv[8] === 'context-only') {
+      const batch = new application.FunctionNarrativeScenarioRun(context).nextBatch();
+      const preparation = { ...batch, nodePreparation: true };
+      const file = path.join(outputDirectory, fixture.name + '-context.json');
+      fs.writeFileSync(file, JSON.stringify(preparation, null, 2), { mode: 0o600 });
+      console.log(JSON.stringify({ contextOnly: file, limited: preparation.limited, groundingLimited: preparation.groundingLimited,
+        supportedWorksheet: application.buildPrimitiveWorksheetResponse?.(preparation, 'ko') !== undefined }));
+      continue;
+    }
+    const pages = new Map(), traces = [], metrics = [], watchdogPids = [], runnerPids = new Set();
+    let peakObservedRunnerRssKiB = 0;
     const manager = new ModelTaskManager();
     const local = createLocalFunctionNarrativeProvider({ binaryPath, modelPath, taskManager: manager, onMetrics(value) {
       metrics.push(value);
       // Observe this benchmark's own watchdog only, never another window's
       // model. Equal consecutive PIDs prove reuse across async page work.
       if (process.platform !== 'win32') {
-        try { watchdogPids.push(execFileSync('pgrep', ['-P', String(process.pid)], { encoding: 'utf8' }).trim().split('\n').filter(Boolean).map(Number)); }
+        try {
+          const watchers = execFileSync('pgrep', ['-P', String(process.pid)], { encoding: 'utf8' }).trim().split('\n').filter(Boolean).map(Number);
+          watchdogPids.push(watchers);
+          for (const watcher of watchers) {
+            const pids = execFileSync('pgrep', ['-P', String(watcher)], { encoding: 'utf8' }).trim().split('\n').filter(Boolean).map(Number);
+            for (const pid of pids) {
+              runnerPids.add(pid);
+              const rss = Number(execFileSync('ps', ['-p', String(pid), '-o', 'rss='], { encoding: 'utf8' }).trim());
+              if (Number.isFinite(rss)) peakObservedRunnerRssKiB = Math.max(peakObservedRunnerRssKiB, rss);
+            }
+          }
+        }
         catch { watchdogPids.push([]); }
       }
     } });
@@ -151,14 +191,17 @@ function score(fixture, pages, context) {
     const session = new FunctionNarrativeScenarioSession(context, store);
     const began = performance.now();
     let error;
-    try { while (!session.complete) { const page = await session.analyzeNext(provider, 'ko', new AbortController().signal, { reselectModel: false }); if (!page) break; } }
+    const signal = new AbortController().signal;
+    const analyze = async () => { while (!session.complete) { const page = await session.analyzeNext(provider, 'ko', signal, { reselectModel: false }); if (!page) break; } };
+    try { if (fullRun) await provider.withRun('ko', signal, analyze); else await analyze(); }
     catch (failure) { error = { code: failure.code || failure.message, detail: failure.detailCode }; }
     const renderedPages = [...pages.entries()].map(([index, narrative]) => ({ index, narrative }));
-    const record = { name: fixture.name, milliseconds: performance.now() - began, requests: traces.length, complete: session.complete, coverage: session.coverage, score: score(fixture, renderedPages, context), error, traces, metrics, watchdogPids };
+    const remainingRunnerPids = [...runnerPids].filter(pid => { try { process.kill(pid, 0); return true; } catch { return false; } });
+    const record = { name: fixture.name, milliseconds: performance.now() - began, requests: traces.length, complete: session.complete, coverage: session.coverage, score: score(fixture, renderedPages, context), error, traces, metrics, watchdogPids, peakObservedRunnerRssKiB, remainingRunnerPids };
     fs.writeFileSync(outputDirectory + '/narrative-bench-' + tag + '-' + fixture.name + '-pages.json', JSON.stringify(renderedPages, null, 2), { mode: 0o600 });
     records.push(record); console.log(JSON.stringify({ tag, completedFixture: record }));
     await session.dispose(); await manager.dispose();
   }
   fs.writeFileSync(outputDirectory + '/narrative-bench-' + tag + '-report.json', JSON.stringify({ tag, runtime, records }, null, 2), { mode: 0o600 });
-  if (records.some(record => !record.complete || record.error || record.score.failures.length)) process.exitCode = 1;
+  if (records.some(record => !record.complete || record.error || record.score.failures.length || record.remainingRunnerPids.length)) process.exitCode = 1;
 })().catch(error => { console.error(error); process.exitCode = 1; });

@@ -1,7 +1,7 @@
 /** A small constrained JSON grammar guides local generation; Host validation still verifies snippet ownership. */
 import type { FunctionNarrativeContext, FunctionNarrativeFlowStep } from "../../shared/functionNarratives";
 import { createFunctionCallNarrativeSchema } from "../../shared/functionCallNarratives";
-import { buildFunctionNarrativeScenarioFrames, getFunctionNarrativeExampleConstraints } from "../../application/functionNarratives";
+import { buildFunctionNarrativeScenarioFrames, getFunctionNarrativeExampleConstraints, hasCompletePrimitiveWorksheet } from "../../application/functionNarratives";
 
 export function createLocalNarrativeSchema(context: FunctionNarrativeContext, language: "ko" | "en" = "en"): Record<string, unknown> {
   if (context.callTask) return createFunctionCallNarrativeSchema(context.callTask, language);
@@ -15,7 +15,7 @@ export function createLocalNarrativeSchema(context: FunctionNarrativeContext, la
   // summary/explanation before completing every fixed scenario slot.
   const batched = context.scenarioBatch !== undefined;
   const rich = context.detailLevel === "rich";
-  const closedPrimitive = Boolean(context.summaryTask && isClosedPrimitiveRoute());
+  const closedPrimitive = Boolean(context.summaryTask && (hasCompletePrimitiveWorksheet(context) || isClosedPrimitiveRoute()));
   // Intermediate values belong to ordered node work, after earlier state exists.
   const withValues = Boolean(context.parameters && (!rich || context.nodeTask));
   const prose = description(rich ? 160 : batched ? context.parameters ? 80 : 120 : 600);

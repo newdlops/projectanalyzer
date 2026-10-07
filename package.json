@@ -2,7 +2,7 @@
   "name": "function-analysis",
   "displayName": "%extension.displayName%",
   "description": "%extension.description%",
-  "version": "0.0.1117",
+  "version": "0.0.1118",
   "publisher": "newdlops",
   "private": true,
   "license": "MIT",
@@ -285,7 +285,7 @@
     "package:check": "node scripts/check-vsix-package.mjs",
     "package:vsix": "node scripts/package-extension.mjs",
     "release:check": "node scripts/check-release-metadata.mjs",
-    "vscode:prepublish": "npm run engine:build:release && npm run engine:stage && npm run compile"
+    "vscode:prepublish": "npm run engine:build:release && npm run engine:stage && npm run compile && node scripts/bundle-local-narrative-runtime.mjs"
   },
   "devDependencies": {
     "@vscode/vsce": "^3.9.2",

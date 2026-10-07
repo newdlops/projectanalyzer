@@ -8,6 +8,7 @@ import { randomBytes } from "node:crypto";
 import { request } from "node:http";
 import type { ModelTaskManager, ModelTaskResource } from "../../shared/modelTasks";
 import { FunctionNarrativeError } from "../../shared/functionNarratives";
+import { detectLocalNarrativeAcceleration } from "./localAcceleration";
 
 type ServerOptions = { binaryPath: string; modelPath: string };
 export type LocalNarrativeMetrics = { promptTokens: number; cachedTokens: number; outputTokens: number; promptMs: number; outputMs: number };
@@ -39,15 +40,22 @@ export class LocalNarrativeServer implements ModelTaskResource {
   private starting?: Promise<void>;
   private diagnostics = "";
   private exitError?: FunctionNarrativeError;
+  private acceleration?: string[];
   public constructor(private readonly options: ServerOptions) {}
 
   /** Model prompts stay in memory; no TCP listener, shell interpolation or source in process arguments. */
-  public async generate(prompt: string, system: string, schema: Record<string, unknown>, signal: AbortSignal,
+  public async generate(prompt: string | readonly string[], system: string, schema: Record<string, unknown>, signal: AbortSignal,
     onMetrics?: (metrics: LocalNarrativeMetrics) => void): Promise<string> {
     await this.ready(signal);
-    const template = await this.json("POST", "/apply-template", { messages: [{ role: "system", content: system }, { role: "user", content: prompt }] }, signal);
+    const template = await this.json("POST", "/apply-template", { messages: [{ role: "system", content: system },
+      ...(typeof prompt === "string" ? [prompt] : prompt).map(content => ({ role: "user", content }))] }, signal);
     if (typeof template.body.prompt !== "string") throw new FunctionNarrativeError("failed", "runner-template");
     const reply = await this.json("POST", "/completion", { prompt: template.body.prompt, json_schema: schema,
+      // Raw completion does not infer ChatML message spans from its prompt.
+      // These exact delimiters let recurrent checkpoints retain source evidence
+      // before the changing final user message; other templates stay untouched.
+      ...(/^qwen3[.\-]/iu.test(basename(this.options.modelPath)) ? { message_delimiters:
+        ["system", "user", "assistant"].map(role => ({ role, delimiter: "<|im_start|>" + role + "\n" })) } : {}),
       n_predict: 2400, temperature: 0.2, seed: 42, cache_prompt: true, id_slot: 0, stream: false }, signal);
     if (reply.status !== 200) {
       const detail = classifyRunnerFailure(JSON.stringify(reply.body.error ?? {})) ?? "runner-response";
@@ -87,6 +95,9 @@ export class LocalNarrativeServer implements ModelTaskResource {
   /** Source-free loading is bounded by the caller's execution deadline, never started during activation. */
   private async start(signal: AbortSignal): Promise<void> {
     if (signal.aborted) throw new FunctionNarrativeError("cancelled");
+    const acceleration = this.acceleration ?? await detectLocalNarrativeAcceleration(this.options.binaryPath, this.options.modelPath, signal);
+    if (signal.aborted) throw new FunctionNarrativeError("cancelled");
+    this.acceleration ??= acceleration;
     // Short names also fit macOS's small Unix-socket path limit under tmpdir().
     this.directory = await mkdtemp(join(tmpdir(), "fn-"));
     this.socket = join(this.directory, "m.sock"); this.key = randomBytes(32).toString("hex");
@@ -95,6 +106,7 @@ export class LocalNarrativeServer implements ModelTaskResource {
     if (signal.aborted) throw new FunctionNarrativeError("cancelled");
     const args = ["--model", this.options.modelPath, "--host", this.socket, "--api-key-file", keyPath, "--no-webui",
       "--offline", "--no-warmup", "--ctx-size", "8192", "--parallel", "1", "--threads", "2", "--threads-batch", "2", "--threads-http", "1", "--poll", "0",
+      ...this.acceleration,
       ...(/^qwen3[.\-]/iu.test(basename(this.options.modelPath)) ? ["--chat-template", "chatml", "--no-jinja", "--reasoning", "off"] : [])];
     // The watchdog observes parent-pipe EOF too, so a crashed/reloaded Host
     // cannot leave a server holding model memory indefinitely.

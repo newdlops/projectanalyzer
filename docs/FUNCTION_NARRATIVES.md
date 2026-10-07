@@ -83,7 +83,9 @@ Public API:
 
 0.0.1116부터 같은 설치 경로에 `llama-server`가 있는 macOS/Linux에서는 로컬 실행기를
 연속 요청 동안 재사용한다. private Unix socket과 임시 인증 key를 사용한다. 0.0.1117의
-명시적인 page scope는 비동기 준비·저장 사이에도 재사용하며 page 완료 전에 종료를 기다린다.
+명시적인 page scope는 비동기 준비·저장 사이에도 재사용한다. 0.0.1118부터는 한 번 누른 전체
+함수 분석 요청이 모든 페이지를 마칠 때까지 model scope를 유지하고, 요청 종료 전에 프로세스
+정리를 기다린다. 각 추론은 계속 FIFO에 따로 들어가므로 다른 소유자의 작업을 막지 않는다.
 scope 밖에서는 대기열이 비면 종료한다. 취소·실패·다른 공급자로 전환·Host 종료도 프로세스를 정리하며, Host가 갑자기
 끝나면 watchdog의 parent pipe EOF로 종료한다. model process는 한 FIFO 슬롯만 사용하고
 context 8,192·output 2,400 token·모델 CPU thread 2개 상한을 유지한다. 별도 runtime을
@@ -93,6 +95,91 @@ context 8,192·output 2,400 token·모델 CPU thread 2개 상한을 유지한다
 [llama.cpp server API](https://github.com/ggml-org/llama.cpp/blob/b29c606e2/tools/server/README.md)를 따른다.
 cache prefix가 같아도 backend batch 방식에 따라 logits의 bit 단위 동일성을 보장하지 않으므로
 실제 응답과 기존 Host 검증을 함께 확인한다.
+
+0.0.1118의 `localAcceleration.detectLocalNarrativeAcceleration`은 첫 실제 추론에서 실행기의
+`--help`를 5초·128 KiB로 제한해 확인한다. 광고한 옵션이 모두 있을 때만 checkpoint 8개,
+최소 간격 64 token, prompt RAM cache 256 MiB를 사용한다. checkpoint 개수와 RAM cache는
+별도 한도이며 256 MiB가 모델 전체 메모리 상한이라는 뜻은 아니다. 측정한 Qwen3.5 모델에만
+target model이 검증하는 `ngram-map-k`(lookup 4·draft 8)를 적용하며 별도 draft 가중치는
+받지 않는다. 기존 모델·sampling·JSON schema·상세 필드·context/output/thread 상한을 유지한다.
+오래된 실행기나 probe 실패는 해당 선택 옵션 없이 동작한다.
+
+`application/functionNarratives/primitiveWorksheet.buildPrimitiveWorksheetResponse(context, language)`는
+rich 준비·노드 요청의 소스가 완전하고 정확한 primitive 경로일 때만 기존 응답 계약을 즉시
+구성한다. Kotlin Int/Boolean/String와 TypeScript/JavaScript number/boolean/string의
+작은 지역 대입, 비교, 부정, 덧셈·뺄셈·곱셈, lowered Elvis와 반환을 다룬다. 입력 후보는
+최대 128개, 매개변수 8개, source operation 32개, expression 160자·token 64개로 제한한다.
+각 조건이 선택 경로와 일치하는지 확인하고 source 순서의 직전/직후 값, 실제 연산자의 의미,
+대입한 계산식과 다음 구문을 만든다. 코드를 실행하거나 외부 결과를 관찰하지 않는다.
+최종 목적·시나리오 문단·대안 설명은 항상 사용자가 선택한 로컬 LLM이 작성한다.
+
+call/property access, coercion, division/modulo, Kotlin overflow/Float rounding, 중첩 lexical scope,
+loop/exception transfer, inferred/partial/truncated evidence, 긴 식과 알 수 없는 타입은
+기존 LLM 요청으로 처리한다. focused worksheet는 이미 저장된 모델의 priorState와도 비교해
+다른 값으로 조용히 덮어쓰지 않는다. 기존 JSON·언어·source/route·페이지·cache validation은
+그대로 적용하며, source worksheet로도 실제 실행 검증이나 임의의 코드 의미를 보장하지 않는다.
+`hasCompletePrimitiveWorksheet(context)`는 완료된 summary 입력·반환값을 동일한 source trace와
+비교해 실제 미확인 작업이 없는 summary의 assumptions/limitations만 빈 배열로 고정한다.
+반환값 불일치, helper/truncated evidence 또는 지원하지 않는 작업에서는 이 proof를 사용하지 않는다.
+완전한 source trace를 독립적으로 읽으므로 `groundingLimited`가 bounded IR fact 선택만을
+뜻하는 경우에도 사용할 수 있다. source excerpt의 누락·truncation과 inferred/partial 경로는
+계속 거부한다.
+
+### 0.0.1118 처리 시간과 품질 확인
+
+공개 fixture를 production parser·grounding·scenario session·실제 Qwen3.5-4B Q4_K_M으로
+검증했다. 동일한 모델·seed 42·temperature 0.2·context 8,192·output 2,400·CPU thread 2개를
+사용했다. 아래 시간은 설치된 0.0.1117과 후보를 순차 실행한 관측값이며 PC 부하에 따라 달라진다.
+
+| 공개 함수 | 0.0.1117 | 0.0.1118 | 실제 모델 요청 | 후보 품질 |
+| --- | ---: | ---: | --- | --- |
+| Kotlin guard | 17.58초 | 10.03초 | 5 → 2 | 반환 2/2, 노드 9/9 |
+| TypeScript 연속 대입 | 20.13초 | 8.76초 | 5 → 2 | 반환 2/2, 노드 10/10 |
+| Kotlin 숫자 Elvis | 22.16초 | 9.15초 | 6 → 2 | 반환 2/2, 노드 10/10 |
+| Kotlin mutable 계산 | 21.88초 | 10.53초 | 5 → 2 | 반환 2/2, 노드 10/10 |
+| Kotlin 숫자 분기 | 21.59초 | 11.10초 | 4 → 2 | 반환 2/2, 노드 8/8 |
+| Kotlin Boolean 반환 | 12.43초 | 11.63초 | 4 → 2 | 반환 2/2, 노드 8/8 |
+| Kotlin 두 guard | 32.02초 | 17.09초 | 8 → 3 | 반환 3/3, 노드 14/14 |
+| TypeScript 긴 연속 계산 | 19.32초 | 6.24초 | 4 → 1 | 반환 1/1, 대입 4/4, 노드 7/7 |
+| Kotlin 문자열 Elvis | 25.14초 | 10.55초 | 6 → 2 | 반환 2/2, 대입 2/2, 노드 10/10 |
+| TypeScript 독립 guard 3개·8경로 | 221.63초 | 73.87초 | 36 → 8 | 반환 8/8, 대입 20/20, 노드 68/68 |
+
+후보 전체 26개 시나리오·154개 노드에서 반환·대입·구문/동작/근거/효과 필드와 좁은
+causal-language 검사를 통과했다. 8경로의 실제 최종 문단도 입력·선택된 대입·반환·대안을
+검토했다. 이전 버전의 추가 corpus에는 두 guard 반환 오답과 지어낸 입력 제약, 8경로의
+null 반환/복제 prose가 있었으며 후보에서 나타나지 않았다. 모델이 생성하는 임의의 문장을
+모두 증명하는 검사는 아니며 실제 실행은 여전히 미검증이다.
+
+source worksheet 준비/노드 요청은 이 corpus에서 대체로 0.04–3ms였다. 실제 추론은
+최종 문단에만 사용했고 모든 측정 후 소유한 model process가 종료됐다. 완료 시 관측한
+runner RSS는 후보 약 3.2–3.4 GiB이며 model 전체의 메모리 상한이나 실제 peak 측정은 아니다.
+실패한 짧은 JSON 키 실험과 source checkpoint가 재사용되지 않은 중간 실험은 출시에서 제외했다.
+
+재현은 compile 후 `node scripts/benchmark-function-narratives.mjs - candidate all MODEL RUNNER full-run`,
+`stress` 또는 fixture 이름을 사용한다. 이전 설치본은 runtime-root를 지정하고 `full-run`을
+생략해 그 버전의 page lifetime으로 측정한다. `context-only` 진단은 마지막 인자로 지정하며
+source context와 원문 응답은 private temporary directory에만 쓴다. source는 실행하지 않는다.
+
+배포 시 `scripts/bundle-local-narrative-runtime.mjs`는 같은 폴더의 local adapter helper를
+public `llm/functionNarratives/index.js`에 묶는다. source module과 개발용 compile output은
+분리한 채 유지하며 watchdog은 독립 child entrypoint로 배송한다. 새 모듈을 추가하면서도
+512파일 패키지 한도를 올리지 않는다. Node 외부 require·디렉터리·module cache 계약을
+패키징 회귀로 확인하고 설치본의 실제 모델과 부모 종료 정리도 검증한다.
+
+최종 회귀는 1,063개 중 1,059개 통과이며 기존 Function Guide type baseline/nested object/
+advanced private Scenario 3개와 source-reveal architecture 1개의 실패가 그대로 남았다.
+새 worksheet·capability·scope·취소/재개 회귀와 패키징 15개는 통과했다. Rust source는
+변경하지 않았으며 release build로 같은 native binary를 재사용했다.
+VSIX는 508파일·3.62 MiB이며 runtime closure 오류가 없다. Default와 Function Language QA
+1107 프로필 설치 버전은 0.0.1118이고 설치된 JS 474개·native binary가 패키지와 일치했다.
+설치본 cursor/plaintext Kotlin resolver·native graph·Host delivery를 실제 로컬 모델로 재생해
+두 경로의 0/15 반환과 전체 9개 노드, 실제 추론 2회, cache-only 페이지·소스 이동을 확인했다.
+이 설치본 재생은 21.17초였으며 live VS Code 버튼/화면 검증을 대신했다고 주장하지 않는다.
+
+ChatML 로컬 경계에서는 공통 source evidence와 현재 task를 별도 user message로 보낸다.
+source를 system 명령으로 승격하지 않으며 이전 모델 값은 task suffix에만 둔다. 정확한
+message delimiter를 raw completion에 전달해 recurrent 모델이 task 앞의 source checkpoint를
+재사용하도록 한다. 다른 템플릿과 CLI fallback은 single-user 계약을 유지한다.
 
 `llm/functionNarratives/localWire.createLocalNarrativeWire(schema)`는 고정된 source 위치·
 call ID를 모델 출력에서 반복하지 않도록 한다. code·when/outcome·input 이름/값은 설명의 근거가 되는

@@ -1494,6 +1494,21 @@ Webview는 Project Graph, 파일 시스템, VS Code API에 직접 접근하지 �
   전달한다. 한국어의 자유 서술 필드는 한글로 시작하도록 bounded JSON grammar로 유도하고
   고정된 source 식은 유지한다. private 임시 user/system prompt와 JSON schema는 요청 종료 시 삭제한다.
   `--json-schema-file`로 source를 포함한 grammar도 argv 밖에서 전달한다.
+  optional companion server는 한 명시적 전체 함수 요청 동안만 weights를 재사용하고,
+  각 추론의 FIFO 진입·취소·실패·provider switch·Host 종료 정리를 유지한다. 실행기의
+  bounded help probe가 모두 광고한 선택 옵션만 적용하며 checkpoint 8개와 prompt RAM cache
+  256 MiB를 별도로 제한한다. Qwen3.5는 target-verified n-gram draft 8 token을 사용하고
+  별도 draft model을 다운로드하지 않는다. 공통 source user message와 task suffix의
+  ChatML 경계를 명시해 source checkpoint를 재사용한다. 이전 모델 상태는 공통 prefix에
+  넣지 않으며 source를 system instruction으로 취급하지 않는다. 기존 CLI와 다른
+  템플릿의 single-user contract, context/output/thread/grammar/sampling 한도는 유지한다.
+  local rich 준비·노드 요청은 완전한 exact primitive source route에 한해 bounded worksheet를
+  즉시 구성할 수 있다. 최대 8개 typed input, 128개 후보, 32개 unique source operation과
+  160자·64 token의 iterative primitive expression substitution만 허용한다. 조건 선택,
+  직전/직후 지역 값, 연산자 의미·계산식·다음 구문과 원본 인용을 보존한다. call/access,
+  unknown type/operator, coercion, division/modulo, Kotlin overflow/Float, lexical scope,
+  loop/exception, inferred/partial/source gap 또는 carried model state 충돌은 기존 LLM으로
+  넘긴다. source는 실행하지 않으며 최종 시나리오 synthesis는 항상 선택한 LLM이 수행한다.
   rich primary 응답의 `exampleInputs`는 `{name, value}`의 실제 JSON 값을 생성한다. 로컬
   adapter는 이를 기존 `{name, json}` 문자열 계약으로 인코딩하며 Boolean/null 경로 선택,
   입력 크기·깊이·유한 숫자·금지 key 검사와 Host의 source/route 검증은 유지한다. 소스 언어의

@@ -3,10 +3,10 @@ import { spawn } from "node:child_process";
 import { access, mkdtemp, writeFile, rm } from "node:fs/promises";
 import { basename, join } from "node:path";
 import { tmpdir } from "node:os";
-import { FunctionNarrativeError, scheduleFunctionNarrativeRequest, type FunctionNarrativeProvider } from "../../application/functionNarratives";
+import { FunctionNarrativeError, scheduleFunctionNarrativeRequest, buildPrimitiveWorksheetResponse, type FunctionNarrativeProvider } from "../../application/functionNarratives";
 import { getGlobalModelTaskManager, type ModelTaskManager } from "../../shared/modelTasks";
 import { createLocalNarrativeSchema } from "./responseSchema";
-import { buildLocalNarrativePrompt, buildLocalNarrativeSystemPrompt } from "./localPrompt";
+import { buildLocalNarrativePrompt, buildLocalNarrativeSystemPrompt, buildLocalNarrativeUserMessages } from "./localPrompt";
 import { normalizeLocalNarrativeResponse } from "./localResponse";
 import { createLocalNarrativeWire } from "./localWire";
 import { classifyRunnerFailure, getLocalNarrativeServer, type LocalNarrativeMetrics, type LocalNarrativeServer } from "./localServer";
@@ -22,6 +22,9 @@ export function createLocalFunctionNarrativeProvider(options: LocalFunctionNarra
       if (signal.aborted) throw new FunctionNarrativeError("cancelled");
       return server ? manager.withResource(server, operation, signal) : operation();
     }, async generate(context, language, signal, generation) {
+    if (signal.aborted) throw new FunctionNarrativeError("cancelled");
+    const worksheet = buildPrimitiveWorksheetResponse(context, language);
+    if (worksheet !== undefined) return { modelName: ("Local · " + basename(options.modelPath, ".gguf")).slice(0, 100), text: worksheet };
     const server = await (serverProbe ??= getLocalNarrativeServer(manager, options));
     return scheduleFunctionNarrativeRequest(manager, context.functionName, signal, async signal => {
     let directory: string | undefined;
@@ -29,17 +32,23 @@ export function createLocalFunctionNarrativeProvider(options: LocalFunctionNarra
       if (!options.binaryPath || !options.modelPath) throw new FunctionNarrativeError("unavailable");
       await access(options.modelPath).catch(() => { throw new FunctionNarrativeError("unavailable", "model-not-found"); });
       if (signal.aborted) throw new FunctionNarrativeError("cancelled");
-      directory = await mkdtemp(join(tmpdir(), "function-narrative-"));
-      const promptFile = join(directory, "prompt.txt");
-      const systemFile = join(directory, "system.txt");
-      const schemaFile = join(directory, "schema.json");
       const fullSchema = createLocalNarrativeSchema(context, language);
       const wire = context.detailLevel === "rich" || context.callTask ? createLocalNarrativeWire(fullSchema) : undefined;
       const prompt = buildLocalNarrativePrompt(context, language, wire?.schema);
       if (server) {
-        const text = await server.generate(prompt, buildLocalNarrativeSystemPrompt(language), wire?.schema ?? fullSchema, signal, options.onMetrics);
+        // Only the explicit ChatML adapter accepts adjacent user evidence/task
+        // messages. Other model templates retain their single-user contract.
+        const messages = /^qwen3[.\-]/iu.test(basename(options.modelPath)) ? buildLocalNarrativeUserMessages(context, language, wire?.schema) : prompt;
+        const text = await server.generate(messages,
+          buildLocalNarrativeSystemPrompt(language), wire?.schema ?? fullSchema, signal, options.onMetrics);
         return { modelName: ("Local · " + basename(options.modelPath, ".gguf")).slice(0, 100), text: normalizeLocalNarrativeResponse(wire?.decode(text) ?? text, context) };
       }
+      // The socket path uses memory only. Create private prompt files solely
+      // when a legacy/custom runner actually needs the CLI fallback.
+      directory = await mkdtemp(join(tmpdir(), "function-narrative-"));
+      const promptFile = join(directory, "prompt.txt");
+      const systemFile = join(directory, "system.txt");
+      const schemaFile = join(directory, "schema.json");
       await writeFile(promptFile, prompt, { encoding: "utf8", mode: 0o600 });
       await writeFile(systemFile, buildLocalNarrativeSystemPrompt(language), { encoding: "utf8", mode: 0o600 });
       // Fixed grammar fields contain source predicates/operations too. Keep

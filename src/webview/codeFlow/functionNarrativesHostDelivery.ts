@@ -208,42 +208,46 @@ export class FunctionNarrativesHostDelivery {
     try {
       if (!session.complete && provider.prepare) await this.prepareProvider(provider, language, controller.signal, operation);
       if (!current()) return;
-      while (!session.complete) {
-        // Keep run capabilities through this deadline/progress adapter. Dropping
-        // them silently publishes provisional prose and defeats page reuse.
-        const boundedProvider: FunctionNarrativeProvider = {
-          supportsFinalSummary: signal => provider.supportsFinalSummary?.(signal) === true,
-          ...(provider.withRun ? { withRun: provider.withRun.bind(provider) } : {}),
-          generate(context, locale, signal, options) {
+      // Keep weights loaded only for this explicit whole-function request.
+      // Each inference still queues independently; cancellation overrides retention.
+      const boundedProvider: FunctionNarrativeProvider = {
+        supportsFinalSummary: signal => provider.supportsFinalSummary?.(signal) === true,
+        generate(context, locale, signal, options) {
           return requestFunctionNarrative(provider, context, locale, signal, SCENARIO_BATCH_DEADLINE_MS, { ...options, ...operation });
-        } };
-        let onAbort = () => {};
-        const cancelled = new Promise<never>((_resolve, reject) => {
-          onAbort = () => reject(new FunctionNarrativeError("cancelled"));
-          controller.signal.addEventListener("abort", onAbort, { once: true });
-        });
-        try {
-          if (controller.signal.aborted) throw new FunctionNarrativeError("cancelled");
-          await Promise.race([session.analyzeNext(boundedProvider, language, controller.signal, { reselectModel: entry.reselectModel }), cancelled]);
-        } finally { controller.signal.removeEventListener("abort", onAbort); }
-        if (!current() || controller.signal.aborted) return;
-        generated = true;
-        entry.reselectModel = false;
-        const first = await session.readPage(0).catch(() => undefined);
-        if (!current() || controller.signal.aborted) return;
-        if (!first) throw new FunctionNarrativeError("invalid-response");
-        const result = this.projectPage(entry, session, first, language);
-        entry.cached.set(language, result);
-        this.presentSource(request.flowId, entry, result);
-        await send({ status: session.complete ? "ready" : "progress", ...result, cacheHit: false });
-      }
-      // A complete session serves its first page on repeated generation without another provider call.
-      const first = await session.readPage(0);
-      if (!generated && current() && first) {
-        const result = this.projectPage(entry, session, first, language);
-        entry.cached.set(language, result); this.presentSource(request.flowId, entry, result);
-        await send({ status: "ready", ...result, cacheHit: true });
-      }
+        }
+      };
+      const analyze = async () => {
+        while (!session.complete) {
+          let onAbort = () => {};
+          const cancelled = new Promise<never>((_resolve, reject) => {
+            onAbort = () => reject(new FunctionNarrativeError("cancelled"));
+            controller.signal.addEventListener("abort", onAbort, { once: true });
+          });
+          try {
+            if (controller.signal.aborted) throw new FunctionNarrativeError("cancelled");
+            await Promise.race([session.analyzeNext(boundedProvider, language, controller.signal, { reselectModel: entry.reselectModel }), cancelled]);
+          } finally { controller.signal.removeEventListener("abort", onAbort); }
+          if (!current() || controller.signal.aborted) return;
+          generated = true;
+          entry.reselectModel = false;
+          const first = await session.readPage(0).catch(() => undefined);
+          if (!current() || controller.signal.aborted) return;
+          if (!first) throw new FunctionNarrativeError("invalid-response");
+          const result = this.projectPage(entry, session, first, language);
+          entry.cached.set(language, result);
+          this.presentSource(request.flowId, entry, result);
+          await send({ status: session.complete ? "ready" : "progress", ...result, cacheHit: false });
+        }
+        // A complete session serves its first page on repeated generation without another provider call.
+        const first = await session.readPage(0);
+        if (!generated && current() && first) {
+          const result = this.projectPage(entry, session, first, language);
+          entry.cached.set(language, result); this.presentSource(request.flowId, entry, result);
+          await send({ status: "ready", ...result, cacheHit: true });
+        }
+      };
+      if (provider.withRun) await provider.withRun(language, controller.signal, analyze);
+      else await analyze();
     } catch (error) {
       if (current()) {
         const status = error instanceof FunctionNarrativeError ? error.code : "failed";

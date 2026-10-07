@@ -12,6 +12,20 @@ export function buildLocalNarrativeSystemPrompt(language: "ko" | "en"): string {
     : "You are an English code-reading assistant. Write every explanation and title in English. Preserve identifiers and fixed source expressions. Describe only the supplied code; do not invent checks, exceptions or external outcomes. Return one JSON object.";
 }
 
+/** Two user messages mark an exact checkpoint boundary before the changing task.
+ * Source remains untrusted user data; it is never promoted to system instructions.
+ */
+export function buildLocalNarrativeUserMessages(context: FunctionNarrativeContext, language: "ko" | "en",
+  wireSchema?: Record<string, unknown>): string[] {
+  const prompt = buildLocalNarrativePrompt(context, language, wireSchema);
+  if (context.callTask || context.detailLevel !== "rich" || !context.nodePreparation && !context.nodeTask && !context.summaryTask) return [prompt];
+  const prefix = reusableSourcePrefix(buildLocalNarrativeInput(context), language);
+  // The separator belongs to the text-only prompt. A leading newline in the
+  // second message would merge with ChatML's role newline during tokenization,
+  // preventing its exact delimiter from identifying the checkpoint boundary.
+  return [prefix, prompt.slice(prefix.length + 1)];
+}
+
 export function buildLocalNarrativePrompt(context: FunctionNarrativeContext, language: "ko" | "en", wireSchema?: Record<string, unknown>): string {
   if (context.callTask) return buildFunctionCallNarrativePrompt(context, language).join("\nSOURCE DATA:\n")
     + (wireSchema ? "\n" + wireInstructions(language) + "\nOUTPUT JSON SCHEMA:\n" + JSON.stringify(wireSchema) : "");
@@ -106,9 +120,7 @@ function buildFocusedNodePrompt(context: FunctionNarrativeContext, language: "ko
     "Keep original inputs unchanged. priorState holds earlier MODEL values only; keep unknowns unknown. values has at most 2 immediate before/after rows.",
     "Each field is one short complete sentence. Target text 60 chars, syntax 100, reason 90, effect 70, ending BEFORE schema caps. Do not expose internal field names in prose."
   ];
-  return rules.join("\n") + "\n" + wireInstructions(language)
-    + "\nJSON schema:\n" + JSON.stringify(wireSchema ?? createLocalNarrativeSchema(context, language))
-    + "\nSOURCE DATA:\n" + JSON.stringify(data)
+  return buildReusableLocalPrompt(context, language, rules, data, wireSchema)
     + "\n" + buildFunctionNarrativeFlowGuidance({ ...context, sourceFlow: undefined, valueFacts: data.valueFacts as FunctionNarrativeContext["valueFacts"] }, language)
     + "\n" + buildNodeOperationGuidance(context, language);
 }
@@ -128,9 +140,7 @@ function buildFinalSummaryPrompt(context: FunctionNarrativeContext, language: "k
     "analysis.pathReason gives route decisions, stateChange gives completed changes/return, and alternative gives the source route after an input choice changes. summary describes the whole function. Do not invent rules, restrictions or external outcomes.",
     "assumptions/limitations contain actual unknown information such as omitted external calls; otherwise []. Never put chosen inputs, branch choices, declared types, generic input validity or positivity requirements in these arrays. Do not invent exceptions or possible failures absent from source. Target explanation 350 chars, each analysis field 120. Do not expose internal field names or progress text."
   ];
-  return rules.join("\n") + "\n" + wireInstructions(language)
-    + "\nJSON schema:\n" + JSON.stringify(wireSchema ?? createLocalNarrativeSchema(context, language))
-    + "\nSOURCE DATA:\n" + JSON.stringify(buildLocalNarrativeInput(context));
+  return buildReusableLocalPrompt(context, language, rules, buildLocalNarrativeInput(context), wireSchema);
 }
 
 /** Initial work chooses inputs and reads only the first two source operations; final prose belongs to later synthesis. */
@@ -146,10 +156,28 @@ function buildNodePreparationPrompt(context: FunctionNarrativeContext, language:
     "text names this operation, syntax explains this language construct, reason substitutes input values, and effect gives immediate state/next operation. Do not use a later write or return as the current state.",
     "values holds immediate MODEL before/after values. Use one short complete sentence per field, targeting text 60 chars, syntax 100, reason 90, effect 70, ending BEFORE schema caps."
   ];
-  return rules.join("\n") + "\n" + wireInstructions(language)
-    + "\nJSON schema:\n" + JSON.stringify(wireSchema ?? createLocalNarrativeSchema(context, language))
-    + "\nSOURCE DATA:\n" + JSON.stringify(buildLocalNarrativeInput(context))
+  return buildReusableLocalPrompt(context, language, rules, buildLocalNarrativeInput(context), wireSchema)
     + "\n" + buildNodeOperationGuidance(context, language);
+}
+
+/** Stable source evidence precedes changing task/schema data, allowing recurrent-model checkpoints to reuse it.
+ * All evidence survives the partition; earlier model state stays exclusively in the current task suffix.
+ */
+function buildReusableLocalPrompt(context: FunctionNarrativeContext, language: "ko" | "en", rules: string[],
+  data: Record<string, unknown>, wireSchema?: Record<string, unknown>): string {
+  const { functionName: _name, language: _language, snippets: _snippets, parameters: _parameters,
+    returnTypeText: _returnType, valueNames: _valueNames, detailLevel: _detail, limited: _limited, ...task } = data;
+  return reusableSourcePrefix(data, language)
+    + "\n" + rules.join("\n")
+    + "\nJSON schema:\n" + JSON.stringify(wireSchema ?? createLocalNarrativeSchema(context, language))
+    + "\nTASK DATA:\n" + JSON.stringify(task);
+}
+
+/** Deliberate property order makes every phase of one snapshot share the same token prefix. */
+function reusableSourcePrefix(data: Record<string, unknown>, language: "ko" | "en"): string {
+  const { functionName, language: sourceLanguage, snippets, parameters, returnTypeText, valueNames, detailLevel, limited } = data;
+  return wireInstructions(language) + "\nSOURCE DATA:\n"
+    + JSON.stringify({ functionName, language: sourceLanguage, snippets, parameters, returnTypeText, valueNames, detailLevel, limited });
 }
 
 /** End-of-prompt source reminders keep a small model's node reading at the current operation. */

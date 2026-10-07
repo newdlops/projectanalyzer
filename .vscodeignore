@@ -42,6 +42,17 @@ engine/analyzer/Cargo.lock
 out/test/**
 out/**/*.map
 
+# Prepublish bundles these same-directory helpers into their public index.
+# Keep the watchdog as its separate, source-free child-process entrypoint.
+out/llm/functionNarratives/localAcceleration.js
+out/llm/functionNarratives/localInput.js
+out/llm/functionNarratives/localPrompt.js
+out/llm/functionNarratives/localProvider.js
+out/llm/functionNarratives/localResponse.js
+out/llm/functionNarratives/localServer.js
+out/llm/functionNarratives/localWire.js
+out/llm/functionNarratives/responseSchema.js
+
 # Dormant feature modules are not reached by the extension entrypoint. Keep their
 # editable sources/tests; the runtime-closure checker catches future wiring.
 out/application/guidedTour/**

@@ -51,6 +51,14 @@ scenario prose. No background generation, additional model process or source
 execution is introduced. Cached paging, node selection, locale refresh and value
 application keep their existing behavior and preserve edited inputs and focus.
 
+As of 0.0.1118, complete exact primitive routes may supply source-derived node
+worksheets immediately, including operator meanings, substituted calculations,
+immediate before/after values and the next source operation. Final purpose and
+scenario paragraphs still come from the selected local LLM. Unsupported or
+uncertain work keeps the original bounded model pipeline. Preserve all four
+detail fields, source ownership and the unverified-execution label; do not show
+private preparation text as a completed explanation.
+
 Acceptance: real local Kotlin and TypeScript responses include numerical/Boolean
 substitution, ordered calculation/effect and alternate-path explanation. Every
 reached source operation has a syntax explanation; repeated visits and partial
