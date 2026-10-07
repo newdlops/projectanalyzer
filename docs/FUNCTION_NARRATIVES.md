@@ -4,7 +4,9 @@ Function Guide의 **전체 시나리오 분석**은 함수 본문과 가까운 �
 확인된 직접 helper 코드를 언어 모델에 전달해 목적과 동작 시나리오, 예시 입력·결과값과
 각 경로의 노드 해설을 만든다.
 Kotlin과 인자 없는 함수도 사용할 수 있다. 숫자 입력을 찾는 기존 로컬 모델과는 별도 기능이다.
-문장형 설명은 로컬 LLM이 작성한다. 기본 함수 요약과 그래프, 생성에 쓰는 조건·소스 경로는
+함수 전체 목적은 로컬 LLM이 작성한다. 소스와 입력으로 끝까지 확인한 경로는 기존 정적
+분석과 bounded 계산 결과를 연결해 상세 문단·대안·노드 설명을 만든다. 확인하지 못한
+구문과 외부 동작은 로컬 LLM 분석을 유지한다. 그래프와 생성에 쓰는 조건·소스 경로는
 기존 정적 분석이 제공한다.
 
 ## 시나리오 그래프 노트
@@ -136,6 +138,64 @@ loop/exception transfer, inferred/partial/truncated evidence, 긴 식과 알 수
 같은 source snapshot·언어의 검증된 함수 목적 요약 240자 하나를 다음 시나리오에서 재사용하고,
 초기 준비 문구는 저장하지 않는다. 각 시나리오의 상세 문단·대안은 계속 모델이 새로 작성한다.
 기존 노드 구문·동작·근거·효과·인용을 모두 유지하며 화면 배치도 유지한다.
+
+### 0.0.1121 객체·배열·내부 호출의 분석 결과 재사용
+
+`addFunctionNarrativeValueGrounding(context, model)`는 TS/JS 모델에 snapshot-owned
+`sourceWorksheet` port를 연결한다. 내부 `irWorksheet`는 기존
+`evaluateFunctionTutorInputs`에 opt-in block observer를 전달해 각 구문의 before/after,
+조건과 terminal 값을 받는다. 소스를 다시 parse하거나 실행하는 별도 interpreter는 만들지 않는다.
+준비·노드·최종 summary는 기존 worksheet API를 유지하며 primitive reader 이후 이 port를
+사용할 수 있다. `numberFunctionNarrativeContext`는 port를 모든 외부 prompt에서 제거한다.
+
+완료된 interpreter 방문은 source route의 모든 구문·인용·분기와 순서대로 일치해야 한다.
+객체 속성 변경은 객체 전체의 직전/직후 값을 보존하고, 객체 자체를 교체했다고 설명하지 않는다.
+truthy 조건은 원래 피연산자 값과 Boolean 선택을 구분한다. `const`, 속성/인덱스 접근,
+산술, 논리·조건 선택, 함수 인수와 반환의 실제 문법만 설명한다. 같은 파일의 소스로 resolution된
+순수 helper는 기존 bounded summary compiler의 결과를 사용한다. helper 소스가 제공되지 않으면
+최적화하지 않는다. 함수 목적은 여전히 모델이 작성하며, 이 의미를 정적 계산으로 입증하지는 않는다.
+
+한 snapshot의 입력 후보는 128개·parameter 8개, trace는 64 step·block당 1 visit·source 구문 32개,
+값은 depth 4·frame 128개·container당 8개·JSON 240자로 제한한다. 일부만 저장한 값이나 누락된
+구문으로 complete trace를 만들지 않는다. shadowing/repeated declaration, const 재대입,
+alias member write, 외부 효과, loop/exception, 음수 0·non-finite·불완전한 source/result/alternative는
+기존 모델 pipeline을 유지한다. 현재 adapter가 shadowed 이름을 같은 binding에 합칠 수 있어
+repeated define과 parameter shadowing도 별도로 거부한다.
+
+공개 production-parser 예제에서 같은 Qwen3.5 4B 모델로 전체 경로 생성과 모델 정리까지
+측정한 최종 관측이다. PC 부하와 모델 시작 비용을 포함하므로 일반적인 시간 한도는 아니다.
+
+| 공개 함수 | 설치된 0.0.1120 | 최종 0.0.1121 | 실제 모델 요청 | 최종 반환 / 노드 |
+| --- | ---: | ---: | --- | --- |
+| 객체 입력·guard·연속 계산 | 53.31초 | 8.72초 | 5 → 1 | 2/2 · 10/10 |
+| 객체 속성 변경 | 21.20초 | 4.73초 | 2 → 1 | 1/1 · 4/4 |
+| 분기 있는 순수 helper와 기본 인수 | 21.05초 | 6.46초 | 2 → 1 | 1/1 · 4/4 |
+| 배열 길이·첫 요소 읽기 | 34.47초 | 4.47초 | 4 → 1 | 2/2 · 8/8 |
+
+새 결과는 반환 6/6, 노드 26/26, syntax/text/reason/effect가 있는 구문 14/14와
+2,802자를 보존했다. 이전 결과는 이 예제의 반환 오류와 소스에 없는 전제 조건을 포함했고,
+새 결과의 좁은 반환·노드·전제 검사는 실패가 없었다. 이 결과가 모든 함수의 정확도를
+보장하지는 않는다. 별도 symbolic loop 예제는 기존 모델 pipeline을 사용했으며
+잘못된 입력 형태·반환을 여전히 드러냈다. 반복 최적화와 그 정확도 문제는 남아 있다.
+
+최종 unit 결과는 1,078개 중 1,074개 통과, 기존 Guide/input/source-reveal 실패 4개 유지다.
+관련 worksheet/pure-helper 26개, packaging 15개, release metadata 검사는 통과했다.
+새 구현 소스 모듈 하나를 추가한 VSIX는 기존 512-file 한도 안에 있다.
+native symbol이 선언 줄만 갖더라도 helper의 모든 program block 인용이 공급된 excerpt에
+포함되어야 한다. 선언만 있는 helper excerpt로 숨겨진 본문 결과를 보증하지 않는다.
+설치된 Kotlin cursor/native graph/Host/실제 모델의 별도 검사는 두 경로의 반환 0/15,
+노드 4+5개와 cache-only paging·소스 연결을 통과했고 실제 모델 요청은 한 번이었다.
+
+분리된 Microsoft VS Code 1.115.0 환경의 설치된 0.0.1121로 공개 객체 입력 함수를
+직접 열어 Rust native graph → 전체 시나리오 분석 → 두 번째 페이지 → `const` 노드 선택 →
+실제 L3 소스 열기를 확인했다. 실제 Qwen3.5 응답과 source 계산의 입력 객체·결과 0/13,
+const 의미, 네 상세 필드와 `선언 전 → 5` 표가 표시됐다. desktop 1440×900과 native 창
+769×1025에서 긴 설명이 줄바꿈됐고, 좁은 창의 내부 스크롤로 값 표와 소스 버튼을 읽었다.
+정확한 mobile/touch, 영어·테마 전환이나 전체 접근성 인증은 이번 검사에 포함하지 않았다.
+페이지·노드·소스 이동 후 작업 목록은 준비 0.0초와 추론 10.9초의 두 항목만 유지했다.
+추론 추가 없이 snapshot 결과를 재사용했으며 QA 전용 앱은 종료했다.
+Impeccable detector는 관련 파일에서 새 finding이 없었다. 기존 의미별 graph-node border는
+기존 파일 한정 예외 그대로 유지했으며 이번 작업에 새 ignore를 추가하지 않았다.
 
 ### 0.0.1120 소스 설명과 모델 목적
 

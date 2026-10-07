@@ -2,19 +2,18 @@
 import type { FunctionNarrative, FunctionNarrativeContext, FunctionNarrativeFlowPath, FunctionNarrativeExample } from "../../../shared/functionNarratives";
 import { createFunctionNarrativeScenarioIterator } from "../scenarioIterator";
 import { buildFunctionNarrativeScenarioFrames } from "../scenarioFrames";
-import { getPrimitiveWorksheetAnalysis, readCompletedPrimitiveTrace } from "./index";
-import { selectPrimitiveTrace } from "./candidates";
-import { tracePrimitiveRoute, type PrimitiveTrace } from "./trace";
+import { getPrimitiveWorksheetAnalysis, readCompletedPrimitiveTrace, traceSourceWorksheet } from "./index";
+import type { PrimitiveTrace } from "./trace";
 
 type Alternative = NonNullable<FunctionNarrativeContext["summaryTask"]>["sourceAlternative"];
 
 /** Looks at at most 32 nearby routes/64 graph levels; this never caps the session's lazy full-path enumeration. */
 export function selectPrimitiveNarrativeAlternative(context: FunctionNarrativeContext, path: FunctionNarrativeFlowPath,
   inputs: FunctionNarrativeExample["inputs"], language: "ko" | "en"): Alternative {
-  if (context.limited || context.snippets.some(snippet => snippet.truncated || snippet.role === "helper")) return undefined;
+  if (context.limited || context.snippets.some(snippet => snippet.truncated || snippet.role === "helper" && !context.sourceWorksheet?.owns(context))) return undefined;
   const decisions = path.steps.filter(step => step.branch);
   if (!decisions.length) {
-    const trace = selectPrimitiveTrace(context, path, language, inputs);
+    const trace = traceSourceWorksheet(context, path, undefined, language, inputs);
     // A zero-input, unbranched function has no different input example.
     return trace ? { path, inputs: trace.inputs } : !context.parameters?.length ? { path, inputs } : undefined;
   }
@@ -30,7 +29,7 @@ export function selectPrimitiveNarrativeAlternative(context: FunctionNarrativeCo
       && decisions[shared].source.startLine === other[shared].source.startLine
       && decisions[shared].branch!.outcome === other[shared].branch!.outcome) shared++;
     if (shared === decisions.length && shared === other.length || shared <= bestPrefix) continue;
-    const trace = selectPrimitiveTrace(context, alternative, language);
+    const trace = traceSourceWorksheet(context, alternative, undefined, language);
     if (trace) { best = { path: alternative, inputs: trace.inputs }; bestPrefix = shared; }
   }
   return best;
@@ -43,7 +42,7 @@ export function buildPrimitiveNarrativeSynthesis(context: FunctionNarrativeConte
   if (!current || !analysis || !context.summaryTask?.sourceAlternative) return undefined;
   const path = context.sourceFlow!.paths[0], alternative = context.summaryTask.sourceAlternative;
   let other: PrimitiveTrace | undefined;
-  try { other = tracePrimitiveRoute(context, alternative.path, new Map(alternative.inputs.map(input => [input.name, JSON.parse(input.json)])), language); }
+  try { other = traceSourceWorksheet(context, alternative.path, alternative.inputs, language); }
   catch { return undefined; }
   if (!other || alternative.path.steps.some(step => !context.snippets.some(snippet => snippet.id === step.source.snippetId
     && snippet.startLine <= step.source.startLine && snippet.endLine >= step.source.endLine))) return undefined;
@@ -54,9 +53,13 @@ export function buildPrimitiveNarrativeSynthesis(context: FunctionNarrativeConte
     if (operation.kind === "condition") pieces.push(ko
       ? `${operation.loweredPredicate ?? operation.code}의 판단은 ${calculation}이며 다음 구문은 ${path.steps[index + 1]!.code}입니다.`
       : `${operation.loweredPredicate ?? operation.code}: ${calculation}; next is ${path.steps[index + 1]!.code}.`);
-    else if (operation.kind === "mutation") pieces.push(ko
-      ? `${operation.code}의 ${calculation} 계산 후 지역 값 ${value.name}에 ${value.after} 값을 저장합니다(${value.before} → ${value.after}).`
-      : `${operation.code} computes ${calculation}, storing ${value.name}: ${value.before} → ${value.after}.`);
+    else if (operation.kind === "mutation") {
+      const member = operation.code.startsWith(value.name + ".") || operation.code.startsWith(value.name + "[");
+      pieces.push(member ? ko ? `${operation.code}로 속성·요소를 변경한 뒤 ${value.name}의 전체 상태는 ${value.before} → ${value.after}입니다. 계산 근거는 ${calculation}입니다.`
+        : `${operation.code} changes a property/element; the full ${value.name} state is ${value.before} → ${value.after}. Calculation: ${calculation}.`
+        : ko ? `${operation.code}의 ${calculation} 계산 후 지역 값 ${value.name}에 ${value.after} 값을 저장합니다(${value.before} → ${value.after}).`
+          : `${operation.code} computes ${calculation}, storing ${value.name}: ${value.before} → ${value.after}.`);
+    }
     else pieces.push(ko ? `반환 구문 ${operation.code}에서 최신 값으로 ${calculation}을 계산합니다. ${value.after} 값을 반환하고 함수가 끝납니다.`
       : `${operation.code} substitutes the latest values: ${calculation}, returns ${value.after}, and ends this function.`);
   }

@@ -1,5 +1,5 @@
 /** Conservative primitive worksheet boundary; source facts stay separate from the selected model's purpose. */
-import type { FunctionNarrativeContext } from "../../../shared/functionNarratives";
+import type { FunctionNarrativeContext, FunctionNarrativeFlowPath, FunctionNarrativeExample } from "../../../shared/functionNarratives";
 import { buildFunctionNarrativeScenarioFrames } from "../scenarioFrames";
 import { tracePrimitiveRoute, type PrimitiveTrace } from "./trace";
 import { selectPrimitiveTrace } from "./candidates";
@@ -7,16 +7,16 @@ import { hasSimplePrimitiveScopes } from "./scope";
 
 /** Returns the existing validated response contract only for fully proved primitive preparation/node tasks. */
 export function buildPrimitiveWorksheetResponse(context: FunctionNarrativeContext, language: "ko" | "en"): string | undefined {
-  if (!context.nodePreparation && !context.nodeTask || context.summaryTask || !supportedContext(context)) return undefined;
+  if (!context.nodePreparation && !context.nodeTask || context.summaryTask || !supportedWorksheet(context)) return undefined;
   if (context.nodeTask?.targets.some(target => !target.graphNodeId)) return undefined;
   const traces: PrimitiveTrace[] = [];
   for (let index = 0; index < context.sourceFlow!.paths.length; index++) {
     const path = context.sourceFlow!.paths[index];
     let trace: PrimitiveTrace | undefined;
     if (context.nodeTask) {
-      try { trace = tracePrimitiveRoute(context, path, new Map(context.nodeTask.example.inputs.map(input => [input.name, JSON.parse(input.json)])), language); }
+      try { trace = traceSourceWorksheet(context, path, context.nodeTask.example.inputs, language); }
       catch { return undefined; }
-    } else trace = selectPrimitiveTrace(context, path, language);
+    } else trace = traceSourceWorksheet(context, path, undefined, language);
     if (!trace) return undefined;
     traces.push(trace);
   }
@@ -50,11 +50,9 @@ export function buildPrimitiveWorksheetResponse(context: FunctionNarrativeContex
 
 /** Final synthesis can omit fabricated prerequisites only when its exact completed primitive result is source-proved. */
 export function hasCompletePrimitiveWorksheet(context: FunctionNarrativeContext): boolean {
-  if (!context.summaryTask || !supportedContext(context) || context.sourceFlow!.paths.length !== 1
-    || context.snippets.some(snippet => snippet.truncated || snippet.role === "helper")) return false;
+  if (!context.summaryTask || !supportedWorksheet(context) || context.sourceFlow!.paths.length !== 1) return false;
   try {
-    const trace = tracePrimitiveRoute(context, context.sourceFlow!.paths[0],
-      new Map(context.summaryTask.inputs.map(input => [input.name, JSON.parse(input.json)])), "en");
+    const trace = traceSourceWorksheet(context, context.sourceFlow!.paths[0], context.summaryTask.inputs, "en");
     return trace !== undefined && trace.result === context.summaryTask.resultJson;
   } catch { return false; }
 }
@@ -84,7 +82,7 @@ export function getPrimitiveWorksheetAnalysis(context: FunctionNarrativeContext,
 export function readCompletedPrimitiveTrace(context: FunctionNarrativeContext, language: "ko" | "en"): PrimitiveTrace | undefined {
   if (!hasCompletePrimitiveWorksheet(context) || context.summaryTask!.omittedValues) return undefined;
   const path = context.sourceFlow!.paths[0], completed = context.summaryTask!.completed;
-  const trace = tracePrimitiveRoute(context, path, new Map(context.summaryTask!.inputs.map(input => [input.name, JSON.parse(input.json)])), language)!;
+  const trace = traceSourceWorksheet(context, path, context.summaryTask!.inputs, language)!;
   if (completed.length !== path.steps.length) return undefined;
   for (let index = 0; index < completed.length; index++) {
     if (completed[index].code !== path.steps[index].code) return undefined;
@@ -96,6 +94,25 @@ export function readCompletedPrimitiveTrace(context: FunctionNarrativeContext, l
     }
   }
   return trace;
+}
+
+/** Shared worksheet dispatch keeps the closed primitive reader and the Host's bounded IR interpreter independent. */
+export function traceSourceWorksheet(context: FunctionNarrativeContext, path: FunctionNarrativeFlowPath,
+  inputs: FunctionNarrativeExample["inputs"] | undefined, language: "ko" | "en", exclude?: FunctionNarrativeExample["inputs"]): PrimitiveTrace | undefined {
+  if (supportedContext(context)) {
+    try {
+      const trace = inputs ? tracePrimitiveRoute(context, path, new Map(inputs.map(input => [input.name, JSON.parse(input.json)])), language)
+        : selectPrimitiveTrace(context, path, language, exclude);
+      if (trace) return trace;
+    } catch { return undefined; }
+  }
+  return context.sourceWorksheet?.owns(context) ? context.sourceWorksheet.trace(path, inputs, language, exclude) : undefined;
+}
+
+/** Rich complete source routes are required even when the Host supplies a more capable IR interpreter. */
+function supportedWorksheet(context: FunctionNarrativeContext): boolean {
+  return !context.callTask && context.detailLevel === "rich" && Boolean(context.sourceFlow?.paths.length)
+    && (supportedContext(context) || context.sourceWorksheet?.owns(context) === true);
 }
 
 /** Independent capability guard shared by preparation, focused reads and final-summary evidence checks. */

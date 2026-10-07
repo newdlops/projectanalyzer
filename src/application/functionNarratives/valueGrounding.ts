@@ -3,6 +3,7 @@ import type { FunctionTutorExpression, FunctionTutorStaticValue } from "../../an
 import type { FunctionTutorBuildModel } from "../codeFlow/functionTutor";
 import type { FunctionNarrativeContext, FunctionNarrativeValueFact, FunctionNarrativeSource, FunctionNarrativeCheckedExample, FunctionNarrativeFlowStep } from "../../shared/functionNarratives";
 import { collectFunctionNarrativeScope } from "./currentScope";
+import { createFunctionNarrativeIRWorksheet } from "./irWorksheet";
 
 /** Copies at most six source operations and three existing primitive checks within a 2,000-character budget. */
 export function addFunctionNarrativeValueGrounding(context: FunctionNarrativeContext,
@@ -134,6 +135,7 @@ export function addFunctionNarrativeValueGrounding(context: FunctionNarrativeCon
     next: node.next.map((edge) => { const inputCondition = node.step && edge.confidence === "exact" && booleanInputCondition(node.step, edge.outcome);
       return inputCondition ? { ...edge, inputCondition } : edge; }) })) };
   return { ...context, ...(declaration.returnTypeText ? { returnTypeText: declaration.returnTypeText } : {}),
+    sourceWorksheet: createFunctionNarrativeIRWorksheet(context, model),
     ...(sourceFlow ? { sourceFlow } : {}), ...(scenarioGraph ? { scenarioGraph } : {}), ...(facts.length ? { valueFacts: facts } : {}),
     ...(examples.length ? { checkedExamples: examples } : {}), ...(limited ? { groundingLimited: true } : {}) };
 }

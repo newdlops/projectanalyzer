@@ -62,7 +62,7 @@ export function buildFunctionNarrativeExplanationGuidance(language: "ko" | "en")
 /** Adds original one-based line labels to a copy; source excerpt ownership remains unchanged. */
 export function numberFunctionNarrativeContext(context: FunctionNarrativeContext): FunctionNarrativeContext {
   // Only this batch's routes belong in the prompt, never the entire Host plan.
-  const { scenarioGraph: _hostGraph, ...batch } = context;
+  const { scenarioGraph: _hostGraph, sourceWorksheet: _hostWorksheet, ...batch } = context;
   const cleanStep = ({ graphNodeId: _id, graphOccurrence: _visit, ...step }: NonNullable<FunctionNarrativeContext["sourceFlow"]>["paths"][number]["steps"][number]) => step;
   return { ...batch,
     ...(context.summaryTask ? { summaryTask: (({ sourceAlternative: _sourceProof, ...task }) => task)(context.summaryTask) } : {}),

@@ -59,6 +59,9 @@ export type FunctionNarrativeContext = {
   sourceFlow?: FunctionNarrativeSourceFlow;
   /** Host-owned compact CFG for complete, lazy scenario enumeration; never sent wholesale to a model. */
   scenarioGraph?: FunctionNarrativeScenarioGraph;
+  /** Host-only bounded source evaluator port; stripped before all external model prompts. */
+  sourceWorksheet?: { owns(context: FunctionNarrativeContext): boolean; trace(path: FunctionNarrativeFlowPath, inputs: FunctionNarrativeExample["inputs"] | undefined,
+    language: "ko" | "en", exclude?: FunctionNarrativeExample["inputs"]): FunctionNarrativeSourceTrace | undefined };
   /** Offset of the source-owned scenarios in this bounded request; fixed frames apply even to partial/inferred paths. */
   scenarioBatch?: { offset: number };
   /** Syntax-backed value operations and complete static checks, never model-derived facts. */
@@ -91,6 +94,10 @@ export type FunctionNarrativeContext = {
   /** True only when source excerpts were omitted or truncated. */
   limited: boolean;
 };
+
+/** Portable complete source calculation, without analyzer IDs or interpreter objects. */
+export type FunctionNarrativeSourceTrace = { inputs: FunctionNarrativeExample["inputs"]; steps: FunctionNarrativeStep[];
+  result: string; substitutions: string[] };
 
 /** One visible statement on a syntax route, with the choice made at its source predicate. */
 export type FunctionNarrativeFlowStep = {

@@ -1526,6 +1526,15 @@ Webview는 Project Graph, 파일 시스템, VS Code API에 직접 접근하지 �
   unknown 조건·다른 언어·symbolic loop pass는 그대로 보존한다. Host-only alternate path의
   graph identity는 외부 모델 prompt에 전달하지 않는다. UI는 모델·소스 해설/입력 예시와
   실제 실행 미검증을 표시하며, 전체 노드의 syntax/text/reason/effect/source/value는 보존한다.
+  0.0.1121은 Host-owned `sourceWorksheet` port로 기존 Tutor IR interpreter를 재사용한다.
+  TS/JS의 객체 속성·배열 읽기, 단독 객체 속성 변경, 소스로 resolution된 순수 helper가
+  complete exact 경로의 모든 구문·선택과 일치할 때만 같은 source synthesis를 적용한다.
+  입력 후보는 최대 128개·8개 parameter, 계산은 64 step·block당 1 visit·32 source operation,
+  값은 depth 4·128 frame·container당 8 item·JSON 240자로 제한한다. 잘라낸 값을 쓰지 않는다.
+  before/after 객체 전체, truthy 조건의 Boolean 결과, 원래 code·syntax와 operand 값을 보존한다.
+  shadowing/repeated declaration, const 재대입, alias member write, external effect, loop/exception,
+  helper source 누락·truncation, negative zero/non-finite 또는 완전한 반환·대안이 없으면 기존 모델
+  경로를 유지한다. evaluator port와 원래 IR·binding identity는 외부 prompt에 넣지 않는다.
   rich primary 응답의 `exampleInputs`는 `{name, value}`의 실제 JSON 값을 생성한다. 로컬
   adapter는 이를 기존 `{name, json}` 문자열 계약으로 인코딩하며 Boolean/null 경로 선택,
   입력 크기·깊이·유한 숫자·금지 key 검사와 Host의 source/route 검증은 유지한다. 소스 언어의

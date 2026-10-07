@@ -76,6 +76,14 @@ analysis. Labels say **Model/source reading** and **Input example**, and continu
 to state that execution is unverified. Existing layout, node kinds, source
 actions, paging, edited inputs and keyboard focus remain the visual contract.
 
+As of 0.0.1121, a Host-only port to the existing bounded Tutor interpreter also
+supports fully matched TS/JS objects, property updates, arrays and resolved pure
+helper calls. Keep full object before/after snapshots, Boolean predicate choices
+and each operation's syntax/text/reason/effect. Property writes describe the
+changed member and the object's resulting state, without implying replacement
+of the whole object. No new layout or visual language is introduced. Unproved
+effects, aliases, shadowing, loops and incomplete source retain model analysis.
+
 Acceptance: real local Kotlin and TypeScript responses include numerical/Boolean
 substitution, ordered calculation/effect and alternate-path explanation. Every
 reached source operation has a syntax explanation; repeated visits and partial

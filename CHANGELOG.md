@@ -4,6 +4,22 @@ All notable user-visible changes to Project Analyzer: Code Flow are recorded in
 this file. The changelog starts with the first distribution-documented build;
 earlier local development builds were not tracked here.
 
+## 0.0.1121 - 2026-10-08
+
+### Improved
+
+- Reuse the existing bounded Tutor interpreter for complete TypeScript and
+  JavaScript object/property, array and resolved pure-helper routes. Generate
+  one local model purpose while retaining ordered node syntax, concrete inputs,
+  every before/after value, the full return and a checked alternate example.
+- Preserve complete object snapshots for property writes and Boolean decisions
+  for truthy predicates. Keep shadowed declarations, immutable reassignment,
+  aliases, external effects, loops and incomplete source on the model pipeline.
+- Strip the snapshot-owned evaluator from every external prompt. Bound input
+  candidates, interpreter work and value trees; source edits invalidate proof.
+- Extend the real-model benchmark to objects, arrays, internal calls and symbolic
+  loop limits. The loop case still exposes existing model accuracy limits.
+
 ## 0.0.1120 - 2026-10-08
 
 ### Improved

@@ -42,11 +42,26 @@ const corpus = [
     expected: inputs => inputs.enabled ? Math.trunc(inputs.amount / 2) + 3 : 0 },
   { name: 'typescript-nested-scope', language: 'typescript', extension: 'ts', fallback: true,
     source: 'export function inspect(enabled: boolean, amount: number): number {\n    let adjusted = amount;\n    if (enabled) {\n        adjusted += 3;\n    }\n    return adjusted * 2;\n}',
-    expected: inputs => (inputs.amount + (inputs.enabled ? 3 : 0)) * 2 }
+    expected: inputs => (inputs.amount + (inputs.enabled ? 3 : 0)) * 2 },
+  { name: 'typescript-object-guard', language: 'typescript', extension: 'ts', complex: true,
+    source: 'export function inspect(payload: { enabled: boolean; amount: number }): number {\n    if (!payload.enabled) return 0;\n    let adjusted = payload.amount + 5;\n    adjusted *= 2;\n    return adjusted + 3;\n}',
+    expected: inputs => inputs.payload.enabled ? (inputs.payload.amount + 5) * 2 + 3 : 0 },
+  { name: 'typescript-member-write', language: 'typescript', extension: 'ts', complex: true,
+    source: 'export function inspect(payload: { amount: number }): number {\n    payload.amount += 3;\n    return payload.amount * 2;\n}',
+    expected: inputs => (inputs.payload.amount + 3) * 2 },
+  { name: 'typescript-pure-helper', language: 'typescript', extension: 'ts', complex: true,
+    source: 'function adjust(x: number, offset = 2): number {\n    let value = x + offset;\n    if (value > 10) return value * 2;\n    return value - 3;\n}\nexport function inspect(x: number): number {\n    const score = adjust(x);\n    return score + 1;\n}',
+    expected: inputs => inputs.x + 2 > 10 ? (inputs.x + 2) * 2 + 1 : inputs.x },
+  { name: 'typescript-array-read', language: 'typescript', extension: 'ts', complex: true,
+    source: 'export function inspect(values: number[]): number {\n    if (values.length === 0) return 0;\n    return values[0] + 3;\n}',
+    expected: inputs => inputs.values.length ? inputs.values[0] + 3 : 0 },
+  { name: 'typescript-loop-gap', language: 'typescript', extension: 'ts', complex: true, gaps: true,
+    source: 'export function inspect(payload: { amount: number }): number {\n    while (payload.amount < 3) {\n        payload.amount += 1;\n    }\n    return payload.amount;\n}',
+    expected: inputs => Math.max(inputs.payload.amount, 3) }
 ];
 const only = process.argv[4] && process.argv[4] !== '-' ? process.argv[4] : undefined;
 const outputDirectory = await fs.promises.mkdtemp(path.join(tmpdir(), 'fn-benchmark-'));
-const modelPath = process.argv[5] || path.join(repo, '.local-models/Qwen3.5-4B-Q4_K_M.gguf');
+const modelPath = process.argv[5] && process.argv[5] !== '-' ? process.argv[5] : path.join(repo, '.local-models/Qwen3.5-4B-Q4_K_M.gguf');
 const binaryPath = await require(repo + '/out/vscode/functionNarrativeSetup/localBinary').resolveLocalBinary(process.argv[6] || '');
 const fullRun = process.argv[7] === 'full-run';
 console.log(JSON.stringify({ outputDirectory, tag, runtime, fullRun, model: path.basename(modelPath), note: 'Public fixed-formula corpus and a narrow causal-language check, not a general accuracy guarantee.' }));
@@ -54,9 +69,10 @@ console.log(JSON.stringify({ outputDirectory, tag, runtime, fullRun, model: path
 async function contextFor(fixture) {
   const lines = fixture.source.split('\n');
   const filePath = '/qa/' + fixture.name + '.' + fixture.extension;
+  const startLine = Math.max(0, lines.findIndex(line => /(?:fun|function)\s+inspect\b/.test(line)));
   const node = { id: 'benchmark:' + fixture.name, name: 'inspect', qualifiedName: 'inspect', kind: 'function', language: fixture.language, filePath,
-    range: { startLine: 0, startCharacter: 0, endLine: lines.length - 1, endCharacter: lines.at(-1).length },
-    selectionRange: { startLine: 0, startCharacter: 4, endLine: 0, endCharacter: 11 } };
+    range: { startLine, startCharacter: 0, endLine: lines.length - 1, endCharacter: lines.at(-1).length },
+    selectionRange: { startLine, startCharacter: 4, endLine: startLine, endCharacter: 11 } };
   const logic = analyzeFunctionLogic({ functionNode: node, sourceText: fixture.source });
   const declaration = analyzeFunctionTutorDeclaration({ functionNode: node, sourceText: fixture.source, functionLogic: logic });
   const graph = { workspaceRoot: '/qa', version: fixture.name, generatedAt: '2026-10-07T00:00:00.000Z', nodes: [node], edges: [], diagnostics: [],
@@ -80,7 +96,7 @@ function score(fixture, pages, context) {
   for (const page of pages) for (const scenario of page.narrative.scenarios) {
     scenarios++;
     const inputs = Object.fromEntries(scenario.example.inputs.map(input => [input.name, JSON.parse(input.json)]));
-    const expected = fixture.expected(inputs);
+    const expected = fixture.expected(inputs, scenario);
     let result; try { result = JSON.parse(scenario.example.result); } catch {}
     if (result === expected) correctResults++;
     else failures.push({ kind: 'result', scenario: scenarios, expected, actual: scenario.example.result });
@@ -94,7 +110,7 @@ function score(fixture, pages, context) {
     }
     // This public corpus contains complete primitive expressions and no external
     // dependencies; fabricated prerequisites are a quality failure, not a gap.
-    if (scenario.assumptions.length || page.narrative.limitations.length) failures.push({ kind: 'unsupported-prerequisites', scenario: scenarios,
+    if (!fixture.gaps && (scenario.assumptions.length || page.narrative.limitations.length)) failures.push({ kind: 'unsupported-prerequisites', scenario: scenarios,
       assumptions: scenario.assumptions, limitations: page.narrative.limitations });
     for (const detail of scenario.nodeDetails) if (kinds.get(detail.nodeId) === 'return') {
       const binding = /^return\s+([\p{L}_$][\p{L}\p{N}_$]*)\s*;?$/u.exec(detail.code)?.[1];
@@ -157,9 +173,9 @@ function score(fixture, pages, context) {
 
 (async () => {
   const records = [];
-  for (const fixture of corpus.filter(item => only === 'release' ? true : only === 'all' ? !item.stress && !item.fallback : only === 'stress' ? item.stress
+  for (const fixture of corpus.filter(item => only === 'release' ? !item.complex : only === 'complex' ? item.complex : only === 'complex-supported' ? item.complex && !item.gaps : only === 'all' ? !item.stress && !item.fallback && !item.complex : only === 'stress' ? item.stress
     : only === 'fallback' ? item.fallback : only === 'extended' ? item.extended
-      : only ? item.name === only : !item.extended && !item.stress && !item.fallback)) {
+      : only ? item.name === only : !item.extended && !item.stress && !item.fallback && !item.complex)) {
     const context = await contextFor(fixture);
     if (process.argv[8] === 'context-only') {
       const batch = new application.FunctionNarrativeScenarioRun(context).nextBatch();

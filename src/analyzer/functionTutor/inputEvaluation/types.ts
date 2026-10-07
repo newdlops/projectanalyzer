@@ -1,6 +1,16 @@
 /** Input-quality evidence records describe only the supported static execution prefix. */
 import type { FunctionTutorStaticValue } from "../types";
 
+/** Source worksheets observe the existing interpreter, never reimplement its execution semantics. */
+export type FunctionTutorBlockObservation = {
+  blockId: string;
+  /** Shallow maps own this visit; static object writes create new immutable value trees. */
+  before: ReadonlyMap<string, FunctionTutorStaticValue>;
+  after: ReadonlyMap<string, FunctionTutorStaticValue>;
+  decision?: FunctionTutorStaticValue;
+  terminal?: FunctionTutorStaticValue;
+};
+
 /** A concrete input may prove a prefix without proving later external behavior. */
 export type FunctionTutorInputEvaluation = {
   status: "verified" | "partial";
