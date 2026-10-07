@@ -87,6 +87,38 @@ export function hasCompletePrimitiveWorksheet(context: FunctionNarrativeContext)
   } catch { return false; }
 }
 
+/** Reuses complete, matching source evidence for the two factual summary fields; free explanation/alternative stay model-written. */
+export function getPrimitiveWorksheetAnalysis(context: FunctionNarrativeContext, language: "ko" | "en"):
+  { pathReason: string; stateChange: string; sourceSequence: string[] } | undefined {
+  if (!hasCompletePrimitiveWorksheet(context) || context.summaryTask!.omittedValues) return undefined;
+  const path = context.sourceFlow!.paths[0], completed = context.summaryTask!.completed;
+  const trace = tracePrimitiveRoute(context, path, new Map(context.summaryTask!.inputs.map(input => [input.name, JSON.parse(input.json)])), language)!;
+  if (completed.length !== path.steps.length) return undefined;
+  for (let index = 0; index < completed.length; index++) {
+    if (completed[index].code !== path.steps[index].code) return undefined;
+    for (const value of trace.steps[index].values ?? []) {
+      const actual = completed[index].values?.find(candidate => candidate.name === value.name);
+      if (actual?.before !== value.before) return undefined;
+      try { if (JSON.stringify(JSON.parse(actual.after)) !== value.after) return undefined; }
+      catch { return undefined; }
+    }
+  }
+  const ko = language === "ko";
+  const choices = path.steps.flatMap((step, index) => step.kind === "condition"
+    ? [`${step.loweredPredicate ?? step.code} (${trace.substitutions[index]}) = ${trace.steps[index].values![0].after}`] : []);
+  const writes = path.steps.flatMap((step, index) => step.kind === "mutation"
+    ? trace.steps[index].values!.map(value => `${value.name}: ${value.before} → ${value.after}`) : []);
+  const result = trace.result;
+  const pathReason = choices.length ? ko ? `조건 판단: ${choices.join("; ")}. 이 선택을 따라 해당 반환문에 도달합니다.`
+    : `Predicate decisions: ${choices.join("; ")}. These choices reach the selected return.`
+    : ko ? "조건 분기 없이 소스 순서의 계산을 마친 뒤 반환문에 도달합니다." : "Source operations reach the return without a conditional branch.";
+  const stateChange = ko ? `${writes.length ? "지역 값: " + writes.join("; ") : "지역 값 변경 없음"}. 반환: ${result}.`
+    : `${writes.length ? "Local state: " + writes.join("; ") : "No local state changes"}. Return: ${result}.`;
+  // Never shorten facts to fit: a long/uncertain trace retains its original LLM fields.
+  return pathReason.length <= 220 && stateChange.length <= 220 ? { pathReason, stateChange,
+    sourceSequence: trace.steps.map(step => `${step.code}: ${step.reason} ${step.effect}`) } : undefined;
+}
+
 /** Independent capability guard shared by preparation, focused reads and final-summary evidence checks. */
 function supportedContext(context: FunctionNarrativeContext): boolean {
   if (context.callTask || context.detailLevel !== "rich" || !["kotlin", "typescript", "javascript"].includes(context.language)

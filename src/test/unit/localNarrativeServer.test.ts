@@ -41,7 +41,7 @@ test("one authenticated private server serves consecutive chunks then releases i
     const started = (await readFile(join(f.directory, "started"), "utf8")).trim().split("\n").map(line => JSON.parse(line));
     assert.equal(started.length, 1); assert.deepEqual((await readFile(join(f.directory, "requests"), "utf8")).trim().split("\n"), [String(started[0].pid), String(started[0].pid)]);
     assert.doesNotMatch(JSON.stringify(started[0].args), /fun describe|JSON schema|English code-reading/);
-    assert.equal(started[0].args[started[0].args.indexOf('--spec-type')+1], 'ngram-map-k');
+    assert.equal(started[0].args[started[0].args.indexOf('--spec-type')+1], 'none');
     assert.equal(started[0].args[started[0].args.indexOf('--cache-ram')+1], '256');
     assert.equal(metrics.length, 2); await manager.dispose();
     assert.throws(() => process.kill(started[0].pid, 0), { code: "ESRCH" }); await assert.rejects(access(started[0].keyPath), { code: "ENOENT" });

@@ -1,14 +1,18 @@
 /** Model-only route worksheets distinguish reaching a statement from the Boolean decision it makes. */
 import type { FunctionNarrativeContext, FunctionNarrativeFlowStep } from "../../shared/functionNarratives";
-import { getFunctionNarrativeExampleConstraints, numberFunctionNarrativeContext } from "../../application/functionNarratives";
+import { getFunctionNarrativeExampleConstraints, getPrimitiveWorksheetAnalysis, numberFunctionNarrativeContext } from "../../application/functionNarratives";
 
 /** Host context and validators retain the complete route; the model gets bounded current-operation evidence. */
-export function buildLocalNarrativeInput(context: FunctionNarrativeContext): Record<string, unknown> {
+export function buildLocalNarrativeInput(context: FunctionNarrativeContext, language: "ko" | "en" = "en"): Record<string, unknown> {
   const numbered = numberFunctionNarrativeContext(context) as Record<string, any>;
   const paths = context.sourceFlow?.paths ?? [];
   if (context.summaryTask) numbered.summaryTask = { inputs: context.summaryTask.inputs.map(input => ({ name: input.name, value: JSON.parse(input.json) })),
+    ...(context.summaryTask.knownFunctionSummary ? { knownFunctionSummary: context.summaryTask.knownFunctionSummary } : {}),
     ...(context.summaryTask.resultJson !== undefined ? { resultValue: JSON.parse(context.summaryTask.resultJson) } : {}),
-    completed: context.summaryTask.completed, omittedValues: context.summaryTask.omittedValues };
+    completed: context.summaryTask.completed, omittedValues: context.summaryTask.omittedValues,
+    // The wire omits fixed output fields. Keep their independently matched source
+    // facts visible as task data so free prose can use the same concrete trace.
+    sourceVerifiedAnalysis: getPrimitiveWorksheetAnalysis(context, language) };
   const clean = (step: FunctionNarrativeFlowStep, index: number) => ({ ordinal: index + 1, kind: step.kind, code: step.code,
     reachedOnSelectedSourceRoute: true, ...(step.loweredPredicate ? { loweredPredicate: step.loweredPredicate } : {}),
     ...(step.writeTargets?.length ? { writeTargets: step.writeTargets } : {}),

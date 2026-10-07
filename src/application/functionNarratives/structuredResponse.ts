@@ -107,7 +107,8 @@ export function parseFunctionNarrative(text: string, context: FunctionNarrativeC
     const task = context.summaryTask, scenario = parsed.scenarios[0];
     // Final synthesis may write prose, but it cannot replace the original
     // inputs, completed evidence or a result already produced at the terminal.
-    if (parsed.scenarios.length !== 1 || !scenario.example || scenario.example.inputs.length !== task.inputs.length
+    if (task.knownFunctionSummary !== undefined && parsed.summary !== task.knownFunctionSummary
+      || parsed.scenarios.length !== 1 || !scenario.example || scenario.example.inputs.length !== task.inputs.length
       || scenario.example.inputs.some((input, index) => input.name !== task.inputs[index].name
         || JSON.stringify(JSON.parse(input.json)) !== JSON.stringify(JSON.parse(task.inputs[index].json)))
       || task.resultJson !== undefined && scenario.example.result !== task.resultJson

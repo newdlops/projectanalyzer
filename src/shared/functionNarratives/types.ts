@@ -82,6 +82,8 @@ export type FunctionNarrativeContext = {
     reading?: { explanation: string; priorState: Array<{ name: string; value: string }> } };
   /** Internal final synthesis uses completed node values; speculative primary prose is never carried forward. */
   summaryTask?: { inputs: FunctionNarrativeExample["inputs"]; steps: FunctionNarrativeStep[];
+    /** Validated purpose from this same source snapshot/locale, never provisional preparation text. */
+    knownFunctionSummary?: string;
     resultJson?: string; completed: Array<{ code: string; predicateResult?: string; values: FunctionNarrativeStep["values"] }>;
     omittedValues: number };
   /** True only when source excerpts were omitted or truncated. */

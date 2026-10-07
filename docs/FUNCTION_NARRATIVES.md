@@ -99,9 +99,10 @@ cache prefix가 같아도 backend batch 방식에 따라 logits의 bit 단위 �
 0.0.1118의 `localAcceleration.detectLocalNarrativeAcceleration`은 첫 실제 추론에서 실행기의
 `--help`를 5초·128 KiB로 제한해 확인한다. 광고한 옵션이 모두 있을 때만 checkpoint 8개,
 최소 간격 64 token, prompt RAM cache 256 MiB를 사용한다. checkpoint 개수와 RAM cache는
-별도 한도이며 256 MiB가 모델 전체 메모리 상한이라는 뜻은 아니다. 측정한 Qwen3.5 모델에만
-target model이 검증하는 `ngram-map-k`(lookup 4·draft 8)를 적용하며 별도 draft 가중치는
-받지 않는다. 기존 모델·sampling·JSON schema·상세 필드·context/output/thread 상한을 유지한다.
+별도 한도이며 256 MiB가 모델 전체 메모리 상한이라는 뜻은 아니다. 0.0.1118에서는
+target model이 검증하는 `ngram-map-k`(lookup 4·draft 8)를 사용했으나, 0.0.1119에서는
+짧은 JSON 응답의 recurrent state 복사 비용을 측정해 광고된 `--spec-type none`으로 끈다.
+별도 draft 가중치는 받지 않는다. 기존 모델·sampling·상세 필드·context/output/thread 상한을 유지한다.
 오래된 실행기나 probe 실패는 해당 선택 옵션 없이 동작한다.
 
 `application/functionNarratives/primitiveWorksheet.buildPrimitiveWorksheetResponse(context, language)`는
@@ -124,6 +125,78 @@ loop/exception transfer, inferred/partial/truncated evidence, 긴 식과 알 수
 완전한 source trace를 독립적으로 읽으므로 `groundingLimited`가 bounded IR fact 선택만을
 뜻하는 경우에도 사용할 수 있다. source excerpt의 누락·truncation과 inferred/partial 경로는
 계속 거부한다.
+
+0.0.1119의 `getPrimitiveWorksheetAnalysis(context, language)`는 summary의 완료된 code·값을
+전체 source trace와 다시 비교한다. 누락된 값이 없고 전부 일치할 때만 기존 **경로를 선택한 이유**와
+**상태와 효과**를 concrete 조건 대입·모든 지역 before/after·반환값으로 구성한다.
+220자를 넘는 근거는 자르지 않고 모델이 기존 필드를 작성한다. 고정 근거는 출력 grammar에서
+반복 생성하지 않지만 현재 summary task의 `sourceVerifiedAnalysis`에도 넣어 최종 문단이
+같은 판단과 계산을 읽게 한다. 실제 실행을 관찰한 값은 아니다.
+같은 source snapshot·언어의 검증된 함수 목적 요약 240자 하나를 다음 시나리오에서 재사용하고,
+초기 준비 문구는 저장하지 않는다. 각 시나리오의 상세 문단·대안은 계속 모델이 새로 작성한다.
+기존 노드 구문·동작·근거·효과·인용을 모두 유지하며 화면 배치도 유지한다.
+
+### 0.0.1119 처리 시간과 품질 확인
+
+동일 Qwen3.5-4B Q4_K_M·seed 42·temperature 0.2·context/output/thread 한도에서
+production parser·grounding·session을 실행했다. 공개 기본·stress·fallback 12개 함수의
+30개 시나리오 반환값과 174개 노드가 완료됐고, 구문/동작/근거/효과와 좁은 causal-language
+점수는 통과했다. 모든 실행 후 소유한 model process가 종료됐다.
+
+| 공개 함수 | 0.0.1119 최종 관측 | 실제 모델 요청 | 반환 / 노드 |
+| --- | ---: | ---: | --- |
+| Kotlin guard | 16.13초 | 2 | 2/2 · 9/9 |
+| TypeScript 연속 대입 | 14.25초 | 2 | 2/2 · 10/10 |
+| Kotlin 숫자 Elvis | 13.09초 | 2 | 2/2 · 10/10 |
+| Kotlin mutable 계산 | 15.77초 | 2 | 2/2 · 10/10 |
+| Kotlin 숫자 분기 | 11.37초 | 2 | 2/2 · 8/8 |
+| Kotlin Boolean 반환 | 13.78초 | 2 | 2/2 · 8/8 |
+| Kotlin 두 guard | 27.18초 | 3 | 3/3 · 14/14 |
+| TypeScript 긴 연속 계산 | 12.44초 | 1 | 1/1 · 7/7 |
+| Kotlin 문자열 Elvis | 13.15초 | 2 | 2/2 · 10/10 |
+| TypeScript 독립 guard 3개·8경로 | 53.95초 | 8 | 8/8 · 68/68 |
+| Kotlin integer division, 모델 fallback | 22.57초 | 4 | 2/2 · 9/9 |
+| TypeScript nested scope, 모델 fallback | 48.60초 | 6 | 2/2 · 11/11 |
+
+8경로 함수의 생성 token은 0.0.1118의 1,673에서 1,038로 약 38% 감소했고,
+이전 73.87초 대비 최종 53.95초였다. 노드 해설 5,780자와 20개 대입 검사는 그대로다.
+중간 동일-output-token A/B에서는 n-gram 켬 62.68초·끔 51.25초였지만 PC 부하가
+달라 모든 함수의 시간 개선을 보장하지 않는다. 최종 기본 함수 일부는 이전 관측보다 느렸으며,
+전체 처리 시간을 극단적으로 줄였다고 선언할 근거는 아직 부족하다.
+
+수치·구조 점수는 자유 문장 전체의 의미 검증이 아니다. 실제 문단 수동 검토에서
+guard의 “본문”을 모호하게 지칭하거나 다른 입력의 반환을 잘못 설명한 사례가 남았다.
+현재 경로의 독립 source fact와 원본 노드 해설을 보존하지만, 모델 문단·대안의 의미 정확도는
+완료 기준을 아직 충족하지 않는다. 이를 성공한 품질 검사로 합산하지 않는다.
+fallback 함수의 숫자 반환 검증도 임의의 호출·loop·exception 정확도를 증명하지 않는다.
+
+재현은 compile 후 `node scripts/benchmark-function-narratives.mjs - candidate release MODEL RUNNER full-run`.
+`all`·`stress`·`fallback` 또는 개별 fixture selector로 범위를 줄일 수 있다.
+전체 회귀 1,063개 중 1,059개와 패키징 15개가 통과했고, 기존 Function Guide 3개와
+source-reveal architecture 1개 실패가 동일하게 남았다. 새 의존성과 Rust 변경은 없다.
+VSIX는 508파일·3.63 MiB이며 기존 파일 한도와 runtime closure 검사를 통과했다.
+
+실제 UI는 사전에 설치된 공식 VS Code 1.115.0을 별도 임시 user-data/extensions 경로로
+실행해 검사했다. 0.0.1119 VSIX 설치·Reload Window 후 plaintext로 열린 `GraphNotes.kt`의
+Kotlin 커서를 현재 함수 시각화 명령으로 분석하고, **전체 시나리오 분석**을 직접 눌렀다.
+완료 상태, 0/15 반환, 다음 페이지의 snapshot 재사용 표시, `val` 구문·`10 + 5 = 15` 근거·
+선언 전→15 값 표와 L4 소스 선택/번호 표시를 확인했다. 페이지·노드·소스 이동 뒤 이력은
+source-free 준비 1회(0.0초), 추론 2회(9.9초·4.1초) 그대로였으며 대기 작업은 0개였다.
+모델 프로세스가 남지 않았고 검사 후 이 별도 Code 인스턴스도 종료했다.
+
+실제 native 창 1440×900과 769×1025에서 초기·생성 후·상세/소스 상태를 봤다.
+좁은 창은 Explorer를 포함하므로 Webview 폭은 약 421px이며, Guide가 canvas 앞에 쌓이고
+긴 구문 설명이 줄바꿈됐다. 내부 스크롤로 값 표와 소스 버튼에 도달했다. 390×844의 정확한
+browser viewport, 터치, 다른 theme/언어, 전체 접근성 적합성은 이번에 검사하지 않았다.
+기존 색상 토큰·native 버튼·노드 종류 표시는 유지했다. Impeccable detector는 변경 session과
+graph styles에서 새 finding 0개였으며 기존 semantic side-tab의 파일 한정 예외를 유지하고
+새 ignore는 추가하지 않았다. 화면에 표시되는 자유 문장의 의미 문제는 위 제한으로 남겼다.
+
+Default와 Function Language QA 1107은 모두 0.0.1119로 등록됐고 설치된 JS 474개·native
+binary가 패키지와 일치했다. runtime closure/mismatch는 0개다. QA의 자동 모델 준비 설정과
+Default의 기존 모델 설정을 유지했다. 설치본 cursor/native graph/Host replay도 실제 모델로
+16.77초에 두 경로와 9개 노드, 실제 추론 2회, cache-only 페이지·소스 이동을 확인했다.
+이미 실행 중이던 사용자의 Code 창에는 재시작을 강제하지 않았다.
 
 ### 0.0.1118 처리 시간과 품질 확인
 

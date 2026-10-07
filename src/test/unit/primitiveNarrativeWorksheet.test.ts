@@ -4,8 +4,9 @@ import test from "node:test";
 import { analyzeFunctionLogic } from "../../analyzer/functionLogic";
 import { bindFunctionNarrativeGraph, buildFunctionNarrativeContext, buildPrimitiveWorksheetResponse, FunctionNarrativeScenarioRun,
   parseFunctionNarrative, initializeFunctionNarrativeNodes, createFunctionNarrativeNodeTask, appendFunctionNarrativeNodes,
-  createFunctionNarrativeSummaryTask, hasCompletePrimitiveWorksheet } from "../../application/functionNarratives";
+  createFunctionNarrativeSummaryTask, hasCompletePrimitiveWorksheet, getPrimitiveWorksheetAnalysis } from "../../application/functionNarratives";
 import { createLocalNarrativeSchema } from "../../llm/functionNarratives/responseSchema";
+import { buildLocalNarrativeInput } from "../../llm/functionNarratives/localInput";
 import { readPrimitiveExpression } from "../../application/functionNarratives/primitiveWorksheet/expression";
 import type { SymbolNode } from "../../shared/types";
 
@@ -105,9 +106,20 @@ test("nullable Kotlin string Elvis retains the selected operand and return as JS
     assert.equal(JSON.parse(scenario.nodeDetails!.at(-1)!.values![0].after), label ?? "guest");
     const summary = createFunctionNarrativeSummaryTask(batch, path, scenario);
     assert.equal(hasCompletePrimitiveWorksheet(summary), true);
+    const factualAnalysis = getPrimitiveWorksheetAnalysis(summary, "ko");
+    assert.ok(factualAnalysis); assert.match(factualAnalysis.pathReason, /조건 판단/u);
+    assert.match(factualAnalysis.stateChange, /adjusted|반환/u);
+    assert.deepEqual((buildLocalNarrativeInput(summary, "ko").summaryTask as any).sourceVerifiedAnalysis, factualAnalysis);
     const schema = createLocalNarrativeSchema(summary, "ko") as any;
     assert.deepEqual(schema.properties.limitations.const, []);
     assert.deepEqual(schema.properties.scenarios.items[0].properties.assumptions.const, []);
+    assert.equal(schema.properties.scenarios.items[0].properties.analysis.properties.pathReason.const, factualAnalysis.pathReason);
+    const incorrect = structuredClone(summary);
+    incorrect.summaryTask!.completed[0].values![0].after = "wrong";
+    assert.equal(getPrimitiveWorksheetAnalysis(incorrect, "ko"), undefined, "contradictory evidence stays model-owned");
+    const wrongBefore = structuredClone(summary);
+    wrongBefore.summaryTask!.completed[0].values![0].before = "999";
+    assert.equal(getPrimitiveWorksheetAnalysis(wrongBefore, "ko"), undefined, "conflicting preceding state keeps model fields");
     assert.equal(hasCompletePrimitiveWorksheet({ ...summary, summaryTask: { ...summary.summaryTask!, resultJson: '"wrong"' } }), false);
     assert.match(scenario.nodeDetails![0].syntax!, /Elvis/u); count++; run.commitBatch();
   }

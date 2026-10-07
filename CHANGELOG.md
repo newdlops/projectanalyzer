@@ -4,6 +4,23 @@ All notable user-visible changes to Project Analyzer: Code Flow are recorded in
 this file. The changelog starts with the first distribution-documented build;
 earlier local development builds were not tracked here.
 
+## 0.0.1119 - 2026-10-08
+
+### Improved
+
+- Reuse the validated model purpose within the same function snapshot and
+  language. Keep each scenario's detailed paragraph and alternative model-written.
+- Supply complete, matching primitive route decisions and before/after state
+  directly as final analysis facts, including concrete predicate substitutions.
+  Preserve every node detail; long or uncertain traces retain model generation.
+- Disable speculative n-gram decoding after measuring its recurrent-state
+  overhead on short JSON prose. Retain bounded source checkpoints and existing
+  model, sampling, context, output and thread limits.
+- Give final prose the matched source facts and distinguish a true early-return
+  guard from a false guard that continues to the next source operation.
+- Extend the public benchmark to integer division and nested scopes that use
+  the original LLM pipeline, and check true guards incorrectly described as skipped.
+
 ## 0.0.1118 - 2026-10-07
 
 ### Improved

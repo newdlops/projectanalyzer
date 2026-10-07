@@ -11,6 +11,8 @@ export class FunctionNarrativeScenarioSession {
   private readonly pages: Array<{ modelName: string; offset: number }> = [];
   /** Small source-node → first saved page index; prose stays on disk. */
   private readonly nodePages = new Map<string, number>();
+  /** One bounded model purpose can be reused across this snapshot's paths; full prose still stays on disk. */
+  private purpose?: { language: "ko" | "en"; text: string };
   /** One bounded unfinished page retains validated primary/node work across cancellation or failure. */
   private pending?: { batch: FunctionNarrativeContext; narrative: FunctionNarrative; modelName: string; scenarioIndex: number;
     finalSummary: boolean; summarized: Set<number> };
@@ -64,6 +66,7 @@ export class FunctionNarrativeScenarioSession {
       }
       if (path && pending.finalSummary && !pending.summarized.has(pending.scenarioIndex)) {
         const summaryTask = createFunctionNarrativeSummaryTask(batch, path, scenario);
+        if (this.purpose?.language === language) summaryTask.summaryTask!.knownFunctionSummary = this.purpose.text;
         const response = await provider.generate(summaryTask, language, signal, { reselectModel: false });
         if (signal.aborted) throw new FunctionNarrativeError("cancelled");
         const completed = parseFunctionNarrative(response.text, summaryTask, language);
@@ -71,6 +74,7 @@ export class FunctionNarrativeScenarioSession {
         // completed node work private and resumes this exact stage next time.
         Object.assign(scenario, completed.scenarios[0], { nodeDetails: scenario.nodeDetails, graph: scenario.graph });
         pending.narrative.summary = completed.summary; pending.narrative.limitations = completed.limitations;
+        if (completed.summary.length <= 240) this.purpose = { language, text: completed.summary };
         pending.modelName = response.modelName; pending.summarized.add(pending.scenarioIndex);
       }
       if (path) finalizeFunctionNarrativeNodes(batch, path, scenario, pending.narrative.summary);
@@ -100,5 +104,5 @@ export class FunctionNarrativeScenarioSession {
     const index = this.nodePages.get(nodeId);
     return index === undefined ? Promise.resolve(undefined) : this.readPage(index);
   }
-  public dispose(): Promise<void> { this.pending = undefined; this.nodePages.clear(); return this.store.dispose(); }
+  public dispose(): Promise<void> { this.pending = undefined; this.purpose = undefined; this.nodePages.clear(); return this.store.dispose(); }
 }

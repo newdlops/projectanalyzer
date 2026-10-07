@@ -1,7 +1,7 @@
 /** A small constrained JSON grammar guides local generation; Host validation still verifies snippet ownership. */
 import type { FunctionNarrativeContext, FunctionNarrativeFlowStep } from "../../shared/functionNarratives";
 import { createFunctionCallNarrativeSchema } from "../../shared/functionCallNarratives";
-import { buildFunctionNarrativeScenarioFrames, getFunctionNarrativeExampleConstraints, hasCompletePrimitiveWorksheet } from "../../application/functionNarratives";
+import { buildFunctionNarrativeScenarioFrames, getFunctionNarrativeExampleConstraints, hasCompletePrimitiveWorksheet, getPrimitiveWorksheetAnalysis } from "../../application/functionNarratives";
 
 export function createLocalNarrativeSchema(context: FunctionNarrativeContext, language: "ko" | "en" = "en"): Record<string, unknown> {
   if (context.callTask) return createFunctionCallNarrativeSchema(context.callTask, language);
@@ -16,6 +16,7 @@ export function createLocalNarrativeSchema(context: FunctionNarrativeContext, la
   const batched = context.scenarioBatch !== undefined;
   const rich = context.detailLevel === "rich";
   const closedPrimitive = Boolean(context.summaryTask && (hasCompletePrimitiveWorksheet(context) || isClosedPrimitiveRoute()));
+  const groundedAnalysis = context.summaryTask && getPrimitiveWorksheetAnalysis(context, language);
   // Intermediate values belong to ordered node work, after earlier state exists.
   const withValues = Boolean(context.parameters && (!rich || context.nodeTask));
   const prose = description(rich ? 160 : batched ? context.parameters ? 80 : 120 : 600);
@@ -41,7 +42,8 @@ export function createLocalNarrativeSchema(context: FunctionNarrativeContext, la
   // the original scenario/example; repeating it here wastes tokens and drifts.
   if (rich && targetedSteps) return { type: "object", additionalProperties: false, required: ["steps"], properties: { steps: targetedSteps } };
   const analysis = { type: "object", additionalProperties: false, required: ["pathReason", "stateChange", "alternative"],
-    properties: { pathReason: description(220), stateChange: description(220), alternative: description(220) } };
+    properties: { pathReason: groundedAnalysis ? { const: groundedAnalysis.pathReason } : description(220),
+      stateChange: groundedAnalysis ? { const: groundedAnalysis.stateChange } : description(220), alternative: description(220) } };
   const example = context.nodeTask ? { const: context.nodeTask.example } : { type: "object", additionalProperties: false, required: ["inputs", "result"], properties: {
     inputs: { type: "array", minItems: context.parameters?.length ?? 0, maxItems: context.parameters?.length ?? 0,
       ...(context.parameters?.length ? { items: context.parameters.map((parameter) => ({ type: "object", additionalProperties: false, required: ["name", rich ? "value" : "json"],
@@ -63,6 +65,8 @@ export function createLocalNarrativeSchema(context: FunctionNarrativeContext, la
   // terminal and source citations; free prose cannot substitute another route.
   const scenarios = frames.length ? { type: "array", minItems: frames.length, maxItems: frames.length, items: frames.map((frame, index) => ({
     ...scenario, properties: orderedProperties({ ...scenario.properties, when: { const: frame.when }, outcome: { const: frame.outcome },
+      // The Host replaces this model title with the source frame's title after validation.
+      ...(context.summaryTask ? { title: { const: language === "ko" ? "소스 시나리오" : "Source scenario" } } : {}),
       ...(context.nodePreparation ? { title: { const: language === "ko" ? "노드 해설 준비" : "Preparing node readings" },
         explanation: { const: language === "ko" ? "소스 노드를 순서대로 읽고 있습니다." : "Source nodes are being read in order." },
         analysis: { const: { pathReason: language === "ko" ? "소스 노드 해설을 준비합니다." : "Preparing source node readings.",
@@ -79,7 +83,8 @@ export function createLocalNarrativeSchema(context: FunctionNarrativeContext, la
   })) } : { type: "array", minItems: 1, maxItems: 3, items: scenario };
   return { type: "object", additionalProperties: false, required: ["summary", "scenarios", "limitations"], properties: {
     scenarios, summary: context.nodePreparation ? { const: language === "ko" ? "소스 노드를 순서대로 읽고 있습니다." : "Source nodes are being read in order." }
-      : description(rich ? 240 : batched ? context.parameters ? 160 : 240 : 1200),
+      : context.summaryTask?.knownFunctionSummary ? { const: context.summaryTask.knownFunctionSummary }
+        : description(rich ? 240 : batched ? context.parameters ? 160 : 240 : 1200),
     limitations: context.nodePreparation || closedPrimitive ? { const: [] } : { ...facts, maxItems: batched ? 2 : 6 }
   } };
 

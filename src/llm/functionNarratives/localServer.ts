@@ -95,7 +95,7 @@ export class LocalNarrativeServer implements ModelTaskResource {
   /** Source-free loading is bounded by the caller's execution deadline, never started during activation. */
   private async start(signal: AbortSignal): Promise<void> {
     if (signal.aborted) throw new FunctionNarrativeError("cancelled");
-    const acceleration = this.acceleration ?? await detectLocalNarrativeAcceleration(this.options.binaryPath, this.options.modelPath, signal);
+    const acceleration = this.acceleration ?? await detectLocalNarrativeAcceleration(this.options.binaryPath, signal);
     if (signal.aborted) throw new FunctionNarrativeError("cancelled");
     this.acceleration ??= acceleration;
     // Short names also fit macOS's small Unix-socket path limit under tmpdir().

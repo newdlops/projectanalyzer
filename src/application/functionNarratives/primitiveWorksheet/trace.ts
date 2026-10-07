@@ -2,14 +2,16 @@
 import type { FunctionNarrativeContext, FunctionNarrativeFlowPath, FunctionNarrativeStep } from "../../../shared/functionNarratives";
 import { readPrimitiveExpression, type Primitive } from "./expression";
 
-export type PrimitiveTrace = { inputs: Array<{ name: string; json: string }>; steps: FunctionNarrativeStep[]; result: string };
+export type PrimitiveTrace = { inputs: Array<{ name: string; json: string }>; steps: FunctionNarrativeStep[]; result: string;
+  /** Source-ordered operand substitutions keep summary reasons concrete without reparsing prose. */
+  substitutions: string[] };
 
 /** Only closed primitive paths with unique source occurrences can produce a complete trace; any gap rejects the whole worksheet. */
 export function tracePrimitiveRoute(context: FunctionNarrativeContext, path: FunctionNarrativeFlowPath,
   inputs: ReadonlyMap<string, Primitive>, language: "ko" | "en"): PrimitiveTrace | undefined {
   const integer = context.language === "kotlin", ko = language === "ko";
   if (path.confidence !== "exact" || path.status !== "source-terminal" || path.steps.length > 32) return undefined;
-  const state = new Map(inputs), steps: FunctionNarrativeStep[] = [], visited = new Set<string>();
+  const state = new Map(inputs), steps: FunctionNarrativeStep[] = [], visited = new Set<string>(), substitutions: string[] = [];
   const immutable = new Set(context.language === "kotlin" ? inputs.keys() : []);
   let result: string | undefined;
   for (let index = 0; index < path.steps.length; index++) {
@@ -77,8 +79,8 @@ export function tracePrimitiveRoute(context: FunctionNarrativeContext, path: Fun
       values: [{ name, before, after }] };
     if ((context.valueNames?.length && !context.valueNames.includes(name))
       || [step.syntax!, step.text, step.reason!, step.effect!].some(text => text.length > 150)) return undefined;
-    steps.push(step);
+    steps.push(step); substitutions.push(reading.substituted);
   }
   if (result === undefined) return undefined;
-  return { inputs: [...inputs].map(([name, value]) => ({ name, json: JSON.stringify(value) })), steps, result };
+  return { inputs: [...inputs].map(([name, value]) => ({ name, json: JSON.stringify(value) })), steps, result, substitutions };
 }

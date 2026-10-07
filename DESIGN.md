@@ -59,6 +59,14 @@ uncertain work keeps the original bounded model pipeline. Preserve all four
 detail fields, source ownership and the unverified-execution label; do not show
 private preparation text as a completed explanation.
 
+As of 0.0.1119, the same snapshot and language reuse one validated model purpose.
+Complete matching primitive traces also supply the existing path-reason and
+state-change fields, preserving concrete predicate substitutions, every local
+before/after change and the return value. Long or uncertain facts remain with
+the model; facts are never shortened to fit. Scenario paragraphs and alternate
+paths still come from the selected LLM. Layout, source actions and all four node
+detail fields stay unchanged.
+
 Acceptance: real local Kotlin and TypeScript responses include numerical/Boolean
 substitution, ordered calculation/effect and alternate-path explanation. Every
 reached source operation has a syntax explanation; repeated visits and partial

@@ -34,7 +34,15 @@ const corpus = [
   { name: 'kotlin-elvis-string', language: 'kotlin', extension: 'kt', stress: true, source: 'fun inspect(label: String?): String {\n    val adjusted = label ?: "guest"\n    return adjusted\n}', operation: 'adjusted', writeValue: inputs => inputs.label ?? 'guest', expected: inputs => inputs.label ?? 'guest' },
   { name: 'typescript-independent-guards', language: 'typescript', extension: 'ts', stress: true, source: 'export function inspect(a: boolean, b: boolean, c: boolean): number {\n    let adjusted = 0;\n    if (a) adjusted += 1;\n    if (b) adjusted += 2;\n    if (c) adjusted += 4;\n    return adjusted;\n}', operation: 'adjusted',
     writeValue: (inputs, code) => code.includes('+= 1') ? 1 : code.includes('+= 2') ? (inputs.a ? 1 : 0) + 2 : code.includes('+= 4') ? (inputs.a ? 1 : 0) + (inputs.b ? 2 : 0) + 4 : 0,
-    expected: inputs => (inputs.a ? 1 : 0) + (inputs.b ? 2 : 0) + (inputs.c ? 4 : 0) }
+    expected: inputs => (inputs.a ? 1 : 0) + (inputs.b ? 2 : 0) + (inputs.c ? 4 : 0) },
+  // These closed public formulas deliberately exceed the worksheet's supported
+  // operators/scopes. Real model work must still preserve complete causal detail.
+  { name: 'kotlin-integer-division', language: 'kotlin', extension: 'kt', fallback: true,
+    source: 'fun inspect(enabled: Boolean, amount: Int): Int {\n    if (!enabled) return 0\n    val adjusted = amount / 2\n    return adjusted + 3\n}',
+    expected: inputs => inputs.enabled ? Math.trunc(inputs.amount / 2) + 3 : 0 },
+  { name: 'typescript-nested-scope', language: 'typescript', extension: 'ts', fallback: true,
+    source: 'export function inspect(enabled: boolean, amount: number): number {\n    let adjusted = amount;\n    if (enabled) {\n        adjusted += 3;\n    }\n    return adjusted * 2;\n}',
+    expected: inputs => (inputs.amount + (inputs.enabled ? 3 : 0)) * 2 }
 ];
 const only = process.argv[4] && process.argv[4] !== '-' ? process.argv[4] : undefined;
 const outputDirectory = await fs.promises.mkdtemp(path.join(tmpdir(), 'fn-benchmark-'));
@@ -66,7 +74,7 @@ async function contextFor(fixture) {
 }
 
 function score(fixture, pages, context) {
-  let scenarios = 0, correctResults = 0, reachedWrites = 0, contradictoryWrites = 0, falseGuardExitClaims = 0, falseGuardBodyClaims = 0, copiedOperationProse = 0, operationMismatches = 0, incorrectWriteValues = 0, completeNodes = 0, totalNodes = 0, detailedSourceNodes = 0, sourceDetailCharacters = 0;
+  let scenarios = 0, correctResults = 0, reachedWrites = 0, contradictoryWrites = 0, falseGuardExitClaims = 0, falseGuardBodyClaims = 0, trueGuardSkippedBodyClaims = 0, copiedOperationProse = 0, operationMismatches = 0, incorrectWriteValues = 0, completeNodes = 0, totalNodes = 0, detailedSourceNodes = 0, sourceDetailCharacters = 0;
   const failures = [];
   const kinds = new Map((context.scenarioGraph?.nodes || []).map(node => [node.graphNodeId, node.kind]));
   for (const page of pages) for (const scenario of page.narrative.scenarios) {
@@ -110,6 +118,12 @@ function score(fixture, pages, context) {
         falseGuardBodyClaims++; failures.push({ kind: 'false-guard-claims-true-body-entry', scenario: scenarios });
       }
     }
+    if (inputs.enabled === false && scenario.nodeDetails.some(detail => detail.code === '!enabled')) {
+      const prose = [scenario.explanation, scenario.analysis?.pathReason].join(' ');
+      if (/if\s*(?:블록|본문)[^.!?]{0,18}(?:실행되지|실행하지|건너뛰)|(?:true|참)[^.!?]{0,32}(?:if body|if 본문)[^.!?]{0,20}(?:skip|건너뛰)/iu.test(prose)) {
+        trueGuardSkippedBodyClaims++; failures.push({ kind: 'true-guard-claims-body-skipped', scenario: scenarios });
+      }
+    }
     for (const detail of scenario.nodeDetails) if (inputs.enabled === true && detail.code === '!enabled') {
       const causal = [detail.reason, detail.effect].join(' ');
       if (/(?:거짓|false)[^.!?]{0,48}(?:반환(?:됩니다|합니다|되며|하고)|returns?)/i.test(causal)
@@ -138,13 +152,14 @@ function score(fixture, pages, context) {
       }
     }
   }
-  return { scenarios, correctResults, reachedWrites, contradictoryWrites, falseGuardExitClaims, falseGuardBodyClaims, copiedOperationProse, operationMismatches, incorrectWriteValues, completeNodes, totalNodes, detailedSourceNodes, sourceDetailCharacters, failures };
+  return { scenarios, correctResults, reachedWrites, contradictoryWrites, falseGuardExitClaims, falseGuardBodyClaims, trueGuardSkippedBodyClaims, copiedOperationProse, operationMismatches, incorrectWriteValues, completeNodes, totalNodes, detailedSourceNodes, sourceDetailCharacters, failures };
 }
 
 (async () => {
   const records = [];
-  for (const fixture of corpus.filter(item => only === 'all' ? !item.stress : only === 'stress' ? item.stress
-    : only === 'extended' ? item.extended : only ? item.name === only : !item.extended && !item.stress)) {
+  for (const fixture of corpus.filter(item => only === 'release' ? true : only === 'all' ? !item.stress && !item.fallback : only === 'stress' ? item.stress
+    : only === 'fallback' ? item.fallback : only === 'extended' ? item.extended
+      : only ? item.name === only : !item.extended && !item.stress && !item.fallback)) {
     const context = await contextFor(fixture);
     if (process.argv[8] === 'context-only') {
       const batch = new application.FunctionNarrativeScenarioRun(context).nextBatch();

@@ -74,6 +74,7 @@ test("the native deadline adapter retains one whole-function scope and final syn
   let active = false, scopes = 0, releases = 0;
   let scopeFailure: unknown;
   const phases: string[] = [];
+  const purposes: Array<string | undefined> = [];
   const provider: FunctionNarrativeProvider = { supportsFinalSummary: () => true,
     async withRun(_language, _signal, operation) {
       try {
@@ -85,6 +86,7 @@ test("the native deadline adapter retains one whole-function scope and final syn
       assert.equal(active, true, "native requests retain the real provider scope");
       assert.ok(context.nodePreparation || context.nodeTask || context.summaryTask, "provisional and final phases survive the adapter");
       phases.push(context.summaryTask ? "summary" : context.nodeTask ? "reading" : "nodes");
+      if (context.summaryTask) purposes.push(context.summaryTask.knownFunctionSummary);
       const frame = buildFunctionNarrativeScenarioFrames(context)[0], terminal = context.sourceFlow!.paths[0].steps.at(-1)!;
       const read = (target: typeof terminal) => ({ code: target.code, source: target.source,
         syntax: "Return ends this function.", text: "Return the source total.", reason: "The chosen decisions reach this return.",
@@ -103,6 +105,7 @@ test("the native deadline adapter retains one whole-function scope and final syn
     assert.equal(f.messages.at(-1)!.status, "ready", scopeFailure instanceof Error ? scopeFailure.stack : phases.join(","));
     assert.equal(phases[0], "nodes"); assert.equal(phases.at(-1), "summary"); assert.equal(scopes, 1); assert.equal(releases, 1);
     assert.equal(phases.filter(phase => phase === "summary").length, 8);
+    assert.deepEqual(purposes, [undefined, ...Array(7).fill("Final source synthesis.")]);
     assert.equal(f.messages.at(-1)!.narrative!.summary, "Final source synthesis.");
     const count = phases.length;
     await f.delivery.request({ ...request, requestId: 2, pageIndex: 0, pageLanguage: "en" });

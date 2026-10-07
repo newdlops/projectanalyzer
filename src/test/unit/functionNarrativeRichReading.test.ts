@@ -257,6 +257,10 @@ test("final synthesis follows completed node values, rejects rewritten inputs/ev
       assert.throws(() => parseFunctionNarrative(JSON.stringify(wrongResult), batch, "en"), /invalid-response/);
       const wrongEvidence = structuredClone(completed); wrongEvidence.scenarios[0].steps[0].text = "Overwrite completed evidence.";
       assert.throws(() => parseFunctionNarrative(JSON.stringify(wrongEvidence), batch, "en"), /invalid-response/);
+      batch.summaryTask.knownFunctionSummary = completed.summary;
+      const wrongPurpose = structuredClone(completed); wrongPurpose.summary = "A different function purpose.";
+      assert.throws(() => parseFunctionNarrative(JSON.stringify(wrongPurpose), batch, "en"), /invalid-response/);
+      assert.doesNotThrow(() => parseFunctionNarrative(JSON.stringify(completed), batch, "en"));
       return { modelName: "Final fixture", text: JSON.stringify(completed) };
     }
     if (batch.nodeTask) { nodeCalls++; return { modelName: "Node fixture", text: output(batch) }; }
