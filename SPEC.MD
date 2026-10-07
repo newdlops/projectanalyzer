@@ -1535,6 +1535,24 @@ Webview는 Project Graph, 파일 시스템, VS Code API에 직접 접근하지 �
   shadowing/repeated declaration, const 재대입, alias member write, external effect, loop/exception,
   helper source 누락·truncation, negative zero/non-finite 또는 완전한 반환·대안이 없으면 기존 모델
   경로를 유지한다. evaluator port와 원래 IR·binding identity는 외부 prompt에 넣지 않는다.
+  0.0.1122는 선택된 source route의 방문 수를 IR의 block visit 한도로 사용한다(max 32,
+  전체 64 step·32 source operation 유지). loop의 iterate/exit/repeat-exit은 각 방문의
+  실제 Boolean 결과와 일치해야 하며, 같은 조건의 첫 결과를 재방문에 복사하지 않는다.
+  primitive 경로는 반복이 있을 때 node identity와 전체 현재 state를 visited key로 사용해
+  정지 cycle을 거부하고 각 source operation을 순서대로 대입한다. nested 선언·shadowing,
+  Int overflow, 외부 효과와 미확인 반복은 계속 거부한다. 조건·본문·다시 조건·반환이 모두
+  확인된 예시만 source 설명으로 구성하며 symbolic loop pass를 실제 반복 횟수로 간주하지 않는다.
+  Kotlin while/do-while은 parser-owned predicate를 본문 span과 별도로 보존한다. TS/JS
+  do-while은 최초 body 진입을 predicate보다 앞에 연결하고 body 내부 repeat/continue 및
+  nested-control exit은 predicate에 남긴다. lazy iterator는 post-test body의 이미 방문한
+  구간을 한 번만 다시 열고 depth/cycle 한도를 유지한다.
+  함수 전체 graph의 구문이 단일 literal 비교 loop, 단일 counter 갱신, 같은 counter 반환,
+  선택적 parameter→지역 변수 초기화뿐이고 현재·대안 trace가 모든 구문을 각각 확인하면
+  `buildFunctionNarrativeLoopPurpose`가 목적도 정확한 source recipe로 구성할 수 있다.
+  source/gap/inferred edge, 추가 분기·작업·반환 계산은 이 recipe에서 제외한다. generic runtime
+  disclaimer와 실제 source 누락은 구분하며, 모든 retained node/edge와 인용을 검사한다.
+  이 경우 `sourceFunctionPurpose`는 Host-only이며 외부 prompt에서 제거하고, local provider는
+  모델 실행 없이 `Source analysis`/`소스 분석`으로 표시한다. 복잡한 목적은 모델에 남긴다.
   rich primary 응답의 `exampleInputs`는 `{name, value}`의 실제 JSON 값을 생성한다. 로컬
   adapter는 이를 기존 `{name, json}` 문자열 계약으로 인코딩하며 Boolean/null 경로 선택,
   입력 크기·깊이·유한 숫자·금지 key 검사와 Host의 source/route 검증은 유지한다. 소스 언어의

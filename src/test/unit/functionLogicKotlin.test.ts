@@ -67,6 +67,23 @@ test("Kotlin Tutor reads nullable and default parameters without claiming concre
   assert.ok(declaration.gaps.some((gap) => gap.kind === "language-support"));
 });
 
+test("Kotlin while and do-while retain exact predicates and keep equal body calls outside the predicate", () => {
+  for (const statement of ['while (value < 3) { value += 1 }', 'do { value += 1 } while (value < 3)']) {
+    const text = 'fun inspect(amount: Int): Int {\n var value = amount\n ' + statement + '\n return value\n}';
+    const node = { ...resolveAt(text, "var value")!, id: "function:kotlin-loop" };
+    const logic = analyzeFunctionLogic({ functionNode: node, sourceText: text });
+    const loop = logic.blocks.find(block => block.kind === "loop")!;
+    assert.equal(loop.condition?.expression, "value < 3");
+    assert.equal(loop.condition?.groupExpression, "value < 3");
+    assert.ok(loop.valueAccesses?.some(access => access.name === "value" && access.access === "read"));
+  }
+  const text = 'fun inspect(): Int {\n while (ready()) {\n ready()\n }\n return 0\n}';
+  const logic = analyzeFunctionLogic({ functionNode: { ...resolveAt(text, "while")!, id: "function:kotlin-loop-call" }, sourceText: text });
+  const loop = logic.blocks.find(block => block.kind === "loop")!;
+  assert.equal(logic.callsites.find(call => call.range.startLine === 1)?.blockId, loop.id);
+  assert.notEqual(logic.callsites.find(call => call.range.startLine === 2)?.blockId, loop.id);
+});
+
 test("Kotlin local function selection does not merge its return into the parent", () => {
   const text = "fun outer(value: Int): Int {\n  fun inner() = 99\n  return value\n}";
   const inner = resolveAt(text, "99");

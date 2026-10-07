@@ -22,16 +22,23 @@ export function tracePrimitiveRoute(context: FunctionNarrativeContext, path: Fun
   })) return undefined;
   const state = new Map(inputs), steps: FunctionNarrativeStep[] = [], visited = new Set<string>(), substitutions: string[] = [];
   const immutable = new Set(context.language === "kotlin" ? inputs.keys() : []);
+  const loopRoute = path.steps.some(step => step.kind === "loop");
   let result: string | undefined;
   for (let index = 0; index < path.steps.length; index++) {
     const target = path.steps[index];
     if (target.confidence !== "exact" || result !== undefined) return undefined;
     const identity = target.graphNodeId ?? target.source.snippetId + ":" + target.source.startLine + ":" + target.kind;
-    if (visited.has(identity)) return undefined; visited.add(identity);
+    // Same-node visits are safe only in a complete loop route and with changed
+    // state. A stationary cycle is rejected; the source-operation budget still
+    // bounds all repeated visits and no iteration is inferred or omitted.
+    const visitKey = loopRoute ? identity + ":" + JSON.stringify([...state]) : identity;
+    if (visited.has(visitKey)) return undefined; visited.add(visitKey);
     let expression = target.code.replace(/;\s*$/u, "").trim(), name = "condition", before = ko ? "미평가" : "not evaluated";
     let declaration: string | undefined, compound: string | undefined;
-    if (target.kind === "condition") {
-      if (target.branch?.confidence !== "exact" || !["true", "false"].includes(target.branch.outcome)) return undefined;
+    const isPredicate = target.kind === "condition" || target.kind === "loop";
+    const expected = target.branch?.outcome === "iterate" ? "true" : ["exit", "repeat-exit"].includes(target.branch?.outcome ?? "") ? "false" : target.branch?.outcome;
+    if (isPredicate) {
+      if (target.branch?.confidence !== "exact" || !["true", "false"].includes(expected ?? "")) return undefined;
       expression = target.loweredPredicate ?? expression;
     } else if (target.kind === "return") {
       const match = /^return\s+(.+)$/u.exec(expression); if (!match) return undefined;
@@ -56,12 +63,13 @@ export function tracePrimitiveRoute(context: FunctionNarrativeContext, path: Fun
     } else return undefined;
     const reading = readPrimitiveExpression(expression, state, integer); if (!reading) return undefined;
     const after = JSON.stringify(reading.value);
-    if (target.kind === "condition") {
-      if (typeof reading.value !== "boolean" || String(reading.value) !== target.branch!.outcome) return undefined;
+    if (isPredicate) {
+      if (typeof reading.value !== "boolean" || String(reading.value) !== expected) return undefined;
     } else if (target.kind === "return") result = after;
     else { state.set(name, reading.value); if (declaration === "val" || declaration === "const") immutable.add(name); }
     const next = path.steps[index + 1]?.code;
-    const syntax = target.kind === "condition" ? target.loweredPredicate && target.code.includes("?:")
+    const syntax = target.kind === "loop" ? ko ? "반복 조건은 이 방문의 현재 값으로 본문 진행 또는 반복 종료를 판단합니다." : "The loop predicate selects its body or exit using this visit's current values."
+      : target.kind === "condition" ? target.loweredPredicate && target.code.includes("?:")
       ? ko ? "Elvis 연산자는 null 여부를 판단해 사용할 피연산자 하나를 선택합니다." : "Elvis tests nullability and selects exactly one operand."
       : ko ? "조건식의 Boolean 결과로 다음 소스 경로를 선택합니다." : "The predicate's Boolean result selects the next source route."
       : target.kind === "return" ? ko ? "return은 식 전체의 값을 반환하고 현재 함수의 진행을 끝냅니다." : "Return yields the whole expression's value and ends this function."
@@ -80,13 +88,13 @@ export function tracePrimitiveRoute(context: FunctionNarrativeContext, path: Fun
       "&&": ["두 조건의 논리곱", "Boolean conjunction"], "||": ["두 조건의 논리합", "Boolean disjunction"] };
     const operations = reading.operations.map(op => `${op.startsWith("u") || op === "s+" ? op.slice(1) : op}: ${terms[op][ko ? 0 : 1]}`).join(", ");
     const step: FunctionNarrativeStep = { code: target.code, source: target.source, syntax: syntax + (operations ? " " + operations + "." : ""),
-      text: ko ? target.kind === "condition" ? `조건 ${expression}의 결과는 ${after === "true" ? "참" : "거짓"}입니다.`
+      text: ko ? isPredicate ? `${target.kind === "loop" ? "반복 조건" : "조건"} ${expression}의 결과는 ${after === "true" ? "참" : "거짓"}입니다.`
         : target.kind === "return" ? `식 ${expression}의 값 ${after}를 반환합니다.` : `${name}에 ${after}를 저장합니다.`
-        : target.kind === "condition" ? `The predicate ${expression} is ${after}.` : target.kind === "return" ? `Return ${after} from ${expression}.` : `Store ${after} in ${name}.`,
+        : isPredicate ? `The ${target.kind === "loop" ? "loop predicate" : "predicate"} ${expression} is ${after}.` : target.kind === "return" ? `Return ${after} from ${expression}.` : `Store ${after} in ${name}.`,
       reason: ko ? `현재 예시 값을 대입하면 ${reading.substituted} = ${after}입니다.` : `Substituting the current example gives ${reading.substituted} = ${after}.`,
       effect: target.kind === "return" ? ko ? `지역 값은 그대로 두고 ${after}를 호출자에게 반환합니다.` : `Return ${after} to the caller while preserving local state.`
-        : ko ? `${target.kind === "condition" ? "판단" : name + " 저장"}을 마쳤고 다음 구문은 ${next ?? "없음"}입니다.`
-          : `${target.kind === "condition" ? "The decision" : "The write to " + name} is complete; next is ${next ?? "the end of this route"}.`,
+        : ko ? `${isPredicate ? "판단" : name + " 저장"}을 마쳤고 다음 구문은 ${next ?? "없음"}입니다.`
+          : `${isPredicate ? "The decision" : "The write to " + name} is complete; next is ${next ?? "the end of this route"}.`,
       values: [{ name, before, after }] };
     if ((context.valueNames?.length && !context.valueNames.includes(name))
       || [step.syntax!, step.text, step.reason!, step.effect!].some(text => text.length > 150)) return undefined;

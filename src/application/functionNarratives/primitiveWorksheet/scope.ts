@@ -1,7 +1,7 @@
 /** Source scope guard allows nested control blocks only when all bindings remain at function-body scope. */
 
 /** Linear lexical scan excludes comments/strings and rejects nested declarations, loops and exception transfers. */
-export function hasSimplePrimitiveScopes(source: string, kotlin = false): boolean {
+export function hasSimplePrimitiveScopes(source: string, kotlin = false, checkedLoopRoute = false): boolean {
   let depth = 0, roots = 0, quote = "", lineComment = false, commentDepth = 0;
   for (let index = 0; index < source.length; index++) {
     const char = source[index], next = source[index + 1];
@@ -21,7 +21,7 @@ export function hasSimplePrimitiveScopes(source: string, kotlin = false): boolea
       const start = index;
       while (index + 1 < source.length && /[\p{L}\p{N}_$]/u.test(source[index + 1])) index++;
       const word = source.slice(start, index + 1);
-      if (["for", "while", "do", "try", "catch", "throw", "defer"].includes(word)
+      if (["try", "catch", "throw", "defer"].includes(word) || !checkedLoopRoute && ["for", "while", "do"].includes(word)
         || depth >= 1 && ["function", "fun", "class", "object", "interface", "enum"].includes(word)
         || depth > 1 && ["val", "var", "let", "const"].includes(word)) return false;
     }

@@ -84,6 +84,20 @@ changed member and the object's resulting state, without implying replacement
 of the whole object. No new layout or visual language is introduced. Unproved
 effects, aliases, shadowing, loops and incomplete source retain model analysis.
 
+As of 0.0.1122, complete matched loop visits can use the same source reading.
+Preserve each visit's current operands and Boolean result; a repeated node's
+earlier true result must never be copied into its later false exit. Kotlin and
+TS/JS post-test loops show their first body work before the predicate. Every
+repeated write and source occurrence remains visible in the existing note and
+node-detail controls. A symbolic exit alone is insufficient proof, and unknown
+iteration counts or effects retain their explicit limits. Layout and tokens stay
+unchanged.
+
+When the entire graph is a checked simple counter loop, its purpose also comes
+from the complete source recipe. Show **Source analysis** as the producer and
+preserve the execution-unverified label. The model remains responsible for
+broader meanings; do not invent monetary/business roles for generic variables.
+
 Acceptance: real local Kotlin and TypeScript responses include numerical/Boolean
 substitution, ordered calculation/effect and alternate-path explanation. Every
 reached source operation has a syntax explanation; repeated visits and partial

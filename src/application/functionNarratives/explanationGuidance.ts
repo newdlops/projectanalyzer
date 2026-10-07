@@ -65,7 +65,7 @@ export function numberFunctionNarrativeContext(context: FunctionNarrativeContext
   const { scenarioGraph: _hostGraph, sourceWorksheet: _hostWorksheet, ...batch } = context;
   const cleanStep = ({ graphNodeId: _id, graphOccurrence: _visit, ...step }: NonNullable<FunctionNarrativeContext["sourceFlow"]>["paths"][number]["steps"][number]) => step;
   return { ...batch,
-    ...(context.summaryTask ? { summaryTask: (({ sourceAlternative: _sourceProof, ...task }) => task)(context.summaryTask) } : {}),
+    ...(context.summaryTask ? { summaryTask: (({ sourceAlternative: _sourceProof, sourceFunctionPurpose: _sourcePurpose, ...task }) => task)(context.summaryTask) } : {}),
     ...(context.sourceFlow ? { sourceFlow: { ...context.sourceFlow, paths: context.sourceFlow.paths.map(({ graph: _identities, ...path }) => ({ ...path, steps: path.steps.map(cleanStep) })) } } : {}),
     ...(context.nodeTask ? { nodeTask: { ...context.nodeTask, targets: context.nodeTask.targets.map(cleanStep) } } : {}),
     snippets: context.snippets.map((snippet) => ({ ...snippet,

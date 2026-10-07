@@ -61,11 +61,27 @@ export function createFunctionNarrativeScenarioIterator(context: FunctionNarrati
         const visited = new Set(frame.visited); visited.add(frame.index);
         const exitedLoops = new Set(frame.exitedLoops); if (repeated) exitedLoops.add(frame.index);
         for (const edge of [...exitsOnly].reverse()) {
+          let nextVisited = visited;
+          let nextExitedLoops = exitedLoops;
+          // A post-test loop reaches its body before the first predicate. Its
+          // true edge may therefore reenter already visited body nodes. Retain
+          // the predicate visit and reopen only that reached body segment once;
+          // the next predicate visit still takes the bounded symbolic exit.
+          // Other repeated nodes remain cycles, and maxDepth remains in force.
+          if (node.kind === "loop" && !repeated && ["iterate", "true"].includes(edge.outcome) && visited.has(edge.target)) {
+            nextVisited = new Set(visited);
+            nextExitedLoops = new Set(exitedLoops);
+            let bodySegment = false;
+            for (const index of visited) {
+              bodySegment ||= index === edge.target;
+              if (bodySegment && index !== frame.index) { nextVisited.delete(index); nextExitedLoops.delete(index); }
+            }
+          }
           const branch = node.step && (exitsOnly.length > 1 || ["true", "false", "case", "iterate", "exception", "exit"].includes(edge.outcome))
             ? { outcome: repeated ? "repeat-exit" : edge.outcome, confidence: edge.confidence,
               ...(!repeated && edge.inputCondition ? { inputCondition: edge.inputCondition } : {}) } : undefined;
           const nextSteps = branch ? [...frame.steps, { ...step!, branch }] : steps;
-          pending.push({ index: edge.target, steps: nextSteps, visited, exitedLoops, depth: frame.depth + 1,
+          pending.push({ index: edge.target, steps: nextSteps, visited: nextVisited, exitedLoops: nextExitedLoops, depth: frame.depth + 1,
             nodeIds, edgeIds: edge.graphEdgeId ? [...frame.edgeIds, edge.graphEdgeId] : frame.edgeIds,
             confidence: confidence === "inferred" || edge.confidence === "inferred" ? "inferred" : "exact" });
         }

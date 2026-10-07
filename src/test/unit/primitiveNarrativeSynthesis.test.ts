@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { analyzeFunctionLogic } from "../../analyzer/functionLogic";
 import { buildFunctionNarrativeContext, bindFunctionNarrativeGraph, buildPrimitiveNarrativeSynthesis,
-  selectPrimitiveNarrativeAlternative, buildPrimitiveWorksheetResponse, parseFunctionNarrative,
+  selectPrimitiveNarrativeAlternative, buildPrimitiveWorksheetResponse, buildFunctionNarrativeLoopPurpose, parseFunctionNarrative,
   initializeFunctionNarrativeNodes, createFunctionNarrativeNodeTask, appendFunctionNarrativeNodes,
   createFunctionNarrativeSummaryTask, FunctionNarrativeScenarioRun } from "../../application/functionNarratives";
 import { createLocalFunctionNarrativeProvider } from "../../llm/functionNarratives";
@@ -30,11 +30,15 @@ function fixture(source: string, language: "kotlin" | "typescript", parameters: 
 function completed(original: FunctionNarrativeContext, language: "ko" | "en") {
   const run = new FunctionNarrativeScenarioRun(original), batch = run.nextBatch()!, path = batch.sourceFlow!.paths[0];
   const preparation = { ...batch, nodePreparation: true };
-  const scenario = parseFunctionNarrative(buildPrimitiveWorksheetResponse(preparation, language)!, preparation, language).scenarios[0];
+  const response = buildPrimitiveWorksheetResponse(preparation, language);
+  assert.ok(response, JSON.stringify({ language, source: original.snippets[0].text, path }));
+  const scenario = parseFunctionNarrative(response, preparation, language).scenarios[0];
   initializeFunctionNarrativeNodes(path, scenario, "rich");
   let task;
   while ((task = createFunctionNarrativeNodeTask(batch, path, scenario))) {
-    appendFunctionNarrativeNodes(task, scenario, parseFunctionNarrative(buildPrimitiveWorksheetResponse(task, language)!, task, language).scenarios[0]);
+    const nodes = buildPrimitiveWorksheetResponse(task, language);
+    assert.ok(nodes, JSON.stringify({ language, source: original.snippets[0].text, task: task.nodeTask }));
+    appendFunctionNarrativeNodes(task, scenario, parseFunctionNarrative(nodes, task, language).scenarios[0]);
   }
   const summary = createFunctionNarrativeSummaryTask(batch, path, scenario);
   summary.summaryTask!.sourceAlternative = selectPrimitiveNarrativeAlternative(original, path, summary.summaryTask!.inputs, language);
@@ -107,6 +111,61 @@ test("Kotlin integer division explains truncation toward zero and keeps a source
   const task = completed(original, "ko"), reading = buildPrimitiveNarrativeSynthesis(task, "ko")!;
   assert.ok(reading); assert.match(reading.scenarios[0].analysis!.alternative, /adjusted=5/u);
   assert.match(reading.scenarios[0].analysis!.alternative, /5 \+ 3 = 8/u);
+});
+
+test("Kotlin and TypeScript primitive loops retain both current-value checks, the body write and the independently checked exit", () => {
+  for (const language of ["kotlin", "typescript"] as const) {
+    for (const postTest of [false, true]) {
+    const body = postTest ? 'do {\n adjusted += 1\n } while (adjusted < 3)' : 'while (adjusted < 3) {\n adjusted += 1\n }';
+    const source = language === "kotlin" ? 'fun inspect(amount: Int): Int {\n var adjusted = amount\n ' + body + '\n return adjusted\n}'
+      : 'function inspect(amount: number): number {\n let adjusted = amount;\n ' + body.replace('adjusted += 1', 'adjusted += 1;') + '\n return adjusted;\n}';
+    const original = fixture(source, language, [{ name: "amount", type: language === "kotlin" ? "Int" : "number" }]);
+    for (const locale of ["ko", "en"] as const) {
+      const task = completed(original, locale), reading = buildPrimitiveNarrativeSynthesis(task, locale); assert.ok(reading);
+      assert.equal(reading.scenarios[0].example!.inputs[0].json, postTest ? "1" : "2"); assert.equal(reading.scenarios[0].example!.result, "3");
+      assert.deepEqual(task.summaryTask!.completed.filter(step => step.code === "adjusted < 3").map(step => step.values![0].after), ["true", "false"]);
+      assert.match(reading.scenarios[0].analysis!.pathReason, /true.*false/u);
+      assert.match(reading.scenarios[0].analysis!.alternative, /adjusted < 3=false/u);
+      const writes = task.summaryTask!.completed.filter(step => step.code.startsWith("adjusted +="));
+      assert.deepEqual(writes.map(step => step.values![0].after), postTest ? ["2", "3"] : ["3"]);
+      const purpose = buildFunctionNarrativeLoopPurpose(original, task, locale); assert.ok(purpose);
+      assert.match(purpose, /adjusted < 3/u); assert.match(purpose, /adjusted \+= 1/u);
+      assert.match(purpose, locale === "ko" ? /참인 동안/u : /while adjusted < 3 is true/u);
+      if (postTest) assert.match(purpose, locale === "ko" ? /먼저 한 번/u : /once before the first test/u);
+      assert.doesNotMatch(purpose, /금액|점수|until true/u);
+      const missing = { ...original, limited: true };
+      assert.equal(buildFunctionNarrativeLoopPurpose(missing, task, locale), undefined);
+    }
+    }
+  }
+});
+
+test("whole-loop purposes refuse extra branches and post-loop calculations instead of dropping their meaning", () => {
+  const source = 'function inspect(amount: number): number {\n let adjusted = amount;\n while (adjusted < 3) { adjusted += 1; }\n return adjusted * 2;\n}';
+  const original = fixture(source, "typescript", [{ name: "amount", type: "number" }]);
+  const task = completed(original, "en");
+  assert.equal(buildFunctionNarrativeLoopPurpose(original, task, "en"), undefined);
+});
+
+test("a complete loop recipe publishes both detailed pages without model files, runners or inference", async () => {
+  const original = fixture('function inspect(amount: number): number {\n let adjusted = amount;\n do { adjusted += 1; } while (adjusted < 3);\n return adjusted;\n}',
+    "typescript", [{ name: "amount", type: "number" }]);
+  const pages = new Map<number, FunctionNarrative>(), manager = new ModelTaskManager();
+  let modelRequests = 0;
+  const provider = createLocalFunctionNarrativeProvider({ binaryPath: "/missing-loop-runner", modelPath: "/missing-loop-model.gguf",
+    taskManager: manager, onMetrics() { modelRequests++; } });
+  const session = new FunctionNarrativeScenarioSession(original, { async write(index, page) { pages.set(index, page); },
+    async read(index) { return pages.get(index); }, async dispose() { pages.clear(); } });
+  try {
+    while (!session.complete) await session.analyzeNext(provider, "en", new AbortController().signal, { reselectModel: false });
+    assert.equal(modelRequests, 0); assert.equal(session.pageCount, 2);
+    assert.deepEqual([...pages.values()].flatMap(page => page.scenarios.map(scenario => scenario.example!.result)), ["3", "11"]);
+    for (const page of pages.values()) {
+      assert.match(page.summary, /once before the first test/u);
+      assert.ok(page.scenarios[0].nodeDetails!.filter(step => step.code).every(step => step.syntax && step.text && step.reason && step.effect));
+    }
+    const cached = await session.readPage(1); assert.equal(cached!.modelName, "Source analysis"); assert.equal(modelRequests, 0);
+  } finally { await session.dispose(); await manager.dispose(); }
 });
 
 test("closed literal conditions omit impossible branches, while names and external predicates preserve both source choices", () => {

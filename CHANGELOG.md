@@ -4,6 +4,22 @@ All notable user-visible changes to Project Analyzer: Code Flow are recorded in
 this file. The changelog starts with the first distribution-documented build;
 earlier local development builds were not tracked here.
 
+## 0.0.1122 - 2026-10-08
+
+### Improved
+
+- Read fully checked Kotlin and TS/JS loop visits directly from source values.
+  Preserve each predicate visit, updated operands, every before/after write and
+  the final false exit check. Whole simple-loop recipes also receive an exact
+  source purpose with no model inference; other meanings retain the local model.
+- Retain Kotlin while/do-while predicates separately from their complete body
+  spans. Keep matching call text in a loop body outside its predicate ownership.
+- Enter TS/JS do-while bodies before their first test, preserving repeats,
+  continue and final nested-control exits. Lazy scenarios retain a bounded
+  post-test body revisit instead of prematurely treating it as an unknown cycle.
+- Reject stationary cycles, mismatched repeat exits and traces that require more
+  visits than the selected source route. Keep incomplete/effectful work explicit.
+
 ## 0.0.1121 - 2026-10-08
 
 ### Improved

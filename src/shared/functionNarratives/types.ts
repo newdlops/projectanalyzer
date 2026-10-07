@@ -89,6 +89,8 @@ export type FunctionNarrativeContext = {
     knownFunctionSummary?: string;
     /** Host-selected nearby source route and typed inputs; source synthesis independently checks every operation again. */
     sourceAlternative?: { path: FunctionNarrativeFlowPath; inputs: FunctionNarrativeExample["inputs"] };
+    /** Host-proved whole-function loop recipe, independently matched before use; never a model-authored purpose. */
+    sourceFunctionPurpose?: string;
     resultJson?: string; completed: Array<{ code: string; predicateResult?: string; values: FunctionNarrativeStep["values"] }>;
     omittedValues: number };
   /** True only when source excerpts were omitted or truncated. */

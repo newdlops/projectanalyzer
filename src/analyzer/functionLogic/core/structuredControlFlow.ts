@@ -54,6 +54,8 @@ export type ControlRecord = {
   confidence?: FunctionLogicConfidence;
   hasDefaultBranch?: boolean;
   finallyContainerId?: string;
+  /** Parser-owned do-while timing; initial transfers enter the body before its predicate. */
+  postTestLoop?: boolean;
 };
 
 /** Inputs retained while direct statement order becomes control-flow edges. */
@@ -122,6 +124,29 @@ export function createStructuredControlEdges(
     );
   }
 
+  return routePostTestLoops(edges, input);
+}
+
+/** Rebinds only first entries, retaining body repeats/continue and source-proven edge confidence. */
+function routePostTestLoops(original: FunctionLogicEdge[], input: ControlFlowBuildInput): FunctionLogicEdge[] {
+  let edges = original;
+  for (const [id, control] of input.controlsByBlockId) {
+    if (control.kind !== "loop" || !control.postTestLoop) continue;
+    const body = control.branches.find(branch => input.containers.get(branch.containerId)?.role === "loopBody");
+    const first = body && edges.find(edge => edge.sourceId === id && edge.kind === body.edgeKind)?.targetId;
+    if (!body || !first || first === id) continue;
+    const inBody = (sourceId: string) => {
+      let containerId = input.blocksById.get(sourceId)?.containerId;
+      const visited = new Set<string>();
+      while (containerId && !visited.has(containerId)) {
+        if (containerId === body.containerId) return true;
+        visited.add(containerId); containerId = input.containers.get(containerId)?.parentContainerId;
+      }
+      return false;
+    };
+    edges = edges.map(edge => edge.targetId === id && !inBody(edge.sourceId)
+      ? createFunctionLogicEdge(edge.sourceId, first, edge.kind, edge.label, edge.confidence, edge.presentation) : edge);
+  }
   return edges;
 }
 

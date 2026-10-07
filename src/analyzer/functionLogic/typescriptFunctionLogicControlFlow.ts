@@ -157,6 +157,7 @@ export function scheduleControlChildren(
   }
   controlsByBlockId.set(block.id, {
     kind: controlKind,
+    ...(ts.isDoStatement(node) ? { postTestLoop: true } : {}),
     branches: controlBranches,
     hasDefaultBranch,
     finallyContainerId

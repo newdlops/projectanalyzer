@@ -4,7 +4,8 @@ Function Guide의 **전체 시나리오 분석**은 함수 본문과 가까운 �
 확인된 직접 helper 코드를 언어 모델에 전달해 목적과 동작 시나리오, 예시 입력·결과값과
 각 경로의 노드 해설을 만든다.
 Kotlin과 인자 없는 함수도 사용할 수 있다. 숫자 입력을 찾는 기존 로컬 모델과는 별도 기능이다.
-함수 전체 목적은 로컬 LLM이 작성한다. 소스와 입력으로 끝까지 확인한 경로는 기존 정적
+일반적인 함수 전체 목적은 로컬 LLM이 작성한다. 전체 구조까지 확인된 단순 반복 함수는
+목적도 소스 규칙으로 구성해 모델을 실행하지 않는다. 소스와 입력으로 끝까지 확인한 경로는 기존 정적
 분석과 bounded 계산 결과를 연결해 상세 문단·대안·노드 설명을 만든다. 확인하지 못한
 구문과 외부 동작은 로컬 LLM 분석을 유지한다. 그래프와 생성에 쓰는 조건·소스 경로는
 기존 정적 분석이 제공한다.
@@ -138,6 +139,70 @@ loop/exception transfer, inferred/partial/truncated evidence, 긴 식과 알 수
 같은 source snapshot·언어의 검증된 함수 목적 요약 240자 하나를 다음 시나리오에서 재사용하고,
 초기 준비 문구는 저장하지 않는다. 각 시나리오의 상세 문단·대안은 계속 모델이 새로 작성한다.
 기존 노드 구문·동작·근거·효과·인용을 모두 유지하며 화면 배치도 유지한다.
+
+### 0.0.1122 반복 방문과 전체 반복 목적의 소스 증명
+
+같은 loop 노드의 첫 true 결과와 다음 false 결과를 별개 방문으로 읽는다. IR interpreter는
+선택 source route의 방문 수를 budget으로 받고 모든 방문·분기·인용·반환을 순서대로 맞춘다.
+primitive reader는 loop 경로에서 node identity와 전체 현재 state를 visited key로 사용한다.
+정지 cycle, 잘못된 repeat-exit와 선택 route보다 긴 실제 계산은 source proof로 인정하지 않는다.
+각 조건에 현재 피연산자를 대입하고 모든 갱신 직전/직후 값과 반환을 보존한다.
+
+Kotlin while/do-while은 parser-owned predicate를 본문 span과 별도로 보존한다.
+같은 호출 문구가 본문에도 있으면 그 호출을 predicate로 옮기지 않는다. TS/JS do-while은
+첫 본문을 predicate보다 먼저 연결하고 body repeat/continue 및 마지막 nested-control exit은
+predicate에 남긴다. lazy iterator는 post-test body를 한 번 다시 열고 depth/cycle 제한을 유지한다.
+이 경로는 source 기반 symbolic 범위이며 모든 가능한 런타임 반복 횟수를 열거하지 않는다.
+
+`buildFunctionNarrativeLoopPurpose(originalContext, completedTask, language)`는 전체 graph가
+하나의 literal 비교 조건, 하나의 counter 갱신, 같은 counter 반환, 선택적인 입력→지역 변수
+초기화뿐일 때 목적도 구성한다. 현재·대안의 complete trace가 모든 graph 구문을 포함하고
+모든 node/edge의 source confidence와 target이 맞아야 한다. 추가 분기·작업·반환 계산,
+truncated source나 미확인 body는 모델 목적을 유지한다. generic runtime disclaimer 자체와
+실제 source 누락은 구분한다. 모델이 조건을 거꾸로 요약하거나 없는 금액/점수 의미를 붙인
+실제 사례가 있어, 확인된 단순 recipe는 조건·첫 body timing·반환을 직접 설명한다.
+
+Host-only `sourceFunctionPurpose`는 외부 prompt에서 제거하며 local provider는 이 경우
+`소스 분석`/`Source analysis`로 표시하고 모델을 실행하지 않는다. 목적 240자·문단 1,800자·
+대안 600자와 기존 node 상세 한도는 유지한다. 더 복잡한 의미는 로컬 모델을 사용한다.
+실제 소스 코드를 실행한 관찰은 아니며 source recipe 적용을 모든 함수의 정확도 보장으로
+확장하지 않는다.
+
+공개 production-parser 반복 corpus에서 generation/페이지 저장/runner 확인·정리의 최종
+관측이다. parser/context 구성은 timer 전에 실행되며 PC 부하에 따라 달라질 수 있다.
+
+| 공개 함수 | 설치된 0.0.1121 | 최종 생성 시간 | 실제 모델 요청 | 반환 / 노드 |
+| --- | ---: | ---: | --- | --- |
+| TS 객체 while | 58.44초 | 60.11ms | 5 → 0 | 2/2 · 10/10 |
+| Kotlin while | 67.90초 | 33.36ms | 7 → 0 | 2/2 · 12/12 |
+| TypeScript while | 78.00초 | 29.05ms | 7 → 0 | 2/2 · 12/12 |
+| Kotlin do-while | 별도 이전 비교 없음 | 20.94ms | 0 | 2/2 · 14/14 |
+| TS do-while | 별도 이전 비교 없음 | 11.53ms | 0 | 2/2 · 14/14 |
+
+최종 반환 10/10, graph node 62/62, syntax/text/reason/effect를 가진 구문 42/42와 5,991자를
+보존했다. `do-while` 예시 `amount=1`은 body `1→2`, true 판단, body `2→3`, false 판단,
+반환 3을 읽고 `amount=10`은 body `10→11` 후 false 판단과 반환 11을 읽는다.
+기존 모델 pipeline은 이 corpus에서 잘못된 값/조건과 소스에 없는 전제를 포함했다.
+누락된 model 파일·runner 상태에서도 해당 complete recipe의 두 상세 페이지를 생성하는
+검사를 포함한다. 불완전한 경로, 긴/복잡한 반복과 외부 동작의 최적화는 남아 있다.
+
+최종 검증은 관련 unit 87/87, 패키지 검사 15/15를 통과했다. 전체 unit은 1,084개 중
+1,080개 통과이며 기존 4개 실패(동적 callsite 인수, nested-object 입력 대표값,
+TS/JS private 시나리오 root, Inspector source-reveal 기대 형태)는 그대로 남아 있다.
+darwin-arm64 VSIX는 512개 파일, 약 3.64MiB이며 기존 Rust 실행 파일을 유지한다.
+
+격리된 공식 VS Code의 실제 실행 버전은 1.141.0이었다. 설치된 0.0.1122로 Kotlin
+`do-while` 함수를 열고 전체 시나리오를 생성해 `소스 분석` 표시, 첫 예시의 두 본문 방문과
+`1→2→3`, 다음 예시의 `10→11`과 반환 11, 저장된 결과 재사용을 확인했다. 그래프 노트와
+가이드 모두 방문별 구문 의미·판단 근거·상태 변화 및 before/after 값을 보존했고,
+`소스 열기 · L4`는 실제 본문 4행을 선택했다. 실제 1440×900 및 769×1025 창에서
+설명 줄바꿈, 상세값 표, 가이드 스크롤과 소스 버튼을 시각적으로 확인했다. 터치·390px
+모바일·다른 테마·전체 접근성 감사는 수행하지 않았다. 새 스타일 변경이나 hook ignore는
+없으며 기존 그래프 종류별 의미를 나타내는 경계선은 유지한다.
+
+Default와 `Function Language QA 1107` 프로필에 같은 VSIX를 설치한 뒤 각각 0.0.1122
+등록을 확인했다. 배포 대상 JavaScript 478개와 native 실행 파일은 설치본과 byte 단위로
+일치하며 VSIX 파일 수·크기 검사 및 runtime closure 검사에 오류가 없었다.
 
 ### 0.0.1121 객체·배열·내부 호출의 분석 결과 재사용
 

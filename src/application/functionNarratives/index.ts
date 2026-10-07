@@ -8,7 +8,7 @@ export { FunctionNarrativeScenarioRun } from "./scenarioRun";
 export { buildFunctionNarrativeFlowGuidance } from "./flowGuidance";
 export { addFunctionNarrativeValueGrounding } from "./valueGrounding";
 export { buildPrimitiveWorksheetResponse, hasCompletePrimitiveWorksheet, getPrimitiveWorksheetAnalysis } from "./primitiveWorksheet";
-export { selectPrimitiveNarrativeAlternative, buildPrimitiveNarrativeSynthesis } from "./primitiveWorksheet/narrative";
+export { selectPrimitiveNarrativeAlternative, buildPrimitiveNarrativeSynthesis, buildFunctionNarrativeLoopPurpose } from "./primitiveWorksheet/narrative";
 export { buildFunctionNarrativeScenarioFrames, getFunctionNarrativeExampleConstraints, type FunctionNarrativeScenarioFrame } from "./scenarioFrames";
 export { parseFunctionNarrative, buildFunctionNarrativePrompt } from "./structuredResponse";
 export { buildFunctionNarrativeExplanationGuidance, buildFunctionNarrativeRichGuidance, buildFunctionNarrativeEmptyRouteGuidance, numberFunctionNarrativeContext } from "./explanationGuidance";

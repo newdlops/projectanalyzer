@@ -27,6 +27,9 @@ export function createLocalFunctionNarrativeProvider(options: LocalFunctionNarra
     if (worksheet !== undefined) return { modelName: ("Local · " + basename(options.modelPath, ".gguf")).slice(0, 100), text: worksheet };
     const synthesis = buildPrimitiveNarrativeSynthesis(context, language);
     const modelName = ("Local · " + basename(options.modelPath, ".gguf")).slice(0, 100);
+    if (synthesis && context.summaryTask?.sourceFunctionPurpose) {
+      return { modelName: language === "ko" ? "소스 분석" : "Source analysis", text: JSON.stringify({ ...synthesis, summary: context.summaryTask.sourceFunctionPurpose }) };
+    }
     if (synthesis && context.summaryTask?.knownFunctionSummary) {
       return { modelName, text: JSON.stringify({ ...synthesis, summary: context.summaryTask.knownFunctionSummary }) };
     }

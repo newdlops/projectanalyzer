@@ -33,6 +33,19 @@ const source = [
   "}"
 ].join("\n");
 
+test("post-test loops enter the body first and keep a final nested-control exit at the predicate", () => {
+  const text = 'export function inspect(amount: number) {\n let adjusted = amount;\n do {\n adjusted += 1;\n while (adjusted < 2) { adjusted += 1; }\n } while (adjusted < 3);\n return adjusted;\n}';
+  const analysis = analyzeFunctionLogic({ functionNode: createFunctionNode("inspect", "/workspace/post.ts", 0), sourceText: text });
+  const outer = analysis.blocks.find(block => block.kind === "loop" && block.label.startsWith("do while"))!;
+  const inner = analysis.blocks.find(block => block.kind === "loop" && block.label.startsWith("while"))!;
+  const firstBody = analysis.blocks.find(block => block.kind === "mutation" && block.range.startLine === 3)!;
+  const initial = analysis.blocks.find(block => block.kind === "mutation" && block.range.startLine === 1)!;
+  assert.ok(outer && inner && firstBody && initial);
+  assert.ok(analysis.edges.some(edge => edge.sourceId === initial.id && edge.targetId === firstBody.id));
+  assert.ok(analysis.edges.some(edge => edge.sourceId === inner.id && edge.kind === "exit" && edge.targetId === outer.id));
+  assert.ok(analysis.edges.some(edge => edge.sourceId === outer.id && edge.kind === "iterate" && edge.targetId === firstBody.id));
+});
+
 test("builds statement, branch, repeat, effect, and exit paths inside a function", () => {
   const analysis = analyzeFunctionLogic({
     functionNode: createFunctionNode("processOrder", "/workspace/src/orders.ts", 0),

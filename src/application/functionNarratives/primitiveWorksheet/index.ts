@@ -63,7 +63,7 @@ export function getPrimitiveWorksheetAnalysis(context: FunctionNarrativeContext,
   const trace = readCompletedPrimitiveTrace(context, language);
   if (!trace) return undefined;
   const path = context.sourceFlow!.paths[0], ko = language === "ko";
-  const choices = path.steps.flatMap((step, index) => step.kind === "condition"
+  const choices = path.steps.flatMap((step, index) => step.kind === "condition" || step.kind === "loop"
     ? [`${step.loweredPredicate ?? step.code} (${trace.substitutions[index]}) = ${trace.steps[index].values![0].after}`] : []);
   const writes = path.steps.flatMap((step, index) => step.kind === "mutation"
     ? trace.steps[index].values!.map(value => `${value.name}: ${value.before} → ${value.after}`) : []);
@@ -127,5 +127,5 @@ function supportedContext(context: FunctionNarrativeContext): boolean {
   const source = context.snippets.find(snippet => snippet.role === "function")?.text ?? "";
   // Nested control blocks may only mutate existing function-scope bindings.
   // Shadowing/declarations in those blocks still require binding identities.
-  return hasSimplePrimitiveScopes(source, context.language === "kotlin");
+  return hasSimplePrimitiveScopes(source, context.language === "kotlin", context.sourceFlow.paths.some(path => path.steps.some(step => step.kind === "loop")));
 }

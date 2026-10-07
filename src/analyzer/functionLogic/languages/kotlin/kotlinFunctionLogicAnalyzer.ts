@@ -57,7 +57,11 @@ function correctKotlinControlTransfers(analysis: FunctionLogicAnalysis, source: 
     const loopBlock = loopBlockFor(row.loop);
     const firstBody = loopBlock && edges.find((edge) => edge.sourceId === loopBlock.id && edge.kind === "iterate");
     if (!loopBlock || !firstBody) continue;
-    edges = edges.map((edge) => edge.targetId === loopBlock.id && edge.kind !== "repeat" && edge.kind !== "continue"
+    const bodySpan = row.loop.children.find(child => child.name === "controlStructureBody");
+    const inBody = (id: string) => { const span = blockOffsets.get(id); return Boolean(bodySpan && span && bodySpan.from <= span.from && span.to <= bodySpan.to); };
+    // A final nested control's exit edge can also reach this predicate. Lexical
+    // body ownership distinguishes that repeat from an initial entry.
+    edges = edges.map((edge) => edge.targetId === loopBlock.id && !inBody(edge.sourceId)
       ? reroute(edge, firstBody.targetId) : edge.sourceId === loopBlock.id && edge.kind === "iterate"
         ? createFunctionLogicEdge(edge.sourceId, edge.targetId, "true", "repeat while true", edge.confidence,
           { key: "logic-edge-true" }) : edge);
@@ -115,6 +119,10 @@ function correctKotlinControlTransfers(analysis: FunctionLogicAnalysis, source: 
     const callText = source.text.slice(from, to);
     const owningDecision = [...blocks.values()].filter((block) => block.condition
       && block.condition.expression.includes(callText)
+      // A loop's display range includes its body. Equal call text in the body
+      // must not be rebound to the newly retained predicate expression.
+      && (block.kind !== "loop" || (() => { const span = /^kotlin-condition:(\d+):(\d+)$/u.exec(block.condition.groupId);
+        return Boolean(span && Number(span[1]) <= from && to <= Number(span[2])); })())
       && (blockOffsets.get(block.id)?.from ?? Infinity) <= from && (blockOffsets.get(block.id)?.to ?? -1) >= to)
       .sort((left, right) => {
         const leftRange = blockOffsets.get(left.id)!;

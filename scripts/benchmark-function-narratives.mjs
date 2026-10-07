@@ -55,9 +55,21 @@ const corpus = [
   { name: 'typescript-array-read', language: 'typescript', extension: 'ts', complex: true,
     source: 'export function inspect(values: number[]): number {\n    if (values.length === 0) return 0;\n    return values[0] + 3;\n}',
     expected: inputs => inputs.values.length ? inputs.values[0] + 3 : 0 },
-  { name: 'typescript-loop-gap', language: 'typescript', extension: 'ts', complex: true, gaps: true,
+  { name: 'typescript-loop-gap', language: 'typescript', extension: 'ts', complex: true, loops: true,
     source: 'export function inspect(payload: { amount: number }): number {\n    while (payload.amount < 3) {\n        payload.amount += 1;\n    }\n    return payload.amount;\n}',
-    expected: inputs => Math.max(inputs.payload.amount, 3) }
+    expected: inputs => Math.max(inputs.payload.amount, 3) },
+  { name: 'kotlin-while', language: 'kotlin', extension: 'kt', loops: true,
+    source: 'fun inspect(amount: Int): Int {\n    var adjusted = amount\n    while (adjusted < 3) {\n        adjusted += 1\n    }\n    return adjusted\n}',
+    expected: inputs => Math.max(inputs.amount, 3) },
+  { name: 'typescript-while', language: 'typescript', extension: 'ts', loops: true,
+    source: 'export function inspect(amount: number): number {\n    let adjusted = amount;\n    while (adjusted < 3) {\n        adjusted += 1;\n    }\n    return adjusted;\n}',
+    expected: inputs => Math.max(inputs.amount, 3) },
+  { name: 'kotlin-do-while', language: 'kotlin', extension: 'kt', loops: true,
+    source: 'fun inspect(amount: Int): Int {\n    var adjusted = amount\n    do {\n        adjusted += 1\n    } while (adjusted < 3)\n    return adjusted\n}',
+    expected: inputs => Math.max(inputs.amount + 1, 3) },
+  { name: 'typescript-do-while', language: 'typescript', extension: 'ts', loops: true,
+    source: 'export function inspect(amount: number): number {\n    let adjusted = amount;\n    do {\n        adjusted += 1;\n    } while (adjusted < 3);\n    return adjusted;\n}',
+    expected: inputs => Math.max(inputs.amount + 1, 3) }
 ];
 const only = process.argv[4] && process.argv[4] !== '-' ? process.argv[4] : undefined;
 const outputDirectory = await fs.promises.mkdtemp(path.join(tmpdir(), 'fn-benchmark-'));
@@ -173,9 +185,9 @@ function score(fixture, pages, context) {
 
 (async () => {
   const records = [];
-  for (const fixture of corpus.filter(item => only === 'release' ? !item.complex : only === 'complex' ? item.complex : only === 'complex-supported' ? item.complex && !item.gaps : only === 'all' ? !item.stress && !item.fallback && !item.complex : only === 'stress' ? item.stress
+  for (const fixture of corpus.filter(item => only === 'release' ? !item.complex && !item.loops : only === 'loops' ? item.loops : only === 'complex' ? item.complex : only === 'complex-supported' ? item.complex && !item.gaps : only === 'all' ? !item.stress && !item.fallback && !item.complex && !item.loops : only === 'stress' ? item.stress
     : only === 'fallback' ? item.fallback : only === 'extended' ? item.extended
-      : only ? item.name === only : !item.extended && !item.stress && !item.fallback && !item.complex)) {
+      : only ? item.name === only : !item.extended && !item.stress && !item.fallback && !item.complex && !item.loops)) {
     const context = await contextFor(fixture);
     if (process.argv[8] === 'context-only') {
       const batch = new application.FunctionNarrativeScenarioRun(context).nextBatch();

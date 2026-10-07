@@ -96,11 +96,11 @@ test("truthy numeric predicates expose Boolean decisions and const/object string
   assert.ok(constant); assert.match(constant.steps[1].syntax!, /non-reassignable/u);
 });
 
-test("external effects, alias writes, loops, unsupported helper defaults and truncated source cannot acquire complete proof", async () => {
+test("external effects, alias writes, unproved loops, unsupported helper defaults and truncated source cannot acquire complete proof", async () => {
   for (const source of [
     'export function inspect(payload: { amount: number }): number {\n external(payload);\n return payload.amount;\n}',
     'export function inspect(payload: { amount: number }): number {\n const alias = payload;\n payload.amount += 3;\n return alias.amount;\n}',
-    'export function inspect(payload: { amount: number }): number {\n while (payload.amount < 3) { payload.amount += 1; }\n return payload.amount;\n}',
+    'export function inspect(payload: { amount: number }): number {\n while (payload.amount < 3) { payload.amount += 0; }\n return payload.amount;\n}',
     'function helper(x = external()) {\n return x;\n}\nexport function inspect(amount: number): number {\n return helper();\n}'
   ]) {
     const { context } = await fixture(source), batch = new FunctionNarrativeScenarioRun(context).nextBatch()!;
@@ -117,6 +117,26 @@ test("external effects, alias writes, loops, unsupported helper defaults and tru
     const value = await fixture(source), selected = new FunctionNarrativeScenarioRun(value.context).nextBatch()!;
     assert.equal(buildPrimitiveWorksheetResponse({ ...selected, nodePreparation: true }, "en"), undefined, source);
   }
+});
+
+test("object loop visits use the changed value and require the last exit predicate to be false", async () => {
+  const { context } = await fixture('export function inspect(payload: { amount: number }): number {\n while (payload.amount < 3) {\n payload.amount += 1;\n }\n return payload.amount;\n}');
+  const run = new FunctionNarrativeScenarioRun(context), path = run.nextBatch()!.sourceFlow!.paths[0];
+  const inputs = [{ name: "payload", json: '{"amount":2}' }];
+  for (const language of ["ko", "en"] as const) {
+    const trace = context.sourceWorksheet!.trace(path, inputs, language); assert.ok(trace);
+    assert.equal(trace.result, "3");
+    assert.deepEqual(trace.steps.filter(step => step.values?.[0].name === "condition").map(step => step.values![0].after), ["true", "false"]);
+    assert.deepEqual(trace.steps[1].values, [{ name: "payload", before: '{"amount":2}', after: '{"amount":3}' }]);
+    const task = complete(context, language), reading = buildPrimitiveNarrativeSynthesis(task, language); assert.ok(reading);
+    assert.match(reading.scenarios[0].explanation!, /payload.amount < 3/u);
+    assert.match(reading.scenarios[0].analysis!.pathReason, /true.*false/u);
+    assert.match(reading.scenarios[0].analysis!.alternative, /payload.amount < 3=false/u);
+    assert.doesNotThrow(() => parseFunctionNarrative(JSON.stringify({ ...reading, summary: language === "ko" ? "amount를 3까지 늘리고 반환합니다." : "Increase amount to three and return it." }), task, language));
+  }
+  assert.equal(context.sourceWorksheet!.trace(path, [{ name: "payload", json: '{"amount":0}' }], "en"), undefined, "a longer execution cannot borrow this symbolic single-pass route");
+  const swapped = { ...path, steps: path.steps.map((step, index) => index === 2 ? { ...step, branch: { outcome: "iterate", confidence: "exact" as const } } : step) };
+  assert.equal(context.sourceWorksheet!.trace(swapped, inputs, "en"), undefined);
 });
 
 test("private evaluator ports never enter prompts; changed source, contradictory completed values and unsafe JSON retain model synthesis", async () => {

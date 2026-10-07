@@ -70,6 +70,17 @@ export function classifyKotlinFlowTask(source: KotlinSource, filePath: string,
       : kind === "loop" ? "Describes source iterations with a bounded symbolic path."
         : "Separates try, catch, and cleanup source regions.";
     const node = unwrapKotlinNode(task.node);
+    if (node.name === "whileStatement" || node.name === "doWhileStatement") {
+      // Preserve the parser-owned predicate separately from the loop's full
+      // body span. Readers must substitute this visit's condition, not try to
+      // evaluate the rendered while statement or its entire body as an expression.
+      const predicate = getKotlinChildNamed(node, "expression");
+      if (predicate) {
+        const expression = source.text.slice(predicate.from, predicate.to);
+        condition = { groupId: `kotlin-condition:${predicate.from}:${predicate.to}`, expression,
+          groupExpression: expression, memberIndex: 0, root: true };
+      }
+    }
     if (node.name === "forStatement") {
       const variable = getKotlinChildNamed(node, "variableDeclaration");
       const identifier = variable && getKotlinChildNamed(variable, "simpleIdentifier");

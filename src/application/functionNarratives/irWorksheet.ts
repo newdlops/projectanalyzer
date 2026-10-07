@@ -88,29 +88,46 @@ export function createFunctionNarrativeIRWorksheet(context: FunctionNarrativeCon
       assignments.push({ parameterId: parameter.id, value });
     }
     const visits: FunctionTutorBlockObservation[] = [];
-    const evaluation = evaluateFunctionTutorInputs(declaration, assignments, { maxSteps: 64, maxLoopVisits: 1,
+    const sourceVisits = new Map<string, number>();
+    for (const step of path.steps) {
+      const key = step.graphNodeId ?? JSON.stringify([step.kind, step.code, step.source]);
+      sourceVisits.set(key, (sourceVisits.get(key) ?? 0) + 1);
+    }
+    // The exact selected route owns its visit budget. A symbolic body pass
+    // never proves a longer loop: every actual interpreter visit must still
+    // match the route, including the final predicate that leaves the loop.
+    const maxVisits = Math.min(32, Math.max(1, ...sourceVisits.values()));
+    const evaluation = evaluateFunctionTutorInputs(declaration, assignments, { maxSteps: 64, maxLoopVisits: maxVisits,
       observeBlock: visit => { if (blocks.get(visit.blockId)?.kind !== "entry") visits.push(visit); } });
     const result = evaluation.terminal?.value && staticJSON(evaluation.terminal.value);
     if (evaluation.status !== "verified" || evaluation.terminal?.kind !== "return" || result === undefined
       || evaluation.edgeIds.some(id => logic.edges.find(edge => edge.id === id)?.confidence !== "exact")
       || visits.length !== path.steps.length) return;
     const steps: FunctionNarrativeSourceTrace["steps"] = [], substitutions: string[] = [], ko = language === "ko";
+    const decisions = new Map<string, typeof evaluation.decisions>(), decisionVisits = new Map<string, number>();
+    for (const decision of evaluation.decisions) {
+      const group = decisions.get(decision.blockId) ?? []; group.push(decision); decisions.set(decision.blockId, group);
+    }
     for (let index = 0; index < visits.length; index++) {
       const visit = visits[index], block = blocks.get(visit.blockId), ir = program.get(visit.blockId), target = path.steps[index];
       const owned = context.scenarioGraph?.nodes.find(node => node.step && block && node.step.kind === block.kind
         && node.step.source.startLine === block.range.startLine + 1 && node.step.code === target.code)?.step;
       if (!block || !ir || block.confidence !== "exact" || !owned || JSON.stringify(owned.source) !== JSON.stringify(target.source)
-        || !["mutation", "condition", "return"].includes(target.kind) || ir.operations.length > 1
+        || !["mutation", "condition", "loop", "return"].includes(target.kind) || ir.operations.length > 1
         || target.kind !== "mutation" && ir.operations.length) return;
-      const decision = evaluation.decisions.find(item => item.blockId === visit.blockId);
-      if (target.branch && (target.branch.confidence !== "exact" || target.branch.outcome !== decision?.outcome)) return;
+      const isPredicate = target.kind === "condition" || target.kind === "loop";
+      const occurrence = decisionVisits.get(visit.blockId) ?? 0, decision = isPredicate ? decisions.get(visit.blockId)?.[occurrence] : undefined;
+      if (isPredicate) decisionVisits.set(visit.blockId, occurrence + 1);
+      const expected = target.branch?.outcome === "iterate" ? "true" : ["exit", "repeat-exit"].includes(target.branch?.outcome ?? "")
+        ? "false" : target.branch?.outcome;
+      if (target.branch && (target.branch.confidence !== "exact" || expected !== decision?.outcome)) return;
       const operation = ir.operations[0];
       const bindingId = operation?.kind === "define" ? operation.bindingId : operation && "target" in operation ? operation.target.bindingId : undefined;
-      const name = target.kind === "condition" ? "condition" : target.kind === "return" ? "result" : bindingId && names.get(bindingId);
-      const value: Value | undefined = target.kind === "condition" ? decision ? { kind: "boolean", value: decision.outcome === "true" } : undefined
+      const name = isPredicate ? "condition" : target.kind === "return" ? "result" : bindingId && names.get(bindingId);
+      const value: Value | undefined = isPredicate ? decision ? { kind: "boolean", value: decision.outcome === "true" } : undefined
         : target.kind === "return" ? visit.terminal : bindingId ? visit.after.get(bindingId) : undefined;
       const after = value && staticJSON(value), prior = bindingId && visit.before.get(bindingId);
-      const before = target.kind === "condition" || target.kind === "return" ? "—" : operation?.kind === "define"
+      const before = isPredicate || target.kind === "return" ? "—" : operation?.kind === "define"
         ? ko ? "선언 전" : "not declared" : prior && staticJSON(prior);
       if (!name || after === undefined || before === undefined || context.valueNames?.length && !context.valueNames.includes(name)) return;
       const expression = ir.decision?.expression ?? (ir.terminal && "value" in ir.terminal ? ir.terminal.value : undefined)
@@ -121,7 +138,8 @@ export function createFunctionNarrativeIRWorksheet(context: FunctionNarrativeCon
       if (operation?.kind === "assign" && operation.operator !== "set" && prior) operands.unshift(`${name}=${staticJSON(prior)}`);
       const substituted = `${target.loweredPredicate ?? target.code}${operands.length ? " [" + [...new Set(operands)].join(", ") + "]" : ""}`;
       const next = path.steps[index + 1]?.code;
-      const syntax = target.kind === "condition" ? ko ? "조건식의 참·거짓 판단으로 다음 소스 경로를 선택합니다." : "The predicate's truth value selects the next source route."
+      const syntax = target.kind === "loop" ? ko ? "반복 조건은 이 방문의 현재 값으로 본문 진행 또는 반복 종료를 판단합니다." : "The loop predicate uses this visit's current values to select the body or leave the loop."
+        : target.kind === "condition" ? ko ? "조건식의 참·거짓 판단으로 다음 소스 경로를 선택합니다." : "The predicate's truth value selects the next source route."
         : target.kind === "return" ? ko ? "return은 식 전체의 값을 반환하고 현재 함수의 진행을 끝냅니다." : "Return yields the whole expression and ends this function."
           : operation?.kind === "define" ? /^const\b/u.test(target.code)
             ? ko ? "const는 재대입할 수 없는 지역 변수를 선언하고 초기값을 저장합니다." : "Const declares a non-reassignable local binding and stores its initial value."
@@ -133,9 +151,9 @@ export function createFunctionNarrativeIRWorksheet(context: FunctionNarrativeCon
       const semantics = describeExpression(sourceExpression, sourceOperation, language);
       if (semantics === undefined) return;
       const step = { code: target.code, source: target.source, syntax: syntax + " " + semantics,
-        text: ko ? target.kind === "condition" ? `조건 ${target.code}의 판단은 ${after}입니다.`
+        text: ko ? isPredicate ? `${target.kind === "loop" ? "반복 조건" : "조건"} ${target.code}의 판단은 ${after}입니다.`
           : target.kind === "return" ? `${target.code}에서 ${after} 값을 반환합니다.` : `${target.code} 후 ${name}=${after}입니다.`
-          : target.kind === "condition" ? `${target.code} is ${after}.` : target.kind === "return" ? `${target.code} returns ${after}.` : `After ${target.code}, ${name}=${after}.`,
+          : isPredicate ? `${target.kind === "loop" ? "Loop predicate " : ""}${target.code} is ${after}.` : target.kind === "return" ? `${target.code} returns ${after}.` : `After ${target.code}, ${name}=${after}.`,
         reason: ko ? `현재 예시의 ${substituted} 계산 결과는 ${after}입니다.` : `For this example, ${substituted} gives ${after}.`,
         effect: target.kind === "return" ? ko ? `${after}를 호출자에게 반환하며 이 함수가 끝납니다.` : `Return ${after} to the caller and end this function.`
           : ko ? `${name}: ${before} → ${after}. 다음 구문은 ${next ?? "없음"}입니다.` : `${name}: ${before} → ${after}; next is ${next ?? "the end"}.`,

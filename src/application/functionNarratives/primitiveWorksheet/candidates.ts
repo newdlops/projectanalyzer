@@ -10,7 +10,7 @@ export function selectPrimitiveTrace(context: FunctionNarrativeContext, path: Fu
   if (!context.parameters || context.parameters.length > 8) return undefined;
   const single = { ...context, sourceFlow: { basis: "source-control-flow" as const, paths: [path], limited: path.status === "partial" } };
   const constraints = getFunctionNarrativeExampleConstraints(single, 0), numeric = new Set([10, 0, 1, -1]);
-  for (const step of path.steps.filter(step => step.kind === "condition")) {
+  for (const step of path.steps.filter(step => step.kind === "condition" || step.kind === "loop")) {
     for (const match of (step.loweredPredicate ?? step.code).matchAll(/\b\d+(?:\.\d+)?\b/gu)) {
       const value = Number(match[0]); numeric.add(value); numeric.add(value + 1); numeric.add(value - 1);
     }
