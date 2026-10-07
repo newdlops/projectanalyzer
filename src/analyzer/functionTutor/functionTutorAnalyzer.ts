@@ -150,6 +150,7 @@ function analyzeTypeScriptLikeDeclaration(
     functionNode: graphNode,
     language: getSupportedLanguage(graphNode),
     executionKind: readExecutionKind(functionNode),
+    returnTypeText: functionNode.type?.getText(sourceFile).slice(0, 240),
     parameters,
     constraints,
     program,

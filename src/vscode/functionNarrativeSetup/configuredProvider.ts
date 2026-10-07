@@ -22,17 +22,24 @@ export function createConfiguredNarrativeProvider(api: ConfiguredNarrativeApi, m
   const connected = createVsCodeFunctionNarrativeProvider(api, manager);
   const localFactory = createLocal ?? (options => createLocalFunctionNarrativeProvider({ ...options, taskManager: manager }));
   const prepared = new WeakMap<AbortSignal, Promise<FunctionNarrativeProvider>>();
+  const boundProviders = new WeakMap<AbortSignal, FunctionNarrativeProvider>();
   let local: { key: string; provider: FunctionNarrativeProvider } | undefined;
   const resolve = (language: "ko" | "en", signal: AbortSignal, options?: FunctionNarrativeOperationOptions) => {
     let pending = prepared.get(signal);
     if (!pending) {
-      pending = scheduleFunctionNarrativePreparation(manager, signal, operation => choose(language, operation), options);
+      pending = scheduleFunctionNarrativePreparation(manager, signal, operation => choose(language, operation), options)
+        .then(provider => { boundProviders.set(signal, provider); return provider; });
       prepared.set(signal, pending);
     }
     return pending;
   };
   return {
     managesDeadlines: true,
+    supportsFinalSummary: signal => boundProviders.get(signal)?.supportsFinalSummary?.(signal) === true,
+    async withRun(language, signal, operation) {
+      const provider = await resolve(language, signal);
+      return provider.withRun ? provider.withRun(language, signal, operation) : operation();
+    },
     async prepare(language, signal, options) { await resolve(language, signal, options); },
     async generate(context, language, signal, options) {
       const provider = await resolve(language, signal, { ...options, label: context.functionName });

@@ -82,8 +82,9 @@ Public API:
 ## 사용 및 연결
 
 0.0.1116부터 같은 설치 경로에 `llama-server`가 있는 macOS/Linux에서는 로컬 실행기를
-연속 요청 동안 재사용한다. private Unix socket과 임시 인증 key를 사용하고 대기열이 비면
-종료한다. 취소·실패·다른 공급자로 전환·Host 종료도 프로세스를 정리하며, Host가 갑자기
+연속 요청 동안 재사용한다. private Unix socket과 임시 인증 key를 사용한다. 0.0.1117의
+명시적인 page scope는 비동기 준비·저장 사이에도 재사용하며 page 완료 전에 종료를 기다린다.
+scope 밖에서는 대기열이 비면 종료한다. 취소·실패·다른 공급자로 전환·Host 종료도 프로세스를 정리하며, Host가 갑자기
 끝나면 watchdog의 parent pipe EOF로 종료한다. model process는 한 FIFO 슬롯만 사용하고
 context 8,192·output 2,400 token·모델 CPU thread 2개 상한을 유지한다. 별도 runtime을
 다운로드하지 않으며 companion 없음·custom runner·Windows는 기존 CLI 방식으로 실행한다.
@@ -439,6 +440,103 @@ Q4_K_M을 사용했다. revision `f74adce6aa16316c625447af059dbebe4983757c`,
 2,104,932,800 bytes, SHA-256
 `724fb256bec1ff062b2f65e4569e871ad2e95ab2a3989723d1769c54294730b7`을 확인했다.
 두 모델 모두 `.local-models/`에 보관하며, 비교를 위해 사용자 설정을 바꾸지 않았다.
+
+## 0.0.1117 생성 계약
+
+로컬 adapter의 `supportsFinalSummary(signal)` capability와 `withRun(language, signal,
+operation)`은 준비된 동일 provider와 request signal에 연결된다. 초기 요청은 inputs와
+첫 두 source node만 읽으며 임시 문단·결과를 사용자에게 보내지 않는다. 후속 node 작업은
+원래 inputs와 앞 node의 최신 모델 값 최대 8개를 이어받는다. 초기 문단·미래 결과는 모델
+입력에서 제외한다. 최종 `createFunctionNarrativeSummaryTask`는 완료된 code/value trace
+최대 2,000자와 생략 개수를 전달하고, terminal node가 생성한 실제 JSON result가 있으면
+그 값을 보존한다. 입력·steps·알려진 result를 바꾼 summary는 거부한다. summary 실패·취소는
+완료된 node를 재생성하지 않고 마지막 단계만 재시도한다. capability 없는 연결 모델의
+기존 흐름은 유지한다.
+
+Kotlin/TypeScript declaration의 명시적 primitive 반환 type은 local JSON result kind를 제한한다.
+adapter에 Python primitive 반환 type이 전달된 경우에도 같은 kind 제약을 적용한다.
+numeric primitive IR write도 실제 JSON 숫자로 생성한다. 식 문자열을 숫자로 바꾸거나
+사용자 소스를 실행하지 않는다. return 식은 전체 연산을 설명한 다음 result 값을 쓰도록
+순서를 지정한다. source에 명시된 exact literal return/write, 변경되지 않은 Boolean input guard와
+변수 선언 전 상태는 구조적 source facts를 보존한다. Kotlin의 direct input Elvis lowering은
+null 판단·피연산자 선택과 다음 저장을 구분하고, 단순 입력/리터럴 저장의 반복 해설은 source facts를
+사용한다. 긴 source 이름 때문에 prose 상한을 넘는 const 필드는 모델이 짧게 작성하도록 둔다.
+source 변수 이름이 `result`/`condition`인 실제 쓰기는 synthetic 반환/판단 값과 구별해 다음 node에
+이어준다. 중첩 고정 JSON 결과는 값으로 비교하고
+원래 JSON 순서를 복원한다. source가 잘렸거나 type이 alias/unknown인 경우 임의로 확정하지 않는다.
+
+완전하고 exact한 primitive source 경로에 calls/accesses/unknown identifiers가 없을 때만
+assumptions/limitations를 []로 고정한다. 입력이 양수여야 한다는 등의 없는 조건을 모델이
+추가하지 못하도록 하는 좁은 source 검사다. 생략·inferred route·외부 호출·미확인 type에는
+적용하지 않으며 기존 gap 설명을 유지한다. 이 검사와 JSON validation은 문장 의미나 실제
+런타임의 정확성 보장이 아니다.
+
+page scope는 scheduler 실행 슬롯을 차지하지 않는다. 다른 model/adapter 작업은 이전
+프로세스 종료 후 실행한다. 비동기 저장·prompt 준비 중 취소는 idle 모델을 해제하고 다른
+page owner의 lease를 보존한다. complete session 조회·저장된 page/node 읽기·source 열기는
+모델 준비나 추론을 실행하지 않는다.
+
+## 0.0.1117 실제 모델 검증
+
+같은 Qwen3.5-4B Q4_K_M 가중치, seed 42, temperature 0.2, context 8,192, output 2,400,
+CPU thread 2개로 기존 설치본과 공개 production-parser corpus를 순서대로 측정했다.
+model 준비/다운로드는 제외하고 프로세스 시작과 모든 node 및 최종 summary 생성은 포함한다.
+저장소는 benchmark memory map을 사용한다.
+
+| 공개 함수 | 설치된 0.0.1116 | 0.0.1117 전체 corpus 측정 |
+| --- | ---: | ---: |
+| Kotlin Boolean guard + 고정값 5 대입 | 27.32초 | 15.79초 |
+| TypeScript guard + 대입·복합 곱셈 | 26.06초 | 17.23초 |
+| Kotlin nullable 입력 + Elvis | 26.78초 | 23.70초 |
+| 합계 | 80.16초 | 56.72초 |
+
+이 한 쌍의 측정은 약 29% 짧았다. 같은 전체 측정의 추가 Kotlin mutable arithmetic,
+numeric threshold, Boolean return은 각각 20.02초, 20.64초, 12.07초였다. 여섯 함수의
+12개 source 경로와 55개 node를 완료했고 최종 JSON 반환값 12/12, 현재 대입값 7/7이
+독립 formula oracle과 일치했다. 선택한 경로의 대입/반환을 건너뛴다고 설명하거나 다른 구문의
+text/syntax를 복사하는 좁은 검사와 없는 prerequisites 검사도 통과했다. source를 실행한 결과가 아니다.
+
+마지막 Elvis 판단/저장 구분 후 추가 측정은 44.43초였고, 단순 복사 해설을 source facts로
+보존한 최종 재검증은 17.31초였다. 두 재검증 모두 반환값 2/2, 대입값 2/2, node 10/10과
+같은 검사를 통과했다. source와 모델 상태를 실제 응답으로 확인했다. 이 별도 측정 시간을
+위 연속 corpus 합계에 섞지 않는다. 실행 부하·응답 길이에 따른 변동이 있으며 모든 함수나
+환경에서 같은 속도 향상을 보장하지 않는다.
+
+각 page의 연속 요청에서는 benchmark 자신의 동일 watchdog PID를 관찰했고 page 사이에는
+새 PID로 바뀌었다. 완료 후 `llama-server`/watchdog 프로세스가 남지 않았다. KV cache_n이
+0인 요청도 있으므로 PID 재사용과 prefix-token 재사용을 구분한다. `all` selector로 여섯 함수,
+`extended`로 추가 세 함수, 이름 selector로 한 함수를 재현할 수 있다. benchmark는 경로 완료뿐
+아니라 oracle/좁은 품질 검사가 실패해도 exit code 1을 반환한다.
+
+일부 자유 문장은 null 여부를 “유효함”으로 표현하거나 중간값을 조건 값으로 부르는 등
+부정확한 용어를 쓸 수 있다. source-owned facts, JSON 종류, 숫자 oracle과 위 패턴 검사는
+모든 문장 의미나 외부 결과를 검증하지 않는다. 기존 LLM 추론·실제 실행 미검증 표시를 유지한다.
+
+## 0.0.1117 설치 및 Host 검증
+
+- 실제 native UI의 자동 모델 준비·SHA-256 확인·두 경로 생성은 성공했다. 이때 숫자는
+  맞지만 거짓 if 조건을 본문 실행으로 설명하는 문장이 있었다. native deadline/progress
+  adapter가 final-summary/page-scope capability를 누락한 것이 원인이었다. 두 capability를
+  전달하도록 수정했고 실제 Host 경로의 scope·최종 synthesis·cache-only 회귀를 추가했다.
+- 수정된 production Host에서 같은 공개 `GraphNotes.kt`와 Rust `plaintext` 분석 결과를
+  재생했다. workspace 실행은 18.30초, 최종 설치 파일 실행은 23.16초였고 각 5회 모델
+  요청으로 두 경로를 완료했다. false/10 → 0, true/10 → 15 예시와 node 4개·5개를
+  보존했다. 마지막 문단에서 앞서 관찰한 거짓 if 본문 실행 설명은 관찰되지 않았다.
+  두 저장 page 조회 및 source evidence adapter 이동 1회는 추가 추론 없이 완료됐고
+  실행 뒤 모델/watchdog 프로세스는 남지 않았다. memory page store를 사용하는 Host
+  실행이며 source 코드 실행이나 최종 native 버튼 조작 검증과 구분한다.
+- 마지막 설치 후 native 버튼 재검증은 창 재로드 뒤 AX 상태와 실제 화면의 불일치로
+  완료하지 못했다. 최종 UI 전체 검증을 주장하지 않는다. 이번 backend 변경에서
+  모바일·태블릿 viewport 검증은 수행하지 않았다.
+- 최종 전체 Node unit 1,053개 중 1,049개 통과. 기존 declared-type 입력 대표값 두 건,
+  advanced private Scenario, decorated source-reveal 네 실패가 남았다. 한 중간 실행의
+  Rust fixture 프로세스 실패는 단독 재실행에서 통과했다. 빌드 출력을 다시 만드는
+  packaging과 겹친 테스트 결과는 제외하고 최종 전체 실행을 분리했다.
+- packaging script 14개, compile·release metadata·diff check를 통과했다. Rust 구현은
+  바꾸지 않았으며 Rust unit suite는 별도로 재실행하지 않았다.
+- Default 및 `Function Language QA 1107`에 0.0.1117을 설치했다. 두 profile 등록과
+  설치된 JavaScript 478개·native binary가 빌드와 일치했고 runtime closure 오류가 없다.
+  VSIX는 512개 파일·압축 3.62MiB·해제 15.44MiB로 기존 상한을 통과했다.
 
 ## 0.0.1116 검증 기록
 

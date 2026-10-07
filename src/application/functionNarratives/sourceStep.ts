@@ -30,7 +30,10 @@ export function createFunctionNarrativeSourceStep(analysis: FunctionLogicAnalysi
     const loweredPredicate = predicate && !snippet.text.includes(predicate) ? predicate : undefined;
     const code = loweredPredicate ? raw : predicate || raw;
     if (code && !snippet.text.includes(code) || code.length > 480) return undefined;
+    const writeTargets = [...new Set((block.valueChanges ?? []).filter(change => change.confidence === "exact" && change.targetKind === "variable")
+      .map(change => change.target).filter(name => name.length <= 120))];
     return { kind: block.kind, code: code || block.kind, confidence: block.confidence, ...(loweredPredicate ? { loweredPredicate } : {}),
+      ...(writeTargets.length ? { writeTargets } : {}),
       source: { snippetId: snippet.id, startLine, endLine } };
   };
 }

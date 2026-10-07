@@ -209,7 +209,12 @@ export class FunctionNarrativesHostDelivery {
       if (!session.complete && provider.prepare) await this.prepareProvider(provider, language, controller.signal, operation);
       if (!current()) return;
       while (!session.complete) {
-        const boundedProvider: FunctionNarrativeProvider = { generate(context, locale, signal, options) {
+        // Keep run capabilities through this deadline/progress adapter. Dropping
+        // them silently publishes provisional prose and defeats page reuse.
+        const boundedProvider: FunctionNarrativeProvider = {
+          supportsFinalSummary: signal => provider.supportsFinalSummary?.(signal) === true,
+          ...(provider.withRun ? { withRun: provider.withRun.bind(provider) } : {}),
+          generate(context, locale, signal, options) {
           return requestFunctionNarrative(provider, context, locale, signal, SCENARIO_BATCH_DEADLINE_MS, { ...options, ...operation });
         } };
         let onAbort = () => {};

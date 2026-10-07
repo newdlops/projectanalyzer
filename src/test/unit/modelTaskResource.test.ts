@@ -41,3 +41,58 @@ test("an idle resource is released without further generation and shutdown canno
   await closing.promise;
   const shutdown = manager.dispose(); assert.equal(manager.shutdownComplete, false); reaped.resolve(); await shutdown; assert.equal(manager.shutdownComplete, true);
 });
+
+test("an explicit resource scope survives asynchronous gaps, preserves FIFO switching and releases before scope completion", async () => {
+  const manager = new ModelTaskManager(); let releases = 0;
+  const resource = { async release() { releases++; } };
+  await manager.withResource(resource, async () => {
+    await manager.run({ kind: "inference", label: "first", signal: signal(), resource, async execute() {} });
+    await new Promise<void>(resolve => setImmediate(resolve)); assert.equal(releases, 0);
+    await manager.run({ kind: "inference", label: "other", signal: signal(), async execute() { assert.equal(releases, 1); } });
+    await manager.run({ kind: "inference", label: "resume", signal: signal(), resource, async execute() {} });
+    await new Promise<void>(resolve => setImmediate(resolve)); assert.equal(releases, 1);
+  });
+  assert.equal(releases, 2); await manager.dispose(); assert.equal(releases, 2);
+});
+
+test("failed work releases a retained model immediately and shutdown overrides an unfinished scope", async () => {
+  const manager = new ModelTaskManager(); let releases = 0;
+  const resource = { async release() { releases++; } };
+  await manager.withResource(resource, async () => {
+    await assert.rejects(manager.run({ kind: "inference", label: "fail", signal: signal(), resource,
+      async execute() { throw new Error("expected"); } }), /expected/);
+    assert.equal(releases, 1);
+    await manager.run({ kind: "inference", label: "next", signal: signal(), resource, async execute() {} });
+    await manager.dispose(); assert.equal(releases, 2);
+  });
+  assert.equal(manager.shutdownComplete, true); assert.equal(releases, 2);
+});
+
+test("cancelling a page in an asynchronous gap reaps its idle model before the page callback settles", async () => {
+  const manager = new ModelTaskManager(), controller = new AbortController(), gap = deferred(), entered = deferred(), closing = deferred(), reaped = deferred();
+  let releases = 0, finished = false, nextStarted = false;
+  const resource = { async release() { releases++; closing.resolve(); await reaped.promise; } };
+  const page = manager.withResource(resource, async () => {
+    await manager.run({ kind: "inference", label: "one", signal: controller.signal, resource, async execute() {} });
+    entered.resolve(); await gap.promise;
+  }, controller.signal).then(() => { finished = true; });
+  await entered.promise; controller.abort(); await closing.promise;
+  assert.equal(finished, false);
+  const next = manager.run({ kind: "inference", label: "other", signal: signal(), async execute() { nextStarted = true; } });
+  await new Promise<void>(resolve => setImmediate(resolve)); assert.equal(nextStarted, false);
+  reaped.resolve(); await next; gap.resolve(); await page; await manager.dispose(); assert.equal(releases, 1);
+});
+
+test("cancelling one page lease preserves another owner of the same model", async () => {
+  const manager = new ModelTaskManager(), first = new AbortController(), gap = deferred(), entered = deferred(); let releases = 0;
+  const resource = { async release() { releases++; } };
+  await manager.withResource(resource, async () => {
+    const inner = manager.withResource(resource, async () => {
+      await manager.run({ kind: "inference", label: "one", signal: first.signal, resource, async execute() {} });
+      entered.resolve(); await gap.promise;
+    }, first.signal);
+    await entered.promise; first.abort(); await new Promise<void>(resolve => setImmediate(resolve));
+    assert.equal(releases, 0); gap.resolve(); await inner;
+  });
+  assert.equal(releases, 1); await manager.dispose();
+});

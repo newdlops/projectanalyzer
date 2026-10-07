@@ -16,6 +16,10 @@ export type FunctionNarrativeGenerationOptions = FunctionNarrativeOperationOptio
 export interface FunctionNarrativeProvider {
   /** Managed adapters own execution deadlines; Host fallback deadlines must not include queue waiting. */
   readonly managesDeadlines?: boolean;
+  /** Checked after preparation; adapters may require synthesis from completed node values before a page is published. */
+  supportsFinalSummary?(signal: AbortSignal): boolean;
+  /** Optional page-scoped reuse; ownership remains with the FIFO scheduler and cleanup precedes resolution. */
+  withRun?<T>(language: "ko" | "en", signal: AbortSignal, operation: () => Promise<T>): Promise<T>;
   /** Optional cancellable setup runs once per explicit action, before inference deadlines; it receives no source. */
   prepare?(language: "ko" | "en", signal: AbortSignal, options?: FunctionNarrativeOperationOptions): Promise<void>;
   /** Invoked only by an explicit user action; text still needs independent structured validation. */

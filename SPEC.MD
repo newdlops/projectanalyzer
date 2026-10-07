@@ -1402,7 +1402,10 @@ Webview는 Project Graph, 파일 시스템, VS Code API에 직접 접근하지 �
   source·prompt·응답·key 값은 process argv와 작업 이력에 넣지 않는다.
 - `ModelTaskManager`는 다른 resource·일반 adapter 실행 전에 이전 resource 종료를 기다린다.
   실패·취소·timeout·dispose도 자식 종료 뒤에 슬롯을 해제한다. 성공 뒤에는 한 event-loop
-  turn에서 호출자가 다음 chunk를 enqueue할 기회를 주며, 큐가 비면 바로 종료한다.
+  turn에서 호출자가 다음 chunk를 enqueue할 기회를 준다. 명시적인 page scope 안에서는
+  비동기 준비·저장 사이에도 재사용하고 page 완료 전에 종료를 기다린다. scope가 없으면 큐가
+  비면 바로 종료한다. 비동기 gap 중 scope 취소는 idle 모델을 해제하며 다른 scope의 lease는
+  유지한다. scope는 실행 슬롯을 확보하지 않고 다른 resource 작업은 여전히 종료 뒤 실행한다.
   watchdog은 parent pipe EOF에도 모델을 종료한다. companion 없음·custom runner·Windows는
   기존 CLI를 사용하며 source 준비·개별 추론 deadline·단일 모델 슬롯 상한은 유지한다.
 - `llm/functionNarratives/localWire`는 required const/single-enum metadata만 출력 schema에서
@@ -1417,6 +1420,22 @@ Webview는 Project Graph, 파일 시스템, VS Code API에 직접 접근하지 �
   node·반복 방문은 기존 bounded chunk로 처리한다. model worksheet는 도달한 구문과
   predicateResult를 구분하고 명시적인 Kotlin/TypeScript/Python primitive 입력만 type으로
   제한한다. alias·복합 type·외부 결과를 임의로 확정하지 않는다.
+
+- 로컬 rich adapter는 첫 요청에서 입력과 첫 두 노드만 준비하고 모든 node 작업 후
+  최종 summary를 생성한다. Native Host의 deadline/progress adapter도 final-summary/page-scope
+  capability를 전달한다. 실제 `result`/`condition` 변수 쓰기는 synthetic 판단/반환 값과 구분해
+  선행 상태로 이어준다. provisional paragraph/result는 공개·저장하지 않는다.
+  후속 node 입력은 원래 inputs와 선행 model values만 유지하며 미래 결과·기존 문단은 제외한다.
+  마지막 summary는 완료된 source-order code/value trace 최대 2,000자, 생략 개수와 terminal
+  model result를 사용한다. 원래 inputs·steps·알려진 result를 변경하면 거부한다. summary 실패나
+  취소는 완료된 node 작업을 보존하고 해당 단계만 재시도한다. 다른 provider의 기존 계약은 유지한다.
+- 명시적인 primitive 반환 type, numeric IR write type은 실제 JSON kind로 제한하고 portable
+  text로 encode한다. 계산식을 숫자로 수리하지 않는다. return 식의 연산은 모델이 설명한 뒤
+  result 값을 쓰며 exact literal return/write·변경되지 않은 Boolean input guard·선언 전 표시는 source-owned
+  사실을 사용한다. object/array 고정 결과는 값으로 비교하고 원래 JSON 순서를 복원한다.
+  제한·생략 없는 exact primitive path이며 calls/accesses/unknown identifiers가 없을 때만
+  assumptions/limitations를 []로 고정한다. 그 외 경로는 기존 미확인 정보 계약을 유지한다.
+  이 계약은 모델 문장이나 실제 실행의 정확성 보장이 아니다.
 
 - `webview/codeFlow/narrativeNotes`는 선택한 저장 시나리오의 `nodeDetails`를 현재 graph의
   verified identity adapter·layout과 결합한다. 해당 시나리오의 `graph.nodeIds`에 없는 노드와

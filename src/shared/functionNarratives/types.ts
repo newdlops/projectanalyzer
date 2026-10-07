@@ -68,14 +68,22 @@ export type FunctionNarrativeContext = {
   groundingLimited?: boolean;
   /** Declared names only, not parameter identities or user-entered values. Enables model examples. */
   parameters?: Array<{ name: string; type?: string }>;
+  /** Explicit source annotation used only to constrain local JSON example results. */
+  returnTypeText?: string;
   /** Host-owned names constrain node value labels to this function. */
   valueNames?: string[];
   /** The current production reading contract; absent on legacy callers/cached responses. */
   detailLevel?: "rich";
+  /** Private node preparation never publishes its provisional paragraph/result. */
+  nodePreparation?: boolean;
   /** Internal bounded node task; the original scenario/example is held fixed across chunks. */
   nodeTask?: { frame: { when: string[]; outcome: string }; example: FunctionNarrativeExample; targets: FunctionNarrativeFlowStep[];
     /** Previously validated model paragraph and at most eight recent model values, not static facts. */
     reading?: { explanation: string; priorState: Array<{ name: string; value: string }> } };
+  /** Internal final synthesis uses completed node values; speculative primary prose is never carried forward. */
+  summaryTask?: { inputs: FunctionNarrativeExample["inputs"]; steps: FunctionNarrativeStep[];
+    resultJson?: string; completed: Array<{ code: string; predicateResult?: string; values: FunctionNarrativeStep["values"] }>;
+    omittedValues: number };
   /** True only when source excerpts were omitted or truncated. */
   limited: boolean;
 };
@@ -92,6 +100,8 @@ export type FunctionNarrativeFlowStep = {
   graphOccurrence?: number;
   /** Analyzer-lowered predicate for source syntax such as Kotlin Elvis, never a model-authored expression. */
   loweredPredicate?: string;
+  /** Exact local variable writes from analyzer annotations, excluding inferred receiver/property effects. */
+  writeTargets?: string[];
   /** Choice describes this route only; feasibility for concrete inputs is not proved. */
   branch?: { outcome: string; confidence: "exact" | "inferred";
     /** A parser-proven direct required Boolean input can name the matching input value. */

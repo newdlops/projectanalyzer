@@ -133,7 +133,8 @@ export function addFunctionNarrativeValueGrounding(context: FunctionNarrativeCon
   const scenarioGraph = context.scenarioGraph && { ...context.scenarioGraph, nodes: context.scenarioGraph.nodes.map((node) => ({ ...node,
     next: node.next.map((edge) => { const inputCondition = node.step && edge.confidence === "exact" && booleanInputCondition(node.step, edge.outcome);
       return inputCondition ? { ...edge, inputCondition } : edge; }) })) };
-  return { ...context, ...(sourceFlow ? { sourceFlow } : {}), ...(scenarioGraph ? { scenarioGraph } : {}), ...(facts.length ? { valueFacts: facts } : {}),
+  return { ...context, ...(declaration.returnTypeText ? { returnTypeText: declaration.returnTypeText } : {}),
+    ...(sourceFlow ? { sourceFlow } : {}), ...(scenarioGraph ? { scenarioGraph } : {}), ...(facts.length ? { valueFacts: facts } : {}),
     ...(examples.length ? { checkedExamples: examples } : {}), ...(limited ? { groundingLimited: true } : {}) };
 }
 

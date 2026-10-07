@@ -32,6 +32,8 @@ export class ModelTaskManager {
   private publishing = false;
   private publishAgain = false;
   private resource?: ModelTaskResource;
+  /** Explicit page scopes retain only a resource controller; they never acquire an execution slot. */
+  private readonly retained = new Map<ModelTaskResource, number>();
   private idleRelease?: ReturnType<typeof setImmediate>;
   /** Cleanup is serialized even when idle release and a new request arrive together. */
   private releasing: Promise<void> = Promise.resolve();
@@ -48,6 +50,30 @@ export class ModelTaskManager {
 
   /** Adapters may reuse an already owned inference slot instead of nesting the same global queue. */
   public isExecuting(signal: AbortSignal): boolean { return this.active?.controller.signal === signal && this.active.record.kind === "inference"; }
+
+  /** Keeps one model warm across a bounded explicit page, including asynchronous storage/prompt work; FIFO switching still reaps it. */
+  public async withResource<T>(resource: ModelTaskResource, operation: () => Promise<T>, signal?: AbortSignal): Promise<T> {
+    if (this.closed) throw new ModelTaskError("disposed");
+    if (signal?.aborted) throw new ModelTaskError("cancelled");
+    this.retained.set(resource, (this.retained.get(resource) ?? 0) + 1);
+    if (this.idleRelease && this.resource === resource) { clearImmediate(this.idleRelease); this.idleRelease = undefined; }
+    let detached = false;
+    let cleanup = Promise.resolve();
+    // Cancellation during storage/prompt work must not retain idle model memory
+    // until that asynchronous work finishes. Other page owners keep their lease.
+    const detach = () => {
+      if (detached) return cleanup;
+      detached = true;
+      const count = (this.retained.get(resource) ?? 1) - 1;
+      if (count) this.retained.set(resource, count); else this.retained.delete(resource);
+      if (this.idle && this.resource === resource && !this.retained.has(resource)) cleanup = this.releaseResource();
+      return cleanup;
+    };
+    const abort = () => { void detach(); };
+    signal?.addEventListener("abort", abort, { once: true });
+    try { return await operation(); }
+    finally { signal?.removeEventListener("abort", abort); await detach(); }
+  }
 
   /** Enqueues a bounded operation; queue waiting never starts its execution deadline. */
   public run<T>(request: ModelTaskRequest<T>): Promise<T> {
@@ -163,10 +189,10 @@ export class ModelTaskManager {
       // another task take ownership of local model memory.
       this.settle(job, value, failed || Boolean(job.reason), job.reason ? new ModelTaskError(job.reason) : failure);
       this.active = undefined; this.publish(); this.pump();
-      if (this.idle && this.resource) {
+      if (this.idle && this.resource && !this.retained.has(this.resource)) {
         // Let the awaiting caller enqueue its next bounded chunk in the same
         // turn. No idle timeout, background polling or retained idle model.
-        this.idleRelease = setImmediate(() => { this.idleRelease = undefined; if (this.idle) void this.releaseResource(); });
+        this.idleRelease = setImmediate(() => { this.idleRelease = undefined; if (this.idle && this.resource && !this.retained.has(this.resource)) void this.releaseResource(); });
       }
     }
   }

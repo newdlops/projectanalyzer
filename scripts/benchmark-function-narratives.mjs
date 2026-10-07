@@ -6,6 +6,7 @@
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { tmpdir } from 'node:os';
+import { execFileSync } from 'node:child_process';
 const require = createRequire(import.meta.url);
 const fs = require('node:fs');
 const path = require('node:path');
@@ -22,7 +23,10 @@ const { ModelTaskManager } = require(runtime + '/out/shared/modelTasks');
 const corpus = [
   { name: 'kotlin-guard', language: 'kotlin', extension: 'kt', source: 'fun inspect(enabled: Boolean, amount: Int): Int {\n    if (!enabled) return 0\n    val adjusted = amount + 5\n    return adjusted\n}', operation: 'adjusted', expected: inputs => inputs.enabled ? inputs.amount + 5 : 0 },
   { name: 'typescript-updates', language: 'typescript', extension: 'ts', source: 'export function inspect(enabled: boolean, amount: number): number {\n    if (!enabled) return 0;\n    let adjusted = amount + 5;\n    adjusted *= 2;\n    return adjusted;\n}', operation: 'adjusted', expected: inputs => inputs.enabled ? (inputs.amount + 5) * 2 : 0 },
-  { name: 'kotlin-elvis', language: 'kotlin', extension: 'kt', source: 'fun inspect(amount: Int?): Int {\n    val adjusted = amount ?: 5\n    return adjusted\n}', operation: 'adjusted', expected: inputs => inputs.amount ?? 5 }
+  { name: 'kotlin-elvis', language: 'kotlin', extension: 'kt', source: 'fun inspect(amount: Int?): Int {\n    val adjusted = amount ?: 5\n    return adjusted\n}', operation: 'adjusted', expected: inputs => inputs.amount ?? 5 },
+  { name: 'kotlin-mutable', language: 'kotlin', extension: 'kt', extended: true, source: 'fun inspect(enabled: Boolean, amount: Int): Int {\n    if (!enabled) return 0\n    var adjusted = amount + 5\n    adjusted -= 2\n    return adjusted * 2\n}', operation: 'adjusted', expected: inputs => inputs.enabled ? (inputs.amount + 5 - 2) * 2 : 0 },
+  { name: 'kotlin-threshold', language: 'kotlin', extension: 'kt', extended: true, source: 'fun inspect(amount: Int): Int {\n    if (amount > 10) return amount + 5\n    return amount - 5\n}', expected: inputs => inputs.amount > 10 ? inputs.amount + 5 : inputs.amount - 5 },
+  { name: 'kotlin-boolean', language: 'kotlin', extension: 'kt', extended: true, source: 'fun inspect(enabled: Boolean): Boolean {\n    if (!enabled) return false\n    return true\n}', expected: inputs => inputs.enabled }
 ];
 const only = process.argv[4] && process.argv[4] !== '-' ? process.argv[4] : undefined;
 const outputDirectory = await fs.promises.mkdtemp(path.join(tmpdir(), 'fn-benchmark-'));
@@ -52,17 +56,32 @@ async function contextFor(fixture) {
   return context;
 }
 
-function score(fixture, pages) {
-  let scenarios = 0, correctResults = 0, reachedWrites = 0, contradictoryWrites = 0, falseGuardExitClaims = 0, falseGuardBodyClaims = 0, copiedOperationProse = 0, completeNodes = 0, totalNodes = 0;
+function score(fixture, pages, context) {
+  let scenarios = 0, correctResults = 0, reachedWrites = 0, contradictoryWrites = 0, falseGuardExitClaims = 0, falseGuardBodyClaims = 0, copiedOperationProse = 0, operationMismatches = 0, incorrectWriteValues = 0, completeNodes = 0, totalNodes = 0;
   const failures = [];
+  const kinds = new Map((context.scenarioGraph?.nodes || []).map(node => [node.graphNodeId, node.kind]));
   for (const page of pages) for (const scenario of page.narrative.scenarios) {
     scenarios++;
     const inputs = Object.fromEntries(scenario.example.inputs.map(input => [input.name, JSON.parse(input.json)]));
     const expected = fixture.expected(inputs);
-    if (Number(scenario.example.result) === expected) correctResults++;
+    let result; try { result = JSON.parse(scenario.example.result); } catch {}
+    if (result === expected) correctResults++;
     else failures.push({ kind: 'result', scenario: scenarios, expected, actual: scenario.example.result });
     totalNodes += scenario.graph.nodeIds.length;
     completeNodes += scenario.nodeDetails.length;
+    // This public corpus contains complete primitive expressions and no external
+    // dependencies; fabricated prerequisites are a quality failure, not a gap.
+    if (scenario.assumptions.length || page.narrative.limitations.length) failures.push({ kind: 'unsupported-prerequisites', scenario: scenarios,
+      assumptions: scenario.assumptions, limitations: page.narrative.limitations });
+    for (const detail of scenario.nodeDetails) if (kinds.get(detail.nodeId) === 'return') {
+      const binding = /^return\s+([\p{L}_$][\p{L}\p{N}_$]*)\s*;?$/u.exec(detail.code)?.[1];
+      const after = (detail.values?.find(value => value.name === 'result') ?? detail.values?.find(value => value.name === binding))?.after;
+      let actual; try { actual = JSON.parse(after); } catch {}
+      if (actual !== expected) failures.push({ kind: 'incorrect-return-node-value', scenario: scenarios, expected, actual: after });
+      if (/실행되지|실행하지 않|not executed|not run|not reached|skipped/i.test([detail.text, detail.syntax].join(' '))) {
+        failures.push({ kind: 'reached-return-described-as-skipped', scenario: scenarios, line: detail.source.startLine });
+      }
+    }
     for (let index = 1; index < scenario.nodeDetails.length; index++) {
       const previous = scenario.nodeDetails[index - 1], current = scenario.nodeDetails[index];
       if (previous.code && current.code && previous.code !== current.code && previous.text === current.text && previous.syntax === current.syntax) {
@@ -83,27 +102,47 @@ function score(fixture, pages) {
         falseGuardExitClaims++; failures.push({ kind: 'false-guard-claims-exit-before-reached-write', scenario: scenarios, line: detail.source.startLine });
       }
     }
-    for (const detail of scenario.nodeDetails) if (/^(?:val |var |let |const )?adjusted\s*(?:=|\*=)/.test(detail.code || '')) {
+    for (const detail of scenario.nodeDetails) if (kinds.get(detail.nodeId) === 'mutation' && fixture.operation === 'adjusted') {
       reachedWrites++;
+      const currentProse = [detail.text, detail.syntax].join(' ');
+      if (/부정|반전|negat|if\s*(?:블록|본문)/i.test(currentProse) && !/더|합|곱|\+|\*|assign|add|sum|multipl/i.test(currentProse)) {
+        operationMismatches++; failures.push({ kind: 'write-described-as-predicate', scenario: scenarios, line: detail.source.startLine });
+      }
+      const expectedAfter = fixture.name === 'kotlin-elvis' ? inputs.amount ?? 5
+        : detail.code.includes('*=') ? (inputs.amount + 5) * 2 : detail.code.includes('-=') ? inputs.amount + 5 - 2 : inputs.amount + 5;
+      const after = detail.values?.find(value => value.name === 'adjusted')?.after;
+      let actualAfter; try { actualAfter = JSON.parse(after); } catch {}
+      if (actualAfter !== expectedAfter) {
+        incorrectWriteValues++; failures.push({ kind: 'incorrect-current-write-value', scenario: scenarios, line: detail.source.startLine, expected: expectedAfter, actual: after });
+      }
       if (/실행되지|실행되지 않|실행하지 않|not executed|not run|not reached|skipped/i.test([detail.text, detail.syntax].join(' '))) {
         contradictoryWrites++; failures.push({ kind: 'reached-write-described-as-skipped', scenario: scenarios, line: detail.source.startLine });
       }
     }
   }
-  return { scenarios, correctResults, reachedWrites, contradictoryWrites, falseGuardExitClaims, falseGuardBodyClaims, copiedOperationProse, completeNodes, totalNodes, failures };
+  return { scenarios, correctResults, reachedWrites, contradictoryWrites, falseGuardExitClaims, falseGuardBodyClaims, copiedOperationProse, operationMismatches, incorrectWriteValues, completeNodes, totalNodes, failures };
 }
 
 (async () => {
   const records = [];
-  for (const fixture of corpus.filter(item => !only || item.name === only)) {
+  for (const fixture of corpus.filter(item => only === 'all' || (only === 'extended' ? item.extended : only ? item.name === only : !item.extended))) {
     const context = await contextFor(fixture);
-    const pages = new Map(), traces = [], metrics = [];
+    const pages = new Map(), traces = [], metrics = [], watchdogPids = [];
     const manager = new ModelTaskManager();
-    const local = createLocalFunctionNarrativeProvider({ binaryPath, modelPath, taskManager: manager, onMetrics(value) { metrics.push(value); } });
-    const provider = { async generate(batch, language, signal, options) {
+    const local = createLocalFunctionNarrativeProvider({ binaryPath, modelPath, taskManager: manager, onMetrics(value) {
+      metrics.push(value);
+      // Observe this benchmark's own watchdog only, never another window's
+      // model. Equal consecutive PIDs prove reuse across async page work.
+      if (process.platform !== 'win32') {
+        try { watchdogPids.push(execFileSync('pgrep', ['-P', String(process.pid)], { encoding: 'utf8' }).trim().split('\n').filter(Boolean).map(Number)); }
+        catch { watchdogPids.push([]); }
+      }
+    } });
+    const provider = { supportsFinalSummary: signal => local.supportsFinalSummary?.(signal) === true,
+      withRun: (language, signal, operation) => local.withRun ? local.withRun(language, signal, operation) : operation(), async generate(batch, language, signal, options) {
       const began = performance.now();
       const response = await local.generate(batch, language, signal, options);
-      traces.push({ kind: batch.nodeTask ? 'nodes' : 'scenario', offset: batch.scenarioBatch.offset, targets: batch.nodeTask?.targets.length || 0, milliseconds: performance.now() - began, characters: response.text.length });
+      traces.push({ kind: batch.nodeTask ? 'nodes' : batch.summaryTask ? 'summary' : 'scenario', offset: batch.scenarioBatch.offset, targets: batch.nodeTask?.targets.length || 0, milliseconds: performance.now() - began, characters: response.text.length });
       fs.writeFileSync(outputDirectory + '/narrative-bench-' + tag + '-' + fixture.name + '-' + traces.length + '.json', response.text, { mode: 0o600 });
       console.log(JSON.stringify({ tag, fixture: fixture.name, request: traces.length, ...traces.at(-1) }));
       return response;
@@ -115,11 +154,11 @@ function score(fixture, pages) {
     try { while (!session.complete) { const page = await session.analyzeNext(provider, 'ko', new AbortController().signal, { reselectModel: false }); if (!page) break; } }
     catch (failure) { error = { code: failure.code || failure.message, detail: failure.detailCode }; }
     const renderedPages = [...pages.entries()].map(([index, narrative]) => ({ index, narrative }));
-    const record = { name: fixture.name, milliseconds: performance.now() - began, requests: traces.length, complete: session.complete, coverage: session.coverage, score: score(fixture, renderedPages), error, traces, metrics };
+    const record = { name: fixture.name, milliseconds: performance.now() - began, requests: traces.length, complete: session.complete, coverage: session.coverage, score: score(fixture, renderedPages, context), error, traces, metrics, watchdogPids };
     fs.writeFileSync(outputDirectory + '/narrative-bench-' + tag + '-' + fixture.name + '-pages.json', JSON.stringify(renderedPages, null, 2), { mode: 0o600 });
     records.push(record); console.log(JSON.stringify({ tag, completedFixture: record }));
     await session.dispose(); await manager.dispose();
   }
   fs.writeFileSync(outputDirectory + '/narrative-bench-' + tag + '-report.json', JSON.stringify({ tag, runtime, records }, null, 2), { mode: 0o600 });
-  if (records.some(record => !record.complete || record.error)) process.exitCode = 1;
+  if (records.some(record => !record.complete || record.error || record.score.failures.length)) process.exitCode = 1;
 })().catch(error => { console.error(error); process.exitCode = 1; });

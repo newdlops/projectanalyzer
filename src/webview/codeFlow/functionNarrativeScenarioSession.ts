@@ -1,6 +1,6 @@
 /** Host run lifecycle: validated batches are paged to storage and resumed without reanalyzing completed paths. */
 import { FunctionNarrativeError, FunctionNarrativeScenarioRun, parseFunctionNarrative, initializeFunctionNarrativeNodes,
-  createFunctionNarrativeNodeTask, appendFunctionNarrativeNodes, finalizeFunctionNarrativeNodes, type FunctionNarrativeProvider } from "../../application/functionNarratives";
+  createFunctionNarrativeNodeTask, createFunctionNarrativeSummaryTask, appendFunctionNarrativeNodes, finalizeFunctionNarrativeNodes, type FunctionNarrativeProvider } from "../../application/functionNarratives";
 import type { FunctionNarrative, FunctionNarrativeContext, FunctionNarrativePageStore } from "../../shared/functionNarratives";
 
 export type FunctionNarrativeStoredPage = { narrative: FunctionNarrative; modelName: string; offset: number; index: number };
@@ -12,7 +12,8 @@ export class FunctionNarrativeScenarioSession {
   /** Small source-node → first saved page index; prose stays on disk. */
   private readonly nodePages = new Map<string, number>();
   /** One bounded unfinished page retains validated primary/node work across cancellation or failure. */
-  private pending?: { batch: FunctionNarrativeContext; narrative: FunctionNarrative; modelName: string; scenarioIndex: number };
+  private pending?: { batch: FunctionNarrativeContext; narrative: FunctionNarrative; modelName: string; scenarioIndex: number;
+    finalSummary: boolean; summarized: Set<number> };
   public constructor(private readonly context: FunctionNarrativeContext, private readonly store: FunctionNarrativePageStore) {
     this.run = new FunctionNarrativeScenarioRun(context);
   }
@@ -27,17 +28,27 @@ export class FunctionNarrativeScenarioSession {
   /** Completes one page through bounded scenario/node requests; retries retain all validated work in that page. */
   public async analyzeNext(provider: FunctionNarrativeProvider, language: "ko" | "en", signal: AbortSignal,
     options: { reselectModel: boolean }): Promise<FunctionNarrativeStoredPage | undefined> {
+    if (this.complete) return undefined;
+    return provider.withRun ? provider.withRun(language, signal, () => this.analyzePage(provider, language, signal, options))
+      : this.analyzePage(provider, language, signal, options);
+  }
+  /** A page publishes only after final synthesis and releases its optional resource scope before returning. */
+  private async analyzePage(provider: FunctionNarrativeProvider, language: "ko" | "en", signal: AbortSignal,
+    options: { reselectModel: boolean }): Promise<FunctionNarrativeStoredPage | undefined> {
     const batch = this.run.nextBatch();
     if (!batch) return undefined;
     if (!this.pending) {
-      const response = await provider.generate(batch, language, signal, options);
+      const finalSummary = batch.detailLevel === "rich" && provider.supportsFinalSummary?.(signal) === true;
+      const preparation = finalSummary ? { ...batch, nodePreparation: true } : batch;
+      const response = await provider.generate(preparation, language, signal, options);
       if (signal.aborted) throw new FunctionNarrativeError("cancelled");
-      const narrative = parseFunctionNarrative(response.text, batch, language);
+      const narrative = parseFunctionNarrative(response.text, preparation, language);
       for (let index = 0; index < narrative.scenarios.length; index++) {
         const path = batch.sourceFlow?.paths[index];
         if (path) initializeFunctionNarrativeNodes(path, narrative.scenarios[index], batch.detailLevel);
       }
-      this.pending = { batch, narrative, modelName: response.modelName, scenarioIndex: 0 };
+      this.pending = { batch, narrative, modelName: response.modelName, scenarioIndex: 0,
+        finalSummary, summarized: new Set() };
     }
     const pending = this.pending;
     while (pending.scenarioIndex < pending.narrative.scenarios.length) {
@@ -50,6 +61,17 @@ export class FunctionNarrativeScenarioSession {
         const interpreted = parseFunctionNarrative(response.text, task, language);
         appendFunctionNarrativeNodes(task, scenario, interpreted.scenarios[0]);
         continue;
+      }
+      if (path && pending.finalSummary && !pending.summarized.has(pending.scenarioIndex)) {
+        const summaryTask = createFunctionNarrativeSummaryTask(batch, path, scenario);
+        const response = await provider.generate(summaryTask, language, signal, { reselectModel: false });
+        if (signal.aborted) throw new FunctionNarrativeError("cancelled");
+        const completed = parseFunctionNarrative(response.text, summaryTask, language);
+        // Publish only the final synthesis. A cancelled/failed synthesis keeps
+        // completed node work private and resumes this exact stage next time.
+        Object.assign(scenario, completed.scenarios[0], { nodeDetails: scenario.nodeDetails, graph: scenario.graph });
+        pending.narrative.summary = completed.summary; pending.narrative.limitations = completed.limitations;
+        pending.modelName = response.modelName; pending.summarized.add(pending.scenarioIndex);
       }
       if (path) finalizeFunctionNarrativeNodes(batch, path, scenario, pending.narrative.summary);
       pending.scenarioIndex++;

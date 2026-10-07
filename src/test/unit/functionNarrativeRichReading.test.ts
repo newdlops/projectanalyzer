@@ -212,6 +212,63 @@ test("rich terminal readings use preceding node state and replace early primary 
   assert.deepEqual(scenario.nodeDetails!.map((detail) => detail.nodeId), path.graph!.nodeIds);
 });
 
+test("final synthesis follows completed node values, rejects rewritten inputs/evidence and resumes only the unfinished synthesis", async () => {
+  const pages = new Map<number, FunctionNarrative>(), context = contextFor();
+  let writes = 0, nodeCalls = 0, summaries = 0;
+  const session = new FunctionNarrativeScenarioSession(context, { async write(index, value) { writes++; pages.set(index, value); },
+    async read(index) { return pages.get(index); }, async dispose() { pages.clear(); } });
+  const provider = { supportsFinalSummary: () => true, async generate(batch: FunctionNarrativeContext) {
+    if (batch.summaryTask) {
+      summaries++;
+      assert.equal(batch.summaryTask.resultJson, "10", "terminal model state replaces the earlier guessed result 999");
+      assert.ok(!JSON.stringify(batch.summaryTask).includes("999"));
+      if (summaries === 1) throw new FunctionNarrativeError("cancelled");
+      const completed = JSON.parse(output(batch)) as FunctionNarrative;
+      completed.summary = "Final source reading from the completed node trace.";
+      completed.scenarios[0].steps = structuredClone(batch.summaryTask.steps);
+      completed.scenarios[0].example = { inputs: batch.summaryTask.inputs, result: batch.summaryTask.resultJson! };
+      const rewritten = structuredClone(completed); rewritten.scenarios[0].example!.inputs[0].json = "99";
+      assert.throws(() => parseFunctionNarrative(JSON.stringify(rewritten), batch, "en"), /invalid-response/);
+      const wrongResult = structuredClone(completed); wrongResult.scenarios[0].example!.result = "999";
+      assert.throws(() => parseFunctionNarrative(JSON.stringify(wrongResult), batch, "en"), /invalid-response/);
+      const wrongEvidence = structuredClone(completed); wrongEvidence.scenarios[0].steps[0].text = "Overwrite completed evidence.";
+      assert.throws(() => parseFunctionNarrative(JSON.stringify(wrongEvidence), batch, "en"), /invalid-response/);
+      return { modelName: "Final fixture", text: JSON.stringify(completed) };
+    }
+    if (batch.nodeTask) { nodeCalls++; return { modelName: "Node fixture", text: output(batch) }; }
+    const initial = JSON.parse(output(batch)) as FunctionNarrative;
+    initial.scenarios[0].example!.result = "999";
+    return { modelName: "Initial fixture", text: JSON.stringify(initial) };
+  } };
+  try {
+    await assert.rejects(session.analyzeNext(provider, "en", new AbortController().signal, { reselectModel: false }), /cancelled/);
+    const completedNodes = nodeCalls;
+    assert.equal(writes, 0); assert.equal(session.pageCount, 0); assert.equal(session.coverage.completed, 0);
+    const page = await session.analyzeNext(provider, "en", new AbortController().signal, { reselectModel: false });
+    assert.equal(nodeCalls, completedNodes); assert.equal(summaries, 2); assert.equal(writes, 1);
+    assert.equal(page!.narrative.scenarios[0].example!.result, "10");
+    assert.equal(page!.narrative.summary, "Final source reading from the completed node trace.");
+    assert.equal(page!.narrative.scenarios[0].nodeDetails![0].text, page!.narrative.summary);
+    const count = nodeCalls + summaries; await session.readPage(0); assert.equal(nodeCalls + summaries, count);
+  } finally { await session.dispose(); }
+});
+
+test("source bindings named result and condition survive node carry state without borrowing synthetic predicate values", () => {
+  const context = contextFor(), source = { snippetId: "root", startLine: 2, endLine: 2 };
+  const steps = [
+    { kind: "mutation" as const, code: "var result = 15", writeTargets: ["result"], graphNodeId: "result-write", graphOccurrence: 1, confidence: "exact" as const, source },
+    { kind: "mutation" as const, code: "var condition = 30", writeTargets: ["condition"], graphNodeId: "condition-write", graphOccurrence: 2, confidence: "exact" as const, source },
+    { kind: "condition" as const, code: "condition > 20", graphNodeId: "predicate", graphOccurrence: 3, confidence: "exact" as const, source },
+    { kind: "return" as const, code: "return result", graphNodeId: "return", graphOccurrence: 4, confidence: "exact" as const, source }
+  ];
+  const path = { status: "source-terminal" as const, confidence: "exact" as const, steps, graph: { nodeIds: steps.map(step => step.graphNodeId), edgeIds: [] } };
+  const scenario = JSON.parse(output(new FunctionNarrativeScenarioRun(context).nextBatch()!)).scenarios[0];
+  scenario.nodeDetails = steps.slice(0, 3).map((step, index) => ({ nodeId: step.graphNodeId, occurrence: step.graphOccurrence,
+    source, text: "Saved source reading.", reason: "Saved value.", values: [{ name: index === 0 ? "result" : "condition", before: "unknown", after: index === 0 ? "15" : index === 1 ? "30" : "true" }] }));
+  const task = createFunctionNarrativeNodeTask(context, path, scenario)!;
+  assert.deepEqual(task.nodeTask!.reading!.priorState, [{ name: "result", value: "15" }, { name: "condition", value: "30" }]);
+});
+
 test("an interrupted rich page reuses primary prose and saved pages/nodes never generate again", async () => {
   const pages = new Map<number, FunctionNarrative>(), context = contextFor();
   const session = new FunctionNarrativeScenarioSession(context, { async write(index, value) { pages.set(index, value); }, async read(index) { return pages.get(index); }, async dispose() { pages.clear(); } });
@@ -229,5 +286,9 @@ test("an interrupted rich page reuses primary prose and saved pages/nodes never 
     assert.deepEqual(await session.readPage(0), page);
     assert.deepEqual(await session.readNodePage(page!.narrative.scenarios[0].nodeDetails![1].nodeId), page);
     assert.equal(primaries + nodes, count);
+    while (!session.complete) await session.analyzeNext(provider, "en", new AbortController().signal, { reselectModel: false });
+    const untouched = await session.analyzeNext({ ...provider, async withRun() { throw new Error("completed sessions must not prepare a model"); } },
+      "en", new AbortController().signal, { reselectModel: false });
+    assert.equal(untouched, undefined);
   } finally { await session.dispose(); }
 });

@@ -40,7 +40,7 @@ export function analyzeKotlinTutorDeclaration(functionNode: SymbolNode, sourceTe
   for (const parameter of parameters) gaps.push(...parameter.gaps);
   const constraints = collectKotlinParameterConstraints(functionLogic, parameters);
   const program = createKotlinTutorProgram(source, functionLogic, parameters, gaps);
-  return { functionNode, language: "kotlin", executionKind: "sync", parameters, constraints, program, gaps };
+  return { functionNode, language: "kotlin", executionKind: "sync", returnTypeText: callable?.returnTypeText, parameters, constraints, program, gaps };
 }
 
 /** Nullable types allow null values; only a declared default allows an omitted argument. */

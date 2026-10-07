@@ -318,6 +318,8 @@ export type FunctionTutorDeclarationAnalysis = {
   functionNode: SymbolNode;
   language: string;
   executionKind: "sync" | "async" | "generator" | "async-generator";
+  /** Parser-owned explicit return annotation, without type inference or evaluation. */
+  returnTypeText?: string;
   parameters: FunctionTutorParameterFact[];
   constraints: FunctionTutorConstraint[];
   program: FunctionTutorProgram;

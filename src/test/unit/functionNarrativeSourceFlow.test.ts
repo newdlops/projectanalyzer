@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import test from "node:test";
 import { analyzeFunctionLogic, type FunctionLogicAnalysis, type FunctionLogicBlock } from "../../analyzer/functionLogic";
+import { analyzeFunctionTutorDeclaration } from "../../analyzer/functionTutor";
 import { addFunctionNarrativeValueGrounding, buildFunctionNarrativeContext, buildFunctionNarrativeSourceFlow, buildFunctionNarrativeFlowGuidance, buildFunctionNarrativeScenarioFrames, parseFunctionNarrative, buildFunctionNarrativePrompt, createFunctionNarrativeScenarioIterator, getFunctionNarrativeExampleConstraints } from "../../application/functionNarratives";
 import { createLocalNarrativeSchema } from "../../llm/functionNarratives/responseSchema";
 import { buildInputModel } from "./helpers/neuralScenarioFixtures";
@@ -23,6 +24,25 @@ function fixture(language: "kotlin" | "typescript") {
   const analysis = analyzeFunctionLogic({ functionNode: node, sourceText: source });
   return { node, source, analysis, context: buildFunctionNarrativeContext(node, source, [], analysis) };
 }
+
+test("parser-owned return annotations retain Kotlin nullability/receivers and never infer missing or alias types", () => {
+  for (const [language, source, annotation] of [
+    ["kotlin", "fun inspect(value: Int): Int? { return value }", "Int?"],
+    ["kotlin", "fun String.inspect(value: Int): kotlin.Int { return value }", "kotlin.Int"],
+    ["kotlin", "fun inspect(value: Int) = value + 5", undefined],
+    ["typescript", "export function inspect(value: number): number { return value + 5; }", "number"],
+    ["typescript", "export function inspect(value: number): ValueAlias { return value; }", "ValueAlias"],
+    ["typescript", "export function inspect(value: number) { return value + 5; }", undefined]
+  ] as const) {
+    const position = source.indexOf("inspect"), filePath = language === "kotlin" ? "/fixture/Return.kt" : "/fixture/return.ts";
+    const node: SymbolNode = { id: "return-fixture", kind: "function", name: "inspect", qualifiedName: "inspect", language, filePath,
+      range: { startLine: 0, startCharacter: 0, endLine: 0, endCharacter: source.length },
+      selectionRange: { startLine: 0, startCharacter: position, endLine: 0, endCharacter: position + 7 } };
+    const functionLogic = analyzeFunctionLogic({ functionNode: node, sourceText: source });
+    const declaration = analyzeFunctionTutorDeclaration({ functionNode: node, sourceText: source, functionLogic });
+    assert.equal(declaration.returnTypeText, annotation);
+  }
+});
 
 test("declaration-only native symbols retain parser-owned bodies without adjoining functions", () => {
   for (const [language, filePath, source, nameColumn] of [

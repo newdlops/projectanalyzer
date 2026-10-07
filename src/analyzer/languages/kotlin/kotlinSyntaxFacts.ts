@@ -139,6 +139,7 @@ function createFunctionDeclaration(source: KotlinSource, node: KotlinSyntaxNode,
     .map((parameter) => createParameter(source, parameter));
   const receiver = getKotlinChildNamed(node, "receiverType");
   const receiverType = receiver ? kotlinNodeText(source, receiver).trim() : undefined;
+  const returnType = getKotlinChildNamed(node, "type");
   const modifiers = getKotlinChildNamed(node, "modifiers");
   const suspend = modifiers ? findKotlinDescendants(modifiers, (child) => child.name === "SUSPEND").length > 0 : false;
   let typeIndex = -1;
@@ -152,6 +153,7 @@ function createFunctionDeclaration(source: KotlinSource, node: KotlinSyntaxNode,
     selectionFrom: nameNode.from, selectionTo: nameNode.to,
     expressionBody: Boolean(body && getKotlinChildNamed(body, "ASSIGNMENT")),
     parameterCount: parameters.length, parameters: Object.freeze(parameters), receiverType, suspend,
+    returnTypeText: returnType ? kotlinNodeText(source, returnType).trim() : undefined,
     lexicalTypeOwner: typeIndex < 0 ? "" : scopes.slice(0, typeIndex + 1).map((scope) => scope.name).join(".")
   });
 }

@@ -103,6 +103,16 @@ export function parseFunctionNarrative(text: string, context: FunctionNarrativeC
     || parsed.scenarios[0].steps.some((step, index) => { const source = context.nodeTask!.targets[index].source;
       return context.detailLevel === "rich" && step.code !== context.nodeTask!.targets[index].code
         || step.source.snippetId !== source.snippetId || step.source.startLine !== source.startLine || step.source.endLine !== source.endLine; }))) throw new FunctionNarrativeError("invalid-response");
+  if (context.summaryTask) {
+    const task = context.summaryTask, scenario = parsed.scenarios[0];
+    // Final synthesis may write prose, but it cannot replace the original
+    // inputs, completed evidence or a result already produced at the terminal.
+    if (parsed.scenarios.length !== 1 || !scenario.example || scenario.example.inputs.length !== task.inputs.length
+      || scenario.example.inputs.some((input, index) => input.name !== task.inputs[index].name
+        || JSON.stringify(JSON.parse(input.json)) !== JSON.stringify(JSON.parse(task.inputs[index].json)))
+      || task.resultJson !== undefined && scenario.example.result !== task.resultJson
+      || JSON.stringify(scenario.steps) !== JSON.stringify(task.steps)) throw new FunctionNarrativeError("invalid-response");
+  }
   const frames = buildFunctionNarrativeScenarioFrames(context);
   if (frames.length && (parsed.scenarios.length !== frames.length || parsed.scenarios.some((scenario, index) => {
     const frame = frames[index];

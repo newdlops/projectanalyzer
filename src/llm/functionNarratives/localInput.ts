@@ -6,16 +6,26 @@ import { getFunctionNarrativeExampleConstraints, numberFunctionNarrativeContext 
 export function buildLocalNarrativeInput(context: FunctionNarrativeContext): Record<string, unknown> {
   const numbered = numberFunctionNarrativeContext(context) as Record<string, any>;
   const paths = context.sourceFlow?.paths ?? [];
+  if (context.summaryTask) numbered.summaryTask = { inputs: context.summaryTask.inputs.map(input => ({ name: input.name, value: JSON.parse(input.json) })),
+    ...(context.summaryTask.resultJson !== undefined ? { resultValue: JSON.parse(context.summaryTask.resultJson) } : {}),
+    completed: context.summaryTask.completed, omittedValues: context.summaryTask.omittedValues };
   const clean = (step: FunctionNarrativeFlowStep, index: number) => ({ ordinal: index + 1, kind: step.kind, code: step.code,
     reachedOnSelectedSourceRoute: true, ...(step.loweredPredicate ? { loweredPredicate: step.loweredPredicate } : {}),
-    ...(step.branch ? { predicateResult: step.branch.outcome, confidence: step.branch.confidence,
-      ...(["true", "false"].includes(step.branch.outcome) ? { trueBranchSelected: step.branch.outcome === "true", falseBranchSelected: step.branch.outcome === "false" } : {}),
+    ...(step.writeTargets?.length ? { writeTargets: step.writeTargets } : {}),
+    ...(step.branch ? { predicateResult: ["true", "false"].includes(step.branch.outcome) ? step.branch.outcome === "true" : step.branch.outcome, confidence: step.branch.confidence,
       ...(step.branch.inputCondition ? { requiredInput: step.branch.inputCondition } : {}) } : {}) });
   if (context.nodeTask) {
     const path = paths[0];
     const targets = context.nodeTask.targets;
     const first = path?.steps.findIndex(step => step.graphNodeId === targets[0]?.graphNodeId && step.graphOccurrence === targets[0]?.graphOccurrence) ?? -1;
     const end = first < 0 ? 0 : first + targets.length;
+    // A speculative primary paragraph/result must not seed later node facts.
+    // Preserve them in the Host contract while sending only inputs and earlier
+    // model values to this focused interpretation request.
+    numbered.nodeTask = { frame: context.nodeTask.frame, example: { inputs: context.nodeTask.example.inputs },
+      reading: { priorState: context.nodeTask.reading?.priorState ?? [] } };
+    numbered.valueFacts = context.valueFacts?.filter(fact => targets.some(target => target.source.snippetId === fact.source.snippetId
+      && target.source.startLine <= fact.source.endLine && target.source.endLine >= fact.source.startLine));
     // Earlier guards are route selections. A false guard can lead to a reached
     // write; it does not mean that every later statement is skipped.
     numbered.selectedRoute = { status: path?.status, confidence: path?.confidence,

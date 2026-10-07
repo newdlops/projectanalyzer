@@ -48,6 +48,8 @@ export type KotlinCallableSyntax = {
   readonly parameterCount: number;
   readonly parameters: readonly KotlinParameterSyntax[];
   readonly receiverType?: string;
+  /** Explicit annotation only; expression-body result types are never inferred here. */
+  readonly returnTypeText?: string;
   readonly suspend: boolean;
   readonly lexicalTypeOwner: string;
 };

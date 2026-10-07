@@ -28,15 +28,17 @@ test("local wire restores owned source slots and fixed inputs without mutating t
   const payload = { summary: "Purpose", limitations: [], scenarios: [{ title: "Path", when: ["enabled = true"], outcome: "return adjusted", explanation: "The selected path calculates its result.",
     analysis: { pathReason: "Guard is false.", stateChange: "Write then return.", alternative: "Disabled exits." }, assumptions: [],
     exampleInputs: [{ name: "enabled", value: true }, { name: "amount", value: 100 }], exampleResult: "105",
-    steps: [{ ...prose, code: "!enabled" }, { ...prose, code: "val adjusted = amount + 5", text: "Literal <script> remains text." }] }] };
+    steps: [{ code: "!enabled" }, { ...prose, code: "val adjusted = amount + 5", text: "Literal <script> remains text." }] }] };
   const decoded = JSON.parse(wire.decode(JSON.stringify(payload)));
   assert.equal(decoded.scenarios[0].exampleInputs[0].name, "enabled");
   assert.equal(decoded.scenarios[0].exampleInputs[0].value, true);
   assert.equal(decoded.scenarios[0].steps[1].code, "val adjusted = amount + 5");
   assert.deepEqual(decoded.scenarios[0].steps[1].source, context.sourceFlow!.paths[0].steps[1].source);
   assert.equal(decoded.scenarios[0].steps[1].text, "Literal <script> remains text.");
+  assert.match(decoded.scenarios[0].steps[0].effect, /val adjusted = amount \+ 5/);
+  assert.equal(decoded.scenarios[0].steps[0].values[0].after, "false");
   assert.equal(JSON.stringify(schema), before);
-  for (const extra of [{ code: "return 0" }, { source: { snippetId: "foreign", startLine: 99, endLine: 99 } }, { nodeId: "forged" }]) {
+  for (const extra of [{ code: "return 0" }, { source: { snippetId: "foreign", startLine: 99, endLine: 99 } }, { nodeId: "forged" }, { effect: "The if body executes." }]) {
     const tampered = structuredClone(payload); Object.assign(tampered.scenarios[0].steps[0], extra);
     assert.throws(() => wire.decode(JSON.stringify(tampered)), { message: "invalid-response" });
   }
@@ -88,8 +90,10 @@ test("node worksheet treats false predicates and reaching a later write as separ
     reading: { explanation: "Follow the false branch.", priorState: [] } } };
   const projected = buildLocalNarrativeInput(task) as any;
   assert.equal(projected.sourceFlow, undefined);
-  assert.equal(projected.selectedRoute.precedingDecisions[0].predicateResult, "false");
-  assert.equal(projected.selectedRoute.precedingDecisions[0].trueBranchSelected, false);
+  assert.equal(projected.selectedRoute.precedingDecisions[0].predicateResult, false);
+  assert.equal(projected.nodeTask.example.result, undefined);
+  assert.equal(projected.nodeTask.reading.explanation, undefined);
+  assert.equal(projected.nodeTask.targets, undefined);
   assert.equal(projected.selectedRoute.targets[0].reachedOnSelectedSourceRoute, true);
   assert.equal(projected.selectedRoute.targets[0].nextReachedOperation, "return adjusted");
   assert.doesNotMatch(JSON.stringify(projected), /graphNodeId|graphOccurrence/);

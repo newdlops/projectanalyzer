@@ -21,11 +21,13 @@ function reply(context: FunctionNarrativeContext) {
 }
 
 /** A storage port double retains prose outside the delivery object's cache, exactly like the file adapter. */
-function fixture(provider: FunctionNarrativeProvider, onMessage?: (response: FunctionNarrativesResponse) => void) {
+function fixture(provider: FunctionNarrativeProvider, onMessage?: (response: FunctionNarrativesResponse) => void,
+  configure?: (context: FunctionNarrativeContext) => FunctionNarrativeContext) {
   const source = 'function inspect(a: boolean, b: boolean, c: boolean) {\n let total = 0;\n if (a) total += 1;\n if (b) total += 2;\n if (c) total += 4;\n return total;\n}';
   const node: SymbolNode = { id: "private:inspect", name: "inspect", qualifiedName: "inspect", kind: "function", language: "typescript", filePath: "/private/inspect.ts",
     range: { startLine: 0, startCharacter: 0, endLine: 6, endCharacter: 1 }, selectionRange: { startLine: 0, startCharacter: 9, endLine: 0, endCharacter: 16 } };
-  const context = buildFunctionNarrativeContext(node, source, [], analyzeFunctionLogic({ functionNode: node, sourceText: source }));
+  const initial = buildFunctionNarrativeContext(node, source, [], analyzeFunctionLogic({ functionNode: node, sourceText: source }));
+  const context = configure ? configure(initial) : initial;
   const messages: FunctionNarrativesResponse[] = [];
   const presentations: Array<{ scenarioOffset?: number }> = [];
   const state = { language: "en" as "en" | "ko", active: true, disposed: 0, readPageGate: undefined as ((index: number) => Promise<void>) | undefined };
@@ -66,6 +68,46 @@ test("one explicit generation analyzes all eight paths and exposes bounded cache
     assert.equal(f.messages.at(-1)!.cacheHit, true); assert.equal(batches.length, 4);
   } finally { f.delivery.clear(); }
   assert.equal(f.state.disposed, 1);
+});
+
+test("the native deadline adapter preserves page scope and final-summary capabilities through delivery and cache reads", async () => {
+  let active = false, scopes = 0, releases = 0;
+  let scopeFailure: unknown;
+  const phases: string[] = [];
+  const provider: FunctionNarrativeProvider = { supportsFinalSummary: () => true,
+    async withRun(_language, _signal, operation) {
+      try {
+        assert.equal(this, provider); assert.equal(active, false); active = true; scopes++;
+        return await operation();
+      } catch (error) { scopeFailure = error; throw error; }
+      finally { active = false; releases++; }
+    }, async generate(context) {
+      assert.equal(active, true, "native requests retain the real provider scope");
+      assert.ok(context.nodePreparation || context.nodeTask || context.summaryTask, "provisional and final phases survive the adapter");
+      phases.push(context.summaryTask ? "summary" : context.nodeTask ? "reading" : "nodes");
+      const frame = buildFunctionNarrativeScenarioFrames(context)[0], terminal = context.sourceFlow!.paths[0].steps.at(-1)!;
+      const read = (target: typeof terminal) => ({ code: target.code, source: target.source,
+        syntax: "Return ends this function.", text: "Return the source total.", reason: "The chosen decisions reach this return.",
+        effect: "The total is returned.", values: [{ name: "result", before: "not returned", after: "0" }] });
+      const steps = context.summaryTask?.steps ?? context.nodeTask?.targets.map(read) ?? [read(terminal)];
+      if (context.nodeTask) return { modelName: "Capability fixture", text: JSON.stringify({ steps }) };
+      return { modelName: "Capability fixture", text: JSON.stringify({ summary: context.summaryTask ? "Final source synthesis." : "Private preparation.", limitations: [],
+        scenarios: [{ title: "Source route", when: frame.when, outcome: frame.outcome, assumptions: [], steps,
+          explanation: "The selected source decisions reach the final return.",
+          analysis: { pathReason: "This source route is selected.", stateChange: "The total is returned.", alternative: "A different source choice selects another route." },
+          example: { inputs: [], result: "0" } }] }) };
+    } };
+  const f = fixture(provider, undefined, context => ({ ...context, detailLevel: "rich", parameters: [] }));
+  try {
+    await f.delivery.request(request);
+    assert.equal(f.messages.at(-1)!.status, "ready", scopeFailure instanceof Error ? scopeFailure.stack : phases.join(","));
+    assert.equal(phases[0], "nodes"); assert.equal(phases.at(-1), "summary"); assert.equal(scopes, 8); assert.equal(releases, 8);
+    assert.equal(phases.filter(phase => phase === "summary").length, 8);
+    assert.equal(f.messages.at(-1)!.narrative!.summary, "Final source synthesis.");
+    const count = phases.length;
+    await f.delivery.request({ ...request, requestId: 2, pageIndex: 0, pageLanguage: "en" });
+    assert.equal(f.messages.at(-1)!.cacheHit, true); assert.equal(scopes, 8); assert.equal(phases.length, count);
+  } finally { f.delivery.clear(); }
 });
 
 test("cancel preserves completed pages and explicit resume retries only the pending batch", async () => {

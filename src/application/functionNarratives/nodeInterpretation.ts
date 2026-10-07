@@ -1,5 +1,5 @@
 /** Resumable node-task construction and Host-owned graph binding for model scenario interpretations. */
-import type { FunctionNarrativeContext, FunctionNarrativeFlowPath, FunctionNarrativeScenario, FunctionNarrativeNodeDetail } from "../../shared/functionNarratives";
+import { isFunctionNarrativeExample, type FunctionNarrativeContext, type FunctionNarrativeFlowPath, type FunctionNarrativeScenario, type FunctionNarrativeNodeDetail } from "../../shared/functionNarratives";
 
 /** Joins analyzer-order CFG nodes to public graph IDs; edges keep their source transfer kind. */
 export function bindFunctionNarrativeGraph(context: FunctionNarrativeContext, nodeIds: readonly string[],
@@ -26,6 +26,7 @@ export function initializeFunctionNarrativeNodes(path: FunctionNarrativeFlowPath
     for (let index = 0; index < Math.min(2, scenario.steps.length, path.steps.length); index++) {
       const step = scenario.steps[index], target = path.steps[index];
       if (!target.graphNodeId || !step.values?.length || step.code !== target.code || !same(step.source, target.source)) break;
+      if (target.writeTargets?.length === 1 && !step.values.some(value => value.name === target.writeTargets![0])) break;
       // Small models may copy a guard's prose into a later write despite
       // distinct fixed identities. Keep the valid prefix, then let bounded
       // node work explain the remaining operations with the earlier state.
@@ -53,13 +54,16 @@ export function createFunctionNarrativeNodeTask(batch: FunctionNarrativeContext,
     && !explained.has(step.graphNodeId + ":" + step.graphOccurrence)).slice(0, batch.detailLevel === "rich" ? 2 : 3);
   if (!targets.length) return undefined;
   const priorState = new Map<string, string>();
+  const writes = new Map(path.steps.map(step => [step.graphNodeId + ":" + step.graphOccurrence, new Set(step.writeTargets ?? [])]));
   // Only operations preceding the first target can supply carried state. Future
   // primary citations must not masquerade as values observed before this node.
   const firstOccurrence = targets[0].graphOccurrence ?? 0;
   for (const detail of [...(scenario.nodeDetails ?? [])].sort((left, right) => (left.occurrence ?? 0) - (right.occurrence ?? 0))) {
     if ((detail.occurrence ?? 0) >= firstOccurrence) continue;
     for (const value of detail.values ?? []) {
-      if (["condition", "result"].includes(value.name)) continue;
+      // These names also occur in real source bindings. Exclude synthetic
+      // predicate/return rows while retaining an exact write to such a binding.
+      if (["condition", "result"].includes(value.name) && !writes.get(detail.nodeId + ":" + detail.occurrence)?.has(value.name)) continue;
       priorState.delete(value.name); priorState.set(value.name, value.after);
       while (priorState.size > 8) priorState.delete(priorState.keys().next().value!);
     }
@@ -76,6 +80,40 @@ export function appendFunctionNarrativeNodes(task: FunctionNarrativeContext, sce
   for (let index = 0; index < task.nodeTask!.targets.length; index++) {
     scenario.nodeDetails!.push({ ...interpretation.steps[index], nodeId: task.nodeTask!.targets[index].graphNodeId!, occurrence: task.nodeTask!.targets[index].graphOccurrence });
   }
+}
+
+/** Final prose reads bounded source operations and completed model values, never the earlier guessed paragraph/result. */
+export function createFunctionNarrativeSummaryTask(batch: FunctionNarrativeContext, path: FunctionNarrativeFlowPath,
+  scenario: FunctionNarrativeScenario): FunctionNarrativeContext {
+  const completed: NonNullable<FunctionNarrativeContext["summaryTask"]>["completed"] = [];
+  const byOccurrence = new Map((scenario.nodeDetails ?? []).map(detail => [detail.nodeId + ":" + detail.occurrence, detail]));
+  let remaining = 2000, omittedValues = 0;
+  for (const step of path.steps) {
+    const detail = byOccurrence.get(step.graphNodeId + ":" + step.graphOccurrence);
+    const record = { code: step.code, ...(step.branch ? { predicateResult: step.branch.outcome } : {}), values: detail?.values };
+    const size = JSON.stringify(record).length;
+    if (size > remaining) { omittedValues++; continue; }
+    remaining -= size; completed.push(record);
+  }
+  const last = path.steps.at(-1), terminal = last && byOccurrence.get(last.graphNodeId + ":" + last.graphOccurrence);
+  let resultJson: string | undefined = path.status === "partial" ? "null" : undefined;
+  if (!resultJson && last?.kind === "return") {
+    // This reads an already validated MODEL value, not source evaluation. A
+    // complex return expression cannot borrow the unchanged local's value.
+    const binding = /^return\s+([\p{L}_$][\p{L}\p{N}_$]*)\s*;?$/u.exec(last.code)?.[1];
+    const value = terminal?.values?.find(value => value.name === "result")
+      ?? terminal?.values?.find(value => value.name === binding);
+    if (value) {
+      try {
+        const parsed = JSON.parse(value.after);
+        const candidate = JSON.stringify(parsed);
+        if (isFunctionNarrativeExample({ inputs: [{ name: "result", json: candidate }], result: candidate })) resultJson = candidate;
+      } catch { /* Unknown/descriptive model values stay unknown until final synthesis. */ }
+    }
+  }
+  const { nodeTask: _nodeTask, ...context } = batch;
+  return { ...context, sourceFlow: { basis: "source-control-flow", paths: [path], limited: path.status === "partial" },
+    summaryTask: { inputs: scenario.example!.inputs, steps: scenario.steps, resultJson, completed, omittedValues } };
 }
 
 /** Restores source order and uses model purpose/result text for structural entry/exit nodes. */

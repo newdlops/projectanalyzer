@@ -4,6 +4,29 @@ All notable user-visible changes to Project Analyzer: Code Flow are recorded in
 this file. The changelog starts with the first distribution-documented build;
 earlier local development builds were not tracked here.
 
+## 0.0.1117 - 2026-10-07
+
+### Improved
+
+- Prepare inputs and source nodes before writing the final scenario. Synthesize
+  the paragraph from completed node values, preserving inputs and source evidence.
+  Resume a failed final summary without regenerating completed nodes.
+- Constrain explicitly typed results and numeric writes to actual JSON values.
+  Explain the entire return calculation before recording its result, preserve
+  exact literal returns/writes and unchanged Boolean guards, and distinguish declaration
+  from a previous value. Keep unknown types and external outcomes explicit.
+- Avoid invented prerequisites for complete primitive routes without calls or
+  accesses. Preserve assumptions and gaps for omitted, inferred, untyped and
+  external source work.
+- Retain a local model across asynchronous work within one requested page, then
+  await cleanup. Cancellation during storage/prompt work releases idle model
+  memory; other page owners and FIFO adapter switching remain protected.
+- Preserve final-summary and page-scope capabilities through the native deadline
+  adapter so VS Code runs the same generation pipeline as direct provider calls.
+  Keep source variables named result/condition in carried state.
+- Extend the public benchmark with mutable Kotlin arithmetic, numeric branches
+  and Boolean returns, strict result/node checks and observable process reuse.
+
 ## 0.0.1116 - 2026-10-07
 
 ### Improved

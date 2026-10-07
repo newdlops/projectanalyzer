@@ -16,7 +16,12 @@ export type LocalFunctionNarrativeOptions = { binaryPath: string; modelPath: str
 export function createLocalFunctionNarrativeProvider(options: LocalFunctionNarrativeOptions): FunctionNarrativeProvider {
   const manager = options.taskManager ?? getGlobalModelTaskManager();
   let serverProbe: Promise<LocalNarrativeServer | undefined> | undefined;
-  return { managesDeadlines: true, async generate(context, language, signal, generation) {
+  return { managesDeadlines: true, supportsFinalSummary: () => true,
+    async withRun(_language, signal, operation) {
+      const server = await (serverProbe ??= getLocalNarrativeServer(manager, options));
+      if (signal.aborted) throw new FunctionNarrativeError("cancelled");
+      return server ? manager.withResource(server, operation, signal) : operation();
+    }, async generate(context, language, signal, generation) {
     const server = await (serverProbe ??= getLocalNarrativeServer(manager, options));
     return scheduleFunctionNarrativeRequest(manager, context.functionName, signal, async signal => {
     let directory: string | undefined;
