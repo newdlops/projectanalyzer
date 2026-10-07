@@ -1,5 +1,5 @@
 /** A small constrained JSON grammar guides local generation; Host validation still verifies snippet ownership. */
-import type { FunctionNarrativeContext } from "../../shared/functionNarratives";
+import type { FunctionNarrativeContext, FunctionNarrativeFlowStep } from "../../shared/functionNarratives";
 import { createFunctionCallNarrativeSchema } from "../../shared/functionCallNarratives";
 import { buildFunctionNarrativeScenarioFrames, getFunctionNarrativeExampleConstraints } from "../../application/functionNarratives";
 
@@ -33,7 +33,7 @@ export function createLocalNarrativeSchema(context: FunctionNarrativeContext, la
       text: rich ? description(120) : prose, reason: rich ? description(180) : prose, effect: prose,
       source, ...(withValues ? { values } : {}) } };
   const targetedSteps = context.nodeTask ? { type: "array", minItems: context.nodeTask.targets.length, maxItems: context.nodeTask.targets.length,
-    items: context.nodeTask.targets.map((target) => ({ ...step, required: [...step.required, ...(rich ? ["code"] : [])],
+    items: context.nodeTask.targets.map((target) => ({ ...step, description: operationDescription(target), required: [...step.required, ...(rich ? ["code"] : [])],
       properties: { ...step.properties, ...(rich ? { code: { const: target.code } } : {}), source: { const: target.source } } })) } : undefined;
   // Node generation spends its output on new syntax/causality. The Host retains
   // the original scenario/example; repeating it here wastes tokens and drifts.
@@ -43,7 +43,7 @@ export function createLocalNarrativeSchema(context: FunctionNarrativeContext, la
   const example = context.nodeTask ? { const: context.nodeTask.example } : { type: "object", additionalProperties: false, required: ["inputs", "result"], properties: {
     inputs: { type: "array", minItems: context.parameters?.length ?? 0, maxItems: context.parameters?.length ?? 0,
       ...(context.parameters?.length ? { items: context.parameters.map((parameter) => ({ type: "object", additionalProperties: false, required: ["name", rich ? "value" : "json"],
-        properties: { name: { const: parameter.name }, ...(rich ? { value: {} } : { json: { type: "string", minLength: 1, maxLength: 1200 } }) } })) } : { items: { type: "object" } }) },
+        properties: { name: { const: parameter.name }, ...(rich ? { value: inputValueSchema(parameter.type) } : { json: { type: "string", minLength: 1, maxLength: 1200 } }) } })) } : { items: { type: "object" } }) },
     result: { type: "string", minLength: 1, maxLength: 1200 }
   } };
   const scenario = { type: "object", additionalProperties: false, required: ["title", "when", "explanation", "steps", "outcome", "assumptions", ...(rich ? ["analysis"] : []), ...(context.parameters ? ["example"] : [])], properties: {
@@ -63,7 +63,7 @@ export function createLocalNarrativeSchema(context: FunctionNarrativeContext, la
     ...scenario, properties: { ...scenario.properties, when: { const: frame.when }, outcome: { const: frame.outcome },
       ...(rich && context.parameters ? { exampleInputs: constrainedExample(index).properties.inputs,
         exampleResult: constrainedExample(index).properties.result } : {}),
-      steps: targetedSteps ?? (rich && context.sourceFlow?.paths[index]?.steps.length ? terminalEvidence(index) :
+      steps: targetedSteps ?? (rich && context.sourceFlow?.paths[index]?.steps.length ? prefixEvidence(index) :
         { ...scenario.properties.steps, items: { ...step, properties: {
           ...(!rich || !context.sourceFlow?.paths[index] ? step.properties : sourceStepProperties(index)),
           source: { enum: frame.sources } } } }) }
@@ -94,17 +94,58 @@ export function createLocalNarrativeSchema(context: FunctionNarrativeContext, la
           name: { const: parameter.name }, value: constraints.booleans.some((input) => input.name === parameter.name)
             ? { const: constraints.booleans.find((input) => input.name === parameter.name)!.json === "true" }
             : constraints.nullInputs.includes(parameter.name) ? { const: null }
-              : constraints.nonNullInputs.includes(parameter.name) ? { anyOf: [
-                { type: "string", maxLength: 1200 }, { type: "number" }, { type: "boolean" },
-                { type: "array", items: {} }, { type: "object", additionalProperties: true }
-              ] } : {}
+              : inputValueSchema(parameter.type, constraints.nonNullInputs.includes(parameter.name))
         } })) : { type: "object" } }, ...(constraints.partial ? { result: { const: "null" } } : {}) } };
   }
 
-  /** The paragraph's evidence ends at this source terminal/prefix; node tasks explain all earlier operations. */
-  function terminalEvidence(index: number) {
-    const target = context.sourceFlow!.paths[index].steps.at(-1)!;
-    return { type: "array", minItems: 1, maxItems: 1, items: { ...step, required: [...step.required, "code"],
-      properties: { ...step.properties, code: { const: target.code }, source: { const: target.source } } } };
+  /** One primary request reads the first two operations in order, before its final result is written. */
+  function prefixEvidence(index: number) {
+    const targets = context.sourceFlow!.paths[index].steps.slice(0, 2);
+    return { type: "array", minItems: targets.length, maxItems: targets.length, items: targets.map(target => ({ ...step, description: operationDescription(target),
+      required: [...step.required, "code", ...(context.parameters ? ["values"] : [])],
+      properties: { ...step.properties, code: { const: target.code }, source: { const: target.source }, ...(context.parameters ? { values } : {}) }
+    })) };
+  }
+
+  /** Fixed identity is omitted from decoding, so each tuple slot still names the exact operation in its prompt schema. */
+  function operationDescription(target: FunctionNarrativeFlowStep): string {
+    const operation = JSON.stringify({ kind: target.kind, code: target.code, ...(target.branch ? { predicateResult: target.branch.outcome } : {}) });
+    const timing = target.kind === "mutation"
+      ? language === "ko" ? "현재 대입의 계산과 저장을 구체적 값으로 설명합니다. 앞 조건의 해설을 반복하지 않습니다."
+        : "Explain this write's calculation and assignment with concrete values, rather than copying the earlier guard explanation."
+      : target.kind === "condition"
+        ? language === "ko" ? "현재 조건식의 판단만 설명합니다. 다음 대입이나 반환은 아직 일어나지 않았습니다."
+          : "Explain this predicate decision only; the next assignment or return has not occurred yet."
+        : language === "ko" ? "현재 구문이 앞 상태를 어떻게 사용하는지 설명합니다."
+          : "Explain how this current operation uses the preceding state.";
+    return (language === "ko" ? "이 steps 슬롯의 소스 데이터: " : "Source data for this steps slot: ") + operation + ". " + timing;
+  }
+
+  /** Only explicit primitive type spellings constrain values; aliases and compound types stay unknown. */
+  function inputValueSchema(type: string | undefined, nonNull = false): Record<string, unknown> {
+    const text = (type ?? "").replace(/\s/gu, "");
+    const nullable = context.language === "kotlin" && text.endsWith("?");
+    const primitive = nullable ? text.slice(0, -1) : text;
+    let value: Record<string, unknown> = {};
+    if (context.language === "kotlin") {
+      if (/^(?:kotlin\.)?(?:Int|Long|Short|Byte)$/u.test(primitive)) value = { type: "integer" };
+      else if (/^(?:kotlin\.)?(?:Double|Float)$/u.test(primitive)) value = { type: "number" };
+      else if (/^(?:kotlin\.)?Boolean$/u.test(primitive)) value = { type: "boolean" };
+      else if (/^(?:kotlin\.)?String$/u.test(primitive)) value = { type: "string", maxLength: 1200 };
+    } else if (["typescript", "javascript"].includes(context.language)) {
+      if (primitive === "number" || primitive === "boolean") value = { type: primitive };
+      else if (primitive === "string") value = { type: "string", maxLength: 1200 };
+    } else if (context.language === "python") {
+      if (primitive === "int") value = { type: "integer" };
+      else if (primitive === "float") value = { type: "number" };
+      else if (primitive === "bool") value = { type: "boolean" };
+      else if (primitive === "str") value = { type: "string", maxLength: 1200 };
+    }
+    if (nullable && value.type && !nonNull) return { anyOf: [value, { type: "null" }] };
+    if (!value.type && nonNull) return { anyOf: [
+      { type: "string", maxLength: 1200 }, { type: "number" }, { type: "boolean" },
+      { type: "array", items: {} }, { type: "object", additionalProperties: true }
+    ] };
+    return value;
   }
 }

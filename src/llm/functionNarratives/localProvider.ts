@@ -1,4 +1,4 @@
-/** On-demand local GGUF inference; a process owns model memory for one explicit request. */
+/** On-demand local GGUF inference; the FIFO owner reuses a preinstalled server and reaps it on idle or cancellation. */
 import { spawn } from "node:child_process";
 import { access, mkdtemp, writeFile, rm } from "node:fs/promises";
 import { basename, join } from "node:path";
@@ -8,12 +8,16 @@ import { getGlobalModelTaskManager, type ModelTaskManager } from "../../shared/m
 import { createLocalNarrativeSchema } from "./responseSchema";
 import { buildLocalNarrativePrompt, buildLocalNarrativeSystemPrompt } from "./localPrompt";
 import { normalizeLocalNarrativeResponse } from "./localResponse";
-export type LocalFunctionNarrativeOptions = { binaryPath: string; modelPath: string; taskManager?: ModelTaskManager };
+import { createLocalNarrativeWire } from "./localWire";
+import { classifyRunnerFailure, getLocalNarrativeServer, type LocalNarrativeMetrics, type LocalNarrativeServer } from "./localServer";
+export type LocalFunctionNarrativeOptions = { binaryPath: string; modelPath: string; taskManager?: ModelTaskManager; onMetrics?(metrics: LocalNarrativeMetrics): void };
 
-/** No daemon, model download or activation-time work. Concurrent surfaces share one request queue. */
+/** No activation-time model work. A missing companion/custom runner retains bounded CLI execution. */
 export function createLocalFunctionNarrativeProvider(options: LocalFunctionNarrativeOptions): FunctionNarrativeProvider {
   const manager = options.taskManager ?? getGlobalModelTaskManager();
-  return { managesDeadlines: true, generate(context, language, signal, generation) {
+  let serverProbe: Promise<LocalNarrativeServer | undefined> | undefined;
+  return { managesDeadlines: true, async generate(context, language, signal, generation) {
+    const server = await (serverProbe ??= getLocalNarrativeServer(manager, options));
     return scheduleFunctionNarrativeRequest(manager, context.functionName, signal, async signal => {
     let directory: string | undefined;
     try {
@@ -24,12 +28,18 @@ export function createLocalFunctionNarrativeProvider(options: LocalFunctionNarra
       const promptFile = join(directory, "prompt.txt");
       const systemFile = join(directory, "system.txt");
       const schemaFile = join(directory, "schema.json");
-      const prompt = buildLocalNarrativePrompt(context, language);
+      const fullSchema = createLocalNarrativeSchema(context, language);
+      const wire = context.detailLevel === "rich" || context.callTask ? createLocalNarrativeWire(fullSchema) : undefined;
+      const prompt = buildLocalNarrativePrompt(context, language, wire?.schema);
+      if (server) {
+        const text = await server.generate(prompt, buildLocalNarrativeSystemPrompt(language), wire?.schema ?? fullSchema, signal, options.onMetrics);
+        return { modelName: ("Local · " + basename(options.modelPath, ".gguf")).slice(0, 100), text: normalizeLocalNarrativeResponse(wire?.decode(text) ?? text, context) };
+      }
       await writeFile(promptFile, prompt, { encoding: "utf8", mode: 0o600 });
       await writeFile(systemFile, buildLocalNarrativeSystemPrompt(language), { encoding: "utf8", mode: 0o600 });
       // Fixed grammar fields contain source predicates/operations too. Keep
       // them in the same private lifecycle as prompts, never in process argv.
-      await writeFile(schemaFile, JSON.stringify(createLocalNarrativeSchema(context, language)), { encoding: "utf8", mode: 0o600 });
+      await writeFile(schemaFile, JSON.stringify(wire?.schema ?? fullSchema), { encoding: "utf8", mode: 0o600 });
       const text = await runLocalModel(options.binaryPath, ["--model", options.modelPath, "--file", promptFile, "--system-prompt-file", systemFile,
         // The completion runner's Jinja tool-template probe rejects Qwen3.5's
         // current template before inference. These text-only, tool-free requests
@@ -38,11 +48,11 @@ export function createLocalFunctionNarrativeProvider(options: LocalFunctionNarra
         "--single-turn", "--simple-io", "--no-display-prompt", "--no-escape", "--offline", "--no-warmup",
         "--ctx-size", "8192", "--predict", "2400", "--threads", "2", "--threads-batch", "2", "--poll", "0",
         "--temp", "0.2", "--seed", "42", "--json-schema-file", schemaFile], signal);
-      return { modelName: ("Local · " + basename(options.modelPath, ".gguf")).slice(0, 100), text: normalizeLocalNarrativeResponse(text, context) };
+      return { modelName: ("Local · " + basename(options.modelPath, ".gguf")).slice(0, 100), text: normalizeLocalNarrativeResponse(wire?.decode(text) ?? text, context) };
     } finally {
       if (directory) await rm(directory, { recursive: true, force: true });
     }
-    }, generation);
+    }, { ...generation, resource: server });
   } };
 }
 
@@ -77,14 +87,4 @@ function runLocalModel(binaryPath: string, args: string[], signal: AbortSignal):
       else resolve(output.trim().replace(/\s*\[end of text\]\s*$/u, ""));
     });
   });
-}
-
-/** Controlled, actionable diagnostics replace generic connection guidance without exposing stderr. */
-function classifyRunnerFailure(diagnostics: string): string | undefined {
-  if (/prompt[^\n]*(?:too long|exceeds)|context (?:size|window)[^\n]*(?:exceed|too small)/iu.test(diagnostics)) return "input-window";
-  if (/out of memory|cannot allocate|failed to allocate|bad_alloc|insufficient memory/iu.test(diagnostics)) return "memory-allocation";
-  if (/failed to (?:load|open) (?:model|gguf)|invalid gguf|error loading model/iu.test(diagnostics)) return "model-load";
-  if (/unrecognized (?:argument|option)|unknown (?:argument|option)|invalid (?:argument|option)/iu.test(diagnostics)) return "runner-arguments";
-  if (/JSON schema (?:conversion failed|error)|failed to (?:parse|build) grammar|error (?:parsing|building) grammar|grammar[^\n]*(?:error|invalid)/iu.test(diagnostics)) return "response-grammar";
-  return undefined;
 }

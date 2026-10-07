@@ -1396,6 +1396,28 @@ Webview는 Project Graph, 파일 시스템, VS Code API에 직접 접근하지 �
 
 #### `application/functionNarratives` 및 `webview/functionNarratives`
 
+- 로컬 provider는 미리 설치된 공식 CLI의 `llama-server` companion이 있는 Unix 환경에서
+  같은 FIFO resource를 연속 요청에 재사용한다. 인증 key·socket은 0700 임시 폴더에 두며
+  TCP listener·proxy·daemon·activation-time 추론을 사용하지 않는다. key는 0600이며
+  source·prompt·응답·key 값은 process argv와 작업 이력에 넣지 않는다.
+- `ModelTaskManager`는 다른 resource·일반 adapter 실행 전에 이전 resource 종료를 기다린다.
+  실패·취소·timeout·dispose도 자식 종료 뒤에 슬롯을 해제한다. 성공 뒤에는 한 event-loop
+  turn에서 호출자가 다음 chunk를 enqueue할 기회를 주며, 큐가 비면 바로 종료한다.
+  watchdog은 parent pipe EOF에도 모델을 종료한다. companion 없음·custom runner·Windows는
+  기존 CLI를 사용하며 source 준비·개별 추론 deadline·단일 모델 슬롯 상한은 유지한다.
+- `llm/functionNarratives/localWire`는 required const/single-enum metadata만 출력 schema에서
+  제거하고 동일한 schema 슬롯에서 복원한다. code·when/outcome·input name/value는 모델 해설을 실제
+  구문·경로·값에 연결하는 출력 토큰으로 유지하며 고정 scalar/조건 목록 변경도 거부한다. 모델이 제거된 metadata를 직접 반환하거나
+  tuple 수·필수 필드·추가 필드를 바꾸면 거부한다. optional·union 분기는 축약하지 않는다.
+  확장 전후 24,000자 상한과 원래 source/route/example/언어 검증을 유지한다.
+- rich primary는 첫 두 구문을 source 순서로 values와 함께 읽는다. Host는 원래 code/source와
+  일치하는 prefix만 재사용하며 미래 terminal을 선행 상태로 사용하지 않는다. 모델 출력에서
+  고정 identity를 생략하더라도 각 schema 슬롯의 description은 실제 구문을 명시한다.
+  서로 다른 구문의 text/syntax가 같은 경우 prefix 재사용을 멈추고 남은 구문을 다시 읽는다. 남은 모든
+  node·반복 방문은 기존 bounded chunk로 처리한다. model worksheet는 도달한 구문과
+  predicateResult를 구분하고 명시적인 Kotlin/TypeScript/Python primitive 입력만 type으로
+  제한한다. alias·복합 type·외부 결과를 임의로 확정하지 않는다.
+
 - `webview/codeFlow/narrativeNotes`는 선택한 저장 시나리오의 `nodeDetails`를 현재 graph의
   verified identity adapter·layout과 결합한다. 해당 시나리오의 `graph.nodeIds`에 없는 노드와
   미해결 identity는 제외하고 반복 방문의 원래 node index·예시값·source를 보존한다.

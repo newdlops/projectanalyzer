@@ -1,5 +1,5 @@
 /** Single-slot FIFO model scheduler with cancellation, execution-only deadlines and bounded diagnostic history. */
-import { ModelTaskError, type ModelTaskFailure, type ModelTaskProgress, type ModelTaskRecord, type ModelTaskRequest, type ModelTaskSnapshot } from "./types";
+import { ModelTaskError, type ModelTaskFailure, type ModelTaskProgress, type ModelTaskRecord, type ModelTaskRequest, type ModelTaskSnapshot, type ModelTaskResource } from "./types";
 
 type Job = {
   record: ModelTaskRecord;
@@ -14,6 +14,7 @@ type Job = {
   finished: Promise<void>;
   finish(): void;
   reason?: ModelTaskFailure;
+  resource?: ModelTaskResource;
 };
 
 /**
@@ -30,6 +31,11 @@ export class ModelTaskManager {
   private closed = false;
   private publishing = false;
   private publishAgain = false;
+  private resource?: ModelTaskResource;
+  private idleRelease?: ReturnType<typeof setImmediate>;
+  /** Cleanup is serialized even when idle release and a new request arrive together. */
+  private releasing: Promise<void> = Promise.resolve();
+  private shutdownFinished = false;
   public constructor(private readonly options: { maxWaiting?: number; historyLimit?: number; now?: () => number;
     onTransition?: (record: ModelTaskRecord) => void } = {}) {
     for (const limit of [options.maxWaiting ?? 32, options.historyLimit ?? 32]) {
@@ -38,6 +44,7 @@ export class ModelTaskManager {
   }
   public get disposed(): boolean { return this.closed; }
   public get idle(): boolean { return !this.active && !this.waiting.length; }
+  public get shutdownComplete(): boolean { return this.shutdownFinished; }
 
   /** Adapters may reuse an already owned inference slot instead of nesting the same global queue. */
   public isExecuting(signal: AbortSignal): boolean { return this.active?.controller.signal === signal && this.active.record.kind === "inference"; }
@@ -52,7 +59,7 @@ export class ModelTaskManager {
     const job: Job = {
       record: { id: "model-task:" + (++this.sequence), kind: request.kind, label: request.label.replace(/\s+/gu, " ").trim().slice(0, 96), phase: "queued", queuedAt: this.now() },
       parent: request.signal, controller: new AbortController(), execute: request.execute, progress: request.onProgress,
-      timeoutMs: request.timeoutMs, abortParent: () => this.stop(job, "cancelled"),
+      timeoutMs: request.timeoutMs, resource: request.resource, abortParent: () => this.stop(job, "cancelled"),
       resolve: value => resolve(value as T), reject,
       finished: new Promise<void>(accept => { finish = accept; }), finish: () => finish()
     };
@@ -90,7 +97,10 @@ export class ModelTaskManager {
     const active = this.active;
     for (const job of [...this.waiting]) this.stop(job, "cancelled");
     if (active) { this.stop(active, "cancelled"); await active.finished; }
+    if (this.idleRelease) clearImmediate(this.idleRelease);
+    await this.releaseResource();
     this.publish(); this.listeners.clear();
+    this.shutdownFinished = true;
   }
 
   private now(): number { return (this.options.now ?? Date.now)(); }
@@ -128,6 +138,7 @@ export class ModelTaskManager {
     if (this.active || this.closed) return;
     const job = this.waiting.shift(); if (!job) return;
     this.active = job;
+    if (this.idleRelease) { clearImmediate(this.idleRelease); this.idleRelease = undefined; }
     job.record = { ...job.record, phase: job.record.kind === "prepare" ? "preparing" : "running", startedAt: this.now() };
     this.transition(job); this.publish();
     void this.execute(job);
@@ -136,6 +147,8 @@ export class ModelTaskManager {
     const timer = job.timeoutMs === undefined ? undefined : setTimeout(() => this.stop(job, "timeout"), Math.max(1, job.timeoutMs));
     let value: unknown, failure: unknown, failed = false;
     try {
+      await this.releasing;
+      if (this.resource !== job.resource) { await this.releaseResource(); this.resource = job.resource; }
       value = await Promise.resolve().then(() => {
         if (job.controller.signal.aborted) throw new ModelTaskError(job.reason ?? "cancelled");
         return job.execute(job.controller.signal);
@@ -143,11 +156,25 @@ export class ModelTaskManager {
     } catch (error) { failed = true; failure = error; }
     finally {
       clearTimeout(timer);
+      // A failed/cancelled completion must stop a warm process too. Await it
+      // before publishing the outcome or allowing the next owner to run.
+      if (failed || job.reason) await this.releaseResource();
       // Awaiting execute includes its process/temp-file cleanup; only now may
       // another task take ownership of local model memory.
       this.settle(job, value, failed || Boolean(job.reason), job.reason ? new ModelTaskError(job.reason) : failure);
       this.active = undefined; this.publish(); this.pump();
+      if (this.idle && this.resource) {
+        // Let the awaiting caller enqueue its next bounded chunk in the same
+        // turn. No idle timeout, background polling or retained idle model.
+        this.idleRelease = setImmediate(() => { this.idleRelease = undefined; if (this.idle) void this.releaseResource(); });
+      }
     }
+  }
+  /** One cleanup chain prevents a newly queued adapter from racing an idle teardown. */
+  private releaseResource(): Promise<void> {
+    const resource = this.resource; this.resource = undefined;
+    if (resource) this.releasing = this.releasing.then(() => resource.release()).catch(() => { /* Adapter cleanup must be bounded and best-effort. */ });
+    return this.releasing;
   }
   private settle(job: Job, value: unknown, failed: boolean, failure: unknown): void {
     job.parent.removeEventListener("abort", job.abortParent);
@@ -165,6 +192,6 @@ export class ModelTaskManager {
 let globalManager: ModelTaskManager | undefined;
 /** Inert process-wide default also protects direct adapter consumers and separate configured-provider instances. */
 export function getGlobalModelTaskManager(options?: ConstructorParameters<typeof ModelTaskManager>[0]): ModelTaskManager {
-  if (!globalManager || globalManager.disposed && globalManager.idle) globalManager = new ModelTaskManager(options);
+  if (!globalManager || globalManager.disposed && globalManager.idle && globalManager.shutdownComplete) globalManager = new ModelTaskManager(options);
   return globalManager;
 }

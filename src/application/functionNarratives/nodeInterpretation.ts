@@ -18,11 +18,23 @@ export function initializeFunctionNarrativeNodes(path: FunctionNarrativeFlowPath
   if (!path.graph || !scenario.example) return;
   scenario.graph = path.graph;
   scenario.nodeDetails = [];
-  // Primary prose is generated before intermediate values exist. Reusing its
-  // terminal would freeze an early guessed state instead of the carried state.
-  if (detailLevel === "rich") return;
   const same = (left: typeof path.steps[number]["source"], right: typeof left) => left.snippetId === right.snippetId
     && left.startLine === right.startLine && left.endLine === right.endLine;
+  if (detailLevel === "rich") {
+    // Reuse only a source-ordered prefix with values, never an early terminal
+    // guess from a later operation. Old terminal-only pages remain resumable.
+    for (let index = 0; index < Math.min(2, scenario.steps.length, path.steps.length); index++) {
+      const step = scenario.steps[index], target = path.steps[index];
+      if (!target.graphNodeId || !step.values?.length || step.code !== target.code || !same(step.source, target.source)) break;
+      // Small models may copy a guard's prose into a later write despite
+      // distinct fixed identities. Keep the valid prefix, then let bounded
+      // node work explain the remaining operations with the earlier state.
+      const previous = scenario.steps[index - 1];
+      if (previous && previous.code !== step.code && previous.text === step.text && previous.syntax === step.syntax) break;
+      scenario.nodeDetails.push({ ...step, nodeId: target.graphNodeId, occurrence: target.graphOccurrence });
+    }
+    return;
+  }
   for (const step of scenario.steps) {
     const matches = path.steps.filter((candidate) => candidate.graphNodeId && same(candidate.source, step.source)
       && (!step.code || step.code === candidate.code));

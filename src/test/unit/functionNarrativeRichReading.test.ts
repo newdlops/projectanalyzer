@@ -174,6 +174,22 @@ test("carried model state excludes future nodes and keeps at most eight latest n
   assert.equal(task.nodeTask!.reading!.priorState.some((value) => value.name === "future"), false);
 });
 
+test("rich primary prefix readings are reused in order and remaining nodes retain carried state", () => {
+  const batch = new FunctionNarrativeScenarioRun(contextFor()).nextBatch()!, path = batch.sourceFlow!.paths[0];
+  const scenario = parseFunctionNarrative(output(batch), batch, "en").scenarios[0];
+  scenario.steps = path.steps.slice(0, 2).map(target => ({ ...scenario.steps[0], code: target.code, source: target.source, text: "Read " + target.code + "." }));
+  initializeFunctionNarrativeNodes(path, scenario, "rich");
+  assert.deepEqual(scenario.nodeDetails!.map(detail => detail.nodeId), path.steps.slice(0, 2).map(target => target.graphNodeId));
+  const task = createFunctionNarrativeNodeTask(batch, path, scenario)!;
+  assert.equal(task.nodeTask!.targets[0].code, path.steps[2].code);
+  assert.equal(task.nodeTask!.reading!.priorState.find(value => value.name === "total")!.value, "10");
+  const duplicated = structuredClone(scenario);
+  duplicated.steps[1].text = duplicated.steps[0].text;
+  initializeFunctionNarrativeNodes(path, duplicated, "rich");
+  assert.equal(duplicated.nodeDetails!.length, 1, "copied guard prose is regenerated rather than reused for a different operation");
+  assert.equal(createFunctionNarrativeNodeTask(batch, path, duplicated)!.nodeTask!.targets[0].code, path.steps[1].code);
+});
+
 test("rich terminal readings use preceding node state and replace early primary evidence", () => {
   const batch = new FunctionNarrativeScenarioRun(contextFor()).nextBatch()!, path = batch.sourceFlow!.paths[0];
   const scenario = parseFunctionNarrative(output(batch), batch, "en").scenarios[0], terminal = path.steps.at(-1)!;

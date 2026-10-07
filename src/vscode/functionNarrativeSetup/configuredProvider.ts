@@ -37,6 +37,7 @@ export function createConfiguredNarrativeProvider(api: ConfiguredNarrativeApi, m
     async generate(context, language, signal, options) {
       const provider = await resolve(language, signal, { ...options, label: context.functionName });
       if (signal.aborted) throw new FunctionNarrativeError("cancelled");
+      if (provider.managesDeadlines) return provider.generate(context, language, signal, options);
       return scheduleFunctionNarrativeRequest(manager, context.functionName, signal,
         operation => provider.generate(context, language, operation, options), options);
     }

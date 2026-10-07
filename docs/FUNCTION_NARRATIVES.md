@@ -81,6 +81,34 @@ Public API:
 
 ## 사용 및 연결
 
+0.0.1116부터 같은 설치 경로에 `llama-server`가 있는 macOS/Linux에서는 로컬 실행기를
+연속 요청 동안 재사용한다. private Unix socket과 임시 인증 key를 사용하고 대기열이 비면
+종료한다. 취소·실패·다른 공급자로 전환·Host 종료도 프로세스를 정리하며, Host가 갑자기
+끝나면 watchdog의 parent pipe EOF로 종료한다. model process는 한 FIFO 슬롯만 사용하고
+context 8,192·output 2,400 token·모델 CPU thread 2개 상한을 유지한다. 별도 runtime을
+다운로드하지 않으며 companion 없음·custom runner·Windows는 기존 CLI 방식으로 실행한다.
+
+템플릿·JSON grammar·prefix cache 요청은 설치본과 같은 commit의
+[llama.cpp server API](https://github.com/ggml-org/llama.cpp/blob/b29c606e2/tools/server/README.md)를 따른다.
+cache prefix가 같아도 backend batch 방식에 따라 logits의 bit 단위 동일성을 보장하지 않으므로
+실제 응답과 기존 Host 검증을 함께 확인한다.
+
+`llm/functionNarratives/localWire.createLocalNarrativeWire(schema)`는 고정된 source 위치·
+call ID를 모델 출력에서 반복하지 않도록 한다. code·when/outcome·input 이름/값은 설명의 근거가 되는
+출력 토큰으로 유지한다. 복원은 동일한 source
+슬롯만 사용하며, 모델이 그 값을 덮어쓰거나 순서·개수·필드 구조를 바꾸면 거부한다.
+`localInput.buildLocalNarrativeInput(context)`는 선택 경로의 도달 정보와 Boolean 판단을
+구분한다. 예를 들어 `!enabled=false` 뒤에 대입이 도달한다는 사실을 “대입 생략”으로
+읽지 않도록 한다. 구체적 실행 여부가 확인됐다는 뜻은 아니며 미검증 표시를 유지한다.
+
+rich primary의 처음 두 단계는 source 순서·예시값을 확인한 뒤 다음 node 요청에 재사용한다.
+출력 schema의 각 단계 description에도 그 슬롯의 실제 구문을 붙인다. 다른 구문에 앞 단계의
+text/syntax를 그대로 복사한 경우에는 그 앞까지의 prefix만 재사용하고 나머지를 node 요청으로
+다시 읽는다. 이 검사도 임의의 문장 의미를 검증하는 것은 아니다.
+오래된 terminal-only 응답은 선행 단계로 취급하지 않고 기존 방식으로 모든 노드를 읽는다.
+따라서 상세 해설을 생략해서 속도를 높이지 않으며 저장 페이지·source action·취소 재개는
+기존 contract를 사용한다.
+
 1. 확장을 설치하고 PC에 llama.cpp의 `llama-completion` 실행 도구를 미리 준비한다.
    기본 provider는 `local`이다. Homebrew 경로와 PATH를 확인하며, 다른 설치 경로는
    `projectAnalyzer.functionNarratives.localBinary`에 지정한다.
@@ -411,6 +439,68 @@ Q4_K_M을 사용했다. revision `f74adce6aa16316c625447af059dbebe4983757c`,
 2,104,932,800 bytes, SHA-256
 `724fb256bec1ff062b2f65e4569e871ad2e95ab2a3989723d1769c54294730b7`을 확인했다.
 두 모델 모두 `.local-models/`에 보관하며, 비교를 위해 사용자 설정을 바꾸지 않았다.
+
+## 0.0.1116 검증 기록
+
+실제 설치된 0.0.1115 provider/session을 기준으로 같은 Qwen3.5-4B Q4_K_M 가중치와
+seed 42·temperature 0.2·context 8,192·output 2,400 token·CPU thread 2개를 사용했다.
+공개 함수 세 개를 production parser와 Tutor grounding으로 구성했다. 이전 설치본은 두 번,
+최종 code/route/input 출력 보존 빌드는 한 번 측정했다. 모델 준비/다운로드 시간은 제외하고
+각 함수의 모델 시작과 모든 경로·노드 생성은 포함한다. benchmark의 page store는 memory map이며
+native 저장소의 disk I/O는 별도다.
+
+| 공개 함수 | 0.0.1115 두 측정 평균 | 최종 0.0.1116 한 측정 | 요청 수 |
+| --- | ---: | ---: | ---: |
+| Kotlin Boolean guard + 고정값 5 대입 | 60.02초 | 26.50초 | 5 → 3 |
+| TypeScript guard + 대입·복합 곱셈 | 66.17초 | 25.70초 | 5 → 3 |
+| Kotlin nullable 입력 + Elvis | 69.44초 | 28.38초 | 6 → 4 |
+| 합계 | 195.63초 | 80.57초 | 16 → 10 |
+
+이전 두 측정의 합계는 각각 222.05초·169.22초였다. 최종 측정은 그 평균보다 약 59%
+짧았고 경로 6개·노드 29개를 모두 완료했다. 직접 숫자 결과 5/6은 oracle과 일치했다.
+나머지 TypeScript 결과는 `15 * 2 = 30`이라는 계산식이며 입력 10의 oracle 30과 수동
+비교했다. 그 결과는 benchmark의 직접 숫자 점수에는 포함하지 않아 보고서에는 5/6으로 기록된다.
+도달한 대입 생략·거짓 guard의 조기 반환·복사된 text/syntax는 0건이었지만, TypeScript에
+거짓 guard의 참 본문 진입을 주장하는 문장 1건이 남았다. 반환값과 구문 연결의 검증을
+모든 문장 의미 검증으로 취급하지 않는다. 좁은 문장 패턴 검사와 실제 응답 검토이며
+대형 함수·다른 모델·다른 환경에 대한 일반적인 속도·정확도 보장은 아니다.
+
+- `scripts/benchmark-function-narratives.mjs`로 재현한다. compile 뒤 현재 workspace 또는
+  이전 설치본을 runtime root로 지정하며 source는 parser 입력으로만 읽는다. formula oracle은
+  benchmark가 직접 정의한 기준이며 사용자 source를 실행하지 않는다. 보고서·원문 응답은
+  0700 임시 폴더의 0600 파일에만 저장하고 source·prompt·stderr를 원격으로 보내지 않는다.
+- 최종 Elvis 후속 요청에서 prefix 1,418 token 재사용을 확인했다. 다른 요청은 cache 0도
+  있었으므로 모든 chunk가 warm reuse된다는 성능 보장은 하지 않는다.
+  한 모델 슬롯·HTTP worker 1개·모델 CPU thread 2개를 사용했다. 측정 뒤 실제 `llama`
+  프로세스는 남지 않았다. idle 정리·다른 resource로 전환 시 종료 대기·cancel 시 reap·
+  parent pipe EOF 때 SIGTERM을 무시하는 자식까지 강제 종료하는 회귀 테스트가 통과했다.
+- 실제 cross-file TypeScript Host의 `zero()` 호출 설명도 같은 로컬 transport로 생성했다.
+  한 호출의 source binding과 한국어 해설이 `ready`로 검증됐고 인자 없는 호출의 고정
+  문구를 유지했다. 이 1회 smoke 측정은 약 10.23초였으며 일반적인 call 성능 지표가 아니다.
+- 최종 설치본으로 공개 `GraphNotes.kt`와 실제 Rust `plaintext` 파일 분석 결과를 재생했다.
+  생산 cursor resolver가 Kotlin `total`을 찾고 실제 CodeFlow Host가 로컬 모델을 3회 호출해
+  두 경로를 `ready`로 완료했다. false/100 → 0, true/100 → 105 예시는 식과 일치했고
+  source 순서의 노드 4개·5개를 보존했다. memory page store를 사용한 이 Host 실행은 38.94초였다.
+  두 저장 페이지 조회와 원래 반환 줄의 source evidence adapter 호출 1회는 추가 추론 없이
+  완료됐다. 이후 모델 프로세스는 남지 않았다. 이는 source 코드 실행이나 실제 native 버튼
+  조작 검증이 아니다. 최종 route 보정 전 native UI에서는 생성 완료와 함께 참 입력을
+  조기 반환으로 잘못 설명한 응답을 확인했으며, 마지막 UI 재실행은 다른 창으로 전환되어
+  완료하지 못했다. 이번 backend 변경에서 새 viewport visual QA는 수행하지 않았다.
+- 기본·`Function Language QA 1107` 프로필의 버전 등록은 0.0.1116이다. 설치된 JavaScript
+  478개와 native binary가 최종 빌드와 일치하고 runtime closure 오류는 없다. VSIX는
+  512개 파일·압축 3.61MiB·해제 15.40MiB로 기존 패키지 상한을 통과했다.
+- 전체 Node unit 1,038개 중 1,034개 통과. 기존 declared-type 입력 대표값 두 건,
+  advanced private Scenario, decorated source-reveal 네 실패는 그대로다. 새 wire·prefix·
+  primitive input·resource lifecycle·socket auth·watchdog 회귀 13개가 모두 통과했다.
+  패키징 script 14개, compile·release metadata·diff check도 통과했다. Rust 구현은
+  바꾸지 않았으며 Rust unit suite를 별도로 재실행하지 않았다.
+  code/input 출력 유지 보정 후 전체 1,038개를 다시 실행했으며 같은 기존 실패 네 건만
+  남았다. 마지막 route 출력 유지 보정 후 관련 회귀 19개도 통과했다.
+
+이 변경은 model weights를 학습하거나 교체하지 않는다. 고정 source metadata를 공급하는
+Host와 내용을 쓰는 LLM의 역할을 구분하며 source/route/입력 검증을 완화하지 않는다.
+기존 모델 의미 오류와 미지원 source/type/external 결과의 한계는 남아 있다. Windows와
+companion이 없는 환경은 CLI fallback을 유지하며 위 서버 측정의 속도를 보장하지 않는다.
 
 ## 0.0.1115 검증 기록
 

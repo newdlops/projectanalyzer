@@ -1,6 +1,6 @@
 /** Replaceable LLM boundary; application code supplies excerpts and never owns a model process. */
 import type { FunctionNarrativeContext } from "../../shared/functionNarratives";
-import type { ModelTaskProgress } from "../../shared/modelTasks";
+import type { ModelTaskProgress, ModelTaskResource } from "../../shared/modelTasks";
 
 export { FunctionNarrativeError, type FunctionNarrativeFailure } from "../../shared/functionNarratives";
 export type FunctionNarrativeModelResponse = { modelName: string; text: string };
@@ -10,6 +10,8 @@ export type FunctionNarrativeGenerationOptions = FunctionNarrativeOperationOptio
   /** Validates before a managed operation is recorded as successful. */
   validate?(response: FunctionNarrativeModelResponse): void;
   timeoutMs?: number;
+  /** Adapter-owned reuse remains under the same global execution/cleanup boundary. */
+  resource?: ModelTaskResource;
 };
 export interface FunctionNarrativeProvider {
   /** Managed adapters own execution deadlines; Host fallback deadlines must not include queue waiting. */

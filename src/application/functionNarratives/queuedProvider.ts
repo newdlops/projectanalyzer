@@ -19,7 +19,7 @@ export async function scheduleFunctionNarrativeRequest(manager: ModelTaskManager
   if (manager.isExecuting(signal)) return execute(signal);
   try {
     return await manager.run({ kind: "inference", label: options?.label ?? label, signal,
-      timeoutMs: options?.timeoutMs ?? MODEL_INFERENCE_TIMEOUT_MS, onProgress: options?.onProgress,
+      timeoutMs: options?.timeoutMs ?? MODEL_INFERENCE_TIMEOUT_MS, onProgress: options?.onProgress, resource: options?.resource,
       async execute(signal) { const response = await execute(signal); options?.validate?.(response); return response; } });
   } catch (error) { throw narrativeError(error); }
 }

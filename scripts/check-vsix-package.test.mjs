@@ -24,6 +24,7 @@ const REQUIRED_ENTRIES = [
   entry("extension/package.nls.json", 2_000),
   entry("extension/package.nls.ko.json", 2_000),
   entry("extension/out/extension/activate.js", 2_000),
+  entry("extension/out/llm/functionNarratives/localServerWatchdog.js", 2_000),
   entry("extension/readme.md", 20_000),
   entry("extension/changelog.md", 2_000),
   entry("extension/SUPPORT.md", 2_000),

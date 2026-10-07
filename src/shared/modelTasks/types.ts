@@ -29,8 +29,11 @@ export type ModelTaskRequest<T> = {
   timeoutMs?: number;
   execute(signal: AbortSignal): Promise<T>;
   onProgress?(progress: ModelTaskProgress): void;
+  resource?: ModelTaskResource;
 };
 export type ModelTaskFailure = "cancelled" | "timeout" | "queue-full" | "disposed";
+/** Optional reusable adapter resource; the scheduler closes it before another owner or when work becomes idle. */
+export type ModelTaskResource = { release(): Promise<void> };
 /** Scheduler failures stay independent of any particular model adapter. */
 export class ModelTaskError extends Error {
   public constructor(public readonly code: ModelTaskFailure) { super(code); this.name = "ModelTaskError"; }

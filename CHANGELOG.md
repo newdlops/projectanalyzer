@@ -4,6 +4,25 @@ All notable user-visible changes to Project Analyzer: Code Flow are recorded in
 this file. The changelog starts with the first distribution-documented build;
 earlier local development builds were not tracked here.
 
+## 0.0.1116 - 2026-10-07
+
+### Improved
+
+- Reuse a preinstalled local llama-server for consecutive FIFO requests through
+  an authenticated private Unix socket. Close it on idle, cancellation, failure,
+  provider change and Host shutdown. A watchdog also stops it after parent death.
+  Custom runners, missing companions and Windows retain the CLI transport.
+- Generate the first two source operations with each scenario and reuse only
+  that validated prefix, retaining ordered values, cancellation/resume and full
+  node coverage. Keep exact code, route choices and named inputs as explanation anchors, remove
+  repeated constant location/opaque metadata from local decoding and
+  restore its owned source/route/input slots before the existing Host validation.
+- Distinguish reaching a statement from a false predicate and constrain explicit
+  primitive example types. Identify each schema operation and regenerate prose
+  copied between distinct operations. Keep the same model, context/output/thread bounds,
+  inferred-result labels and cache-only reading behavior.
+- Add a reproducible public Kotlin/TypeScript speed and narrow quality benchmark.
+
 ## 0.0.1115 - 2026-10-06
 
 ### Added

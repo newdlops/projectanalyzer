@@ -30,6 +30,7 @@ const REQUIRED_PATHS = Object.freeze([
   "extension/package.nls.json",
   "extension/package.nls.ko.json",
   "extension/out/extension/activate.js",
+  "extension/out/llm/functionNarratives/localServerWatchdog.js",
   "extension/readme.md",
   "extension/changelog.md",
   "extension/SUPPORT.md",
