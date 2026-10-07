@@ -98,6 +98,34 @@ test("whole straight-line purposes include every binding and numeric return with
   }
 });
 
+test("whole Kotlin branch purposes preserve all routes and calculations in source order", () => {
+  const original = fixture('fun inspect(amount: Int): Int {\n var adjusted = amount - 1\n if (adjusted > 8) return adjusted * 2\n if (adjusted > 0) return adjusted + 3\n return adjusted - 4\n}',
+    "kotlin", [{ name: "amount", type: "Int" }]);
+  for (const locale of ["ko", "en"] as const) {
+    const task = completed(original, locale), purpose = buildFunctionNarrativeSourcePurpose(original, task, locale);
+    if (locale === "en") { assert.equal(purpose, undefined, "long complete recipes retain the model instead of losing a route"); continue; }
+    assert.ok(purpose);
+    for (const code of ["amount - 1", "adjusted > 8=true", "adjusted > 8=false", "adjusted > 0=true", "adjusted > 0=false", "adjusted * 2", "adjusted + 3", "adjusted - 4"]) assert.ok(purpose.includes(code), code);
+    assert.ok(purpose.indexOf("amount - 1") < purpose.indexOf("adjusted > 8"));
+    const inferred = { ...original, scenarioGraph: { ...original.scenarioGraph!, nodes: original.scenarioGraph!.nodes.map(node => ({ ...node,
+      next: node.next.map(edge => ({ ...edge, confidence: "inferred" as const })) })) } };
+    assert.equal(buildFunctionNarrativeSourcePurpose(inferred, task, locale), undefined);
+  }
+});
+
+test("an unchecked route and a larger Cartesian graph cannot be hidden by two verified examples", () => {
+  for (const source of [
+    'fun inspect(amount: Int): Int {\n if (amount > 10) return amount * 2\n if (amount > 0) return amount + 3\n return load(amount)\n}',
+    'fun inspect(a: Boolean, b: Boolean, c: Boolean, enabled: Boolean, amount: Int): Int {\n var adjusted = amount\n if (a) { adjusted += 1 }\n if (b) { adjusted += 2 }\n if (c) { adjusted += 4 }\n if (enabled) { adjusted += 8 }\n return adjusted\n}'
+  ]) {
+    const original = fixture(source, "kotlin", source.includes("a: Boolean")
+      ? [{ name: "a", type: "Boolean" }, { name: "b", type: "Boolean" }, { name: "c", type: "Boolean" }, { name: "enabled", type: "Boolean" }, { name: "amount", type: "Int" }]
+      : [{ name: "amount", type: "Int" }]);
+    const task = completed(original, "ko");
+    assert.equal(buildFunctionNarrativeSourcePurpose(original, task, "ko"), undefined, source);
+  }
+});
+
 test("unsupported alternate computations and omitted completed values retain the full model synthesis", () => {
   const original = fixture('fun inspect(enabled: Boolean, amount: Int): Int {\n if (!enabled) return 0\n val adjusted = load(amount)\n return adjusted + 3\n}',
     "kotlin", [{ name: "enabled", type: "Boolean" }, { name: "amount", type: "Int" }]);

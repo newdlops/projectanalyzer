@@ -60,7 +60,10 @@ export type FunctionNarrativeContext = {
   /** Host-owned compact CFG for complete, lazy scenario enumeration; never sent wholesale to a model. */
   scenarioGraph?: FunctionNarrativeScenarioGraph;
   /** Host-only bounded source evaluator port; stripped before all external model prompts. */
-  sourceWorksheet?: { owns(context: FunctionNarrativeContext): boolean; trace(path: FunctionNarrativeFlowPath, inputs: FunctionNarrativeExample["inputs"] | undefined,
+  sourceWorksheet?: { owns(context: FunctionNarrativeContext): boolean;
+    /** Parser-owned header has no defaults/rest/setup outside its complete body graph. Snapshot ownership is still required. */
+    bodyOnlyParameters?: boolean;
+    trace(path: FunctionNarrativeFlowPath, inputs: FunctionNarrativeExample["inputs"] | undefined,
     language: "ko" | "en", exclude?: FunctionNarrativeExample["inputs"]): FunctionNarrativeSourceTrace | undefined };
   /** Offset of the source-owned scenarios in this bounded request; fixed frames apply even to partial/inferred paths. */
   scenarioBatch?: { offset: number };

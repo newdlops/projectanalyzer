@@ -142,6 +142,68 @@ loop/exception transfer, inferred/partial/truncated evidence, 긴 식과 알 수
 초기 준비 문구는 저장하지 않는다. 각 시나리오의 상세 문단·대안은 계속 모델이 새로 작성한다.
 기존 노드 구문·동작·근거·효과·인용을 모두 유지하며 화면 배치도 유지한다.
 
+### 0.0.1126 전체 분기·객체·배열 목적의 모델 요청 제거
+
+개별 노드·문단·대안 계산이 이미 source로 확인되는 함수에서 마지막 목적 문장만
+다시 추론하던 비용을 제거한다. `buildAcyclicSourcePurpose`는 전체 graph의 mutation·
+condition·return을 최대 8개 route까지 끝까지 열거하고, 각 경로를 기존 독립 worksheet로
+계산해 모든 retained node·인용을 포함한 경우에만 목적을 구성한다. graph node는 최대
+32개, iterator depth는 64이며 재귀나 사용자 소스 실행을 사용하지 않는다.
+
+조건의 true/false, 각 binding의 초기화·갱신, 전체 반환 식을 모두 포함한다. 모든
+경로에 동일한 시작 계산만 한 번으로 묶으며 중간 계산을 조건 앞에 재배치하지 않는다.
+예를 들어 `!payload.enabled=true`이면 0 반환, false이면 `payload.amount + 5`로
+adjusted 초기화 → `adjusted *= 2` → `adjusted + 3` 반환을 전부 읽는다. 속성 갱신의
+현재 문단과 값 표에는 payload 전체 before/after JSON도 그대로 남는다.
+
+primitive header의 기존 lexical proof를 유지한다. object/array 타입의 header는
+snapshot-owned IR worksheet의 `bodyOnlyParameters` certificate를 사용한다. parser의
+default evidence·defaultValue·rest·parameter gap 또는 async 실행이 있으면 certificate를
+주지 않는다. 기본 인자의 효과를 body-only 계산으로 숨기지 않으며, source가 달라지면
+certificate도 사용할 수 없다. 확인되지 않는 경로·호출·graph gap, 8개를 넘는 route,
+240자를 넘는 완전한 목적은 기존 모델 경로를 유지하고 내용을 잘라 넣지 않는다.
+모델이 필요한 기본 인자 예제로 기존 목적 cache/producer lifecycle도 계속 검증한다.
+
+설치된 0.0.1125와 production parser/Host session의 후보를 공개 예제로 비교했다.
+시간은 setup·generation·저장·runner 정리를 포함하며 parser/context 구성은 제외한다.
+
+| 예제 | 설치된 0.0.1125 | 후보 생성 시간 | 실제 모델 추론 |
+| --- | ---: | ---: | --- |
+| TypeScript 객체 분기 | 5.54초 | 16.10ms | 1 → 0 |
+| TypeScript 속성 갱신 | 3.64초 | 2.86ms | 1 → 0 |
+| TypeScript 배열 분기·인덱스 | 3.14초 | 5.12ms | 1 → 0 |
+| Kotlin 조기 반환·계산 분기 | 3.93초 | 10.29ms | 1 → 0 |
+
+기존 helper와 object loop를 포함한 6개 비교 예제는 반환 10/10, node 45/45,
+syntax/text/reason/effect 상세 25/25로 완료됐다. source 상세 문자 수는 두 버전 모두
+4,787자로 유지됐고 quality failure가 없다. 없는 binary/weights 경로를 사용하는
+configured adapter에서도 provider factory·managed ensure·준비 작업·추론이 0이며,
+종료 후 runner가 없다. 이는 공개 corpus의 결과이며 모든 함수의 정확도나 parser를
+포함한 end-to-end 지연을 일반화하는 수치가 아니다. 기존 시각 언어와 contract를 유지한다.
+
+관련 unit 54/54, 전체 unit 1,107개 중 1,103개 통과이며 기존 같은 4개 실패가 남았다.
+package/closure 테스트 15/15와 release metadata check를 통과했다. 목적 로직은 기존
+source narrative 모듈(270줄)에 통합해 512개 파일의 패키지 한도를 늘리지 않았다.
+
+최종 VSIX를 격리 profile에 설치한 재검사는 independent benchmark 4개를 동시에
+실행했다. 위 최적화 예제의 시간은 각각 21.77/5.51/11.90/28.78ms이며 반환·node·상세
+수와 문자 수가 후보/기존 버전과 같다. 기존 loop/call 7개는 반환 12/12·node 78/78·
+상세 54/54, Double 3개는 반환 4/4·node 22/22·상세 14/14로 완료됐다. 모든 configured
+adapter 실행에 model factory·준비·추론·잔여 runner가 0이다. 단일 측정치이며 동시
+실행/캐시 등의 조건에 따라 ms 수치는 달라질 수 있다.
+
+실제 격리 VS Code 1.141.0에서 없는 runtime/weights 설정으로 Object.ts의 전체 분석을
+완료했다. producer는 `소스 분석`, 두 시나리오의 결과는 0/13이다. 다음 시나리오에서
+전체 true/false 목적과 `adjusted`의 선언 전→5→10 및 반환 13을 읽었고, L4의 곱셈
+설명·근거·5→10 값 표를 확인했다. 1440×900 및 770×900 논리 크기에서 Guide의
+줄바꿈·스크롤을 시각 확인했으며 소스 이동이 실제 Object.ts 4행 `adjusted *= 2;`를
+선택했다. 모바일·다른 테마·전체 접근성 감사는 하지 않았다. UI workflow/Impeccable의
+기존 디자인 보존 기준을 적용하고 markup/style·의미 색상 graph border는 바꾸지 않았다.
+
+Default와 `Function Language QA 1107`에 최종 0.0.1126을 설치했다. 두 등록 버전 및
+설치된 JS 478개와 native binary의 byte 일치, package/closure 오류 없음도 확인했다.
+실제 프로필의 모델 설정은 바꾸지 않았고 Marketplace publish나 release tag는 만들지 않았다.
+
 ### 0.0.1125 Kotlin 숫자 타입과 완전한 직선 계산 목적
 
 기존 primitive reader는 Kotlin 계산 전체를 Int로 제한했다. 이제 각 피연산자와 inferred

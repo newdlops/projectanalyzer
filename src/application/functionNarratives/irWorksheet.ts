@@ -166,7 +166,10 @@ export function createFunctionNarrativeIRWorksheet(context: FunctionNarrativeCon
     return { inputs, steps, result, substitutions };
   };
   const snapshot = JSON.stringify(context.snippets);
-  return { owns(candidate) { return !candidate.limited && candidate.language === context.language && candidate.functionName === context.functionName
+  return { bodyOnlyParameters: declaration.executionKind === "sync" && declaration.parameters.every(parameter => !parameter.rest
+      && !parameter.defaultValue && !parameter.declarationEvidence.some(evidence => evidence.kind === "parameter-default")
+      && !parameter.gaps.length),
+    owns(candidate) { return !candidate.limited && candidate.language === context.language && candidate.functionName === context.functionName
     && JSON.stringify(candidate.snippets) === snapshot; }, trace(path, inputs, language, exclude) {
     if (inputs) return calculate(path, inputs, language);
     const excluded = exclude && JSON.stringify(exclude);

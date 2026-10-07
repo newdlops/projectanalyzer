@@ -5,7 +5,7 @@ import { buildInputModel } from "./helpers/neuralScenarioFixtures";
 import { buildFunctionNarrativeContext, addFunctionNarrativeValueGrounding, bindFunctionNarrativeGraph,
   FunctionNarrativeScenarioRun, buildPrimitiveWorksheetResponse, parseFunctionNarrative, initializeFunctionNarrativeNodes,
   createFunctionNarrativeNodeTask, appendFunctionNarrativeNodes, createFunctionNarrativeSummaryTask,
-  selectPrimitiveNarrativeAlternative, buildPrimitiveNarrativeSynthesis } from "../../application/functionNarratives";
+  selectPrimitiveNarrativeAlternative, buildPrimitiveNarrativeSynthesis, buildFunctionNarrativeSourcePurpose } from "../../application/functionNarratives";
 import { numberFunctionNarrativeContext } from "../../application/functionNarratives/explanationGuidance";
 import type { FunctionNarrativeContext } from "../../shared/functionNarratives";
 import { evaluateFunctionTutorInputs } from "../../analyzer/functionTutor";
@@ -82,6 +82,41 @@ test("member assignments retain the full before and after object instead of proj
   assert.ok(trace); assert.equal(trace.result, "26");
   assert.deepEqual(trace.steps[0].values, [{ name: "payload", before: '{"amount":10}', after: '{"amount":13}' }]);
   assert.ok(buildPrimitiveNarrativeSynthesis(complete(context, "en"), "en"));
+});
+
+test("whole object and array purposes retain every branch, write and full return without model inference", async () => {
+  for (const source of [
+    'export function inspect(payload: { enabled: boolean; amount: number }): number {\n if (!payload.enabled) return 0;\n let adjusted = payload.amount + 5;\n adjusted *= 2;\n return adjusted + 3;\n}',
+    'export function inspect(payload: { amount: number }): number {\n payload.amount += 3;\n return payload.amount * 2;\n}',
+    'export function inspect(values: number[]): number {\n if (values.length === 0) return 0;\n return values[0] + 3;\n}'
+  ]) {
+    const { context } = await fixture(source);
+    assert.equal(context.sourceWorksheet!.bodyOnlyParameters, true);
+    for (const locale of ["ko", "en"] as const) {
+      const task = complete(context, locale), purpose = buildFunctionNarrativeSourcePurpose(context, task, locale);
+      assert.ok(purpose, source); assert.ok(purpose.length <= 240);
+      const nodes = context.scenarioGraph!.nodes.filter(node => !["entry", "exit"].includes(node.kind));
+      for (const node of nodes) {
+        const code = node.step!.code.replace(/;$/u, "").replace(/^(?:return|(?:val|var|let|const)\s+[\p{L}_$][\p{L}\p{N}_$]*\s*=)\s*/u, "");
+        assert.ok(purpose.includes(code), code);
+        if (node.kind === "condition") for (const result of ["true", "false"]) assert.ok(purpose.includes(`${code}=${result}`));
+      }
+      task.summaryTask!.sourceFunctionPurpose = purpose;
+      const reading = buildPrimitiveNarrativeSynthesis(task, locale); assert.ok(reading);
+      assert.doesNotThrow(() => parseFunctionNarrative(JSON.stringify({ ...reading, summary: purpose }), task, locale));
+      const changed = { ...context, snippets: context.snippets.map(snippet => ({ ...snippet, text: snippet.text.replace("+ 3", "+ 9") + "\n" })) };
+      assert.equal(buildFunctionNarrativeSourcePurpose(changed, task, locale), undefined, "header certificates cannot outlive their source snapshot");
+    }
+  }
+});
+
+test("object defaults outside the body graph cannot acquire a whole-function purpose", async () => {
+  for (const fallback of ['{ amount: 10 }', 'external()']) {
+    const { context } = await fixture(`export function inspect(payload: { amount: number } = ${fallback}): number {\n return payload.amount + 3;\n}`);
+    assert.equal(context.sourceWorksheet!.bodyOnlyParameters, false);
+    const task = complete(context, "en");
+    assert.equal(buildFunctionNarrativeSourcePurpose(context, task, "en"), undefined);
+  }
 });
 
 test("truthy numeric predicates expose Boolean decisions and const/object string syntax remains accurate", async () => {

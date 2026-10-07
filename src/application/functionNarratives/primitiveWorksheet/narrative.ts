@@ -1,5 +1,5 @@
 /** Exact source narratives retain concrete operation order; the local model supplies the function-wide purpose once. */
-import type { FunctionNarrative, FunctionNarrativeContext, FunctionNarrativeFlowPath, FunctionNarrativeExample } from "../../../shared/functionNarratives";
+import type { FunctionNarrative, FunctionNarrativeContext, FunctionNarrativeFlowPath, FunctionNarrativeFlowStep, FunctionNarrativeExample } from "../../../shared/functionNarratives";
 import { createFunctionNarrativeScenarioIterator } from "../scenarioIterator";
 import { buildFunctionNarrativeScenarioFrames } from "../scenarioFrames";
 import { buildPrimitiveWorksheetResponse, getPrimitiveWorksheetAnalysis, readCompletedPrimitiveTrace, readCompletedSourceTrace, traceSourceWorksheet } from "./index";
@@ -34,25 +34,12 @@ export function buildFunctionNarrativeSourcePurpose(original: FunctionNarrativeC
       || edge.target < 0 || edge.target >= graph.nodes.length))) return;
   const other = traceSourceWorksheet(original, alternative.path, alternative.inputs, language);
   if (!other) return;
+  const acyclic = buildAcyclicSourcePurpose(original, language);
+  if (acyclic) return acyclic;
   const nodes = graph.nodes.filter(node => !["entry", "exit"].includes(node.kind)), path = task.sourceFlow!.paths[0];
   if (nodes.length !== path.steps.length || nodes.some(node => !node.step || !["mutation", "call", "return"].includes(node.kind)
     || !path.steps.some(step => step.kind === node.kind && step.code === node.step!.code
       && JSON.stringify(step.source) === JSON.stringify(node.step!.source))) || nodes.filter(node => node.kind === "return").length !== 1) return;
-  if (!current.unverifiedCalls?.length && !other.unverifiedCalls?.length && nodes.every(node => ["mutation", "return"].includes(node.kind))) {
-    const source = original.snippets.find(snippet => snippet.role === "function")?.text ?? "";
-    // Primitive headers have no type-object braces; this guard rejects default
-    // setup omitted from the body graph and never treats it as a pure function.
-    if (!original.parameters?.every(parameter => /^(?:Int|Double|Boolean|String|number|boolean|string)$/u.test(parameter.type?.replace(/\s/gu, "") ?? ""))
-      || !hasSimplePrimitiveScopes(source, original.language === "kotlin", false, true)) return;
-    const pieces = path.steps.map(step => {
-      const code = step.code.replace(/;$/u, ""), declaration = /^(?:val|var|let|const)\s+([\p{L}_$][\p{L}\p{N}_$]*)\s*=\s*(.+)$/u.exec(code);
-      return step.kind === "return" ? language === "ko" ? `${code.replace(/^return\s+/u, "")}의 값을 반환합니다.` : `Return ${code.replace(/^return\s+/u, "")}.`
-        : declaration ? language === "ko" ? `${declaration[2]}로 ${declaration[1]}를 초기화합니다.` : `Initialize ${declaration[1]} with ${declaration[2]}.`
-          : language === "ko" ? `${code} 계산을 수행합니다.` : `Apply ${code}.`;
-    });
-    const purpose = pieces.join(" ");
-    return purpose.length <= 240 ? purpose : undefined;
-  }
   if (!current.unverifiedCalls?.length || !other.unverifiedCalls?.length) return;
   // The recipe explicitly describes calculations before calls. Interleaved work
   // or additional return expressions keep the model rather than being reordered.
@@ -220,4 +207,64 @@ function conditionalAnalysis(context: FunctionNarrativeContext, trace: Primitive
 /** Fixed typed inputs remain plain display text; no expression, object or source code is executed. */
 function namedInputs(inputs: FunctionNarrativeExample["inputs"]): string {
   return inputs.map(input => `${input.name}=${input.json}`).join(", ");
+}
+
+/** Complete bounded acyclic recipes retain every branch and return; incomplete coverage or overlong prose keeps model synthesis. */
+function buildAcyclicSourcePurpose(context: FunctionNarrativeContext, language: "ko" | "en"): string | undefined {
+  const graph = context.scenarioGraph;
+  if (!graph || context.limited || graph.nodes.length > 32 || context.snippets.some(snippet => snippet.truncated || snippet.role === "helper")
+    || graph.nodes.some(node => node.confidence !== "exact" || !["entry", "exit", "mutation", "condition", "return"].includes(node.kind)
+      || node.next.some(edge => edge.confidence !== "exact" || edge.target < 0 || edge.target >= graph.nodes.length))) return;
+  const source = context.snippets.find(snippet => snippet.role === "function")?.text ?? "";
+  const primitiveHeader = context.parameters?.every(parameter => /^(?:Int|Double|Boolean|String|number|boolean|string)$/u
+    .test(parameter.type?.replace(/\s/gu, "") ?? "")) && hasSimplePrimitiveScopes(source, context.language === "kotlin", false, true);
+  // Object type braces and array annotations require the parser-owned header
+  // certificate. A body trace alone cannot account for default argument effects.
+  if (!primitiveHeader && !(context.sourceWorksheet?.bodyOnlyParameters && context.sourceWorksheet.owns(context))) return;
+  const iterator = createFunctionNarrativeScenarioIterator(context, { maxDepth: 64 });
+  if (!iterator) return;
+  const routes: FunctionNarrativeFlowStep[][] = [], covered = new Set<number>();
+  for (let count = 0; count <= 8; count++) {
+    const candidate = iterator.next();
+    if (candidate.done) {
+      if (!routes.length || graph.nodes.some((node, index) => !["entry", "exit"].includes(node.kind) && !covered.has(index))) return;
+      // Share only an identical leading sequence. Work between later decisions
+      // stays on its own route, so factoring cannot move a write past a test.
+      let shared = 0;
+      while (shared < routes[0].length && routes.every(route => route[shared] && JSON.stringify(route[shared]) === JSON.stringify(routes[0][shared]))) shared++;
+      const pieces = [...routes[0].slice(0, shared).map(step => describeSourceOperation(step, language)),
+        ...routes.map(route => route.slice(shared).map(step => describeSourceOperation(step, language)).join(" ")).filter(Boolean)];
+      const purpose = pieces.join(" ");
+      return purpose.length <= 240 ? purpose : undefined;
+    }
+    if (count === 8) return; // Never summarize a prefix of a larger route set.
+    const path = candidate.value;
+    if (path.status !== "source-terminal" || path.confidence !== "exact" || path.steps.at(-1)?.kind !== "return"
+      || path.steps.filter(step => step.kind === "return").length !== 1
+      || path.steps.some(step => step.kind === "condition" && !["true", "false"].includes(step.branch?.outcome ?? ""))) return;
+    const trace = traceSourceWorksheet(context, path, undefined, language);
+    if (!trace || trace.unverifiedCalls?.length) return;
+    for (const step of path.steps) {
+      const index = graph.nodes.findIndex(node => node.step?.kind === step.kind && node.step.code === step.code
+        && JSON.stringify(node.step.source) === JSON.stringify(step.source));
+      if (index < 0) return;
+      covered.add(index);
+    }
+    // Conditions stay at their actual positions. Reordering them into a prefix
+    // would change their meaning when a mutation occurs between predicates.
+    routes.push(path.steps);
+  }
+  return undefined;
+}
+
+/** Full expressions stay intact; the caller rejects the complete recipe if it exceeds the existing purpose limit. */
+function describeSourceOperation(step: FunctionNarrativeFlowStep, language: "ko" | "en"): string {
+  const code = step.code.replace(/;$/u, ""), ko = language === "ko";
+  if (step.kind === "condition") return ko ? `${step.loweredPredicate ?? code}=${step.branch!.outcome}인 경로에서,`
+    : `On the ${step.loweredPredicate ?? code}=${step.branch!.outcome} route,`;
+  if (step.kind === "return") return ko ? `${code.replace(/^return\s+/u, "")}의 값을 반환합니다.`
+    : `Return ${code.replace(/^return\s+/u, "")}.`;
+  const declaration = /^(?:val|var|let|const)\s+([\p{L}_$][\p{L}\p{N}_$]*)\s*=\s*(.+)$/u.exec(code);
+  return declaration ? ko ? `${declaration[2]}로 ${declaration[1]}를 초기화합니다.` : `Initialize ${declaration[1]} with ${declaration[2]}.`
+    : ko ? `${code} 계산을 수행합니다.` : `Apply ${code}.`;
 }

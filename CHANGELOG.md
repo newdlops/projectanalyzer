@@ -4,6 +4,17 @@ All notable user-visible changes to Project Analyzer: Code Flow are recorded in
 this file. The changelog starts with the first distribution-documented build;
 earlier local development builds were not tracked here.
 
+## 0.0.1126 - 2026-10-08
+
+### Improved
+
+- Derive complete acyclic function purposes from every verified source route,
+  including Kotlin guards, object-property writes and array reads. Preserve all
+  branch outcomes, calculations and return expressions without model inference.
+- Share only identical leading calculations; later predicates and writes remain
+  in their actual order. Incomplete routes, graph gaps, default-argument setup,
+  more than eight routes or purposes over 240 characters retain model synthesis.
+
 ## 0.0.1125 - 2026-10-08
 
 ### Improved

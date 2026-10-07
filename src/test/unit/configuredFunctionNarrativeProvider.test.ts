@@ -46,9 +46,10 @@ function fixture(options: { modelPath?: string; binary?: string; provider?: stri
 }
 
 /** Production Kotlin parser, graph identities and source contracts; only machine/model ports are substituted above. */
-function sourceContext(loop = true): FunctionNarrativeContext {
-  const source = loop ? 'fun inspect(amount: Int): Int {\n var adjusted = amount\n do { adjusted += 1 } while (adjusted < 3)\n return adjusted\n}'
+function sourceContext(loop = true, defaulted = false): FunctionNarrativeContext {
+  const template = loop ? 'fun inspect(amount: Int): Int {\n var adjusted = amount\n do { adjusted += 1 } while (adjusted < 3)\n return adjusted\n}'
     : 'fun inspect(enabled: Boolean, amount: Int): Int {\n if (!enabled) return 0\n val adjusted = amount + 5\n return adjusted\n}';
+  const source = defaulted ? template.replace("enabled: Boolean", "enabled: Boolean = true") : template;
   const lines = source.split("\n"), node: SymbolNode = { id: "setup-source", name: "inspect", qualifiedName: "inspect", kind: "function", language: "kotlin",
     filePath: "/fixture/inspect.kt", range: { startLine: 0, startCharacter: 0, endLine: lines.length - 1, endCharacter: lines.at(-1)!.length },
     selectionRange: { startLine: 0, startCharacter: 4, endLine: 0, endCharacter: 11 } };
@@ -111,25 +112,27 @@ test("connected VS Code provider bypasses runner/model setup and contacts a mode
   assert.equal(f.observed.ensures, 0); assert.equal(f.observed.local.length, 0); assert.equal(f.observed.selections, 1);
 });
 
-test("the real complete Host reads all source-proved loop pages without an installed runner, weights, model factory or preparation task", async () => {
-  const manager = new ModelTaskManager(), f = fixture({ binary: "/missing/llama-completion", modelPath: "/missing/weights.gguf", fail: "integrity", manager });
-  const messages: FunctionNarrativesResponse[] = [], request = { flowId: `code-flow:${"d".repeat(32)}` as const, graphVersion: "source-fixture", requestId: 1 };
-  const delivery = new FunctionNarrativesHostDelivery({ provider: f.provider, getLanguage: () => "ko", isActive: () => true,
-    createPageStore() { const pages = new Map<number, FunctionNarrative>(); return { async write(index, narrative) { pages.set(index, narrative); },
-      async read(index) { return pages.get(index); }, async dispose() { pages.clear(); } }; },
-    createEvidence: () => `code-evidence:${"e".repeat(64)}`, async postMessage(message) {
-      if (message.type === "codeFlow/functionNarrativesLoaded") messages.push(message.payload);
-    } });
-  try {
-    delivery.register(request.flowId, request.graphVersion, sourceContext(), "/fixture/inspect.kt");
-    await delivery.request(request);
-    assert.equal(messages.at(-1)!.status, "ready"); assert.equal(messages.at(-1)!.coverage!.completed, 2);
-    assert.equal(messages.at(-1)!.modelName, "소스 분석"); assert.equal(messages.at(-1)!.narrative!.scenarios[0].example!.result, "3");
-    await delivery.request({ ...request, requestId: 2, pageIndex: 1, pageLanguage: "ko" });
-    assert.equal(messages.at(-1)!.narrative!.scenarios[0].example!.result, "11");
-    assert.equal(f.observed.ensures, 0); assert.equal(f.observed.local.length, 0); assert.equal(f.observed.inferences, 0);
-    assert.deepEqual(f.observed.titles, []); assert.deepEqual(f.observed.errors, []); assert.deepEqual(manager.snapshot().history, []);
-  } finally { delivery.clear(); await manager.dispose(); }
+test("the real complete Host reads source-proved loop and guard pages without a runner, weights, model factory or preparation task", async () => {
+  for (const loop of [true, false]) {
+    const manager = new ModelTaskManager(), f = fixture({ binary: "/missing/llama-completion", modelPath: "/missing/weights.gguf", fail: "integrity", manager });
+    const messages: FunctionNarrativesResponse[] = [], request = { flowId: `code-flow:${"d".repeat(32)}` as const, graphVersion: "source-fixture", requestId: 1 };
+    const delivery = new FunctionNarrativesHostDelivery({ provider: f.provider, getLanguage: () => "ko", isActive: () => true,
+      createPageStore() { const pages = new Map<number, FunctionNarrative>(); return { async write(index, narrative) { pages.set(index, narrative); },
+        async read(index) { return pages.get(index); }, async dispose() { pages.clear(); } }; },
+      createEvidence: () => `code-evidence:${"e".repeat(64)}`, async postMessage(message) {
+        if (message.type === "codeFlow/functionNarrativesLoaded") messages.push(message.payload);
+      } });
+    try {
+      delivery.register(request.flowId, request.graphVersion, sourceContext(loop), "/fixture/inspect.kt");
+      await delivery.request(request);
+      assert.equal(messages.at(-1)!.status, "ready"); assert.equal(messages.at(-1)!.coverage!.completed, 2);
+      assert.equal(messages.at(-1)!.modelName, "소스 분석"); assert.equal(messages.at(-1)!.narrative!.scenarios[0].example!.result, loop ? "3" : "0");
+      await delivery.request({ ...request, requestId: 2, pageIndex: 1, pageLanguage: "ko" });
+      assert.equal(messages.at(-1)!.narrative!.scenarios[0].example!.result, loop ? "11" : "15");
+      assert.equal(f.observed.ensures, 0); assert.equal(f.observed.local.length, 0); assert.equal(f.observed.inferences, 0);
+      assert.deepEqual(f.observed.titles, []); assert.deepEqual(f.observed.errors, []); assert.deepEqual(manager.snapshot().history, []);
+    } finally { delivery.clear(); await manager.dispose(); }
+  }
 });
 
 test("deferred preparation snapshots machine choices and starts automatic preparation only when a model-dependent stage is reached", async () => {
@@ -203,7 +206,9 @@ test("source pages resume with the original model purpose producer without repea
     const synthesis = buildPrimitiveNarrativeSynthesis(task, language); assert.ok(synthesis);
     return { modelName: "Original model", text: JSON.stringify({ ...synthesis, summary: "활성 여부에 따라 0을 조기 반환하거나 amount에 5를 더해 반환합니다." }) };
   } }, f = fixture({ localProvider: local, manager }), pages = new Map<number, FunctionNarrative>();
-  const session = new FunctionNarrativeScenarioSession(sourceContext(false), { async write(index, value) { pages.set(index, value); },
+  // Defaults remain outside the body-only purpose contract; this fixture still
+  // requires a real model purpose and verifies its cached producer lifecycle.
+  const session = new FunctionNarrativeScenarioSession(sourceContext(false, true), { async write(index, value) { pages.set(index, value); },
     async read(index) { return pages.get(index); }, async dispose() { pages.clear(); } });
   try {
     await session.analyzeNext(f.provider, "ko", new AbortController().signal, { reselectModel: false });

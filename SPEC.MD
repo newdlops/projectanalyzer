@@ -1595,6 +1595,18 @@ Webview는 Project Graph, 파일 시스템, VS Code API에 직접 접근하지 �
   모든 구문·값·인용이 맞으면 `buildFunctionNarrativeSourcePurpose`가 각 초기화·갱신과
   실제 반환 식을 모두 240자 안에서 읽어 목적을 구성한다. header의 default/arrow setup,
   추가 분기·helper·source 누락·inferred edge는 제외하고, 길이가 넘으면 모델을 유지한다.
+  0.0.1126의 `buildAcyclicSourcePurpose`는 최대 32 graph node·8개의 acyclic route를
+  depth 64의 반복 iterator로 끝까지 열거한다. 모든 route의 구문·현재 값·분기·반환을
+  독립 source worksheet로 확인하고 모든 retained node의 인용을 포함해야 한다.
+  mutation·condition·return만 허용하고 루프·미확인 호출·source/graph gap은 제외한다.
+  각 조건의 true/false 및 모든 갱신·반환 식을 소스 순서대로 읽으며, 모든 경로의
+  동일한 시작 계산만 한 번으로 묶는다. 중간 계산이나 조건을 앞으로 재배치하지 않는다.
+  객체/배열 header는 snapshot-owned IR worksheet의 `bodyOnlyParameters` certificate가
+  있어야 한다. parser의 parameter-default evidence·defaultValue·rest·parameter gap·
+  비동기 실행이 있으면 이 certificate를 제공하지 않는다. primitive lexical guard와
+  parser-owned header proof를 구분하고, 전체 purpose가 240자를 넘거나 route 하나라도
+  검증되지 않거나 최대 route 수를 넘으면 자르지 않고 모델을 유지한다. 기존 explicit
+  connected provider 선택·취소·모델 목적 캐시·Host validation은 유지한다.
   rich primary 응답의 `exampleInputs`는 `{name, value}`의 실제 JSON 값을 생성한다. 로컬
   adapter는 이를 기존 `{name, json}` 문자열 계약으로 인코딩하며 Boolean/null 경로 선택,
   입력 크기·깊이·유한 숫자·금지 key 검사와 Host의 source/route 검증은 유지한다. 소스 언어의

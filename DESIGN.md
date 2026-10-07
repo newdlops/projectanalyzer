@@ -120,6 +120,13 @@ division in the syntax explanation, including mixed expressions. Straight-line
 source purposes preserve every initialization/update and the full return
 expression. Reuse the existing producer, note and value-table presentation.
 
+As of 0.0.1126, complete acyclic recipes can include every checked branch, object
+property write and array read. Keep all predicate outcomes and full return
+expressions in the purpose. Factor only identical initial calculations; later
+writes retain their original relationship to predicates. Longer or incompletely
+verified purposes remain model work. Existing layout, semantic graph colors,
+producer labels and execution-unverified text are preserved.
+
 Acceptance: real local Kotlin and TypeScript responses include numerical/Boolean
 substitution, ordered calculation/effect and alternate-path explanation. Every
 reached source operation has a syntax explanation; repeated visits and partial
