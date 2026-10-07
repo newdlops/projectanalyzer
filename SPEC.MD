@@ -1553,6 +1553,21 @@ Webview는 Project Graph, 파일 시스템, VS Code API에 직접 접근하지 �
   disclaimer와 실제 source 누락은 구분하며, 모든 retained node/edge와 인용을 검사한다.
   이 경우 `sourceFunctionPurpose`는 Host-only이며 외부 prompt에서 제거하고, local provider는
   모델 실행 없이 `Source analysis`/`소스 분석`으로 표시한다. 복잡한 목적은 모델에 남긴다.
+  0.0.1123은 primitive 인수의 standalone 직접 호출(최대 4개)과 사용하지 않는 반환값을
+  조건부 source trace로 읽을 수 있다. 모든 계산·조건·구문·인수는 여전히 순서대로
+  대입하며, 호출 내부 동작·반환·예외·외부 상태는 미확인으로 보존한다. 호출은 실제로
+  실행하지 않는다. 호출이 정상 복귀하고 이 함수의 지역 값을 유지한다는 가정을
+  문단·대안·assumptions·limitations와 호출 뒤 노드의 축약 text 및 reason에도 표시한다.
+  `hasCompleteSourceWorksheet`는 조건부 계산을 포함할 수 있지만,
+  `hasCompletePrimitiveWorksheet`와 순수 factual analysis에는 미확인 호출을 허용하지 않는다.
+  `eval`, 수신자 메서드, 객체/콜백/미확인 인수, 호출 반환값 사용, nested scope,
+  exception 및 호출을 포함한 loop는 기존 모델 경로를 유지한다. 인수는 최대 8개,
+  call 구문은 480자이며 기존 32구문·8입력·128후보·값/문단 길이 한도를 유지한다.
+  `buildFunctionNarrativeSourcePurpose`는 기존 loop recipe에 더해, 전체 graph가 단일
+  primitive counter 초기화·갱신 → 직접 호출들 → 같은 counter 반환이고 현재·대안의
+  모든 인용과 계산이 맞는 경우 목적을 구성한다. 추가 분기·interleaved 계산·반환식,
+  source 누락·helper·inferred edge는 이 recipe에서 제외한다. 정상 복귀와 지역 값 유지,
+  내부 동작 미확인 조건을 목적에도 보존하고 240자를 넘으면 모델을 사용한다.
   rich primary 응답의 `exampleInputs`는 `{name, value}`의 실제 JSON 값을 생성한다. 로컬
   adapter는 이를 기존 `{name, json}` 문자열 계약으로 인코딩하며 Boolean/null 경로 선택,
   입력 크기·깊이·유한 숫자·금지 key 검사와 Host의 source/route 검증은 유지한다. 소스 언어의

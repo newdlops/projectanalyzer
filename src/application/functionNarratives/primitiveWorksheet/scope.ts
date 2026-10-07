@@ -21,7 +21,7 @@ export function hasSimplePrimitiveScopes(source: string, kotlin = false, checked
       const start = index;
       while (index + 1 < source.length && /[\p{L}\p{N}_$]/u.test(source[index + 1])) index++;
       const word = source.slice(start, index + 1);
-      if (["try", "catch", "throw", "defer"].includes(word) || !checkedLoopRoute && ["for", "while", "do"].includes(word)
+      if (["try", "catch", "throw", "defer", "with"].includes(word) || !checkedLoopRoute && ["for", "while", "do"].includes(word)
         || depth >= 1 && ["function", "fun", "class", "object", "interface", "enum"].includes(word)
         || depth > 1 && ["val", "var", "let", "const"].includes(word)) return false;
     }

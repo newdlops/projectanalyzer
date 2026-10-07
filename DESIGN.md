@@ -98,6 +98,15 @@ from the complete source recipe. Show **Source analysis** as the producer and
 preserve the execution-unverified label. The model remains responsible for
 broader meanings; do not invent monetary/business roles for generic variables.
 
+As of 0.0.1123, standalone calls with known primitive arguments can retain source
+calculations under explicit normal-return and unchanged-local-value assumptions.
+Show unknown call outcomes and external effects as unknown. Carry the qualifier
+in the collapsed node text and expanded reasoning, whole paragraph and alternate
+example, so a focused read cannot appear to prove external behavior. Pure-source
+proofs remain separate. Entire single-counter calculation/call/return recipes can
+also show **Source analysis** as producer; preserve every constant, source
+operation and uncertainty. Reuse the current note, guide and value-table layout.
+
 Acceptance: real local Kotlin and TypeScript responses include numerical/Boolean
 substitution, ordered calculation/effect and alternate-path explanation. Every
 reached source operation has a syntax explanation; repeated visits and partial

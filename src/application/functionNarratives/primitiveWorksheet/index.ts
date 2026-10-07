@@ -5,7 +5,7 @@ import { tracePrimitiveRoute, type PrimitiveTrace } from "./trace";
 import { selectPrimitiveTrace } from "./candidates";
 import { hasSimplePrimitiveScopes } from "./scope";
 
-/** Returns the existing validated response contract only for fully proved primitive preparation/node tasks. */
+/** Returns source-backed preparation/node readings; conditional calls preserve unknown values and assumptions in their own detail. */
 export function buildPrimitiveWorksheetResponse(context: FunctionNarrativeContext, language: "ko" | "en"): string | undefined {
   if (!context.nodePreparation && !context.nodeTask || context.summaryTask || !supportedWorksheet(context)) return undefined;
   if (context.nodeTask?.targets.some(target => !target.graphNodeId)) return undefined;
@@ -50,6 +50,12 @@ export function buildPrimitiveWorksheetResponse(context: FunctionNarrativeContex
 
 /** Final synthesis can omit fabricated prerequisites only when its exact completed primitive result is source-proved. */
 export function hasCompletePrimitiveWorksheet(context: FunctionNarrativeContext): boolean {
+  if (!hasCompleteSourceWorksheet(context)) return false;
+  return !traceSourceWorksheet(context, context.sourceFlow!.paths[0], context.summaryTask!.inputs, "en")!.unverifiedCalls?.length;
+}
+
+/** A complete conditional source calculation retains every unresolved call; it cannot authorize a pure proof or remove assumptions. */
+export function hasCompleteSourceWorksheet(context: FunctionNarrativeContext): boolean {
   if (!context.summaryTask || !supportedWorksheet(context) || context.sourceFlow!.paths.length !== 1) return false;
   try {
     const trace = traceSourceWorksheet(context, context.sourceFlow!.paths[0], context.summaryTask.inputs, "en");
@@ -80,7 +86,13 @@ export function getPrimitiveWorksheetAnalysis(context: FunctionNarrativeContext,
 
 /** Internal sibling-module proof: every completed source operation and immediate value must match the independent trace. */
 export function readCompletedPrimitiveTrace(context: FunctionNarrativeContext, language: "ko" | "en"): PrimitiveTrace | undefined {
-  if (!hasCompletePrimitiveWorksheet(context) || context.summaryTask!.omittedValues) return undefined;
+  const trace = readCompletedSourceTrace(context, language);
+  return trace?.unverifiedCalls?.length ? undefined : trace;
+}
+
+/** Matches complete pure/conditional evidence independently, including exact unknown-call rows rather than parsing them as numeric results. */
+export function readCompletedSourceTrace(context: FunctionNarrativeContext, language: "ko" | "en"): PrimitiveTrace | undefined {
+  if (!hasCompleteSourceWorksheet(context) || context.summaryTask!.omittedValues) return undefined;
   const path = context.sourceFlow!.paths[0], completed = context.summaryTask!.completed;
   const trace = traceSourceWorksheet(context, path, context.summaryTask!.inputs, language)!;
   if (completed.length !== path.steps.length) return undefined;
@@ -89,8 +101,11 @@ export function readCompletedPrimitiveTrace(context: FunctionNarrativeContext, l
     for (const value of trace.steps[index].values ?? []) {
       const actual = completed[index].values?.find(candidate => candidate.name === value.name);
       if (actual?.before !== value.before) return undefined;
-      try { if (JSON.stringify(JSON.parse(actual.after)) !== value.after) return undefined; }
-      catch { return undefined; }
+      if (path.steps[index].kind === "call") { if (actual.after !== value.after) return undefined; }
+      else {
+        try { if (JSON.stringify(JSON.parse(actual.after)) !== value.after) return undefined; }
+        catch { return undefined; }
+      }
     }
   }
   return trace;
@@ -104,6 +119,11 @@ export function traceSourceWorksheet(context: FunctionNarrativeContext, path: Fu
       const trace = inputs ? tracePrimitiveRoute(context, path, new Map(inputs.map(input => [input.name, JSON.parse(input.json)])), language)
         : selectPrimitiveTrace(context, path, language, exclude);
       if (trace) return trace;
+      if (path.steps.some(step => step.kind === "call") && !context.snippets.some(snippet => snippet.role === "helper")) {
+        const conditional = inputs ? tracePrimitiveRoute(context, path, new Map(inputs.map(input => [input.name, JSON.parse(input.json)])), language, true)
+          : selectPrimitiveTrace(context, path, language, exclude, true);
+        if (conditional) return conditional;
+      }
     } catch { return undefined; }
   }
   return context.sourceWorksheet?.owns(context) ? context.sourceWorksheet.trace(path, inputs, language, exclude) : undefined;

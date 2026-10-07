@@ -1,14 +1,16 @@
 /** Exact source-route worksheets retain statement order, immediate values and language syntax without a model round-trip. */
-import type { FunctionNarrativeContext, FunctionNarrativeFlowPath, FunctionNarrativeStep } from "../../../shared/functionNarratives";
+import type { FunctionNarrativeContext, FunctionNarrativeFlowPath, FunctionNarrativeFlowStep, FunctionNarrativeStep } from "../../../shared/functionNarratives";
 import { readPrimitiveExpression, type Primitive } from "./expression";
 
 export type PrimitiveTrace = { inputs: Array<{ name: string; json: string }>; steps: FunctionNarrativeStep[]; result: string;
   /** Source-ordered operand substitutions keep summary reasons concrete without reparsing prose. */
-  substitutions: string[] };
+  substitutions: string[];
+  /** Unexecuted external calls make the resulting calculation conditional on normal completion, never a pure-source proof. */
+  unverifiedCalls?: string[] };
 
-/** Only closed primitive paths with unique source occurrences can produce a complete trace; any gap rejects the whole worksheet. */
+/** Closed paths require every operation; opt-in standalone calls retain explicit normal-return/local-state assumptions without certifying their bodies. */
 export function tracePrimitiveRoute(context: FunctionNarrativeContext, path: FunctionNarrativeFlowPath,
-  inputs: ReadonlyMap<string, Primitive>, language: "ko" | "en"): PrimitiveTrace | undefined {
+  inputs: ReadonlyMap<string, Primitive>, language: "ko" | "en", allowUnverifiedCalls = false): PrimitiveTrace | undefined {
   const integer = context.language === "kotlin", ko = language === "ko";
   if (path.confidence !== "exact" || path.status !== "source-terminal" || path.steps.length > 32) return undefined;
   if (!context.parameters || inputs.size !== context.parameters.length || context.parameters.some(parameter => {
@@ -23,6 +25,8 @@ export function tracePrimitiveRoute(context: FunctionNarrativeContext, path: Fun
   const state = new Map(inputs), steps: FunctionNarrativeStep[] = [], visited = new Set<string>(), substitutions: string[] = [];
   const immutable = new Set(context.language === "kotlin" ? inputs.keys() : []);
   const loopRoute = path.steps.some(step => step.kind === "loop");
+  if (allowUnverifiedCalls && loopRoute) return undefined;
+  const unverifiedCalls: string[] = [];
   let result: string | undefined;
   for (let index = 0; index < path.steps.length; index++) {
     const target = path.steps[index];
@@ -33,6 +37,18 @@ export function tracePrimitiveRoute(context: FunctionNarrativeContext, path: Fun
     // bounds all repeated visits and no iteration is inferred or omitted.
     const visitKey = loopRoute ? identity + ":" + JSON.stringify([...state]) : identity;
     if (visited.has(visitKey)) return undefined; visited.add(visitKey);
+    if (allowUnverifiedCalls && target.kind === "call") {
+      const reading = readPrimitiveCall(target, state, integer, language, path.steps[index + 1]?.code);
+      if (!reading || unverifiedCalls.length >= 4 || context.valueNames?.length && !context.valueNames.includes("result")) return undefined;
+      const step = unverifiedCalls.length ? withPrimitiveCallAssumption(reading.step, language) : reading.step;
+      if (!step) return undefined;
+      steps.push(step); substitutions.push(reading.substituted); unverifiedCalls.push(target.code);
+      // All state is primitive and the source scope guard excludes captured
+      // local closures. Ordinary calls receive values, not binding references.
+      // Normal return and preservation of locals are explicit assumptions:
+      // unknown bodies (including JS caller introspection) are never certified.
+      continue;
+    }
     let expression = target.code.replace(/;\s*$/u, "").trim(), name = "condition", before = ko ? "미평가" : "not evaluated";
     let declaration: string | undefined, compound: string | undefined;
     const isPredicate = target.kind === "condition" || target.kind === "loop";
@@ -98,8 +114,68 @@ export function tracePrimitiveRoute(context: FunctionNarrativeContext, path: Fun
       values: [{ name, before, after }] };
     if ((context.valueNames?.length && !context.valueNames.includes(name))
       || [step.syntax!, step.text, step.reason!, step.effect!].some(text => text.length > 150)) return undefined;
-    steps.push(step); substitutions.push(reading.substituted);
+    const conditionalStep = unverifiedCalls.length ? withPrimitiveCallAssumption(step, language) : step;
+    if (!conditionalStep) return undefined;
+    steps.push(conditionalStep); substitutions.push(reading.substituted);
   }
   if (result === undefined) return undefined;
-  return { inputs: [...inputs].map(([name, value]) => ({ name, json: JSON.stringify(value) })), steps, result, substitutions };
+  return { inputs: [...inputs].map(([name, value]) => ({ name, json: JSON.stringify(value) })), steps, result, substitutions,
+    ...(unverifiedCalls.length ? { unverifiedCalls } : {}) };
+}
+/** No user function is invoked. Only a direct, unused-result call with primitive arguments is represented, conditional on normal return. */
+export function readPrimitiveCall(target: FunctionNarrativeFlowStep, state: ReadonlyMap<string, Primitive>,
+  integer: boolean, language: "ko" | "en", next?: string): { step: FunctionNarrativeStep; substituted: string } | undefined {
+  if (target.kind !== "call" || target.branch || target.code.length > 480) return;
+  const match = /^([\p{L}_$][\p{L}\p{N}_$]*)\s*\(([\s\S]*)\)\s*;?$/u.exec(target.code.trim());
+  // Direct eval can change the caller's local bindings. Local callees can be
+  // known non-functions; neither is a conditional external-call recipe.
+  if (!match || match[1] === "eval" || state.has(match[1])) return;
+  const argumentsText = splitArguments(match[2]);
+  if (!argumentsText || argumentsText.length > 8) return;
+  const argumentsRead = argumentsText.map(expression => readPrimitiveExpression(expression, state, integer));
+  if (argumentsRead.some(reading => !reading)) return;
+  const operands = argumentsRead.map(reading => `${reading!.substituted} = ${JSON.stringify(reading!.value)}`).join(", ");
+  const ko = language === "ko", unknown = ko ? "미확인" : "unknown";
+  const step: FunctionNarrativeStep = { code: target.code, source: target.source,
+    syntax: ko ? "함수 호출은 인수 값을 전달합니다. 사용하지 않는 반환값으로 지역 변수를 대입하지 않습니다."
+      : "A call passes argument values. Its unused return value does not assign a local binding.",
+    text: ko ? argumentsRead.length ? `${argumentsRead.map(reading => JSON.stringify(reading!.value)).join(", ")}을 인수로 전달해 ${match[1]}를 호출합니다.` : `인수 없이 ${match[1]}를 호출합니다.`
+      : `Call ${match[1]} with ${argumentsRead.length ? argumentsRead.map(reading => JSON.stringify(reading!.value)).join(", ") : "no arguments"}.`,
+    reason: ko ? operands ? `현재 인수의 계산은 ${operands}입니다.` : "이 소스 호출에는 인수가 없습니다."
+      : operands ? `Current argument calculations: ${operands}.` : "This source call has no arguments.",
+    effect: ko ? `내부 동작·반환·예외는 미확인입니다. 정상 복귀하고 지역 값을 유지하는 경우 다음 구문 ${next ?? "없음"}으로 진행합니다.`
+      : `Effects, return and exceptions are unknown. Normal return with local values preserved continues to ${next ?? "the route end"}.`,
+    values: [{ name: "result", before: "—", after: unknown }] };
+  if ([step.syntax!, step.text, step.reason!, step.effect!].some(text => text.length > 150)) return;
+  return { step, substituted: operands || (ko ? "인수 없음" : "no arguments") };
+}
+
+/** A focused node must retain its conditional value provenance even when read outside the whole scenario paragraph. */
+export function withPrimitiveCallAssumption(step: FunctionNarrativeStep, language: "ko" | "en"): FunctionNarrativeStep | undefined {
+  const reason = (language === "ko" ? "앞선 호출의 정상 복귀와 지역 값 유지를 가정합니다. " : "Assume prior calls return normally and preserve locals. ") + step.reason;
+  const prefix = language === "ko" ? "앞선 호출이 정상 복귀하고 지역 값을 유지하면, " : "If prior calls return normally and preserve locals, ";
+  const text = prefix + step.text;
+  // Final structural exit notes inherit the terminal effect. Keep their
+  // collapsed reading conditional too; unknown-call effects already qualify
+  // their own continuation and must not imply a known external result.
+  const unknownCall = step.values?.some(value => value.name === "result" && ["미확인", "unknown"].includes(value.after));
+  const effect = unknownCall ? step.effect : prefix + step.effect;
+  return reason.length <= 180 && text.length <= 150 && effect!.length <= 150 ? { ...step, text, reason, effect } : undefined;
+}
+
+/** Bounded linear scanner separates commas only outside quoted strings and expression parentheses. */
+function splitArguments(source: string): string[] | undefined {
+  if (!source.trim()) return [];
+  const argumentsText: string[] = [];
+  let start = 0, depth = 0, quote = "";
+  for (let index = 0; index < source.length; index++) {
+    const char = source[index];
+    if (quote) { if (char === "\\") index++; else if (char === quote) quote = ""; continue; }
+    if (["\"", "'"].includes(char)) { quote = char; continue; }
+    if (char === "(") { if (++depth > 32) return; }
+    else if (char === ")") { if (--depth < 0) return; }
+    else if (char === "," && depth === 0) { argumentsText.push(source.slice(start, index).trim()); start = index + 1; }
+  }
+  argumentsText.push(source.slice(start).trim());
+  return !quote && depth === 0 && argumentsText.every(Boolean) ? argumentsText : undefined;
 }

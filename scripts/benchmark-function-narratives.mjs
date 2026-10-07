@@ -69,7 +69,17 @@ const corpus = [
     expected: inputs => Math.max(inputs.amount + 1, 3) },
   { name: 'typescript-do-while', language: 'typescript', extension: 'ts', loops: true,
     source: 'export function inspect(amount: number): number {\n    let adjusted = amount;\n    do {\n        adjusted += 1;\n    } while (adjusted < 3);\n    return adjusted;\n}',
-    expected: inputs => Math.max(inputs.amount + 1, 3) }
+    expected: inputs => Math.max(inputs.amount + 1, 3) },
+  // The external audit body is absent: mathematical results apply only if it
+  // returns normally. These fixtures must retain the missing-call limitation.
+  { name: 'kotlin-effect-prefix', language: 'kotlin', extension: 'kt', effects: true, gaps: true,
+    source: 'fun inspect(amount: Int): Int {\n    var adjusted = amount + 5\n    adjusted -= 2\n    adjusted *= 3\n    adjusted += 4\n    audit(adjusted)\n    return adjusted\n}',
+    operation: 'adjusted', writeValue: (inputs, code) => code.includes('-=') ? inputs.amount + 3 : code.includes('*=') ? (inputs.amount + 3) * 3 : code.includes('+=') ? (inputs.amount + 3) * 3 + 4 : inputs.amount + 5,
+    expected: inputs => (inputs.amount + 3) * 3 + 4 },
+  { name: 'typescript-effect-prefix', language: 'typescript', extension: 'ts', effects: true, gaps: true,
+    source: 'export function inspect(amount: number): number {\n    let adjusted = amount + 5;\n    adjusted -= 2;\n    adjusted *= 3;\n    adjusted += 4;\n    audit(adjusted);\n    return adjusted;\n}',
+    operation: 'adjusted', writeValue: (inputs, code) => code.includes('-=') ? inputs.amount + 3 : code.includes('*=') ? (inputs.amount + 3) * 3 : code.includes('+=') ? (inputs.amount + 3) * 3 + 4 : inputs.amount + 5,
+    expected: inputs => (inputs.amount + 3) * 3 + 4 }
 ];
 const only = process.argv[4] && process.argv[4] !== '-' ? process.argv[4] : undefined;
 const outputDirectory = await fs.promises.mkdtemp(path.join(tmpdir(), 'fn-benchmark-'));
@@ -124,6 +134,14 @@ function score(fixture, pages, context) {
     // dependencies; fabricated prerequisites are a quality failure, not a gap.
     if (!fixture.gaps && (scenario.assumptions.length || page.narrative.limitations.length)) failures.push({ kind: 'unsupported-prerequisites', scenario: scenarios,
       assumptions: scenario.assumptions, limitations: page.narrative.limitations });
+    if (fixture.effects) {
+      if (!scenario.assumptions.length || !page.narrative.limitations.length) failures.push({ kind: 'missing-external-call-qualification', scenario: scenarios });
+      for (const detail of scenario.nodeDetails) if (kinds.get(detail.nodeId) === 'call') {
+        if (!detail.values?.some(value => /미확인|unknown/iu.test(value.after)) || !/미확인|unknown/iu.test(detail.effect || '')) {
+          failures.push({ kind: 'external-call-outcome-not-unknown', scenario: scenarios });
+        }
+      }
+    }
     for (const detail of scenario.nodeDetails) if (kinds.get(detail.nodeId) === 'return') {
       const binding = /^return\s+([\p{L}_$][\p{L}\p{N}_$]*)\s*;?$/u.exec(detail.code)?.[1];
       const after = (detail.values?.find(value => value.name === 'result') ?? detail.values?.find(value => value.name === binding))?.after;
@@ -185,9 +203,9 @@ function score(fixture, pages, context) {
 
 (async () => {
   const records = [];
-  for (const fixture of corpus.filter(item => only === 'release' ? !item.complex && !item.loops : only === 'loops' ? item.loops : only === 'complex' ? item.complex : only === 'complex-supported' ? item.complex && !item.gaps : only === 'all' ? !item.stress && !item.fallback && !item.complex && !item.loops : only === 'stress' ? item.stress
+  for (const fixture of corpus.filter(item => only === 'source-release' ? item.loops || item.effects : only === 'effects' ? item.effects : only === 'release' ? !item.complex && !item.loops && !item.effects : only === 'loops' ? item.loops : only === 'complex' ? item.complex : only === 'complex-supported' ? item.complex && !item.gaps : only === 'all' ? !item.stress && !item.fallback && !item.complex && !item.loops && !item.effects : only === 'stress' ? item.stress
     : only === 'fallback' ? item.fallback : only === 'extended' ? item.extended
-      : only ? item.name === only : !item.extended && !item.stress && !item.fallback && !item.complex && !item.loops)) {
+      : only ? item.name === only : !item.extended && !item.stress && !item.fallback && !item.complex && !item.loops && !item.effects)) {
     const context = await contextFor(fixture);
     if (process.argv[8] === 'context-only') {
       const batch = new application.FunctionNarrativeScenarioRun(context).nextBatch();

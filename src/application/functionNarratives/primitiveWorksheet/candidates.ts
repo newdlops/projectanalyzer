@@ -6,7 +6,7 @@ import type { Primitive } from "./expression";
 
 /** At most 128 candidates and eight declared inputs; an excluded example supports a concrete alternative on an unchanged route. */
 export function selectPrimitiveTrace(context: FunctionNarrativeContext, path: FunctionNarrativeFlowPath, language: "ko" | "en",
-  excluded?: FunctionNarrativeExample["inputs"]): PrimitiveTrace | undefined {
+  excluded?: FunctionNarrativeExample["inputs"], allowUnverifiedCalls = false): PrimitiveTrace | undefined {
   if (!context.parameters || context.parameters.length > 8) return undefined;
   const single = { ...context, sourceFlow: { basis: "source-control-flow" as const, paths: [path], limited: path.status === "partial" } };
   const constraints = getFunctionNarrativeExampleConstraints(single, 0), numeric = new Set([10, 0, 1, -1]);
@@ -35,7 +35,7 @@ export function selectPrimitiveTrace(context: FunctionNarrativeContext, path: Fu
   }
   for (const candidate of candidates) {
     if (excluded && excluded.every(input => JSON.stringify(candidate.get(input.name)) === input.json)) continue;
-    const trace = tracePrimitiveRoute(context, path, candidate, language);
+    const trace = tracePrimitiveRoute(context, path, candidate, language, allowUnverifiedCalls);
     if (trace) return trace;
   }
   return undefined;

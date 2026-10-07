@@ -6,9 +6,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { analyzeFunctionLogic } from "../../analyzer/functionLogic";
 import { buildFunctionNarrativeContext, bindFunctionNarrativeGraph, buildPrimitiveNarrativeSynthesis,
-  selectPrimitiveNarrativeAlternative, buildPrimitiveWorksheetResponse, buildFunctionNarrativeLoopPurpose, parseFunctionNarrative,
+  selectPrimitiveNarrativeAlternative, buildPrimitiveWorksheetResponse, buildFunctionNarrativeLoopPurpose, buildFunctionNarrativeSourcePurpose, parseFunctionNarrative,
   initializeFunctionNarrativeNodes, createFunctionNarrativeNodeTask, appendFunctionNarrativeNodes,
-  createFunctionNarrativeSummaryTask, FunctionNarrativeScenarioRun } from "../../application/functionNarratives";
+  createFunctionNarrativeSummaryTask, FunctionNarrativeScenarioRun, hasCompletePrimitiveWorksheet,
+  hasCompleteSourceWorksheet, getPrimitiveWorksheetAnalysis } from "../../application/functionNarratives";
 import { createLocalFunctionNarrativeProvider } from "../../llm/functionNarratives";
 import { FunctionNarrativeScenarioSession } from "../../webview/codeFlow/functionNarrativeScenarioSession";
 import { ModelTaskManager } from "../../shared/modelTasks";
@@ -88,6 +89,150 @@ test("unsupported alternate computations and omitted completed values retain the
   assert.equal(buildPrimitiveNarrativeSynthesis(task, "en"), undefined);
   task.summaryTask!.omittedValues = 1;
   assert.equal(buildPrimitiveNarrativeSynthesis(task, "en"), undefined);
+});
+
+test("unexecuted primitive-argument calls retain every calculation and explicitly conditional results, never a pure proof", () => {
+  for (const language of ["kotlin", "typescript"] as const) for (const locale of ["ko", "en"] as const) {
+    const original = fixture(language === "kotlin"
+      ? 'fun inspect(amount: Int): Int {\n var adjusted = amount + 5\n adjusted -= 2\n adjusted *= 3\n adjusted += 4\n audit(adjusted)\n return adjusted\n}'
+      : 'function inspect(amount: number): number {\n let adjusted = amount + 5;\n adjusted -= 2;\n adjusted *= 3;\n adjusted += 4;\n audit(adjusted);\n return adjusted;\n}',
+      language, [{ name: "amount", type: language === "kotlin" ? "Int" : "number" }]);
+    const task = completed(original, locale), reading = buildPrimitiveNarrativeSynthesis(task, locale); assert.ok(reading);
+    assert.equal(hasCompleteSourceWorksheet(task), true); assert.equal(hasCompletePrimitiveWorksheet(task), false);
+    assert.equal(getPrimitiveWorksheetAnalysis(task, locale), undefined); assert.equal(buildFunctionNarrativeLoopPurpose(original, task, locale), undefined);
+    const purpose = buildFunctionNarrativeSourcePurpose(original, task, locale); assert.ok(purpose);
+    for (const text of ["amount + 5", "adjusted -= 2", "adjusted *= 3", "adjusted += 4", "audit(adjusted)"]) assert.ok(purpose.includes(text));
+    assert.match(purpose, locale === "ko" ? /정상 복귀.*미확인/u : /normally.*unknown/u);
+    assert.doesNotMatch(purpose, /금액|점수|money|logging|storage/u);
+    assert.equal(buildFunctionNarrativeSourcePurpose({ ...original, limited: true }, task, locale), undefined);
+    assert.equal(reading.scenarios[0].example!.result, "43");
+    assert.ok(reading.scenarios[0].assumptions.length); assert.ok(reading.limitations.length);
+    assert.match(reading.scenarios[0].analysis!.alternative, /amount=0/u);
+    assert.match(reading.scenarios[0].analysis!.alternative, /13/u);
+    assert.match(reading.scenarios[0].analysis!.alternative, locale === "ko" ? /정상 복귀.*미확인/u : /normally.*unknown/u);
+    const call = task.summaryTask!.completed.find(step => step.code.startsWith("audit("))!;
+    assert.equal(call.values![0].after, locale === "ko" ? "미확인" : "unknown");
+    if (locale === "ko") assert.match(reading.scenarios[0].explanation!, /43을 인수로 전달해 audit를 호출/u);
+    assert.match(reading.scenarios[0].explanation!, /43 = 43/u);
+    const unknownChanged = structuredClone(task); unknownChanged.summaryTask!.completed.find(step => step.code.startsWith("audit("))!.values![0].after = "true";
+    assert.equal(buildPrimitiveNarrativeSynthesis(unknownChanged, locale), undefined, "a guessed call result cannot become source evidence");
+    assert.doesNotThrow(() => parseFunctionNarrative(JSON.stringify({ ...reading, summary: locale === "ko" ? "계산한 입력을 audit에 전달하고 정상 복귀와 지역 값 유지 가정에서 반환합니다." : "Pass the calculated input to audit; return it assuming normal completion with locals preserved." }), task, locale));
+  }
+});
+
+test("values and predicates after opaque calls retain their assumptions in the focused node as well as the whole paragraph", () => {
+  const original = fixture('function inspect(amount: number): number {\n let adjusted = amount + 5;\n audit(adjusted);\n adjusted += 2;\n if (adjusted > 10) return adjusted * 2;\n return adjusted;\n}',
+    "typescript", [{ name: "amount", type: "number" }]);
+  for (const locale of ["ko", "en"] as const) {
+    const task = completed(original, locale), reading = buildPrimitiveNarrativeSynthesis(task, locale); assert.ok(reading);
+    assert.equal(buildFunctionNarrativeSourcePurpose(original, task, locale), undefined, "work after a call must not be reordered into the whole-purpose recipe");
+    assert.equal(reading.scenarios[0].example!.result, "34");
+    const path = task.sourceFlow!.paths[0], targets = path.steps.filter(step => step.code.startsWith("adjusted +=") || step.kind === "condition");
+    const focused = { ...task, summaryTask: undefined, nodeTask: { frame: { when: [], outcome: locale === "ko" ? "소스 경로" : "source route" },
+      example: { inputs: task.summaryTask!.inputs, result: task.summaryTask!.resultJson! }, targets,
+      reading: { explanation: locale === "ko" ? "소스 순서의 구문 해설입니다." : "Ordered source reading", priorState: [] } } };
+    const response = buildPrimitiveWorksheetResponse(focused, locale); assert.ok(response);
+    const steps = parseFunctionNarrative(response, focused, locale).scenarios[0].steps;
+    assert.equal(steps.length, 2);
+    for (const step of steps) {
+      assert.match(step.reason!, locale === "ko" ? /가정/u : /Assume/u);
+      assert.match(step.text, locale === "ko" ? /정상 복귀.*지역 값/u : /return normally.*preserve locals/u);
+    }
+    assert.match(reading.scenarios[0].analysis!.pathReason, /17 > 10.*true/u);
+    assert.match(reading.scenarios[0].explanation!, locale === "ko" ? /정상 복귀.*지역 값/u : /return normally.*preserve locals/u);
+  }
+});
+
+test("standalone calls preserve quoted comma arguments and refuse unprovided values without executing a callee", () => {
+  const context = fixture('function inspect(amount: number): number {\n audit("a,b", (amount + 2) * 3);\n audit();\n return amount;\n}',
+    "typescript", [{ name: "amount", type: "number" }]);
+  const task = completed(context, "en"), reading = buildPrimitiveNarrativeSynthesis(task, "en"); assert.ok(reading);
+  assert.equal(reading.scenarios[0].example!.result, "10");
+  assert.match(reading.scenarios[0].explanation!, /"a,b".*36/u);
+  assert.match(reading.scenarios[0].explanation!, /no arguments/u);
+  assert.match(reading.scenarios[0].analysis!.alternative, /unknown/u);
+  for (const expression of ['missing', 'load(amount)', '...values']) {
+    const original = fixture('function inspect(amount: number): number {\n audit(' + expression + ');\n return amount;\n}', "typescript", [{ name: "amount", type: "number" }]);
+    const batch = new FunctionNarrativeScenarioRun(original).nextBatch()!;
+    assert.equal(buildPrimitiveWorksheetResponse({ ...batch, nodePreparation: true }, "en"), undefined, expression);
+  }
+});
+
+test("direct eval, receivers, assigned or nonprimitive call results, closures, loops and known non-functions retain model work", () => {
+  for (const body of [
+    'let adjusted = amount; eval("adjusted = 99"); return adjusted;',
+    'let adjusted = amount; service.audit(adjusted); return adjusted;',
+    'let adjusted = load(amount); return adjusted;',
+    'let adjusted = amount; audit({ value: adjusted }); return adjusted;',
+    'let adjusted = amount; audit(() => adjusted++); return adjusted;',
+    'let adjusted = amount; function inner() { adjusted++; } audit(adjusted); return adjusted;',
+    'let adjusted = amount; while (adjusted < 3) { audit(adjusted); adjusted += 1; } return adjusted;',
+    'let adjusted = amount; const audit = 1; audit(adjusted); return adjusted;'
+  ]) {
+    const context = fixture('function inspect(amount: number): number {\n ' + body + '\n}', "typescript", [{ name: "amount", type: "number" }]);
+    const batch = new FunctionNarrativeScenarioRun(context).nextBatch()!;
+    assert.equal(buildPrimitiveWorksheetResponse({ ...batch, nodePreparation: true }, "en"), undefined, body);
+  }
+});
+
+test("an early-return case keeps its own pure calculation while the alternate external call stays conditional", () => {
+  const original = fixture('fun inspect(enabled: Boolean, amount: Int): Int {\n if (!enabled) return 0\n val adjusted = amount + 5\n audit(adjusted)\n return adjusted\n}',
+    "kotlin", [{ name: "enabled", type: "Boolean" }, { name: "amount", type: "Int" }]);
+  const task = completed(original, "ko"), reading = buildPrimitiveNarrativeSynthesis(task, "ko"); assert.ok(reading);
+  assert.equal(hasCompletePrimitiveWorksheet(task), true); assert.deepEqual(reading.scenarios[0].assumptions, []);
+  assert.doesNotMatch(reading.scenarios[0].explanation!, /audit/u);
+  assert.match(reading.scenarios[0].analysis!.alternative, /audit.*정상 복귀.*미확인/u);
+  assert.ok(reading.limitations.length);
+});
+
+test("the real local provider requests only one purpose for conditional-call scenarios and retains unknowns on cached pages", async () => {
+  const original = fixture('function inspect(enabled: boolean, amount: number): number {\n if (!enabled) return 0;\n let adjusted = amount + 5;\n audit(adjusted);\n return adjusted;\n}',
+    "typescript", [{ name: "enabled", type: "boolean" }, { name: "amount", type: "number" }]);
+  const directory = await mkdtemp(join(tmpdir(), "call-purpose-")), modelPath = join(directory, "fixture.gguf"), binaryPath = join(directory, "runner");
+  const manager = new ModelTaskManager(), pages = new Map<number, FunctionNarrative>();
+  const session = new FunctionNarrativeScenarioSession(original, { async write(index, narrative) { pages.set(index, narrative); },
+    async read(index) { return pages.get(index); }, async dispose() { pages.clear(); } });
+  await writeFile(modelPath, "GGUF fixture");
+  await writeFile(binaryPath, `#!${process.execPath}\nconst fs=require('node:fs'); const path=require('node:path'); const args=process.argv.slice(2);
+    const schema=JSON.parse(fs.readFileSync(args[args.indexOf('--json-schema-file')+1],'utf8'));
+    const prompt=fs.readFileSync(args[args.indexOf('--file')+1],'utf8');
+    if(schema.properties.scenarios || Object.keys(schema.properties).join(',')!=='summary' || !prompt.includes('audit(adjusted)')
+      || !prompt.includes('내부 동작') || prompt.includes('sourceAlternative')) process.exit(2);
+    fs.appendFileSync(path.join(__dirname,'requests'),'1');
+    process.stdout.write(JSON.stringify({summary:'비활성 입력은 0을 반환하고, 활성 입력은 계산한 값을 audit에 전달한 뒤 정상 복귀와 지역 값 유지 가정에서 반환합니다.'}));`, { mode: 0o700 });
+  const provider = createLocalFunctionNarrativeProvider({ binaryPath, modelPath, taskManager: manager });
+  try {
+    while (!session.complete) await session.analyzeNext(provider, "ko", new AbortController().signal, { reselectModel: false });
+    assert.equal(session.pageCount, 2); assert.equal(await readFile(join(directory, "requests"), "utf8"), "1");
+    const called = pages.get(1)!.scenarios[0]; assert.equal(called.example!.result, "15");
+    assert.ok(called.assumptions.length); assert.ok(pages.get(1)!.limitations.length);
+    const call = called.nodeDetails!.find(step => step.code?.startsWith("audit("))!;
+    assert.equal(call.values![0].after, "미확인"); assert.match(call.effect!, /미확인/u);
+    assert.match(called.nodeDetails!.find(step => step.code === "return adjusted;")!.reason!, /가정/u);
+    assert.match(called.nodeDetails!.find(step => step.code === "return adjusted;")!.text, /정상 복귀/u);
+    assert.match(called.nodeDetails!.at(-1)!.text, /정상 복귀/u, "structural exit notes inherit the terminal's conditional effect");
+    await session.readPage(1); assert.equal(await readFile(join(directory, "requests"), "utf8"), "1");
+  } finally { await session.dispose(); await manager.dispose(); await rm(directory, { recursive: true, force: true }); }
+});
+
+test("a whole straight-line call recipe completes with no model installation while keeping every external uncertainty", async () => {
+  const original = fixture('fun inspect(amount: Int): Int {\n var adjusted = amount + 5\n adjusted -= 2\n adjusted *= 3\n adjusted += 4\n audit(adjusted)\n return adjusted\n}',
+    "kotlin", [{ name: "amount", type: "Int" }]);
+  const manager = new ModelTaskManager(), pages = new Map<number, FunctionNarrative>();
+  const session = new FunctionNarrativeScenarioSession(original, { async write(index, narrative) { pages.set(index, narrative); },
+    async read(index) { return pages.get(index); }, async dispose() { pages.clear(); } });
+  let inference = 0;
+  const provider = createLocalFunctionNarrativeProvider({ binaryPath: "/missing-call-runner", modelPath: "/missing-call-model.gguf", taskManager: manager,
+    onMetrics() { inference++; } });
+  try {
+    await session.analyzeNext(provider, "ko", new AbortController().signal, { reselectModel: false });
+    assert.equal(session.complete, true); assert.equal(inference, 0);
+    const page = await session.readPage(0); assert.equal(page!.modelName, "소스 분석");
+    assert.match(page!.narrative.summary, /정상 복귀.*미확인/u);
+    assert.equal(page!.narrative.scenarios[0].example!.result, "43");
+    assert.equal(page!.narrative.scenarios[0].nodeDetails!.length, 8);
+    assert.ok(page!.narrative.limitations.length); assert.ok(page!.narrative.scenarios[0].assumptions.length);
+  } finally { await session.dispose(); await manager.dispose(); }
 });
 
 test("nested control blocks preserve outer writes while shadowing, nested declarations and loop/exception transfers remain model work", () => {

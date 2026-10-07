@@ -40,7 +40,12 @@ export function buildLocalFunctionPurposeMessages(context: FunctionNarrativeCont
   const loopRules = !hasLoop ? "" : language === "ko"
     ? " while은 조건이 참인 동안 본문을 반복하고 거짓이면 종료합니다. do-while은 먼저 본문을 한 번 진행한 뒤 참인 동안 반복합니다. 조건을 반대로 표현하거나 '참일 때까지'라고 쓰지 마세요. 소스에 업무 의미가 없으면 금액·점수 같은 뜻을 추가하지 말고 입력값이라고 부르세요."
     : " A while body repeats while its predicate is true and stops when false. Do-while runs its body once BEFORE the first test, then repeats while true. Do not invert the predicate or say 'until true'. Do not infer money or scores without business evidence; call it the input value.";
-  return [source, rules + loopRules + "\nJSON schema:\n" + JSON.stringify(schema)];
+  const hasCall = context.sourceFlow?.paths.some(path => path.steps.some(step => step.kind === "call"))
+    || context.summaryTask?.sourceAlternative?.path.steps.some(step => step.kind === "call");
+  const callRules = !hasCall ? "" : language === "ko"
+    ? " 구현이 없는 호출은 호출 이름과 인수만 확인됩니다. 이름만 보고 저장·로그·네트워크 같은 내부 동작을 덧붙이지 마세요. 호출 뒤 반환은 호출의 정상 복귀와 지역 값 유지 가정에서 설명하세요."
+    : " A call without its implementation proves only its name and arguments. Do not infer storage, logging or network behavior from its name. Describe subsequent returns conditional on normal calls preserving local values.";
+  return [source, rules + loopRules + callRules + "\nJSON schema:\n" + JSON.stringify(schema)];
 }
 
 export function buildLocalNarrativePrompt(context: FunctionNarrativeContext, language: "ko" | "en", wireSchema?: Record<string, unknown>): string {

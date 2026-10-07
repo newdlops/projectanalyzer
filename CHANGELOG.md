@@ -4,6 +4,20 @@ All notable user-visible changes to Project Analyzer: Code Flow are recorded in
 this file. The changelog starts with the first distribution-documented build;
 earlier local development builds were not tracked here.
 
+## 0.0.1123 - 2026-10-08
+
+### Improved
+
+- Keep exact primitive calculations around standalone calls in Kotlin and
+  TS/JS source readings. Retain call arguments, explicitly unknown external
+  effects and results, and normal-return/local-value assumptions in paragraphs,
+  alternatives and focused node readings. Source calls are never executed.
+- Derive the entire purpose of checked calculation/call/return recipes from
+  the full graph. Preserve all calculations and call uncertainties without
+  model inference or invented business roles. Broader purposes retain the model.
+- Keep direct eval, receivers, object/callback arguments, assigned call results,
+  nested scopes and loops with calls on the existing model path.
+
 ## 0.0.1122 - 2026-10-08
 
 ### Improved
