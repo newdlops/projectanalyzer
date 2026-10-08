@@ -1,19 +1,21 @@
-/** Complete bounded callee syntax paths: primitive changes, conditional returns and opaque direct calls with explicit normal-return assumptions. */
+/** Complete bounded callee syntax paths: local changes, conditional returns and opaque call values with explicit normal-return assumptions. */
 import type { SymbolNode } from "../../shared/types";
 import { analyzeFunctionLogic } from "../functionLogic";
 import { analyzeFunctionTutorDeclaration } from "../functionTutor";
-import { readFunctionCallSourceExpression, readFunctionCallSourceRange } from "./sourceSyntax";
-import { readFunctionCallArguments } from "./arguments";
+import { readFunctionCallSourceRange } from "./sourceSyntax";
+import { createFunctionCallSourceValueReader } from "./sourceCallValues";
 
 /** Keys distinguish equal text at different source statements; they remain inside Host proof storage. */
-export type FunctionCallSourceBodyStep = { key: string; kind: "change" | "condition" | "return" | "call"; source: string; outcome?: "true" | "false" };
+export type FunctionCallSourceBodyStep = { key: string; kind: "change" | "condition" | "return" | "call"; source: string; outcome?: "true" | "false";
+  /** Exact nested invocations in source evaluation order; results/types/effects remain unreviewed. */
+  calls?: string[] };
 export type FunctionCallSourceBodyFacts = { parameters: string[]; parameterTypes: string[]; returnExpression: string; returnSource: string;
   /** Absent for the established single-return leaf; every extended path retains all steps in order. */
   bodyPaths?: FunctionCallSourceBodyStep[][] };
 type Route = { current: string; visited: Set<string>; names: Set<string>; mutable: Set<string>; steps: FunctionCallSourceBodyStep[]; returned: boolean };
 const identifier = "[\\p{L}_$][\\p{L}\\p{N}_$]*";
 
-/** A complete acyclic CFG, closed lexical expressions and full statement coverage certify all represented source paths. */
+/** A complete acyclic CFG and full expression/callsite coverage certify source syntax, never unknown call results or runtime effects. */
 export function readFunctionCallSourceBody(callee: SymbolNode, source: string, maxDepth = 32): FunctionCallSourceBodyFacts | undefined {
   // Callers may lower the traversal depth, never raise the closed proof budget.
   const depthLimit = Number.isFinite(maxDepth) ? Math.max(1, Math.min(32, Math.floor(maxDepth))) : 32;
@@ -37,6 +39,7 @@ export function readFunctionCallSourceBody(callee: SymbolNode, source: string, m
   }
   const parameters = tutor.parameters.map(p => p.name), covered = new Set<string>(), paths: FunctionCallSourceBodyStep[][] = [];
   const calls = new Set<typeof logic.callsites[number]>();
+  const readValue = createFunctionCallSourceValueReader(callee, source, logic);
   const queue: Route[] = [{ current: entry.id, visited: new Set(), names: new Set(parameters), mutable: new Set(), steps: [], returned: false }];
   let firstReturn: { expression: string; source: string } | undefined;
   for (let cursor = 0; cursor < queue.length; cursor++) {
@@ -53,10 +56,11 @@ export function readFunctionCallSourceBody(callee: SymbolNode, source: string, m
     const raw = readFunctionCallSourceRange(source, block.range)?.trim();
     if (block.kind === "return") {
       if (!raw || !/^return\s+/u.test(raw) || callee.language === "kotlin" && raw.includes("$")) return;
-      const expression = readFunctionCallSourceExpression(raw.replace(/^return\s+/u, "").replace(/;\s*$/u, "").trim(), route.names);
-      if (expression === undefined || edges.length !== 1 || edges[0].kind !== "return") return;
-      firstReturn ??= { expression, source: raw };
-      route.steps.push({ key: block.id, kind: "return", source: expression }); route.returned = true;
+      const value = readValue(raw.replace(/^return\s+/u, "").replace(/;\s*$/u, "").trim(), block, route.names);
+      if (!value || edges.length !== 1 || edges[0].kind !== "return") return;
+      value.sites.forEach(site => calls.add(site));
+      firstReturn ??= { expression: value.expression, source: raw };
+      route.steps.push({ key: block.id, kind: "return", source: value.expression, ...(value.calls.length ? { calls: value.calls } : {}) }); route.returned = true;
     } else if (block.kind === "mutation") {
       if (!raw || callee.language === "kotlin" && raw.includes("$")) return;
       const statement = raw.replace(/;\s*$/u, "");
@@ -64,34 +68,27 @@ export function readFunctionCallSourceBody(callee: SymbolNode, source: string, m
       const assignment = new RegExp("^(" + identifier + ")\\s*([+*/%-]?=)\\s*([\\s\\S]+)$", "u").exec(statement);
       const name = declaration?.[2] ?? assignment?.[1], value = declaration?.[3] ?? assignment?.[3];
       // Parameter/captured/member writes and writes to immutable locals are outside this primitive local contract.
-      if (!name || !value || declaration && route.names.has(name) || !declaration && !route.mutable.has(name)
-        || readFunctionCallSourceExpression(value, route.names) === undefined) return;
+      if (!name || !value || declaration && route.names.has(name) || !declaration && !route.mutable.has(name)) return;
+      const result = readValue(value.trim(), block, route.names); if (!result) return;
+      result.sites.forEach(site => calls.add(site));
       if (declaration) { route.names.add(name); if (["let", "var"].includes(declaration[1])) route.mutable.add(name); }
-      route.steps.push({ key: block.id, kind: "change", source: statement });
+      route.steps.push({ key: block.id, kind: "change", source: statement, ...(result.calls.length ? { calls: result.calls } : {}) });
     } else if (block.kind === "call") {
-      // An ignored direct primitive-argument call has source syntax, not a
-      // proved implementation. Keep it opaque and explicitly assume normal
-      // return/local preservation; calls embedded in a value/predicate fail.
+      // An ignored invocation has source syntax, not a proved implementation.
       const statement = raw?.replace(/;\s*$/u, "");
-      const site = logic.callsites.filter(site => (site.blockId ? site.blockId === block.id
-        : (site.range.startLine > block.range.startLine || site.range.startLine === block.range.startLine && site.range.startCharacter >= block.range.startCharacter)
-          && (site.range.endLine < block.range.endLine || site.range.endLine === block.range.endLine && site.range.endCharacter <= block.range.endCharacter))
-        && readFunctionCallSourceRange(source, site.range)?.trim() === statement);
-      const arguments_ = site.length === 1 ? readFunctionCallArguments(callee.language, source, callee.filePath, site[0].range) : undefined;
-      if (!statement || !new RegExp("^" + identifier + "\\s*\\(", "u").test(statement)
-        || site.length !== 1 || site[0].relation && site[0].relation !== "call" || site[0].confidence === "inferred"
-        || ["eval", "Function"].includes(site[0].calleeName)
-        || !arguments_ || callee.language === "kotlin" && statement.includes("$")
-        || arguments_.some(argument => readFunctionCallSourceExpression(argument, route.names) === undefined)) return;
-      calls.add(site[0]); route.steps.push({ key: block.id, kind: "call", source: statement });
+      const value = statement && readValue(statement, block, route.names);
+      if (!value || !value.calls.length || value.calls.at(-1) !== statement) return;
+      value.sites.forEach(site => calls.add(site));
+      route.steps.push({ key: block.id, kind: "call", source: statement!, calls: value.calls });
     } else if (block.kind === "condition") {
       const predicate = block.condition?.expression;
-      if (!predicate || callee.language === "kotlin" && predicate.includes("$")
-        || readFunctionCallSourceExpression(predicate, route.names) === undefined || edges.length !== 2
+      const value = predicate && readValue(predicate, block, route.names);
+      if (!value || edges.length !== 2
         || !edges.some(edge => edge.kind === "true") || !edges.some(edge => edge.kind === "false")) return;
+      value.sites.forEach(site => calls.add(site));
       for (const edge of edges) queue.push({ current: edge.targetId, visited: new Set(route.visited), names: new Set(route.names),
         mutable: new Set(route.mutable), returned: false, steps: [...route.steps,
-          { key: block.id, kind: "condition", source: predicate, outcome: edge.kind as "true" | "false" }] });
+          { key: block.id, kind: "condition", source: predicate!, outcome: edge.kind as "true" | "false", ...(value.calls.length ? { calls: value.calls } : {}) }] });
       continue;
     } else if (block.kind !== "entry") return;
     if (edges.length !== 1 || !["next", "return"].includes(edges[0].kind)) return;
@@ -99,5 +96,5 @@ export function readFunctionCallSourceBody(callee: SymbolNode, source: string, m
   }
   if (!firstReturn || !paths.length || covered.size !== blocks.size || calls.size !== logic.callsites.length) return;
   return { parameters, parameterTypes: tutor.parameters.map(p => p.typeText!), returnExpression: firstReturn.expression,
-    returnSource: firstReturn.source, ...(paths.length === 1 && paths[0].length === 1 ? {} : { bodyPaths: paths }) };
+    returnSource: firstReturn.source, ...(paths.length === 1 && paths[0].length === 1 && !paths[0][0].calls?.length ? {} : { bodyPaths: paths }) };
 }

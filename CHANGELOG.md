@@ -4,6 +4,18 @@ All notable user-visible changes to Project Analyzer: Code Flow are recorded in
 this file. The changelog starts with the first distribution-documented build;
 earlier local development builds were not tracked here.
 
+## 0.0.1134 - 2026-10-08
+
+### Improved
+
+- Read source-backed nested direct call results in local bindings, returns and
+  predicates without waiting for a model when the complete explanation fits.
+- Preserve exact invocation order, arguments, operators and alternative returns;
+  mark unknown result types/values/effects and normal-return assumptions.
+- Reuse one callee call parser and retain the call-free syntax fast path.
+- Bundle callee syntax helpers through the existing analyzer facade while
+  preserving model settings, source controls and package limits.
+
 ## 0.0.1133 - 2026-10-08
 
 ### Improved

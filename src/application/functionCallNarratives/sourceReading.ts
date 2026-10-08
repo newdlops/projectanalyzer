@@ -91,7 +91,7 @@ function describeCall(target: FunctionCallNarrativeTarget, facts: FunctionCallSo
       : `The callee returns ${expression}; store it in local \`${facts.use.name}\`. This is not the parent's final return.`
       : ko ? `${koResult} 이 호출부에서는 저장하거나 반환하지 않습니다.`
         : `The callee returns ${expression}; this callsite discards the result.`;
-  if (facts.bodyPaths?.some(path => path.some(step => step.kind === "call"))) {
+  if (facts.bodyPaths?.some(path => path.some(step => step.kind === "call" || step.calls?.length))) {
     const result = branches ? ko ? "각 경로의 반환값" : "each source-path return" : expression;
     const use = facts.use.kind === "return" ? ko ? "부모에서 반환합니다" : "return it from the parent"
       : facts.use.kind === "binding" ? ko ? `지역 \`${facts.use.name}\`에 저장합니다` : `store it in local \`${facts.use.name}\``

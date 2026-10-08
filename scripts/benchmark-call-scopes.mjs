@@ -1,5 +1,5 @@
 /** Public isolated/selected call scopes through the production Host/provider; never execute source.
- * Usage after compile: node scripts/benchmark-call-scopes.mjs [runtime-root] [tag] [checkout|serial|body|fallback]
+ * Usage after compile: node scripts/benchmark-call-scopes.mjs [runtime-root] [tag] [checkout|serial|body|fallback|values]
  * Raw public-fixture context/replies stay in a private temporary directory; graph preparation is excluded.
  */
 import {createRequire} from 'node:module';
@@ -10,7 +10,7 @@ import {fileURLToPath} from 'node:url';
 const require=createRequire(import.meta.url),repo=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const runtime=process.argv[2]?path.resolve(process.argv[2]):repo,tag=(process.argv[3]||'candidate').replace(/[^a-z0-9_-]/gi,'_').slice(0,40);
 const fixtureKind=process.argv[4]||'checkout';
-if(!['checkout','serial','body','fallback'].includes(fixtureKind))throw new Error('Unknown public fixture kind');
+if(!['checkout','serial','body','fallback','values'].includes(fixtureKind))throw new Error('Unknown public fixture kind');
 const {loadFunctionCallReadingFixture}=require(repo+'/out/test/unit/helpers/functionCallReadingFixture');
 const {FunctionCallsHostDelivery}=require(runtime+'/out/webview/functionCalls');
 const {WebviewGraphDelivery}=require(runtime+'/out/webview/sidebarGraphDelivery');
@@ -30,8 +30,10 @@ for(const language of ['typescript','kotlin']){
   :'let n = value + 5; if (n < 0) return 0; n *= 2; return n + 3;';
  const fallback=language==='kotlin'?'val n = value + 5; audit(n); return n + 3'
   :'const n = value + 5; audit(n); return n + 3;';
+ const values=language==='kotlin'?'val n = outer(inner(value), value + 1); return n + 3'
+  :'const n = outer(inner(value), value + 1); return n + 3;';
  const f=await loadFunctionCallReadingFixture(language,fixtureKind==='checkout'?undefined:(name,source)=>name==='reading'
-  ?fixtureKind==='serial'?serial:oneCall:['body','fallback'].includes(fixtureKind)?source.replace(language==='kotlin'?'return value + 5':'return value + 5;',fixtureKind==='body'?body:fallback):source),graphDelivery=new WebviewGraphDelivery();
+  ?fixtureKind==='serial'?serial:oneCall:['body','fallback','values'].includes(fixtureKind)?source.replace(language==='kotlin'?'return value + 5':'return value + 5;',fixtureKind==='body'?body:fixtureKind==='values'?values:fallback):source),graphDelivery=new WebviewGraphDelivery();
  const graphVersion=graphDelivery.activate(f.graph).snapshot.version;
  const sourceNodeTokens=new SourceNodeTokenRegistry(),evidenceTokens=new CodeFlowEvidenceTokenRegistry();
  sourceNodeTokens.activate(graphVersion,f.graph);evidenceTokens.activate(graphVersion,f.graph);

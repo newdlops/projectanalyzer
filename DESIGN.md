@@ -65,6 +65,12 @@ unreviewed. Qualify subsequent values with normal return and local preservation;
 infer no logging, storage, checks or business purpose from names.
 Checked positional formal declarations own the input-transfer field even when
 other call fields still require a model. Use the same five-field layout.
+Opaque call results may also appear in local bindings, arithmetic, returns and
+source predicates. Show the complete original expression and every alternative;
+state that result types/values/effects are unreviewed and qualify continuation
+with normal return/local preservation. Syntax-checking placeholders never enter
+prose, example values or graph labels. Keep source controls, field limits and
+the existing layout; an over-budget explanation retains the model path.
 
 Acceptance: real local TypeScript and Kotlin caller/callee readings; cross-file
 evidence, strict fixed call references, distinct repeated sites/visits, static

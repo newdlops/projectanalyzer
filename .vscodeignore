@@ -63,6 +63,14 @@ out/application/functionCallNarratives/sourceSummary.js
 out/application/functionCallNarratives/sourceProofs.js
 out/application/functionCallNarratives/sourceBodyReading.js
 
+# Callee syntax helpers are bundled into their existing public analyzer facade.
+out/analyzer/functionCalls/contexts.js
+out/analyzer/functionCalls/arguments.js
+out/analyzer/functionCalls/sourceFacts.js
+out/analyzer/functionCalls/sourceBody.js
+out/analyzer/functionCalls/sourceSyntax.js
+out/analyzer/functionCalls/sourceCallValues.js
+
 # Dormant feature modules are not reached by the extension entrypoint. Keep their
 # editable sources/tests; the runtime-closure checker catches future wiring.
 out/application/guidedTour/**

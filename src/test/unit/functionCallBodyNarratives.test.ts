@@ -171,15 +171,65 @@ test("opaque ignored primitive calls retain exact arguments, calculations, unkno
   }
 });
 
-test("opaque calls cannot hide embedded return values, captured arguments, eval or deferred callbacks", async () => {
+test("opaque call values reject captured/member arguments, eval and deferred callbacks", async () => {
   for (const language of ["typescript", "kotlin"] as const) {
-    const invalid = ["eval(value); return value;", "Function(value); return value;", "audit(captured); return value;", "return audit(value);",
-      `${language === "kotlin" ? "val" : "const"} n = audit(value); return n;`];
+    const invalid = ["eval(value); return value;", "Function(value); return value;", "audit(captured); return value;", "return audit(value.member);",
+      `${language === "kotlin" ? "val" : "const"} n = service.audit(value); return n;`, "return outer(inner(captured));"];
     if (language === "typescript") invalid.push("audit(() => value); return value;");
     for (const body of invalid) {
       const h = await harness(language, "en", body);
       try { await h.delivery.explain(h.explanation); assert.equal(h.models(), 1, body); }
       finally { h.delivery.reset(); }
     }
+  }
+});
+
+test("nested call results retain complete source expressions, bindings, result uncertainty and navigation without a model", async () => {
+  for (const language of ["typescript", "kotlin"] as const) for (const locale of ["en", "ko"] as const) {
+    const keyword = language === "kotlin" ? "val" : "const";
+    const bodies = [`${keyword} n = outer(inner(value), value + 1); return n + 3;`,
+      "return outer(inner(value), value + 1) + 3;", "return audit(value);",
+      `${language === "kotlin" ? "var" : "let"} n = value; n = audit(n); return n;`];
+    for (const body of bodies) {
+      const h = await harness(language, locale, body);
+      try {
+        const example = exampleFunctionCallScenarios(h.slice.control, new Map(h.slice.connections.map(edge => [edge.id, edge])))[0];
+        const requests: FunctionCallNarrativesRequest[] = [h.explanation,
+          { ...h.explanation, requestId: 2, scope: "call", connectionId: h.slice.connections[0].id },
+          { ...h.explanation, requestId: 3, scope: "scenario", choices: [...example.selection].map(([key, value]) => ({ key, value })) }];
+        for (const request of requests) {
+          await h.delivery.explain(request); assert.equal(h.models(), 0, `${language} ${locale}: ${body}`);
+          const reply = h.replies.at(-1)!, call = reply.narrative!.calls[0], flow = reply.narrative!.flow!;
+          assert.equal(reply.status, "ready"); assert.equal(reply.coverage!.complete, true);
+          assert.match(call.effects, /결과 타입\/값|results\/types/u); assert.match(flow, /결과 타입·값|results\/types/u);
+          assert.match(call.output, /정상 복귀·지역 값 유지|normal calls preserve locals/u);
+          if (body.includes("outer")) {
+            assert.ok(flow.includes("outer(inner(value), value + 1)")); assert.ok(call.effects.includes("inner(value)"));
+          } else assert.ok(call.effects.includes("audit("));
+          assert.doesNotMatch(flow, /\(0\)|감사 로그|수수료|logging|\bfee\b|\bmoney\b/iu);
+          assert.match(call.inputs, /`amount` → `value`/u);
+          assert.ok(h.evidenceTokens.resolve(call.callerEvidence!) && h.evidenceTokens.resolve(call.calleeEvidence!));
+          await h.delivery.explain({ ...request, requestId: request.requestId + 10, pageIndex: 0, pageLanguage: locale });
+          assert.equal(h.replies.at(-1)!.cacheHit, true); assert.equal(h.models(), 0);
+        }
+      } finally { h.delivery.reset(); }
+    }
+  }
+});
+
+test("parser-owned nested and predicate calls retain duplicate occurrence order and reject hidden expression guards", async () => {
+  for (const language of ["typescript", "kotlin"] as const) {
+    const fixture = await loadFunctionCallReadingFixture(language), callee = fixture.graph.nodes.find(node => node.name === "addFee")!;
+    const reader = createFunctionCallSourceReader(fixture.root, fixture.source), source = fixture.files[1].content;
+    const site = analyzeFunctionLogic({ functionNode: fixture.root, sourceText: fixture.source }).callsites.find(site => site.calleeName === "addFee")!;
+    const returned = language === "kotlin" ? "return value + 5" : "return value + 5;";
+    const nested = reader.read(callee, source.replace(returned, "return outer(inner(value), inner(value));"), site.range, "addFee(amount)")!;
+    assert.deepEqual(nested.bodyPaths![0][0].calls, ["inner(value)", "inner(value)", "outer(inner(value), inner(value))"]);
+    const guarded = reader.read(callee, source.replace(returned, "if (audit(value) > 0) return 1; return 0;"), site.range, "addFee(amount)")!;
+    assert.equal(guarded.bodyPaths!.length, 2);
+    assert.ok(guarded.bodyPaths!.every(path => path[0].kind === "condition" && path[0].calls?.[0] === "audit(value)"));
+    for (const body of ["return outer(inner(captured));", "return value && audit(value);", "return outer(eval(value));",
+      "return service.audit(value);", "return outer(value.member);", "return audit(...value);", "return outer(inner(value) value + 1);"])
+      assert.equal(reader.read(callee, source.replace(returned, body), site.range, "addFee(amount)"), undefined, body);
   }
 });

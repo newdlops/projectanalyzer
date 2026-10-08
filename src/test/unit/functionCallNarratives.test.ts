@@ -239,7 +239,7 @@ test("closed return-body call facts reject effects, calls, captured values, memb
     const reader = createFunctionCallSourceReader(fixture.root, fixture.source);
     assert.ok(reader.read(callee, helper, site.range, "addFee(amount)"));
     const returned = language === "kotlin" ? "return value + 5" : "return value + 5;";
-    const variants = ["return captured", "return value.member", "return helper(value)", "return ++value", "return [value]",
+    const variants = ["return captured", "return value.member", "return service.helper(value)", "return ++value", "return [value]",
       "eval(value); return value", "Function(value); return value",
       language === "kotlin" ? "value += 1; return value" : "value += 1; return value;"];
     if (language === "kotlin") variants.push('return "${value++}"');
@@ -258,9 +258,9 @@ test("closed return-body call facts reject effects, calls, captured values, memb
   }
 });
 
-test("callee formal types bind model inputs even when opaque inner calls keep the rest of the reading with the model", async () => {
+test("callee formal types bind model inputs even when receiver calls keep the rest of the reading with the model", async () => {
   for (const language of ["typescript", "kotlin"] as const) {
-    const body = language === "kotlin" ? "val n = audit(value); return n + 3" : "const n = audit(value); return n + 3;";
+    const body = language === "kotlin" ? "val n = service.audit(value); return n + 3" : "const n = service.audit(value); return n + 3;";
     const h = await harness(language, undefined, undefined, (name, source) => name === "readingHelpers"
       ? source.replace(language === "kotlin" ? "return value + 5" : "return value + 5;", body) : source);
     try {

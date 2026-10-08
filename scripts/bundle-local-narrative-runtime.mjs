@@ -52,4 +52,8 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
   // public facade includes same-directory helpers within the existing file cap.
   const calls = await bundleLocalNarrativeRuntime(path.join(projectRoot, 'out/application/functionCallNarratives/index.js'));
   console.log(`Bundled ${calls.modules} call reading modules (${calls.bytes} bytes).`);
+  // Callee syntax helpers keep the same public facade and relative language
+  // adapters. Packing them together preserves the existing package file cap.
+  const syntax = await bundleLocalNarrativeRuntime(path.join(projectRoot, 'out/analyzer/functionCalls/index.js'));
+  console.log(`Bundled ${syntax.modules} call syntax modules (${syntax.bytes} bytes).`);
 }
