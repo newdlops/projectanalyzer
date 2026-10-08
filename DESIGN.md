@@ -25,6 +25,12 @@ previous path's prose. Snapshot changes cancel pending work and expire authority
 Show idle, missing model/source, preparing, progress, partial/cancel/retry,
 invalid response, stale and successful states without hiding the static graph.
 
+One explicit call-reading action retains its provider resource across source
+reads, progress publication and the final summary. Each inference still joins
+the shared FIFO; cached selection opens no resource scope. Publish completion
+after teardown, checking cancellation/snapshot authority again. Keep the model
+prompt, response schema, all five call fields and source evidence unchanged.
+
 Acceptance: real local TypeScript and Kotlin caller/callee readings; cross-file
 evidence, strict fixed call references, distinct repeated sites/visits, static
 guard/order parity in Host and browser, deferred/unknown outcomes and source

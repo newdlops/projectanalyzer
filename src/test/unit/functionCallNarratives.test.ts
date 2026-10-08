@@ -13,9 +13,11 @@ import type { FunctionCallNarrativesRequest, FunctionCallNarrativesResponse } fr
 import type { FunctionNarrativeProvider } from "../../application/functionNarratives";
 import type { FunctionNarrativeContext } from "../../shared/functionNarratives";
 import { loadFunctionCallReadingFixture, functionCallReadingReply } from "./helpers/functionCallReadingFixture";
+import { FunctionNarrativeError } from "../../shared/functionNarratives";
 
 /** Owns real source tokens/registries while replacing only the external model boundary. */
-async function harness(language: "typescript" | "kotlin" = "typescript", custom?: FunctionNarrativeProvider) {
+async function harness(language: "typescript" | "kotlin" = "typescript", custom?: FunctionNarrativeProvider,
+  onReply?: (reply: FunctionCallNarrativesResponse) => void) {
   const fixture = await loadFunctionCallReadingFixture(language), graphDelivery = new WebviewGraphDelivery();
   const graphVersion = graphDelivery.activate(fixture.graph).snapshot.version;
   const sourceNodeTokens = new SourceNodeTokenRegistry(), evidenceTokens = new CodeFlowEvidenceTokenRegistry();
@@ -25,7 +27,7 @@ async function harness(language: "typescript" | "kotlin" = "typescript", custom?
   const provider = custom ?? { async prepare() { preparations++; }, async generate(context: FunctionNarrativeContext) { contexts.push(context); return functionCallReadingReply(context); } };
   const delivery = new FunctionCallsHostDelivery({ graphDelivery, sourceNodeTokens, evidenceTokens, provider, getLanguage: () => "en",
     async readSourceText(file) { reads.push(file); return fixture.files.find(candidate => candidate.path === file)?.content; },
-    async postMessage(reply) { staticReplies.push(reply); }, async postNarratives(reply) { replies.push(reply); } });
+    async postMessage(reply) { staticReplies.push(reply); }, async postNarratives(reply) { replies.push(reply); onReply?.(reply); await new Promise(resolve => setImmediate(resolve)); } });
   const request = { graphVersion, sourceToken: sourceNodeTokens.createToken(fixture.root.id)!, requestId: 1 };
   await delivery.load(request); const slice = staticReplies.at(-1)!;
   const explanation: FunctionCallNarrativesRequest = { ...request, contextId: slice.narratives!.contextId!, scope: "overview" };
@@ -133,4 +135,53 @@ test("call-reading protocol rejects source paths, unknown options and malformed 
     const context:FunctionNarrativeContext={functionName:"x",language:"typescript",snippets:[],limited:false,callTask:{scope:"overview",signature:"",includeSummary:true,sequence:[],conditions:[],routeStatus:"structure",sourceLimited:true,targets:[]}};
     const wrong=functionCallReadingReply(context,"ko");assert.throws(()=>parseFunctionCallNarrative(wrong.text,context,"en"));
   }finally{h.delivery.reset();}
+});
+
+test("one explicit call action retains its provider across source/publication gaps and releases it before ready; cached pages acquire no scope", async () => {
+  let active = false, scopes = 0, released = 0, generated = 0;
+  const provider: FunctionNarrativeProvider = {
+    async withRun(_language, _signal, operation) {
+      active = true; scopes++;
+      try { return await operation(); }
+      finally { await new Promise(resolve => setImmediate(resolve)); active = false; released++; }
+    }, async generate(context, language) {
+      assert.equal(active, true); generated++;
+      await new Promise(resolve => setImmediate(resolve)); return functionCallReadingReply(context, language);
+    }
+  };
+  const h = await harness("typescript", provider, reply => {
+    if (reply.status === "progress") assert.equal(active, true);
+    if (reply.status === "ready") assert.equal(active, false, "ready includes resource teardown, not just the final inference");
+  });
+  try {
+    await h.delivery.explain(h.explanation);
+    assert.equal(scopes, 1); assert.equal(released, 1); assert.equal(generated, 3);
+    // Publication errors are caught by the Host: assert its final status too,
+    // so an observer assertion swallowed as a failed action cannot pass.
+    assert.equal(h.replies.at(-1)!.status, "ready");
+    assert.equal(h.replies.at(-1)!.coverage!.complete, true);
+    await h.delivery.explain({ ...h.explanation, requestId: 2, pageIndex: 0, pageLanguage: "en" });
+    assert.equal(scopes, 1); assert.equal(generated, 3); assert.equal(h.replies.at(-1)!.cacheHit, true);
+  } finally { h.delivery.reset(); }
+});
+
+test("cancellation or a provider failure during final cleanup cannot publish a successful call action", async () => {
+  for (const cancel of [false, true]) {
+    let startCleanup!: () => void, release!: () => void;
+    const cleaning = new Promise<void>(resolve => { startCleanup = resolve; });
+    const provider: FunctionNarrativeProvider = { async withRun(_language, _signal, operation) {
+      const result = await operation(); startCleanup(); await new Promise<void>(resolve => { release = resolve; });
+      if (!cancel) throw new FunctionNarrativeError("unavailable", "scope-fixture");
+      return result;
+    }, async generate(context, language) { return functionCallReadingReply(context, language); } };
+    const h = await harness("typescript", provider);
+    try {
+      const pending = h.delivery.explain(h.explanation); await cleaning;
+      assert.equal(h.replies.some(reply => reply.status === "ready"), false);
+      if (cancel) h.delivery.cancelExplanation(h.explanation);
+      release(); await pending;
+      assert.equal(h.replies.some(reply => reply.status === "ready"), false);
+      assert.equal(h.replies.at(-1)!.status, cancel ? "cancelled" : "unavailable");
+    } finally { h.delivery.reset(); }
+  }
 });

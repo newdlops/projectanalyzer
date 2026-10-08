@@ -55,6 +55,12 @@ TypeScript/JavaScript, Kotlin, Python parser가 명시적 호출 인자를 읽�
 이전 모델 해설은 정적 사실로 승격하지 않는다. 생략·잘린 근거는 sourceLimited로 표시한다.
 무인 실행, daemon, source 실행, 새 dependency, 기존 모델 context/output 상한 증가는 없다.
 
+0.0.1128부터 한 번 누른 호출 해설 전체에 provider의 `withRun`을 적용한다. 비동기 대상
+원문 읽기·중간 Webview 응답·최종 전체 요약 사이에 같은 모델을 유지하지만 각 추론의 FIFO
+진입은 유지한다. 마지막 `ready`는 resource 정리가 끝난 뒤 다시 취소/snapshot을 확인하여
+보낸다. 캐시 페이지는 준비·scope·추론을 모두 건너뛴다. 기존 모델 입력·응답 schema·
+원문·인자·호출 순서·조건·다섯 상세 필드와 source 상한은 유지한다.
+
 취소와 오류 후 완료된 호출을 유지한다. 이어서 생성은 남은 호출 또는 마지막 요약을 처리한다.
 한 페이지는 두 호출을 전달하고 renderer는 선택한 호출 하나의 상세를 펼친다. 최대 여덟
 최근 결과/페이지를 유지하며 캐시 조회는 준비·추론을 요청하거나 진행 중인 생성을 대체하지
@@ -141,6 +147,62 @@ loop/exception transfer, inferred/partial/truncated evidence, 긴 식과 알 수
 같은 source snapshot·언어의 검증된 함수 목적 요약 240자 하나를 다음 시나리오에서 재사용하고,
 초기 준비 문구는 저장하지 않는다. 각 시나리오의 상세 문단·대안은 계속 모델이 새로 작성한다.
 기존 노드 구문·동작·근거·효과·인용을 모두 유지하며 화면 배치도 유지한다.
+
+### 0.0.1128 호출 해설의 반복 모델 로딩 제거
+
+실제 `FunctionCallsHostDelivery.explain`은 다음 호출부의 원문을 비동기로 읽고 Webview에
+중간 응답을 보낸다. 이 간격에는 FIFO가 비므로, 호출별 묶음과 마지막 요약 사이마다
+GGUF 프로세스가 종료되어 같은 가중치를 다시 불러왔다. 기존 `withRun`을 명시적인
+한 번의 호출 해설 작업에 적용하고, 종료 정리가 끝난 뒤 최종 성공을 게시한다.
+
+`scripts/benchmark-call-narratives.mjs`는 공개된 두 파일의 checkout/zero/addFee/double을
+실제 언어 parser, Host, 비동기 source read/publication과 로컬 모델로 읽는다. 정적 graph
+준비는 측정 밖이고, 해설 시작부터 정리·캐시 페이지 확인까지 측정한다. 설치된 0.0.1127과
+후보 Host를 순서대로 비교했으며, 후보도 설치본의 같은 provider를 사용하여 모델 입력과
+schema 변경을 분리했다. 모델은 기존 Qwen3.5-4B Q4_K_M과 같은 llama.cpp 실행기다.
+
+| 공개 예제 | 설치된 0.0.1127 | 최종 후보 | 모델 프로세스 시작 |
+| --- | ---: | ---: | ---: |
+| TypeScript, 3개 호출·최종 요약 | 47.42초 | 27.92초 | 3 → 1 |
+| Kotlin, 3개 호출·최종 요약 | 66.56초 | 29.12초 | 3 → 1 |
+
+각 언어의 호출 3개·다섯 상세 필드 15개와 원문 토큰을 모두 유지했다. TS 상세 774자와
+Kotlin 상세 784자뿐 아니라 각 언어의 세 모델 응답이 모두 baseline과 byte 단위로 같다.
+캐시의 모든 페이지는 추가 추론 없이 읽었고 종료 후 모델 프로세스가 남지 않았다.
+Kotlin의 기존 정적 `sourceLimited`도 그대로 보존했다. 모델 요청은 여전히 언어별 3회다.
+
+동일 PC에서 각 후보를 한 번씩 측정한 관찰값으로, 모델 로딩과 생성 속도는 다른 작업과
+warm filesystem cache의 영향을 받는다. 위 시간 비율을 일반적인 성능 보장이나 모델
+정확도 점수로 해석하지 않는다. 기존 답변에도 중간 반환값 사용 혼동·근거 없는 제한이
+있어, 동일 응답 확인은 기존 동작 보존을 뜻하며 사실성 입증을 뜻하지 않는다.
+
+중복 schema 제거·공통 source prefix·호출부/대상 직접 연결 실험도 더 빨랐지만 일부
+응답의 계산식 누락·지침 복사를 수동 검토에서 확인하여 배포에서 제외했다. 최종 변경은
+모델 수명과 완료 게시 시점에 한정하며 기존 입력·응답 grammar·상세·상한을 유지한다.
+
+회귀 검사는 비동기 source/publication 동안 provider 유지, 정리 후 `ready`, 캐시의 scope
+미획득, 정리 중 취소·provider 실패의 성공 응답 차단을 포함한다. 전체 처리시간 목표는
+계속 진행 중이며 다양한 호출 구현·언어·모델 fallback의 비용과 사실성은 남은 범위다.
+
+최종 컴파일과 패키징 테스트 15/15가 통과했다. 전체 unit 1,113개 중 1,109개가 통과하고
+기존 unknown dynamic argument 대표 타입, nested object 대표 입력, advanced private
+Scenario TS/JS와 source Inspector의 낡은 문구 assertion 네 실패를 재확인했다. 해당 기능은
+이번 변경에 포함하지 않았다. 기존 source-only release corpus도 실제 로컬 모델/실행기가
+없는 설정으로 12개 예제·30개 시나리오·174개 노드를 완료했고 factory/준비/추론은 0이었다.
+
+격리한 공식 VS Code 1.141.0에서 최종 VSIX의 실제 TypeScript `zero()` 경로 설명을 생성해
+완료 표시·다섯 상세 필드·Local Qwen3.5 표시와 프로세스 해제를 확인했다. 1,440×900과
+770×900 창에서 상세·버튼·좁은 조건/순서 배치를 확인하고 호출 위치 열기로 `reading.ts:4`
+의 `zero()` 선택을 확인했다. 가이드로 돌아오면 해설은 그대로이고 새 모델은 시작하지 않았다.
+창 크기와 격리된 모델 설정을 복원하고 QA 앱을 종료했다. 모바일·다른 테마·전체 접근성
+감사는 수행하지 않았다. 이 격리된 workspace의 Kotlin 파일은 Plain Text 모드였고 호출
+대상이 해석되지 않아 native Kotlin 호출 해설 QA는 완료하지 못했다. TS의 교차 파일 대상도
+이 화면에서 해석되지 않아 native 확인은 같은 파일의 1개 호출에 한정한다. 교차 파일 TS/Kotlin
+3개 호출·3번 추론의 검증은 위 실제 parser/Host/model benchmark 결과와 구분한다.
+
+최종 VSIX는 512파일·3.65 MiB이고 실행 모듈 closure 검사를 통과했다. Default와
+`Function Language QA 1107`에 0.0.1128을 설치해 등록 버전, 포함된 JS 478개와 native
+엔진의 byte 일치를 확인했다. 모델 설정은 각 프로필의 configured/automatic 값을 유지한다.
 
 ### 0.0.1127 nullable Elvis와 분기 합류 요약의 재계산 제거
 

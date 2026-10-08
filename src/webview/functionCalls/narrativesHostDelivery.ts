@@ -96,55 +96,65 @@ export class FunctionCallNarrativesHostDelivery {
     const ensureActive = () => { if (signal.aborted || this.pending !== pending || !this.active(request, entry)) throw new FunctionNarrativeError("cancelled"); };
     try {
       await provider.prepare?.(language, signal, operation); ensureActive();
-      do {
-        const offset = reading.calls.length;
-        const context = await buildFunctionCallNarrativeContext(entry.node, entry.source, entry.slice, reading.plan, offset, async token => {
-          ensureActive(); const node = this.dependencies.sourceNodeTokens.resolve(token as SourceNodeToken);
-          const graph = this.dependencies.graphDelivery.current()?.graph;
-          if (!node || !graph || !createProjectCallableScope(graph.workspaceRoot)(node)) return undefined;
-          const source = node.filePath === entry.node.filePath ? entry.source : await this.dependencies.readSourceText(node.filePath).catch(() => undefined);
-          ensureActive(); return source === undefined ? undefined : { node, source };
-        }, token => {
-          const location = this.dependencies.evidenceTokens.resolve(token as CodeFlowEvidenceToken);
-          return location?.filePath === entry.node.filePath ? location.range : undefined;
-        });
-        const finalSummary = reading.plan.rows.length > 2 && offset === reading.plan.rows.length;
-        context.callTask!.includeSummary = reading.plan.rows.length <= 2 || finalSummary;
-        if (finalSummary) {
-          context.callTask!.calleeEvidence = reading.calleeEvidence;
-          context.callTask!.earlierModelReadings = reading.calls.slice(0, 8).map(call => ({ callId: call.callId,
-            inputs: call.inputs.slice(0, 100), output: call.output.slice(0, 100), effects: call.effects.slice(0, 100) }));
-          context.callTask!.sourceLimited ||= reading.plan.rows.length > 8 || reading.calleeEvidence.some(evidence => evidence.truncated);
-          context.limited ||= context.callTask!.sourceLimited;
-        }
-        ensureActive();
-        let abort = () => {};
-        const cancelled = new Promise<never>((_resolve, reject) => { abort = () => reject(new FunctionNarrativeError("cancelled")); signal.addEventListener("abort", abort, { once: true }); });
-        let response;
-        try { response = await Promise.race([requestFunctionNarrative(provider, context, language, signal, 180000, operation), cancelled]); }
-        finally { signal.removeEventListener("abort", abort); }
-        ensureActive();
-        const chunk = parseFunctionCallNarrative(response.text, context, language);
-        if (context.callTask!.includeSummary) { reading.summary = chunk.summary; reading.flow = chunk.flow; reading.hasSummary = true; }
-        reading.modelName = response.modelName.slice(0, 100); reading.sourceLimited ||= context.limited;
-        // Intermediate limitations describe a bounded chunk. The final whole-flow
-        // pass replaces them after all callees have contributed source evidence.
-        reading.limitations = [...new Set(chunk.limitations)].slice(0, 2);
-        for (const target of context.callTask!.targets) {
-          const snippet = context.snippets.find(candidate => candidate.id === target.calleeSnippet);
-          if (snippet && reading.calleeEvidence.length < 8) reading.calleeEvidence.push({ callId: target.callId, callee: target.callee,
-            code: snippet.text.slice(0, 450), truncated: snippet.truncated || snippet.text.length > 450 });
-        }
-        for (let index = 0; index < chunk.calls.length; index += 1) {
-          const row = reading.plan.rows[offset + index], target = entry.slice.nodes.find(node => node.id === row.connection.to);
-          const callee = target?.sourceToken && this.dependencies.sourceNodeTokens.resolve(target.sourceToken);
-          reading.calls.push({ ...chunk.calls[index], connectionId: row.connection.id, occurrence: row.occurrence,
-            expression: row.expression.slice(0, 1200), callee: target?.name ?? "unknown", confidence: row.connection.confidence,
-            deferred: row.connection.deferred || row.connection.relation !== "call", callerEvidence: row.connection.evidenceToken,
-            calleeEvidence: callee ? this.dependencies.evidenceTokens.createToken(callee.filePath, callee.range) : undefined, calleeSourceToken: target?.sourceToken });
-        }
-        await this.send(request, reading, reading.hasSummary && reading.calls.length === reading.plan.rows.length ? "ready" : "progress", false);
-      } while (!reading.hasSummary || reading.calls.length < reading.plan.rows.length);
+      // Retain one model only for this explicit action, across asynchronous
+      // source reads/publication. Each chunk still owns its normal FIFO slot.
+      const actionReading = reading;
+      const analyze = async () => {
+        const reading = actionReading;
+        do {
+          const offset = reading.calls.length;
+          const context = await buildFunctionCallNarrativeContext(entry.node, entry.source, entry.slice, reading.plan, offset, async token => {
+            ensureActive(); const node = this.dependencies.sourceNodeTokens.resolve(token as SourceNodeToken);
+            const graph = this.dependencies.graphDelivery.current()?.graph;
+            if (!node || !graph || !createProjectCallableScope(graph.workspaceRoot)(node)) return undefined;
+            const source = node.filePath === entry.node.filePath ? entry.source : await this.dependencies.readSourceText(node.filePath).catch(() => undefined);
+            ensureActive(); return source === undefined ? undefined : { node, source };
+          }, token => {
+            const location = this.dependencies.evidenceTokens.resolve(token as CodeFlowEvidenceToken);
+            return location?.filePath === entry.node.filePath ? location.range : undefined;
+          });
+          const finalSummary = reading.plan.rows.length > 2 && offset === reading.plan.rows.length;
+          context.callTask!.includeSummary = reading.plan.rows.length <= 2 || finalSummary;
+          if (finalSummary) {
+            context.callTask!.calleeEvidence = reading.calleeEvidence;
+            context.callTask!.earlierModelReadings = reading.calls.slice(0, 8).map(call => ({ callId: call.callId,
+              inputs: call.inputs.slice(0, 100), output: call.output.slice(0, 100), effects: call.effects.slice(0, 100) }));
+            context.callTask!.sourceLimited ||= reading.plan.rows.length > 8 || reading.calleeEvidence.some(evidence => evidence.truncated);
+            context.limited ||= context.callTask!.sourceLimited;
+          }
+          ensureActive();
+          let abort = () => {};
+          const cancelled = new Promise<never>((_resolve, reject) => { abort = () => reject(new FunctionNarrativeError("cancelled")); signal.addEventListener("abort", abort, { once: true }); });
+          let response;
+          try { response = await Promise.race([requestFunctionNarrative(provider, context, language, signal, 180000, operation), cancelled]); }
+          finally { signal.removeEventListener("abort", abort); }
+          ensureActive();
+          const chunk = parseFunctionCallNarrative(response.text, context, language);
+          if (context.callTask!.includeSummary) { reading.summary = chunk.summary; reading.flow = chunk.flow; reading.hasSummary = true; }
+          reading.modelName = response.modelName.slice(0, 100); reading.sourceLimited ||= context.limited;
+          // Intermediate limitations describe a bounded chunk. The final whole-flow
+          // pass replaces them after all callees have contributed source evidence.
+          reading.limitations = [...new Set(chunk.limitations)].slice(0, 2);
+          for (const target of context.callTask!.targets) {
+            const snippet = context.snippets.find(candidate => candidate.id === target.calleeSnippet);
+            if (snippet && reading.calleeEvidence.length < 8) reading.calleeEvidence.push({ callId: target.callId, callee: target.callee,
+              code: snippet.text.slice(0, 450), truncated: snippet.truncated || snippet.text.length > 450 });
+          }
+          for (let index = 0; index < chunk.calls.length; index += 1) {
+            const row = reading.plan.rows[offset + index], target = entry.slice.nodes.find(node => node.id === row.connection.to);
+            const callee = target?.sourceToken && this.dependencies.sourceNodeTokens.resolve(target.sourceToken);
+            reading.calls.push({ ...chunk.calls[index], connectionId: row.connection.id, occurrence: row.occurrence,
+              expression: row.expression.slice(0, 1200), callee: target?.name ?? "unknown", confidence: row.connection.confidence,
+              deferred: row.connection.deferred || row.connection.relation !== "call", callerEvidence: row.connection.evidenceToken,
+              calleeEvidence: callee ? this.dependencies.evidenceTokens.createToken(callee.filePath, callee.range) : undefined, calleeSourceToken: target?.sourceToken });
+          }
+          if (!reading.hasSummary || reading.calls.length < reading.plan.rows.length) await this.send(request, reading, "progress", false);
+        } while (!reading.hasSummary || reading.calls.length < reading.plan.rows.length);
+      };
+      if (provider.withRun) await provider.withRun(language, signal, analyze); else await analyze();
+      // A ready response means process/resource cleanup finished too. A cancel
+      // or root change during teardown cannot publish a late success.
+      ensureActive(); await this.send(request, reading, "ready", false);
     } catch (error) {
       if (this.pending === pending && this.active(request, entry)) {
         const status = signal.aborted ? "cancelled" : error instanceof FunctionNarrativeError ? error.code : "failed";

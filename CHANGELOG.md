@@ -4,6 +4,16 @@ All notable user-visible changes to Project Analyzer: Code Flow are recorded in
 this file. The changelog starts with the first distribution-documented build;
 earlier local development builds were not tracked here.
 
+## 0.0.1128 - 2026-10-08
+
+### Improved
+
+- Reuse one local model across an explicit call-reading action's asynchronous
+  source reads, intermediate replies and final summary. Keep the existing model
+  prompt, response schema, five detail fields and source evidence.
+- Publish completion after resource teardown, retaining cancellation and errors
+  during cleanup. Cached pages acquire no model scope or inference slot.
+
 ## 0.0.1127 - 2026-10-08
 
 ### Improved
