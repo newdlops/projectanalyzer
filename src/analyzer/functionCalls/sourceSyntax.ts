@@ -12,12 +12,12 @@ export function readFunctionCallSourceExpression(source: string, parameters: Set
 }
 
 /** Known lexical roots may have source-authored member paths; getter/dispatch/state semantics remain unknown. Strict callers never opt in. */
-export function readFunctionCallSourceObjectExpression(source: string, names: Set<string>, options?: { externalReads?: boolean }): FunctionCallSourceExpressionFacts | undefined {
-  return readExpression(source, names, true, options?.externalReads === true);
+export function readFunctionCallSourceObjectExpression(source: string, names: Set<string>, options?: { externalReads?: boolean; methodReceiver?: boolean }): FunctionCallSourceExpressionFacts | undefined {
+  return readExpression(source, names, true, options?.externalReads === true, options?.methodReceiver === true);
 }
 
 /** The opt-in syntax reader records whole paths without looking up a property or promoting it to a primitive value. */
-function readExpression(source: string, parameters: Set<string>, members: boolean, external = false): FunctionCallSourceExpressionFacts | undefined {
+function readExpression(source: string, parameters: Set<string>, members: boolean, external = false, methodReceiver = false): FunctionCallSourceExpressionFacts | undefined {
   if (!source || source.length > 120) return;
   const tokens: string[] = [], accesses: string[] = [], externalReads: string[] = []; let cursor = 0, depth = 0, tokenCount = 0, needsValue = true;
   const token = /(?:"(?:[^"\\\r\n]|\\.)*"|'(?:[^'\\\r\n]|\\.)*'|(?:\d+(?:\.\d+)?|\.\d+)(?:[eE][+-]?\d+)?|[\p{L}_$][\p{L}\p{N}_$]*(?:\s*\.\s*[\p{L}_$][\p{L}\p{N}_$]*)*|===|!==|==|!=|<=|>=|&&|\|\||[()+*/%<>!+-])/uy;
@@ -37,11 +37,14 @@ function readExpression(source: string, parameters: Set<string>, members: boolea
         if (text.includes(".")) {
           if (!members) return;
           const path = text.split(/\s*\.\s*/u);
-          if (path.length > 17 || externalReadReserved.has(path[0])) return;
-          if (!parameters.has(path[0])) { if (!external) return; externalReads.push(path[0]); }
+          if (path.length > 17 || externalReadReserved.has(path[0]) && !(path[0] === "this" && methodReceiver)) return;
+          if (!parameters.has(path[0]) && path[0] !== "this") { if (!external) return; externalReads.push(path[0]); }
           // Compound member tokens still consume every identifier and dot from
           // the original 64-token budget rather than hiding work in one token.
           weight = path.length * 2 - 1;
+          accesses.push(text);
+        } else if (text === "this") {
+          if (!methodReceiver || !members) return;
           accesses.push(text);
         } else if (!parameters.has(text) && !["true", "false"].includes(text)) {
           if (!external || externalReadReserved.has(text)) return;

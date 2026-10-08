@@ -42,7 +42,7 @@ function renderRoutes(routes: Route[], field: "short" | "full"): string {
 
 /** Uncertain dispatch qualifies both the overview and the connected flow, never just a hidden detail. */
 function qualifier(proofs: SourceCallSummaryProof[], ko: boolean): string {
-  return proofs.some(proof => proof.target.confidence === "inferred")
+  return proofs.some(proof => proof.target.confidence === "inferred" || proof.facts.methodSource)
     ? ko ? "추정 후보가 실제 대상이라면, " : "If the inferred candidates are selected, " : "";
 }
 
@@ -65,7 +65,7 @@ export function buildFunctionCallSourceSummary(context: FunctionNarrativeContext
   // nested calls, computed/optional access and hidden writes remain unsupported.
   for (const proof of proofs) for (const argument of proof.target.arguments ?? []) {
     const names = new Set(argument.match(/[\p{L}_$][\p{L}\p{N}_$]*/gu) ?? []);
-    const value = readFunctionCallSourceObjectExpression(argument, names, { externalReads: true });
+    const value = readFunctionCallSourceObjectExpression(argument, names, { externalReads: true, methodReceiver: parent.kind === "method" });
     if (parent.language === "kotlin" && argument.includes("$") || !value || value.accesses.length && !proof.facts.callerReads) return;
   }
   if (task.scope === "call") return proofs.length === 1 ? isolated(proofs[0], ko) : undefined;
@@ -75,9 +75,10 @@ export function buildFunctionCallSourceSummary(context: FunctionNarrativeContext
   const declaration = readFunctionCallSourceRange(source, logic.sourceRange ?? parent.range);
   if (!root || root.truncated || !declaration || root.text.trim() !== declaration.trim()) return;
   const tutor = analyzeFunctionTutorDeclaration({ functionNode: parent, sourceText: source, functionLogic: logic });
-  const declared = readFunctionCallSourceDeclaredParameters(tutor);
-  if (parent.kind === "constructor" || tutor.executionKind !== "sync" || tutor.inputSummarySafe === false
-    || /\b(?:suspend|inline)\b/u.test(logic.signature)
+  const declared = readFunctionCallSourceDeclaredParameters(tutor, { sourceOnlyMethod: parent.kind === "method" });
+  if (parent.kind === "constructor" || tutor.executionKind !== "sync" || tutor.inputSummarySafe === false && !declared
+    || /(?:^|\s)(?:get|set)\s+[\p{L}_$][\p{L}\p{N}_$]*\s*\(/u.test(logic.signature)
+    || parent.language === "kotlin" && /\b(?:suspend|inline|operator|external|expect)\b/u.test(logic.signature.split(/\bfun\b/u)[0])
     || tutor.parameters.some(parameter => parameter.rest || parameter.optional || parameter.defaultValue !== undefined)
     || tutor.parameters.some(parameter => parameter.declarationEvidence.some(evidence => evidence.kind === "parameter-default"))
     || tutor.gaps.some(gap => gap.kind !== "language-support") && !declared) return;
@@ -85,7 +86,7 @@ export function buildFunctionCallSourceSummary(context: FunctionNarrativeContext
   const entry = logic.blocks.find(block => block.kind === "entry"); if (!entry) return;
   const readValue = (value: string, names: Set<string>) => {
     if (parent.language === "kotlin" && value.includes("$")) return false;
-    const reading = readFunctionCallSourceObjectExpression(value, names, { externalReads: true });
+    const reading = readFunctionCallSourceObjectExpression(value, names, { externalReads: true, methodReceiver: parent.kind === "method" });
     if (!reading) return false;
     if (reading.accesses.length || reading.externalReads?.length) parentReads = true;
     return true;

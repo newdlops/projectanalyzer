@@ -11,13 +11,16 @@ const identifier = /^[\p{L}_$][\p{L}\p{N}_$]*$/u;
 
 /** Accept complete parser-owned declarations, not a type evaluator's ability to invent a representative input. */
 export function readFunctionCallSourceDeclaredParameters(analysis: FunctionTutorDeclarationAnalysis,
-  options?: { allowBodyGaps?: boolean }): FunctionCallDeclaredParameterFacts | undefined {
-  if (analysis.inputSummarySafe === false || analysis.parameters.length > 8) return;
+  options?: { allowBodyGaps?: boolean; sourceOnlyMethod?: boolean }): FunctionCallDeclaredParameterFacts | undefined {
+  // Method dispatch is not safe for the concrete evaluator, but a method's
+  // positional declaration can be read without granting evaluation authority.
+  const method = options?.sourceOnlyMethod === true && analysis.functionNode.kind === "method";
+  if (analysis.inputSummarySafe === false && !method || analysis.parameters.length > 8) return;
   const parameters: FunctionCallDeclaredParameterFacts["parameters"] = [], opaqueParameters: string[] = [];
   const names = new Set<string>(), allowedTypeGaps = new Set<typeof analysis.gaps[number]>();
   for (const parameter of analysis.parameters) {
     const type = parameter.typeText;
-    if (!identifier.test(parameter.name) || parameter.name.length > 64 || names.has(parameter.name)
+    if (!identifier.test(parameter.name) || parameter.name === "this" || parameter.name.length > 64 || names.has(parameter.name)
       || parameter.optional || parameter.rest || parameter.defaultValue !== undefined || parameter.callingMode !== "positional"
       || !type || type.length > 120 || /[\x00-\x1F`]/u.test(type)
       || parameter.typeKind === "callable" || /=>|->/u.test(type)

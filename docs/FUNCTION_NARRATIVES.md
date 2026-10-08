@@ -148,6 +148,82 @@ loop/exception transfer, inferred/partial/truncated evidence, 긴 식과 알 수
 초기 준비 문구는 저장하지 않는다. 각 시나리오의 상세 문단·대안은 계속 모델이 새로 작성한다.
 기존 노드 구문·동작·근거·효과·인용을 모두 유지하며 화면 배치도 유지한다.
 
+### 0.0.1139 method 후보 원문의 모델 대기 제거
+
+complete sync method의 정확한 positional 선언과 callee CFG를 source로 읽는다.
+`sourceOnlyMethod`는 TypeScript method의 concrete input 평가가 안전하지 않다는 flag와
+원문 선언 읽기를 구분하지만 기존 `inputSummarySafe`나 Scenario 평가 권한은 수정하지
+않는다. method 문맥 전용 `methodReceiver`는 `this`/member 식을 원문으로 보존한다.
+strict 및 object reader 기본값은 `this`를 계속 거부한다. receiver 객체 구성·field initializer
+대입·실제 source 실행은 없다. `methodSource`/body path를 남겨 primitive leaf나 기존
+compact guarded recipe로 승격하지 않는다.
+
+Host의 정확한 `sourceKind: method`는 고정 인자 전달도 후보 선택 조건 아래 표시한다.
+graph confidence를 바꾸지 않고 Role/inputs/output/effects/reason 및 연결된 흐름을 모두
+조건부로 읽는다. receiver/values/types/operators/getters/dispatch/state/effects는 미확인이며
+정상 완료만 가정한다. caller 읽기와 method 원문 operation을 순서대로 보존하고 공통
+미확인 정보를 한 번 표시하여 기존 prose 상한을 유지한다. 중복/조건부 source operation은
+기존 source key와 earlier guard를 유지한다.
+
+constructor/accessor, 명시적 TS `this` parameter, optional/rest/default·간접 호출/callback,
+receiver/member/captured/parameter/immutable 쓰기, async/generator·Kotlin 실행 modifier와
+cycle/loop 및 기존 모든 상한은 모델을 유지한다. 부모 method의 `this` 호출도 source-only
+방식으로 읽으며 declaration/evaluator 안전성 경계를 넘지 않는다.
+
+실제 current-file QA에서 네이티브 TypeScript 그래프가 `service: ReadMath`의
+`service.mix(amount)`를 external로 남기는 경로도 확인했다. top-level named function의
+필수 단순 named-type parameter와 같은 파일의 유일한 class/method만 `inferred` 후보로
+연결한다. runtime receiver나 dispatch를 증명하지 않는다. unknown/복합/generic/optional/
+default/rest/destructuring 타입, nested/type-parameter scope, 중복 class/overload,
+shadow/직접 재할당은 unresolved로 유지한다. 파라미터가 같은 이름의 class를 가려도
+잘못된 qualified-name fallback을 적용하지 않는다.
+대상 소스 버튼은 정확한 identifier anchor가 일치하는 parser declaration 범위를 사용하여
+네이티브 graph range가 header에서 끝나도 설명에서 읽은 method body를 선택한다.
+같은 source snapshot으로 token을 만들고 기존 graph ID/range/confidence는 수정하지 않는다.
+
+공개 `service.addFee(amount)` → method `this.bias + value`를 실제 TS/Kotlin parser/
+Host/provider로 각각 읽었다. 설치된 0.0.1138은 기존 Qwen3.5-4B Q4_K_M을 범위마다 한 번
+실행했고, 모델·sampling·context/output/thread 설정은 유지했다. graph 준비와 완료 후
+cache 조회는 생성 시간에서 제외했다.
+
+| 범위 | 설치된 0.0.1138의 실제 모델 | 개발 출력 | 최종 설치된 0.0.1139 | 실제 모델 요청 |
+| --- | ---: | ---: | ---: | ---: |
+| TS 전체 구조 | 16.42초 | 168.46ms | 23.14ms | 1 → 0 |
+| TS 개별 호출 | 11.28초 | 91.91ms | 5.21ms | 1 → 0 |
+| TS 선택 경로 | 14.74초 | 12.46ms | 5.24ms | 1 → 0 |
+| Kotlin 전체 구조 | 12.20초 | 6.09ms | 89.53ms | 1 → 0 |
+| Kotlin 개별 호출 | 10.40초 | 3.33ms | 5.03ms | 1 → 0 |
+| Kotlin 선택 경로 | 12.44초 | 2.97ms | 5.06ms | 1 → 0 |
+
+각 범위 단일 관찰값이고 개발 측정은 unit 검사와 겹쳤다. 최종 설치 측정도 unit 검사와
+격리된 VS Code 시작에 겹쳤으며 시스템 부하는 통제하지 않았다. 일반적인 성능·실행 정확성
+보장은 아니다. 다섯 항목·완료·인용·cache를 유지하고 `this.bias`를 초기화 값 5로 대체하거나
+primitive 결과로 계산하지 않는다. method의 원문을 읽은 사실은 실제 선택/dispatch/수신자
+state를 관찰한 증거가 아니다.
+baseline의 일부 모델 문장은 원문에 없는 요금/통화 목적을 추측하고 MathOps class를
+interface로 단정했다. Kotlin 경로의 output/effects는 같은 입력 전달 문단을 반복했고,
+일부 입력 항목은 대상의 `value` 대신 `amount`를 parameter 이름으로 썼다. 최종 source는
+실제 amount→value 선언 전달과 원래 `this.bias + value`, 후보 조건·미확인 수신자/효과를
+유지한다. 이 관찰을 일반 모델 사실성 점수로 해석하지 않는다.
+
+관련 검사 57개·네이티브 검사 88개·패키징 검사 15개가 통과했다. 전체 unit은 1,167개 중 1,163개 통과,
+기존 Guide dynamic argument type·nested object input·advanced private Scenario·decorated
+Inspector source-reveal 실패 4개였다. 두 언어/locale·세 범위, 모든 후보 qualifier·원문/
+인자·cache/evidence·method parent, strict this 거부와 evaluator flag 미변경,
+constructor/accessor/this-parameter/write/indirect/deferred/execution 경계를 검사했다.
+fixture model은 실제 모델 문장의 정확성 증거로 취급하지 않는다.
+추가로 최종 설치된 네이티브 TS 그래프 자체를 production Host/provider에 전달하여
+한국어/영어의 세 범위를 약 5.47–24.83ms에 읽었다. runner/weights가 없는 설정에서도
+모두 ready·다섯 항목·inferred confidence·source evidence·cache와 모델 요청 0회를 유지했다.
+최종 격리 설치본의 실제 VS Code에서도 TS/Kotlin `service.mix(amount)` 설명을 생성했다.
+runner/weights가 없는 상태에서 소스 분석으로 완료하고 amount→value, 원래 this 식,
+후보 조건/미확인 효과를 유지했다. TS 대상 소스는 선언 header 한 줄 대신 실제 method
+7–9행 전체 68자를 선택했고, Kotlin은 method 6–8행 65자를 선택했다. 소스 이동 후
+같은 완료 설명이 복원됐다. 약 774×904의 좁은 창과 2,540×1,329–2,560×1,349의
+데스크톱 창에서 다섯 항목/버튼·줄바꿈을 실제로 확인했다. Kotlin의 기존 불완전 관계
+안내는 유지했으며 전체 관계나 런타임 실행을 검증했다고 표시하지 않는다. dirty Calls.kt와
+Default/QA 모델 설정은 편집하지 않았다. JVM 실행 대조는 하지 않았다.
+
 ### 0.0.1138 부모 속성/captured 읽기의 모델 대기 제거
 
 parser-matched 호출의 인수와 수신자 operand는 `FunctionCallSourceFacts.callerReads`에

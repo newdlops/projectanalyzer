@@ -3,7 +3,8 @@
 //! The lightweight frontend cannot resolve parameter or local variable values.
 //! This module records those names per callable so bare calls do not incorrectly
 //! bind to an unrelated same-file declaration. Member calls remain outside this
-//! boundary because their receiver evidence follows a separate resolver path.
+//! bare-name boundary; a narrow typed-parameter table supplies inferred member
+//! candidates without constructing or evaluating receiver values.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -13,6 +14,8 @@ use super::super::lexical_scan::{find_matching_close, split_top_level};
 #[derive(Default)]
 pub(super) struct LexicalBindings {
     by_source_id: BTreeMap<String, BTreeSet<String>>,
+    /// Unmodified, required, direct named-type parameters of top-level TS functions.
+    receiver_types: BTreeMap<String, BTreeMap<String, String>>,
 }
 
 impl LexicalBindings {
@@ -41,6 +44,9 @@ impl LexicalBindings {
         let bindings = self.by_source_id.entry(source_id.to_string()).or_default();
 
         for name in names {
+            if let Some(receivers) = self.receiver_types.get_mut(source_id) {
+                receivers.remove(&name);
+            }
             // Function-like variable declarations have a real SymbolRecord and
             // should continue through normal lexical callable resolution.
             if declared_callable_name == Some(name.as_str()) {
@@ -49,6 +55,65 @@ impl LexicalBindings {
 
             bindings.insert(name);
         }
+
+        if let Some(receivers) = self.receiver_types.get_mut(source_id) {
+            // Destructuring introduces bindings not modeled by the bare-name
+            // collector. Drop all hints rather than retaining a shadowed name.
+            if ["const {", "const [", "let {", "let [", "var {", "var ["]
+                .iter().any(|form| code_line.contains(form))
+            {
+                receivers.clear();
+            }
+            // The frontend has no control-flow/value model. Any direct write
+            // invalidates this source-only hint for every call in the callable.
+            receivers.retain(|name, _| !has_direct_write(code_line, name));
+        }
+    }
+
+    /// Records only simple named types; generic/default/optional/destructured forms fail closed.
+    pub(super) fn register_receiver_types(
+        &mut self,
+        source_id: &str,
+        code_line: &str,
+        declaration_name: &str,
+    ) {
+        let Some(parameters) = parameter_text(code_line, declaration_name) else {
+            return;
+        };
+        let Some(open_index) = code_line.find('(') else {
+            return;
+        };
+        // Type parameters can shadow a same-file class. The line frontend does
+        // not resolve them, so do not collect any receiver hint in that header.
+        if code_line[..open_index].contains(['<', '>', '=']) {
+            return;
+        }
+        let mut receivers = BTreeMap::new();
+        for segment in split_top_level(parameters, b',') {
+            let Some((name, type_name)) = segment.trim().split_once(':') else {
+                continue;
+            };
+            let name = name.trim();
+            let type_name = type_name.trim();
+            if name != "this" && is_complete_identifier(name) && is_complete_identifier(type_name) {
+                if receivers.insert(name.to_string(), type_name.to_string()).is_some() {
+                    // Duplicate bindings are not useful declaration evidence.
+                    self.receiver_types.remove(source_id);
+                    return;
+                }
+            }
+        }
+        self.receiver_types.insert(source_id.to_string(), receivers);
+    }
+
+    /// Returns a declared type hint, never a runtime receiver identity.
+    pub(super) fn receiver_type(&self, source_id: &str, name: &str) -> Option<&str> {
+        self.receiver_types.get(source_id)?.get(name).map(String::as_str)
+    }
+
+    /// Nested declarations introduce binding scopes this hint table cannot model.
+    pub(super) fn invalidate_receiver_types(&mut self, source_id: &str) {
+        self.receiver_types.remove(source_id);
     }
 
     /// Returns whether a bare name is known to resolve to an opaque local value.
@@ -57,6 +122,30 @@ impl LexicalBindings {
             .get(source_id)
             .is_some_and(|bindings| bindings.contains(name))
     }
+}
+
+/// Accepts one complete identifier rather than a prefix of an unsupported type.
+fn is_complete_identifier(text: &str) -> bool {
+    take_identifier(text).is_some_and(|(_, remainder)| remainder.is_empty())
+}
+
+/// Rejects direct assignment/update hints while allowing equality tests and member reads.
+fn has_direct_write(code_line: &str, name: &str) -> bool {
+    let mut start = 0;
+    while let Some(index) = find_word_from(code_line, name, start) {
+        let before = code_line[..index].trim_end();
+        let after = code_line[index + name.len()..].trim_start();
+        if !before.ends_with('.')
+            && ((after.starts_with('=') && !after.starts_with("==") && !after.starts_with("=>"))
+                || ["+=", "-=", "*=", "/=", "%=", "&=", "|=", "^=", "&&=", "||=", "??=", "++", "--"]
+                    .iter().any(|operator| after.starts_with(operator))
+                || before.ends_with("++") || before.ends_with("--"))
+        {
+            return true;
+        }
+        start = index + name.len();
+    }
+    false
 }
 
 /// Collects direct parameter identifiers from one supported declaration line.

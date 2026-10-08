@@ -4,6 +4,22 @@ All notable user-visible changes to Project Analyzer: Code Flow are recorded in
 this file. The changelog starts with the first distribution-documented build;
 earlier local development builds were not tracked here.
 
+## 0.0.1139 - 2026-10-08
+
+### Improved
+
+- Read complete synchronous method declarations and symbolic receiver expressions
+  without loading a model when every source operation is supported.
+- Preserve candidate dispatch in all five fields, actual argument/return syntax,
+  caller-before-method effects, and unknown receiver values/getters/state.
+- Keep method declarations separate from concrete evaluation safety; method bodies
+  never become primitive leaves or create receiver objects from field initializers.
+- Retain constructor/accessor/default/indirect/callback/write/async/loop boundaries,
+  strict readers, cache, source controls and existing budgets.
+- Connect simple top-level TypeScript receiver parameters to unique same-file
+  class methods as inferred candidates in the native analyzer; retain ambiguity
+  and binding boundaries and open the parser-owned method body from explanations.
+
 ## 0.0.1138 - 2026-10-08
 
 ### Improved

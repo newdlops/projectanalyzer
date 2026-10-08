@@ -941,6 +941,23 @@ callback·parameter/member 쓰기·optional/computed 접근과 기존 모든 상
 전체 부모 경로는 동일 source key/text의 공통 prefix만 묶으며 같은 텍스트의 서로 다른
 구문은 합치지 않는다. parameter/captured/member/immutable 쓰기, optional/computed,
 숨은 호출/쓰기, callback/async/loop 및 기존 token/path/prose 한도는 모델을 유지한다.
+0.0.1139은 완전한 동기 method의 선언/원문 경로를 source-only 방식으로 읽는다.
+`sourceOnlyMethod`는 method parameter 선언만 읽으며 기존 evaluator의 `inputSummarySafe`
+값이나 객체 구성/수신자 조회 권한을 바꾸지 않는다. `methodReceiver`는 이 문맥에서만 `this`
+와 member 식을 원문으로 보존하고 strict/default reader는 계속 거부한다. method는
+`methodSource`와 body path를 남겨 primitive leaf/compact recipe로 승격하지 않는다.
+Host의 `sourceKind: method`는 실제 선언 근거이며 graph confidence와 별도로 모든 상세/
+흐름에 후보 선택 조건을 유지한다. 수신자/값·타입·연산자/getter·dispatch·상태/효과는
+미확인이고 정상 완료만 가정한다. class field initializer를 실제 `this` 값으로 대입하지 않는다.
+caller/method 원문 operation은 순서대로 보존하고 공통 미확인 정보를 한 번 표시한다.
+constructor/accessor·명시적 `this` parameter·default/rest/optional·간접/숨은 호출과
+receiver/member 쓰기·callback/async/generator·Kotlin 실행 modifier·loop 및 기존 상한은 유지한다.
+네이티브 TS 분석기는 top-level named function의 필수 단순 named-type receiver parameter와
+같은 파일의 유일한 class/method를 `inferred` 후보로 연결한다. receiver 값/dispatch는 평가하지
+않으며 unknown·generic·optional/default/rest/destructuring 타입, nested/type-parameter scope,
+중복 owner/overload·shadow·직접 재할당은 unresolved로 유지한다. 정확한 source identity를
+확인한 parser declaration 범위는 설명 snippet과 대상 소스 evidence에 함께 사용하고 기존
+graph ID/range/confidence는 변경하지 않는다.
 순서 모델은 최대 512 블록·1,024 제어 연결, 하나의 경로는 1,024 탐색 단계·256 표시 항목으로
 제한한다. 근거 부족과 한도는 표시하며 원본 소스를 실행하지 않는다.
 

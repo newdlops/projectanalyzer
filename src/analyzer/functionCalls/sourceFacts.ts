@@ -22,12 +22,13 @@ const identifier = "[\\p{L}_$][\\p{L}\\p{N}_$]*";
 
 /** Formal positional declarations remain source facts even when their runtime values/types and effects are unknown. */
 export function readFunctionCallSourceParameters(callee: SymbolNode, source: string): Array<{ name: string; type: string }> | undefined {
-  if (callee.kind !== "function" || !["typescript", "javascript", "kotlin"].includes(callee.language)) return;
+  if (!["function", "method"].includes(callee.kind) || !["typescript", "javascript", "kotlin"].includes(callee.language)) return;
   const logic = analyzeFunctionLogic({ functionNode: callee, sourceText: source, maxBlocks: 8 });
   const declaration = readFunctionCallSourceRange(source, logic.sourceRange ?? callee.range);
-  if (!declaration || declaration.length > 1800 || logic.gaps.some(gap => ["sourceUnavailable", "functionNotFound", "languageUnsupported"].includes(gap.code))) return;
+  if (!declaration || declaration.length > 1800 || /(?:^|\s)(?:get|set)\s+[\p{L}_$][\p{L}\p{N}_$]*\s*\(/u.test(logic.signature)
+    || logic.gaps.some(gap => ["sourceUnavailable", "functionNotFound", "languageUnsupported"].includes(gap.code))) return;
   const tutor = analyzeFunctionTutorDeclaration({ functionNode: callee, sourceText: source, functionLogic: logic });
-  return readFunctionCallSourceDeclaredParameters(tutor, { allowBodyGaps: true })?.parameters;
+  return readFunctionCallSourceDeclaredParameters(tutor, { allowBodyGaps: true, sourceOnlyMethod: callee.kind === "method" })?.parameters;
 }
 
 /** Parse the parent once per context; only matching exact statements can describe a call's use. */
@@ -42,9 +43,10 @@ export function createFunctionCallSourceReader(parent: SymbolNode, source: strin
   // Async/generator/constructor returns have a different parent return contract;
   // a plain source call result cannot stand in for their whole return value.
   const blocks = parent.kind !== "constructor" && parentTutor?.executionKind === "sync"
-    && !/\b(?:suspend|inline)\b/u.test(parentLogic!.signature) ? parentLogic!.blocks : [];
+    && !(language === "kotlin" && /\b(?:suspend|inline|operator|external|expect)\b/u.test(parentLogic!.signature.split(/\bfun\b/u)[0]))
+    && !/(?:^|\s)(?:get|set)\s+[\p{L}_$][\p{L}\p{N}_$]*\s*\(/u.test(parentLogic!.signature) ? parentLogic!.blocks : [];
   return { read(callee, calleeSource, callerRange, expression) {
-    if (callee.kind !== "function" || callee.language !== parent.language || expression.length > 240
+    if (!["function", "method"].includes(callee.kind) || callee.language !== parent.language || expression.length > 240
       || /^new\b|\.(?:call|apply|bind)\s*\(/u.test(expression)) return;
     const block = blocks.filter(block => block.confidence === "exact" && ["return", "mutation", "call"].includes(block.kind)
       && contains(block.range, callerRange)).sort((a, b) => span(a.range) - span(b.range))[0];
@@ -63,7 +65,7 @@ export function createFunctionCallSourceReader(parent: SymbolNode, source: strin
     if (site.calleeText !== site.calleeName) operands.unshift(site.calleeText);
     for (const operand of operands) {
       if (language === "kotlin" && operand.includes("$")) return;
-      const value = readFunctionCallSourceObjectExpression(operand, names, { externalReads: true });
+      const value = readFunctionCallSourceObjectExpression(operand, names, { externalReads: true, methodReceiver: parent.kind === "method" });
       if (!value) return;
       if (value.accesses.length || value.externalReads?.length) expressions.push(value.expression);
       accesses.push(...value.accesses); externalReads.push(...(value.externalReads ?? []));

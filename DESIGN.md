@@ -99,6 +99,21 @@ both branches and zero-call returns. Factor only an identical source prefix,
 preserving distinct repeated statements. Use the same fields and source buttons.
 Acceptance: TS/Kotlin property conditions/arguments, both explanation languages,
 empty-call exits, local writes/read order, source identity and cache isolation.
+Method declarations describe candidate source, even when a graph link is
+resolved. Qualify formal transfers, return use and effects by candidate selection;
+receiver identity, dispatch, getters, values and state remain unknown. Preserve
+`this` as source syntax without constructing a receiver or substituting field
+initializers. Write caller/method operations in order, with their common unknown
+effects stated once to fit the existing fields. Keep the evaluator's safety flag
+and strict primitive reader unchanged. Acceptance: TS/Kotlin methods and method
+parents, both prose languages/scopes, candidate qualifiers, source controls and
+cache; excluded accessors/constructors/writes/async/loop must stay model work.
+Native TS typed receiver hints are restricted to required simple named-type
+parameters of top-level named functions and unique same-file class methods.
+Keep the connection inferred; ambiguous owners, overloads, unsupported binding
+scopes, shadowed/reassigned parameters and unknown types remain unresolved.
+Source actions use the same parser-owned declaration extent as the reading,
+including a method body when a native graph extent stops at its header.
 
 Acceptance: real local TypeScript and Kotlin caller/callee readings; cross-file
 evidence, strict fixed call references, distinct repeated sites/visits, static

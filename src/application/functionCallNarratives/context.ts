@@ -9,7 +9,7 @@ import { attachFunctionCallSourceReading, type FunctionCallSourceCandidate } fro
 import { findFunctionAtPosition } from "../../analyzer/functionLogic";
 
 /** Native graph extents may stop at the header; use the same declaration's parser-owned bounds. */
-function declarationRange(node: SymbolNode, source: string): SourceRange {
+export function resolveFunctionCallDeclarationRange(node: SymbolNode, source: string): SourceRange {
   try {
     const target = findFunctionAtPosition({ filePath: node.filePath, languageId: node.language, sourceText: source,
       position: { line: node.selectionRange.startLine, character: node.selectionRange.startCharacter } });
@@ -50,7 +50,7 @@ function excerpt(id: string, role: FunctionNarrativeSnippet["role"], source: str
 export async function buildFunctionCallNarrativeContext(parent: SymbolNode, source: string, slice: FunctionCallsResponse, plan: FunctionCallNarrativePlan, offset: number,
   readCallee: (token: string) => Promise<{ node: SymbolNode; source: string } | undefined>,
   callerRange: (token: string) => SourceRange | undefined): Promise<FunctionNarrativeContext> {
-  const snippets: FunctionNarrativeSnippet[] = [], root = excerpt("parent", "function", source, declarationRange(parent, source), 4200, 100);
+  const snippets: FunctionNarrativeSnippet[] = [], root = excerpt("parent", "function", source, resolveFunctionCallDeclarationRange(parent, source), 4200, 100);
   if (root) snippets.push(root);
   let limited = plan.facts.sourceLimited || !root || Boolean(root.truncated);
   const names = new Map(slice.nodes.map(node => [node.id, node]));
@@ -62,7 +62,7 @@ export async function buildFunctionCallNarrativeContext(parent: SymbolNode, sour
     const caller = range && excerpt(row.callId + "-caller", "caller", source, range, 600, 12);
     if (caller) snippets.push(caller);
     const callee = target?.sourceToken ? await readCallee(target.sourceToken) : undefined;
-    const helper = callee && excerpt(row.callId + "-callee", "helper", callee.source, declarationRange(callee.node, callee.source), 1800, 60);
+    const helper = callee && excerpt(row.callId + "-callee", "helper", callee.source, resolveFunctionCallDeclarationRange(callee.node, callee.source), 1800, 60);
     if (helper) snippets.push(helper);
     const sourceLimited = connection.limited || !caller || caller.truncated || !helper || helper.truncated;
     const guards = connection.guards.slice(0, 6).map(guard => ({ expression: guard.expression.slice(0, 240), outcome: guard.outcome.slice(0, 120) }));
@@ -71,6 +71,7 @@ export async function buildFunctionCallNarrativeContext(parent: SymbolNode, sour
       || connection.guards.some(guard => guard.expression.length > 240 || guard.outcome.length > 120) || connection.loops.some(loop => loop.length > 240);
     limited ||= sourceLimited || factsLimited;
     targets.push({ callId: row.callId, caller: parent.name.slice(0, 240), callee: (target?.name ?? "unknown").slice(0, 240),
+      ...(callee?.node.kind === "method" ? { sourceKind: "method" as const } : {}),
       language: callee?.node.language ?? parent.language, expression: row.expression.slice(0, 1200),
       relation: connection.relation, confidence: connection.confidence, guards, loops,
       deferred: connection.deferred || connection.relation !== "call", callerSnippet: caller?.id, calleeSnippet: helper?.id, sourceLimited: Boolean(sourceLimited || factsLimited) });

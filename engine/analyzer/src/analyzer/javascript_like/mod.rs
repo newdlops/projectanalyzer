@@ -10,6 +10,8 @@ mod frontend;
 mod imports;
 #[cfg(test)]
 mod range_tests;
+#[cfg(test)]
+mod receiver_tests;
 mod syntax;
 
 use crate::graph::{NewSymbol, ProjectGraphBuilder};
@@ -65,6 +67,9 @@ pub fn extract_symbols(
         let mut declared_callable_name: Option<String> = None;
 
         if let Some((kind, name)) = detect_declaration(trimmed, is_in_class_scope(&scopes)) {
+            if let Some(source) = current_call_source(&scopes) {
+                lexical_bindings.invalidate_receiver_types(&source.id);
+            }
             let parent_id = scopes
                 .last()
                 .map(|scope| scope.id.clone())
@@ -96,6 +101,11 @@ pub fn extract_symbols(
 
             if is_callable_kind(&kind) {
                 lexical_bindings.register_parameters(&id, code_line, &name);
+                // Limit source type hints to top-level named TS functions. Nested
+                // and class type-parameter scopes need richer binding evidence.
+                if file.language_id == "typescript" && kind == "function" && scopes.is_empty() {
+                    lexical_bindings.register_receiver_types(&id, code_line, &name);
+                }
                 declared_callable_name = Some(name.clone());
             }
 

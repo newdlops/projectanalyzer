@@ -1,10 +1,10 @@
 /** Snapshot-owned call-reading lifecycle: explicit generation, bounded chunks, partial resume and cache-only pages. */
-import { buildFunctionCallNarrativePlan, buildFunctionCallNarrativeContext, parseFunctionCallNarrative, type FunctionCallNarrativePlan } from "../../application/functionCallNarratives";
+import { buildFunctionCallNarrativePlan, buildFunctionCallNarrativeContext, resolveFunctionCallDeclarationRange, parseFunctionCallNarrative, type FunctionCallNarrativePlan } from "../../application/functionCallNarratives";
 import { createProjectCallableScope } from "../../application/functionCalls";
 import type { FunctionNarrativeProvider } from "../../application/functionNarratives";
 import { requestFunctionNarrative } from "../../application/functionNarratives";
 import { FunctionNarrativeError, type FunctionCallSourceProofHandle } from "../../shared/functionNarratives";
-import type { SymbolNode } from "../../shared/types";
+import type { SourceRange, SymbolNode } from "../../shared/types";
 import { createContentHash } from "../../shared/hash";
 import type { FunctionCallsResponse } from "../../protocol/functionCalls";
 import type { FunctionCallNarrativesRequest, FunctionCallNarrativesResponse, FunctionCallReadingEntry } from "../../protocol/functionCallNarratives";
@@ -105,12 +105,18 @@ export class FunctionCallNarrativesHostDelivery {
         const reading = actionReading;
         do {
           const offset = reading.calls.length;
+          // At most two declarations per chunk. Evidence uses the same immutable
+          // source snapshot and parser-owned extent as the actual explanation.
+          const calleeRanges = new Map<string, SourceRange>();
           const context = await buildFunctionCallNarrativeContext(entry.node, entry.source, entry.slice, reading.plan, offset, async token => {
             ensureActive(); const node = this.dependencies.sourceNodeTokens.resolve(token as SourceNodeToken);
             const graph = this.dependencies.graphDelivery.current()?.graph;
             if (!node || !graph || !createProjectCallableScope(graph.workspaceRoot)(node)) return undefined;
             const source = node.filePath === entry.node.filePath ? entry.source : await this.dependencies.readSourceText(node.filePath).catch(() => undefined);
-            ensureActive(); return source === undefined ? undefined : { node, source };
+            ensureActive();
+            if (source === undefined) return undefined;
+            calleeRanges.set(node.id, resolveFunctionCallDeclarationRange(node, source));
+            return { node, source };
           }, token => {
             const location = this.dependencies.evidenceTokens.resolve(token as CodeFlowEvidenceToken);
             return location?.filePath === entry.node.filePath ? location.range : undefined;
@@ -160,7 +166,7 @@ export class FunctionCallNarrativesHostDelivery {
             reading.calls.push({ ...chunk.calls[index], connectionId: row.connection.id, occurrence: row.occurrence,
               expression: row.expression.slice(0, 1200), callee: target?.name ?? "unknown", confidence: row.connection.confidence,
               deferred: row.connection.deferred || row.connection.relation !== "call", callerEvidence: row.connection.evidenceToken,
-              calleeEvidence: callee ? this.dependencies.evidenceTokens.createToken(callee.filePath, callee.range) : undefined, calleeSourceToken: target?.sourceToken });
+              calleeEvidence: callee ? this.dependencies.evidenceTokens.createToken(callee.filePath, calleeRanges.get(callee.id) ?? callee.range) : undefined, calleeSourceToken: target?.sourceToken });
           }
           if (!reading.hasSummary || reading.calls.length < reading.plan.rows.length) await this.send(request, reading, "progress", false);
         } while (!reading.hasSummary || reading.calls.length < reading.plan.rows.length);

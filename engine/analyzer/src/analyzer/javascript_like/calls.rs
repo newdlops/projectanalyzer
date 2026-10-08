@@ -191,10 +191,42 @@ fn resolve_call_target(
     call: &CallCandidate,
 ) -> Option<ResolvedCallTarget> {
     if let Some(qualifier) = &call.expression.qualifier {
+        // An opaque parameter/local must not accidentally bind to a class with
+        // the same spelling. A declared receiver type is only an inferred hint.
+        if lexical_bindings.shadows(&call.source_id, qualifier) {
+            return resolve_typed_receiver_call(symbols, lexical_bindings, call, qualifier);
+        }
         return resolve_qualified_call(symbols, call, qualifier);
     }
 
     resolve_bare_call(symbols, lexical_bindings, call)
+}
+
+/// Connects a required named-type parameter to one unique same-file class method.
+fn resolve_typed_receiver_call(
+    symbols: &[SymbolRecord],
+    lexical_bindings: &LexicalBindings,
+    call: &CallCandidate,
+    qualifier: &str,
+) -> Option<ResolvedCallTarget> {
+    let type_name = lexical_bindings.receiver_type(&call.source_id, qualifier)?;
+    let mut owners = symbols.iter().filter(|symbol| symbol.qualified_name == type_name);
+    let owner = owners.next()?;
+    if owner.kind != "class" || owners.next().is_some() {
+        return None;
+    }
+    let qualified_name = format!("{}.{}", owner.qualified_name, call.expression.lookup_name);
+    let mut targets = symbols.iter().filter(|symbol| symbol.qualified_name == qualified_name);
+    let target = targets.next()?;
+    if target.kind != "method" || targets.next().is_some() {
+        return None;
+    }
+    Some(ResolvedCallTarget {
+        target_id: target.id.clone(),
+        // Structural types, subclasses, overrides and replacement values are
+        // not evaluated. Preserve this distinction through the graph protocol.
+        confidence: "inferred".to_string(),
+    })
 }
 
 /// Resolves member-style calls without falling back to unrelated same-name symbols.

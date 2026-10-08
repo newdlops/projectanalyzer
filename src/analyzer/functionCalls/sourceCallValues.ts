@@ -11,11 +11,12 @@ type Invocation = { site: FunctionLogicCallsite; from: number; to: number; sourc
 
 /** Reuse one parser adapter per callee; bounded interval postorder retains duplicate/nested calls and their statement ownership. */
 export function createFunctionCallSourceValueReader(callee: SymbolNode, source: string, logic: FunctionLogicAnalysis) {
+  const readingOptions = { externalReads: true, methodReceiver: callee.kind === "method" };
   // The common call-free path needs no additional AST, line index or ownership
   // map. Keep its original closed expression cost and result contract.
   if (!logic.callsites.length) return (expression: string, _block: FunctionLogicBlock, names: Set<string>): FunctionCallSourceValue | undefined => {
     if (callee.language === "kotlin" && expression.includes("$")) return;
-    const value = readFunctionCallSourceObjectExpression(expression, names, { externalReads: true });
+    const value = readFunctionCallSourceObjectExpression(expression, names, readingOptions);
     return value && { ...value, calls: [], sites: [] };
   };
   const lineStarts = [0];
@@ -40,7 +41,7 @@ export function createFunctionCallSourceValueReader(callee: SymbolNode, source: 
     if (!complete || !expression || expression.length > 120 || callee.language === "kotlin" && expression.includes("$")) return;
     const invocations = owners.get(block.id) ?? [];
     if (!invocations.length) {
-      const value = readFunctionCallSourceObjectExpression(expression, names, { externalReads: true });
+      const value = readFunctionCallSourceObjectExpression(expression, names, readingOptions);
       return value && { ...value, calls: [], sites: [] };
     }
     if (invocations.length > 16) return;
@@ -54,7 +55,7 @@ export function createFunctionCallSourceValueReader(callee: SymbolNode, source: 
     for (const call of [...invocations].sort((left, right) => left.to - right.to || right.from - left.from)) {
       const { site } = call, syntax = guardReader(site);
       const opening = call.source.indexOf("("), calleeText = call.source.slice(0, opening).trim();
-      const direct = /^[\p{L}_$][\p{L}\p{N}_$]*$/u.test(calleeText), receiver = direct ? undefined : readFunctionCallSourceObjectExpression(calleeText, names, { externalReads: true });
+      const direct = /^[\p{L}_$][\p{L}\p{N}_$]*$/u.test(calleeText), receiver = direct ? undefined : readFunctionCallSourceObjectExpression(calleeText, names, readingOptions);
       if (opening < 1 || (!direct && !receiver?.accesses.length) || calleeText !== site.calleeText
         || ["eval", "Function"].includes(site.calleeName) || site.confidence === "inferred" && !(receiver && callee.language === "kotlin")
         || site.relation && site.relation !== "call"
@@ -73,7 +74,7 @@ export function createFunctionCallSourceValueReader(callee: SymbolNode, source: 
         // Their original separators must still prove a valid call expression.
         if (index < 0 || !separator.test(call.source.slice(cursor, index))) return;
         const value = replaceCalls(source, call.from + index, call.from + index + argument.length, validated);
-        const argumentValue = readFunctionCallSourceObjectExpression(value, names, { externalReads: true }); if (!argumentValue) return;
+        const argumentValue = readFunctionCallSourceObjectExpression(value, names, readingOptions); if (!argumentValue) return;
         accesses.push(...argumentValue.accesses);
         externalReads.push(...(argumentValue.externalReads ?? []));
         cursor = index + argument.length;
@@ -81,7 +82,7 @@ export function createFunctionCallSourceValueReader(callee: SymbolNode, source: 
       if (!/^\s*\)$/u.test(call.source.slice(cursor))) return;
       validated.push(call);
     }
-    const result = readFunctionCallSourceObjectExpression(replaceCalls(source, from, to, validated), names, { externalReads: true }); if (!result) return;
+    const result = readFunctionCallSourceObjectExpression(replaceCalls(source, from, to, validated), names, readingOptions); if (!result) return;
     accesses.push(...result.accesses);
     externalReads.push(...(result.externalReads ?? []));
     // Preserve original syntax, not the checking placeholders or invented values.

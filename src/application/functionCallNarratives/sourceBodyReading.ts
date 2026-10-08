@@ -11,7 +11,7 @@ export function renderFunctionCallSourceBody(facts: FunctionCallSourceFacts, ko:
   const callValues = paths.some(path => path.some(step => step.kind !== "call" && step.calls?.length));
   const external = paths.some(path => path.some(step => step.externalReads?.length));
   const opaque = Boolean(facts.opaqueParameters?.length);
-  const accesses = opaque || external || paths.some(path => path.some(step => step.accesses?.length));
+  const accesses = facts.methodSource || opaque || external || paths.some(path => path.some(step => step.accesses?.length));
   let common = 0;
   while (common < paths[0].length && paths.every(path => path[common]?.key === paths[0][common].key
     && path[common]?.outcome === paths[0][common].outcome)) common++;
@@ -21,7 +21,9 @@ export function renderFunctionCallSourceBody(facts: FunctionCallSourceFacts, ko:
         : code(step.source)).join(" → ");
   const prefix = render(paths[0].slice(0, common));
   const body = paths.length === 1 ? prefix : (prefix ? prefix + " → " : "") + "[" + paths.map(path => render(path.slice(common))).join("; ") + "]";
-  return body + (opaque ? ko ? " (선언 타입만 확인; 입력 값/타입·연산자·상태/효과 미확인; 정상 완료 가정)"
+  return body + (facts.methodSource ? ko ? " (후보 원문; 수신자/값·디스패치/getter·상태/효과 미확인; 정상 완료 가정)"
+    : " (candidate source; receiver/values/dispatch/getters/state/effects unknown; normal completion assumed)"
+    : opaque ? ko ? " (선언 타입만 확인; 입력 값/타입·연산자·상태/효과 미확인; 정상 완료 가정)"
     : " (declared types only; input values/types, operators/state/effects unknown; normal completion assumed)"
     : external ? ko ? " (정상 완료 가정; 외부 값/상태·디스패치·getter·결과/효과 미확인)"
     : " (external values/state/dispatch/getters/effects unknown; normal completion assumed)"
@@ -42,27 +44,15 @@ export function renderFunctionCallSourceReturns(facts: FunctionCallSourceFacts):
 /** Keep conditional local changes and duplicate statement occurrences; a source key prevents accidental text deduplication. */
 export function renderFunctionCallSourceEffects(facts: FunctionCallSourceFacts, ko: boolean): string | undefined {
   if (!facts.bodyPaths) return;
-  const seen = new Set<string>(), changes: string[] = [], calls: string[] = [], operations: string[] = [];
+  const { changes, calls, operations } = collectSourceOperations(facts);
   const callValues = facts.bodyPaths.some(path => path.some(step => step.kind !== "call" && step.calls?.length));
   const external = facts.bodyPaths.some(path => path.some(step => step.externalReads?.length));
   const opaque = Boolean(facts.opaqueParameters?.length);
   const accesses = opaque || external || facts.bodyPaths.some(path => path.some(step => step.accesses?.length));
-  for (const path of facts.bodyPaths) {
-    const guards: string[] = [];
-    for (const step of path) {
-      if (opaque || ["change", "call"].includes(step.kind) || step.calls?.length || step.accesses?.length || step.externalReads?.length) {
-        const key = JSON.stringify([step.key, guards]);
-        if (!seen.has(key)) {
-          const operation = (guards.length ? guards.join(" & ") + ": " : "") + code(step.source);
-          seen.add(key); (step.kind === "change" ? changes : calls).push(operation); operations.push(operation);
-        }
-      }
-      // Calling a predicate precedes its outcome; only earlier path guards
-      // qualify that invocation, never the decision it is about to produce.
-      if (step.kind === "condition") guards.push(condition(step));
-    }
-  }
   const local = changes.length ? (ko ? "지역 변경: " : "Local changes: ") + changes.join("; ") + ". " : "";
+  if (facts.methodSource) return operations.join("; ") + (ko
+    ? ". 후보 원문; 수신자/값·연산자/getter·디스패치·상태/효과 미확인; 정상 완료 가정."
+    : ". Candidate source; receiver/values/operators/getters/dispatch/state/effects unknown; normal completion assumed.");
   if (opaque) return operations.join("; ") + (ko
     ? ". 선언 타입만 확인; 입력 값/런타임 타입·연산자/디스패치·getter·외부 상태/효과 미확인; 정상 완료 가정."
     : ". Declared types; values/types/operators/getters/dispatch/state/effects unknown; assume normal completion.");
@@ -77,4 +67,32 @@ export function renderFunctionCallSourceEffects(facts: FunctionCallSourceFacts, 
       : "Call bodies/results/types/effects unreviewed; assume normal return/local preservation."
       : ko ? "내부 구현·외부 효과 미확인; 정상 복귀·지역 값 유지 가정." : "Bodies/effects unreviewed; assume normal return/local preservation.");
   return changes.length ? local + (ko ? "명시적 외부 쓰기·다른 호출 없음; 실제 효과 미관찰." : "No explicit external writes/calls; effects unobserved.") : undefined;
+}
+
+/** All original method operations remain available when caller/callee uncertainty is written once in a bounded field. */
+export function renderFunctionCallSourceOperations(facts: FunctionCallSourceFacts): string {
+  return collectSourceOperations(facts).operations.join("; ");
+}
+
+/** Source keys and earlier guards preserve repeated statements and evaluation before the predicate outcome. */
+function collectSourceOperations(facts: FunctionCallSourceFacts): { changes: string[]; calls: string[]; operations: string[] } {
+  const seen = new Set<string>(), changes: string[] = [], calls: string[] = [], operations: string[] = [];
+  const opaque = Boolean(facts.opaqueParameters?.length);
+  if (!facts.bodyPaths) return { changes, calls, operations };
+  for (const path of facts.bodyPaths) {
+    const guards: string[] = [];
+    for (const step of path) {
+      if (facts.methodSource || opaque || ["change", "call"].includes(step.kind) || step.calls?.length || step.accesses?.length || step.externalReads?.length) {
+        const key = JSON.stringify([step.key, guards]);
+        if (!seen.has(key)) {
+          const operation = (guards.length ? guards.join(" & ") + ": " : "") + code(step.source);
+          seen.add(key); (step.kind === "change" ? changes : calls).push(operation); operations.push(operation);
+        }
+      }
+      // Calling a predicate precedes its outcome; only earlier path guards
+      // qualify that invocation, never the decision it is about to produce.
+      if (step.kind === "condition") guards.push(condition(step));
+    }
+  }
+  return { changes, calls, operations };
 }

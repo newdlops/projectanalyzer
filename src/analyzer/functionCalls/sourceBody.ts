@@ -17,6 +17,8 @@ export type FunctionCallSourceBodyStep = { key: string; kind: "change" | "condit
   /** Captured/module/external bindings retain source names while all values and effects stay unknown. */
   externalReads?: string[] };
 export type FunctionCallSourceBodyFacts = { parameters: string[]; parameterTypes: string[]; returnExpression: string; returnSource: string;
+  /** Candidate method syntax never proves receiver identity, dispatch or primitive evaluation safety. */
+  methodSource?: true;
   /** Declared reference/other types describe syntax, not known runtime values or safe primitive operands. */
   opaqueParameters?: string[];
   /** Absent for the established single-return leaf; every extended path retains all steps in order. */
@@ -33,8 +35,9 @@ export function readFunctionCallSourceBody(callee: SymbolNode, source: string, m
     || !["entry", "exit", "mutation", "condition", "return", "call"].includes(block.kind))
     || logic.gaps.some(gap => !["parseLimited", "dynamicBehavior"].includes(gap.code))) return;
   const tutor = analyzeFunctionTutorDeclaration({ functionNode: callee, sourceText: source, functionLogic: logic });
-  const declared = readFunctionCallSourceDeclaredParameters(tutor);
-  if (tutor.executionKind !== "sync" || !declared) return;
+  const methodSource = callee.kind === "method";
+  const declared = readFunctionCallSourceDeclaredParameters(tutor, { sourceOnlyMethod: methodSource });
+  if (tutor.executionKind !== "sync" || !declared || /(?:^|\s)(?:get|set)\s+[\p{L}_$][\p{L}\p{N}_$]*\s*\(/u.test(logic.signature)) return;
   const declaration = readFunctionCallSourceRange(source, logic.sourceRange ?? callee.range);
   if (!declaration || declaration.length > 1800) return;
   // Kotlin execution modifiers belong to the declaration header, not ordinary
@@ -114,9 +117,10 @@ export function readFunctionCallSourceBody(callee: SymbolNode, source: string, m
   }
   if (!firstReturn || !paths.length || covered.size !== blocks.size || calls.size !== logic.callsites.length) return;
   return { parameters, parameterTypes: declared.parameters.map(parameter => parameter.type), returnExpression: firstReturn.expression,
+    ...(methodSource ? { methodSource: true } : {}),
     ...(declared.opaqueParameters.length ? { opaqueParameters: declared.opaqueParameters } : {}),
     // Even an opaque identity return must retain uncertainty and cannot enter
     // the legacy primitive leaf/guarded recipe by dropping its body paths.
-    returnSource: firstReturn.source, ...(paths.length === 1 && paths[0].length === 1 && !declared.opaqueParameters.length
+    returnSource: firstReturn.source, ...(paths.length === 1 && paths[0].length === 1 && !methodSource && !declared.opaqueParameters.length
       && !paths[0][0].calls?.length && !paths[0][0].accesses?.length && !paths[0][0].externalReads?.length ? {} : { bodyPaths: paths }) };
 }

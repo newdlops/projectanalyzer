@@ -9,6 +9,8 @@ export type FunctionCallNarrativeTarget = {
   arguments?: string[];
   /** Host-owned exact formal declarations; absent for ambiguous/default/rest/unknown signatures. */
   parameters?: Array<{ name: string; type: string }>;
+  /** Host-owned declaration kind; a method body does not establish actual receiver dispatch. */
+  sourceKind?: "method";
 };
 export type FunctionCallNarrativeTask = {
   scope: FunctionCallNarrativeScope; signature: string; includeSummary: boolean;
