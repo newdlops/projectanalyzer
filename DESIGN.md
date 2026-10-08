@@ -49,6 +49,10 @@ summary directly. Preserve every typed transfer and explicit local change in the
 connected flow; make branch assumptions and inferred dispatch visible. Keep the
 same five detail fields and source controls. One Kotlin predicate is selected
 once through its CFG; equal text at distinct source positions remains independent.
+The final reading may connect certified detail batches into a complete larger
+source flow. Preserve every transfer, return expression and local use in the same
+flat summary/flow section and cached call selector. Proof storage is Host-only;
+add no setup controls, new visual tokens or extra model action.
 
 Acceptance: real local TypeScript and Kotlin caller/callee readings; cross-file
 evidence, strict fixed call references, distinct repeated sites/visits, static

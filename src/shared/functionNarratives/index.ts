@@ -3,6 +3,7 @@ export type { FunctionNarrative, FunctionNarrativeScenario, FunctionNarrativeSte
 export { isFunctionNarrative, createFunctionNarrativeValidator } from "./validation";
 export { isFunctionNarrativeExample } from "./exampleValidation";
 export type { FunctionNarrativeExample, FunctionNarrativeNodeDetail, FunctionNarrativeSourceTrace } from "./types";
+export type { FunctionCallSourceProofHandle } from "./types";
 export { isFunctionNarrativeLanguage } from "./language";
 export { FunctionNarrativeError, type FunctionNarrativeFailure } from "./errors";
 export type { FunctionNarrativePageStore, FunctionNarrativePageStoreFactory } from "./pageStore";

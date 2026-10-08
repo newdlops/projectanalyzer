@@ -6,6 +6,7 @@ import { createFunctionCallSourceReader, type FunctionCallSourceFacts } from "..
 import type { SymbolNode, SourceRange } from "../../shared/types";
 import { buildFunctionCallSourceFlow } from "./sourceFlow";
 import { buildFunctionCallSourceSummary, type SourceCallSummaryProof } from "./sourceSummary";
+import { captureSourceCallProofs } from "./sourceProofs";
 
 /** Full source is Host-owned and never goes through the model/Webview protocol. */
 export type FunctionCallSourceCandidate = { target: FunctionCallNarrativeTarget; callerRange?: SourceRange;
@@ -20,10 +21,11 @@ export function attachFunctionCallSourceReading(context: FunctionNarrativeContex
   const fixedTask = () => JSON.stringify([task.scope, task.signature, task.sequence, task.conditions, task.routeStatus, task.terminal]);
   const taskFingerprint = fixedTask();
   const cache = new Map<"ko" | "en", SourceCallSummaryProof[] | undefined>();
+  const owns = (owner: FunctionNarrativeContext) => owner.callTask === task && owner.snippets === snippets
+    && JSON.stringify(snippets) === sourceFingerprint && fixedTask() === taskFingerprint
+    && task.targets.length === candidates.length && task.targets.every((target, index) => JSON.stringify(target) === targets[index]);
   context.sourceCallReadings = { read(owner, language) {
-    if (owner.callTask !== task || owner.snippets !== snippets || JSON.stringify(snippets) !== sourceFingerprint
-      || fixedTask() !== taskFingerprint || task.targets.length !== candidates.length
-      || task.targets.some((target, index) => JSON.stringify(target) !== targets[index])) return;
+    if (!owns(owner)) return;
     if (task.includeSummary && !task.targets.length && task.sequence.length) {
       try { return buildFunctionCallSourceFlow(owner, parent, source, language); } catch { return; }
     }
@@ -60,6 +62,9 @@ export function attachFunctionCallSourceReading(context: FunctionNarrativeContex
       // Failed syntax proof keeps the original model path, never a false success.
       cache.set(language, undefined); return;
     }
+  }, capture(owner, language) {
+    const proofs = owns(owner) && cache.get(language);
+    return proofs ? captureSourceCallProofs(owner, parent, source, proofs) : undefined;
   } };
 }
 

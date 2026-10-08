@@ -3,7 +3,7 @@ import { buildFunctionCallNarrativePlan, buildFunctionCallNarrativeContext, pars
 import { createProjectCallableScope } from "../../application/functionCalls";
 import type { FunctionNarrativeProvider } from "../../application/functionNarratives";
 import { requestFunctionNarrative } from "../../application/functionNarratives";
-import { FunctionNarrativeError } from "../../shared/functionNarratives";
+import { FunctionNarrativeError, type FunctionCallSourceProofHandle } from "../../shared/functionNarratives";
 import type { SymbolNode } from "../../shared/types";
 import { createContentHash } from "../../shared/hash";
 import type { FunctionCallsResponse } from "../../protocol/functionCalls";
@@ -23,6 +23,7 @@ type Dependencies = {
 type Entry = { contextId: string; node: SymbolNode; source: string; slice: FunctionCallsResponse; lastRequestId: number };
 type Reading = { plan: FunctionCallNarrativePlan; calls: FunctionCallReadingEntry[]; summary?: string; flow?: string;
   limitations: string[]; modelName?: string; language: "ko" | "en"; sourceLimited: boolean; hasSummary: boolean; allSourceDetails: boolean;
+  proofBatches: FunctionCallSourceProofHandle[];
   calleeEvidence: NonNullable<import("../../shared/functionCallNarratives").FunctionCallNarrativeTask["calleeEvidence"]> };
 
 /** Recent contexts authorize source reads; recent routes retain prose, never a resident model. */
@@ -84,7 +85,8 @@ export class FunctionCallNarrativesHostDelivery {
     if (!provider) { await failure("unavailable"); return; }
     let reading = cached;
     try {
-      if (!reading) reading = { plan: buildFunctionCallNarrativePlan(entry.slice, request), calls: [], limitations: [], language, sourceLimited: entry.slice.limited, hasSummary: false, allSourceDetails: true, calleeEvidence: [] };
+      if (!reading) reading = { plan: buildFunctionCallNarrativePlan(entry.slice, request), calls: [], limitations: [], language,
+        sourceLimited: entry.slice.limited, hasSummary: false, allSourceDetails: true, proofBatches: [], calleeEvidence: [] };
     } catch (error) { await failure(error instanceof FunctionNarrativeError ? error.code : "invalid-response"); return; }
     this.pending?.controller.abort();
     const pending = { request, controller: new AbortController() }; this.pending = pending;
@@ -116,7 +118,8 @@ export class FunctionCallNarrativesHostDelivery {
           const finalSummary = reading.plan.rows.length > 2 && offset === reading.plan.rows.length;
           context.callTask!.includeSummary = reading.plan.rows.length <= 2 || finalSummary;
           if (finalSummary) {
-            if (reading.allSourceDetails) context.sourceCallFlowProof = { inferred: reading.plan.rows.some(row => row.connection.confidence === "inferred") };
+            if (reading.allSourceDetails) context.sourceCallFlowProof = { inferred: reading.plan.rows.some(row => row.connection.confidence === "inferred"),
+              batches: reading.proofBatches };
             context.callTask!.calleeEvidence = reading.calleeEvidence;
             context.callTask!.earlierModelReadings = reading.calls.slice(0, 8).map(call => ({ callId: call.callId,
               inputs: call.inputs.slice(0, 100), output: call.output.slice(0, 100), effects: call.effects.slice(0, 100) }));
@@ -136,6 +139,10 @@ export class FunctionCallNarrativesHostDelivery {
             // Model-authored strings, even with a source-looking model name,
             // cannot authorize a whole-flow recipe without matching the proof.
             reading.allSourceDetails &&= Boolean(source && JSON.stringify(source) === JSON.stringify(chunk));
+            if (reading.allSourceDetails && reading.proofBatches.length < 4) {
+              const proof = context.sourceCallReadings?.capture?.(context, language);
+              if (proof) reading.proofBatches.push(proof);
+            }
           }
           if (context.callTask!.includeSummary) { reading.summary = chunk.summary; reading.flow = chunk.flow; reading.hasSummary = true; }
           reading.modelName = response.modelName.slice(0, 100); reading.sourceLimited ||= context.limited;

@@ -4,6 +4,17 @@ All notable user-visible changes to Project Analyzer: Code Flow are recorded in
 this file. The changelog starts with the first distribution-documented build;
 earlier local development builds were not tracked here.
 
+## 0.0.1131 - 2026-10-08
+
+### Improved
+
+- Reuse certified source facts across call-detail batches to summarize complete
+  acyclic structures and selected routes with more than two calls.
+- Retain compact proof handles instead of full callee files or prior contexts;
+  reject forged, duplicate, missing and foreign-snapshot proof batches.
+- Preserve all typed transfers, local uses, return expressions and detail pages.
+  Keep unknown work and over-budget summaries on the existing model path.
+
 ## 0.0.1130 - 2026-10-08
 
 ### Improved

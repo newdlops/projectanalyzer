@@ -869,6 +869,13 @@ inferred dispatch를 가정으로 표시한다. 각 경로는 visited set과 64-
 쓰기, 미확인 부모 동작, cycle과 비동기 실행 계약은 모델을 유지한다. Kotlin의 parser-owned
 predicate group이 기존 CFG에 있으면 같은 표현식 guard를 다시 선택하지 않으며 동일 호출
 텍스트가 본문에 나타나도 실제 predicate span 밖의 호출은 그 본문에 소유된다.
+0.0.1131은 상세와 독립 소스 proof가 일치한 배치의 작은 증명 identity만 보관한다. 실제
+인자·선언 타입·반환 식·호출부 사용·범위·confidence를 복사하고 원문 파일/이전 context는
+보관하지 않는다. 같은 함수 원문과 scope/sequence/conditions의 최대 4배치·8호출만 마지막
+요약으로 연결하며 전체 CFG와 기존 240/600자 상한을 다시 검증한다. 모델 prose·serialized
+handle·중복/누락/다른 snapshot의 증명은 권한이 아니다. 증명과 callback은 외부 prompt 및
+Webview protocol에서 제외하고 캐시 폐기와 함께 회수한다. 상세·인용·페이지와 모델 fallback은
+유지한다.
 순서 모델은 최대 512 블록·1,024 제어 연결, 하나의 경로는 1,024 탐색 단계·256 표시 항목으로
 제한한다. 근거 부족과 한도는 표시하며 원본 소스를 실행하지 않는다.
 

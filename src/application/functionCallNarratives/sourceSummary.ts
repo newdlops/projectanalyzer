@@ -42,7 +42,7 @@ function isolated(proof: SourceCallSummaryProof, ko: boolean): { summary: string
 export function buildFunctionCallSourceSummary(context: FunctionNarrativeContext, parent: SymbolNode, source: string,
   proofs: SourceCallSummaryProof[], language: "ko" | "en"): { summary: string; flow: string } | undefined {
   const task = context.callTask!, ko = language === "ko";
-  if (proofs.length > 2 || task.sequence.length !== proofs.length
+  if (proofs.length > 8 || task.sequence.length !== proofs.length
     || task.sequence.some((row, index) => row.callId !== proofs[index].target.callId || row.callee !== proofs[index].target.callee
       || row.expression !== proofs[index].target.expression || row.deferred)) return;
   // A whole call explanation cannot silently omit effects hidden in argument

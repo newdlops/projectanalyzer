@@ -6,9 +6,24 @@ import type { FunctionNarrativeContext } from "../../shared/functionNarratives";
 import type { FunctionCallNarrativeChunk } from "../../shared/functionCallNarratives";
 import { isFunctionCallNarrativeChunk, isFunctionCallNarrativeLanguage } from "../../shared/functionCallNarratives";
 import type { SymbolNode } from "../../shared/types";
+import { buildFunctionCallSourceSummary } from "./sourceSummary";
+import { readSourceCallProofs } from "./sourceProofs";
 
-/** Only an entire exact guard/early-return/bind/return recipe may replace whole-parent prose. */
+/** Preserve the established compact guarded prose, then compile other complete paths from certified batches. */
 export function buildFunctionCallSourceFlow(context: FunctionNarrativeContext, parent: SymbolNode, source: string,
+  language: "ko" | "en"): FunctionCallNarrativeChunk | undefined {
+  const guarded = buildGuardedSourceFlow(context, parent, source, language);
+  if (guarded) return guarded;
+  if (!context.callTask?.includeSummary || !context.sourceCallFlowProof) return;
+  const proofs = readSourceCallProofs(context, parent, source);
+  if (!proofs) return;
+  const summary = buildFunctionCallSourceSummary(context, parent, source, proofs, language);
+  const chunk = summary && { ...summary, calls: [], limitations: [] };
+  return chunk && isFunctionCallNarrativeChunk(chunk, [], true) && isFunctionCallNarrativeLanguage(chunk, language) ? chunk : undefined;
+}
+
+/** Existing entire guard/early-return/bind/return recipe; other flows use the generic bounded compiler above. */
+function buildGuardedSourceFlow(context: FunctionNarrativeContext, parent: SymbolNode, source: string,
   language: "ko" | "en"): FunctionCallNarrativeChunk | undefined {
   const task = context.callTask!, evidence = task.calleeEvidence;
   if (!context.sourceCallFlowProof || task.scope !== "overview" || task.routeStatus !== "structure" || !task.includeSummary

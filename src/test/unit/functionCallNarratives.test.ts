@@ -311,6 +311,15 @@ test("complete native call source recipes need no runtime, weights, download, fa
           choices: [...example.selection].map(([key, value]) => ({ key, value })) });
         assert.equal(h.replies.at(-1)!.modelName, "Source analysis");
       }
+      const serial = language === "kotlin" ? "fun checkout(amount: Int): Int { val a = addFee(amount); val b = double(a); return addFee(b) }"
+        : 'import { addFee, double } from "./readingHelpers";\nexport function checkout(amount: number): number { const a = addFee(amount); const b = double(a); return addFee(b); }';
+      const more = await harness(language, provider, undefined, (name, original) => name === "reading" ? serial : original);
+      try {
+        await more.delivery.explain(more.explanation);
+        assert.equal(more.replies.at(-1)!.modelName, "Source analysis");
+        assert.equal(more.replies.at(-1)!.coverage!.completed, 3);
+        assert.match(more.replies.at(-1)!.narrative!.flow!, /`value \+ 5`.*`value \* 2`.*`value \+ 5`/u);
+      } finally { more.delivery.reset(); }
       assert.equal(downloads, 0); assert.equal(factories, 0); assert.equal(notifications, 0);
       assert.deepEqual(manager.snapshot().history, []);
     } finally { h.delivery.reset(); await manager.dispose(); }
@@ -475,5 +484,132 @@ test("complete symbolic source summaries without calls still defer async and sus
     const h = await harness(language, provider, undefined, (name, original) => name === "reading" ? source : original);
     try { await h.delivery.explain(h.explanation); assert.equal(models, 1); assert.equal(h.replies.at(-1)!.status, "ready"); }
     finally { h.delivery.reset(); }
+  }
+});
+
+for (const language of ["typescript", "kotlin"] as const) test(`${language} three-call serial structure and selected route reuse certified batches without dropping fields`, async () => {
+  let models = 0;
+  const contexts: FunctionNarrativeContext[] = [];
+  const provider: FunctionNarrativeProvider = { async generate(context, locale) {
+    contexts.push(context); const source = buildSourceFunctionNarrativeResponse(context, locale);
+    if (source) return source; models++; return functionCallReadingReply(context, locale);
+  } };
+  const body = language === "kotlin" ? "fun checkout(amount: Int): Int { val a = addFee(amount); val b = double(a); return addFee(b) }"
+    : 'import { addFee, double } from "./readingHelpers";\nexport function checkout(amount: number): number { const a = addFee(amount); const b = double(a); return addFee(b); }';
+  const h = await harness(language, provider, undefined, (name, original) => name === "reading" ? body : original);
+  try {
+    const staticGraph = JSON.stringify(h.slice);
+    const examples = exampleFunctionCallScenarios(h.slice.control, new Map(h.slice.connections.map(edge => [edge.id, edge])));
+    const selected = { ...h.explanation, requestId: 10, scope: "scenario" as const, choices: [...examples[0].selection].map(([key, value]) => ({ key, value })) };
+    for (const request of [h.explanation, selected]) {
+      await h.delivery.explain(request);
+      const ready = h.replies.at(-1)!;
+      assert.equal(ready.status, "ready"); assert.equal(ready.modelName, "Source analysis"); assert.equal(ready.coverage!.completed, 3);
+      assert.match(ready.narrative!.flow!, /`amount` → `value`.*`value \+ 5`.*local `a`.*`a` → `value`.*`value \* 2`.*local `b`.*`b` → `value`.*`value \+ 5`.*parent return/u);
+      const final = contexts.at(-1)!;
+      assert.equal(final.sourceCallFlowProof!.batches!.length, 2);
+      assert.ok(buildSourceFunctionNarrativeResponse(final, "ko"));
+      assert.equal(numberFunctionNarrativeContext(final).sourceCallFlowProof, undefined);
+      assert.doesNotMatch(buildFunctionCallNarrativePrompt(final, "en").join("\n"), /sourceCallFlowProof|"batches"|function-call-source-proof/u);
+      const batches = final.sourceCallFlowProof!.batches!;
+      final.sourceCallFlowProof!.batches = batches.map(() => ({ kind: "function-call-source-proof" as const }));
+      assert.equal(buildSourceFunctionNarrativeResponse(final, "en"), undefined, "a serialized-looking record is not proof identity");
+      final.sourceCallFlowProof!.batches = [batches[0], batches[0]];
+      assert.equal(buildSourceFunctionNarrativeResponse(final, "en"), undefined, "duplicate proof coverage is rejected");
+      final.sourceCallFlowProof!.batches = batches;
+      const generated = contexts.length;
+      const calls = [];
+      for (let pageIndex = 0; pageIndex < 2; pageIndex++) {
+        await h.delivery.explain({ ...request, requestId: 20 + pageIndex, pageIndex, pageLanguage: "en" });
+        calls.push(...h.replies.at(-1)!.narrative!.calls);
+      }
+      assert.equal(contexts.length, generated); assert.equal(calls.length, 3);
+      assert.ok(calls.every(call => [call.role, call.inputs, call.output, call.effects, call.reason].every(field => field.length > 0)));
+      assert.ok(calls.every(call => call.callerEvidence && call.calleeEvidence));
+    }
+    assert.equal(models, 0); assert.equal(JSON.stringify(h.slice), staticGraph);
+    const overview = contexts.find(context => context.sourceCallFlowProof && context.callTask!.scope === "overview")!;
+    const scenario = contexts.find(context => context.sourceCallFlowProof && context.callTask!.scope === "scenario")!;
+    const old = scenario.sourceCallFlowProof!.batches;
+    scenario.sourceCallFlowProof!.batches = overview.sourceCallFlowProof!.batches;
+    assert.equal(buildSourceFunctionNarrativeResponse(scenario, "en"), undefined, "different scopes cannot lend proof");
+    scenario.sourceCallFlowProof!.batches = old;
+    const detail = contexts.find(context => context.callTask!.targets.length > 0)!;
+    detail.callTask!.targets[0].arguments![0] = "changed-after-capture";
+    assert.ok(buildSourceFunctionNarrativeResponse(scenario, "en"), "later context mutation cannot modify captured symbolic facts");
+  } finally { h.delivery.reset(); }
+});
+
+test("multi-batch source proof keeps full callee knowledge when the separate model excerpt is truncated", async () => {
+  let models = 0;
+  const contexts: FunctionNarrativeContext[] = [];
+  const provider: FunctionNarrativeProvider = { async generate(context, language) {
+    contexts.push(context); const source = buildSourceFunctionNarrativeResponse(context, language);
+    if (source) return source; models++; return functionCallReadingReply(context, language);
+  } };
+  const body = 'import { addFee, double } from "./readingHelpers";\nexport function checkout(amount: number): number { const a = addFee(amount); const b = double(a); return addFee(b); }';
+  const h = await harness("typescript", provider, undefined, (name, original) => name === "reading" ? body
+    : original.replace("return value + 5;", " ".repeat(500) + "return value + 5;"));
+  try {
+    await h.delivery.explain(h.explanation);
+    const final = contexts.at(-1)!;
+    assert.ok(final.callTask!.calleeEvidence!.some(evidence => evidence.truncated));
+    assert.equal(h.replies.at(-1)!.modelName, "Source analysis"); assert.equal(models, 0);
+    assert.match(h.replies.at(-1)!.narrative!.flow!, /`value \+ 5`.*`value \* 2`.*`value \+ 5`/u);
+    assert.equal(h.replies.at(-1)!.coverage!.sourceLimited, true, "existing excerpt/graph limitation metadata remains explicit");
+  } finally { h.delivery.reset(); }
+});
+
+test("model-looking source prose and unproved parent effects cannot authorize the multi-batch final source summary", async () => {
+  for (const parentEffect of [false, true]) {
+    let models = 0;
+    const contexts: FunctionNarrativeContext[] = [];
+    const provider: FunctionNarrativeProvider = { async generate(context, language) {
+      contexts.push(context); const source = buildSourceFunctionNarrativeResponse(context, language);
+      if (!context.callTask!.includeSummary && source) {
+        if (parentEffect) return source;
+        const data = JSON.parse(source.text); data.calls[0].role += " Changed by the model.";
+        return { modelName: "Source analysis", text: JSON.stringify(data) };
+      }
+      if (source) return source; models++; return functionCallReadingReply(context, language);
+    } };
+    const body = 'import { addFee, double } from "./readingHelpers";\nexport function checkout(amount: number): number { '
+      + (parentEffect ? "audit(amount); " : "") + "const a = addFee(amount); const b = double(a); return addFee(b); }";
+    const h = await harness("typescript", provider, undefined, (name, original) => name === "reading" ? body : original);
+    try {
+      await h.delivery.explain(h.explanation);
+      assert.equal(models, 1); assert.equal(h.replies.at(-1)!.status, "ready");
+      const final = contexts.at(-1)!;
+      assert.equal(buildSourceFunctionNarrativeResponse(final, "en"), undefined);
+      if (!parentEffect) assert.equal(final.sourceCallFlowProof, undefined);
+    } finally { h.delivery.reset(); }
+  }
+});
+
+test("large certified call structures keep every detail and use the model when summary budgets or proof limits are exceeded", async () => {
+  for (const count of [8, 10]) {
+    let models = 0;
+    const contexts: FunctionNarrativeContext[] = [];
+    const provider: FunctionNarrativeProvider = { async generate(context, language) {
+      contexts.push(context); const source = buildSourceFunctionNarrativeResponse(context, language);
+      if (source) return source; models++; return functionCallReadingReply(context, language);
+    } };
+    const statements = Array.from({ length: count - 1 }, (_, index) => `const v${index} = addFee(${index ? "v" + (index - 1) : "amount"});`).join(" ");
+    const body = 'import { addFee } from "./readingHelpers";\nexport function checkout(amount: number): number { '
+      + statements + ` return addFee(v${count - 2}); }`;
+    const h = await harness("typescript", provider, undefined, (name, original) => name === "reading" ? body : original);
+    try {
+      await h.delivery.explain(h.explanation);
+      assert.equal(h.replies.at(-1)!.status, "ready"); assert.equal(models, 1);
+      assert.ok(contexts.at(-1)!.sourceCallFlowProof!.batches!.length <= 4);
+      const calls = [];
+      for (let pageIndex = 0; pageIndex < Math.ceil(count / 2); pageIndex++) {
+        await h.delivery.explain({ ...h.explanation, requestId: 2 + pageIndex, pageIndex, pageLanguage: "en" });
+        calls.push(...h.replies.at(-1)!.narrative!.calls);
+      }
+      assert.equal(calls.length, count);
+      assert.ok(calls.every(call => /`value \+ 5`/u.test(call.output)));
+      assert.ok(calls.every(call => call.callerEvidence && call.calleeEvidence));
+    } finally { h.delivery.reset(); }
   }
 });

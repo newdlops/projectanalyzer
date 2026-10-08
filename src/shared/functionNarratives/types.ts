@@ -49,15 +49,19 @@ export type FunctionNarrativeSnippet = {
   text: string;
   truncated: boolean;
 };
+/** Host-only identity handle; source facts are held in an application-owned WeakMap, never in this record. */
+export type FunctionCallSourceProofHandle = { readonly kind: "function-call-source-proof" };
 export type FunctionNarrativeContext = {
   functionName: string;
   language: string;
   /** Independent call-reading task using the same on-demand provider/process lifecycle. */
   callTask?: import("../functionCallNarratives").FunctionCallNarrativeTask;
   /** Host-only syntax proof port; neither full source ownership nor this callback is serialized to a model. */
-  sourceCallReadings?: { read(context: FunctionNarrativeContext, language: "ko" | "en"): import("../functionCallNarratives").FunctionCallNarrativeChunk | undefined };
+  sourceCallReadings?: { read(context: FunctionNarrativeContext, language: "ko" | "en"): import("../functionCallNarratives").FunctionCallNarrativeChunk | undefined;
+    /** Captures only compact, checked facts; retaining this handle does not retain the original context or callee file. */
+    capture?(context: FunctionNarrativeContext, language: "ko" | "en"): FunctionCallSourceProofHandle | undefined };
   /** Host-only: all earlier detail batches matched independent source proofs; never model-authored or serialized. */
-  sourceCallFlowProof?: { inferred: boolean };
+  sourceCallFlowProof?: { inferred: boolean; batches?: readonly FunctionCallSourceProofHandle[] };
   snippets: FunctionNarrativeSnippet[];
   /** Optional bounded syntax routes, not evaluated inputs or observed program execution. */
   sourceFlow?: FunctionNarrativeSourceFlow;

@@ -148,6 +148,54 @@ loop/exception transfer, inferred/partial/truncated evidence, 긴 식과 알 수
 초기 준비 문구는 저장하지 않는다. 각 시나리오의 상세 문단·대안은 계속 모델이 새로 작성한다.
 기존 노드 구문·동작·근거·효과·인용을 모두 유지하며 화면 배치도 유지한다.
 
+### 0.0.1131 배치 증명으로 더 큰 호출 흐름의 마지막 모델 요청 제거
+
+`application/functionCallNarratives/sourceProofs`는 Host-only identity handle과 WeakMap으로
+독립 소스 proof를 상세 배치 사이에 보관한다. 실제 응답과 원문에서 만든 다섯 항목이 정확히
+일치한 배치만 capture한다. `target/facts/callerRange/reading`의 작은 복사본이며 전체 callee
+파일·이전 context·lazy callback을 붙잡지 않는다. 같은 부모 ID·전체 원문 hash와 scope/
+signature/sequence/conditions/routeStatus/terminal이 맞아야 마지막 요약에서 읽을 수 있다.
+plain record를 복제해도 identity가 없으면 거부하고 중복/누락/외국 범위의 배치도 거부한다.
+
+최대 네 배치·여덟 호출을 기존 일반 비순환 compiler에 전달한다. 기존 guard/조기 반환/
+저장/반환의 compact recipe는 유지하고 그 밖의 완전한 흐름을 원문의 모든 지역 변경·
+조건·인자→매개변수 타입·실제 반환식·사용 위치로 읽는다. 마지막 요약의 targets/calls는
+계속 0개이며 이미 완료한 상세 항목과 원문 인용은 각 캐시 페이지에 남는다. 64-node/
+128-state/8-path 및 240/600자 상한은 그대로다. 내용 생략·가짜 business 의미·임의 실행값을
+넣지 않는다. 부모의 미확인 동작, 복잡한 callee, loop와 상한 초과는 기존 모델을 유지한다.
+
+`scripts/benchmark-call-scopes.mjs [runtime] [tag] serial`은 공개 `a = addFee(amount)` →
+`b = double(a)` → `return addFee(b)`를 실제 TS/Kotlin parser·Host·로컬 provider로 읽는다.
+호출별 다섯 항목을 모든 캐시 페이지에서 모아 coverage와 비교하고 인용도 검증한다. 같은
+PC에서 설치된 0.0.1130, 후보와 격리 설치된 0.0.1131을 각각 한 번 측정했다. 원문 reader는
+공개 fixture를 메모리에서 전달한다. 정적 graph 준비와 완료 후 캐시 페이지 조회는 측정 밖이다.
+
+| 범위 | 설치된 0.0.1130 | 후보 | 설치된 0.0.1131 | 실제 모델 요청 |
+| --- | ---: | ---: | ---: | ---: |
+| TS 전체 구조 | 8.53초 | 35.40ms | 24.66ms | 1 → 0 |
+| TS 선택 경로 | 7.41초 | 9.83ms | 8.67ms | 1 → 0 |
+| Kotlin 전체 구조 | 8.66초 | 10.84ms | 43.58ms | 1 → 0 |
+| Kotlin 선택 경로 | 6.87초 | 6.61ms | 4.42ms | 1 → 0 |
+
+0.0.1131의 각 요청에서 세 호출·15개 항목·전체 원문 연결과 두 캐시 페이지를 검증했다. 계산은 원문의
+symbolic 식으로 설명하며 실행 관찰값이 아니다. 조건 없는 serial 예제는 모든 typed 인자,
+`value + 5` / `value * 2` / `value + 5`, `a` / `b` 저장과 부모 반환을 연결한다. 일반 성능/
+의미 정확도 보장은 아니다. 한국어와 영어의 실제 parser/Host 테스트로 동일한 흐름을
+검증하고, Model-looking 이름/문장·forge/duplicate/foreign proof·후속 context 변경·
+450자 model excerpt 잘림과 원문 전체의 독립 proof를 구분한다. runtime/weights가 없는
+실제 configured provider도 세 호출 구조를 factory/download/notification/history 없이
+완료한다. 여덟/열 호출의 상한 초과에는 모델을 유지하고 40/50개 상세 항목을 보존한다.
+더 큰 제어 흐름·복잡한 callee와 모델이 필요한 경로의 시간·사실성은 계속 남아 있다.
+관련 30개와 packaging 15개가 통과했다. 전체 unit 1,135개 중 1,131개가 통과했으며 기존
+Function Guide/advanced private Scenario/Inspector 네 실패는 동일하다.
+
+격리 설치한 실제 VS Code 1.141.0에서 같은 파일의 `chain`/`plus`/`twice`를 TS와 Kotlin으로
+열었다. 모델 실행기와 가중치가 없는 QA 설정에서도 구조·선택 경로의 소스 설명을 완료했다.
+`Int`/`number` 전달, `a`/`b` 저장, 부모 최종 반환과 완료 3/3개를 확인했다. Kotlin의 중간
+호출 선택과 이전 캐시 페이지, 두 언어의 다음 캐시 페이지와 소스 탭 복원, 호출 위치 5줄 및 대상 함수
+선언 7줄 이동을 확인했다. 1440×900과 770×900의 실제 화면에서 그래프, 요약, 상세,
+페이지·소스 버튼의 배치와 줄바꿈을 확인했다. 테마 전수·모바일·접근성 전체 감사는 하지 않았다.
+
 ### 0.0.1130 개별 호출·선택 경로·작은 구조의 모델 대기 제거
 
 `application/functionCallNarratives/sourceSummary`는 기존 단일 반환 callee proof를 사용해
