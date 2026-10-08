@@ -905,6 +905,14 @@ AST 위치와 가장 안쪽 소유 블록으로 호출을 연결하고 닫히는
 캡처/member 인수, 수신자 호출, 숨은 expression guard, 콜백/deferred·spread·named 인수,
 eval/Function, 120자 식·16개 식 내부 호출 또는 기존 본문/해설 상한 초과는 모델을 유지한다.
 호출 없는 callee는 추가 parser·line index·callsite map 없이 기존 식 검사를 사용한다.
+0.0.1135는 같은 callee의 확인한 매개변수·지역 변수에서 시작하는 점 member 경로와
+수신자 호출을 source syntax로 읽는다. 선언 뒤의 객체 값을 primitive로 계산하지 않으며
+getter·디스패치·객체/외부 상태 변화·결과 타입/값·효과를 미확인으로 보존한다. 객체 내용의
+불변성을 가정하지 않고 정상 완료 가정에서만 소스 대입·호출·인수·연산자·반환을 연결한다.
+Kotlin의 수신자 추론은 `inferredCalls`에 보존하며 graph confidence나 대상 구현을 승격하지
+않는다. 기존 strict expression API는 member를 계속 거부하며 callee 전용 opt-in reader만
+허용한다. captured root·receiver 쓰기·computed/optional 접근·call/apply/bind·callback/deferred,
+기존 선언/경로/해설 상한은 모델에 남긴다. 부모 인수 평가와 객체 매개변수의 기존 제한도 유지한다.
 순서 모델은 최대 512 블록·1,024 제어 연결, 하나의 경로는 1,024 탐색 단계·256 표시 항목으로
 제한한다. 근거 부족과 한도는 표시하며 원본 소스를 실행하지 않는다.
 

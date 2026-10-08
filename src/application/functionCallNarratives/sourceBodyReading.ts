@@ -9,16 +9,19 @@ export function renderFunctionCallSourceBody(facts: FunctionCallSourceFacts, ko:
   const paths = facts.bodyPaths;
   if (!paths) return code(facts.returnExpression);
   const callValues = paths.some(path => path.some(step => step.kind !== "call" && step.calls?.length));
+  const accesses = paths.some(path => path.some(step => step.accesses?.length));
   let common = 0;
   while (common < paths[0].length && paths.every(path => path[common]?.key === paths[0][common].key
     && path[common]?.outcome === paths[0][common].outcome)) common++;
   const render = (steps: FunctionCallSourceBodyStep[]) => steps.map(step => step.kind === "condition" ? condition(step)
     : step.kind === "return" ? (ko ? "반환 " : "return ") + code(step.source)
-      : step.kind === "call" ? (ko ? "호출 " : "call ") + code(step.source) + (ko ? " (내부 미확인; 정상 복귀·지역 값 유지 가정)" : " (body unreviewed; assume normal return/local preservation)")
+      : step.kind === "call" ? (ko ? "호출 " : "call ") + code(step.source) + (accesses ? "" : ko ? " (내부 미확인; 정상 복귀·지역 값 유지 가정)" : " (body unreviewed; assume normal return/local preservation)")
         : code(step.source)).join(" → ");
   const prefix = render(paths[0].slice(0, common));
   const body = paths.length === 1 ? prefix : (prefix ? prefix + " → " : "") + "[" + paths.map(path => render(path.slice(common))).join("; ") + "]";
-  return body + (callValues ? ko ? " (호출 결과 타입·값·효과 미확인; 정상 복귀·지역 값 유지 가정)"
+  return body + (accesses ? ko ? " (정상 완료 가정; 디스패치·getter·상태 변화·결과 타입/값·효과 미확인)"
+    : " (normal completion assumed; dispatch/getters/state/types/values/effects unknown)"
+    : callValues ? ko ? " (호출 결과 타입·값·효과 미확인; 정상 복귀·지역 값 유지 가정)"
     : " (call results/types/effects unreviewed; assume normal return/local preservation)" : "");
 }
 
@@ -33,15 +36,17 @@ export function renderFunctionCallSourceReturns(facts: FunctionCallSourceFacts):
 /** Keep conditional local changes and duplicate statement occurrences; a source key prevents accidental text deduplication. */
 export function renderFunctionCallSourceEffects(facts: FunctionCallSourceFacts, ko: boolean): string | undefined {
   if (!facts.bodyPaths) return;
-  const seen = new Set<string>(), changes: string[] = [], calls: string[] = [];
+  const seen = new Set<string>(), changes: string[] = [], calls: string[] = [], operations: string[] = [];
   const callValues = facts.bodyPaths.some(path => path.some(step => step.kind !== "call" && step.calls?.length));
+  const accesses = facts.bodyPaths.some(path => path.some(step => step.accesses?.length));
   for (const path of facts.bodyPaths) {
     const guards: string[] = [];
     for (const step of path) {
-      if (["change", "call"].includes(step.kind) || step.calls?.length) {
+      if (["change", "call"].includes(step.kind) || step.calls?.length || step.accesses?.length) {
         const key = JSON.stringify([step.key, guards]);
         if (!seen.has(key)) {
-          seen.add(key); (step.kind === "change" ? changes : calls).push((guards.length ? guards.join(" & ") + ": " : "") + code(step.source));
+          const operation = (guards.length ? guards.join(" & ") + ": " : "") + code(step.source);
+          seen.add(key); (step.kind === "change" ? changes : calls).push(operation); operations.push(operation);
         }
       }
       // Calling a predicate precedes its outcome; only earlier path guards
@@ -50,6 +55,9 @@ export function renderFunctionCallSourceEffects(facts: FunctionCallSourceFacts, 
     }
   }
   const local = changes.length ? (ko ? "지역 변경: " : "Local changes: ") + changes.join("; ") + ". " : "";
+  if (accesses) return operations.join("; ") + (ko
+    ? ". 디스패치·getter·객체/외부 상태 변화·결과 타입/값·효과 미확인; 정상 완료 가정."
+    : ". Dispatch/getters/state/result types/values/effects unknown; normal completion assumed.");
   if (calls.length || callValues) return local + (calls.length ? (callValues ? ko ? "호출 포함 식: " : "Call expressions: " : ko ? "호출: " : "Calls: ") + calls.join("; ") + ". " : "")
     + (callValues ? ko ? "호출 내부·결과 타입/값·외부 효과 미확인; 정상 복귀·지역 값 유지 가정."
       : "Call bodies/results/types/effects unreviewed; assume normal return/local preservation."

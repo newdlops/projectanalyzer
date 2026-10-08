@@ -231,7 +231,7 @@ test("parser-bound TS/Kotlin call details and complete guarded flows remove mode
   }
 });
 
-test("closed return-body call facts reject effects, calls, captured values, member access and setup/default/rest parameters", async () => {
+test("source call facts reject captured roots, external receiver calls, writes and setup/default/rest parameters", async () => {
   for (const language of ["typescript", "kotlin"] as const) {
     const fixture = await loadFunctionCallReadingFixture(language), callee = fixture.graph.nodes.find(node => node.name === "addFee")!;
     const helper = fixture.files.find(file => file.path === callee.filePath)!.content;
@@ -239,7 +239,7 @@ test("closed return-body call facts reject effects, calls, captured values, memb
     const reader = createFunctionCallSourceReader(fixture.root, fixture.source);
     assert.ok(reader.read(callee, helper, site.range, "addFee(amount)"));
     const returned = language === "kotlin" ? "return value + 5" : "return value + 5;";
-    const variants = ["return captured", "return value.member", "return service.helper(value)", "return ++value", "return [value]",
+    const variants = ["return captured", "return captured.member", "return service.helper(value)", "return ++value", "return [value]",
       "eval(value); return value", "Function(value); return value",
       language === "kotlin" ? "value += 1; return value" : "value += 1; return value;"];
     if (language === "kotlin") variants.push('return "${value++}"');

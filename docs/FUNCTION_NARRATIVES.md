@@ -148,6 +148,63 @@ loop/exception transfer, inferred/partial/truncated evidence, 긴 식과 알 수
 초기 준비 문구는 저장하지 않는다. 각 시나리오의 상세 문단·대안은 계속 모델이 새로 작성한다.
 기존 노드 구문·동작·근거·효과·인용을 모두 유지하며 화면 배치도 유지한다.
 
+### 0.0.1135 지역 수신자·속성 읽기의 모델 대기 제거
+
+callee 전용 `readFunctionCallSourceObjectExpression`은 확인한 매개변수·지역 변수에서
+시작하는 점 member 경로를 읽는다. 기존 strict expression API는 member를 계속 거부하며
+primitive worksheet·부모 인수 평가의 의미를 조용히 바꾸지 않는다. 최대 120자 식·64 token·
+16 member 단계와 기존 본문·경로·해설 상한을 유지한다. 호출 없는 본문에는 추가 AST를
+만들지 않는다. quoted path는 속성 접근으로 취급하지 않는다.
+
+`s = connect(value)` 뒤의 `s.read(value) + s.bias` 같은 대입·수신자·인수·속성·연산자·
+반환을 원문으로 연결한다. getter·디스패치·객체/외부 상태 변화·결과 타입/값·효과는 미확인이다.
+정상 완료를 가정하지만 객체 내용이 불변이라는 가정은 하지 않는다. Kotlin parser가 receiver
+호출에 붙인 `inferred`는 `inferredCalls`에 보존한다. AST에서 위치·인수를 다시 확인한 호출
+문법만 읽고 실제 method 구현이나 graph target confidence를 승격하지 않는다.
+
+captured/external root, receiver 쓰기, computed/optional 접근, call/apply/bind, 콜백/deferred,
+불완전 선언·상한 초과는 모델을 유지한다. 객체 매개변수와 부모의 member 인수 평가·수신자
+호출·비동기/반복·전체 Guide 목적의 모델 경로까지 완료한 것으로 취급하지 않는다.
+
+공개 cross-file helper `s = connect(value)` → `s.read(value) + s.bias` 반환을 실제
+parser/Host/provider로 범위별 한 번씩 측정했다. graph 준비와 완료 후 cache 조회는 시간에서
+제외했고 같은 4B 모델·sampling/context/output/thread 상한을 유지했다.
+
+| 범위 | 설치된 0.0.1134 | 개발 출력 후보 | 설치된 0.0.1135 | 실제 모델 요청 |
+| --- | ---: | ---: | ---: | ---: |
+| TS 전체 구조 | 9.57초 | 25.80ms | 25.64ms | 1 → 0 |
+| TS 개별 호출 | 7.40초 | 9.56ms | 7.96ms | 1 → 0 |
+| TS 선택 경로 | 10.78초 | 7.36ms | 7.73ms | 1 → 0 |
+| Kotlin 전체 구조 | 13.12초 | 6.80ms | 210.71ms | 1 → 0 |
+| Kotlin 개별 호출 | 9.30초 | 4.04ms | 5.34ms | 1 → 0 |
+| Kotlin 선택 경로 | 15.22초 | 3.95ms | 4.09ms | 1 → 0 |
+
+같은 시스템 부하를 통제한 비교나 일반 성능 보장이 아니다. 이전 모델은 이름에서 출입금/
+수수료를 추측했고 TS 전체 구조는 “명시된 추가 효과는 없습니다”라고 서술했다. 일부 Kotlin
+응답은 단계 내용을 반복하거나 상한에서 잘렸고 다른 언어 글자도 섞였다. 최종 source reading은
+원래 인수·수신자·속성·연산자·대입·반환과 미확인 디스패치/getter/상태/결과/효과를 유지한다.
+
+전체 unit 검사 1,153개 중 1,149개가 통과했으며 기존 declared-type 입력 대표값 2개,
+advanced private Scenario, decorated source-reveal의 실패 4개가 남았다. 이후 effects의
+호출→속성 읽기 순서를 보강하고 관련 검사 45개를 별도로 다시 실행해 모두 통과했다.
+패키징 검사 15개도 통과했다. quote/member root·64 token/16 member 단계·receiver 쓰기·
+optional/computed 접근·간접 dispatch·cache·근거와 Kotlin의 inferred 기록을 검사했다.
+마지막 effects 변경 후 전체 suite를 다시 실행한 것으로 표기하지 않는다.
+
+실제 VS Code의 격리된 설치본에서 Kotlin 호출 순서와 TypeScript 호출 관계 설명을 생성했다.
+local provider의 실행기·모델 파일이 없는 설정에서도 완료됐으며, 원래 대입·수신자 호출·
+속성·인수·반환식과 다섯 항목의 미확인 상태를 확인했다. 정상 완료 가정을 읽고 객체 내용이
+불변이라는 문구가 없음을 확인했다. 두 언어의 호출 위치는 3행의 정확한 호출을 선택했고,
+대상 소스는 5행으로 이동했다. Kotlin은 5–8행 전체 선언, TS는 5행 header를 선택했다.
+소스 탭에서 돌아와도 설명을 유지했다. 실제 창 캡처 770×900·2560×1349에서 줄바꿈·
+스크롤·소스 버튼·비활성 페이지 이동을 확인했다. CSS·테마·기존 semantic marker를 유지했고
+새 design ignore는 추가하지 않았다. 모바일·다른 테마·전체 접근성 감사는 수행하지 않았다.
+
+최종 VSIX는 507개 파일, 압축 3.67MiB·해제 15.65MiB로 기존 상한을 통과했다. 설치본의
+여섯 범위가 모델 요청 0회로 완료됐고 모든 상세·근거·cache 조회를 유지했다. 최초 Kotlin
+구조의 cold parser 비용을 포함했으며 개발 출력의 작은 수치만으로 설치본 속도를 주장하지
+않는다. compile·release metadata·diff 검사도 통과했다.
+
 ### 0.0.1134 내부 호출 결과를 사용하는 구문의 모델 대기 제거
 
 `analyzer/functionCalls/sourceCallValues`는 AST의 호출 범위와 가장 안쪽 소유 블록을 연결해

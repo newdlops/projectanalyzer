@@ -71,6 +71,11 @@ state that result types/values/effects are unreviewed and qualify continuation
 with normal return/local preservation. Syntax-checking placeholders never enter
 prose, example values or graph labels. Keep source controls, field limits and
 the existing layout; an over-budget explanation retains the model path.
+Source-backed receiver/member operations keep complete original expressions.
+Mark dispatch, getters, object/external state changes, result types/values and
+effects as unknown. Assume normal completion without assuming object contents
+are unchanged. Inferred Kotlin receiver dispatch remains inferred. Preserve the
+five detail fields and source controls instead of adding a parallel surface.
 
 Acceptance: real local TypeScript and Kotlin caller/callee readings; cross-file
 evidence, strict fixed call references, distinct repeated sites/visits, static

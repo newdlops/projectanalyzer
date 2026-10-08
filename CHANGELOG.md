@@ -4,6 +4,17 @@ All notable user-visible changes to Project Analyzer: Code Flow are recorded in
 this file. The changelog starts with the first distribution-documented build;
 earlier local development builds were not tracked here.
 
+## 0.0.1135 - 2026-10-08
+
+### Improved
+
+- Read callee-local receiver calls and dotted member access from complete source
+  expressions without model inference when all detail fields fit.
+- Preserve original operation order and inferred Kotlin receiver dispatch;
+  mark getters, dispatch, object/external state changes, results and effects unknown.
+- Qualify continuation with normal completion without assuming unchanged object
+  contents; retain strict primitive readers and existing resource/output limits.
+
 ## 0.0.1134 - 2026-10-08
 
 ### Improved

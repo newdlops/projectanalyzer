@@ -9,6 +9,8 @@ import { exampleFunctionCallScenarios } from "../../shared/functionCalls";
 import { buildSourceFunctionNarrativeResponse, type FunctionNarrativeProvider } from "../../application/functionNarratives";
 import { createFunctionCallSourceReader } from "../../analyzer/functionCalls";
 import { analyzeFunctionLogic } from "../../analyzer/functionLogic";
+import { readFunctionCallSourceExpression, readFunctionCallSourceObjectExpression } from "../../analyzer/functionCalls/sourceSyntax";
+import { renderFunctionCallSourceEffects } from "../../application/functionCallNarratives/sourceBodyReading";
 import { loadFunctionCallReadingFixture, functionCallReadingReply } from "./helpers/functionCallReadingFixture";
 import type { FunctionCallsResponse } from "../../protocol/functionCalls";
 import type { FunctionCallNarrativesResponse, FunctionCallNarrativesRequest } from "../../protocol/functionCallNarratives";
@@ -89,7 +91,7 @@ test("callee source paths preserve distinct repeated updates and do not turn loc
 test("unproved call values/captures, cycles, implicit returns, parameter/immutable writes and body/prose limits retain model analysis", async () => {
   for (const language of ["typescript", "kotlin"] as const) {
     const keyword = language === "kotlin" ? "var" : "let", immutable = language === "kotlin" ? "val" : "const";
-    const invalid = ["audit(captured); return value;", "return captured;", "return value.member;", "value += 1; return value;",
+    const invalid = ["audit(captured); return value;", "return captured;", "return captured.member;", "value += 1; return value;",
       `${immutable} n = value; n += 1; return n;`, `${keyword} n = value; while (n > 0) n -= 1; return n;`,
       "if (value < 0) return 0;", "return value; audit(value);",
       `${keyword} n = value; ${Array.from({ length: 34 }, () => "n += 1;").join(" ")} return n;`];
@@ -173,7 +175,7 @@ test("opaque ignored primitive calls retain exact arguments, calculations, unkno
 
 test("opaque call values reject captured/member arguments, eval and deferred callbacks", async () => {
   for (const language of ["typescript", "kotlin"] as const) {
-    const invalid = ["eval(value); return value;", "Function(value); return value;", "audit(captured); return value;", "return audit(value.member);",
+    const invalid = ["eval(value); return value;", "Function(value); return value;", "audit(captured); return value;", "return audit(captured.member);",
       `${language === "kotlin" ? "val" : "const"} n = service.audit(value); return n;`, "return outer(inner(captured));"];
     if (language === "typescript") invalid.push("audit(() => value); return value;");
     for (const body of invalid) {
@@ -229,7 +231,77 @@ test("parser-owned nested and predicate calls retain duplicate occurrence order 
     assert.equal(guarded.bodyPaths!.length, 2);
     assert.ok(guarded.bodyPaths!.every(path => path[0].kind === "condition" && path[0].calls?.[0] === "audit(value)"));
     for (const body of ["return outer(inner(captured));", "return value && audit(value);", "return outer(eval(value));",
-      "return service.audit(value);", "return outer(value.member);", "return audit(...value);", "return outer(inner(value) value + 1);"])
+      "return service.audit(value);", "return outer(captured.member);", "return audit(...value);", "return outer(inner(value) value + 1);"])
       assert.equal(reader.read(callee, source.replace(returned, body), site.range, "addFee(amount)"), undefined, body);
+  }
+});
+
+test("receiver expressions keep local roots, exact reads/arguments and unknown state without assuming an unchanged object", async () => {
+  for (const language of ["typescript", "kotlin"] as const) for (const locale of ["en", "ko"] as const) {
+    const keyword = language === "kotlin" ? "val" : "const";
+    for (const body of [`${keyword} s = connect(value); return s.read(value) + s.bias;`,
+      `${keyword} s = connect(value); return s.bias;`, "return outer(value.member);"]) {
+      const h = await harness(language, locale, body);
+      try {
+        const example = exampleFunctionCallScenarios(h.slice.control, new Map(h.slice.connections.map(edge => [edge.id, edge])))[0];
+        const requests: FunctionCallNarrativesRequest[] = [h.explanation,
+          { ...h.explanation, requestId: 2, scope: "call", connectionId: h.slice.connections[0].id },
+          { ...h.explanation, requestId: 3, scope: "scenario", choices: [...example.selection].map(([key, value]) => ({ key, value })) }];
+        for (const request of requests) {
+          await h.delivery.explain(request); assert.equal(h.models(), 0, `${language} ${locale}: ${body}`);
+          const reply = h.replies.at(-1)!, call = reply.narrative!.calls[0], flow = reply.narrative!.flow!;
+          assert.match(call.effects, /디스패치·getter·객체\/외부 상태 변화|Dispatch\/getters\/state/u);
+          assert.match(call.output, /정상 완료 가정|Assuming normal completion/u);
+          assert.match(flow, /디스패치·getter·상태 변화|dispatch\/getters\/state/u);
+          assert.doesNotMatch([flow, call.output, call.effects].join(" "), /local preservation|preserve locals|지역 값 유지|객체.*유지/u);
+          assert.ok(flow.includes(body.includes("s.read") ? "s.read(value) + s.bias" : body.includes("s.bias") ? "s.bias" : "outer(value.member)"));
+          assert.ok(h.evidenceTokens.resolve(call.callerEvidence!) && h.evidenceTokens.resolve(call.calleeEvidence!));
+          await h.delivery.explain({ ...request, requestId: request.requestId + 10, pageIndex: 0, pageLanguage: locale });
+          assert.equal(h.replies.at(-1)!.cacheHit, true); assert.equal(h.models(), 0);
+        }
+      } finally { h.delivery.reset(); }
+    }
+  }
+});
+
+test("object syntax is opt-in and never resolves getters, quoted paths, captured roots, receiver writes or indirect dispatch", async () => {
+  const names = new Set(["s", "value"]);
+  assert.equal(readFunctionCallSourceExpression("s.bias + value", names), undefined);
+  assert.deepEqual(readFunctionCallSourceObjectExpression("s.bias + value", names), { expression: "s.bias + value", accesses: ["s.bias"] });
+  assert.deepEqual(readFunctionCallSourceObjectExpression('"s.bias"', names)?.accesses, []);
+  assert.equal(readFunctionCallSourceObjectExpression("captured.bias", names), undefined);
+  assert.equal(readFunctionCallSourceObjectExpression("s[getter()]", names), undefined);
+  const chain = "s." + Array.from({ length: 16 }, () => "p").join(".");
+  assert.ok(readFunctionCallSourceObjectExpression(chain, names));
+  assert.equal(readFunctionCallSourceObjectExpression(chain + " + " + chain, names), undefined, "member paths consume every original identifier/dot token");
+  assert.equal(readFunctionCallSourceObjectExpression(chain + ".p", names), undefined, "member depth remains bounded");
+  for (const language of ["typescript", "kotlin"] as const) {
+    const keyword = language === "kotlin" ? "val" : "const";
+    for (const body of [`${keyword} s = connect(value); s.bias = value; return value;`,
+      `${keyword} s = connect(value); return s.call(value);`, `${keyword} s = connect(value); return s?.read(value);`,
+      `${keyword} s = connect(value); return s["bias"];`, "return external.read(value);", "return captured.bias;"]) {
+      const h = await harness(language, "en", body);
+      try { await h.delivery.explain(h.explanation); assert.equal(h.models(), 1, body); }
+      finally { h.delivery.reset(); }
+    }
+  }
+});
+
+test("receiver syntax preserves Kotlin inferred dispatch and attaches predicate reads before their assumed outcomes", async () => {
+  for (const language of ["typescript", "kotlin"] as const) {
+    const fixture = await loadFunctionCallReadingFixture(language), callee = fixture.graph.nodes.find(node => node.name === "addFee")!;
+    const reader = createFunctionCallSourceReader(fixture.root, fixture.source), source = fixture.files[1].content;
+    const site = analyzeFunctionLogic({ functionNode: fixture.root, sourceText: fixture.source }).callsites.find(site => site.calleeName === "addFee")!;
+    const returned = language === "kotlin" ? "return value + 5" : "return value + 5;", keyword = language === "kotlin" ? "val" : "const";
+    const body = `${keyword} s = connect(value); if (s.ready) return s.read(value); return s.bias;`;
+    const facts = reader.read(callee, source.replace(returned, body), site.range, "addFee(amount)")!;
+    assert.equal(facts.bodyPaths!.length, 2);
+    assert.ok(facts.bodyPaths!.every(path => path[1].kind === "condition" && path[1].accesses?.[0] === "s.ready"));
+    const method = facts.bodyPaths!.flat().find(step => step.calls?.includes("s.read(value)"))!;
+    assert.deepEqual(method.inferredCalls, language === "kotlin" ? ["s.read(value)"] : undefined);
+    assert.ok(method.accesses?.includes("s.read"));
+    const ordered = reader.read(callee, source.replace(returned, `${keyword} s = connect(value); s.peek(value); ${keyword} n = s.bias; return n;`), site.range, "addFee(amount)")!;
+    const effects = renderFunctionCallSourceEffects(ordered, false)!;
+    assert.ok(effects.indexOf("s.peek(value)") < effects.indexOf(`${keyword} n = s.bias`), "effects preserve call-before-read order, not grouped mutations before calls");
   }
 });
