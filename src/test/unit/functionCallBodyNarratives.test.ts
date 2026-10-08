@@ -86,10 +86,10 @@ test("callee source paths preserve distinct repeated updates and do not turn loc
   }
 });
 
-test("unproved external work, cycles, implicit returns, parameter/immutable writes and body/prose limits retain model analysis", async () => {
+test("unproved call values/captures, cycles, implicit returns, parameter/immutable writes and body/prose limits retain model analysis", async () => {
   for (const language of ["typescript", "kotlin"] as const) {
     const keyword = language === "kotlin" ? "var" : "let", immutable = language === "kotlin" ? "val" : "const";
-    const invalid = ["audit(value); return value;", "return captured;", "return value.member;", "value += 1; return value;",
+    const invalid = ["audit(captured); return value;", "return captured;", "return value.member;", "value += 1; return value;",
       `${immutable} n = value; n += 1; return n;`, `${keyword} n = value; while (n > 0) n -= 1; return n;`,
       "if (value < 0) return 0;", "return value; audit(value);",
       `${keyword} n = value; ${Array.from({ length: 34 }, () => "n += 1;").join(" ")} return n;`];
@@ -123,6 +123,9 @@ test("closed callee proof covers both early-return arms and immutable local init
     assert.deepEqual(guarded.bodyPaths!.map(path => path.at(-1)!.source), ["0", "value + 5"]);
     assert.equal(createFunctionCallSourceReader(fixture.root, fixture.source, { maxCalleeDepth: 3 })
       .read(callee, source.replace(returned, "if (value < 0) return 0; return value + 5;"), site.range, "addFee(amount)"), undefined);
+    const repeated = reader.read(callee, source.replace(returned, "audit(value); audit(value); return value;"), site.range, "addFee(amount)")!;
+    const calls = repeated.bodyPaths![0].filter(step => step.kind === "call");
+    assert.equal(calls.length, 2); assert.notEqual(calls[0].key, calls[1].key);
   }
 });
 
@@ -146,5 +149,37 @@ test("certified cross-batch summaries retain an extended callee's local calculat
       assert.equal(calls.length, 3); assert.match(calls[1].effects, /n = value \* 2/u);
       assert.ok(calls.every(call => h.evidenceTokens.resolve(call.callerEvidence!) && h.evidenceTokens.resolve(call.calleeEvidence!)));
     } finally { h.delivery.reset(); }
+  }
+});
+
+test("opaque ignored primitive calls retain exact arguments, calculations, unknown effects and explicit completion assumptions", async () => {
+  for (const language of ["typescript", "kotlin"] as const) for (const locale of ["en", "ko"] as const) {
+    const body = `${language === "kotlin" ? "val" : "const"} n = value + 5; audit(n); return n + 3;`;
+    const h = await harness(language, locale, body);
+    try {
+      await h.delivery.explain(h.explanation); assert.equal(h.models(), 0);
+      const reply = h.replies.at(-1)!, call = reply.narrative!.calls[0], flow = reply.narrative!.flow!;
+      assert.match(call.inputs, /`amount` → `value`/u); assert.match(call.output, /정상 복귀·지역 값 유지|normal calls preserve locals/u);
+      assert.match(call.effects, /n = value \+ 5/u); assert.match(call.effects, /`audit\(n\)`/u);
+      assert.match(call.effects, /미확인|unreviewed/u); assert.match(flow, /n = value \+ 5.*audit\(n\).*n \+ 3/su);
+      assert.match(flow, /정상 복귀·지역 값 유지 가정|normal return\/local preservation/u);
+      assert.doesNotMatch([call.role, call.output, call.effects, flow].join(" "), /감사 로그|검사 수행|수수료|금액|출입금|logging|recorded|\bfee\b|\bmoney\b|check performed/iu);
+      assert.ok(h.evidenceTokens.resolve(call.callerEvidence!) && h.evidenceTokens.resolve(call.calleeEvidence!));
+      await h.delivery.explain({ ...h.explanation, requestId: 2, pageIndex: 0, pageLanguage: locale });
+      assert.equal(h.replies.at(-1)!.cacheHit, true); assert.equal(h.models(), 0);
+    } finally { h.delivery.reset(); }
+  }
+});
+
+test("opaque calls cannot hide embedded return values, captured arguments, eval or deferred callbacks", async () => {
+  for (const language of ["typescript", "kotlin"] as const) {
+    const invalid = ["eval(value); return value;", "Function(value); return value;", "audit(captured); return value;", "return audit(value);",
+      `${language === "kotlin" ? "val" : "const"} n = audit(value); return n;`];
+    if (language === "typescript") invalid.push("audit(() => value); return value;");
+    for (const body of invalid) {
+      const h = await harness(language, "en", body);
+      try { await h.delivery.explain(h.explanation); assert.equal(h.models(), 1, body); }
+      finally { h.delivery.reset(); }
+    }
   }
 });

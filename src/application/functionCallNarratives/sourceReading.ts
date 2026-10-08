@@ -85,12 +85,20 @@ function describeCall(target: FunctionCallNarrativeTarget, facts: FunctionCallSo
   const loops = target.loops.map(loop => "`" + loop + "`");
   const conditions = [...guards, ...loops].join("; ");
   const koResult = branches ? "각 소스 경로의 반환값을" : `반환식 ${expression}의 결과를`;
-  const output = facts.use.kind === "return" ? ko ? `${koResult} 이 호출부에서 부모 함수의 반환값으로 바로 전달합니다.`
+  let output = facts.use.kind === "return" ? ko ? `${koResult} 이 호출부에서 부모 함수의 반환값으로 바로 전달합니다.`
     : `The callee returns ${expression}; this callsite returns it directly from the parent.`
     : facts.use.kind === "binding" ? ko ? `${koResult} 지역 변수 \`${facts.use.name}\`에 저장합니다. 부모의 최종 반환은 별도입니다.`
       : `The callee returns ${expression}; store it in local \`${facts.use.name}\`. This is not the parent's final return.`
       : ko ? `${koResult} 이 호출부에서는 저장하거나 반환하지 않습니다.`
         : `The callee returns ${expression}; this callsite discards the result.`;
+  if (facts.bodyPaths?.some(path => path.some(step => step.kind === "call"))) {
+    const result = branches ? ko ? "각 경로의 반환값" : "each source-path return" : expression;
+    const use = facts.use.kind === "return" ? ko ? "부모에서 반환합니다" : "return it from the parent"
+      : facts.use.kind === "binding" ? ko ? `지역 \`${facts.use.name}\`에 저장합니다` : `store it in local \`${facts.use.name}\``
+        : ko ? "이 호출부에서 저장·반환하지 않습니다" : "discard it at this callsite";
+    output = ko ? `내부 호출의 정상 복귀·지역 값 유지 가정에서, ${result}을 ${use}.`
+      : `Assuming normal calls preserve locals, use ${result}: ${use}.`;
+  }
   const reading = { callId: target.callId,
     role: branches ? (ko ? `대상 \`${target.callee}\`의 반환 경로: ` : `Source returns of \`${target.callee}\`: `) + renderFunctionCallSourceReturns(facts) + "."
       : ko ? `대상 함수 \`${target.callee}\`의 반환식은 ${expression}입니다.` : `Call \`${target.callee}\` for its source return expression ${expression}.`,
@@ -106,12 +114,13 @@ function describeCall(target: FunctionCallNarrativeTarget, facts: FunctionCallSo
   // conditional in every field as well as preserving the Host's confidence.
   if (target.confidence === "inferred") {
     reading.role = (ko ? "추정 대상의 원문: " : "Candidate source: ") + reading.role;
-    reading.inputs = (ko ? "이 후보가 실제 대상이라면, " : "If this candidate is selected, ") + reading.inputs;
+    if (getFunctionCallFixedInputs(target, language) === undefined)
+      reading.inputs = (ko ? "이 후보가 실제 대상이라면, " : "If this candidate is selected, ") + reading.inputs;
     reading.output = (ko ? "이 후보가 실제 대상이라면, " : "If this candidate is selected, ") + reading.output;
     reading.effects = (ko ? "이 후보 본문의 사실: " : "Facts about this candidate body: ") + reading.effects;
     reading.reason = (ko ? "호출 대상은 추정입니다. " : "The target is inferred. ") + reading.reason;
-    // Parser-proved zero-argument wording remains byte-identical to its public
-    // fixed-input contract; uncertainty belongs to the other call fields.
+    // Empty lists and checked formal transfers remain byte-identical to the
+    // public fixed-input contract, including its dispatch qualifier.
     const fixed = getFunctionCallFixedInputs(target, language);
     if (fixed !== undefined) reading.inputs = fixed;
   }

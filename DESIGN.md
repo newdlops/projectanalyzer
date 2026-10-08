@@ -58,6 +58,13 @@ Keep every ordered change, branch outcome and return in the connected flow;
 qualify conditional local writes in effects and keep caller guards separate.
 Retain the same five fields, source actions, producer label and cache controls.
 Reject prose that cannot fit the existing limits instead of dropping a path.
+Ignored direct inner calls with primitive source arguments may remain in a
+complete callee path as opaque operations. Keep the exact invocation, every
+local calculation and return, and state that implementations/effects are
+unreviewed. Qualify subsequent values with normal return and local preservation;
+infer no logging, storage, checks or business purpose from names.
+Checked positional formal declarations own the input-transfer field even when
+other call fields still require a model. Use the same five-field layout.
 
 Acceptance: real local TypeScript and Kotlin caller/callee readings; cross-file
 evidence, strict fixed call references, distinct repeated sites/visits, static

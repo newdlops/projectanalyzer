@@ -148,6 +148,72 @@ loop/exception transfer, inferred/partial/truncated evidence, 긴 식과 알 수
 초기 준비 문구는 저장하지 않는다. 각 시나리오의 상세 문단·대안은 계속 모델이 새로 작성한다.
 기존 노드 구문·동작·근거·효과·인용을 모두 유지하며 화면 배치도 유지한다.
 
+### 0.0.1133 opaque 내부 호출의 원문 읽기와 고정 인자 전달
+
+단독 호출문의 결과를 버리고 명시적인 primitive 식만 인수로 전달하는 callee 호출은
+`sourceBody`가 opaque source operation으로 보존한다. 한 AST callsite와 문장이 같은 위치에서
+정확히 일치해야 하며 모든 callsite가 소유된 경로에 포함돼야 한다. 캡처·member·콜백 인수,
+호출의 반환값을 다른 식/변수/조건에 사용하는 경우, eval/Function, deferred 및 기존 상한
+초과는 모델을 유지한다. 내부 함수를 재귀적으로 분석하거나 소스를 실행하지 않는다.
+
+`audit(n)`이 나타나도 검사/감사 로그/저장/성공을 추측하지 않는다. 초기화와 정확한 호출
+인수, source 반환식을 순서대로 보여 주고 내부 구현·외부 효과는 이 읽기에서 미확인으로
+명시한다. 호출 뒤의 흐름은 **정상 복귀·지역 값 유지 가정**으로만 설명한다. 이 가정은
+role/output/effects 및 전체 flow의 사실을 실제 실행 결과로 승격하지 않는다. 기존 32블록/
+128상태/4경로, 다섯 상세 항목, 160/180/240/600자 상한과 source action을 유지한다.
+
+`readFunctionCallSourceParameters`는 완전한 positional primitive 선언의 source evidence만
+읽는다. default/rest/optional/unknown 선언과 불명확한 인수는 고정하지 않는다. Host의
+targets에 확인한 `parameters`를 붙이고 `getFunctionCallFixedInputs`가 명시적 인수와 formal
+name/type을 1:1로 연결한다. inferred 대상에는 동일한 후보 가정을 포함한다. 180자/제어문자
+상한을 넘는 경우 사실을 잘라 고정하지 않고 원문·인수·선언을 모델 경로에 유지한다. local wire는 이 고정 inputs와 call ID를 모델
+출력에서 제거했다가 원래 슬롯에서 복원하고 원문 변경/위조된 모델 값을 거부한다. 다른
+모델에서도 기존 full 스키마의 const를 그대로 복사해야 한다.
+
+local 호출 prompt는 원래 full 스키마와 wire 스키마를 중복해서 보내던 경로를 제거했다.
+runtime wire와 같은 **flat blueprint 한 개**만 전달하며 source DATA는 byte-identical하다.
+공유 schema reference를 prompt에 넣는 후보는 실제 응답에서 구체성이 떨어져 채택하지
+않았다. runtime grammar, 모델·sampling/context/output/thread 상한은 변경하지 않는다.
+llama.cpp는 grammar 스키마를 모델 prompt에 자동 삽입하지 않으므로 명시적 blueprint는
+유지한다. [공식 grammar 문서](https://github.com/ggml-org/llama.cpp/blob/master/grammars/README.md#json-schemas--gbnf).
+
+공개 callee `n = value + 5` → `audit(n)` → `n + 3` 반환을 실제 parser/Host/provider로 읽었다.
+이전 모델은 업무 의미와 로그/검사를 추측하거나 `audit(n)`을 `audit(value)`로 바꿨고 일부
+문단은 상한에서 끝나지 않았다. 최종 source reading은 이러한 추측 없이 세 구문을 보존한다.
+graph 준비와 완료 후 캐시 조회는 시간 밖이며 각 범위 1회 측정이다.
+
+| 범위 | 설치된 0.0.1132 | 소스 후보 | 설치된 0.0.1133 | 실제 모델 요청 |
+| --- | ---: | ---: | ---: | ---: |
+| TS 전체 구조 | 7.94초 | 226.84ms | 58.17ms | 1 → 0 |
+| TS 개별 호출 | 6.83초 | 10.30ms | 15.72ms | 1 → 0 |
+| TS 선택 경로 | 5.88초 | 7.36ms | 26.16ms | 1 → 0 |
+| Kotlin 전체 구조 | 6.77초 | 11.37ms | 508.08ms | 1 → 0 |
+| Kotlin 개별 호출 | 7.40초 | 28.49ms | 8.68ms | 1 → 0 |
+| Kotlin 선택 경로 | 7.00초 | 5.78ms | 42.68ms | 1 → 0 |
+
+실행 환경의 부하가 크게 달랐다. 후보 확인 중 CPU idle 0%, load average 약 186, 약 18GiB
+memory compressor를 관측했다. 따라서 표를 동일 부하의 속도 비율이나 일반 성능 보장으로
+취급하지 않는다. 실제 모델의 schema/input-only 후보는 입력 토큰이 1,830대에서 1,370대로
+줄었지만 출력이 더 길어지고 지연도 커져 전체 처리시간 개선으로 인정하지 않았다.
+원문과 완료 가정을 함께 보존하면서 모델 요청 자체를 제거한 최종 source path와 구분한다.
+더 복잡한 호출 값·객체/receiver·비동기/반복 및 모델이 필요한 경로는 남은 목표 범위다.
+
+관련 source/call 검사 38개, local prompt 검사 7개, Webview 검사 3개와 패키징 검사 15개가
+통과했다. 전체 unit 실행은 1,148개 중 1,143개 통과·5개 실패였다. 기존 declared-type 입력
+대표값 2개, advanced private Scenario, decorated source-reveal의 실패 4개 외에, 호출 선택을
+바꾼 뒤 이전 인자를 기대하던 UI assertion이 있었다. 실제 선택값을 검사하도록 assertion을
+고친 후 해당 Webview 검사 3개를 별도로 다시 실행해 통과했다. 이 수정 후 전체 suite를
+다시 실행한 것으로 표기하지 않는다. compile·release metadata·diff 검사도 통과했다.
+
+격리된 설치본의 실제 VS Code 화면에서 Kotlin/TypeScript 호출 순서와 호출 관계 설명을
+생성했다. 실행기·가중치 경로를 존재하지 않는 값으로 설정해도 소스 읽기가 완료됐다.
+다섯 상세 항목, Int/number 인자 전달, 계산·정확한 내부 호출 인수·반환식, 미확인 효과와
+정상 복귀·지역 값 유지 가정을 확인했다. 호출 위치 열기는 3행, 대상 함수 소스 열기는
+5행의 정의로 이동했고 소스 탭에서 흐름 탭으로 돌아왔을 때 설명을 유지했다.
+770×900과 1800×1070의 실제 창에서 줄바꿈·버튼·비활성 페이지 이동·그래프를 확인했다.
+CSS와 테마는 바꾸지 않았다. 모바일·다른 테마·전체 접근성 감사는 수행하지 않았다.
+기존 semantic graph marker의 파일 한정 side-tab 예외를 유지했고 새 ignore는 추가하지 않았다.
+
 ### 0.0.1132 callee 내부의 지역 계산·조건별 반환 대기 제거
 
 `analyzer/functionCalls/sourceBody`는 primitive 매개변수의 완전한 비순환 callee CFG를

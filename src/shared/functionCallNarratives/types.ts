@@ -7,6 +7,8 @@ export type FunctionCallNarrativeTarget = {
   callerSnippet?: string; calleeSnippet?: string; sourceLimited: boolean;
   /** Explicit syntax arguments only; an absent list means unknown, not zero arguments. */
   arguments?: string[];
+  /** Host-owned exact formal declarations; absent for ambiguous/default/rest/unknown signatures. */
+  parameters?: Array<{ name: string; type: string }>;
 };
 export type FunctionCallNarrativeTask = {
   scope: FunctionCallNarrativeScope; signature: string; includeSummary: boolean;

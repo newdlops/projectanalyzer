@@ -4,6 +4,19 @@ All notable user-visible changes to Project Analyzer: Code Flow are recorded in
 this file. The changelog starts with the first distribution-documented build;
 earlier local development builds were not tracked here.
 
+## 0.0.1133 - 2026-10-08
+
+### Improved
+
+- Read ignored direct primitive-argument calls as opaque source operations,
+  retaining calculations, exact arguments, returns and source citations.
+- Mark unreviewed implementations/effects and qualify subsequent results with
+  normal-return/local-preservation assumptions instead of inferring behavior.
+- Bind checked positional argument transfers to original formal declarations,
+  preventing invented model inputs while keeping all five detail fields.
+- Send one flat local response blueprint, removing a duplicate full schema
+  without changing decoding limits, model settings or source evidence.
+
 ## 0.0.1132 - 2026-10-08
 
 ### Improved

@@ -49,8 +49,13 @@ export function buildLocalFunctionPurposeMessages(context: FunctionNarrativeCont
 }
 
 export function buildLocalNarrativePrompt(context: FunctionNarrativeContext, language: "ko" | "en", wireSchema?: Record<string, unknown>): string {
-  if (context.callTask) return buildFunctionCallNarrativePrompt(context, language).join("\nSOURCE DATA:\n")
-    + (wireSchema ? "\n" + wireInstructions(language) + "\nOUTPUT JSON SCHEMA:\n" + JSON.stringify(wireSchema) : "");
+  if (context.callTask) {
+    const [rules, data] = buildFunctionCallNarrativePrompt(context, language,
+      wireSchema ?? createLocalNarrativeSchema(context, language));
+    // One authoritative output blueprint, matching the expanded runtime wire
+    // grammar. Fixed Host fields cannot compete with the fields the model emits.
+    return rules + (wireSchema ? "\n" + wireInstructions(language) : "") + "\nSOURCE DATA:\n" + data;
+  }
   if (context.detailLevel === "rich") return buildRichLocalPrompt(context, language, wireSchema);
   const instructions = language === "ko" ? [
     "한국어 코드 읽기 도우미로서 선택한 함수의 목적과 자세한 동작 시나리오를 설명하세요. 설명 문장은 반드시 한국어로 쓰세요.",

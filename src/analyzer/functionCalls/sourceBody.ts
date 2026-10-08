@@ -1,11 +1,12 @@
-/** Complete bounded callee paths with primitive local changes and conditional returns; exact syntax only, without source execution. */
+/** Complete bounded callee syntax paths: primitive changes, conditional returns and opaque direct calls with explicit normal-return assumptions. */
 import type { SymbolNode } from "../../shared/types";
 import { analyzeFunctionLogic } from "../functionLogic";
 import { analyzeFunctionTutorDeclaration } from "../functionTutor";
 import { readFunctionCallSourceExpression, readFunctionCallSourceRange } from "./sourceSyntax";
+import { readFunctionCallArguments } from "./arguments";
 
 /** Keys distinguish equal text at different source statements; they remain inside Host proof storage. */
-export type FunctionCallSourceBodyStep = { key: string; kind: "change" | "condition" | "return"; source: string; outcome?: "true" | "false" };
+export type FunctionCallSourceBodyStep = { key: string; kind: "change" | "condition" | "return" | "call"; source: string; outcome?: "true" | "false" };
 export type FunctionCallSourceBodyFacts = { parameters: string[]; parameterTypes: string[]; returnExpression: string; returnSource: string;
   /** Absent for the established single-return leaf; every extended path retains all steps in order. */
   bodyPaths?: FunctionCallSourceBodyStep[][] };
@@ -17,8 +18,8 @@ export function readFunctionCallSourceBody(callee: SymbolNode, source: string, m
   // Callers may lower the traversal depth, never raise the closed proof budget.
   const depthLimit = Number.isFinite(maxDepth) ? Math.max(1, Math.min(32, Math.floor(maxDepth))) : 32;
   const logic = analyzeFunctionLogic({ functionNode: callee, sourceText: source, maxBlocks: 32 });
-  if (logic.callsites.length || logic.blocks.some(block => block.confidence !== "exact"
-    || !["entry", "exit", "mutation", "condition", "return"].includes(block.kind))
+  if (logic.blocks.some(block => block.confidence !== "exact"
+    || !["entry", "exit", "mutation", "condition", "return", "call"].includes(block.kind))
     || logic.gaps.some(gap => !["parseLimited", "dynamicBehavior"].includes(gap.code))) return;
   const tutor = analyzeFunctionTutorDeclaration({ functionNode: callee, sourceText: source, functionLogic: logic });
   if (tutor.executionKind !== "sync" || tutor.inputSummarySafe === false || tutor.parameters.length > 8
@@ -35,6 +36,7 @@ export function readFunctionCallSourceBody(callee: SymbolNode, source: string, m
     const edges = outgoing.get(edge.sourceId) ?? []; edges.push(edge); outgoing.set(edge.sourceId, edges);
   }
   const parameters = tutor.parameters.map(p => p.name), covered = new Set<string>(), paths: FunctionCallSourceBodyStep[][] = [];
+  const calls = new Set<typeof logic.callsites[number]>();
   const queue: Route[] = [{ current: entry.id, visited: new Set(), names: new Set(parameters), mutable: new Set(), steps: [], returned: false }];
   let firstReturn: { expression: string; source: string } | undefined;
   for (let cursor = 0; cursor < queue.length; cursor++) {
@@ -66,6 +68,22 @@ export function readFunctionCallSourceBody(callee: SymbolNode, source: string, m
         || readFunctionCallSourceExpression(value, route.names) === undefined) return;
       if (declaration) { route.names.add(name); if (["let", "var"].includes(declaration[1])) route.mutable.add(name); }
       route.steps.push({ key: block.id, kind: "change", source: statement });
+    } else if (block.kind === "call") {
+      // An ignored direct primitive-argument call has source syntax, not a
+      // proved implementation. Keep it opaque and explicitly assume normal
+      // return/local preservation; calls embedded in a value/predicate fail.
+      const statement = raw?.replace(/;\s*$/u, "");
+      const site = logic.callsites.filter(site => (site.blockId ? site.blockId === block.id
+        : (site.range.startLine > block.range.startLine || site.range.startLine === block.range.startLine && site.range.startCharacter >= block.range.startCharacter)
+          && (site.range.endLine < block.range.endLine || site.range.endLine === block.range.endLine && site.range.endCharacter <= block.range.endCharacter))
+        && readFunctionCallSourceRange(source, site.range)?.trim() === statement);
+      const arguments_ = site.length === 1 ? readFunctionCallArguments(callee.language, source, callee.filePath, site[0].range) : undefined;
+      if (!statement || !new RegExp("^" + identifier + "\\s*\\(", "u").test(statement)
+        || site.length !== 1 || site[0].relation && site[0].relation !== "call" || site[0].confidence === "inferred"
+        || ["eval", "Function"].includes(site[0].calleeName)
+        || !arguments_ || callee.language === "kotlin" && statement.includes("$")
+        || arguments_.some(argument => readFunctionCallSourceExpression(argument, route.names) === undefined)) return;
+      calls.add(site[0]); route.steps.push({ key: block.id, kind: "call", source: statement });
     } else if (block.kind === "condition") {
       const predicate = block.condition?.expression;
       if (!predicate || callee.language === "kotlin" && predicate.includes("$")
@@ -79,7 +97,7 @@ export function readFunctionCallSourceBody(callee: SymbolNode, source: string, m
     if (edges.length !== 1 || !["next", "return"].includes(edges[0].kind)) return;
     queue.push({ ...route, current: edges[0].targetId });
   }
-  if (!firstReturn || !paths.length || covered.size !== blocks.size) return;
+  if (!firstReturn || !paths.length || covered.size !== blocks.size || calls.size !== logic.callsites.length) return;
   return { parameters, parameterTypes: tutor.parameters.map(p => p.typeText!), returnExpression: firstReturn.expression,
     returnSource: firstReturn.source, ...(paths.length === 1 && paths[0].length === 1 ? {} : { bodyPaths: paths }) };
 }

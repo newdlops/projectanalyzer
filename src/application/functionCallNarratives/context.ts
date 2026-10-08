@@ -3,7 +3,7 @@ import type { FunctionCallsResponse } from "../../protocol/functionCalls";
 import type { FunctionNarrativeContext, FunctionNarrativeSnippet } from "../../shared/functionNarratives";
 import type { SymbolNode, SourceRange } from "../../shared/types";
 import type { FunctionCallNarrativePlan } from "./plan";
-import { readFunctionCallArguments } from "../../analyzer/functionCalls";
+import { readFunctionCallArguments, readFunctionCallSourceParameters } from "../../analyzer/functionCalls";
 import type { FunctionCallNarrativeTarget } from "../../shared/functionCallNarratives";
 import { attachFunctionCallSourceReading, type FunctionCallSourceCandidate } from "./sourceReading";
 import { findFunctionAtPosition } from "../../analyzer/functionLogic";
@@ -75,6 +75,14 @@ export async function buildFunctionCallNarrativeContext(parent: SymbolNode, sour
       relation: connection.relation, confidence: connection.confidence, guards, loops,
       deferred: connection.deferred || connection.relation !== "call", callerSnippet: caller?.id, calleeSnippet: helper?.id, sourceLimited: Boolean(sourceLimited || factsLimited) });
     if(range&&connection.relation==="call")targets.at(-1)!.arguments=readFunctionCallArguments(parent.language,source,parent.filePath,range);
+    const arguments_ = targets.at(-1)!.arguments;
+    if (callee && helper && !sourceLimited && !helper.truncated && connection.relation === "call" && !connection.deferred
+      && arguments_?.length && !arguments_.some(argument => /^(?:\.\.\.|\*)|=/u.test(argument))) {
+      // The Host supplies this declaration evidence before the source reader
+      // fingerprints its targets; model prose cannot create or replace it.
+      const parameters = readFunctionCallSourceParameters(callee.node, callee.source);
+      if (parameters?.length === arguments_.length) targets.at(-1)!.parameters = parameters;
+    }
     candidates.push({ target: targets.at(-1)!, callerRange: range || undefined, callee });
   }
   const context: FunctionNarrativeContext = { functionName: parent.name.slice(0, 240), language: parent.language, snippets, limited: Boolean(limited),

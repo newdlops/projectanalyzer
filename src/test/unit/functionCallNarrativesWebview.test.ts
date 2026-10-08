@@ -39,7 +39,7 @@ test("call-mode generation, cached selection, source actions and locale retain t
     assert.ok(runtime.getRenderedText("function-calls").some(text=>text.includes("position 2")),"an older operation cannot replace the current queued state");
     await delivery.explain(request!.payload as FunctionCallNarrativesRequest);replies.forEach(payload=>runtime.dispatchMessage({type:"functionCalls/explanationLoaded",payload}));
     assert.equal(calls,1);assert.equal(runtime.countRenderedByClass("function-calls","calls-reading-facts"),1);
-    assert.ok(runtime.getRenderedText("function-calls").some(text=>text.includes("Caller arguments bind")));
+    assert.match(runtime.getRenderedText("function-calls").join(" "), /Argument transfer:.*amount.*value.*Int/u);
     const before=runtime.messages.filter(message=>message.type==="functionCalls/explain").length;
     runtime.selectRenderedByClassNth("function-calls","calls-reading-select",0,"1");assert.equal(calls,1);
     runtime.dispatchMessage({type:"ui/language",payload:{language:"ko"}});
@@ -48,7 +48,7 @@ test("call-mode generation, cached selection, source actions and locale retain t
     assert.equal(runtime.messages.filter(message=>message.type==="functionCalls/explain").length,before);
     assert.deepEqual(runtime.getRenderedText("function-calls").filter(text=>text.includes("!enabled")),choices);
     runtime.click("function-mode-statements");assert.equal(calls,1);
-    runtime.click("function-mode-calls");assert.ok(runtime.getRenderedText("function-calls").some(text=>text.includes("Caller arguments bind")));
+    runtime.click("function-mode-calls");assert.match(runtime.getRenderedText("function-calls").join(" "), /Argument transfer:.*adjusted.*value.*Int/u);
   }finally{delivery.reset();runtime.restore();}
 });
 

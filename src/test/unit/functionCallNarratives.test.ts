@@ -240,6 +240,7 @@ test("closed return-body call facts reject effects, calls, captured values, memb
     assert.ok(reader.read(callee, helper, site.range, "addFee(amount)"));
     const returned = language === "kotlin" ? "return value + 5" : "return value + 5;";
     const variants = ["return captured", "return value.member", "return helper(value)", "return ++value", "return [value]",
+      "eval(value); return value", "Function(value); return value",
       language === "kotlin" ? "value += 1; return value" : "value += 1; return value;"];
     if (language === "kotlin") variants.push('return "${value++}"');
     for (const replacement of variants) assert.equal(reader.read(callee, helper.replace(returned, replacement), site.range, "addFee(amount)"), undefined, replacement);
@@ -254,6 +255,24 @@ test("closed return-body call facts reject effects, calls, captured values, memb
     assert.equal(createFunctionCallSourceReader(fixture.root, shifted).read(callee, helper, shiftedSite.range, "addFee(amount)"), undefined);
     assert.equal(reader.read(callee, helper, site.range, "new addFee(amount)"), undefined);
     assert.equal(reader.read(callee, helper, site.range, "addFee.call(null, amount)"), undefined);
+  }
+});
+
+test("callee formal types bind model inputs even when opaque inner calls keep the rest of the reading with the model", async () => {
+  for (const language of ["typescript", "kotlin"] as const) {
+    const body = language === "kotlin" ? "val n = audit(value); return n + 3" : "const n = audit(value); return n + 3;";
+    const h = await harness(language, undefined, undefined, (name, source) => name === "readingHelpers"
+      ? source.replace(language === "kotlin" ? "return value + 5" : "return value + 5;", body) : source);
+    try {
+      const edge = h.slice.connections.find(edge => h.slice.nodes.find(node => node.id === edge.to)?.name === "addFee")!;
+      await h.delivery.explain({ ...h.explanation, requestId: 2, scope: "call", connectionId: edge.id });
+      const context = h.contexts[0], target = context.callTask!.targets[0], call = h.replies.at(-1)!.narrative!.calls[0];
+      assert.deepEqual(target.parameters, [{ name: "value", type: language === "kotlin" ? "Int" : "number" }]);
+      assert.match(call.inputs, /`amount` → `value`/u); assert.equal(h.replies.at(-1)!.modelName, "External model fixture");
+      assert.equal(buildSourceFunctionNarrativeResponse(context, "en"), undefined);
+      const changed = JSON.parse(functionCallReadingReply(context).text); changed.calls[0].inputs = "Wrong parameter.";
+      assert.throws(() => parseFunctionCallNarrative(JSON.stringify(changed), context, "en"), /invalid-response/u);
+    } finally { h.delivery.reset(); }
   }
 });
 
