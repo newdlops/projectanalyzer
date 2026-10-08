@@ -5,6 +5,7 @@ import { readFunctionCallSourceExpression, readFunctionCallSourceRange, type Fun
 import type { FunctionNarrativeContext } from "../../shared/functionNarratives";
 import type { FunctionCallNarrativeTarget, FunctionCallReading } from "../../shared/functionCallNarratives";
 import type { SourceRange, SymbolNode } from "../../shared/types";
+import { renderFunctionCallSourceBody } from "./sourceBodyReading";
 
 /** Proofs refer to the same source-owned caller location as their unchanged five detail fields. */
 export type SourceCallSummaryProof = {
@@ -16,7 +17,7 @@ const identifier = "[\\p{L}_$][\\p{L}\\p{N}_$]*";
 
 /** Every selected argument, source calculation, local use and reaching guard remains explicit. */
 function callStep(proof: SourceCallSummaryProof, ko: boolean): Step {
-  const { target, facts } = proof, expression = "`" + target.expression + "`", result = "`" + facts.returnExpression + "`";
+  const { target, facts } = proof, expression = "`" + target.expression + "`", result = renderFunctionCallSourceBody(facts, ko);
   const transfers = facts.parameters.map((name, index) => "`" + target.arguments![index] + "` → `" + name + "` (" + facts.parameterTypes[index] + ")").join(", ");
   const use = facts.use.kind === "return" ? ko ? "부모 반환값" : "parent return"
     : facts.use.kind === "binding" ? ko ? "지역 `" + facts.use.name + "`" : "local `" + facts.use.name + "`"

@@ -1,5 +1,5 @@
 /** Public isolated/selected call scopes through the production Host/provider; never execute source.
- * Usage after compile: node scripts/benchmark-call-scopes.mjs [runtime-root] [tag] [checkout|serial]
+ * Usage after compile: node scripts/benchmark-call-scopes.mjs [runtime-root] [tag] [checkout|serial|body]
  * Raw public-fixture context/replies stay in a private temporary directory; graph preparation is excluded.
  */
 import {createRequire} from 'node:module';
@@ -10,7 +10,7 @@ import {fileURLToPath} from 'node:url';
 const require=createRequire(import.meta.url),repo=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const runtime=process.argv[2]?path.resolve(process.argv[2]):repo,tag=(process.argv[3]||'candidate').replace(/[^a-z0-9_-]/gi,'_').slice(0,40);
 const fixtureKind=process.argv[4]||'checkout';
-if(!['checkout','serial'].includes(fixtureKind))throw new Error('Unknown public fixture kind');
+if(!['checkout','serial','body'].includes(fixtureKind))throw new Error('Unknown public fixture kind');
 const {loadFunctionCallReadingFixture}=require(repo+'/out/test/unit/helpers/functionCallReadingFixture');
 const {FunctionCallsHostDelivery}=require(runtime+'/out/webview/functionCalls');
 const {WebviewGraphDelivery}=require(runtime+'/out/webview/sidebarGraphDelivery');
@@ -24,7 +24,12 @@ for(const language of ['typescript','kotlin']){
  const serial=language==='kotlin'
   ? 'fun checkout(amount: Int): Int {\n val a = addFee(amount)\n val b = double(a)\n return addFee(b)\n}'
   : 'import { addFee, double } from "./readingHelpers";\nexport function checkout(amount: number): number {\n const a = addFee(amount);\n const b = double(a);\n return addFee(b);\n}';
- const f=await loadFunctionCallReadingFixture(language,fixtureKind==='serial'?(name,source)=>name==='reading'?serial:source:undefined),graphDelivery=new WebviewGraphDelivery();
+ const oneCall=language==='kotlin'?'fun checkout(amount: Int): Int { return addFee(amount) }'
+  :'import { addFee } from "./readingHelpers";\nexport function checkout(amount: number): number { return addFee(amount); }';
+ const body=language==='kotlin'?'var n = value + 5; if (n < 0) return 0; n *= 2; return n + 3'
+  :'let n = value + 5; if (n < 0) return 0; n *= 2; return n + 3;';
+ const f=await loadFunctionCallReadingFixture(language,fixtureKind==='checkout'?undefined:(name,source)=>name==='reading'
+  ?fixtureKind==='serial'?serial:oneCall:fixtureKind==='body'?source.replace(language==='kotlin'?'return value + 5':'return value + 5;',body):source),graphDelivery=new WebviewGraphDelivery();
  const graphVersion=graphDelivery.activate(f.graph).snapshot.version;
  const sourceNodeTokens=new SourceNodeTokenRegistry(),evidenceTokens=new CodeFlowEvidenceTokenRegistry();
  sourceNodeTokens.activate(graphVersion,f.graph);evidenceTokens.activate(graphVersion,f.graph);
@@ -39,7 +44,7 @@ for(const language of ['typescript','kotlin']){
  const request={graphVersion,sourceToken:sourceNodeTokens.createToken(f.root.id),requestId:1};await host.load(request);
  const slice=staticReplies.at(-1),examples=exampleFunctionCallScenarios(slice.control,new Map(slice.connections.map(edge=>[edge.id,edge])));
  const fee=slice.connections.find(edge=>slice.nodes.find(node=>node.id===edge.to)?.name==='addFee');
- const scopes=[...(fixtureKind==='serial'?[{scope:'overview',name:'structure'}]:[]),{scope:'call',name:'addFee',connectionId:fee.id},...examples.map(example=>({scope:'scenario',
+ const scopes=[...(fixtureKind!=='checkout'?[{scope:'overview',name:'structure'}]:[]),{scope:'call',name:'addFee',connectionId:fee.id},...examples.map(example=>({scope:'scenario',
   name:'route-'+example.trace.callIds.length,choices:[...example.selection].map(([key,value])=>({key,value}))}))];
  let id=1;
  for(const item of scopes){

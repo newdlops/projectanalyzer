@@ -53,7 +53,9 @@ function buildGuardedSourceFlow(context: FunctionNarrativeContext, parent: Symbo
     const node: SymbolNode = { id: "source-call-" + index, kind: "function", name: target.name, qualifiedName: target.qualifiedName,
       filePath: target.filePath, range: target.range, selectionRange: target.selectionRange, language: target.language };
     const facts = reader.read(node, original.code, sites[index].range, row.expression);
-    if (!facts) return;
+    // The legacy compact recipe names only a return leaf. Extended callee
+    // paths must use the generic compiler so local changes/branches stay visible.
+    if (!facts || facts.bodyPaths) return;
     readings.push(facts);
   }
   if (readings[0].use.kind !== "return" || readings[1].use.kind !== "binding" || readings[2].use.kind !== "return") return;

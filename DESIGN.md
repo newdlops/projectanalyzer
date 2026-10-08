@@ -53,6 +53,11 @@ The final reading may connect certified detail batches into a complete larger
 source flow. Preserve every transfer, return expression and local use in the same
 flat summary/flow section and cached call selector. Proof storage is Host-only;
 add no setup controls, new visual tokens or extra model action.
+Checked callee bodies may include local calculations and conditional returns.
+Keep every ordered change, branch outcome and return in the connected flow;
+qualify conditional local writes in effects and keep caller guards separate.
+Retain the same five fields, source actions, producer label and cache controls.
+Reject prose that cannot fit the existing limits instead of dropping a path.
 
 Acceptance: real local TypeScript and Kotlin caller/callee readings; cross-file
 evidence, strict fixed call references, distinct repeated sites/visits, static

@@ -7,6 +7,7 @@ import type { SymbolNode, SourceRange } from "../../shared/types";
 import { buildFunctionCallSourceFlow } from "./sourceFlow";
 import { buildFunctionCallSourceSummary, type SourceCallSummaryProof } from "./sourceSummary";
 import { captureSourceCallProofs } from "./sourceProofs";
+import { renderFunctionCallSourceReturns, renderFunctionCallSourceEffects } from "./sourceBodyReading";
 
 /** Full source is Host-owned and never goes through the model/Webview protocol. */
 export type FunctionCallSourceCandidate = { target: FunctionCallNarrativeTarget; callerRange?: SourceRange;
@@ -77,23 +78,26 @@ export function buildSourceFunctionCallNarrativeResponse(context: FunctionNarrat
 
 /** Explain symbolic expressions and their exact syntactic use, without substituting guessed inputs or inventing business roles. */
 function describeCall(target: FunctionCallNarrativeTarget, facts: FunctionCallSourceFacts, language: "ko" | "en"): FunctionCallReading | undefined {
-  const ko = language === "ko", expression = "`" + facts.returnExpression + "`";
+  const ko = language === "ko", branches = (facts.bodyPaths?.length ?? 0) > 1;
+  const expression = branches ? ko ? "각 소스 경로의 반환값" : "the source path's return value" : "`" + facts.returnExpression + "`";
   const transfers = facts.parameters.map((name, index) => "`" + target.arguments![index] + "` → `" + name + "` (" + facts.parameterTypes[index] + ")");
   const guards = target.guards.map(guard => "`" + guard.expression + "` = " + guard.outcome);
   const loops = target.loops.map(loop => "`" + loop + "`");
   const conditions = [...guards, ...loops].join("; ");
-  const output = facts.use.kind === "return" ? ko ? `반환식 ${expression}의 결과를 이 호출부에서 부모 함수의 반환값으로 바로 전달합니다.`
+  const koResult = branches ? "각 소스 경로의 반환값을" : `반환식 ${expression}의 결과를`;
+  const output = facts.use.kind === "return" ? ko ? `${koResult} 이 호출부에서 부모 함수의 반환값으로 바로 전달합니다.`
     : `The callee returns ${expression}; this callsite returns it directly from the parent.`
-    : facts.use.kind === "binding" ? ko ? `반환식 ${expression}의 결과를 지역 변수 \`${facts.use.name}\`에 저장합니다. 부모의 최종 반환은 별도입니다.`
+    : facts.use.kind === "binding" ? ko ? `${koResult} 지역 변수 \`${facts.use.name}\`에 저장합니다. 부모의 최종 반환은 별도입니다.`
       : `The callee returns ${expression}; store it in local \`${facts.use.name}\`. This is not the parent's final return.`
-      : ko ? `반환식 ${expression}의 결과를 이 호출부에서는 저장하거나 반환하지 않습니다.`
+      : ko ? `${koResult} 이 호출부에서는 저장하거나 반환하지 않습니다.`
         : `The callee returns ${expression}; this callsite discards the result.`;
   const reading = { callId: target.callId,
-    role: ko ? `대상 함수 \`${target.callee}\`의 반환식은 ${expression}입니다.` : `Call \`${target.callee}\` for its source return expression ${expression}.`,
+    role: branches ? (ko ? `대상 \`${target.callee}\`의 반환 경로: ` : `Source returns of \`${target.callee}\`: `) + renderFunctionCallSourceReturns(facts) + "."
+      : ko ? `대상 함수 \`${target.callee}\`의 반환식은 ${expression}입니다.` : `Call \`${target.callee}\` for its source return expression ${expression}.`,
     inputs: getFunctionCallFixedInputs(target, language) ?? (ko ? `인자 전달: ${transfers.join(", ")}.` : `Argument transfer: ${transfers.join(", ")}.`),
     output,
-    effects: ko ? "대상 본문에는 반환식 외의 변수 쓰기나 명시적인 다른 호출이 없습니다. 실제 실행 효과는 관찰하지 않았습니다."
-      : "The callee body has no writes or explicit calls beyond its return expression. Runtime effects are unobserved.",
+    effects: renderFunctionCallSourceEffects(facts, ko) ?? (ko ? "대상 본문에는 반환식 외의 변수 쓰기나 명시적인 다른 호출이 없습니다. 실제 실행 효과는 관찰하지 않았습니다."
+      : "The callee body has no writes or explicit calls beyond its return expression. Runtime effects are unobserved."),
     reason: conditions ? ko ? `정적 도달 조건: ${conditions}. 이 조건 아래의 호출 관계이며 실제 실행 관찰은 아닙니다.`
       : `Static reaching conditions: ${conditions}. This is a source relationship, not an observed execution.`
       : ko ? "이 호출부에 별도의 정적 분기·반복 조건이 없습니다. 소스에 나타난 호출 관계를 읽습니다."

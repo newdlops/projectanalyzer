@@ -4,6 +4,17 @@ All notable user-visible changes to Project Analyzer: Code Flow are recorded in
 this file. The changelog starts with the first distribution-documented build;
 earlier local development builds were not tracked here.
 
+## 0.0.1132 - 2026-10-08
+
+### Improved
+
+- Read complete callee paths with primitive local calculations, conditional
+  updates and early returns directly from source, without model setup.
+- Preserve every branch outcome, ordered local change, typed transfer and return
+  use in the existing reading fields and connected flow, including batch summaries.
+- Keep external work, cycles, incomplete bodies and over-budget prose on the
+  model path; retain source citations, confidence and cache controls.
+
 ## 0.0.1131 - 2026-10-08
 
 ### Improved

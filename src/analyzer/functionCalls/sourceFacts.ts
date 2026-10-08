@@ -1,11 +1,14 @@
-/** Bounded symbolic call facts: parser-owned simple return bodies and exact caller use, never execution or business inference. */
+/** Symbolic callee paths and exact caller use; syntax ownership never implies runtime execution or business intent. */
 import type { SourceRange, SymbolNode } from "../../shared/types";
 import { analyzeFunctionLogic, type FunctionLogicBlock } from "../functionLogic";
 import { analyzeFunctionTutorDeclaration } from "../functionTutor";
+import { readFunctionCallSourceBody, type FunctionCallSourceBodyFacts } from "./sourceBody";
+import { readFunctionCallSourceRange } from "./sourceSyntax";
+export { readFunctionCallSourceExpression, readFunctionCallSourceRange } from "./sourceSyntax";
+export type { FunctionCallSourceBodyStep } from "./sourceBody";
 
 /** Source syntax only. A return expression is not a calculated runtime result. */
-export type FunctionCallSourceFacts = {
-  parameters: string[]; parameterTypes: string[]; returnExpression: string; returnSource: string;
+export type FunctionCallSourceFacts = FunctionCallSourceBodyFacts & {
   callerSource: string; use: { kind: "return" | "binding" | "discard"; name?: string };
 };
 export type FunctionCallSourceReader = {
@@ -14,7 +17,8 @@ export type FunctionCallSourceReader = {
 const identifier = "[\\p{L}_$][\\p{L}\\p{N}_$]*";
 
 /** Parse the parent once per context; only matching exact statements can describe a call's use. */
-export function createFunctionCallSourceReader(parent: SymbolNode, source: string): FunctionCallSourceReader {
+export function createFunctionCallSourceReader(parent: SymbolNode, source: string,
+  options?: { maxCalleeDepth?: number }): FunctionCallSourceReader {
   const language = parent.language.toLowerCase();
   const parentLogic = ["typescript", "javascript", "kotlin"].includes(language)
     ? analyzeFunctionLogic({ functionNode: parent, sourceText: source, maxBlocks: 128 }) : undefined;
@@ -32,57 +36,9 @@ export function createFunctionCallSourceReader(parent: SymbolNode, source: strin
     const callerSource = readFunctionCallSourceRange(source, block.range)?.trim();
     const use = callerSource && readUse(block, callerSource, expression.trim());
     if (!use) return;
-    const logic = analyzeFunctionLogic({ functionNode: callee, sourceText: calleeSource, maxBlocks: 8 });
-    const body = logic.blocks.filter(block => !["entry", "exit"].includes(block.kind));
-    if (body.length !== 1 || body[0].kind !== "return" || body[0].confidence !== "exact"
-      || logic.callsites.length || logic.edges.some(edge => edge.confidence !== "exact")
-      || logic.gaps.some(gap => ["sourceUnavailable", "functionNotFound", "languageUnsupported"].includes(gap.code))) return;
-    const tutor = analyzeFunctionTutorDeclaration({ functionNode: callee, sourceText: calleeSource, functionLogic: logic });
-    if (tutor.executionKind !== "sync" || tutor.inputSummarySafe === false || tutor.parameters.length > 8
-      || tutor.parameters.some(p => p.rest || p.optional || p.defaultValue !== undefined || p.callingMode !== "positional"
-        || !/^(?:number|boolean|string|Int|Double|Boolean|String)$/u.test(p.typeText ?? ""))
-      || tutor.gaps.some(gap => gap.kind !== "language-support")
-      || tutor.program.blocks.some(block => block.operations.length > 0)) return;
-    const declaration = readFunctionCallSourceRange(calleeSource, logic.sourceRange ?? callee.range);
-    if (!declaration || declaration.length > 1800 || /\b(?:suspend|inline|operator|external|expect)\b/u.test(declaration)) return;
-    const returnSource = readFunctionCallSourceRange(calleeSource, body[0].range)?.trim();
-    if (!returnSource) return;
-    // Kotlin string templates can hide expressions/writes inside a quoted
-    // token. They are not literal leaves in this closed syntax reader.
-    if (language === "kotlin" && /\$/u.test(returnSource)) return;
-    const expressionSource = returnSource.replace(/^return\s+/u, "").replace(/;\s*$/u, "").trim();
-    const parameters = tutor.parameters.map(p => p.name);
-    const returnExpression = readFunctionCallSourceExpression(expressionSource, new Set(parameters));
-    if (returnExpression === undefined) return;
-    return { parameters, parameterTypes: tutor.parameters.map(parameter => parameter.typeText!), returnExpression,
-      returnSource, callerSource: callerSource!, use };
+    const body = readFunctionCallSourceBody(callee, calleeSource, options?.maxCalleeDepth);
+    return body && { ...body, callerSource: callerSource!, use };
   } };
-}
-
-/** Full declaration text must contain exactly one supported return expression, including no calls or external bindings. */
-export function readFunctionCallSourceExpression(source: string, parameters: Set<string>): string | undefined {
-  if (!source || source.length > 120) return;
-  const tokens: string[] = []; let cursor = 0, depth = 0, needsValue = true;
-  const token = /(?:"(?:[^"\\\r\n]|\\.)*"|'(?:[^'\\\r\n]|\\.)*'|(?:\d+(?:\.\d+)?|\.\d+)(?:[eE][+-]?\d+)?|[\p{L}_$][\p{L}\p{N}_$]*|===|!==|==|!=|<=|>=|&&|\|\||[()+*/%<>!+-])/uy;
-  while (cursor < source.length) {
-    if (/\s/u.test(source[cursor])) { cursor++; continue; }
-    // Adjacent ++/-- mutate bindings; they must not become two unary operators.
-    if (["++", "--"].includes(source.slice(cursor, cursor + 2))) return;
-    token.lastIndex = cursor; const match = token.exec(source); if (!match) return;
-    const text = match[0]; cursor = token.lastIndex;
-    if (tokens.length >= 64) return;
-    if (text === "(") { if (!needsValue || ++depth > 16) return; }
-    else if (text === ")") { if (needsValue || depth-- <= 0) return; }
-    else if (["!", "+", "-"].includes(text) && needsValue) { /* Bounded unary operators consume no value yet. */ }
-    else if (["+", "-", "*", "/", "%", "<", ">", "<=", ">=", "===", "!==", "==", "!=", "&&", "||"].includes(text)) {
-      if (needsValue) return; needsValue = true;
-    } else {
-      if (!needsValue || /[\p{L}_$]/u.test(text[0]) && !parameters.has(text) && !["true", "false"].includes(text)) return;
-      needsValue = false;
-    }
-    tokens.push(text);
-  }
-  return !needsValue && depth === 0 ? tokens.join(" ") : undefined;
 }
 
 /** The enclosing statement must use the entire call directly, rather than hiding a larger computation or a write to external state. */
@@ -95,15 +51,6 @@ function readUse(block: FunctionLogicBlock, source: string, expression: string):
   return;
 }
 
-/** Read only requested lines; no whole-file split is needed for each return/callsite. */
-export function readFunctionCallSourceRange(source: string, range: SourceRange): string | undefined {
-  let cursor = 0;
-  for (let line = 0; line < range.startLine; line++) { const next = source.indexOf("\n", cursor); if (next < 0) return; cursor = next + 1; }
-  const start = cursor + range.startCharacter;
-  for (let line = range.startLine; line < range.endLine; line++) { const next = source.indexOf("\n", cursor); if (next < 0) return; cursor = next + 1; }
-  const end = cursor + range.endCharacter;
-  return start <= end && end <= source.length ? source.slice(start, end) : undefined;
-}
 function contains(owner: SourceRange, site: SourceRange): boolean {
   return (owner.startLine < site.startLine || owner.startLine === site.startLine && owner.startCharacter <= site.startCharacter)
     && (owner.endLine > site.endLine || owner.endLine === site.endLine && owner.endCharacter >= site.endCharacter);

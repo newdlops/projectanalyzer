@@ -148,6 +148,57 @@ loop/exception transfer, inferred/partial/truncated evidence, 긴 식과 알 수
 초기 준비 문구는 저장하지 않는다. 각 시나리오의 상세 문단·대안은 계속 모델이 새로 작성한다.
 기존 노드 구문·동작·근거·효과·인용을 모두 유지하며 화면 배치도 유지한다.
 
+### 0.0.1132 callee 내부의 지역 계산·조건별 반환 대기 제거
+
+`analyzer/functionCalls/sourceBody`는 primitive 매개변수의 완전한 비순환 callee CFG를
+반복 queue/visited set으로 읽는다. 최대 32블록·128상태·4경로·8매개변수이며 public
+`createFunctionCallSourceReader(parent, source, {maxCalleeDepth})`로 깊이를 더 낮출 수 있다.
+조건과 명시적 반환, 지역 선언/갱신만 허용한다. 모든 source 블록과 연결을 커버하고 이름,
+mutability 및 식을 검사한다. parameter/captured/member/immutable 쓰기, 미확인 입력,
+명시적 외부 호출, 반복, 미확인/암묵적 반환과 잘린 본문은 기존 모델을 유지한다.
+`sourceSyntax`는 기존 closed 식과 source-range reader를 공유하며 코드를 실행하지 않는다.
+`bodyPaths`가 있으면 전체 경로를 사용한다. `returnExpression`/`returnSource`는 호환용 첫
+반환 leaf이며 조건별 반환을 대신할 수 없다.
+
+`application/functionCallNarratives/sourceBodyReading`은 모든 경로의 조건/반환, 순서대로
+나타난 지역 변경을 기존 다섯 항목과 summary/flow에 연결한다. 동일한 source prefix만
+공유하고, 같은 텍스트라도 다른 statement key의 갱신은 두 번 유지한다. effects의 조건부
+갱신은 내부 callee guard로 한정하고 reason의 부모 도달 조건과 혼합하지 않는다. 지역 쓰기가
+있는 본문을 write-free로 설명하지 않는다. legacy single-return recipe는 확장된 본문에서
+사용하지 않고 전체 symbolic 흐름을 다시 검증한다. confidence와 모든 source action/캐시를
+유지하며 160/180/240/600자 상한을 올리거나 사실/경로를 생략해서 맞추지 않는다.
+
+공개 helper는 `n = value + 5` → `n < 0` 참이면 `0` 반환, 거짓이면 `n *= 2` → `n + 3`
+반환이다. `scripts/benchmark-call-scopes.mjs [runtime] [tag] body`로 실제 TS/Kotlin parser,
+Host와 local provider를 사용했다. 같은 PC에서 각 범위를 한 번 측정했으며 원문은 fixture
+reader가 전달한다. graph 준비와 완료 후 캐시 페이지 조회는 시간 밖이다.
+
+| 범위 | 설치된 0.0.1131 | 후보 | 설치된 0.0.1132 | 실제 모델 요청 |
+| --- | ---: | ---: | ---: | ---: |
+| TS 전체 구조 | 8.76초 | 19.10ms | 14.23ms | 1 → 0 |
+| TS 개별 호출 | 7.33초 | 7.41ms | 3.39ms | 1 → 0 |
+| TS 선택 경로 | 7.84초 | 5.72ms | 3.85ms | 1 → 0 |
+| Kotlin 전체 구조 | 9.27초 | 16.89ms | 96.58ms | 1 → 0 |
+| Kotlin 개별 호출 | 7.79초 | 6.01ms | 2.56ms | 1 → 0 |
+| Kotlin 선택 경로 | 7.33초 | 4.40ms | 2.22ms | 1 → 0 |
+
+각 요청의 다섯 항목, typed 전달, 양쪽 guard/반환, `n` 초기화와 거짓 경로에서만 실행되는
+갱신, 부모 반환 및 source 연결을 보존했다. 실행값이나 업무 의미를 만든 결과가 아니다.
+한국어/영어의 실제 parser/Host 검사, 반복된 동일 갱신의 두 방문, immutable 초기화,
+외부 동작/순환/깊이/본문/문단 상한과 모델 fallback, 3-call 배치 요약의 local 중간 계산과
+두 캐시 페이지를 검사했다. 관련 38개와 packaging 15개가 통과했다. 전체 unit 1,143개 중
+1,139개 통과, 기존 네 실패는 동일하다. 샌드박스의 local socket EPERM 실패는 같은 검사를
+허용된 실행으로 다시 검증하여 구분했다. 더 복잡한 호출과 모델이 필요한 경로는 남아 있다.
+
+설치본은 격리된 QA 앱 시작과 함께 한 번 측정했으며 PC 부하와 cold cache 영향도 포함한다.
+속도 비율이나 임의 helper의 사실 정확도를 보장하는 측정은 아니다. 설치된 실제 VS Code에서
+같은 파일의 TS/Kotlin `compute` → `calculate`를 열어 구조/선택 경로, 양쪽 반환 및 조건부
+지역 변경을 확인했다. binary/model이 없는 QA 설정에서도 완료됐고 호출 위치 3행, 대상
+선언 5행으로 이동했다(Kotlin은 5–10행 전체 선언 선택, TS는 선언 header 선택). 소스 탭에서
+돌아왔을 때 생성된 읽기를 유지했다. 1440×900과 770×900의 실제 화면에서 요약·상세의
+줄바꿈, 완료/disabled paging과 source 버튼을 확인했다. CSS/기존 토큰은 변경하지 않았고
+모바일/테마 전수/접근성 전체 감사는 수행하지 않았다.
+
 ### 0.0.1131 배치 증명으로 더 큰 호출 흐름의 마지막 모델 요청 제거
 
 `application/functionCallNarratives/sourceProofs`는 Host-only identity handle과 WeakMap으로

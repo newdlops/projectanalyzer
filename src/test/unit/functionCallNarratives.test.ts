@@ -240,8 +240,7 @@ test("closed return-body call facts reject effects, calls, captured values, memb
     assert.ok(reader.read(callee, helper, site.range, "addFee(amount)"));
     const returned = language === "kotlin" ? "return value + 5" : "return value + 5;";
     const variants = ["return captured", "return value.member", "return helper(value)", "return ++value", "return [value]",
-      language === "kotlin" ? "value += 1; return value" : "value += 1; return value;",
-      language === "kotlin" ? "val other = value; return other" : "const other = value; return other;"];
+      language === "kotlin" ? "value += 1; return value" : "value += 1; return value;"];
     if (language === "kotlin") variants.push('return "${value++}"');
     for (const replacement of variants) assert.equal(reader.read(callee, helper.replace(returned, replacement), site.range, "addFee(amount)"), undefined, replacement);
     const type = language === "kotlin" ? "value: Int" : "value: number";
