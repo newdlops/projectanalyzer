@@ -958,6 +958,15 @@ receiver/member 쓰기·callback/async/generator·Kotlin 실행 modifier·loop �
 중복 owner/overload·shadow·직접 재할당은 unresolved로 유지한다. 정확한 source identity를
 확인한 parser declaration 범위는 설명 snippet과 대상 소스 evidence에 함께 사용하고 기존
 graph ID/range/confidence는 변경하지 않는다.
+0.0.1141은 동기 plain 함수의 단일 `try` 값 반환과 한두 개의 직접 `finally` 호출을
+독립 AST 영역과 전체 CFG/callsite coverage로 읽는다. 반환식 평가·보관 → 정리 호출 →
+정상 완료 시 보관 결과 사용 순서를 보존하며, 단순화된 CFG의 return edge를 실제 정리
+순서의 증거로 쓰지 않는다. 값/상태·호출 내부/효과·예외는 미확인이고 원문을 실행하지
+않는다. primitive positional 선언만 사용하며 default/rest/opaque 입력, catch, 반환/throw
+재정의, 쓰기, nested/async 제어, receiver/captured 읽기와 기존 상한은 모델을 유지한다.
+정리 facts는 bodyPaths를 유지하므로 primitive leaf/legacy sync 평가로 승격하지 않는다.
+다섯 상세 항목·원문 액션·candidate confidence·locale/scope cache는 그대로 유지한다.
+
 0.0.1140은 정확한 async/suspend 선언과 complete acyclic source path를 읽되 evaluator에
 비동기 실행 권한을 주지 않는다. `sourceExecution`은 TS/JS의 parser-owned async를 Promise
 계약으로, Kotlin의 suspend header를 중단 가능 계약으로 구분한다. 중단/재개가 실제로

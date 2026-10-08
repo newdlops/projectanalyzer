@@ -6,6 +6,7 @@ import { readFunctionCallSourceRange } from "./sourceSyntax";
 import { createFunctionCallSourceValueReader } from "./sourceCallValues";
 import { readFunctionCallSourceDeclaredParameters } from "./sourceParameters";
 import { readFunctionCallSourceExecution, type FunctionCallSourceExecution } from "./sourceExecution";
+import { readFunctionCallSourceFinally } from "./sourceFinally";
 
 /** Keys distinguish equal text at different source statements; they remain inside Host proof storage. */
 export type FunctionCallSourceBodyStep = { key: string; kind: "change" | "condition" | "return" | "call"; source: string; outcome?: "true" | "false";
@@ -26,6 +27,8 @@ export type FunctionCallSourceBodyFacts = { parameters: string[]; parameterTypes
   execution?: Exclude<FunctionCallSourceExecution, "sync">;
   /** Declared reference/other types describe syntax, not known runtime values or safe primitive operands. */
   opaqueParameters?: string[];
+  /** AST-owned cleanup runs after evaluating/saving the return expression and before returning normally. */
+  finalizers?: FunctionCallSourceBodyStep[];
   /** Absent for the established single-return leaf; every extended path retains all steps in order. */
   bodyPaths?: FunctionCallSourceBodyStep[][] };
 type Route = { current: string; visited: Set<string>; names: Set<string>; mutable: Set<string>; steps: FunctionCallSourceBodyStep[]; returned: boolean };
@@ -36,6 +39,10 @@ export function readFunctionCallSourceBody(callee: SymbolNode, source: string, m
   // Callers may lower the traversal depth, never raise the closed proof budget.
   const depthLimit = Number.isFinite(maxDepth) ? Math.max(1, Math.min(32, Math.floor(maxDepth))) : 32;
   const logic = analyzeFunctionLogic({ functionNode: callee, sourceText: source, maxBlocks: 32 });
+  if (logic.blocks.some(block => block.kind === "try")) {
+    const tutor = analyzeFunctionTutorDeclaration({ functionNode: callee, sourceText: source, functionLogic: logic });
+    return readFunctionCallSourceFinally(callee, source, logic, tutor, depthLimit);
+  }
   if (logic.blocks.some(block => block.confidence !== "exact"
     || !["entry", "exit", "mutation", "condition", "return", "call"].includes(block.kind))
     || logic.gaps.some(gap => !["parseLimited", "dynamicBehavior"].includes(gap.code))) return;

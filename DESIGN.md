@@ -125,6 +125,16 @@ Acceptance: TS/Kotlin, both prose languages/scopes, raw versus awaited use,
 zero-call branches, strict default reader rejection and over-budget fallback;
 inspect normal completion and source navigation at narrow and desktop sizes.
 
+Plain synchronous try-return/finally-call readings show expression evaluation
+and storage before cleanup, then use the saved result only on normal completion.
+Keep every authored cleanup call and argument in order; unknown values/state,
+call bodies/effects and throws remain explicit. Parser-owned regions supplement
+the existing simplified cleanup graph without changing its confidence or edges.
+Use the same five fields, source controls and cache, with no additional UI.
+Acceptance: TS/Kotlin, both prose languages and all three scopes; repeated cleanup
+occurrences, saved-result ordering, cached source navigation, narrow/desktop copy
+wrapping and model fallback for catch/override/write/async/over-budget cases.
+
 Acceptance: real local TypeScript and Kotlin caller/callee readings; cross-file
 evidence, strict fixed call references, distinct repeated sites/visits, static
 guard/order parity in Host and browser, deferred/unknown outcomes and source

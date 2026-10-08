@@ -64,6 +64,7 @@ out/application/functionCallNarratives/sourceProofs.js
 out/application/functionCallNarratives/sourceBodyReading.js
 out/application/functionCallNarratives/sourceCallerReading.js
 out/application/functionCallNarratives/sourceAsyncReading.js
+out/application/functionCallNarratives/sourceFinallyReading.js
 
 # Callee syntax helpers are bundled into their existing public analyzer facade.
 out/analyzer/functionCalls/contexts.js
@@ -73,6 +74,8 @@ out/analyzer/functionCalls/sourceBody.js
 out/analyzer/functionCalls/sourceSyntax.js
 out/analyzer/functionCalls/sourceCallValues.js
 out/analyzer/functionCalls/sourceExecution.js
+out/analyzer/functionCalls/sourceFinally.js
+out/analyzer/functionCalls/sourceFinallySyntax.js
 out/analyzer/functionCalls/sourceParameters.js
 
 # Dormant feature modules are not reached by the extension entrypoint. Keep their

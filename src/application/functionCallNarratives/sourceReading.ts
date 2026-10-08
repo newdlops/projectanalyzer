@@ -10,6 +10,7 @@ import { captureSourceCallProofs } from "./sourceProofs";
 import { renderFunctionCallSourceReturns, renderFunctionCallSourceEffects, renderFunctionCallSourceOperations } from "./sourceBodyReading";
 import { renderFunctionCallSourceCallerEffects } from "./sourceCallerReading";
 import { renderFunctionCallAsyncOutput, renderFunctionCallAsyncEffects } from "./sourceAsyncReading";
+import { renderFunctionCallFinallyOutput } from "./sourceFinallyReading";
 
 /** Full source is Host-owned and never goes through the model/Webview protocol. */
 export type FunctionCallSourceCandidate = { target: FunctionCallNarrativeTarget; callerRange?: SourceRange;
@@ -105,6 +106,7 @@ function describeCall(target: FunctionCallNarrativeTarget, facts: FunctionCallSo
       : `Assuming normal calls preserve locals, use ${result}: ${use}.`;
   }
   output = renderFunctionCallAsyncOutput(facts, expression, ko) ?? output;
+  output = renderFunctionCallFinallyOutput(facts, ko) ?? output;
   const reading = { callId: target.callId,
     role: branches ? (ko ? `대상 \`${target.callee}\`의 반환 경로: ` : `Source returns of \`${target.callee}\`: `) + renderFunctionCallSourceReturns(facts) + "."
       : ko ? `대상 함수 \`${target.callee}\`의 반환식은 ${expression}입니다.` : `Call \`${target.callee}\` for its source return expression ${expression}.`,
@@ -119,6 +121,8 @@ function describeCall(target: FunctionCallNarrativeTarget, facts: FunctionCallSo
         : "No separate static branch or loop condition guards this callsite; read the source relationship." };
   if (facts.execution) reading.role = (facts.execution === "promise" ? "Promise" : "suspend")
     + (ko ? " 반환 계약 원문: " : " return contract source: ") + reading.role;
+  if (facts.finalizers?.length) reading.role = ko ? `대상 \`${target.callee}\`는 ${expression}을 먼저 평가·보관하고 finally 정상 완료 후 반환합니다. 값/정리 효과·예외는 미확인입니다.`
+    : `\`${target.callee}\` saves source ${expression}, returning after normal finally completion; values/cleanup effects/throws unknown.`;
   // Proving a candidate's body never proves dispatch. Keep inferred relations
   // conditional in every field as well as preserving the Host's confidence.
   if (target.confidence === "inferred" || facts.methodSource) {

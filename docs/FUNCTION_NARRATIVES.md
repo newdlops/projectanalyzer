@@ -148,6 +148,80 @@ loop/exception transfer, inferred/partial/truncated evidence, 긴 식과 알 수
 초기 준비 문구는 저장하지 않는다. 각 시나리오의 상세 문단·대안은 계속 모델이 새로 작성한다.
 기존 노드 구문·동작·근거·효과·인용을 모두 유지하며 화면 배치도 유지한다.
 
+### 0.0.1141 단순 try-return/finally 호출의 모델 대기 제거
+
+동기 plain TypeScript/JavaScript/Kotlin 함수의 본문 전체가 하나의 `try`이고, 그 안에
+값 반환 한 개, `finally`에 직접 호출 한두 개만 있으면 소스에서 설명한다. 정확한
+positional primitive 선언과 원래 반환식·정리 호출 인수를 보존한다. 반환식을 먼저
+평가·보관하고, `finally` 호출이 정상 완료하면 보관 결과를 호출부의 반환/지역 저장/버림에
+사용한다고 설명한다. 값·상태·정리 호출 내부/효과·예외는 미확인이며 사용자 소스는
+실행하지 않는다. 이름만 보고 수수료, 감사 로그나 저장 성공을 추정하지 않는다.
+
+`sourceFinallySyntax.ts`가 parser-owned try/return/finally 영역을 확인하고,
+`sourceFinally.ts`가 전체 CFG 블록/연결/callsite를 대조한다. 기존 CFG는 abrupt return이
+finally를 지나는 edge를 보수적으로 단순화하므로 그 edge를 정리 순서의 근거로 쓰지
+않는다. 독립 AST 구조가 정리 영역을 확인한 경우에만 언어의 평가/정리 순서를 설명한다.
+같은 문자열의 정리 호출 두 개는 서로 다른 source key를 유지한다. `finalizers`는
+Host-only 원문 facts이며 `bodyPaths`를 남겨 primitive leaf나 legacy recipe로 승격하지
+않는다. 반환식 안의 호출, catch/반환·throw 재정의/쓰기/중첩 제어/async/suspend/method,
+opaque/default/rest 입력, captured/receiver/member 읽기와 기존 source/depth/prose 상한은
+계속 모델을 사용한다. 문장을 자르거나 정리 작업을 생략하지 않는다.
+
+설치된 0.0.1140에서 공개 `try { return value + 5 } finally { audit(value) }` 예제를
+기존 Qwen3.5-4B Q4_K_M과 동일 설정으로 측정했다. TS 전체 구조/호출/선택 경로는
+10.97/8.74/12.04초, Kotlin은 10.89/13.65/17.67초이며 각각 모델 요청 1회였다.
+초기 개발 측정은 2.70–18.05ms와 모델 요청 0회, 최종 개발 출력은 전체 검사와 겹쳐
+21.06–215.02ms였다. graph 준비와 cache 조회는 생성 시간에서 제외한 단일 관찰값이며
+시스템 부하는 통제하지 않았다. 최종 설치 측정은 아래의 검증 결과에 별도로 기록한다.
+
+공개 baseline 모델 응답은 일부 범위에서 원문에 없는 출입금/요금·감사 로그를 추정했고
+finally의 실패 가능성이나 보관 결과 전달 조건을 생략했다. 소스 응답은 반환식과 정리
+인수를 그대로 유지하고 정상 완료·미확인 효과/예외를 표시한다. 이 예제의 관찰이며
+일반적인 모델 사실성 개선 점수는 아니다.
+
+이어서 설치된 0.0.1140의 Function Guide도 production session/provider로 측정했다.
+guard·Elvis·지역 변경·독립 조건·정수/Double 나눗셈·객체/배열·pure helper·while/do-while와
+외부 호출 가정의 26개 고유 공개 예제는 52개 시나리오를 완성했고, 반환값/노드 설명
+검사 오류 0개였다. runtime/weights가 없는 설정에서도 factory/download/모델 요청이
+모두 0회였다. 그룹 병렬 실행의 관찰 범위는 약 3.49–265.93ms이며 broad runtime
+계산이나 임의 코드의 정확성 보장은 아니다. 현재 지원한 Guide 경로는 이미 모델 대기를
+제거한 상태임을 확인했으며 이 변경은 실제 대기가 남아 있던 호출 설명을 확장한다.
+
+`benchmark-call-scopes.mjs`의 `finally`는 새 source recipe를, `model-boundary`의 catch
+예제는 실제 모델 fallback을 검사한다. source fixture에 모델 요청이 생기거나 model
+fixture에서 실제 모델 요청이 사라지면 실패한다. 커버리지 확대 후에도 실제 runtime
+준비/생성/응답 검증/캐시 조회를 검사할 수 있도록 두 경우를 분리했다.
+
+새 recipe의 KO/EN·세 범위·TS/Kotlin, 중복 정리 호출, 예외/쓰기/중첩/누락 구문 거부와
+관련 Guide/call/Scenario 검사 98개, 패키징 검사 15개를 통과했다. 전체 unit은 loopback
+권한을 허용한 실행에서 1,177개 중 1,173개 통과했으며 이전 버전과 동일한 Guide dynamic
+argument type·nested object input·advanced private Scenario·decorated Inspector source-reveal
+4개만 실패했다. 제한된 sandbox 실행의 추가 서버 실패 13개는 권한을 허용한 실행에서
+재현되지 않았다. catch fallback의 실제 Qwen 요청은 여섯 범위 모두 ready·다섯 항목·
+source evidence·cache를 유지했고 모델 요청은 각각 1회, cache 재조회는 0회였다.
+실제 모델 prose의 일반적인 정확성 보장은 아니며 모델/sampling/context/thread 설정을
+변경하지 않았다.
+
+최종 VSIX를 격리된 QA extension directory에 설치한 production Host/provider 측정은
+TS 전체 구조/개별 호출/선택 경로 30.28/8.20/10.12ms, Kotlin 81.40/4.43/4.71ms였다.
+모두 모델 요청 0회, ready·다섯 항목·원문 evidence·cache 검사를 통과했다. 각 범위
+단일 관찰이며 QA VS Code 창이 열려 있었고 시스템 부하는 통제하지 않았다.
+
+격리된 공식 VS Code 1.141.0의 native current-file TS/Kotlin 경로에서 runner/weights가
+없는 설정으로 설명을 생성했다. 반환식 `value + 5` 평가·보관, finally `audit(value)`,
+정상 완료 시 보관 결과 반환, unknown effects/throws와 amount→value 전달을 확인했다.
+TS 호출 위치는 4행 `addBase(amount)` 15자를, 대상 함수는 6–12행 123자를 선택했다.
+Kotlin은 읽을 호출 selector에서 Tab/Tab/Enter로 5–11행 전체 함수 110자를 선택했다.
+두 언어 모두 설명 탭으로 돌아가 같은 완료 내용을 복원했으며 Kotlin의 기존 불완전
+관계/미검증 안내는 유지했다. 좁은 분할 창과 데스크톱 창의 실제 screenshots에서 다섯
+항목/원문 버튼/줄바꿈을 확인했다(약 1,802px 및 3,600px 너비 이미지; CSS viewport나
+모바일 기기 크기로 해석하지 않는다). JVM 실행, 모바일/touch, 다른 theme, 전체
+스크린리더와 대비 계측은 수행하지 않았다.
+
+변경 범위의 Impeccable detector는 source prose renderer 세 파일에서 finding 0개였다.
+새 suppression이나 스타일 수정을 추가하지 않았다. 기존 graph의 side-tab 의미 표식은
+기존 파일 범위 예외를 유지했으며 이번 원문 설명 변경의 회귀로 취급하지 않았다.
+
 ### 0.0.1140 async/suspend 원문 설명의 모델 대기 제거
 
 TypeScript/JavaScript async의 Promise 계약과 Kotlin suspend의 중단 가능 계약을 Host의

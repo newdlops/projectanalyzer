@@ -1,12 +1,15 @@
 /** Locale prose for independently proved callee paths; retains every symbolic step and condition without evaluating values. */
 import type { FunctionCallSourceFacts, FunctionCallSourceBodyStep } from "../../analyzer/functionCalls";
 import { renderFunctionCallAsyncContract } from "./sourceAsyncReading";
+import { renderFunctionCallFinallyBody, renderFunctionCallFinallyEffects } from "./sourceFinallyReading";
 
 const condition = (step: FunctionCallSourceBodyStep) => "`" + step.source + "` = " + step.outcome;
 const code = (source: string) => "`" + source + "`";
 
 /** Factor only identical source-owned prefix steps; every alternative's remaining steps stay explicit and ordered. */
 export function renderFunctionCallSourceBody(facts: FunctionCallSourceFacts, ko: boolean, compactAsync = false): string {
+  const finallyBody = renderFunctionCallFinallyBody(facts, ko, compactAsync);
+  if (finallyBody) return finallyBody;
   const paths = facts.bodyPaths;
   if (!paths) return code(facts.returnExpression);
   const callValues = paths.some(path => path.some(step => step.kind !== "call" && step.calls?.length));
@@ -47,6 +50,8 @@ export function renderFunctionCallSourceReturns(facts: FunctionCallSourceFacts):
 
 /** Keep conditional local changes and duplicate statement occurrences; a source key prevents accidental text deduplication. */
 export function renderFunctionCallSourceEffects(facts: FunctionCallSourceFacts, ko: boolean): string | undefined {
+  const finallyEffects = renderFunctionCallFinallyEffects(facts, ko);
+  if (finallyEffects) return finallyEffects;
   if (!facts.bodyPaths) return;
   const { changes, calls, operations } = collectSourceOperations(facts);
   const callValues = facts.bodyPaths.some(path => path.some(step => step.kind !== "call" && step.calls?.length));

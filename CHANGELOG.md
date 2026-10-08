@@ -4,6 +4,20 @@ All notable user-visible changes to Project Analyzer: Code Flow are recorded in
 this file. The changelog starts with the first distribution-documented build;
 earlier local development builds were not tracked here.
 
+## 0.0.1141 - 2026-10-08
+
+### Improved
+
+- Read a complete synchronous try-return/finally-call recipe in TypeScript,
+  JavaScript and Kotlin without loading a model when every source operation fits.
+- Preserve evaluation and storage of the return expression before cleanup, all
+  cleanup call arguments/order, and return only after normal cleanup completion;
+  retain unknown values, state, effects and exceptions in the existing fields.
+- Verify cleanup with parser-owned regions instead of simplified CFG return edges;
+  retain catch, overriding return/throw, writes, async/nested control and size limits.
+- Keep source actions, candidate dispatch, five detail fields and cache. Add an
+  explicit real-model benchmark boundary so growing source coverage stays measurable.
+
 ## 0.0.1140 - 2026-10-08
 
 ### Improved

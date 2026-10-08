@@ -1,5 +1,5 @@
 /** Public isolated/selected call scopes through the production Host/provider; never execute source.
- * Usage after compile: node scripts/benchmark-call-scopes.mjs [runtime-root] [tag] [checkout|serial|body|fallback|values|receivers|model|objects|members|methods|async]
+ * Usage after compile: node scripts/benchmark-call-scopes.mjs [runtime-root] [tag] [checkout|serial|body|fallback|values|receivers|model|objects|members|methods|async|finally|model-boundary]
  * Raw public-fixture context/replies stay in a private temporary directory; graph preparation is excluded.
  */
 import {createRequire} from 'node:module';
@@ -10,7 +10,7 @@ import {fileURLToPath} from 'node:url';
 const require=createRequire(import.meta.url),repo=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const runtime=process.argv[2]?path.resolve(process.argv[2]):repo,tag=(process.argv[3]||'candidate').replace(/[^a-z0-9_-]/gi,'_').slice(0,40);
 const fixtureKind=process.argv[4]||'checkout';
-if(!['checkout','serial','body','fallback','values','receivers','model','objects','members','methods','async'].includes(fixtureKind))throw new Error('Unknown public fixture kind');
+if(!['checkout','serial','body','fallback','values','receivers','model','objects','members','methods','async','finally','model-boundary'].includes(fixtureKind))throw new Error('Unknown public fixture kind');
 const {loadFunctionCallReadingFixture}=require(repo+'/out/test/unit/helpers/functionCallReadingFixture');
 const {FunctionCallsHostDelivery}=require(runtime+'/out/webview/functionCalls');
 const {WebviewGraphDelivery}=require(runtime+'/out/webview/sidebarGraphDelivery');
@@ -36,6 +36,12 @@ for(const language of ['typescript','kotlin']){
   :'const s = connect(value); return s.read(value) + s.bias;';
  const model=language==='kotlin'?'val n = service.audit(value); return n + 3'
   :'const n = service.audit(value); return n + 3;';
+ const finallyBody=language==='kotlin'?'try { return value + 5 } finally { audit(value) }'
+  :'try { return value + 5; } finally { audit(value); }';
+ // Catch remains outside the closed cleanup recipe. Keep a real-model case
+ // as coverage grows, so this fixture cannot silently stop testing inference.
+ const modelBoundary=language==='kotlin'?'try { return value + 5 } catch (error: Exception) { return 0 } finally { audit(value) }'
+  :'try { return value + 5; } catch (error) { return 0; } finally { audit(value); }';
  // A declared reference type is source syntax, not a known runtime object or
  // a safe value to feed the primitive evaluator. No fixture source is run.
  const objectParent=language==='kotlin'?'fun checkout(amount: Payload): Int { return addFee(amount) }'
@@ -56,7 +62,7 @@ for(const language of ['typescript','kotlin']){
   :'export async function addFee(value: number): Promise<number> {\n const n = await service.read(value);\n return n + 3;\n}';
  const f=await loadFunctionCallReadingFixture(language,fixtureKind==='checkout'?undefined:(name,source)=>fixtureKind==='objects'
   ?name==='reading'?objectParent:objectHelper:fixtureKind==='members'?name==='reading'?memberParent:memberHelper:fixtureKind==='methods'?name==='reading'?methodParent:methodHelper:fixtureKind==='async'?name==='reading'?asyncParent:asyncHelper:name==='reading'
-  ?fixtureKind==='serial'?serial:oneCall:['body','fallback','values','receivers','model'].includes(fixtureKind)?source.replace(language==='kotlin'?'return value + 5':'return value + 5;',fixtureKind==='body'?body:fixtureKind==='values'?values:fixtureKind==='receivers'?receivers:fixtureKind==='model'?model:fallback):source),graphDelivery=new WebviewGraphDelivery();
+  ?fixtureKind==='serial'?serial:oneCall:['body','fallback','values','receivers','model','finally','model-boundary'].includes(fixtureKind)?source.replace(language==='kotlin'?'return value + 5':'return value + 5;',fixtureKind==='body'?body:fixtureKind==='values'?values:fixtureKind==='receivers'?receivers:fixtureKind==='model'?model:fixtureKind==='finally'?finallyBody:fixtureKind==='model-boundary'?modelBoundary:fallback):source),graphDelivery=new WebviewGraphDelivery();
  const graphVersion=graphDelivery.activate(f.graph).snapshot.version;
  const sourceNodeTokens=new SourceNodeTokenRegistry(),evidenceTokens=new CodeFlowEvidenceTokenRegistry();
  sourceNodeTokens.activate(graphVersion,f.graph);evidenceTokens.activate(graphVersion,f.graph);
@@ -87,6 +93,8 @@ for(const language of ['typescript','kotlin']){
   const calls=pages.flatMap(page=>page.narrative?.calls||[]);
   const failures=[];
   if(completed.status!=='ready'||!completed.coverage?.complete)failures.push('incomplete');
+  if(fixtureKind==='model-boundary'&&firstModelCount===before)failures.push('missing-real-model-fallback');
+  if(fixtureKind==='finally'&&firstModelCount!==before)failures.push('source-cleanup-triggered-model');
   if(firstModelCount!==metrics.length||pages.some(page=>!page.cacheHit))failures.push('cache-triggered-generation');
   if(calls.length!==completed.coverage?.total)failures.push('missing-call-details');
   for(const call of calls)if(!evidenceTokens.resolve(call.callerEvidence)||!evidenceTokens.resolve(call.calleeEvidence))failures.push('missing-evidence');
