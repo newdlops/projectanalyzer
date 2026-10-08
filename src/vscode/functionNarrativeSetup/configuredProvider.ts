@@ -17,7 +17,7 @@ export type ConfiguredNarrativeApi = FunctionNarrativeVsCodeApi & {
 };
 type LocalFactory = typeof createLocalFunctionNarrativeProvider;
 type ProviderSettings = { provider: "local" | "vscode"; binary: string; model: string };
-/** The actual provider's resource scope begins only at the first required inference and closes with the owning action. */
+/** The actual provider's resource scope begins at required model preparation/inference and closes with the owning action. */
 type RunScope = { closed: boolean; ready?: Promise<void>; finish?: () => void; lease?: Promise<void> };
 
 /** A signal binds a prepared provider for the entire explicit run, even if settings change between batches. */
@@ -67,7 +67,13 @@ export function createConfiguredNarrativeProvider(api: ConfiguredNarrativeApi, m
       // The complete node-reading pipeline decides necessity from independently
       // validated source. Explicit legacy/model-only preparation still prepares.
       if (options?.sourceReading && binding.provider === "local") return;
-      await resolve(language, signal, options);
+      const provider = await resolve(language, signal, options);
+      const scope = runs.get(signal);
+      if (signal.aborted || scope?.closed) throw new FunctionNarrativeError("cancelled");
+      if (binding.provider === "local" && provider.prepare) {
+        if (scope) await retain(provider, scope, language, signal);
+        await provider.prepare(language, signal, options);
+      }
     },
     async generate(context, language, signal, options) {
       if (signal.aborted || manager.disposed) throw new FunctionNarrativeError("cancelled");

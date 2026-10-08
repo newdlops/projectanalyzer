@@ -11,7 +11,9 @@ import { FunctionNarrativeError } from "../../shared/functionNarratives";
 import { detectLocalNarrativeAcceleration } from "./localAcceleration";
 
 type ServerOptions = { binaryPath: string; modelPath: string };
-export type LocalNarrativeMetrics = { promptTokens: number; cachedTokens: number; outputTokens: number; promptMs: number; outputMs: number };
+export type LocalNarrativeMetrics = { promptTokens: number; cachedTokens: number; outputTokens: number; promptMs: number; outputMs: number;
+  /** Full response latency after model readiness, including template/transport work, in milliseconds. */
+  generationMs: number };
 type Json = Record<string, any>;
 const servers = new WeakMap<ModelTaskManager, Map<string, LocalNarrativeServer>>();
 
@@ -41,16 +43,27 @@ export class LocalNarrativeServer implements ModelTaskResource {
   private diagnostics = "";
   private exitError?: FunctionNarrativeError;
   private acceleration?: string[];
+  private prepared = false;
   public constructor(private readonly options: ServerOptions) {}
+
+  /** True only after the runner health check; idle cleanup clears it with the owned process. */
+  public get isPrepared(): boolean { return this.prepared; }
 
   /** Model prompts stay in memory; no TCP listener, shell interpolation or source in process arguments. */
   public async generate(prompt: string | readonly string[], system: string, schema: Record<string, unknown>, signal: AbortSignal,
     onMetrics?: (metrics: LocalNarrativeMetrics) => void): Promise<string> {
-    await this.ready(signal);
+    await this.prepare(signal);
+    const started = performance.now();
     const template = await this.json("POST", "/apply-template", { messages: [{ role: "system", content: system },
       ...(typeof prompt === "string" ? [prompt] : prompt).map(content => ({ role: "user", content }))] }, signal);
     if (typeof template.body.prompt !== "string") throw new FunctionNarrativeError("failed", "runner-template");
-    const reply = await this.json("POST", "/completion", { prompt: template.body.prompt, json_schema: schema,
+    // The tool-free ChatML fallback does not include Qwen3.5's official
+    // non-thinking assistant prefix. Complete that prefix before constrained
+    // generation, rather than forcing JSON inside an unfinished thinking turn.
+    const promptText = /^qwen3\.5-/iu.test(basename(this.options.modelPath))
+      && template.body.prompt.endsWith("<|im_start|>assistant\n")
+      ? template.body.prompt + "<think>\n\n</think>\n\n" : template.body.prompt;
+    const reply = await this.json("POST", "/completion", { prompt: promptText, json_schema: schema,
       // Raw completion does not infer ChatML message spans from its prompt.
       // These exact delimiters let recurrent checkpoints retain source evidence
       // before the changing final user message; other templates stay untouched.
@@ -68,7 +81,8 @@ export class LocalNarrativeServer implements ModelTaskResource {
     const timing = reply.body.timings;
     if (timing && onMetrics) {
       try { onMetrics({ promptTokens: timing.prompt_n ?? 0, cachedTokens: timing.cache_n ?? 0,
-        outputTokens: timing.predicted_n ?? 0, promptMs: timing.prompt_ms ?? 0, outputMs: timing.predicted_ms ?? 0 }); }
+        outputTokens: timing.predicted_n ?? 0, promptMs: timing.prompt_ms ?? 0, outputMs: timing.predicted_ms ?? 0,
+        generationMs: performance.now() - started }); }
       catch { /* A source-free measurement observer cannot invalidate model work. */ }
     }
     return reply.body.content.trim();
@@ -84,12 +98,14 @@ export class LocalNarrativeServer implements ModelTaskResource {
     } else await this.closed;
     const directory = this.directory;
     this.child = undefined; this.closed = undefined; this.starting = undefined; this.directory = undefined;
-    this.socket = undefined; this.key = undefined; this.exitError = undefined; this.diagnostics = "";
+    this.socket = undefined; this.key = undefined; this.exitError = undefined; this.diagnostics = ""; this.prepared = false;
     if (directory) await rm(directory, { recursive: true, force: true });
   }
 
-  private ready(signal: AbortSignal): Promise<void> {
-    if (!this.starting) this.starting = this.start(signal);
+  /** Source-free readiness runs under the scheduler's preparation lease; it never generates a token. */
+  public prepare(signal: AbortSignal): Promise<void> {
+    if (signal.aborted) return Promise.reject(new FunctionNarrativeError("cancelled"));
+    if (!this.starting) this.starting = this.start(signal).then(() => { this.prepared = true; });
     return this.starting;
   }
   /** Source-free loading is bounded by the caller's execution deadline, never started during activation. */

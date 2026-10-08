@@ -4,6 +4,19 @@ All notable user-visible changes to Project Analyzer: Code Flow are recorded in
 this file. The changelog starts with the first distribution-documented build;
 earlier local development builds were not tracked here.
 
+## 0.0.1142 - 2026-10-09
+
+### Improved
+
+- Separate source-free model readiness from inference in the existing FIFO queue;
+  retain bounded loading, cancellation and release at the end of the owning action.
+- Record full response latency after readiness and apply Qwen3.5's non-thinking
+  assistant prefix to the tool-free ChatML server adapter.
+- Add a real-model benchmark for Kotlin/TypeScript and Korean/English that checks
+  completion time, return calculations, catch returns and unknown cleanup behavior.
+- Keep the managed default and custom model settings: smaller models measured
+  faster but did not pass the same explanation checks; a 3-second goal is not met.
+
 ## 0.0.1141 - 2026-10-08
 
 ### Improved

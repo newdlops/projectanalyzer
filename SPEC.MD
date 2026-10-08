@@ -1637,6 +1637,14 @@ Webview는 Project Graph, 파일 시스템, VS Code API에 직접 접근하지 �
   고정된 source 식은 유지한다. private 임시 user/system prompt와 JSON schema는 요청 종료 시 삭제한다.
   `--json-schema-file`로 source를 포함한 grammar도 argv 밖에서 전달한다.
   optional companion server는 한 명시적 전체 함수 요청 동안만 weights를 재사용하고,
+  weights 로딩/health 준비는 별도 FIFO `prepare` 작업으로 기록한다. 소스만으로 완성되는
+  응답은 준비 작업을 시작하지 않는다. 준비는 생성 token 없이 취소·180초 timeout·process
+  cleanup을 공유하며, idle에는 모델을 유지하지 않는다. `generationMs`는 모델 준비 이후
+  template 적용부터 전체 응답 수신까지의 시간이다. parser/Host 검증까지 포함한 전체 설명
+  시간은 `benchmark-model-context.mjs`에서 별도로 측정한다. 첫 token이나 streaming을
+  3초 완료로 대체하지 않으며, 작은 GGUF도 같은 source/언어/다섯 항목 검증을 거친다.
+  ChatML fallback의 Qwen3.5 assistant 접미부에 공식 비추론 `<think>`/`</think>` 경계를
+  적용한다. 이미 완성된 접미부나 다른 모델의 template은 덧붙이지 않는다.
   각 추론의 FIFO 진입·취소·실패·provider switch·Host 종료 정리를 유지한다. 실행기의
   bounded help probe가 모두 광고한 선택 옵션만 적용하며 checkpoint 8개와 prompt RAM cache
   256 MiB를 별도로 제한한다. 짧은 JSON 응답에서 recurrent state 복사 비용이 관측되어

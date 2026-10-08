@@ -148,6 +148,60 @@ loop/exception transfer, inferred/partial/truncated evidence, 긴 식과 알 수
 초기 준비 문구는 저장하지 않는다. 각 시나리오의 상세 문단·대안은 계속 모델이 새로 작성한다.
 기존 노드 구문·동작·근거·효과·인용을 모두 유지하며 화면 배치도 유지한다.
 
+### 0.0.1142 모델 준비 이후 전체 설명 완료 시간
+
+3초 목표의 기준은 **모델 준비 완료 → 전체 설명의 생성·decode·검증 완료**다. 다운로드,
+가중치 로딩과 FIFO 대기는 생성 시간에 포함하지 않는다. 첫 token이나 streaming 시작을
+완료 시간으로 대신하지 않는다. 모델이 생성한 다섯 호출 항목과 요약을 모두 받아야 한다.
+
+local provider의 source-free `prepare`는 companion server의 health 준비까지 기다린다.
+로딩은 별도 FIFO 준비 작업으로 기록하고 180초 한도·취소·process cleanup을 적용한다.
+명시적 run 안에서는 다음 생성에 같은 모델을 사용하며 run 종료/idle에는 종료한다. 이미
+소스로 완성한 응답과 `sourceReading` 준비는 모델을 로딩하지 않는다. legacy/custom CLI는
+기존 실행 경계를 유지한다. Unix-socket 서버의 `generationMs`는 준비 이후 template 적용,
+prompt 처리와 전체 응답 수신을 포함하며, 벤치마크는 decode와 Host가 사용하는 응답
+parser까지 포함한 시간을 별도로 기록한다.
+
+Qwen3.5 ChatML fallback에는 [공식 비추론 assistant 접미부](https://huggingface.co/Qwen/Qwen3.5-0.8B/blob/main/chat_template.jinja)를
+적용한다. source는 계속 user data다. 다른 모델이나 이미 완성한 접미부는 변경하지 않는다.
+context 8,192, 출력 2,400 token, thread 2개, seed 42, temperature 0.2는 유지한다.
+
+실제 모델 비교는 다음처럼 재현한다. source와 결과는 private 임시 디렉터리에 저장하며,
+supplied source를 실행하지 않는다. benchmark/Extension Host 등 `out` 소비자가 모두 종료된
+뒤 compile하고 측정 중에는 compile/package를 실행하지 않는다.
+
+```sh
+npm run compile
+node scripts/benchmark-model-context.mjs .local-models/Qwen3.5-0.8B-Q4_K_M.gguf /opt/homebrew/bin/llama-completion 3
+```
+
+고정된 공개 `try-return/catch-return/finally-call` 함수 두 이름을 Kotlin/TypeScript,
+한국어/영어로 읽는다. 원문 규칙만 사용한 응답은 성공으로 세지 않고 실제 모델 호출이
+있어야 한다. shape·언어·고정 인자 전달에 더해 반환 계산, catch의 0, 정확한 cleanup 인수,
+미구현 호출의 미확인 설명과 반복 문구를 검사한다. 이 검사는 짧은 고정 corpus의
+smoke 기준이며 자연어 의미 전체를 증명하거나 임의의 함수에 3초를 보장하지 않는다.
+
+2026-10-09 Apple M5 Pro / 48 GiB, llama.cpp build 10964에서 각 조합 1회씩 측정했다.
+8개 모두 실제 모델을 실행했으며 완료 시간과 source 체크를 **함께** 통과한 모델은 없었다.
+
+| 모델 | 준비 이후 완료 범위 | 3초 이내 | source 체크 통과 |
+| --- | --- | --- | --- |
+| Qwen3.5 0.8B Q4_K_M | 1.05–6.29초 | 3/8 | 0/8 |
+| Qwen2.5-Coder 1.5B Q4_K_M | 1.46–5.07초 | 6/8 | 0/8 |
+| Qwen3.5 2B Q4_K_M | 4.36–9.41초 | 0/8 | 0/8 |
+| Qwen3.5 4B Q4_K_M | 8.32–17.04초 | 0/8 | 0/8 |
+
+0.8B는 5의 덧셈을 퍼센트 수수료로 바꾸거나 cleanup 인수를 잃었고, 1.5B는 호출 항목을
+일반적인 문구로 반복하거나 catch 반환을 빠뜨렸다. 2B도 동일 체크와 3초 기준을 통과하지
+못했다. 4B에서도 없는 로그 동작을 단정하는
+사례가 있었다. 더 큰 모델만으로 source 정확성이 보장되지는 않는다. 짧은 요약만 생성하거나
+grammar/prompt를 줄인 별도 실험은 다섯 항목과 전체 설명을 유지한 성공으로 세지 않았다.
+
+4B는 실행기의 필수 크기가 아니라 현재 managed default다. 작은 호환 GGUF는
+`localModel` 설정으로 사용할 수 있지만, 이번 측정은 같은 설명 품질의 기본 모델 교체나
+3초 목표 달성을 입증하지 못했다. managed manifest와 사용자 설정은 그대로 유지했다.
+모델 가중치와 측정 원문은 VSIX에 포함하지 않는다.
+
 ### 0.0.1141 단순 try-return/finally 호출의 모델 대기 제거
 
 동기 plain TypeScript/JavaScript/Kotlin 함수의 본문 전체가 하나의 `try`이고, 그 안에

@@ -1,5 +1,5 @@
 /** Shared scheduling boundary for native, configured and directly consumed narrative adapters. */
-import { ModelTaskError, type ModelTaskManager } from "../../shared/modelTasks";
+import { ModelTaskError, type ModelTaskManager, type ModelTaskResource } from "../../shared/modelTasks";
 import { FunctionNarrativeError, type FunctionNarrativeGenerationOptions, type FunctionNarrativeModelResponse, type FunctionNarrativeOperationOptions } from "./provider";
 
 /** Slow local hardware receives three minutes of actual inference, without extending context/output memory. */
@@ -7,8 +7,9 @@ export const MODEL_INFERENCE_TIMEOUT_MS = 180000;
 
 /** Source-free preparation shares the same resource owner as generation; downloads remain cancellable. */
 export async function scheduleFunctionNarrativePreparation<T>(manager: ModelTaskManager, signal: AbortSignal,
-  execute: (signal: AbortSignal) => Promise<T>, options?: FunctionNarrativeOperationOptions): Promise<T> {
-  try { return await manager.run({ kind: "prepare", label: options?.label ?? "Model preparation", signal, execute, onProgress: options?.onProgress }); }
+  execute: (signal: AbortSignal) => Promise<T>, options?: FunctionNarrativeOperationOptions, resource?: ModelTaskResource): Promise<T> {
+  try { return await manager.run({ kind: "prepare", label: options?.label ?? "Model preparation", signal, execute, resource,
+    ...(resource ? { timeoutMs: MODEL_INFERENCE_TIMEOUT_MS } : {}), onProgress: options?.onProgress }); }
   catch (error) { throw narrativeError(error); }
 }
 

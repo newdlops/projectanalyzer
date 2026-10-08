@@ -3,7 +3,8 @@ import { spawn } from "node:child_process";
 import { access, mkdtemp, writeFile, rm } from "node:fs/promises";
 import { basename, join } from "node:path";
 import { tmpdir } from "node:os";
-import { FunctionNarrativeError, scheduleFunctionNarrativeRequest, buildSourceFunctionNarrativeResponse, buildPrimitiveNarrativeSynthesis, type FunctionNarrativeProvider } from "../../application/functionNarratives";
+import { FunctionNarrativeError, scheduleFunctionNarrativePreparation, scheduleFunctionNarrativeRequest, buildSourceFunctionNarrativeResponse, buildPrimitiveNarrativeSynthesis,
+  type FunctionNarrativeOperationOptions, type FunctionNarrativeProvider } from "../../application/functionNarratives";
 import { getGlobalModelTaskManager, type ModelTaskManager } from "../../shared/modelTasks";
 import { createLocalNarrativeSchema } from "./responseSchema";
 import { buildLocalNarrativePrompt, buildLocalNarrativeSystemPrompt, buildLocalNarrativeUserMessages, buildLocalFunctionPurposeMessages } from "./localPrompt";
@@ -16,7 +17,22 @@ export type LocalFunctionNarrativeOptions = { binaryPath: string; modelPath: str
 export function createLocalFunctionNarrativeProvider(options: LocalFunctionNarrativeOptions): FunctionNarrativeProvider {
   const manager = options.taskManager ?? getGlobalModelTaskManager();
   let serverProbe: Promise<LocalNarrativeServer | undefined> | undefined;
+  /** Preparing weights is distinct from reading source; both still share one FIFO resource owner. */
+  const prepare = async (_language: "ko" | "en", signal: AbortSignal, preparation?: FunctionNarrativeOperationOptions) => {
+    if (signal.aborted || manager.disposed) throw new FunctionNarrativeError("cancelled");
+    if (preparation?.sourceReading) return;
+    const server = await (serverProbe ??= getLocalNarrativeServer(manager, options));
+    if (!server || server.isPrepared) return;
+    // An adapter already inside an inference lease must not enqueue behind
+    // itself; generate retains its bounded readiness fallback in that case.
+    if (manager.isExecuting(signal)) return;
+    await scheduleFunctionNarrativePreparation(manager, signal, async operation => {
+      await access(options.modelPath).catch(() => { throw new FunctionNarrativeError("unavailable", "model-not-found"); });
+      await server.prepare(operation);
+    }, preparation, server);
+  };
   return { managesDeadlines: true, supportsFinalSummary: () => true,
+    prepare,
     async withRun(_language, signal, operation) {
       if (signal.aborted || manager.disposed) throw new FunctionNarrativeError("cancelled");
       const server = await (serverProbe ??= getLocalNarrativeServer(manager, options));
@@ -32,6 +48,7 @@ export function createLocalFunctionNarrativeProvider(options: LocalFunctionNarra
       return { modelName, text: JSON.stringify({ ...synthesis, summary: context.summaryTask.knownFunctionSummary }) };
     }
     const server = await (serverProbe ??= getLocalNarrativeServer(manager, options));
+    await prepare(language, signal, { ...generation, sourceReading: false });
     return scheduleFunctionNarrativeRequest(manager, context.functionName, signal, async signal => {
     let directory: string | undefined;
     try {

@@ -71,6 +71,30 @@ test("first explicit local setup downloads automatically, remains source-free an
   assert.deepEqual(f.observed.local, [{ binaryPath: process.execPath, modelPath: "/managed/fixture.gguf" }]);
 });
 
+test("explicit local readiness is delegated inside the owning run while source-reading preparation stays lazy", async () => {
+  const manager = new ModelTaskManager(), signal = new AbortController().signal;
+  let active = false, preparations = 0, releases = 0;
+  const localProvider: FunctionNarrativeProvider = {
+    async withRun(_language, _signal, operation) {
+      active = true;
+      try { return await operation(); }
+      finally { active = false; releases++; }
+    },
+    async prepare(_language, incoming) { assert.equal(active, true); assert.equal(incoming, signal); preparations++; },
+    async generate() { throw new Error("Readiness must not generate source text."); }
+  };
+  const f = fixture({ localProvider, manager });
+  try {
+    await f.provider.withRun!("en", signal, async () => {
+      await f.provider.prepare!("en", signal, { sourceReading: true });
+      assert.equal(preparations, 0); assert.equal(f.observed.ensures, 0);
+      await f.provider.prepare!("en", signal);
+      assert.equal(preparations, 1); assert.equal(releases, 0);
+    });
+    assert.equal(releases, 1); assert.equal(active, false);
+  } finally { await manager.dispose(); }
+});
+
 test("a configured existing GGUF skips managed download and native progress", async () => {
   const directory = await mkdtemp(path.join(tmpdir(), "pa-configured-model-")); const modelPath = path.join(directory, "custom.gguf");
   try {

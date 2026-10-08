@@ -71,7 +71,9 @@ analysis, the extension automatically downloads Qwen3.5-4B Q4_K_M (2.74 GB), che
 its SHA-256 and reuses its private global cache thereafter. Download progress is
 cancellable; retry resumes a partial file. An existing GGUF configured in
 `projectAnalyzer.functionNarratives.localModel` is reused directly. Models are
-not bundled in the VSIX. See [model setup, checksums and limits](docs/FUNCTION_NARRATIVES.md).
+not bundled in the VSIX. 4B is the managed default, not a runner requirement;
+smaller compatible GGUF files can use the same setting. See
+[model setup, checksums, latency measurements and limits](docs/FUNCTION_NARRATIVES.md).
 A connected VS Code Chat model is also available through the provider setting.
 
 Detailed scenarios explain why the example takes this path, its ordered state
