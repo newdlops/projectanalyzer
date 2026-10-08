@@ -67,7 +67,7 @@ export function createFunctionCallControlPlan(analysis: FunctionLogicAnalysis, r
       sourceLocation: display.location(block.filePath, block.range), evidenceToken: evidenceToken(block.filePath, block.range),
       calls: calls.map(({ context, connectionId }) => ({ connectionId,
         expression: (sourceText?.slice(offset(context.site.range.startLine, context.site.range.startCharacter), offset(context.site.range.endLine, context.site.range.endCharacter)) || context.site.calleeText).slice(0, 1200),
-        guards: (context.expressionGuards ?? []).filter(guard => !cfgDecisions.has(`${guard.from}:${guard.to}`)).map(guard => ({
+        guards: (context.expressionGuards ?? []).filter(guard => !guard.representedByControl && !cfgDecisions.has(`${guard.from}:${guard.to}`)).map(guard => ({
           id: identity("decision", `${guard.from}:${guard.to}`), expression: guard.expression.slice(0, 1200), outcome: guard.outcome
         })) })),
       next: edges.slice(0, 1024).filter(edge => edge.sourceId === block.id).map(edge => ({

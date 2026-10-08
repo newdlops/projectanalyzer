@@ -22,8 +22,8 @@ import type { ManagedLocalModelCache } from "../../shared/localModels";
 
 /** Owns real source tokens/registries while replacing only the external model boundary. */
 async function harness(language: "typescript" | "kotlin" = "typescript", custom?: FunctionNarrativeProvider,
-  onReply?: (reply: FunctionCallNarrativesResponse) => void) {
-  const fixture = await loadFunctionCallReadingFixture(language), graphDelivery = new WebviewGraphDelivery();
+  onReply?: (reply: FunctionCallNarrativesResponse) => void, transform?: (name: string, source: string) => string) {
+  const fixture = await loadFunctionCallReadingFixture(language, transform), graphDelivery = new WebviewGraphDelivery();
   const graphVersion = graphDelivery.activate(fixture.graph).snapshot.version;
   const sourceNodeTokens = new SourceNodeTokenRegistry(), evidenceTokens = new CodeFlowEvidenceTokenRegistry();
   sourceNodeTokens.activate(graphVersion, fixture.graph); evidenceTokens.activate(graphVersion, fixture.graph);
@@ -304,8 +304,176 @@ test("complete native call source recipes need no runtime, weights, download, fa
       assert.equal(h.replies.at(-1)!.coverage!.complete, true);
       await h.delivery.explain({ ...h.explanation, requestId: 2, pageIndex: 1, pageLanguage: "en" });
       assert.equal(h.replies.at(-1)!.cacheHit, true);
+      let requestId = 10;
+      for (const connection of h.slice.connections) await h.delivery.explain({ ...h.explanation, requestId: requestId++, scope: "call", connectionId: connection.id });
+      for (const example of exampleFunctionCallScenarios(h.slice.control, new Map(h.slice.connections.map(edge => [edge.id, edge])))) {
+        await h.delivery.explain({ ...h.explanation, requestId: requestId++, scope: "scenario",
+          choices: [...example.selection].map(([key, value]) => ({ key, value })) });
+        assert.equal(h.replies.at(-1)!.modelName, "Source analysis");
+      }
       assert.equal(downloads, 0); assert.equal(factories, 0); assert.equal(notifications, 0);
       assert.deepEqual(manager.snapshot().history, []);
     } finally { h.delivery.reset(); await manager.dispose(); }
+  }
+});
+
+for (const language of ["typescript", "kotlin"] as const) test(`${language} source summaries cover all isolated calls and complete selected routes in both languages`, async () => {
+  let modelCalls = 0;
+  const contexts: FunctionNarrativeContext[] = [];
+  const provider: FunctionNarrativeProvider = { async generate(context, locale) {
+    contexts.push(context); const source = buildSourceFunctionNarrativeResponse(context, locale);
+    if (source) return source; modelCalls++; return functionCallReadingReply(context, locale);
+  } };
+  const h = await harness(language, provider);
+  try {
+    const graph = JSON.stringify(h.slice);
+    let requestId = 1;
+    for (const connection of h.slice.connections) {
+      await h.delivery.explain({ ...h.explanation, requestId: ++requestId, scope: "call", connectionId: connection.id });
+      const ready = h.replies.at(-1)!;
+      assert.equal(ready.status, "ready"); assert.equal(ready.modelName, "Source analysis");
+      assert.equal(ready.narrative!.calls.length, 1);
+      assert.match(ready.narrative!.summary!, /Selected callsite:/u);
+      assert.equal(Object.keys(ready.narrative!.calls[0]).filter(key => ["role", "inputs", "output", "effects", "reason"].includes(key)).length, 5);
+      assert.ok(ready.narrative!.calls[0].callerEvidence && ready.narrative!.calls[0].calleeEvidence);
+      const context = contexts.at(-1)!;
+      const ko = JSON.parse(buildSourceFunctionNarrativeResponse(context, "ko")!.text);
+      assert.match(ko.summary, /선택한 호출부/u); assert.match(ko.flow, /실제 실행 효과는 관찰하지 않았/u);
+      const original = context.callTask!.scope; context.callTask!.scope = "overview";
+      assert.equal(buildSourceFunctionNarrativeResponse(context, "en"), undefined, "changing scope cannot reuse source authority");
+      context.callTask!.scope = original;
+      const before = contexts.length;
+      await h.delivery.explain({ ...h.explanation, requestId: ++requestId, scope: "call", connectionId: connection.id, pageIndex: 0, pageLanguage: "en" });
+      assert.equal(contexts.length, before); assert.equal(h.replies.at(-1)!.cacheHit, true);
+    }
+    const examples = exampleFunctionCallScenarios(h.slice.control, new Map(h.slice.connections.map(edge => [edge.id, edge])));
+    assert.equal(examples.length, 2);
+    for (const example of examples) {
+      const selected = { ...h.explanation, requestId: ++requestId, scope: "scenario" as const,
+        choices: [...example.selection].map(([key, value]) => ({ key, value })) };
+      await h.delivery.explain(selected);
+      const ready = h.replies.at(-1)!;
+      assert.equal(ready.status, "ready"); assert.equal(ready.modelName, "Source analysis");
+      assert.equal(ready.narrative!.calls.length, example.trace.callIds.length);
+      assert.match(ready.narrative!.summary!, /Selected source route:/u);
+      assert.match(ready.narrative!.flow!, /source-route assumptions; runtime effects are unobserved/u);
+      if (example.trace.callIds.length === 2) {
+        assert.match(ready.narrative!.flow!, /`amount` → `value`.*`value \+ 5`.*local `adjusted`.*`adjusted` → `value`.*`value \* 2`.*parent return/u);
+        assert.doesNotMatch(ready.narrative!.summary!, /zero\(\)/u);
+      } else assert.match(ready.narrative!.flow!, /`!enabled` = true.*`zero\(\)`.*`0`.*parent return/u);
+      assert.ok(buildSourceFunctionNarrativeResponse(contexts.at(-1)!, "ko"));
+    }
+    assert.equal(modelCalls, 0); assert.equal(JSON.stringify(h.slice), graph);
+  } finally { h.delivery.reset(); }
+});
+
+for (const language of ["typescript", "kotlin"] as const) test(`${language} small source structures retain every local change and branches including routes without calls`, async () => {
+  let modelCalls = 0;
+  const provider: FunctionNarrativeProvider = { async generate(context, locale) {
+    const source = buildSourceFunctionNarrativeResponse(context, locale);
+    if (source) return source; modelCalls++; return functionCallReadingReply(context, locale);
+  } };
+  const ko = language === "kotlin", prefix = ko ? "" : 'import { addFee, double } from "./readingHelpers";\n';
+  const signature = ko ? "fun checkout(enabled: Boolean, amount: Int): Int" : "export function checkout(enabled: boolean, amount: number): number";
+  const source = prefix + signature + " {\n  if (!enabled) return 0" + (ko ? "" : ";") + "\n  "
+    + (ko ? "val" : "const") + " adjusted = addFee(amount)" + (ko ? "" : ";") + "\n  return adjusted" + (ko ? "" : ";") + "\n}";
+  const h = await harness(language, provider, undefined, (name, original) => name === "reading" ? source : original);
+  try {
+    await h.delivery.explain(h.explanation);
+    assert.equal(h.replies.at(-1)!.modelName, "Source analysis");
+    assert.match(h.replies.at(-1)!.narrative!.summary!, /`!enabled` = true.*return `0`.*`!enabled` = false.*local `adjusted`.*return `adjusted`/u);
+    const examples = exampleFunctionCallScenarios(h.slice.control, new Map(h.slice.connections.map(edge => [edge.id, edge])));
+    const empty = examples.find(example => example.trace.callIds.length === 0)!; assert.ok(empty);
+    await h.delivery.explain({ ...h.explanation, requestId: 2, scope: "scenario", choices: [...empty.selection].map(([key, value]) => ({ key, value })) });
+    assert.equal(h.replies.at(-1)!.modelName, "Source analysis"); assert.equal(h.replies.at(-1)!.narrative!.calls.length, 0);
+    assert.match(h.replies.at(-1)!.narrative!.flow!, /`!enabled` = true.*Return expression `0`/u);
+    assert.equal(modelCalls, 0);
+  } finally { h.delivery.reset(); }
+});
+
+test("source call summaries keep hidden argument effects, unproved parent work and loops with the model", async () => {
+  const bodies = [
+    "const adjusted = addFee(readAmount()); return adjusted;",
+    "const adjusted = addFee(amount++); return adjusted;",
+    "audit(amount); const adjusted = addFee(amount); return adjusted;",
+    "while (amount > 0) { const adjusted = addFee(amount); } return amount;"
+  ];
+  for (const body of bodies) {
+    let models = 0;
+    const provider: FunctionNarrativeProvider = { async generate(context, locale) {
+      const source = buildSourceFunctionNarrativeResponse(context, locale);
+      if (source) return source; models++; return functionCallReadingReply(context, locale);
+    } };
+    const h = await harness("typescript", provider, undefined, (name, original) => name === "reading"
+      ? 'import { addFee } from "./readingHelpers";\nexport function checkout(amount: number): number { ' + body + " }" : original);
+    try { await h.delivery.explain(h.explanation); assert.ok(models > 0, body); assert.equal(h.replies.at(-1)!.status, "ready"); }
+    finally { h.delivery.reset(); }
+  }
+});
+
+test("Kotlin CFG predicate spans suppress duplicate guards without conflating equal text at different source positions", async () => {
+  const bodies = [
+    "if (enabled && amount > 0) return zero(); val adjusted = addFee(amount); return double(adjusted)",
+    "var result = 0; if (enabled) result = addFee(amount); if (enabled) result = double(result); return result"
+  ];
+  for (const [index, body] of bodies.entries()) {
+    const source = "fun checkout(enabled: Boolean, amount: Int): Int { " + body + " }\nfun zero(): Int { return 0 }\n";
+    const h = await harness("kotlin", undefined, undefined, (name, original) => name === "reading" ? source : original);
+    try {
+      assert.ok(h.slice.control!.blocks.flatMap(block => block.calls).every(call => call.guards.length === 0));
+      const examples = exampleFunctionCallScenarios(h.slice.control, new Map(h.slice.connections.map(edge => [edge.id, edge])));
+      assert.equal(examples.length, index === 0 ? 3 : 4);
+      assert.ok(examples.every(example => example.trace.decisions.length <= 2));
+      if (index === 1) {
+        const two = examples.find(example => example.trace.callIds.length === 2)!;
+        assert.equal(two.trace.decisions.length, 2);
+        assert.notEqual(two.trace.decisions[0].key, two.trace.decisions[1].key);
+      }
+    } finally { h.delivery.reset(); }
+  }
+});
+
+test("source summaries retain inferred target qualifications in isolated call and connected flow", async () => {
+  const provider: FunctionNarrativeProvider = { async generate(context, language) {
+    const source = buildSourceFunctionNarrativeResponse(context, language); assert.ok(source); return source;
+  } };
+  const h = await harness("typescript", provider);
+  try {
+    const edge = h.slice.connections.find(connection => h.slice.nodes.find(node => node.id === connection.to)?.name === "addFee")!;
+    edge.confidence = "inferred";
+    await h.delivery.explain({ ...h.explanation, scope: "call", connectionId: edge.id });
+    const ready = h.replies.at(-1)!;
+    assert.match(ready.narrative!.summary!, /^If the inferred candidates are selected,/u);
+    assert.match(ready.narrative!.flow!, /^If the inferred candidates are selected,/u);
+    assert.equal(ready.narrative!.calls[0].confidence, "inferred");
+    assert.match(ready.narrative!.calls[0].output, /If this candidate is selected/u);
+  } finally { h.delivery.reset(); }
+});
+
+test("complete source routes preserve ordinary local initialization and updates before a call", async () => {
+  const provider: FunctionNarrativeProvider = { async generate(context, language) {
+    const source = buildSourceFunctionNarrativeResponse(context, language); assert.ok(source); return source;
+  } };
+  const source = 'import { addFee } from "./readingHelpers";\nexport function checkout(amount: number): number { let input = amount + 1; input *= 2; return addFee(input); }';
+  const h = await harness("typescript", provider, undefined, (name, original) => name === "reading" ? source : original);
+  try {
+    await h.delivery.explain(h.explanation);
+    const ready = h.replies.at(-1)!;
+    assert.equal(ready.modelName, "Source analysis");
+    assert.match(ready.narrative!.flow!, /Local change `let input = amount \+ 1`.*Local change `input \*= 2`.*`input` → `value`.*`value \+ 5`.*parent return/u);
+  } finally { h.delivery.reset(); }
+});
+
+test("complete symbolic source summaries without calls still defer async and suspend execution contracts", async () => {
+  for (const language of ["typescript", "kotlin"] as const) {
+    let models = 0;
+    const provider: FunctionNarrativeProvider = { async generate(context, locale) {
+      const source = buildSourceFunctionNarrativeResponse(context, locale);
+      if (source) return source; models++; return functionCallReadingReply(context, locale);
+    } };
+    const source = language === "kotlin" ? "suspend fun checkout(): Int { return 0 }" : "export async function checkout(): Promise<number> { return 0; }";
+    const h = await harness(language, provider, undefined, (name, original) => name === "reading" ? source : original);
+    try { await h.delivery.explain(h.explanation); assert.equal(models, 1); assert.equal(h.replies.at(-1)!.status, "ready"); }
+    finally { h.delivery.reset(); }
   }
 });

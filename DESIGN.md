@@ -44,6 +44,11 @@ selectors, source buttons, polite status and cancellation/cache states.
 Whole-flow summary, limitations and producer belong to the retained reading,
 not one call page. Refresh these shared fields on completion while preserving
 each page's call entries and the reader's current selection.
+Checked isolated calls and complete small source routes may also supply their
+summary directly. Preserve every typed transfer and explicit local change in the
+connected flow; make branch assumptions and inferred dispatch visible. Keep the
+same five detail fields and source controls. One Kotlin predicate is selected
+once through its CFG; equal text at distinct source positions remains independent.
 
 Acceptance: real local TypeScript and Kotlin caller/callee readings; cross-file
 evidence, strict fixed call references, distinct repeated sites/visits, static

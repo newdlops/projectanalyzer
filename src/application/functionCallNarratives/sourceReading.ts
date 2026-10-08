@@ -1,10 +1,11 @@
 /** Source-only call details and complete guarded recipes; unsupported source/whole-flow meanings retain the configured model. */
 import type { FunctionNarrativeContext } from "../../shared/functionNarratives";
-import type { FunctionCallNarrativeChunk, FunctionCallNarrativeTarget, FunctionCallReading } from "../../shared/functionCallNarratives";
+import type { FunctionCallNarrativeTarget, FunctionCallReading } from "../../shared/functionCallNarratives";
 import { getFunctionCallFixedInputs, isFunctionCallNarrativeChunk, isFunctionCallNarrativeLanguage } from "../../shared/functionCallNarratives";
 import { createFunctionCallSourceReader, type FunctionCallSourceFacts } from "../../analyzer/functionCalls";
 import type { SymbolNode, SourceRange } from "../../shared/types";
 import { buildFunctionCallSourceFlow } from "./sourceFlow";
+import { buildFunctionCallSourceSummary, type SourceCallSummaryProof } from "./sourceSummary";
 
 /** Full source is Host-owned and never goes through the model/Webview protocol. */
 export type FunctionCallSourceCandidate = { target: FunctionCallNarrativeTarget; callerRange?: SourceRange;
@@ -16,35 +17,45 @@ export function attachFunctionCallSourceReading(context: FunctionNarrativeContex
   const task = context.callTask!, snippets = context.snippets;
   const sourceFingerprint = JSON.stringify(snippets);
   const targets = task.targets.map(target => JSON.stringify(target));
-  const cache = new Map<"ko" | "en", FunctionCallNarrativeChunk | undefined>();
+  const fixedTask = () => JSON.stringify([task.scope, task.signature, task.sequence, task.conditions, task.routeStatus, task.terminal]);
+  const taskFingerprint = fixedTask();
+  const cache = new Map<"ko" | "en", SourceCallSummaryProof[] | undefined>();
   context.sourceCallReadings = { read(owner, language) {
     if (owner.callTask !== task || owner.snippets !== snippets || JSON.stringify(snippets) !== sourceFingerprint
-      || task.targets.length !== candidates.length || task.targets.some((target, index) => JSON.stringify(target) !== targets[index])) return;
-    if (task.includeSummary) {
+      || fixedTask() !== taskFingerprint || task.targets.length !== candidates.length
+      || task.targets.some((target, index) => JSON.stringify(target) !== targets[index])) return;
+    if (task.includeSummary && !task.targets.length && task.sequence.length) {
       try { return buildFunctionCallSourceFlow(owner, parent, source, language); } catch { return; }
     }
-    if (!task.targets.length) return;
-    if (cache.has(language)) return cache.get(language);
+    if (!task.targets.length && !task.includeSummary) return;
     try {
-      const reader = createFunctionCallSourceReader(parent, source), calls: FunctionCallReading[] = [];
-      for (const candidate of candidates) {
-        const { target, callee, callerRange } = candidate;
-        const helper = snippets.find(snippet => snippet.id === target.calleeSnippet);
-        const root = snippets.find(snippet => snippet.role === "function");
-        if (!callee || !callerRange || !helper || helper.truncated || !root || root.truncated || target.sourceLimited
-          || target.relation !== "call" || target.deferred || !["exact", "resolved", "inferred"].includes(target.confidence)
-          || !target.arguments || target.arguments.some(argument => /^(?:\.\.\.|\*)|=/u.test(argument))) return;
-        const facts = reader.read(callee.node, callee.source, callerRange, target.expression);
-        if (!facts || facts.parameters.length !== target.arguments.length || !helper.text.includes(facts.returnSource)
-          || !root.text.includes(facts.callerSource)) return;
-        const reading = describeCall(target, facts, language);
-        if (!reading) return;
-        calls.push(reading);
+      let proofs = cache.get(language);
+      if (!cache.has(language)) {
+        cache.set(language, undefined);
+        const reader = createFunctionCallSourceReader(parent, source); proofs = [];
+        for (const candidate of candidates) {
+          const { target, callee, callerRange } = candidate;
+          const helper = snippets.find(snippet => snippet.id === target.calleeSnippet);
+          const root = snippets.find(snippet => snippet.role === "function");
+          if (!callee || !callerRange || !helper || helper.truncated || !root || root.truncated || target.sourceLimited
+            || target.relation !== "call" || target.deferred || !["exact", "resolved", "inferred"].includes(target.confidence)
+            || !target.arguments || target.arguments.some(argument => /^(?:\.\.\.|\*)|=/u.test(argument))) return;
+          const facts = reader.read(callee.node, callee.source, callerRange, target.expression);
+          if (!facts || facts.parameters.length !== target.arguments.length || !helper.text.includes(facts.returnSource)
+            || !root.text.includes(facts.callerSource)) return;
+          const reading = describeCall(target, facts, language);
+          if (!reading) return;
+          proofs.push({ target, facts, callerRange, reading });
+        }
+        cache.set(language, proofs);
       }
-      const chunk = { calls, limitations: [] };
-      const valid = isFunctionCallNarrativeChunk(chunk, task.targets.map(target => target.callId), false)
+      if (!proofs) return;
+      const summary = task.includeSummary ? buildFunctionCallSourceSummary(owner, parent, source, proofs, language) : undefined;
+      if (task.includeSummary && !summary) return;
+      const chunk = { ...summary, calls: proofs.map(proof => proof.reading), limitations: [] };
+      const valid = isFunctionCallNarrativeChunk(chunk, task.targets.map(target => target.callId), task.includeSummary)
         && isFunctionCallNarrativeLanguage(chunk, language) ? chunk : undefined;
-      cache.set(language, valid); return valid;
+      return valid;
     } catch {
       // Failed syntax proof keeps the original model path, never a false success.
       cache.set(language, undefined); return;

@@ -37,3 +37,17 @@ test("Kotlin nested receiver/argument calls and syntax depth limits retain uncer
   assert.ok(createFunctionCallContexts(analysis,{sourceText:content,maxDepth:1}).every(context=>context.limited));
   const contexts=createFunctionCallContexts(analysis,{sourceText:content});assert.ok(contexts.every(context=>context.evaluationOrder));
 });
+
+test("Kotlin equal call text in an if predicate and its return arm keeps distinct source owners", async () => {
+  const content = "fun inspect(): Boolean { if (ready()) return ready(); return false }\nfun ready(): Boolean { return true }\n";
+  const analyzer = new KotlinAnalyzer(), file = { path: "/workspace/equal-calls.kt", languageId: "kotlin", content,
+    sizeBytes: Buffer.byteLength(content), contentHash: createContentHash(content) };
+  const parsed = await analyzer.parse(file), node = (await analyzer.extractSymbols(parsed)).find(node => node.name === "inspect")!;
+  const analysis = analyzeFunctionLogic({ functionNode: node, sourceText: content });
+  const contexts = createFunctionCallContexts(analysis, { sourceText: content });
+  const ready = contexts.filter(context => context.site.calleeName === "ready").sort((a, b) => a.site.range.startCharacter - b.site.range.startCharacter);
+  assert.equal(ready.length, 2);
+  assert.equal(analysis.blocks.find(block => block.id === ready[0].blockId)!.kind, "condition");
+  assert.equal(analysis.blocks.find(block => block.id === ready[1].blockId)!.kind, "return");
+  assert.ok(ready[1].expressionGuards!.some(guard => guard.expression === "ready()" && guard.representedByControl));
+});

@@ -119,10 +119,10 @@ function correctKotlinControlTransfers(analysis: FunctionLogicAnalysis, source: 
     const callText = source.text.slice(from, to);
     const owningDecision = [...blocks.values()].filter((block) => block.condition
       && block.condition.expression.includes(callText)
-      // A loop's display range includes its body. Equal call text in the body
-      // must not be rebound to the newly retained predicate expression.
-      && (block.kind !== "loop" || (() => { const span = /^kotlin-condition:(\d+):(\d+)$/u.exec(block.condition.groupId);
-        return Boolean(span && Number(span[1]) <= from && to <= Number(span[2])); })())
+      // Both if and loop display ranges can include their body. Equal call text
+      // in an arm must not be rebound to the earlier predicate evaluation.
+      && (() => { const span = /^kotlin-condition:(\d+):(\d+)$/u.exec(block.condition.groupId);
+        return Boolean(span && Number(span[1]) <= from && to <= Number(span[2])); })()
       && (blockOffsets.get(block.id)?.from ?? Infinity) <= from && (blockOffsets.get(block.id)?.to ?? -1) >= to)
       .sort((left, right) => {
         const leftRange = blockOffsets.get(left.id)!;

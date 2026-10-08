@@ -148,6 +148,59 @@ loop/exception transfer, inferred/partial/truncated evidence, 긴 식과 알 수
 초기 준비 문구는 저장하지 않는다. 각 시나리오의 상세 문단·대안은 계속 모델이 새로 작성한다.
 기존 노드 구문·동작·근거·효과·인용을 모두 유지하며 화면 배치도 유지한다.
 
+### 0.0.1130 개별 호출·선택 경로·작은 구조의 모델 대기 제거
+
+`application/functionCallNarratives/sourceSummary`는 기존 단일 반환 callee proof를 사용해
+개별 호출의 요약과 연결 문단까지 만든다. 부모의 다른 동작을 대신 설명하지 않고 그 호출의
+도달 조건, 인자→매개변수·타입, 실제 반환식과 지역 저장/부모 반환/버리기를 유지한다.
+inferred 대상은 요약과 문단에도 후보가 실제로 선택되는 경우라는 조건을 붙인다.
+
+작은 선택 경로와 구조는 parser-owned CFG를 별도로 읽는다. 모든 방문한 조건, 일반 지역
+초기화/갱신, source-proven 호출과 명시적/암묵적 끝을 차례로 보존한다. 입력값을 추측하거나
+소스를 실행하지 않는다. 선택 경로는 실제 Host 조건·방문·호출 순서가 끝까지 일치해야 한다.
+전체 구조는 모든 분기와 호출이 포함돼야 한다. 64-node visited set, 128-state queue와
+8-path 상한을 넘거나 240자 summary/600자 flow에 완전한 사실을 담지 못하면 기존 모델을
+유지한다. 숨은 인자 호출·member access·쓰기, 미확인 부모 동작·자유 변수·루프·비동기와
+불완전한 원문은 이 경로의 proof가 아니다. callback의 Task scope/sequence/conditions도
+snapshot fingerprint에 묶어 수정된 요청이 다른 범위의 proof를 빌리지 못하게 한다.
+
+Kotlin의 `if` display range는 inline return arm까지 포함할 수 있다. expression guard의
+parser-owned predicate group이 이미 CFG에 있으면 이 guard의 별도 선택은 제거한다.
+본문에 동일한 호출 텍스트가 있어도 실제 predicate span 밖이면 그 본문에 소유한다.
+원본 관계 confidence·도달 조건은 유지하고 동일한 조건 텍스트의 다른 소스 위치는 합치지
+않는다. 이 보정으로 동일 `!enabled`를 true와 false로 동시에 선택하는 잘못된 empty route를
+제거했다. 기존 설치본의 추가 empty route 측정은 아래 동등한 여섯 요청 비교에서 제외했다.
+
+`scripts/benchmark-call-scopes.mjs`로 같은 PC의 설치된 0.0.1129와 후보를 비교했다.
+공개 checkout 예제의 실제 로컬 Qwen3.5-4B provider, Host와 원문 연결을 사용한다. 정적 graph
+준비는 측정 밖이며 각 범위를 한 번씩 순차 측정한 관찰값이다.
+
+| 언어 / 범위 | 설치된 0.0.1129 | 후보 | 모델 요청 | 상세 항목 |
+| --- | ---: | ---: | ---: | ---: |
+| TS 개별 addFee | 15.21초 | 22.63ms | 1 → 0 | 5 |
+| TS 선택 경로, 두 호출 | 21.72초 | 19.20ms | 1 → 0 | 10 |
+| TS 조기 반환 경로 | 12.70초 | 8.49ms | 1 → 0 | 5 |
+| Kotlin 개별 addFee | 13.29초 | 6.54ms | 1 → 0 | 5 |
+| Kotlin 선택 경로, 두 호출 | 16.26초 | 8.13ms | 1 → 0 | 10 |
+| Kotlin 조기 반환 경로 | 11.57초 | 5.05ms | 1 → 0 | 5 |
+
+모든 요청과 캐시 조회가 완료되고 원문 인용이 유효했다. 일반 속도나 의미 정확도의 보장은
+아니다. 한국어/영어의 실제 TS/Kotlin parser·Host 테스트로 다섯 필드, 선택 경로의 조건과
+반환 사용, 일반 지역 변경과 zero-call 경로, 추정 대상, 변경된 Task의 거부와 model fallback을
+검증한다. 없는 runtime/weights 설정의 실제 configured provider도 개별 호출·선택 경로에서
+factory/download/notification/model history 없이 완료한다. 더 큰 호출 구조와 복잡한 callee,
+다른 언어 및 모델이 필요한 경로의 시간/사실성은 남은 목표 범위다.
+관련 49개 테스트와 packaging 15개가 통과했다. 전체 unit 1,130개 중 1,126개가 통과했고
+Function Guide 입력/대표값/advanced private Scenario 및 기존 Inspector의 네 실패는 동일하다.
+묶은 VSIX의 실제 격리 설치 runtime에서도 같은 여섯 요청을 실행했다. TS 개별/두 호출/조기
+반환은 46.07/25.36/9.00ms, Kotlin은 61.64/9.86/5.26ms였으며 모델 요청 0회·40개 상세
+항목·전체 원문 인용과 cache-only 읽기를 유지했다. 후보와 별도의 한 번 측정으로 실행 부하의
+영향을 받는다. 실제 VS Code에서는 모델 실행기/가중치가 없는 설정으로 TS와 Kotlin의 선택
+경로·개별 호출을 완료했다. Kotlin 참/거짓 경로가 각각 1/2개 호출이며 단일 조건 선택이고,
+TS 원문 이동·설명 복귀와 1440×900/770×900의 줄바꿈·다섯 항목을 확인했다. 모바일·다른
+테마·전체 접근성 audit는 이 변경에서 확인하지 않았다. 기존 의미 구분선 예외는 유지했고
+새 suppression은 추가하지 않았다.
+
 ### 0.0.1129 호출의 상세·완전한 분기 요약을 소스에서 읽기
 
 `analyzer/functionCalls.createFunctionCallSourceReader`는 실제 언어 parser의 선언·제어 흐름·

@@ -4,6 +4,18 @@ All notable user-visible changes to Project Analyzer: Code Flow are recorded in
 this file. The changelog starts with the first distribution-documented build;
 earlier local development builds were not tracked here.
 
+## 0.0.1130 - 2026-10-08
+
+### Improved
+
+- Read checked isolated call summaries and complete small acyclic source routes
+  without model setup, preserving all five detail fields, parameter types,
+  local changes, return uses and source conditions. Qualify inferred targets.
+- Keep unsupported work, hidden argument effects, cycles and over-budget prose
+  on the existing model path; do not truncate facts to fit.
+- Avoid asking twice for one Kotlin CFG predicate and keep identical calls in a
+  predicate and its return arm at their distinct source locations.
+
 ## 0.0.1129 - 2026-10-08
 
 ### Improved

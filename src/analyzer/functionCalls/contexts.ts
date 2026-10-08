@@ -12,7 +12,9 @@ export type FunctionCallContext = {
   deferred: boolean;
   limited: boolean;
   /** Source offsets identify expression choices; these never become browser source authority. */
-  expressionGuards?: Array<{ expression: string; outcome: string; from: number; to: number }>;
+  expressionGuards?: Array<{ expression: string; outcome: string; from: number; to: number;
+    /** Same parser-owned predicate is already represented by the parent's retained CFG. */
+    representedByControl?: boolean }>;
   evaluationOrder?: number[];
 };
 
@@ -23,7 +25,9 @@ export function createFunctionCallContexts(analysis: FunctionLogicAnalysis, opti
     ? createPythonCallGuardReader(options.sourceText, maxDepth)
     : ["typescript", "javascript"].includes(analysis.language)
       ? createTypeScriptCallGuardReader(options.sourceText, analysis.functionNode.filePath, maxDepth)
-      : analysis.language === "kotlin" ? createKotlinCallGuardReader(options.sourceText, analysis.functionNode.filePath, maxDepth) : undefined;
+      : analysis.language === "kotlin" ? createKotlinCallGuardReader(options.sourceText, analysis.functionNode.filePath, maxDepth,
+        new Set(analysis.blocks.filter(block => block.kind === "condition" && block.confidence === "exact")
+          .flatMap(block => block.condition ? [block.condition.groupId] : []))) : undefined;
   const blocks = analysis.blocks.slice(0, 512); const byId = new Map(blocks.map((block) => [block.id, block]));
   const ownedEdges = analysis.edges.filter(edge => byId.has(edge.sourceId) && byId.has(edge.targetId));
   const isLoopBackedge = (from: string, to: string): boolean => {

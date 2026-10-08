@@ -29,7 +29,7 @@ export function createFunctionCallSourceReader(parent: SymbolNode, source: strin
     const block = blocks.filter(block => block.confidence === "exact" && ["return", "mutation", "call"].includes(block.kind)
       && contains(block.range, callerRange)).sort((a, b) => span(a.range) - span(b.range))[0];
     if (!block) return;
-    const callerSource = readRange(source, block.range)?.trim();
+    const callerSource = readFunctionCallSourceRange(source, block.range)?.trim();
     const use = callerSource && readUse(block, callerSource, expression.trim());
     if (!use) return;
     const logic = analyzeFunctionLogic({ functionNode: callee, sourceText: calleeSource, maxBlocks: 8 });
@@ -43,9 +43,9 @@ export function createFunctionCallSourceReader(parent: SymbolNode, source: strin
         || !/^(?:number|boolean|string|Int|Double|Boolean|String)$/u.test(p.typeText ?? ""))
       || tutor.gaps.some(gap => gap.kind !== "language-support")
       || tutor.program.blocks.some(block => block.operations.length > 0)) return;
-    const declaration = readRange(calleeSource, logic.sourceRange ?? callee.range);
+    const declaration = readFunctionCallSourceRange(calleeSource, logic.sourceRange ?? callee.range);
     if (!declaration || declaration.length > 1800 || /\b(?:suspend|inline|operator|external|expect)\b/u.test(declaration)) return;
-    const returnSource = readRange(calleeSource, body[0].range)?.trim();
+    const returnSource = readFunctionCallSourceRange(calleeSource, body[0].range)?.trim();
     if (!returnSource) return;
     // Kotlin string templates can hide expressions/writes inside a quoted
     // token. They are not literal leaves in this closed syntax reader.
@@ -96,7 +96,7 @@ function readUse(block: FunctionLogicBlock, source: string, expression: string):
 }
 
 /** Read only requested lines; no whole-file split is needed for each return/callsite. */
-function readRange(source: string, range: SourceRange): string | undefined {
+export function readFunctionCallSourceRange(source: string, range: SourceRange): string | undefined {
   let cursor = 0;
   for (let line = 0; line < range.startLine; line++) { const next = source.indexOf("\n", cursor); if (next < 0) return; cursor = next + 1; }
   const start = cursor + range.startCharacter;

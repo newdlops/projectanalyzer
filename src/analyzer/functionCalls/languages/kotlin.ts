@@ -3,18 +3,22 @@ import { parseKotlinSource, getKotlinChildNamed, type KotlinSyntaxNode } from ".
 import type { FunctionLogicCallsite } from "../../functionLogic";
 
 /** Reuses immutable Kotlin syntax and follows only the containing path with depth/cycle guards. */
-export function createKotlinCallGuardReader(text: string, filePath: string, maxDepth: number) {
+export function createKotlinCallGuardReader(text: string, filePath: string, maxDepth: number,
+  controlGroups: ReadonlySet<string> = new Set()) {
   const source = parseKotlinSource(text, filePath);
   return (site: FunctionLogicCallsite) => {
     const from = (source.lineStarts[site.range.startLine] ?? text.length) + site.range.startCharacter;
     const to = (source.lineStarts[site.range.endLine] ?? text.length) + site.range.endCharacter;
-    const guards: Array<{ expression: string; outcome: string; from: number; to: number }> = [];
+    const guards: Array<{ expression: string; outcome: string; from: number; to: number; representedByControl?: boolean }> = [];
     const visited = new Set<KotlinSyntaxNode>(), path: number[] = [];
     let node: KotlinSyntaxNode | undefined = source.root, order: number[] | undefined, argumentsText: string[] | undefined, deferred = false;
     const contains = (candidate: KotlinSyntaxNode) => candidate.from <= from && from < candidate.to;
     const guard = (start: number, end: number, outcome: string) => {
       if (!guards.some(existing => existing.from === start && existing.to === end && existing.outcome === outcome))
-        guards.push({ expression: text.slice(start, end), outcome, from: start, to: end });
+        guards.push({ expression: text.slice(start, end), outcome, from: start, to: end,
+          // The Kotlin CFG's display range may include an entire if arm.
+          // Its parser-owned group identity still pins the actual predicate span.
+          ...(controlGroups.has(`kotlin-condition:${start}:${end}`) ? { representedByControl: true } : {}) });
     };
     while (node && visited.size < maxDepth && !visited.has(node)) {
       visited.add(node);

@@ -59,6 +59,7 @@ out/application/functionCallNarratives/plan.js
 out/application/functionCallNarratives/prompt.js
 out/application/functionCallNarratives/sourceReading.js
 out/application/functionCallNarratives/sourceFlow.js
+out/application/functionCallNarratives/sourceSummary.js
 
 # Dormant feature modules are not reached by the extension entrypoint. Keep their
 # editable sources/tests; the runtime-closure checker catches future wiring.

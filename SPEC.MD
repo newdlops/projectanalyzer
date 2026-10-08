@@ -862,6 +862,13 @@ source-only recipe는 모델 runtime/weights/factory/download 없이 완료한�
 native graph의 선언 줄 범위에서도 본문을 유지한다. 기존 snippet 길이·줄 수 상한은 같다.
 최종 summary/flow/limitations와 producer는 해당 reading의 모든 페이지 캐시에 반영한다.
 현재 호출 선택과 각 페이지의 호출 상세는 유지하며 페이지 이동으로 모델을 실행하지 않는다.
+0.0.1130은 동일한 소스 proof를 개별 호출 요약과 작은 완전한 비순환 경로/구조에 사용한다.
+조건·지역 초기화/갱신·호출 인자와 선언 타입·반환 식·사용 위치를 모두 보존하고 경로 조건과
+inferred dispatch를 가정으로 표시한다. 각 경로는 visited set과 64-node/128-state/8-path
+상한을 사용하며 240/600자 요약 상한을 넘으면 자르지 않고 모델로 넘긴다. 숨은 인자 호출/
+쓰기, 미확인 부모 동작, cycle과 비동기 실행 계약은 모델을 유지한다. Kotlin의 parser-owned
+predicate group이 기존 CFG에 있으면 같은 표현식 guard를 다시 선택하지 않으며 동일 호출
+텍스트가 본문에 나타나도 실제 predicate span 밖의 호출은 그 본문에 소유된다.
 순서 모델은 최대 512 블록·1,024 제어 연결, 하나의 경로는 1,024 탐색 단계·256 표시 항목으로
 제한한다. 근거 부족과 한도는 표시하며 원본 소스를 실행하지 않는다.
 

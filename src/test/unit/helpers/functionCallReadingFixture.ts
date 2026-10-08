@@ -9,10 +9,12 @@ import type { FunctionNarrativeContext } from "../../../shared/functionNarrative
 import { getFunctionCallFixedInputs } from "../../../shared/functionCallNarratives";
 
 /** Uses real parser symbol/edge extraction including cross-file resolution. */
-export async function loadFunctionCallReadingFixture(language: "typescript" | "kotlin" = "typescript") {
+export async function loadFunctionCallReadingFixture(language: "typescript" | "kotlin" = "typescript",
+  transform?: (name: string, source: string) => string) {
   const extension = language === "kotlin" ? "kt" : "ts";
   const files: SourceFile[] = ["reading", "readingHelpers"].map(name => {
-    const content = fs.readFileSync(path.resolve(__dirname, `../../../../src/test/fixtures/functionCalls/${name}.${extension}`), "utf8");
+    const original = fs.readFileSync(path.resolve(__dirname, `../../../../src/test/fixtures/functionCalls/${name}.${extension}`), "utf8");
+    const content = transform?.(name, original) ?? original;
     return { path: `/workspace/${name}.${extension}`, languageId: language, content, sizeBytes: Buffer.byteLength(content), contentHash: createContentHash(content) };
   });
   const analyzer = language === "kotlin" ? new KotlinAnalyzer() : new TypeScriptAnalyzer();
