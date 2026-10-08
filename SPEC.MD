@@ -913,6 +913,14 @@ Kotlin의 수신자 추론은 `inferredCalls`에 보존하며 graph confidence�
 않는다. 기존 strict expression API는 member를 계속 거부하며 callee 전용 opt-in reader만
 허용한다. captured root·receiver 쓰기·computed/optional 접근·call/apply/bind·callback/deferred,
 기존 선언/경로/해설 상한은 모델에 남긴다. 부모 인수 평가와 객체 매개변수의 기존 제한도 유지한다.
+0.0.1136은 같은 callee의 captured/module/external 읽기와 직접 외부 수신자 호출을 source
+참조로 보존한다. callee 전용 외부 읽기 opt-in은 이름·접근·추론 dispatch를 기록하며 값/타입/
+상태/효과는 미확인이다. 외부 객체나 binding을 조회·실행하지 않으며 primitive proof로
+승격하지 않는다. 원래 대입·인수·연산자·조건·반환과 정상 완료 가정을 유지한다. strict 및
+기존 object reader의 기본 모드는 captured root를 계속 거부한다. 외부/member 쓰기,
+optional/computed 접근·callback·eval/Function·숨은 expression guard와 기존 상한은
+모델을 유지한다. Kotlin modifier 검사는 선언 header에서만 수행하며 본문의 ordinary
+identifier를 실행 modifier로 잘못 분류하지 않는다.
 순서 모델은 최대 512 블록·1,024 제어 연결, 하나의 경로는 1,024 탐색 단계·256 표시 항목으로
 제한한다. 근거 부족과 한도는 표시하며 원본 소스를 실행하지 않는다.
 

@@ -12,7 +12,9 @@ export type FunctionCallSourceBodyStep = { key: string; kind: "change" | "condit
   /** Source member paths have unknown getter/receiver/state behavior and never become primitive proof. */
   accesses?: string[];
   /** Inferred receiver dispatch remains inferred even when its invocation syntax is fully matched. */
-  inferredCalls?: string[] };
+  inferredCalls?: string[];
+  /** Captured/module/external bindings retain source names while all values and effects stay unknown. */
+  externalReads?: string[] };
 export type FunctionCallSourceBodyFacts = { parameters: string[]; parameterTypes: string[]; returnExpression: string; returnSource: string;
   /** Absent for the established single-return leaf; every extended path retains all steps in order. */
   bodyPaths?: FunctionCallSourceBodyStep[][] };
@@ -33,7 +35,10 @@ export function readFunctionCallSourceBody(callee: SymbolNode, source: string, m
       || !/^(?:number|boolean|string|Int|Double|Boolean|String)$/u.test(p.typeText ?? ""))
     || tutor.gaps.some(gap => gap.kind !== "language-support")) return;
   const declaration = readFunctionCallSourceRange(source, logic.sourceRange ?? callee.range);
-  if (!declaration || declaration.length > 1800 || /\b(?:suspend|inline|operator|external|expect)\b/u.test(declaration)) return;
+  if (!declaration || declaration.length > 1800) return;
+  // Kotlin execution modifiers belong to the declaration header, not ordinary
+  // JS names or external/member identifiers appearing in the function body.
+  if (callee.language === "kotlin" && /\b(?:suspend|inline|operator|external|expect)\b/u.test(logic.signature.split(/\bfun\b/u)[0])) return;
   const entry = logic.blocks.find(block => block.kind === "entry"); if (!entry) return;
   const blocks = new Map(logic.blocks.map(block => [block.id, block])), outgoing = new Map<string, typeof logic.edges>();
   for (const edge of logic.edges) {
@@ -65,7 +70,8 @@ export function readFunctionCallSourceBody(callee: SymbolNode, source: string, m
       value.sites.forEach(site => calls.add(site));
       firstReturn ??= { expression: value.expression, source: raw };
       route.steps.push({ key: block.id, kind: "return", source: value.expression, ...(value.calls.length ? { calls: value.calls } : {}),
-        ...(value.accesses?.length ? { accesses: value.accesses } : {}), ...(value.inferredCalls?.length ? { inferredCalls: value.inferredCalls } : {}) }); route.returned = true;
+        ...(value.accesses?.length ? { accesses: value.accesses } : {}), ...(value.inferredCalls?.length ? { inferredCalls: value.inferredCalls } : {}),
+        ...(value.externalReads?.length ? { externalReads: value.externalReads } : {}) }); route.returned = true;
     } else if (block.kind === "mutation") {
       if (!raw || callee.language === "kotlin" && raw.includes("$")) return;
       const statement = raw.replace(/;\s*$/u, "");
@@ -78,7 +84,8 @@ export function readFunctionCallSourceBody(callee: SymbolNode, source: string, m
       result.sites.forEach(site => calls.add(site));
       if (declaration) { route.names.add(name); if (["let", "var"].includes(declaration[1])) route.mutable.add(name); }
       route.steps.push({ key: block.id, kind: "change", source: statement, ...(result.calls.length ? { calls: result.calls } : {}),
-        ...(result.accesses?.length ? { accesses: result.accesses } : {}), ...(result.inferredCalls?.length ? { inferredCalls: result.inferredCalls } : {}) });
+        ...(result.accesses?.length ? { accesses: result.accesses } : {}), ...(result.inferredCalls?.length ? { inferredCalls: result.inferredCalls } : {}),
+        ...(result.externalReads?.length ? { externalReads: result.externalReads } : {}) });
     } else if (block.kind === "call") {
       // An ignored invocation has source syntax, not a proved implementation.
       const statement = raw?.replace(/;\s*$/u, "");
@@ -86,7 +93,8 @@ export function readFunctionCallSourceBody(callee: SymbolNode, source: string, m
       if (!value || !value.calls.length || value.calls.at(-1) !== statement) return;
       value.sites.forEach(site => calls.add(site));
       route.steps.push({ key: block.id, kind: "call", source: statement!, calls: value.calls,
-        ...(value.accesses?.length ? { accesses: value.accesses } : {}), ...(value.inferredCalls?.length ? { inferredCalls: value.inferredCalls } : {}) });
+        ...(value.accesses?.length ? { accesses: value.accesses } : {}), ...(value.inferredCalls?.length ? { inferredCalls: value.inferredCalls } : {}),
+        ...(value.externalReads?.length ? { externalReads: value.externalReads } : {}) });
     } else if (block.kind === "condition") {
       const predicate = block.condition?.expression;
       const value = predicate && readValue(predicate, block, route.names);
@@ -96,7 +104,8 @@ export function readFunctionCallSourceBody(callee: SymbolNode, source: string, m
       for (const edge of edges) queue.push({ current: edge.targetId, visited: new Set(route.visited), names: new Set(route.names),
         mutable: new Set(route.mutable), returned: false, steps: [...route.steps,
           { key: block.id, kind: "condition", source: predicate!, outcome: edge.kind as "true" | "false", ...(value.calls.length ? { calls: value.calls } : {}),
-            ...(value.accesses?.length ? { accesses: value.accesses } : {}), ...(value.inferredCalls?.length ? { inferredCalls: value.inferredCalls } : {}) }] });
+            ...(value.accesses?.length ? { accesses: value.accesses } : {}), ...(value.inferredCalls?.length ? { inferredCalls: value.inferredCalls } : {}),
+            ...(value.externalReads?.length ? { externalReads: value.externalReads } : {}) }] });
       continue;
     } else if (block.kind !== "entry") return;
     if (edges.length !== 1 || !["next", "return"].includes(edges[0].kind)) return;
@@ -104,5 +113,5 @@ export function readFunctionCallSourceBody(callee: SymbolNode, source: string, m
   }
   if (!firstReturn || !paths.length || covered.size !== blocks.size || calls.size !== logic.callsites.length) return;
   return { parameters, parameterTypes: tutor.parameters.map(p => p.typeText!), returnExpression: firstReturn.expression,
-    returnSource: firstReturn.source, ...(paths.length === 1 && paths[0].length === 1 && !paths[0][0].calls?.length && !paths[0][0].accesses?.length ? {} : { bodyPaths: paths }) };
+    returnSource: firstReturn.source, ...(paths.length === 1 && paths[0].length === 1 && !paths[0][0].calls?.length && !paths[0][0].accesses?.length && !paths[0][0].externalReads?.length ? {} : { bodyPaths: paths }) };
 }

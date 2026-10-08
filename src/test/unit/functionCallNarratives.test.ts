@@ -231,7 +231,7 @@ test("parser-bound TS/Kotlin call details and complete guarded flows remove mode
   }
 });
 
-test("source call facts reject captured roots, external receiver calls, writes and setup/default/rest parameters", async () => {
+test("source call facts reject external writes, unsupported syntax and setup/default/rest parameters", async () => {
   for (const language of ["typescript", "kotlin"] as const) {
     const fixture = await loadFunctionCallReadingFixture(language), callee = fixture.graph.nodes.find(node => node.name === "addFee")!;
     const helper = fixture.files.find(file => file.path === callee.filePath)!.content;
@@ -239,7 +239,7 @@ test("source call facts reject captured roots, external receiver calls, writes a
     const reader = createFunctionCallSourceReader(fixture.root, fixture.source);
     assert.ok(reader.read(callee, helper, site.range, "addFee(amount)"));
     const returned = language === "kotlin" ? "return value + 5" : "return value + 5;";
-    const variants = ["return captured", "return captured.member", "return service.helper(value)", "return ++value", "return [value]",
+    const variants = ["captured += value; return value", "return captured[getter()]", "return service?.helper(value)", "return ++value", "return [value]",
       "eval(value); return value", "Function(value); return value",
       language === "kotlin" ? "value += 1; return value" : "value += 1; return value;"];
     if (language === "kotlin") variants.push('return "${value++}"');
@@ -258,9 +258,9 @@ test("source call facts reject captured roots, external receiver calls, writes a
   }
 });
 
-test("callee formal types bind model inputs even when receiver calls keep the rest of the reading with the model", async () => {
+test("callee formal types bind model inputs even when optional receiver calls keep the reading with the model", async () => {
   for (const language of ["typescript", "kotlin"] as const) {
-    const body = language === "kotlin" ? "val n = service.audit(value); return n + 3" : "const n = service.audit(value); return n + 3;";
+    const body = language === "kotlin" ? "val n = service?.audit(value); return n + 3" : "const n = service?.audit(value); return n + 3;";
     const h = await harness(language, undefined, undefined, (name, source) => name === "readingHelpers"
       ? source.replace(language === "kotlin" ? "return value + 5" : "return value + 5;", body) : source);
     try {

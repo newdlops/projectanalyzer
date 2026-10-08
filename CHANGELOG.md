@@ -4,6 +4,17 @@ All notable user-visible changes to Project Analyzer: Code Flow are recorded in
 this file. The changelog starts with the first distribution-documented build;
 earlier local development builds were not tracked here.
 
+## 0.0.1136 - 2026-10-08
+
+### Improved
+
+- Read captured/module/external references and direct receiver calls as original
+  source operations without guessing values, validation or business purposes.
+- Preserve every argument, calculation, return and inferred dispatch while marking
+  external reads, state, result types/values and effects unknown.
+- Retain strict readers, external-write/optional/computed/callback boundaries and
+  existing budgets; scope Kotlin modifier checks to declaration headers.
+
 ## 0.0.1135 - 2026-10-08
 
 ### Improved

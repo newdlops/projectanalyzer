@@ -148,6 +148,59 @@ loop/exception transfer, inferred/partial/truncated evidence, 긴 식과 알 수
 초기 준비 문구는 저장하지 않는다. 각 시나리오의 상세 문단·대안은 계속 모델이 새로 작성한다.
 기존 노드 구문·동작·근거·효과·인용을 모두 유지하며 화면 배치도 유지한다.
 
+### 0.0.1136 captured/module/external 읽기의 모델 대기 제거
+
+callee 전용 `externalReads` opt-in은 captured/module/external 이름과 member root를 source
+참조로 읽는다. 값이나 객체를 실제 조회하지 않고 정상 완료 가정에서 원래 대입·인수·연산자·
+조건·반환을 연결한다. 외부 읽기·값/타입·상태·getter·dispatch·결과/효과는 미확인이다.
+기존 strict expression 및 object reader의 기본 모드는 captured root를 계속 거부한다.
+기존 worksheet·부모 인수 평가의 의미를 바꾸거나 외부 읽기를 primitive proof로 승격하지 않는다.
+
+`n = service.audit(value)` → `n + 3`을 쓰더라도 audit를 금액 검증/로그로 해석하지 않는다.
+원래 식과 source 근거, 다섯 항목·cache·inferred Kotlin dispatch를 보존한다. 외부/member
+쓰기, optional/computed 접근, 콜백/deferred·eval/Function·숨은 expression guard, 실행
+modifier·기존 선언/식/경로/해설 상한은 모델을 유지한다. Syntax keyword를 외부 binding으로
+취급하지 않는다. Kotlin 실행 modifier는 header에서 검사하므로 본문의 `external` 같은
+ordinary identifier를 잘못 거부하지 않는다.
+
+아래 미채택 이유 고정 실험과 같은 공개 source를 실제 parser/Host/provider로 읽었다.
+source의 모든 연산·미확인 값/효과를 보존해 모델 요청 자체를 제거한 결과이며, 단일 field
+생략으로 실제 모델을 빠르게 만든 것과 혼합하지 않는다. graph 준비와 완료 후 cache 조회는
+시간에서 제외했고 각 범위를 한 번 측정했다. 부하를 통제한 통계 비교나 일반 보장은 아니다.
+
+| 범위 | 설치된 0.0.1135의 실제 모델 | 개발 출력 source 후보 | 설치된 0.0.1136 | 실제 모델 요청 |
+| --- | ---: | ---: | ---: | ---: |
+| TS 전체 구조 | 17.24초 | 25.17ms | 54.35ms | 1 → 0 |
+| TS 개별 호출 | 10.85초 | 7.93ms | 87.85ms | 1 → 0 |
+| TS 선택 경로 | 11.23초 | 7.99ms | 8.70ms | 1 → 0 |
+| Kotlin 전체 구조 | 19.61초 | 7.33ms | 179.53ms | 1 → 0 |
+| Kotlin 개별 호출 | 12.66초 | 3.58ms | 5.30ms | 1 → 0 |
+| Kotlin 선택 경로 | 10.99초 | 3.21ms | 3.47ms | 1 → 0 |
+
+최종 VSIX의 격리 설치본에서도 여섯 범위가 다섯 상세 항목·인용·cache를 유지하며 모두
+`ready`로 완료됐다. 이 별도 단일 측정은 QA 앱 시작과 겹쳤다. parser/cache와 다른 실행
+부하를 통제하지 않았으므로 개발 후보나 다른 함수의 동일한 시간을 보장하지 않는다.
+
+관련 검사 47개·패키징 검사 15개가 통과했다. 전체 unit 검사는 1,155개 중 1,151개 통과,
+기존 declared-type 입력 대표값 2개·advanced private Scenario·decorated source-reveal
+실패 4개였다. 실제 parser의 외부 이름·inferred receiver provenance, 모든 구문/조건/반환,
+위조된 값이나 사업 의미가 없는 다섯 항목, cache/근거와 쓰기/optional/computed/숨은 분기
+경계를 검사했다. fixture model은 실제 모델의 의미 정확성 증거로 취급하지 않는다.
+
+격리된 실제 VS Code에서 실행기·가중치 파일이 없는 local 설정으로 Kotlin 호출 순서의
+선택 경로와 TypeScript 호출 관계의 구조 설명을 생성했다. `service.audit(value)` 대입과
+`n + 3` 반환, Int/number 전달, 다섯 항목과 외부 값/상태/효과 미확인·정상 완료 가정을
+확인했다. 두 언어의 호출 위치 버튼은 3행의 정확한 `transformCaptured(amount)`를
+선택했다. 대상 소스 버튼은 Kotlin 5–8행 전체 선언, TypeScript 5행 선언 header를
+선택했으며 해설 복귀 후 저장된 설명을 유지했다. 770×900 및 최대화 화면의
+2560×1349 캡처에서 줄바꿈·상세·소스 버튼·비활성 1/1 페이지 버튼을 검사했다.
+새 CSS/theme나 suppression은 추가하지 않았고 기존 의미 표시 구분선 예외를 유지했다.
+모바일·다른 테마·전체 접근성 audit는 이 변경에서 검사하지 않았다. QA 앱은 종료했다.
+
+최종 darwin-arm64 VSIX는 507파일·압축 3.67MiB·해제 15.65MiB로 패키지 상한과 runtime
+closure 검사를 통과했다. 객체 매개변수, 부모 receiver 호출, 비동기/반복·복잡한 실제 모델
+fallback과 Function Guide 비용은 계속 남은 범위다.
+
 ### 미채택 실험: 모델 생성에서 도달 이유 제외
 
 0.0.1135 이후 모델이 필요한 공개 helper `n = service.audit(value)` → `n + 3`를

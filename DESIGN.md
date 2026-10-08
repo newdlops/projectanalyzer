@@ -76,6 +76,11 @@ Mark dispatch, getters, object/external state changes, result types/values and
 effects as unknown. Assume normal completion without assuming object contents
 are unchanged. Inferred Kotlin receiver dispatch remains inferred. Preserve the
 five detail fields and source controls instead of adding a parallel surface.
+Captured/module/external reads remain original source references. Keep every
+operation and mark external values/state, dispatch, getters, result types and
+effects unknown; never invent a numeric value, validation or business purpose.
+Normal completion is an assumption, not proof of an external binding or result.
+Preserve the existing layout, source controls and inferred dispatch labels.
 
 Acceptance: real local TypeScript and Kotlin caller/callee readings; cross-file
 evidence, strict fixed call references, distinct repeated sites/visits, static

@@ -1,20 +1,25 @@
 /** Closed primitive expression syntax and source-range slicing shared by caller and callee proofs; never evaluates source. */
 import type { SourceRange } from "../../shared/types";
 
+/** Unknown external names are source references, never looked-up values or primitive proof. */
+export type FunctionCallSourceExpressionFacts = { expression: string; accesses: string[]; externalReads?: string[] };
+/** These tokens introduce syntax/transfer semantics, not an unresolved value binding. */
+const externalReadReserved = new Set(["this", "super", "new", "await", "yield", "return", "throw", "typeof", "void", "delete", "instanceof", "in", "is", "as", "null", "undefined", "true", "false"]);
+
 /** Accept only bounded symbolic primitive leaves/operators; calls, members, writes and captured names fail closed. */
 export function readFunctionCallSourceExpression(source: string, parameters: Set<string>): string | undefined {
   return readExpression(source, parameters, false)?.expression;
 }
 
 /** Known lexical roots may have source-authored member paths; getter/dispatch/state semantics remain unknown. Strict callers never opt in. */
-export function readFunctionCallSourceObjectExpression(source: string, names: Set<string>): { expression: string; accesses: string[] } | undefined {
-  return readExpression(source, names, true);
+export function readFunctionCallSourceObjectExpression(source: string, names: Set<string>, options?: { externalReads?: boolean }): FunctionCallSourceExpressionFacts | undefined {
+  return readExpression(source, names, true, options?.externalReads === true);
 }
 
 /** The opt-in syntax reader records whole paths without looking up a property or promoting it to a primitive value. */
-function readExpression(source: string, parameters: Set<string>, members: boolean): { expression: string; accesses: string[] } | undefined {
+function readExpression(source: string, parameters: Set<string>, members: boolean, external = false): FunctionCallSourceExpressionFacts | undefined {
   if (!source || source.length > 120) return;
-  const tokens: string[] = [], accesses: string[] = []; let cursor = 0, depth = 0, tokenCount = 0, needsValue = true;
+  const tokens: string[] = [], accesses: string[] = [], externalReads: string[] = []; let cursor = 0, depth = 0, tokenCount = 0, needsValue = true;
   const token = /(?:"(?:[^"\\\r\n]|\\.)*"|'(?:[^'\\\r\n]|\\.)*'|(?:\d+(?:\.\d+)?|\.\d+)(?:[eE][+-]?\d+)?|[\p{L}_$][\p{L}\p{N}_$]*(?:\s*\.\s*[\p{L}_$][\p{L}\p{N}_$]*)*|===|!==|==|!=|<=|>=|&&|\|\||[()+*/%<>!+-])/uy;
   while (cursor < source.length) {
     if (/\s/u.test(source[cursor])) { cursor++; continue; }
@@ -32,19 +37,24 @@ function readExpression(source: string, parameters: Set<string>, members: boolea
         if (text.includes(".")) {
           if (!members) return;
           const path = text.split(/\s*\.\s*/u);
-          if (path.length > 17 || !parameters.has(path[0])) return;
+          if (path.length > 17 || externalReadReserved.has(path[0])) return;
+          if (!parameters.has(path[0])) { if (!external) return; externalReads.push(path[0]); }
           // Compound member tokens still consume every identifier and dot from
           // the original 64-token budget rather than hiding work in one token.
           weight = path.length * 2 - 1;
           accesses.push(text);
-        } else if (!parameters.has(text) && !["true", "false"].includes(text)) return;
+        } else if (!parameters.has(text) && !["true", "false"].includes(text)) {
+          if (!external || externalReadReserved.has(text)) return;
+          externalReads.push(text);
+        }
       }
       needsValue = false;
     }
     tokenCount += weight; if (tokenCount > 64) return;
     tokens.push(text);
   }
-  return !needsValue && depth === 0 ? { expression: accesses.length ? source.trim() : tokens.join(" "), accesses } : undefined;
+  return !needsValue && depth === 0 ? { expression: accesses.length || externalReads.length ? source.trim() : tokens.join(" "), accesses,
+    ...(externalReads.length ? { externalReads } : {}) } : undefined;
 }
 
 /** Read only requested lines, avoiding a whole-file split for every proof. */
