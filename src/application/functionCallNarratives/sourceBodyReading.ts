@@ -1,11 +1,12 @@
 /** Locale prose for independently proved callee paths; retains every symbolic step and condition without evaluating values. */
 import type { FunctionCallSourceFacts, FunctionCallSourceBodyStep } from "../../analyzer/functionCalls";
+import { renderFunctionCallAsyncContract } from "./sourceAsyncReading";
 
 const condition = (step: FunctionCallSourceBodyStep) => "`" + step.source + "` = " + step.outcome;
 const code = (source: string) => "`" + source + "`";
 
 /** Factor only identical source-owned prefix steps; every alternative's remaining steps stay explicit and ordered. */
-export function renderFunctionCallSourceBody(facts: FunctionCallSourceFacts, ko: boolean): string {
+export function renderFunctionCallSourceBody(facts: FunctionCallSourceFacts, ko: boolean, compactAsync = false): string {
   const paths = facts.bodyPaths;
   if (!paths) return code(facts.returnExpression);
   const callValues = paths.some(path => path.some(step => step.kind !== "call" && step.calls?.length));
@@ -17,11 +18,14 @@ export function renderFunctionCallSourceBody(facts: FunctionCallSourceFacts, ko:
     && path[common]?.outcome === paths[0][common].outcome)) common++;
   const render = (steps: FunctionCallSourceBodyStep[]) => steps.map(step => step.kind === "condition" ? condition(step)
     : step.kind === "return" ? (ko ? "반환 " : "return ") + code(step.source)
-      : step.kind === "call" ? (ko ? "호출 " : "call ") + code(step.source) + (accesses ? "" : ko ? " (내부 미확인; 정상 복귀·지역 값 유지 가정)" : " (body unreviewed; assume normal return/local preservation)")
+      : step.kind === "call" ? (ko ? "호출 " : "call ") + code(step.source) + (facts.execution || accesses ? "" : ko ? " (내부 미확인; 정상 복귀·지역 값 유지 가정)" : " (body unreviewed; assume normal return/local preservation)")
         : code(step.source)).join(" → ");
   const prefix = render(paths[0].slice(0, common));
   const body = paths.length === 1 ? prefix : (prefix ? prefix + " → " : "") + "[" + paths.map(path => render(path.slice(common))).join("; ") + "]";
-  return body + (facts.methodSource ? ko ? " (후보 원문; 수신자/값·디스패치/getter·상태/효과 미확인; 정상 완료 가정)"
+  // Short summaries keep every operation and completion/outcome qualifier;
+  // the connected flow and five fields retain the detailed async uncertainties.
+  const asyncContract = renderFunctionCallAsyncContract(facts, ko, compactAsync);
+  return body + (asyncContract ? " (" + asyncContract + ")" : facts.methodSource ? ko ? " (후보 원문; 수신자/값·디스패치/getter·상태/효과 미확인; 정상 완료 가정)"
     : " (candidate source; receiver/values/dispatch/getters/state/effects unknown; normal completion assumed)"
     : opaque ? ko ? " (선언 타입만 확인; 입력 값/타입·연산자·상태/효과 미확인; 정상 완료 가정)"
     : " (declared types only; input values/types, operators/state/effects unknown; normal completion assumed)"
@@ -82,7 +86,7 @@ function collectSourceOperations(facts: FunctionCallSourceFacts): { changes: str
   for (const path of facts.bodyPaths) {
     const guards: string[] = [];
     for (const step of path) {
-      if (facts.methodSource || opaque || ["change", "call"].includes(step.kind) || step.calls?.length || step.accesses?.length || step.externalReads?.length) {
+      if (facts.execution || facts.methodSource || opaque || ["change", "call"].includes(step.kind) || step.calls?.length || step.accesses?.length || step.externalReads?.length) {
         const key = JSON.stringify([step.key, guards]);
         if (!seen.has(key)) {
           const operation = (guards.length ? guards.join(" & ") + ": " : "") + code(step.source);

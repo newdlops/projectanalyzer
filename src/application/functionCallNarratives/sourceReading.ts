@@ -7,8 +7,9 @@ import type { SymbolNode, SourceRange } from "../../shared/types";
 import { buildFunctionCallSourceFlow } from "./sourceFlow";
 import { buildFunctionCallSourceSummary, type SourceCallSummaryProof } from "./sourceSummary";
 import { captureSourceCallProofs } from "./sourceProofs";
-import { renderFunctionCallSourceReturns, renderFunctionCallSourceEffects } from "./sourceBodyReading";
+import { renderFunctionCallSourceReturns, renderFunctionCallSourceEffects, renderFunctionCallSourceOperations } from "./sourceBodyReading";
 import { renderFunctionCallSourceCallerEffects } from "./sourceCallerReading";
+import { renderFunctionCallAsyncOutput, renderFunctionCallAsyncEffects } from "./sourceAsyncReading";
 
 /** Full source is Host-owned and never goes through the model/Webview protocol. */
 export type FunctionCallSourceCandidate = { target: FunctionCallNarrativeTarget; callerRange?: SourceRange;
@@ -103,17 +104,21 @@ function describeCall(target: FunctionCallNarrativeTarget, facts: FunctionCallSo
       : ko ? `내부 호출의 정상 복귀·지역 값 유지 가정에서, ${result}을 ${use}.`
       : `Assuming normal calls preserve locals, use ${result}: ${use}.`;
   }
+  output = renderFunctionCallAsyncOutput(facts, expression, ko) ?? output;
   const reading = { callId: target.callId,
     role: branches ? (ko ? `대상 \`${target.callee}\`의 반환 경로: ` : `Source returns of \`${target.callee}\`: `) + renderFunctionCallSourceReturns(facts) + "."
       : ko ? `대상 함수 \`${target.callee}\`의 반환식은 ${expression}입니다.` : `Call \`${target.callee}\` for its source return expression ${expression}.`,
     inputs: getFunctionCallFixedInputs(target, language) ?? (ko ? `인자 전달: ${transfers.join(", ")}.` : `Argument transfer: ${transfers.join(", ")}.`),
     output,
-    effects: renderFunctionCallSourceCallerEffects(facts, renderFunctionCallSourceEffects(facts, ko), ko) ?? (ko ? "대상 본문에는 반환식 외의 변수 쓰기나 명시적인 다른 호출이 없습니다. 실제 실행 효과는 관찰하지 않았습니다."
+    effects: renderFunctionCallAsyncEffects(facts, renderFunctionCallSourceOperations(facts), ko)
+      ?? renderFunctionCallSourceCallerEffects(facts, renderFunctionCallSourceEffects(facts, ko), ko) ?? (ko ? "대상 본문에는 반환식 외의 변수 쓰기나 명시적인 다른 호출이 없습니다. 실제 실행 효과는 관찰하지 않았습니다."
       : "The callee body has no writes or explicit calls beyond its return expression. Runtime effects are unobserved."),
     reason: conditions ? ko ? `정적 도달 조건: ${conditions}. 이 조건 아래의 호출 관계이며 실제 실행 관찰은 아닙니다.`
       : `Static reaching conditions: ${conditions}. This is a source relationship, not an observed execution.`
       : ko ? "이 호출부에 별도의 정적 분기·반복 조건이 없습니다. 소스에 나타난 호출 관계를 읽습니다."
         : "No separate static branch or loop condition guards this callsite; read the source relationship." };
+  if (facts.execution) reading.role = (facts.execution === "promise" ? "Promise" : "suspend")
+    + (ko ? " 반환 계약 원문: " : " return contract source: ") + reading.role;
   // Proving a candidate's body never proves dispatch. Keep inferred relations
   // conditional in every field as well as preserving the Host's confidence.
   if (target.confidence === "inferred" || facts.methodSource) {

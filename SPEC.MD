@@ -958,6 +958,25 @@ receiver/member 쓰기·callback/async/generator·Kotlin 실행 modifier·loop �
 중복 owner/overload·shadow·직접 재할당은 unresolved로 유지한다. 정확한 source identity를
 확인한 parser declaration 범위는 설명 snippet과 대상 소스 evidence에 함께 사용하고 기존
 graph ID/range/confidence는 변경하지 않는다.
+0.0.1140은 정확한 async/suspend 선언과 complete acyclic source path를 읽되 evaluator에
+비동기 실행 권한을 주지 않는다. `sourceExecution`은 TS/JS의 parser-owned async를 Promise
+계약으로, Kotlin의 suspend header를 중단 가능 계약으로 구분한다. 중단/재개가 실제로
+일어났다고 표시하지 않고 정상 완료만 가정한다. 모든 source await와
+nested invocation의 원래 식·postorder·지역 변경·조건·반환은 기존 bounds 안에서 보존한다.
+`asyncAwait` opt-in은 이 문맥의 구문만 읽으며 strict/default reader는 await-prefix를
+평가하지 않는다. Kotlin의 일반 binding 이름 await는 기존 identifier 의미를 유지한다.
+callee `execution`, caller `callerExecution`, 직접 use의 `awaited`는 서로 별도의 Host facts다.
+raw Promise 저장/반환/버림을 이행값 사용으로 바꾸지 않고 async parent의 반환을 동기
+callee의 계약과 혼동하지 않는다. 모든 진행은 성공 이행/정상 재개를 가정하며 실제 값,
+거부/중단/취소/재개·시점/효과는 미확인이다. 후보 method의 dispatch 조건은 계속 표시한다.
+standalone await에 대한 concrete Tutor body gap은 정확한 parameter 선언과 독립적으로
+읽되 기존 input safety flag는 바꾸지 않는다. 전체 source CFG/expression/callsite coverage를
+별도로 증명하며 parameter/default/type 근거 부족은 이 opt-in으로 우회하지 않는다.
+비동기 facts는 body path를 남겨 primitive leaf/legacy sync recipe로 승격하지 않는다.
+generator/async-generator·constructor/accessor·try/finally/loop·숨은/간접/optional/computed
+호출·callback·parameter/member 쓰기·Kotlin inline/operator/external/expect 및 기존 prose,
+source, token, path, cycle/depth 상한은 계속 모델을 유지한다. zero-call async 반환도 같은
+Promise/suspend 계약과 cache를 사용한다. 모델·sampling·context/output/thread 상한은 유지한다.
 순서 모델은 최대 512 블록·1,024 제어 연결, 하나의 경로는 1,024 탐색 단계·256 표시 항목으로
 제한한다. 근거 부족과 한도는 표시하며 원본 소스를 실행하지 않는다.
 

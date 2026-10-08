@@ -4,6 +4,21 @@ All notable user-visible changes to Project Analyzer: Code Flow are recorded in
 this file. The changelog starts with the first distribution-documented build;
 earlier local development builds were not tracked here.
 
+## 0.0.1140 - 2026-10-08
+
+### Improved
+
+- Read complete source paths of TypeScript async and Kotlin suspend functions
+  without model generation when every operation and caller use is supported.
+- Distinguish Promise storage/return, await fulfillment, suspend resumption and
+  the caller's own return contract; preserve original operations and unknown
+  values, settlement, rejection, cancellation, timing and effects.
+- Keep candidate method dispatch, both branches, zero-call exits, five detail
+  fields, source actions and cache; generators, writes, callbacks, coroutine
+  modifiers, incomplete source and existing bounds retain model analysis.
+- Keep asynchronous source facts out of primitive leaves and legacy synchronous
+  recipes; default expression readers retain their existing execution boundary.
+
 ## 0.0.1139 - 2026-10-08
 
 ### Improved

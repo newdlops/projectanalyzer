@@ -107,13 +107,23 @@ initializers. Write caller/method operations in order, with their common unknown
 effects stated once to fit the existing fields. Keep the evaluator's safety flag
 and strict primitive reader unchanged. Acceptance: TS/Kotlin methods and method
 parents, both prose languages/scopes, candidate qualifiers, source controls and
-cache; excluded accessors/constructors/writes/async/loop must stay model work.
+cache; excluded accessors/constructors/writes/generators/loop must stay model work.
 Native TS typed receiver hints are restricted to required simple named-type
 parameters of top-level named functions and unique same-file class methods.
 Keep the connection inferred; ambiguous owners, overloads, unsupported binding
 scopes, shadowed/reassigned parameters and unknown types remain unresolved.
 Source actions use the same parser-owned declaration extent as the reading,
 including a method body when a native graph extent stops at its header.
+Async source readings retain Promise return, await fulfillment and Kotlin suspend
+completion as separate contracts; suspension/resumption is never claimed as
+observed. Preserve every original await/call/change/return
+in order, with settlement, rejection, cancellation, timing and effects unknown.
+Raw Promise storage/discard must not be described as storing a fulfilled value;
+an async parent's return contract remains separate from a synchronous callee.
+Keep the five existing fields, candidate qualifiers, cache and source actions.
+Acceptance: TS/Kotlin, both prose languages/scopes, raw versus awaited use,
+zero-call branches, strict default reader rejection and over-budget fallback;
+inspect normal completion and source navigation at narrow and desktop sizes.
 
 Acceptance: real local TypeScript and Kotlin caller/callee readings; cross-file
 evidence, strict fixed call references, distinct repeated sites/visits, static

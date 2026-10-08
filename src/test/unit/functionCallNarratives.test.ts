@@ -253,7 +253,9 @@ test("source call facts reject external writes, unsupported syntax and setup/def
     const shifted = fixture.source.replace(language === "kotlin" ? "fun checkout" : "export function checkout",
       language === "kotlin" ? "suspend fun checkout" : "export async function checkout");
     const shiftedSite = analyzeFunctionLogic({ functionNode: fixture.root, sourceText: shifted }).callsites.find(site => site.calleeName === "addFee")!;
-    assert.equal(createFunctionCallSourceReader(fixture.root, shifted).read(callee, helper, shiftedSite.range, "addFee(amount)"), undefined);
+    const asynchronous = createFunctionCallSourceReader(fixture.root, shifted).read(callee, helper, shiftedSite.range, "addFee(amount)")!;
+    assert.equal(asynchronous.callerExecution, language === "kotlin" ? "suspend" : "promise");
+    assert.equal(asynchronous.execution, undefined, "a synchronous callee retains its own return contract");
     assert.equal(reader.read(callee, helper, site.range, "new addFee(amount)"), undefined);
     assert.equal(reader.read(callee, helper, site.range, "addFee.call(null, amount)"), undefined);
   }
@@ -492,7 +494,7 @@ test("complete source routes preserve ordinary local initialization and updates 
   } finally { h.delivery.reset(); }
 });
 
-test("complete symbolic source summaries without calls still defer async and suspend execution contracts", async () => {
+test("complete symbolic source summaries without calls retain Promise and suspend contracts without model generation", async () => {
   for (const language of ["typescript", "kotlin"] as const) {
     let models = 0;
     const provider: FunctionNarrativeProvider = { async generate(context, locale) {
@@ -501,7 +503,10 @@ test("complete symbolic source summaries without calls still defer async and sus
     } };
     const source = language === "kotlin" ? "suspend fun checkout(): Int { return 0 }" : "export async function checkout(): Promise<number> { return 0; }";
     const h = await harness(language, provider, undefined, (name, original) => name === "reading" ? source : original);
-    try { await h.delivery.explain(h.explanation); assert.equal(models, 1); assert.equal(h.replies.at(-1)!.status, "ready"); }
+    try {
+      await h.delivery.explain(h.explanation); assert.equal(models, 0); assert.equal(h.replies.at(-1)!.status, "ready");
+      assert.match(h.replies.at(-1)!.narrative!.flow!, language === "kotlin" ? /suspend.*completion.*cancel.*unknown/iu : /Promise.*fulfillment.*throw.*unknown/u);
+    }
     finally { h.delivery.reset(); }
   }
 });

@@ -4,14 +4,15 @@ import type { SourceRange, SymbolNode } from "../../shared/types";
 import { createTypeScriptCallGuardReader } from "./languages/typescript";
 import { createKotlinCallGuardReader } from "./languages/kotlin";
 import { readFunctionCallSourceObjectExpression } from "./sourceSyntax";
+import type { FunctionCallSourceExecution } from "./sourceExecution";
 
 /** Every original call remains source-backed; internal placeholders are used only to check expression syntax. */
-export type FunctionCallSourceValue = { expression: string; calls: string[]; sites: FunctionLogicCallsite[]; accesses?: string[]; inferredCalls?: string[]; externalReads?: string[] };
+export type FunctionCallSourceValue = { expression: string; calls: string[]; sites: FunctionLogicCallsite[]; accesses?: string[]; inferredCalls?: string[]; externalReads?: string[]; awaits?: number };
 type Invocation = { site: FunctionLogicCallsite; from: number; to: number; source: string };
 
 /** Reuse one parser adapter per callee; bounded interval postorder retains duplicate/nested calls and their statement ownership. */
-export function createFunctionCallSourceValueReader(callee: SymbolNode, source: string, logic: FunctionLogicAnalysis) {
-  const readingOptions = { externalReads: true, methodReceiver: callee.kind === "method" };
+export function createFunctionCallSourceValueReader(callee: SymbolNode, source: string, logic: FunctionLogicAnalysis, execution: FunctionCallSourceExecution = "sync") {
+  const readingOptions = { externalReads: true, methodReceiver: callee.kind === "method", asyncAwait: execution === "promise" };
   // The common call-free path needs no additional AST, line index or ownership
   // map. Keep its original closed expression cost and result contract.
   if (!logic.callsites.length) return (expression: string, _block: FunctionLogicBlock, names: Set<string>): FunctionCallSourceValue | undefined => {
@@ -49,7 +50,7 @@ export function createFunctionCallSourceValueReader(callee: SymbolNode, source: 
     if (start < 0 || start !== statement.lastIndexOf(expression)) return;
     const from = owner.from + start, to = from + expression.length;
     if (invocations.some(call => !contains({ from, to }, call))) return;
-    const validated: Invocation[] = [], accesses: string[] = [], externalReads: string[] = [];
+    const validated: Invocation[] = [], accesses: string[] = [], externalReads: string[] = []; let awaits = 0;
     // Closing offsets give source argument order followed by their containing
     // invocation. No recursive traversal or call execution is involved.
     for (const call of [...invocations].sort((left, right) => left.to - right.to || right.from - left.from)) {
@@ -77,6 +78,7 @@ export function createFunctionCallSourceValueReader(callee: SymbolNode, source: 
         const argumentValue = readFunctionCallSourceObjectExpression(value, names, readingOptions); if (!argumentValue) return;
         accesses.push(...argumentValue.accesses);
         externalReads.push(...(argumentValue.externalReads ?? []));
+        awaits += argumentValue.awaits ?? 0;
         cursor = index + argument.length;
       }
       if (!/^\s*\)$/u.test(call.source.slice(cursor))) return;
@@ -88,7 +90,8 @@ export function createFunctionCallSourceValueReader(callee: SymbolNode, source: 
     // Preserve original syntax, not the checking placeholders or invented values.
     const inferredCalls = validated.filter(call => call.site.confidence === "inferred").map(call => call.source);
     return { expression, calls: validated.map(call => call.source), sites: validated.map(call => call.site),
-      ...(accesses.length ? { accesses } : {}), ...(inferredCalls.length ? { inferredCalls } : {}), ...(externalReads.length ? { externalReads } : {}) };
+      ...(accesses.length ? { accesses } : {}), ...(inferredCalls.length ? { inferredCalls } : {}), ...(externalReads.length ? { externalReads } : {}),
+      ...(awaits + (result.awaits ?? 0) ? { awaits: awaits + (result.awaits ?? 0) } : {}) };
   };
 }
 

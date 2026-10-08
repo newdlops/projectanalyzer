@@ -5,6 +5,7 @@ import { analyzeFunctionTutorDeclaration } from "../functionTutor";
 import { readFunctionCallSourceRange } from "./sourceSyntax";
 import { createFunctionCallSourceValueReader } from "./sourceCallValues";
 import { readFunctionCallSourceDeclaredParameters } from "./sourceParameters";
+import { readFunctionCallSourceExecution, type FunctionCallSourceExecution } from "./sourceExecution";
 
 /** Keys distinguish equal text at different source statements; they remain inside Host proof storage. */
 export type FunctionCallSourceBodyStep = { key: string; kind: "change" | "condition" | "return" | "call"; source: string; outcome?: "true" | "false";
@@ -15,10 +16,14 @@ export type FunctionCallSourceBodyStep = { key: string; kind: "change" | "condit
   /** Inferred receiver dispatch remains inferred even when its invocation syntax is fully matched. */
   inferredCalls?: string[];
   /** Captured/module/external bindings retain source names while all values and effects stay unknown. */
-  externalReads?: string[] };
+  externalReads?: string[];
+  /** Syntactic await occurrences; completion, rejection and timing are not evaluated. */
+  awaits?: number };
 export type FunctionCallSourceBodyFacts = { parameters: string[]; parameterTypes: string[]; returnExpression: string; returnSource: string;
   /** Candidate method syntax never proves receiver identity, dispatch or primitive evaluation safety. */
   methodSource?: true;
+  /** Retains Promise/suspend return semantics even for a primitive-looking body. */
+  execution?: Exclude<FunctionCallSourceExecution, "sync">;
   /** Declared reference/other types describe syntax, not known runtime values or safe primitive operands. */
   opaqueParameters?: string[];
   /** Absent for the established single-return leaf; every extended path retains all steps in order. */
@@ -36,13 +41,14 @@ export function readFunctionCallSourceBody(callee: SymbolNode, source: string, m
     || logic.gaps.some(gap => !["parseLimited", "dynamicBehavior"].includes(gap.code))) return;
   const tutor = analyzeFunctionTutorDeclaration({ functionNode: callee, sourceText: source, functionLogic: logic });
   const methodSource = callee.kind === "method";
-  const declared = readFunctionCallSourceDeclaredParameters(tutor, { sourceOnlyMethod: methodSource });
-  if (tutor.executionKind !== "sync" || !declared || /(?:^|\s)(?:get|set)\s+[\p{L}_$][\p{L}\p{N}_$]*\s*\(/u.test(logic.signature)) return;
+  const execution = readFunctionCallSourceExecution(tutor, logic.signature);
+  // The concrete Tutor intentionally cannot evaluate a standalone await.
+  // Its unrelated body gap cannot hide an exact formal declaration: the closed
+  // CFG/expression pass below independently covers every operation and call.
+  const declared = readFunctionCallSourceDeclaredParameters(tutor, { sourceOnlyMethod: methodSource, allowBodyGaps: execution === "promise" });
+  if (!execution || !declared) return;
   const declaration = readFunctionCallSourceRange(source, logic.sourceRange ?? callee.range);
   if (!declaration || declaration.length > 1800) return;
-  // Kotlin execution modifiers belong to the declaration header, not ordinary
-  // JS names or external/member identifiers appearing in the function body.
-  if (callee.language === "kotlin" && /\b(?:suspend|inline|operator|external|expect)\b/u.test(logic.signature.split(/\bfun\b/u)[0])) return;
   const entry = logic.blocks.find(block => block.kind === "entry"); if (!entry) return;
   const blocks = new Map(logic.blocks.map(block => [block.id, block])), outgoing = new Map<string, typeof logic.edges>();
   for (const edge of logic.edges) {
@@ -52,7 +58,7 @@ export function readFunctionCallSourceBody(callee: SymbolNode, source: string, m
   }
   const parameters = tutor.parameters.map(p => p.name), covered = new Set<string>(), paths: FunctionCallSourceBodyStep[][] = [];
   const calls = new Set<typeof logic.callsites[number]>();
-  const readValue = createFunctionCallSourceValueReader(callee, source, logic);
+  const readValue = createFunctionCallSourceValueReader(callee, source, logic, execution);
   const queue: Route[] = [{ current: entry.id, visited: new Set(), names: new Set(parameters), mutable: new Set(), steps: [], returned: false }];
   let firstReturn: { expression: string; source: string } | undefined;
   for (let cursor = 0; cursor < queue.length; cursor++) {
@@ -75,7 +81,7 @@ export function readFunctionCallSourceBody(callee: SymbolNode, source: string, m
       firstReturn ??= { expression: value.expression, source: raw };
       route.steps.push({ key: block.id, kind: "return", source: value.expression, ...(value.calls.length ? { calls: value.calls } : {}),
         ...(value.accesses?.length ? { accesses: value.accesses } : {}), ...(value.inferredCalls?.length ? { inferredCalls: value.inferredCalls } : {}),
-        ...(value.externalReads?.length ? { externalReads: value.externalReads } : {}) }); route.returned = true;
+        ...(value.externalReads?.length ? { externalReads: value.externalReads } : {}), ...(value.awaits ? { awaits: value.awaits } : {}) }); route.returned = true;
     } else if (block.kind === "mutation") {
       if (!raw || callee.language === "kotlin" && raw.includes("$")) return;
       const statement = raw.replace(/;\s*$/u, "");
@@ -89,16 +95,18 @@ export function readFunctionCallSourceBody(callee: SymbolNode, source: string, m
       if (declaration) { route.names.add(name); if (["let", "var"].includes(declaration[1])) route.mutable.add(name); }
       route.steps.push({ key: block.id, kind: "change", source: statement, ...(result.calls.length ? { calls: result.calls } : {}),
         ...(result.accesses?.length ? { accesses: result.accesses } : {}), ...(result.inferredCalls?.length ? { inferredCalls: result.inferredCalls } : {}),
-        ...(result.externalReads?.length ? { externalReads: result.externalReads } : {}) });
+        ...(result.externalReads?.length ? { externalReads: result.externalReads } : {}), ...(result.awaits ? { awaits: result.awaits } : {}) });
     } else if (block.kind === "call") {
       // An ignored invocation has source syntax, not a proved implementation.
       const statement = raw?.replace(/;\s*$/u, "");
       const value = statement && readValue(statement, block, route.names);
-      if (!value || !value.calls.length || value.calls.at(-1) !== statement) return;
+      const awaitedInvocation = execution === "promise" && /^await\s+/u.test(statement ?? "")
+        ? statement!.replace(/^await\s+/u, "").trim() : undefined;
+      if (!value || !value.calls.length || value.calls.at(-1) !== statement && value.calls.at(-1) !== awaitedInvocation) return;
       value.sites.forEach(site => calls.add(site));
       route.steps.push({ key: block.id, kind: "call", source: statement!, calls: value.calls,
         ...(value.accesses?.length ? { accesses: value.accesses } : {}), ...(value.inferredCalls?.length ? { inferredCalls: value.inferredCalls } : {}),
-        ...(value.externalReads?.length ? { externalReads: value.externalReads } : {}) });
+        ...(value.externalReads?.length ? { externalReads: value.externalReads } : {}), ...(value.awaits ? { awaits: value.awaits } : {}) });
     } else if (block.kind === "condition") {
       const predicate = block.condition?.expression;
       const value = predicate && readValue(predicate, block, route.names);
@@ -109,7 +117,7 @@ export function readFunctionCallSourceBody(callee: SymbolNode, source: string, m
         mutable: new Set(route.mutable), returned: false, steps: [...route.steps,
           { key: block.id, kind: "condition", source: predicate!, outcome: edge.kind as "true" | "false", ...(value.calls.length ? { calls: value.calls } : {}),
             ...(value.accesses?.length ? { accesses: value.accesses } : {}), ...(value.inferredCalls?.length ? { inferredCalls: value.inferredCalls } : {}),
-            ...(value.externalReads?.length ? { externalReads: value.externalReads } : {}) }] });
+            ...(value.externalReads?.length ? { externalReads: value.externalReads } : {}), ...(value.awaits ? { awaits: value.awaits } : {}) }] });
       continue;
     } else if (block.kind !== "entry") return;
     if (edges.length !== 1 || !["next", "return"].includes(edges[0].kind)) return;
@@ -118,9 +126,10 @@ export function readFunctionCallSourceBody(callee: SymbolNode, source: string, m
   if (!firstReturn || !paths.length || covered.size !== blocks.size || calls.size !== logic.callsites.length) return;
   return { parameters, parameterTypes: declared.parameters.map(parameter => parameter.type), returnExpression: firstReturn.expression,
     ...(methodSource ? { methodSource: true } : {}),
+    ...(execution !== "sync" ? { execution } : {}),
     ...(declared.opaqueParameters.length ? { opaqueParameters: declared.opaqueParameters } : {}),
     // Even an opaque identity return must retain uncertainty and cannot enter
     // the legacy primitive leaf/guarded recipe by dropping its body paths.
-    returnSource: firstReturn.source, ...(paths.length === 1 && paths[0].length === 1 && !methodSource && !declared.opaqueParameters.length
+    returnSource: firstReturn.source, ...(paths.length === 1 && paths[0].length === 1 && execution === "sync" && !methodSource && !declared.opaqueParameters.length
       && !paths[0][0].calls?.length && !paths[0][0].accesses?.length && !paths[0][0].externalReads?.length ? {} : { bodyPaths: paths }) };
 }

@@ -158,7 +158,7 @@ test("method source support keeps constructor/accessor, indirect, receiver-write
     const node = f.graph.nodes.find(node => node.name === "addFee")!, source = f.files[1].content;
     const site = analyzeFunctionLogic({ functionNode: f.root, sourceText: f.source }).callsites[0];
     const reader = createFunctionCallSourceReader(f.root, f.source);
-    const modified = source.replace(language === "kotlin" ? "fun addFee" : "addFee(value", language === "kotlin" ? "suspend fun addFee" : "async addFee(value");
+    const modified = source.replace(language === "kotlin" ? "fun addFee" : "addFee(value", language === "kotlin" ? "inline suspend fun addFee" : "async *addFee(value");
     assert.equal(reader.read(node, modified, site.range, "service.addFee(amount)"), undefined);
     assert.equal(reader.read({ ...node, kind: "constructor" }, source, site.range, "service.addFee(amount)"), undefined);
     assert.equal(reader.read(node, source, site.range, "service.addFee.call(service, amount)"), undefined);

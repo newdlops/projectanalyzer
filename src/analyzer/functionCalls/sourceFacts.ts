@@ -6,12 +6,15 @@ import { readFunctionCallSourceBody, type FunctionCallSourceBodyFacts } from "./
 import { readFunctionCallSourceRange, readFunctionCallSourceObjectExpression } from "./sourceSyntax";
 import { readFunctionCallSourceDeclaredParameters } from "./sourceParameters";
 import { readFunctionCallArguments } from "./arguments";
+import { readFunctionCallSourceExecution, type FunctionCallSourceExecution } from "./sourceExecution";
 export { readFunctionCallSourceExpression, readFunctionCallSourceRange } from "./sourceSyntax";
 export type { FunctionCallSourceBodyStep } from "./sourceBody";
 
 /** Source syntax only. A return expression is not a calculated runtime result. */
 export type FunctionCallSourceFacts = FunctionCallSourceBodyFacts & {
-  callerSource: string; use: { kind: "return" | "binding" | "discard"; name?: string };
+  callerSource: string; use: { kind: "return" | "binding" | "discard"; name?: string; awaited?: true };
+  /** The caller's own Promise/suspend return contract is separate from its callee. */
+  callerExecution?: Exclude<FunctionCallSourceExecution, "sync">;
   /** Caller receiver/argument reads precede the callee; their values/getters/state/effects are never proved by its body. */
   callerReads?: { expressions: string[]; accesses: string[]; externalReads: string[] };
 };
@@ -38,13 +41,12 @@ export function createFunctionCallSourceReader(parent: SymbolNode, source: strin
   const parentLogic = ["typescript", "javascript", "kotlin"].includes(language)
     ? analyzeFunctionLogic({ functionNode: parent, sourceText: source, maxBlocks: 128 }) : undefined;
   const parentTutor = parentLogic && analyzeFunctionTutorDeclaration({ functionNode: parent, sourceText: source, functionLogic: parentLogic });
+  const execution = parentTutor && readFunctionCallSourceExecution(parentTutor, parentLogic!.signature);
   const names = new Set([...(parentTutor?.parameters.map(parameter => parameter.name) ?? []),
     ...(parentLogic?.valueBindings?.map(binding => binding.name) ?? [])]);
-  // Async/generator/constructor returns have a different parent return contract;
-  // a plain source call result cannot stand in for their whole return value.
-  const blocks = parent.kind !== "constructor" && parentTutor?.executionKind === "sync"
-    && !(language === "kotlin" && /\b(?:suspend|inline|operator|external|expect)\b/u.test(parentLogic!.signature.split(/\bfun\b/u)[0]))
-    && !/(?:^|\s)(?:get|set)\s+[\p{L}_$][\p{L}\p{N}_$]*\s*\(/u.test(parentLogic!.signature) ? parentLogic!.blocks : [];
+  // Retain the caller contract instead of treating an awaited fulfillment as a
+  // synchronous call return. Generators/constructors remain outside this proof.
+  const blocks = execution ? parentLogic!.blocks : [];
   return { read(callee, calleeSource, callerRange, expression) {
     if (!["function", "method"].includes(callee.kind) || callee.language !== parent.language || expression.length > 240
       || /^new\b|\.(?:call|apply|bind)\s*\(/u.test(expression)) return;
@@ -52,7 +54,7 @@ export function createFunctionCallSourceReader(parent: SymbolNode, source: strin
       && contains(block.range, callerRange)).sort((a, b) => span(a.range) - span(b.range))[0];
     if (!block) return;
     const callerSource = readFunctionCallSourceRange(source, block.range)?.trim();
-    const use = callerSource && readUse(block, callerSource, expression.trim());
+    const use = callerSource && readUse(block, callerSource, expression.trim(), execution === "promise");
     if (!use) return;
     const site = parentLogic!.callsites.find(site => contains(block.range, site.range)
       && readFunctionCallSourceRange(source, site.range)?.trim() === expression.trim());
@@ -65,24 +67,30 @@ export function createFunctionCallSourceReader(parent: SymbolNode, source: strin
     if (site.calleeText !== site.calleeName) operands.unshift(site.calleeText);
     for (const operand of operands) {
       if (language === "kotlin" && operand.includes("$")) return;
-      const value = readFunctionCallSourceObjectExpression(operand, names, { externalReads: true, methodReceiver: parent.kind === "method" });
+      const value = readFunctionCallSourceObjectExpression(operand, names, { externalReads: true, methodReceiver: parent.kind === "method", asyncAwait: execution === "promise" });
       if (!value) return;
-      if (value.accesses.length || value.externalReads?.length) expressions.push(value.expression);
+      if (value.accesses.length || value.externalReads?.length || value.awaits) expressions.push(value.expression);
       accesses.push(...value.accesses); externalReads.push(...(value.externalReads ?? []));
     }
     const body = readFunctionCallSourceBody(callee, calleeSource, options?.maxCalleeDepth);
     return body && { ...body, callerSource: callerSource!, use,
-      ...(accesses.length || externalReads.length ? { callerReads: { expressions, accesses, externalReads } } : {}) };
+      ...(execution && execution !== "sync" ? { callerExecution: execution } : {}),
+      ...(expressions.length ? { callerReads: { expressions, accesses, externalReads } } : {}) };
   } };
 }
 
 /** The enclosing statement must use the entire call directly, rather than hiding a larger computation or a write to external state. */
-function readUse(block: FunctionLogicBlock, source: string, expression: string): FunctionCallSourceFacts["use"] | undefined {
-  if (block.kind === "return" && /^return\s+/u.test(source)
-    && source.replace(/^return\s+/u, "").replace(/;\s*$/u, "").trim() === expression) return { kind: "return" };
-  if (block.kind === "call" && source.replace(/;\s*$/u, "").trim() === expression) return { kind: "discard" };
+function readUse(block: FunctionLogicBlock, source: string, expression: string, asyncAwait: boolean): FunctionCallSourceFacts["use"] | undefined {
+  const matches = (value: string) => value === expression ? {} : asyncAwait && /^await\s+/u.test(value)
+    && value.replace(/^await\s+/u, "").trim() === expression ? { awaited: true as const } : undefined;
+  const returned = block.kind === "return" && /^return\s+/u.test(source)
+    ? matches(source.replace(/^return\s+/u, "").replace(/;\s*$/u, "").trim()) : undefined;
+  if (returned) return { kind: "return", ...returned };
+  const discarded = block.kind === "call" ? matches(source.replace(/;\s*$/u, "").trim()) : undefined;
+  if (discarded) return { kind: "discard", ...discarded };
   const declaration = new RegExp("^(?:const|let|val|var)\\s+(" + identifier + ")(?:\\s*:\\s*[A-Za-z]+)?\\s*=\\s*([\\s\\S]+?)\\s*;?$", "u").exec(source);
-  if (block.kind === "mutation" && declaration?.[2] === expression) return { kind: "binding", name: declaration[1] };
+  const bound = block.kind === "mutation" && declaration ? matches(declaration[2]) : undefined;
+  if (bound && declaration) return { kind: "binding", name: declaration[1], ...bound };
   return;
 }
 

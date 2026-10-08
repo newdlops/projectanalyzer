@@ -2,7 +2,7 @@
 import type { SourceRange } from "../../shared/types";
 
 /** Unknown external names are source references, never looked-up values or primitive proof. */
-export type FunctionCallSourceExpressionFacts = { expression: string; accesses: string[]; externalReads?: string[] };
+export type FunctionCallSourceExpressionFacts = { expression: string; accesses: string[]; externalReads?: string[]; awaits?: number };
 /** These tokens introduce syntax/transfer semantics, not an unresolved value binding. */
 const externalReadReserved = new Set(["this", "super", "new", "await", "yield", "return", "throw", "typeof", "void", "delete", "instanceof", "in", "is", "as", "null", "undefined", "true", "false"]);
 
@@ -12,14 +12,14 @@ export function readFunctionCallSourceExpression(source: string, parameters: Set
 }
 
 /** Known lexical roots may have source-authored member paths; getter/dispatch/state semantics remain unknown. Strict callers never opt in. */
-export function readFunctionCallSourceObjectExpression(source: string, names: Set<string>, options?: { externalReads?: boolean; methodReceiver?: boolean }): FunctionCallSourceExpressionFacts | undefined {
-  return readExpression(source, names, true, options?.externalReads === true, options?.methodReceiver === true);
+export function readFunctionCallSourceObjectExpression(source: string, names: Set<string>, options?: { externalReads?: boolean; methodReceiver?: boolean; asyncAwait?: boolean }): FunctionCallSourceExpressionFacts | undefined {
+  return readExpression(source, names, true, options?.externalReads === true, options?.methodReceiver === true, options?.asyncAwait === true);
 }
 
 /** The opt-in syntax reader records whole paths without looking up a property or promoting it to a primitive value. */
-function readExpression(source: string, parameters: Set<string>, members: boolean, external = false, methodReceiver = false): FunctionCallSourceExpressionFacts | undefined {
+function readExpression(source: string, parameters: Set<string>, members: boolean, external = false, methodReceiver = false, asyncAwait = false): FunctionCallSourceExpressionFacts | undefined {
   if (!source || source.length > 120) return;
-  const tokens: string[] = [], accesses: string[] = [], externalReads: string[] = []; let cursor = 0, depth = 0, tokenCount = 0, needsValue = true;
+  const tokens: string[] = [], accesses: string[] = [], externalReads: string[] = []; let cursor = 0, depth = 0, tokenCount = 0, needsValue = true, awaits = 0;
   const token = /(?:"(?:[^"\\\r\n]|\\.)*"|'(?:[^'\\\r\n]|\\.)*'|(?:\d+(?:\.\d+)?|\.\d+)(?:[eE][+-]?\d+)?|[\p{L}_$][\p{L}\p{N}_$]*(?:\s*\.\s*[\p{L}_$][\p{L}\p{N}_$]*)*|===|!==|==|!=|<=|>=|&&|\|\||[()+*/%<>!+-])/uy;
   while (cursor < source.length) {
     if (/\s/u.test(source[cursor])) { cursor++; continue; }
@@ -29,6 +29,12 @@ function readExpression(source: string, parameters: Set<string>, members: boolea
     if (text === "(") { if (!needsValue || ++depth > 16) return; }
     else if (text === ")") { if (needsValue || depth-- <= 0) return; }
     else if (["!", "+", "-"].includes(text) && needsValue) { /* Unary operators consume no value yet. */ }
+    else if (text === "await" && asyncAwait) {
+      if (!needsValue) return;
+      // Retain each keyword under the existing token budget. Awaited values,
+      // thenable behavior, rejection and continuation timing remain unknown.
+      awaits++;
+    }
     else if (["+", "-", "*", "/", "%", "<", ">", "<=", ">=", "===", "!==", "==", "!=", "&&", "||"].includes(text)) {
       if (needsValue) return; needsValue = true;
     } else {
@@ -56,8 +62,8 @@ function readExpression(source: string, parameters: Set<string>, members: boolea
     tokenCount += weight; if (tokenCount > 64) return;
     tokens.push(text);
   }
-  return !needsValue && depth === 0 ? { expression: accesses.length || externalReads.length ? source.trim() : tokens.join(" "), accesses,
-    ...(externalReads.length ? { externalReads } : {}) } : undefined;
+  return !needsValue && depth === 0 ? { expression: accesses.length || externalReads.length || awaits ? source.trim() : tokens.join(" "), accesses,
+    ...(externalReads.length ? { externalReads } : {}), ...(awaits ? { awaits } : {}) } : undefined;
 }
 
 /** Read only requested lines, avoiding a whole-file split for every proof. */

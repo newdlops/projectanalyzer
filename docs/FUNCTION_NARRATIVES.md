@@ -148,6 +148,90 @@ loop/exception transfer, inferred/partial/truncated evidence, 긴 식과 알 수
 초기 준비 문구는 저장하지 않는다. 각 시나리오의 상세 문단·대안은 계속 모델이 새로 작성한다.
 기존 노드 구문·동작·근거·효과·인용을 모두 유지하며 화면 배치도 유지한다.
 
+### 0.0.1140 async/suspend 원문 설명의 모델 대기 제거
+
+TypeScript/JavaScript async의 Promise 계약과 Kotlin suspend의 중단 가능 계약을 Host의
+source facts로 분리한다. callee `execution`, caller `callerExecution`, 직접 사용의
+`awaited`를 각각 보존한다. 원문 await/call/local change/condition/return은 기존 CFG와
+bounded postorder로 읽으며 함수나 Promise, coroutine을 실행하지 않는다. raw Promise
+저장/반환/버림과 await 이행 후 사용을 구분하고, async parent의 반환 계약을 동기 callee와
+혼동하지 않는다. Kotlin은 정상 완료만 가정하며 실제 중단·재개·thread·scheduler를
+단정하지 않는다. 값/타입·연산자/getter·dispatch·상태/효과, 거부·대기·취소·재개·시점은 미확인이다.
+공식 [Kotlin coroutine 명세](https://kotlinlang.org/spec/asynchronous-programming-with-coroutines.html)는
+suspend의 중단 지점이 0개 이상일 수 있음을 설명한다. [ECMAScript Await 명세](https://tc39.es/ecma262/multipage/control-abstraction-objects.html#await)는
+성공 값과 throw completion을 구분한다. 이 계약을 원문 설명에 적용했으며 실제 실행 검증은 아니다.
+
+`asyncAwait`는 source-only expression opt-in이며 기존 strict/default reader는 await-prefix
+식을 받아들이지 않는다. Kotlin binding 이름 await는 기존 identifier 의미를 유지한다.
+독립적인 async await statement는 concrete Tutor의 unsupported-expression body gap과
+별도로 읽되 input safety flag를 수정하지 않는다. 정확한 선언/type/default 근거를 유지하고
+모든 source CFG operation·callsite를 별도로 확인한다. 비동기 본문은 `bodyPaths`와 계약을
+남겨 primitive leaf/legacy sync recipe로 승격하지 않는다. constructor/accessor·generator/
+async-generator·try/finally/loop·숨은/간접/optional/computed 호출·callback·parameter/member
+쓰기·Kotlin inline/operator/external/expect와 기존 source/token/path/depth/prose 상한은 유지한다.
+
+짧은 summary는 모든 원문 operation과 결과 사용, 이행/완료 가정·결과/효과 미확인을
+유지한다. 반복된 per-call 주의 문구는 async 본문의 공통 qualifier에 묶고 상세한 내부 동작/
+거부·중단·재개·시점 정보는 연결된 full flow와 다섯 항목에 유지한다. 표현 한도를 넘으면
+자르거나 작업을 생략하지 않고 기존 모델 경로를 사용한다. method 후보 조건·인자 map·
+source actions·locale/route cache·zero-call 종료를 유지하며 새 UI 구성요소는 추가하지 않는다.
+
+공개 async/suspend checkout → addFee의 본문 `service.read(value)`와 `n + 3`를 같은
+실제 TS/Kotlin parser와 production Host/provider로 읽었다. 설치된 0.0.1139의 기존
+Qwen3.5-4B Q4_K_M, sampling·context/output/thread 설정을 그대로 사용한 baseline은
+각 범위에 모델을 한 번 실행했다. 수정한 개발 출력은 아래와 같이 모두 모델 요청 없이
+다섯 항목·완료·인용·cache를 유지했다. graph 준비와 cache 조회는 생성 시간에서 제외했다.
+
+| 범위 | 설치된 0.0.1139의 실제 모델 | 수정한 개발 출력 | 최종 설치된 0.0.1140 | 실제 모델 요청 |
+| --- | ---: | ---: | ---: | ---: |
+| TS 전체 구조 | 10.67초 | 24.28ms | 28.84ms | 1 → 0 |
+| TS 개별 호출 | 10.60초 | 9.74ms | 7.10ms | 1 → 0 |
+| TS 선택 경로 | 15.96초 | 7.93ms | 9.45ms | 1 → 0 |
+| Kotlin 전체 구조 | 9.38초 | 8.49ms | 133.97ms | 1 → 0 |
+| Kotlin 개별 호출 | 11.86초 | 6.31ms | 5.38ms | 1 → 0 |
+| Kotlin 선택 경로 | 10.87초 | 7.16ms | 4.90ms | 1 → 0 |
+
+각 범위 단일 관찰값이고 개발 측정은 전체 unit 검사와, 최종 설치 측정은 VS Code 시작과
+겹쳤다. 설치 후 runtime bundle/native byte 일치를 확인했다. 시스템 부하는 통제하지
+않았으며 일반적인 처리시간이나 모델 사실성 점수로 해석하지 않는다. 관련 검사 64개와
+패키징 검사 15개를 통과했다. 전체 unit은 1,174개 중 1,170개 통과, 기존 Guide dynamic
+argument type·nested object input·advanced private Scenario·decorated Inspector source-reveal
+실패 4개였다. KO/EN·세 범위, raw/awaited 저장과 반환, 버리는 await와 이후 구문,
+zero-call 분기와 cache isolation, async method 후보·this, nested await postorder,
+strict reader·depth·실행/쓰기 경계를 production parser/Host/protocol로 검사했다.
+fallback model fixture는 실제 모델 문장의 정확성 증거로 취급하지 않는다.
+baseline의 일부 실제 모델 문장은 원문에 없는 출입금/결제·추가 요금 목적을 추정하고
+TS output/effects에 같은 반환 설명을 반복했다. Kotlin 문장은 service.read의 실제 I/O와
+반환 결과를 확정적으로 설명했다. source-only 응답은 같은 원문 operation과 formal 전달을
+유지하되 외부 구현/결과/상태/효과·이행/중단/재개는 미확인으로 남겼다. 이는 이 공개 예제의
+관찰이며 일반 모델 사실성 개선 점수로 주장하지 않는다.
+
+격리된 공식 VS Code의 실제 current-file native TS/Kotlin 경로에서 runner/weights가 없는
+설정으로 설명을 생성했다. TS Promise/await·Kotlin 정상 완료 계약, 원래 service.read/
+n + 3, amount→value, 다섯 항목과 소스 분석 producer를 확인했다. TS 호출 위치는 4행의
+addBase(amount) 15자를, 대상 소스는 async 함수 6–9행 117자를 선택했다. Kotlin은
+키보드 Tab으로 읽을 호출→호출 위치→대상 소스에 이동해 Enter로 suspend 함수 7–10행
+89자를 선택했다. 설명 탭 복귀는 같은 완료 내용을 복원했다. Kotlin의 기존 불완전 관계
+안내는 유지했다. 약 774×904와 2560×1349의 실제 창에서 두 언어의 다섯 항목/버튼과
+줄바꿈을 확인했다. JVM 실행, 모바일, 다른 theme 및 전체 스크린리더/대비 계측은 하지 않았다.
+
+Impeccable의 변경 범위 기술 검토: 기존 다섯 항목·source controls·theme/semantic tokens를
+재사용해 구현 일관성은 유지했다. mechanical detector는 변경한 네 개의 source renderer에서
+finding 0개였으며 새 ignore를 추가하지 않았다. 기존 graph side-tab은 의미 표식으로 유지했다.
+이번 범위의 P0/P1 결함은 확인되지 않았고 추가 UI 수정/재검증 라운드는 필요하지 않았다.
+
+| 검토 항목 | 점수 / 4 | 확인 근거와 검증 한계 |
+| --- | ---: | --- |
+| 접근성 | 2 | AX label/disabled와 source 버튼 Tab/Enter 확인; 전체 스크린리더/대비는 미계측 |
+| 성능 | 3 | 여섯 범위 model 0·cache/source evidence 유지, bounded source work; 광범위 FPS는 미계측 |
+| 반응형 | 3 | 데스크톱/좁은 VS Code 창에서 줄바꿈과 버튼 확인; 모바일/touch 미검증 |
+| 테마 | 3 | 신규 색/CSS 없이 기존 token 사용; 실제 검사는 dark theme만 수행 |
+| 구현 일관성 | 4 | 원문 순서/계약/미확인 정보와 기존 fields/protocol/source/cache 유지; detector 0 |
+
+합계 15/20은 이번 변경 범위의 제한된 기술 검토이며 제품 전체의 접근성/성능 인증이 아니다.
+복잡한 실제 모델 fallback, loop와 Function Guide의 더 넓은 처리시간/설명 품질은 계속 남은
+목표 범위다. 이 async 호출 예제의 성공을 전체 최적화 목표 완료로 취급하지 않는다.
+
 ### 0.0.1139 method 후보 원문의 모델 대기 제거
 
 complete sync method의 정확한 positional 선언과 callee CFG를 source로 읽는다.

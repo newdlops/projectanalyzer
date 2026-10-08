@@ -1,5 +1,5 @@
 /** Public isolated/selected call scopes through the production Host/provider; never execute source.
- * Usage after compile: node scripts/benchmark-call-scopes.mjs [runtime-root] [tag] [checkout|serial|body|fallback|values|receivers|model|objects|members|methods]
+ * Usage after compile: node scripts/benchmark-call-scopes.mjs [runtime-root] [tag] [checkout|serial|body|fallback|values|receivers|model|objects|members|methods|async]
  * Raw public-fixture context/replies stay in a private temporary directory; graph preparation is excluded.
  */
 import {createRequire} from 'node:module';
@@ -10,7 +10,7 @@ import {fileURLToPath} from 'node:url';
 const require=createRequire(import.meta.url),repo=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const runtime=process.argv[2]?path.resolve(process.argv[2]):repo,tag=(process.argv[3]||'candidate').replace(/[^a-z0-9_-]/gi,'_').slice(0,40);
 const fixtureKind=process.argv[4]||'checkout';
-if(!['checkout','serial','body','fallback','values','receivers','model','objects','members','methods'].includes(fixtureKind))throw new Error('Unknown public fixture kind');
+if(!['checkout','serial','body','fallback','values','receivers','model','objects','members','methods','async'].includes(fixtureKind))throw new Error('Unknown public fixture kind');
 const {loadFunctionCallReadingFixture}=require(repo+'/out/test/unit/helpers/functionCallReadingFixture');
 const {FunctionCallsHostDelivery}=require(runtime+'/out/webview/functionCalls');
 const {WebviewGraphDelivery}=require(runtime+'/out/webview/sidebarGraphDelivery');
@@ -50,8 +50,12 @@ for(const language of ['typescript','kotlin']){
   :'import { type MathOps } from "./readingHelpers";\nexport function checkout(service: MathOps, amount: number): number { return service.addFee(amount); }';
  const methodHelper=language==='kotlin'?'class MathOps(val bias: Int) {\n fun addFee(value: Int): Int { return this.bias + value }\n}'
   :'export class MathOps {\n bias: number = 5;\n addFee(value: number): number { return this.bias + value; }\n}';
+ const asyncParent=language==='kotlin'?'suspend fun checkout(amount: Int): Int { return addFee(amount) }'
+  :'import { addFee } from "./readingHelpers";\nexport async function checkout(amount: number): Promise<number> { return await addFee(amount); }';
+ const asyncHelper=language==='kotlin'?'suspend fun addFee(value: Int): Int {\n val n = service.read(value)\n return n + 3\n}'
+  :'export async function addFee(value: number): Promise<number> {\n const n = await service.read(value);\n return n + 3;\n}';
  const f=await loadFunctionCallReadingFixture(language,fixtureKind==='checkout'?undefined:(name,source)=>fixtureKind==='objects'
-  ?name==='reading'?objectParent:objectHelper:fixtureKind==='members'?name==='reading'?memberParent:memberHelper:fixtureKind==='methods'?name==='reading'?methodParent:methodHelper:name==='reading'
+  ?name==='reading'?objectParent:objectHelper:fixtureKind==='members'?name==='reading'?memberParent:memberHelper:fixtureKind==='methods'?name==='reading'?methodParent:methodHelper:fixtureKind==='async'?name==='reading'?asyncParent:asyncHelper:name==='reading'
   ?fixtureKind==='serial'?serial:oneCall:['body','fallback','values','receivers','model'].includes(fixtureKind)?source.replace(language==='kotlin'?'return value + 5':'return value + 5;',fixtureKind==='body'?body:fixtureKind==='values'?values:fixtureKind==='receivers'?receivers:fixtureKind==='model'?model:fallback):source),graphDelivery=new WebviewGraphDelivery();
  const graphVersion=graphDelivery.activate(f.graph).snapshot.version;
  const sourceNodeTokens=new SourceNodeTokenRegistry(),evidenceTokens=new CodeFlowEvidenceTokenRegistry();

@@ -1,7 +1,7 @@
 /** Symbolic source summaries for an isolated call or complete acyclic call routes; no source execution or guessed values. */
 import { analyzeFunctionLogic, type FunctionLogicBlock } from "../../analyzer/functionLogic";
 import { analyzeFunctionTutorDeclaration } from "../../analyzer/functionTutor";
-import { readFunctionCallSourceObjectExpression, readFunctionCallSourceRange, readFunctionCallSourceDeclaredParameters, type FunctionCallSourceFacts } from "../../analyzer/functionCalls";
+import { readFunctionCallSourceObjectExpression, readFunctionCallSourceRange, readFunctionCallSourceDeclaredParameters, readFunctionCallSourceExecution, type FunctionCallSourceFacts } from "../../analyzer/functionCalls";
 import type { FunctionNarrativeContext } from "../../shared/functionNarratives";
 import type { FunctionCallNarrativeTarget, FunctionCallReading } from "../../shared/functionCallNarratives";
 import { formatFunctionCallDeclaredType } from "../../shared/functionCallNarratives";
@@ -19,12 +19,15 @@ const identifier = "[\\p{L}_$][\\p{L}\\p{N}_$]*";
 
 /** Every selected argument, source calculation, local use and reaching guard remains explicit. */
 function callStep(proof: SourceCallSummaryProof, ko: boolean): Step {
-  const { target, facts } = proof, expression = "`" + target.expression + "`", result = renderFunctionCallSourceBody(facts, ko);
+  const { target, facts } = proof, expression = (facts.use.awaited ? "await " : "") + "`" + target.expression + "`", result = renderFunctionCallSourceBody(facts, ko);
   const transfers = facts.parameters.map((name, index) => "`" + target.arguments![index] + "` → `" + name + "` (" + formatFunctionCallDeclaredType(facts.parameterTypes[index]) + ")").join(", ");
-  const use = facts.use.kind === "return" ? ko ? "부모 반환값" : "parent return"
+  const use = (facts.execution === "promise" && !facts.use.awaited ? "Promise → " : "") + (facts.use.kind === "return"
+    ? facts.callerExecution === "promise" ? ko ? "부모 Promise" : "parent Promise" : ko ? "부모 반환값" : "parent return"
     : facts.use.kind === "binding" ? ko ? "지역 `" + facts.use.name + "`" : "local `" + facts.use.name + "`"
-      : ko ? "저장·반환 없이 버림" : "discarded without storage or return";
-  return { key: "call:" + target.callId, short: expression + ": " + result + " → " + use,
+      : ko ? "저장·반환 없이 버림" : "discarded without storage or return");
+  const shortUse = facts.use.kind === "discard" && (facts.execution || facts.callerExecution || facts.use.awaited)
+    ? (facts.execution === "promise" && !facts.use.awaited ? "Promise → " : "") + (ko ? "결과 버림" : "discarded") : use;
+  return { key: "call:" + target.callId, short: expression + ": " + renderFunctionCallSourceBody(facts, ko, true) + " → " + shortUse,
     full: (ko ? "호출 " : "Call ") + expression + ": " + (transfers || (ko ? "전달 인자 없음" : "no arguments")) + "; " + result + " → " + use };
 }
 
@@ -65,7 +68,7 @@ export function buildFunctionCallSourceSummary(context: FunctionNarrativeContext
   // nested calls, computed/optional access and hidden writes remain unsupported.
   for (const proof of proofs) for (const argument of proof.target.arguments ?? []) {
     const names = new Set(argument.match(/[\p{L}_$][\p{L}\p{N}_$]*/gu) ?? []);
-    const value = readFunctionCallSourceObjectExpression(argument, names, { externalReads: true, methodReceiver: parent.kind === "method" });
+    const value = readFunctionCallSourceObjectExpression(argument, names, { externalReads: true, methodReceiver: parent.kind === "method", asyncAwait: proofs.some(proof => proof.facts.callerExecution === "promise") });
     if (parent.language === "kotlin" && argument.includes("$") || !value || value.accesses.length && !proof.facts.callerReads) return;
   }
   if (task.scope === "call") return proofs.length === 1 ? isolated(proofs[0], ko) : undefined;
@@ -75,10 +78,11 @@ export function buildFunctionCallSourceSummary(context: FunctionNarrativeContext
   const declaration = readFunctionCallSourceRange(source, logic.sourceRange ?? parent.range);
   if (!root || root.truncated || !declaration || root.text.trim() !== declaration.trim()) return;
   const tutor = analyzeFunctionTutorDeclaration({ functionNode: parent, sourceText: source, functionLogic: logic });
-  const declared = readFunctionCallSourceDeclaredParameters(tutor, { sourceOnlyMethod: parent.kind === "method" });
-  if (parent.kind === "constructor" || tutor.executionKind !== "sync" || tutor.inputSummarySafe === false && !declared
-    || /(?:^|\s)(?:get|set)\s+[\p{L}_$][\p{L}\p{N}_$]*\s*\(/u.test(logic.signature)
-    || parent.language === "kotlin" && /\b(?:suspend|inline|operator|external|expect)\b/u.test(logic.signature.split(/\bfun\b/u)[0])
+  const execution = readFunctionCallSourceExecution(tutor, logic.signature);
+  // Exact async declaration facts are separate from the concrete Tutor's await
+  // evaluator gap. The bounded source traversal still requires every call proof.
+  const declared = readFunctionCallSourceDeclaredParameters(tutor, { sourceOnlyMethod: parent.kind === "method", allowBodyGaps: execution === "promise" });
+  if (!execution || tutor.inputSummarySafe === false && !declared
     || tutor.parameters.some(parameter => parameter.rest || parameter.optional || parameter.defaultValue !== undefined)
     || tutor.parameters.some(parameter => parameter.declarationEvidence.some(evidence => evidence.kind === "parameter-default"))
     || tutor.gaps.some(gap => gap.kind !== "language-support") && !declared) return;
@@ -86,9 +90,9 @@ export function buildFunctionCallSourceSummary(context: FunctionNarrativeContext
   const entry = logic.blocks.find(block => block.kind === "entry"); if (!entry) return;
   const readValue = (value: string, names: Set<string>) => {
     if (parent.language === "kotlin" && value.includes("$")) return false;
-    const reading = readFunctionCallSourceObjectExpression(value, names, { externalReads: true, methodReceiver: parent.kind === "method" });
+    const reading = readFunctionCallSourceObjectExpression(value, names, { externalReads: true, methodReceiver: parent.kind === "method", asyncAwait: execution === "promise" });
     if (!reading) return false;
-    if (reading.accesses.length || reading.externalReads?.length) parentReads = true;
+    if (reading.accesses.length || reading.externalReads?.length || reading.awaits) parentReads = true;
     return true;
   };
   const owns = (block: FunctionLogicBlock, range: SourceRange) =>
@@ -185,8 +189,12 @@ export function buildFunctionCallSourceSummary(context: FunctionNarrativeContext
     const covered = new Set(completed.flatMap(route => route.calls));
     if (covered.size !== proofs.length || logic.callsites.length !== proofs.length) return;
   }
-  const assumed = qualifier(proofs, ko), prefix = task.scope === "scenario"
-    ? ko ? "선택한 소스 경로: " : "Selected source route: " : ko ? "소스 호출 구조: " : "Source call structure: ";
+  const assumed = qualifier(proofs, ko);
+  // The existing title already identifies route/structure scope. Combine that
+  // repeated label with the async contract; retain every operation and qualifier.
+  const prefix = execution === "promise" ? ko ? "Promise 성공 이행을 가정한 원문: " : "Promise fulfillment assumed: "
+    : execution === "suspend" ? ko ? "suspend 정상 완료를 가정한 원문: " : "Suspend completion assumed: "
+      : task.scope === "scenario" ? ko ? "선택한 소스 경로: " : "Selected source route: " : ko ? "소스 호출 구조: " : "Source call structure: ";
   // Reference inputs never acquire primitive semantics merely because the
   // caller's source route and argument transfer are complete.
   const inputAssumption = declared?.opaqueParameters.length ? ko
@@ -194,7 +202,9 @@ export function buildFunctionCallSourceSummary(context: FunctionNarrativeContext
     : " Inputs have declared types only; values/runtime types/operators/effects are unknown." : "";
   const readAssumption = parentReads ? ko ? " 부모 읽기의 값/연산자·getter·디스패치·상태/효과 미확인; 정상 완료 가정."
     : " Parent read values/operators/getters/dispatch/state/effects unknown; normal completion assumed." : "";
+  const asyncAssumption = execution !== "sync" ? ko ? " 대기/거부/취소/재개·결과/시점/효과 미확인."
+    : " Wait/throw/cancel/resume/results/timing/effects unknown." : "";
   return { summary: assumed + prefix + renderRoutes(completed, "short") + ".",
     flow: assumed + prefix + renderRoutes(completed, "full") + "."
-      + (ko ? " 조건은 소스 경로의 가정이며 실제 실행 효과는 관찰하지 않았습니다." : " Conditions are source-route assumptions; runtime effects are unobserved.") + inputAssumption + readAssumption };
+      + (ko ? " 조건은 소스 경로의 가정이며 실제 실행 효과는 관찰하지 않았습니다." : " Conditions are source-route assumptions; runtime effects are unobserved.") + inputAssumption + readAssumption + asyncAssumption };
 }
