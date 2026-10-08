@@ -55,7 +55,7 @@ function buildGuardedSourceFlow(context: FunctionNarrativeContext, parent: Symbo
     const facts = reader.read(node, original.code, sites[index].range, row.expression);
     // The legacy compact recipe names only a return leaf. Extended callee
     // paths must use the generic compiler so local changes/branches stay visible.
-    if (!facts || facts.bodyPaths) return;
+    if (!facts || facts.bodyPaths || facts.callerReads) return;
     readings.push(facts);
   }
   if (readings[0].use.kind !== "return" || readings[1].use.kind !== "binding" || readings[2].use.kind !== "return") return;

@@ -4,6 +4,18 @@ All notable user-visible changes to Project Analyzer: Code Flow are recorded in
 this file. The changelog starts with the first distribution-documented build;
 earlier local development builds were not tracked here.
 
+## 0.0.1138 - 2026-10-08
+
+### Improved
+
+- Read caller property/captured operands in conditions, arguments, local changes and
+  returns without model generation when the complete source route is supported.
+- Preserve separate getter occurrences, argument order, both assumed branches and
+  zero-call exits; mark values, operators, dispatch, state and effects unknown.
+- Keep caller reads separate from callee effects and assume normal completion.
+- Factor identical source prefixes without merging equal text at distinct statements;
+  retain mutation boundaries, five detail fields, source controls and existing budgets.
+
 ## 0.0.1137 - 2026-10-08
 
 ### Improved

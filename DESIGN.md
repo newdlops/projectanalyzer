@@ -91,6 +91,14 @@ Acceptance: TS/Kotlin named, structural/collection/nullable inputs; both prose
 languages, complete scopes, inferred qualifiers, source controls and cached reads.
 Defaults, callbacks, destructuring, external writes and over-budget prose must
 retain model analysis. Check wrapping at narrow and desktop window sizes.
+Caller argument/receiver reads precede callee work and keep their original
+operand order. Explain their getters, operators, values, state and effects as
+unknown separately from source facts about the callee. Conditions on properties
+are route assumptions; repeated reads never imply a stable getter result. Keep
+both branches and zero-call returns. Factor only an identical source prefix,
+preserving distinct repeated statements. Use the same fields and source buttons.
+Acceptance: TS/Kotlin property conditions/arguments, both explanation languages,
+empty-call exits, local writes/read order, source identity and cache isolation.
 
 Acceptance: real local TypeScript and Kotlin caller/callee readings; cross-file
 evidence, strict fixed call references, distinct repeated sites/visits, static

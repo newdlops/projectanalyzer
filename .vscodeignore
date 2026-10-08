@@ -62,6 +62,7 @@ out/application/functionCallNarratives/sourceFlow.js
 out/application/functionCallNarratives/sourceSummary.js
 out/application/functionCallNarratives/sourceProofs.js
 out/application/functionCallNarratives/sourceBodyReading.js
+out/application/functionCallNarratives/sourceCallerReading.js
 
 # Callee syntax helpers are bundled into their existing public analyzer facade.
 out/analyzer/functionCalls/contexts.js

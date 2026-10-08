@@ -3,14 +3,17 @@ import type { SourceRange, SymbolNode } from "../../shared/types";
 import { analyzeFunctionLogic, type FunctionLogicBlock } from "../functionLogic";
 import { analyzeFunctionTutorDeclaration } from "../functionTutor";
 import { readFunctionCallSourceBody, type FunctionCallSourceBodyFacts } from "./sourceBody";
-import { readFunctionCallSourceRange } from "./sourceSyntax";
+import { readFunctionCallSourceRange, readFunctionCallSourceObjectExpression } from "./sourceSyntax";
 import { readFunctionCallSourceDeclaredParameters } from "./sourceParameters";
+import { readFunctionCallArguments } from "./arguments";
 export { readFunctionCallSourceExpression, readFunctionCallSourceRange } from "./sourceSyntax";
 export type { FunctionCallSourceBodyStep } from "./sourceBody";
 
 /** Source syntax only. A return expression is not a calculated runtime result. */
 export type FunctionCallSourceFacts = FunctionCallSourceBodyFacts & {
   callerSource: string; use: { kind: "return" | "binding" | "discard"; name?: string };
+  /** Caller receiver/argument reads precede the callee; their values/getters/state/effects are never proved by its body. */
+  callerReads?: { expressions: string[]; accesses: string[]; externalReads: string[] };
 };
 export type FunctionCallSourceReader = {
   read(callee: SymbolNode, calleeSource: string, callerRange: SourceRange, expression: string): FunctionCallSourceFacts | undefined;
@@ -34,6 +37,8 @@ export function createFunctionCallSourceReader(parent: SymbolNode, source: strin
   const parentLogic = ["typescript", "javascript", "kotlin"].includes(language)
     ? analyzeFunctionLogic({ functionNode: parent, sourceText: source, maxBlocks: 128 }) : undefined;
   const parentTutor = parentLogic && analyzeFunctionTutorDeclaration({ functionNode: parent, sourceText: source, functionLogic: parentLogic });
+  const names = new Set([...(parentTutor?.parameters.map(parameter => parameter.name) ?? []),
+    ...(parentLogic?.valueBindings?.map(binding => binding.name) ?? [])]);
   // Async/generator/constructor returns have a different parent return contract;
   // a plain source call result cannot stand in for their whole return value.
   const blocks = parent.kind !== "constructor" && parentTutor?.executionKind === "sync"
@@ -47,8 +52,25 @@ export function createFunctionCallSourceReader(parent: SymbolNode, source: strin
     const callerSource = readFunctionCallSourceRange(source, block.range)?.trim();
     const use = callerSource && readUse(block, callerSource, expression.trim());
     if (!use) return;
+    const site = parentLogic!.callsites.find(site => contains(block.range, site.range)
+      && readFunctionCallSourceRange(source, site.range)?.trim() === expression.trim());
+    const arguments_ = site && readFunctionCallArguments(language, source, parent.filePath, site.range);
+    if (!site || !arguments_) return;
+    const expressions: string[] = [], accesses: string[] = [], externalReads: string[] = [];
+    // Validate authored operands only. Imported/captured names are recorded as
+    // unknown references; no binding, receiver or property is looked up.
+    const operands = [...arguments_];
+    if (site.calleeText !== site.calleeName) operands.unshift(site.calleeText);
+    for (const operand of operands) {
+      if (language === "kotlin" && operand.includes("$")) return;
+      const value = readFunctionCallSourceObjectExpression(operand, names, { externalReads: true });
+      if (!value) return;
+      if (value.accesses.length || value.externalReads?.length) expressions.push(value.expression);
+      accesses.push(...value.accesses); externalReads.push(...(value.externalReads ?? []));
+    }
     const body = readFunctionCallSourceBody(callee, calleeSource, options?.maxCalleeDepth);
-    return body && { ...body, callerSource: callerSource!, use };
+    return body && { ...body, callerSource: callerSource!, use,
+      ...(accesses.length || externalReads.length ? { callerReads: { expressions, accesses, externalReads } } : {}) };
   } };
 }
 

@@ -148,6 +148,69 @@ loop/exception transfer, inferred/partial/truncated evidence, 긴 식과 알 수
 초기 준비 문구는 저장하지 않는다. 각 시나리오의 상세 문단·대안은 계속 모델이 새로 작성한다.
 기존 노드 구문·동작·근거·효과·인용을 모두 유지하며 화면 배치도 유지한다.
 
+### 0.0.1138 부모 속성/captured 읽기의 모델 대기 제거
+
+parser-matched 호출의 인수와 수신자 operand는 `FunctionCallSourceFacts.callerReads`에
+원래 순서의 식·member 접근·외부 이름을 보존한다. callee의 반환 식을 확인한 사실이
+caller getter나 외부 값을 증명하지 않는다. `sourceCallerReading`은 그 불확실성을 대상
+본문의 효과와 별도로 서술하며 반복 접근은 getter 결과를 재사용하지 않는다.
+strict primitive expression API와 worksheet 권한을 넓히거나 실제 source를 실행하지 않는다.
+
+전체 부모 경로는 속성/captured 식을 지역 초기화·변경·조건·반환으로 연결한다. 선택된
+조건 결과는 가정이고 값/연산자·getter·dispatch·상태/효과는 미확인이다. 정상 완료 가정을
+명시하고 두 분기·호출 0개 조기 반환도 보존한다. 같은 source key/text의 prefix만 한 번
+표시하며 같은 텍스트의 서로 다른 source statement는 합치지 않는다. mutable 지역 binding만
+갱신하고 parameter/captured/member/immutable 쓰기는 거부한다. 호출 인수 안의 숨은
+호출/쓰기, optional/computed·deferred/async·cycle/loop와 기존 모든 상한은 유지한다.
+callerReads를 기존 compact guarded recipe로 승격하지 않고 전체 source compiler에서 읽는다.
+
+공개 `Payload`의 `if (amount.bias < 0) return 0` → `addFee(amount.bias + 1)`과 대상
+`value + 5`를 실제 TS/Kotlin parser/Host/provider로 읽었다. 설치된 0.0.1137은 기존
+Qwen3.5-4B Q4_K_M을 각 범위에서 한 번 실행했고 가중치·sampling·context/output/thread
+설정은 유지했다. graph 준비 및 완료 후 cache 조회는 생성 시간에서 제외했다.
+
+| 범위 | 설치된 0.0.1137의 실제 모델 | 최종 개발 출력 | 설치된 0.0.1138 | 실제 모델 요청 |
+| --- | ---: | ---: | ---: | ---: |
+| TS 전체 구조 | 10.39초 | 20.97ms | 60.73ms | 1 → 0 |
+| TS 개별 호출 | 9.58초 | 5.74ms | 10.60ms | 1 → 0 |
+| TS 호출 1개 경로 | 11.46초 | 7.23ms | 8.57ms | 1 → 0 |
+| TS 호출 0개 반환 | 7.10초 | 3.56ms | 3.97ms | 1 → 0 |
+| Kotlin 전체 구조 | 7.43초 | 9.59ms | 106.81ms | 1 → 0 |
+| Kotlin 개별 호출 | 7.49초 | 3.20ms | 4.03ms | 1 → 0 |
+| Kotlin 호출 1개 경로 | 9.73초 | 4.92ms | 6.86ms | 1 → 0 |
+| Kotlin 호출 0개 반환 | 6.33초 | 3.12ms | 2.99ms | 1 → 0 |
+
+각 범위 한 번의 별도 관찰값이며 최종 개발 측정은 unit 검사, 격리 설치본 측정은 QA 앱
+시작과 겹쳤다. 일반적인 속도나
+실행 정확성 보장이 아니다. 각 경우 완료·원문·다섯 항목·인용·cache를 확인했고 호출 0개
+경로는 상세 호출 항목 없이 가정 조건·반환·미확인 getter/효과를 유지한다. 선언 타입이나
+조건 선택을 실제 property 값 또는 JVM/TypeScript typecheck 증거로 취급하지 않는다.
+baseline 모델은 부가세/요금/통화 단위를 추측하고 일부 구조·호출 설명에서 조건부 분기가
+없다고 했다. 선택한 호출 0개 경로에도 반대 분기의 호출을 함께 서술했다. 최종 source는
+각 범위의 조건·원문 operand·반환과 미확인 getter/효과를 유지하며 다른 경로를 실행한
+것처럼 서술하지 않는다. 이 관찰을 일반 모델 사실성 점수로 해석하지 않는다.
+
+관련 검사 55개·패키징 검사 15개가 통과했다. 전체 unit은 1,162개 중 1,158개 통과,
+기존 Guide dynamic argument type·nested object input·advanced private Scenario·
+decorated Inspector source-reveal 실패 4개였다. 두 언어/locale·모든 요청 범위와 zero-call
+cache, getter 반복·captured 읽기·지역 변경 순서·source prefix identity, 추정 관계 보존,
+근거 및 쓰기/hidden call/optional/computed/cycle 경계를 검사했다. 모델 fixture 검사는
+실제 모델 문장의 의미 정확성 증거로 취급하지 않는다.
+
+최종 VSIX의 격리된 공식 VS Code에서 local 실행기·가중치가 없는 설정으로 Kotlin 호출
+순서의 거짓 경로를 생성했다. 속성 인자와 `value + 5`, 다섯 항목, 조건·getter·상태/효과
+미확인·정상 완료 가정을 확인했다. native 조건 select를 참으로 바꾸면 호출 0개와
+`return 0` 설명만 표시하며, 거짓으로 돌아오면 추가 생성 없이 이전 설명을 복원했다.
+TypeScript 호출 관계의 전체 구조는 두 분기와 각각의 반환을 표시했다. 두 언어 모두
+호출 위치 버튼이 5행의 `addBase(amount.bias + 1)` 24자를 선택했다. 대상 소스 버튼은
+Kotlin 7–9행 전체 선언, TS 7행 선언 header를 선택했고 설명 탭 복귀 내용을 유지했다.
+770×900 및 최대화 화면 2560×1349 캡처에서 본문/패널 줄바꿈·다섯 항목·소스 버튼과
+비활성 1/1 페이지를 검사했다. CSS/theme와 기존 의미 구분선 예외는 유지하며 새
+suppression은 추가하지 않았다. 모바일·다른 테마·전체 접근성 audit는 검사하지 않았다.
+QA 앱과 모델은 종료했다. VSIX는 507파일·압축 3.67MiB·해제 15.66MiB이며 package
+상한과 runtime closure를 통과했다. method/callback/async/loop·복잡한 실제 모델 fallback과
+Function Guide 비용은 남은 최적화 범위다.
+
 ### 0.0.1137 선언 타입의 객체/reference 입력 읽기
 
 `analyzer/functionCalls.readFunctionCallSourceDeclaredParameters`는 parser-owned positional

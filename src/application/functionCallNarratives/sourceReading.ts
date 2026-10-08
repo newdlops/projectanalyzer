@@ -8,6 +8,7 @@ import { buildFunctionCallSourceFlow } from "./sourceFlow";
 import { buildFunctionCallSourceSummary, type SourceCallSummaryProof } from "./sourceSummary";
 import { captureSourceCallProofs } from "./sourceProofs";
 import { renderFunctionCallSourceReturns, renderFunctionCallSourceEffects } from "./sourceBodyReading";
+import { renderFunctionCallSourceCallerEffects } from "./sourceCallerReading";
 
 /** Full source is Host-owned and never goes through the model/Webview protocol. */
 export type FunctionCallSourceCandidate = { target: FunctionCallNarrativeTarget; callerRange?: SourceRange;
@@ -91,12 +92,12 @@ function describeCall(target: FunctionCallNarrativeTarget, facts: FunctionCallSo
       : `The callee returns ${expression}; store it in local \`${facts.use.name}\`. This is not the parent's final return.`
       : ko ? `${koResult} 이 호출부에서는 저장하거나 반환하지 않습니다.`
         : `The callee returns ${expression}; this callsite discards the result.`;
-  if (facts.opaqueParameters?.length || facts.bodyPaths?.some(path => path.some(step => step.kind === "call" || step.calls?.length || step.accesses?.length || step.externalReads?.length))) {
+  if (facts.callerReads || facts.opaqueParameters?.length || facts.bodyPaths?.some(path => path.some(step => step.kind === "call" || step.calls?.length || step.accesses?.length || step.externalReads?.length))) {
     const result = branches ? ko ? "각 경로의 반환값" : "each source-path return" : expression;
     const use = facts.use.kind === "return" ? ko ? "부모에서 반환합니다" : "return it from the parent"
       : facts.use.kind === "binding" ? ko ? `지역 \`${facts.use.name}\`에 저장합니다` : `store it in local \`${facts.use.name}\``
         : ko ? "이 호출부에서 저장·반환하지 않습니다" : "discard it at this callsite";
-    const accesses = facts.opaqueParameters?.length || facts.bodyPaths!.some(path => path.some(step => step.accesses?.length || step.externalReads?.length));
+    const accesses = facts.callerReads || facts.opaqueParameters?.length || facts.bodyPaths!.some(path => path.some(step => step.accesses?.length || step.externalReads?.length));
     output = accesses ? ko ? `정상 완료 가정에서, 소스 식 ${result}을 ${use}. 객체 상태와 결과는 미확인입니다.`
       : `Assuming normal completion, use source ${result}: ${use}. Object state/results are unknown.`
       : ko ? `내부 호출의 정상 복귀·지역 값 유지 가정에서, ${result}을 ${use}.`
@@ -107,7 +108,7 @@ function describeCall(target: FunctionCallNarrativeTarget, facts: FunctionCallSo
       : ko ? `대상 함수 \`${target.callee}\`의 반환식은 ${expression}입니다.` : `Call \`${target.callee}\` for its source return expression ${expression}.`,
     inputs: getFunctionCallFixedInputs(target, language) ?? (ko ? `인자 전달: ${transfers.join(", ")}.` : `Argument transfer: ${transfers.join(", ")}.`),
     output,
-    effects: renderFunctionCallSourceEffects(facts, ko) ?? (ko ? "대상 본문에는 반환식 외의 변수 쓰기나 명시적인 다른 호출이 없습니다. 실제 실행 효과는 관찰하지 않았습니다."
+    effects: renderFunctionCallSourceCallerEffects(facts, renderFunctionCallSourceEffects(facts, ko), ko) ?? (ko ? "대상 본문에는 반환식 외의 변수 쓰기나 명시적인 다른 호출이 없습니다. 실제 실행 효과는 관찰하지 않았습니다."
       : "The callee body has no writes or explicit calls beyond its return expression. Runtime effects are unobserved."),
     reason: conditions ? ko ? `정적 도달 조건: ${conditions}. 이 조건 아래의 호출 관계이며 실제 실행 관찰은 아닙니다.`
       : `Static reaching conditions: ${conditions}. This is a source relationship, not an observed execution.`

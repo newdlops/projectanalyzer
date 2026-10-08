@@ -932,6 +932,15 @@ source 읽기로 다루며 다른 parameter/source gap은 유지한다. 원문 �
 code label로 표시하여 설명 언어와 다른 script의 타입 이름을 prose로 잘못 거부하지 않는다.
 formal input 전달은 미지원 본문과 독립적으로 읽되, default 근거·optional/rest/destructuring/
 callback·parameter/member 쓰기·optional/computed 접근과 기존 모든 상한은 유지한다.
+0.0.1138은 부모의 속성/captured 읽기를 인자·조건·지역 변경·반환의 원래 source 식으로
+연결한다. 호출부의 parser-matched 인수/수신자 읽기는 `callerReads`에 원래 operand 순서·
+접근·외부 이름을 보존하며 callee body가 그 값/getter/상태/효과를 증명하지 않는다.
+속성 조건의 참/거짓은 선택 경로의 가정이다. getter 재평가를 이전 값으로 대체하지 않고
+값/연산자·getter·dispatch·외부 상태/효과 미확인 및 정상 완료 가정을 기존 상세/흐름에
+유지한다. 호출 0개의 조기 반환도 소스 경로와 같은 bounds/cache를 사용한다.
+전체 부모 경로는 동일 source key/text의 공통 prefix만 묶으며 같은 텍스트의 서로 다른
+구문은 합치지 않는다. parameter/captured/member/immutable 쓰기, optional/computed,
+숨은 호출/쓰기, callback/async/loop 및 기존 token/path/prose 한도는 모델을 유지한다.
 순서 모델은 최대 512 블록·1,024 제어 연결, 하나의 경로는 1,024 탐색 단계·256 표시 항목으로
 제한한다. 근거 부족과 한도는 표시하며 원본 소스를 실행하지 않는다.
 
