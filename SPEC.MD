@@ -921,6 +921,17 @@ Kotlin의 수신자 추론은 `inferredCalls`에 보존하며 graph confidence�
 optional/computed 접근·callback·eval/Function·숨은 expression guard와 기존 상한은
 모델을 유지한다. Kotlin modifier 검사는 선언 header에서만 수행하며 본문의 ordinary
 identifier를 실행 modifier로 잘못 분류하지 않는다.
+0.0.1137은 완전한 positional 선언의 객체·사용자 정의·collection·structural·nullable 타입을
+source label로 읽는다. `analyzer/functionCalls.readFunctionCallSourceDeclaredParameters`는
+정확한 parser 선언 근거·이름·타입·호출 모드를 확인하고 비primitive 입력을 `opaqueParameters`
+로 보존한다. 타입을 resolve하거나 객체 대표값을 구성하지 않으며 값·런타임 타입·연산자/
+getter/dispatch·외부 상태/효과는 미확인이다. 정상 완료 가정을 다섯 상세 항목과 연결된 흐름에
+유지하고 opaque identity 반환도 body path를 보존하여 기존 primitive proof로 승격하지 않는다.
+Kotlin named 타입의 runtime input-model 부재 gap만 해당 parameter의 정확한 선언 아래
+source 읽기로 다루며 다른 parameter/source gap은 유지한다. 원문 타입은 비primitive일 때
+code label로 표시하여 설명 언어와 다른 script의 타입 이름을 prose로 잘못 거부하지 않는다.
+formal input 전달은 미지원 본문과 독립적으로 읽되, default 근거·optional/rest/destructuring/
+callback·parameter/member 쓰기·optional/computed 접근과 기존 모든 상한은 유지한다.
 순서 모델은 최대 512 블록·1,024 제어 연결, 하나의 경로는 1,024 탐색 단계·256 표시 항목으로
 제한한다. 근거 부족과 한도는 표시하며 원본 소스를 실행하지 않는다.
 

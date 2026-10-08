@@ -1,7 +1,7 @@
 /** Source-only call details and complete guarded recipes; unsupported source/whole-flow meanings retain the configured model. */
 import type { FunctionNarrativeContext } from "../../shared/functionNarratives";
 import type { FunctionCallNarrativeTarget, FunctionCallReading } from "../../shared/functionCallNarratives";
-import { getFunctionCallFixedInputs, isFunctionCallNarrativeChunk, isFunctionCallNarrativeLanguage } from "../../shared/functionCallNarratives";
+import { getFunctionCallFixedInputs, formatFunctionCallDeclaredType, isFunctionCallNarrativeChunk, isFunctionCallNarrativeLanguage } from "../../shared/functionCallNarratives";
 import { createFunctionCallSourceReader, type FunctionCallSourceFacts } from "../../analyzer/functionCalls";
 import type { SymbolNode, SourceRange } from "../../shared/types";
 import { buildFunctionCallSourceFlow } from "./sourceFlow";
@@ -80,7 +80,7 @@ export function buildSourceFunctionCallNarrativeResponse(context: FunctionNarrat
 function describeCall(target: FunctionCallNarrativeTarget, facts: FunctionCallSourceFacts, language: "ko" | "en"): FunctionCallReading | undefined {
   const ko = language === "ko", branches = (facts.bodyPaths?.length ?? 0) > 1;
   const expression = branches ? ko ? "각 소스 경로의 반환값" : "the source path's return value" : "`" + facts.returnExpression + "`";
-  const transfers = facts.parameters.map((name, index) => "`" + target.arguments![index] + "` → `" + name + "` (" + facts.parameterTypes[index] + ")");
+  const transfers = facts.parameters.map((name, index) => "`" + target.arguments![index] + "` → `" + name + "` (" + formatFunctionCallDeclaredType(facts.parameterTypes[index]) + ")");
   const guards = target.guards.map(guard => "`" + guard.expression + "` = " + guard.outcome);
   const loops = target.loops.map(loop => "`" + loop + "`");
   const conditions = [...guards, ...loops].join("; ");
@@ -91,12 +91,12 @@ function describeCall(target: FunctionCallNarrativeTarget, facts: FunctionCallSo
       : `The callee returns ${expression}; store it in local \`${facts.use.name}\`. This is not the parent's final return.`
       : ko ? `${koResult} 이 호출부에서는 저장하거나 반환하지 않습니다.`
         : `The callee returns ${expression}; this callsite discards the result.`;
-  if (facts.bodyPaths?.some(path => path.some(step => step.kind === "call" || step.calls?.length || step.accesses?.length || step.externalReads?.length))) {
+  if (facts.opaqueParameters?.length || facts.bodyPaths?.some(path => path.some(step => step.kind === "call" || step.calls?.length || step.accesses?.length || step.externalReads?.length))) {
     const result = branches ? ko ? "각 경로의 반환값" : "each source-path return" : expression;
     const use = facts.use.kind === "return" ? ko ? "부모에서 반환합니다" : "return it from the parent"
       : facts.use.kind === "binding" ? ko ? `지역 \`${facts.use.name}\`에 저장합니다` : `store it in local \`${facts.use.name}\``
         : ko ? "이 호출부에서 저장·반환하지 않습니다" : "discard it at this callsite";
-    const accesses = facts.bodyPaths.some(path => path.some(step => step.accesses?.length || step.externalReads?.length));
+    const accesses = facts.opaqueParameters?.length || facts.bodyPaths!.some(path => path.some(step => step.accesses?.length || step.externalReads?.length));
     output = accesses ? ko ? `정상 완료 가정에서, 소스 식 ${result}을 ${use}. 객체 상태와 결과는 미확인입니다.`
       : `Assuming normal completion, use source ${result}: ${use}. Object state/results are unknown.`
       : ko ? `내부 호출의 정상 복귀·지역 값 유지 가정에서, ${result}을 ${use}.`

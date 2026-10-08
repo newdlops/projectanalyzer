@@ -7,8 +7,9 @@ import { SourceNodeTokenRegistry } from "../../webview/sourceNavigation";
 import { CodeFlowEvidenceTokenRegistry } from "../../webview/codeFlow";
 import { exampleFunctionCallScenarios } from "../../shared/functionCalls";
 import { buildSourceFunctionNarrativeResponse, type FunctionNarrativeProvider } from "../../application/functionNarratives";
-import { createFunctionCallSourceReader } from "../../analyzer/functionCalls";
+import { createFunctionCallSourceReader, readFunctionCallSourceParameters, readFunctionCallSourceDeclaredParameters } from "../../analyzer/functionCalls";
 import { analyzeFunctionLogic } from "../../analyzer/functionLogic";
+import { analyzeFunctionTutorDeclaration } from "../../analyzer/functionTutor";
 import { readFunctionCallSourceExpression, readFunctionCallSourceObjectExpression } from "../../analyzer/functionCalls/sourceSyntax";
 import { renderFunctionCallSourceEffects } from "../../application/functionCallNarratives/sourceBodyReading";
 import { loadFunctionCallReadingFixture, functionCallReadingReply } from "./helpers/functionCallReadingFixture";
@@ -354,5 +355,89 @@ test("external reads require a separate opt-in, retain names/provenance and cann
     assert.ok(facts.bodyPaths![0][0].externalReads?.includes("service"));
     assert.ok(facts.bodyPaths![0][0].externalReads?.includes("captured"));
     assert.deepEqual(facts.bodyPaths![0][0].inferredCalls, language === "kotlin" ? ["service.audit(value)"] : undefined);
+  }
+});
+
+/** Authored reference types are retained without creating objects or resolving imported runtime implementations. */
+function typedInputFixture(language: "typescript" | "kotlin", type: string, body: string) {
+  return (name: string) => name === "reading" ? language === "kotlin"
+    ? `fun checkout(amount: ${type}): Int { return addFee(amount) }`
+    : `import { addFee, type Payload } from "./readingHelpers";\nexport function checkout(amount: ${type}): number { return addFee(amount); }`
+    : language === "kotlin" ? `data class Payload(val bias: Int)\nfun addFee(value: ${type}): Int { ${body} }`
+      : `export interface Payload { bias: number }\nexport function addFee(value: ${type}): number { ${body} }`;
+}
+
+test("declared reference inputs keep five detailed fields, exact source operations, uncertainty, evidence and cache without model requests", async () => {
+  for (const language of ["typescript", "kotlin"] as const) for (const locale of ["en", "ko"] as const) {
+    const keyword = language === "kotlin" ? "val" : "const";
+    const h = await harness(language, locale, "", typedInputFixture(language, "Payload", `${keyword} n = value.bias; return n + 3;`));
+    try {
+      const example = exampleFunctionCallScenarios(h.slice.control, new Map(h.slice.connections.map(edge => [edge.id, edge])))[0];
+      const requests: FunctionCallNarrativesRequest[] = [h.explanation,
+        { ...h.explanation, requestId: 2, scope: "call", connectionId: h.slice.connections[0].id },
+        { ...h.explanation, requestId: 3, scope: "scenario", choices: [...example.selection].map(([key, value]) => ({ key, value })) }];
+      for (const request of requests) {
+        await h.delivery.explain(request);
+        const reply = h.replies.at(-1)!, call = reply.narrative!.calls[0], flow = reply.narrative!.flow!;
+        assert.equal(reply.status, "ready"); assert.equal(reply.coverage!.complete, true); assert.equal(h.models(), 0, `${language} ${locale} ${request.scope}`);
+        assert.match(call.inputs, /`amount` → `value` \(`Payload`\)/u);
+        assert.match(flow, /n = value\.bias.*n \+ 3/su);
+        assert.match(call.effects, /선언 타입만 확인.*런타임 타입.*getter.*외부 상태\/효과 미확인|Declared types.*getters\/dispatch\/state\/effects unknown/u);
+        assert.match(flow, /선언 타입만 확인|declared types only/u);
+        assert.match(call.output, /정상 완료 가정|Assuming normal completion/u);
+        assert.doesNotMatch([flow, call.role, call.effects].join(" "), /수수료|검증된|local preservation|지역 값 유지|\bfee\b|\bmoney\b|validated|3 =|bias = 0/iu);
+        assert.ok(h.evidenceTokens.resolve(call.callerEvidence!) && h.evidenceTokens.resolve(call.calleeEvidence!));
+        for (const field of ["role", "inputs", "output", "effects", "reason"] as const) assert.ok(call[field].length);
+        await h.delivery.explain({ ...request, requestId: request.requestId + 10, pageIndex: 0, pageLanguage: locale });
+        assert.equal(h.replies.at(-1)!.cacheHit, true); assert.equal(h.replies.at(-1)!.narrative!.flow, flow); assert.equal(h.models(), 0);
+      }
+    } finally { h.delivery.reset(); }
+  }
+});
+
+test("opaque identity, operator, array and structural inputs remain source references rather than primitive leaf proofs", async () => {
+  for (const language of ["typescript", "kotlin"] as const) {
+    const inputs = [["Payload", "return value;"], ["Payload", "return value + 3;"], ["자료", "return value;"],
+      [language === "kotlin" ? "List<Int>" : "number[]", language === "kotlin" ? "return value.size;" : "return value.length;"]];
+    if (language === "typescript") inputs.push(["{ bias: number }", "return value.bias + 3;"]);
+    else inputs.push(["Payload?", "return value;"]);
+    for (const [type, body] of inputs) {
+      const h = await harness(language, "en", "", typedInputFixture(language, type, body));
+      try {
+        const callee = h.graph.nodes.find(node => node.name === "addFee")!, source = h.files[1].content;
+        const site = analyzeFunctionLogic({ functionNode: h.root, sourceText: h.source }).callsites[0];
+        const facts = createFunctionCallSourceReader(h.root, h.source).read(callee, source, site.range, "addFee(amount)")!;
+        assert.deepEqual(facts.opaqueParameters, ["value"]); assert.equal(facts.parameterTypes[0], type);
+        assert.ok(facts.bodyPaths, "identity returns cannot enter the primitive leaf recipe");
+        assert.deepEqual(readFunctionCallSourceParameters(callee, source), [{ name: "value", type }]);
+        await h.delivery.explain(h.explanation);
+        assert.equal(h.replies.at(-1)!.status, "ready"); assert.equal(h.models(), 0);
+        assert.match(h.replies.at(-1)!.narrative!.calls[0].effects, /Declared types.*unknown/u);
+        assert.ok(h.replies.at(-1)!.narrative!.flow!.includes(body.replace(/^return\s+/u, "").replace(/;$/u, "")));
+      } finally { h.delivery.reset(); }
+    }
+  }
+});
+
+test("declaration reading cannot use missing/forged type evidence, callbacks, destructuring, defaults or writes to widen source authority", async () => {
+  for (const language of ["typescript", "kotlin"] as const) {
+    const f = await loadFunctionCallReadingFixture(language, typedInputFixture(language, "Payload", "return value;"));
+    const callee = f.graph.nodes.find(node => node.name === "addFee")!, source = f.files[1].content;
+    const logic = analyzeFunctionLogic({ functionNode: callee, sourceText: source });
+    const tutor = analyzeFunctionTutorDeclaration({ functionNode: callee, sourceText: source, functionLogic: logic });
+    assert.ok(readFunctionCallSourceDeclaredParameters(tutor));
+    for (const patch of [{ declarationEvidence: [] }, { name: "{ bias }" }, { optional: true }, { rest: true },
+      { typeText: "x".repeat(121) }, { typeText: "Payload`" }, { callingMode: "keyword-only" as const }]) {
+      const altered = { ...tutor, parameters: [{ ...tutor.parameters[0], ...patch }] };
+      assert.equal(readFunctionCallSourceDeclaredParameters(altered), undefined);
+    }
+    const callback = language === "kotlin" ? "(Int) -> Int" : "(n: number) => number";
+    assert.equal(readFunctionCallSourceParameters(callee, source.replace("value: Payload", "value: " + callback)), undefined);
+    assert.equal(readFunctionCallSourceParameters(callee, source.replace("value: Payload", "value: Payload = makePayload()")), undefined);
+    for (const body of ["value = external; return value;", "value.bias = 3; return value;", "return value[getter()];", "return value?.bias;"]) {
+      const h = await harness(language, "en", "", typedInputFixture(language, "Payload", body));
+      try { await h.delivery.explain(h.explanation); assert.equal(h.models(), 1, body); }
+      finally { h.delivery.reset(); }
+    }
   }
 });

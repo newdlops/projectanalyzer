@@ -4,3 +4,4 @@ export { createPythonCallTargetFilter } from "./languages/pythonTargets";
 export { readFunctionCallArguments } from "./arguments";
 export { createFunctionCallSourceReader, readFunctionCallSourceParameters, readFunctionCallSourceExpression, readFunctionCallSourceRange, type FunctionCallSourceReader, type FunctionCallSourceFacts } from "./sourceFacts";
 export type { FunctionCallSourceBodyStep } from "./sourceFacts";
+export { readFunctionCallSourceDeclaredParameters, type FunctionCallDeclaredParameterFacts } from "./sourceParameters";

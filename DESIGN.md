@@ -81,6 +81,16 @@ operation and mark external values/state, dispatch, getters, result types and
 effects unknown; never invent a numeric value, validation or business purpose.
 Normal completion is an assumption, not proof of an external binding or result.
 Preserve the existing layout, source controls and inferred dispatch labels.
+Declared reference, collection, structural and nullable input types stay authored
+source labels, never observed runtime types or constructed example objects. Keep
+the complete argument map and callee operations in the same five detail fields.
+Quote nonprimitive type labels as code across prose languages. Mark input values,
+operators, getters, dispatch, state and effects unknown with normal completion
+explicitly assumed; an opaque identity return is still a symbolic source reading.
+Acceptance: TS/Kotlin named, structural/collection/nullable inputs; both prose
+languages, complete scopes, inferred qualifiers, source controls and cached reads.
+Defaults, callbacks, destructuring, external writes and over-budget prose must
+retain model analysis. Check wrapping at narrow and desktop window sizes.
 
 Acceptance: real local TypeScript and Kotlin caller/callee readings; cross-file
 evidence, strict fixed call references, distinct repeated sites/visits, static

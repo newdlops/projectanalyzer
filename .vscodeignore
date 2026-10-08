@@ -70,6 +70,7 @@ out/analyzer/functionCalls/sourceFacts.js
 out/analyzer/functionCalls/sourceBody.js
 out/analyzer/functionCalls/sourceSyntax.js
 out/analyzer/functionCalls/sourceCallValues.js
+out/analyzer/functionCalls/sourceParameters.js
 
 # Dormant feature modules are not reached by the extension entrypoint. Keep their
 # editable sources/tests; the runtime-closure checker catches future wiring.

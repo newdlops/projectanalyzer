@@ -10,7 +10,8 @@ export function renderFunctionCallSourceBody(facts: FunctionCallSourceFacts, ko:
   if (!paths) return code(facts.returnExpression);
   const callValues = paths.some(path => path.some(step => step.kind !== "call" && step.calls?.length));
   const external = paths.some(path => path.some(step => step.externalReads?.length));
-  const accesses = external || paths.some(path => path.some(step => step.accesses?.length));
+  const opaque = Boolean(facts.opaqueParameters?.length);
+  const accesses = opaque || external || paths.some(path => path.some(step => step.accesses?.length));
   let common = 0;
   while (common < paths[0].length && paths.every(path => path[common]?.key === paths[0][common].key
     && path[common]?.outcome === paths[0][common].outcome)) common++;
@@ -20,7 +21,9 @@ export function renderFunctionCallSourceBody(facts: FunctionCallSourceFacts, ko:
         : code(step.source)).join(" → ");
   const prefix = render(paths[0].slice(0, common));
   const body = paths.length === 1 ? prefix : (prefix ? prefix + " → " : "") + "[" + paths.map(path => render(path.slice(common))).join("; ") + "]";
-  return body + (external ? ko ? " (정상 완료 가정; 외부 값/상태·디스패치·getter·결과/효과 미확인)"
+  return body + (opaque ? ko ? " (선언 타입만 확인; 입력 값/타입·연산자·상태/효과 미확인; 정상 완료 가정)"
+    : " (declared types only; input values/types, operators/state/effects unknown; normal completion assumed)"
+    : external ? ko ? " (정상 완료 가정; 외부 값/상태·디스패치·getter·결과/효과 미확인)"
     : " (external values/state/dispatch/getters/effects unknown; normal completion assumed)"
     : accesses ? ko ? " (정상 완료 가정; 디스패치·getter·상태 변화·결과 타입/값·효과 미확인)"
     : " (normal completion assumed; dispatch/getters/state/types/values/effects unknown)"
@@ -42,11 +45,12 @@ export function renderFunctionCallSourceEffects(facts: FunctionCallSourceFacts, 
   const seen = new Set<string>(), changes: string[] = [], calls: string[] = [], operations: string[] = [];
   const callValues = facts.bodyPaths.some(path => path.some(step => step.kind !== "call" && step.calls?.length));
   const external = facts.bodyPaths.some(path => path.some(step => step.externalReads?.length));
-  const accesses = external || facts.bodyPaths.some(path => path.some(step => step.accesses?.length));
+  const opaque = Boolean(facts.opaqueParameters?.length);
+  const accesses = opaque || external || facts.bodyPaths.some(path => path.some(step => step.accesses?.length));
   for (const path of facts.bodyPaths) {
     const guards: string[] = [];
     for (const step of path) {
-      if (["change", "call"].includes(step.kind) || step.calls?.length || step.accesses?.length || step.externalReads?.length) {
+      if (opaque || ["change", "call"].includes(step.kind) || step.calls?.length || step.accesses?.length || step.externalReads?.length) {
         const key = JSON.stringify([step.key, guards]);
         if (!seen.has(key)) {
           const operation = (guards.length ? guards.join(" & ") + ": " : "") + code(step.source);
@@ -59,6 +63,9 @@ export function renderFunctionCallSourceEffects(facts: FunctionCallSourceFacts, 
     }
   }
   const local = changes.length ? (ko ? "지역 변경: " : "Local changes: ") + changes.join("; ") + ". " : "";
+  if (opaque) return operations.join("; ") + (ko
+    ? ". 선언 타입만 확인; 입력 값/런타임 타입·연산자/디스패치·getter·외부 상태/효과 미확인; 정상 완료 가정."
+    : ". Declared types; values/types/operators/getters/dispatch/state/effects unknown; assume normal completion.");
   if (external) return operations.join("; ") + (ko
     ? ". 외부 읽기·디스패치·getter·상태 변화·결과 타입/값·효과 미확인; 정상 완료 가정."
     : ". External reads/dispatch/getters/state/types/values/effects unknown; normal completion assumed.");

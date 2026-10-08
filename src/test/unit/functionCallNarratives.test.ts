@@ -247,7 +247,8 @@ test("source call facts reject external writes, unsupported syntax and setup/def
     const type = language === "kotlin" ? "value: Int" : "value: number";
     assert.equal(reader.read(callee, helper.replace(type, type + " = 5"), site.range, "addFee(amount)"), undefined);
     assert.equal(reader.read(callee, helper.replace(type, language === "kotlin" ? "vararg value: Int" : "...value: number[]"), site.range, "addFee(amount)"), undefined);
-    assert.equal(reader.read(callee, helper.replace(type, language === "kotlin" ? "value: Int?" : "value: number | null"), site.range, "addFee(amount)"), undefined);
+    const nullable = reader.read(callee, helper.replace(type, language === "kotlin" ? "value: Int?" : "value: number | null"), site.range, "addFee(amount)")!;
+    assert.deepEqual(nullable.opaqueParameters, ["value"]); assert.ok(nullable.bodyPaths);
     assert.equal(reader.read(callee, helper, site.range, "addFee(amount) + 1"), undefined, "a larger caller calculation is not a direct return/storage use");
     const shifted = fixture.source.replace(language === "kotlin" ? "fun checkout" : "export function checkout",
       language === "kotlin" ? "suspend fun checkout" : "export async function checkout");

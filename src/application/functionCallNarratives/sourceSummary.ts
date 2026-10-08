@@ -1,9 +1,10 @@
 /** Symbolic source summaries for an isolated call or complete acyclic call routes; no source execution or guessed values. */
 import { analyzeFunctionLogic, type FunctionLogicBlock } from "../../analyzer/functionLogic";
 import { analyzeFunctionTutorDeclaration } from "../../analyzer/functionTutor";
-import { readFunctionCallSourceExpression, readFunctionCallSourceRange, type FunctionCallSourceFacts } from "../../analyzer/functionCalls";
+import { readFunctionCallSourceExpression, readFunctionCallSourceRange, readFunctionCallSourceDeclaredParameters, type FunctionCallSourceFacts } from "../../analyzer/functionCalls";
 import type { FunctionNarrativeContext } from "../../shared/functionNarratives";
 import type { FunctionCallNarrativeTarget, FunctionCallReading } from "../../shared/functionCallNarratives";
+import { formatFunctionCallDeclaredType } from "../../shared/functionCallNarratives";
 import type { SourceRange, SymbolNode } from "../../shared/types";
 import { renderFunctionCallSourceBody } from "./sourceBodyReading";
 
@@ -18,7 +19,7 @@ const identifier = "[\\p{L}_$][\\p{L}\\p{N}_$]*";
 /** Every selected argument, source calculation, local use and reaching guard remains explicit. */
 function callStep(proof: SourceCallSummaryProof, ko: boolean): Step {
   const { target, facts } = proof, expression = "`" + target.expression + "`", result = renderFunctionCallSourceBody(facts, ko);
-  const transfers = facts.parameters.map((name, index) => "`" + target.arguments![index] + "` → `" + name + "` (" + facts.parameterTypes[index] + ")").join(", ");
+  const transfers = facts.parameters.map((name, index) => "`" + target.arguments![index] + "` → `" + name + "` (" + formatFunctionCallDeclaredType(facts.parameterTypes[index]) + ")").join(", ");
   const use = facts.use.kind === "return" ? ko ? "부모 반환값" : "parent return"
     : facts.use.kind === "binding" ? ko ? "지역 `" + facts.use.name + "`" : "local `" + facts.use.name + "`"
       : ko ? "저장·반환 없이 버림" : "discarded without storage or return";
@@ -59,10 +60,12 @@ export function buildFunctionCallSourceSummary(context: FunctionNarrativeContext
   const declaration = readFunctionCallSourceRange(source, logic.sourceRange ?? parent.range);
   if (!root || root.truncated || !declaration || root.text.trim() !== declaration.trim()) return;
   const tutor = analyzeFunctionTutorDeclaration({ functionNode: parent, sourceText: source, functionLogic: logic });
+  const declared = readFunctionCallSourceDeclaredParameters(tutor);
   if (parent.kind === "constructor" || tutor.executionKind !== "sync" || tutor.inputSummarySafe === false
     || /\b(?:suspend|inline)\b/u.test(logic.signature)
     || tutor.parameters.some(parameter => parameter.rest || parameter.optional || parameter.defaultValue !== undefined)
-    || tutor.gaps.some(gap => gap.kind !== "language-support")) return;
+    || tutor.parameters.some(parameter => parameter.declarationEvidence.some(evidence => evidence.kind === "parameter-default"))
+    || tutor.gaps.some(gap => gap.kind !== "language-support") && !declared) return;
   const blocks = new Map(logic.blocks.map(block => [block.id, block]));
   const entry = logic.blocks.find(block => block.kind === "entry"); if (!entry) return;
   const owns = (block: FunctionLogicBlock, range: SourceRange) =>
@@ -158,7 +161,12 @@ export function buildFunctionCallSourceSummary(context: FunctionNarrativeContext
   }
   const assumed = qualifier(proofs, ko), prefix = task.scope === "scenario"
     ? ko ? "선택한 소스 경로: " : "Selected source route: " : ko ? "소스 호출 구조: " : "Source call structure: ";
+  // Reference inputs never acquire primitive semantics merely because the
+  // caller's source route and argument transfer are complete.
+  const inputAssumption = declared?.opaqueParameters.length ? ko
+    ? " 입력은 선언 타입만 확인했으며 값·런타임 타입·연산자/효과는 미확인입니다."
+    : " Inputs have declared types only; values/runtime types/operators/effects are unknown." : "";
   return { summary: assumed + prefix + completed.map(route => route.steps.map(step => step.short).join(" → ")).join("; ") + ".",
     flow: assumed + prefix + completed.map(route => route.steps.map(step => step.full).join(". ") + ".").join(" ")
-      + (ko ? " 조건은 소스 경로의 가정이며 실제 실행 효과는 관찰하지 않았습니다." : " Conditions are source-route assumptions; runtime effects are unobserved.") };
+      + (ko ? " 조건은 소스 경로의 가정이며 실제 실행 효과는 관찰하지 않았습니다." : " Conditions are source-route assumptions; runtime effects are unobserved.") + inputAssumption };
 }

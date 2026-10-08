@@ -4,6 +4,7 @@ import { analyzeFunctionLogic, type FunctionLogicBlock } from "../functionLogic"
 import { analyzeFunctionTutorDeclaration } from "../functionTutor";
 import { readFunctionCallSourceBody, type FunctionCallSourceBodyFacts } from "./sourceBody";
 import { readFunctionCallSourceRange } from "./sourceSyntax";
+import { readFunctionCallSourceDeclaredParameters } from "./sourceParameters";
 export { readFunctionCallSourceExpression, readFunctionCallSourceRange } from "./sourceSyntax";
 export type { FunctionCallSourceBodyStep } from "./sourceBody";
 
@@ -16,18 +17,14 @@ export type FunctionCallSourceReader = {
 };
 const identifier = "[\\p{L}_$][\\p{L}\\p{N}_$]*";
 
-/** Formal positional primitive declarations remain factual even when the callee's effects need model interpretation. */
+/** Formal positional declarations remain source facts even when their runtime values/types and effects are unknown. */
 export function readFunctionCallSourceParameters(callee: SymbolNode, source: string): Array<{ name: string; type: string }> | undefined {
   if (callee.kind !== "function" || !["typescript", "javascript", "kotlin"].includes(callee.language)) return;
   const logic = analyzeFunctionLogic({ functionNode: callee, sourceText: source, maxBlocks: 8 });
   const declaration = readFunctionCallSourceRange(source, logic.sourceRange ?? callee.range);
   if (!declaration || declaration.length > 1800 || logic.gaps.some(gap => ["sourceUnavailable", "functionNotFound", "languageUnsupported"].includes(gap.code))) return;
   const tutor = analyzeFunctionTutorDeclaration({ functionNode: callee, sourceText: source, functionLogic: logic });
-  const parameters = tutor.parameters;
-  if (parameters.length > 8 || parameters.some(parameter => parameter.optional || parameter.rest || parameter.defaultValue !== undefined
-    || parameter.callingMode !== "positional" || parameter.gaps.length || !/^(?:number|boolean|string|Int|Double|Boolean|String)$/u.test(parameter.typeText ?? "")
-    || !parameter.declarationEvidence.some(evidence => evidence.kind === "parameter-type" && evidence.certainty === "exact"))) return;
-  return parameters.map(parameter => ({ name: parameter.name, type: parameter.typeText! }));
+  return readFunctionCallSourceDeclaredParameters(tutor, { allowBodyGaps: true })?.parameters;
 }
 
 /** Parse the parent once per context; only matching exact statements can describe a call's use. */

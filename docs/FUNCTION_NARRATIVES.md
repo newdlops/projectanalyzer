@@ -148,6 +148,68 @@ loop/exception transfer, inferred/partial/truncated evidence, 긴 식과 알 수
 초기 준비 문구는 저장하지 않는다. 각 시나리오의 상세 문단·대안은 계속 모델이 새로 작성한다.
 기존 노드 구문·동작·근거·효과·인용을 모두 유지하며 화면 배치도 유지한다.
 
+### 0.0.1137 선언 타입의 객체/reference 입력 읽기
+
+`analyzer/functionCalls.readFunctionCallSourceDeclaredParameters`는 parser-owned positional
+이름·정확한 선언 타입·근거를 읽는다. 객체 대표값 생성이나 외부 타입 resolve가 필요하지
+않다. primitive 이외의 입력은 `opaqueParameters`에 남기며 named/imported·structural·
+collection·nullable 선언도 원문의 label로 표시한다. 비primitive 타입은 code quote를
+사용하므로 영어 해설의 한국어 타입 이름도 prose script 혼동 없이 원문을 유지한다.
+callee CFG의 모든 source operation·조건·인수·지역 변경·반환을 기존처럼 확인한다.
+정상 완료만 가정하며 입력 값/런타임 타입·연산자 overload·getter·dispatch·객체/외부
+상태·효과는 미확인이다. 순수 identity 반환도 body path를 남겨 primitive proof나 기존
+compact guarded recipe로 승격하지 않는다. 일반 worksheet의 입력 평가를 넓히지 않는다.
+
+Kotlin의 정확한 named 입력에 runtime input model이 없다는 parameter gap만 그 선언의
+source 읽기에서 허용한다. optional/rest/default·callback·destructuring·중복 이름·다른
+parameter/source gap, parameter/member 쓰기·optional/computed 접근은 유지한다.
+literal로 읽을 수 없는 default도 선언 근거로 거부한다. formal input map은 미지원 본문과
+독립적으로 읽지만 타입 120자·이름 64자·8개 입력·기존 path/prose 상한을 올리지 않는다.
+추정 대상의 qualifier까지 합한 prose가 길면 잘라 넣지 않고 모델을 유지한다.
+
+공개 `Payload` 입력의 `n = value.bias` → `n + 3`을 실제 두 언어 parser/Host/provider로
+각 범위 한 번씩 읽었다. 0.0.1136 baseline은 기존 Qwen3.5-4B Q4_K_M을 실제 실행했고,
+가중치·sampling·context/output/thread 설정을 변경하지 않았다. graph 준비 및 완료 후
+cache 조회는 생성 시간에서 제외했다.
+
+| 범위 | 설치된 0.0.1136의 실제 모델 | 최종 개발 출력 | 설치된 0.0.1137 | 실제 모델 요청 |
+| --- | ---: | ---: | ---: | ---: |
+| TS 전체 구조 | 7.63초 | 25.58ms | 18.84ms | 1 → 0 |
+| TS 개별 호출 | 8.12초 | 20.03ms | 8.19ms | 1 → 0 |
+| TS 선택 경로 | 8.10초 | 11.13ms | 8.12ms | 1 → 0 |
+| Kotlin 전체 구조 | 6.30초 | 13.82ms | 117.73ms | 1 → 0 |
+| Kotlin 개별 호출 | 7.80초 | 5.68ms | 3.34ms | 1 → 0 |
+| Kotlin 선택 경로 | 6.03초 | 4.86ms | 4.52ms | 1 → 0 |
+
+별도 단일 관찰값이며 통제된 통계 비교나 일반적인 속도/정확도 보장이 아니다. 최종 개발
+측정은 unit 검사, 격리 설치본 측정은 QA 앱 시작과 겹쳤다. 각 경우 모두 다섯 항목·완료·
+인용·cache를 확인했다. baseline의
+모델 문장은 source에 없는 결제/출입금/요금 목적을 추측했고 일부 항목은 `n` 대입을
+생략하거나 지역 계산이 없다고 했다. 최종 source 설명은 `Payload` 선언 타입, 정확한
+amount→value 전달·속성 읽기·대입·반환 연산과 미확인 상태를 유지한다. source 읽기를
+실제 실행이나 JVM/TypeScript typecheck 증거로 취급하지 않는다.
+
+관련 검사 51개·패키징 검사 15개가 통과했다. 전체 unit은 1,158개 중 1,154개 통과,
+기존 Guide dynamic argument type·nested object input·advanced private Scenario·
+decorated Inspector source-reveal 실패 4개였다. 처음 sandbox 검사는 local HTTP 서버의
+`listen EPERM`으로 추가 실패하여 loopback 권한을 허용한 같은 전체 검사를 다시 실행했다.
+두 설명 언어/세 범위, 구조/배열/nullable/한국어 타입 label, opaque identity/operator,
+근거·cache, 위조/누락된 선언 근거와 default/callback/write 경계를 검사했다.
+
+최종 VSIX를 격리한 공식 VS Code에 설치하고 local 실행기·가중치가 없는 설정에서 실제
+Kotlin 호출 순서의 선택 경로, TypeScript 호출 관계의 구조 설명을 완료했다. `Payload`
+선언 타입과 정확한 인자 전달, 속성 읽기·대입·반환식, 다섯 항목의 미확인 정보와 정상 완료
+가정을 확인했다. 두 언어의 호출 위치 버튼은 4행의 `transformTyped(amount)` 22자를
+선택했다. 대상 원문 버튼은 Kotlin 6–9행 전체 선언, TS 6행 선언 header를 선택했다.
+설명 탭 복귀 후 생성된 내용을 유지했다. 770×900 및 최대화 화면 2560×1349 캡처에서
+본문/패널 줄바꿈·다섯 항목·소스 버튼과 비활성 1/1 페이지 버튼을 검사했다. CSS/theme는
+변경하지 않았고 기존 의미 구분선 예외를 유지했으며 새 suppression은 추가하지 않았다.
+모바일·다른 테마·전체 접근성 audit는 검사하지 않았다. 검증용 앱과 모델은 종료했다.
+
+darwin-arm64 VSIX는 507파일·압축 3.67MiB·해제 15.66MiB로 기존 패키지 상한과 runtime
+closure를 통과했다. 객체 입력의 정적 값 계산, 부모 receiver/property 제어 흐름, 비동기/
+반복과 복잡한 실제 모델 fallback 및 Function Guide 비용은 남은 최적화 범위다.
+
 ### 0.0.1136 captured/module/external 읽기의 모델 대기 제거
 
 callee 전용 `externalReads` opt-in은 captured/module/external 이름과 member root를 source

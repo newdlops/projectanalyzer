@@ -4,6 +4,19 @@ All notable user-visible changes to Project Analyzer: Code Flow are recorded in
 this file. The changelog starts with the first distribution-documented build;
 earlier local development builds were not tracked here.
 
+## 0.0.1137 - 2026-10-08
+
+### Improved
+
+- Read complete positional declarations with object, named, collection and nullable
+  inputs without loading a model when every callee operation is source-backed.
+- Preserve authored types, argument transfers, member reads, operators, local changes
+  and returns while marking runtime values/types, getters, dispatch and effects unknown.
+- Keep nonprimitive types as code across explanation languages; retain source controls,
+  five detail fields, cache, inferred relationships and existing size limits.
+- Reject defaults, omitted/rest/destructured inputs, callbacks and writes; prevent
+  opaque identity returns from being promoted to a primitive source proof.
+
 ## 0.0.1136 - 2026-10-08
 
 ### Improved
