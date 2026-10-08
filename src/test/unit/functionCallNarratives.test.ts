@@ -6,14 +6,19 @@ import { WebviewGraphDelivery } from "../../webview/sidebarGraphDelivery";
 import { SourceNodeTokenRegistry } from "../../webview/sourceNavigation";
 import { CodeFlowEvidenceTokenRegistry } from "../../webview/codeFlow";
 import { exampleFunctionCallScenarios } from "../../shared/functionCalls";
-import { buildFunctionCallNarrativePlan, parseFunctionCallNarrative } from "../../application/functionCallNarratives";
+import { buildFunctionCallNarrativePlan, buildFunctionCallNarrativePrompt, parseFunctionCallNarrative } from "../../application/functionCallNarratives";
 import { validateWebviewRequest } from "../../protocol/webviewRequestValidation";
 import type { FunctionCallsResponse } from "../../protocol/functionCalls";
 import type { FunctionCallNarrativesRequest, FunctionCallNarrativesResponse } from "../../protocol/functionCallNarratives";
-import type { FunctionNarrativeProvider } from "../../application/functionNarratives";
+import { buildSourceFunctionNarrativeResponse, numberFunctionNarrativeContext, type FunctionNarrativeProvider } from "../../application/functionNarratives";
 import type { FunctionNarrativeContext } from "../../shared/functionNarratives";
 import { loadFunctionCallReadingFixture, functionCallReadingReply } from "./helpers/functionCallReadingFixture";
 import { FunctionNarrativeError } from "../../shared/functionNarratives";
+import { createFunctionCallSourceReader } from "../../analyzer/functionCalls";
+import { analyzeFunctionLogic } from "../../analyzer/functionLogic";
+import { createConfiguredNarrativeProvider, type ConfiguredNarrativeApi } from "../../vscode/functionNarrativeSetup";
+import { ModelTaskManager } from "../../shared/modelTasks";
+import type { ManagedLocalModelCache } from "../../shared/localModels";
 
 /** Owns real source tokens/registries while replacing only the external model boundary. */
 async function harness(language: "typescript" | "kotlin" = "typescript", custom?: FunctionNarrativeProvider,
@@ -183,5 +188,124 @@ test("cancellation or a provider failure during final cleanup cannot publish a s
       assert.equal(h.replies.some(reply => reply.status === "ready"), false);
       assert.equal(h.replies.at(-1)!.status, cancel ? "cancelled" : "unavailable");
     } finally { h.delivery.reset(); }
+  }
+});
+
+test("parser-bound TS/Kotlin call details and complete guarded flows remove model requests without losing transfers, uses, guards or authority", async () => {
+  for (const language of ["typescript", "kotlin"] as const) {
+    const contexts: FunctionNarrativeContext[] = [], sourceReplies: string[] = []; let modelCalls = 0;
+    const provider: FunctionNarrativeProvider = { async generate(context, locale) {
+      contexts.push(context);
+      const source = buildSourceFunctionNarrativeResponse(context, locale);
+      if (source) { sourceReplies.push(source.text); return source; }
+      modelCalls++; return functionCallReadingReply(context, locale);
+    } };
+    const h = await harness(language, provider);
+    try {
+      await h.delivery.explain(h.explanation);
+      assert.equal(h.replies.at(-1)!.status, "ready"); assert.equal(modelCalls, 0); assert.equal(sourceReplies.length, 3);
+      const calls = sourceReplies.flatMap(text => JSON.parse(text).calls);
+      assert.deepEqual(calls.map(call => call.callId), ["call-1", "call-2", "call-3"]);
+      assert.match(calls[0].output, /returns it directly from the parent/u);
+      assert.match(calls[1].inputs, /`amount` → `value`/u); assert.match(calls[1].output, /`value \+ 5`.*local `adjusted`/u);
+      assert.match(calls[1].output, /not the parent's final return/u);
+      assert.match(calls[2].inputs, /`adjusted` → `value`/u); assert.match(calls[2].output, /`value \* 2`.*directly from the parent/u);
+      assert.match(calls[0].reason, /`!enabled` = true/u); assert.match(calls[1].reason, /`!enabled` = false/u);
+      assert.ok(calls.every(call => /no writes or explicit calls/u.test(call.effects)));
+      for (const context of contexts.slice(0, 2)) {
+        const ko = buildSourceFunctionNarrativeResponse(context, "ko")!;
+        assert.ok(ko); assert.equal(ko.modelName, "소스 분석");
+        assert.equal(numberFunctionNarrativeContext(context).sourceCallReadings, undefined);
+        assert.doesNotMatch(buildFunctionCallNarrativePrompt(context, "en").join("\n"), /sourceCallReadings|sourceFingerprint/u);
+        const source = context.snippets[0].text; context.snippets[0].text += "\nchanged";
+        assert.equal(buildSourceFunctionNarrativeResponse(context, "en"), undefined); context.snippets[0].text = source;
+      }
+      const whole = JSON.parse(buildSourceFunctionNarrativeResponse(contexts.at(-1)!, "en")!.text);
+      assert.match(whole.summary, /`!enabled`.*`zero\(\)`.*`addFee\(amount\)`.*`adjusted`.*`double\(adjusted\)`/u);
+      assert.match(whole.flow, /`value \+ 5`.*`value \* 2`/u); assert.deepEqual(whole.limitations, []);
+      assert.equal(numberFunctionNarrativeContext(contexts.at(-1)!).sourceCallFlowProof, undefined);
+      await h.delivery.explain({ ...h.explanation, requestId: 2, pageIndex: 1, pageLanguage: "en" });
+      assert.equal(modelCalls, 0); assert.equal(h.replies.at(-1)!.cacheHit, true);
+      assert.ok(h.replies.at(-1)!.narrative!.calls.every(call => call.callerEvidence && call.calleeEvidence));
+    } finally { h.delivery.reset(); }
+  }
+});
+
+test("closed return-body call facts reject effects, calls, captured values, member access and setup/default/rest parameters", async () => {
+  for (const language of ["typescript", "kotlin"] as const) {
+    const fixture = await loadFunctionCallReadingFixture(language), callee = fixture.graph.nodes.find(node => node.name === "addFee")!;
+    const helper = fixture.files.find(file => file.path === callee.filePath)!.content;
+    const site = analyzeFunctionLogic({ functionNode: fixture.root, sourceText: fixture.source }).callsites.find(site => site.calleeName === "addFee")!;
+    const reader = createFunctionCallSourceReader(fixture.root, fixture.source);
+    assert.ok(reader.read(callee, helper, site.range, "addFee(amount)"));
+    const returned = language === "kotlin" ? "return value + 5" : "return value + 5;";
+    const variants = ["return captured", "return value.member", "return helper(value)", "return ++value", "return [value]",
+      language === "kotlin" ? "value += 1; return value" : "value += 1; return value;",
+      language === "kotlin" ? "val other = value; return other" : "const other = value; return other;"];
+    if (language === "kotlin") variants.push('return "${value++}"');
+    for (const replacement of variants) assert.equal(reader.read(callee, helper.replace(returned, replacement), site.range, "addFee(amount)"), undefined, replacement);
+    const type = language === "kotlin" ? "value: Int" : "value: number";
+    assert.equal(reader.read(callee, helper.replace(type, type + " = 5"), site.range, "addFee(amount)"), undefined);
+    assert.equal(reader.read(callee, helper.replace(type, language === "kotlin" ? "vararg value: Int" : "...value: number[]"), site.range, "addFee(amount)"), undefined);
+    assert.equal(reader.read(callee, helper.replace(type, language === "kotlin" ? "value: Int?" : "value: number | null"), site.range, "addFee(amount)"), undefined);
+    assert.equal(reader.read(callee, helper, site.range, "addFee(amount) + 1"), undefined, "a larger caller calculation is not a direct return/storage use");
+    const shifted = fixture.source.replace(language === "kotlin" ? "fun checkout" : "export function checkout",
+      language === "kotlin" ? "suspend fun checkout" : "export async function checkout");
+    const shiftedSite = analyzeFunctionLogic({ functionNode: fixture.root, sourceText: shifted }).callsites.find(site => site.calleeName === "addFee")!;
+    assert.equal(createFunctionCallSourceReader(fixture.root, shifted).read(callee, helper, shiftedSite.range, "addFee(amount)"), undefined);
+    assert.equal(reader.read(callee, helper, site.range, "new addFee(amount)"), undefined);
+    assert.equal(reader.read(callee, helper, site.range, "addFee.call(null, amount)"), undefined);
+  }
+});
+
+test("declaration-line graph extents retain parser-owned caller and callee bodies for source reading", async () => {
+  let fallbackCalls = 0;
+  const contexts: FunctionNarrativeContext[] = [];
+  const provider: FunctionNarrativeProvider = { async generate(context, language) {
+    contexts.push(context);
+    const source = buildSourceFunctionNarrativeResponse(context, language);
+    if (source) return source;
+    fallbackCalls++; return functionCallReadingReply(context, language);
+  } };
+  const h = await harness("typescript", provider);
+  try {
+    // Reproduce the production native graph's declaration-header-only extents;
+    // selection anchors and graph identities remain exact and unchanged.
+    for (const node of h.graph.nodes.filter(node => node.kind === "function")) {
+      const source = h.files.find(file => file.path === node.filePath)!.content;
+      const header = source.split("\n")[node.range.startLine];
+      node.range = { ...node.range, endLine: node.range.startLine, endCharacter: header.indexOf("{") + 1 };
+    }
+    await h.delivery.explain(h.explanation);
+    assert.equal(h.replies.at(-1)!.status, "ready"); assert.equal(fallbackCalls, 0);
+    assert.equal(contexts.length, 3);
+    assert.match(contexts[0].snippets.find(snippet => snippet.role === "function")!.text, /return double\(adjusted\)/u);
+    assert.match(contexts[0].snippets.find(snippet => snippet.id === "call-2-callee")!.text, /return value \+ 5/u);
+    assert.match(h.replies.at(-1)!.narrative!.flow!, /`value \+ 5`.*`value \* 2`/u);
+  } finally { h.delivery.reset(); }
+});
+
+test("complete native call source recipes need no runtime, weights, download, factory, notification or model task", async () => {
+  for (const language of ["typescript", "kotlin"] as const) {
+    const manager = new ModelTaskManager(); let downloads = 0, factories = 0, notifications = 0;
+    const config: Record<string, string> = { provider: "local", localBinary: "/missing/llama-completion", localModel: "/missing/model.gguf" };
+    const api = { workspace: { getConfiguration() { return { get(key: string, fallback: string) { return config[key] ?? fallback; } }; } },
+      ProgressLocation: { Notification: 15 }, window: { async withProgress() { notifications++; throw new Error("unexpected-notification"); },
+        async showErrorMessage() { notifications++; }, async showQuickPick() { throw new Error("unexpected-selection"); } },
+      lm: { async selectChatModels() { throw new Error("unexpected-selection"); } },
+      LanguageModelChatMessage: { User(content: string) { return { content }; } } } as unknown as ConfiguredNarrativeApi;
+    const models: ManagedLocalModelCache = { model: { id: "fixture", name: "Fixture", fileName: "fixture.gguf", url: "https://example.invalid",
+      bytes: 1, sha256: "a".repeat(64) }, async ensure() { downloads++; throw new Error("unexpected-download"); }, dispose() {} };
+    const provider = createConfiguredNarrativeProvider(api, models, () => { factories++; throw new Error("unexpected-factory"); }, manager);
+    const h = await harness(language, provider);
+    try {
+      await h.delivery.explain(h.explanation);
+      assert.equal(h.replies.at(-1)!.status, "ready"); assert.equal(h.replies.at(-1)!.modelName, "Source analysis");
+      assert.equal(h.replies.at(-1)!.coverage!.complete, true);
+      await h.delivery.explain({ ...h.explanation, requestId: 2, pageIndex: 1, pageLanguage: "en" });
+      assert.equal(h.replies.at(-1)!.cacheHit, true);
+      assert.equal(downloads, 0); assert.equal(factories, 0); assert.equal(notifications, 0);
+      assert.deepEqual(manager.snapshot().history, []);
+    } finally { h.delivery.reset(); await manager.dispose(); }
   }
 });

@@ -5,6 +5,22 @@ import type { SymbolNode, SourceRange } from "../../shared/types";
 import type { FunctionCallNarrativePlan } from "./plan";
 import { readFunctionCallArguments } from "../../analyzer/functionCalls";
 import type { FunctionCallNarrativeTarget } from "../../shared/functionCallNarratives";
+import { attachFunctionCallSourceReading, type FunctionCallSourceCandidate } from "./sourceReading";
+import { findFunctionAtPosition } from "../../analyzer/functionLogic";
+
+/** Native graph extents may stop at the header; use the same declaration's parser-owned bounds. */
+function declarationRange(node: SymbolNode, source: string): SourceRange {
+  try {
+    const target = findFunctionAtPosition({ filePath: node.filePath, languageId: node.language, sourceText: source,
+      position: { line: node.selectionRange.startLine, character: node.selectionRange.startCharacter } });
+    return target?.name === node.name && target.kind === node.kind
+      && target.selectionRange.startLine === node.selectionRange.startLine
+      && target.selectionRange.startCharacter === node.selectionRange.startCharacter ? target.range : node.range;
+  } catch {
+    // An unavailable parser must retain the existing bounded model context.
+    return node.range;
+  }
+}
 
 /** Slices declaration-owned lines, preserving original positions and explicit truncation. */
 function excerpt(id: string, role: FunctionNarrativeSnippet["role"], source: string, range: SourceRange, budget: number, lineLimit: number): FunctionNarrativeSnippet | undefined {
@@ -34,18 +50,19 @@ function excerpt(id: string, role: FunctionNarrativeSnippet["role"], source: str
 export async function buildFunctionCallNarrativeContext(parent: SymbolNode, source: string, slice: FunctionCallsResponse, plan: FunctionCallNarrativePlan, offset: number,
   readCallee: (token: string) => Promise<{ node: SymbolNode; source: string } | undefined>,
   callerRange: (token: string) => SourceRange | undefined): Promise<FunctionNarrativeContext> {
-  const snippets: FunctionNarrativeSnippet[] = [], root = excerpt("parent", "function", source, parent.range, 4200, 100);
+  const snippets: FunctionNarrativeSnippet[] = [], root = excerpt("parent", "function", source, declarationRange(parent, source), 4200, 100);
   if (root) snippets.push(root);
   let limited = plan.facts.sourceLimited || !root || Boolean(root.truncated);
   const names = new Map(slice.nodes.map(node => [node.id, node]));
   const targets: FunctionCallNarrativeTarget[] = [];
+  const candidates: FunctionCallSourceCandidate[] = [];
   for (const row of plan.rows.slice(offset, offset + 2)) {
     const connection = row.connection, target = names.get(connection.to);
     const range = connection.evidenceToken && callerRange(connection.evidenceToken);
     const caller = range && excerpt(row.callId + "-caller", "caller", source, range, 600, 12);
     if (caller) snippets.push(caller);
     const callee = target?.sourceToken ? await readCallee(target.sourceToken) : undefined;
-    const helper = callee && excerpt(row.callId + "-callee", "helper", callee.source, callee.node.range, 1800, 60);
+    const helper = callee && excerpt(row.callId + "-callee", "helper", callee.source, declarationRange(callee.node, callee.source), 1800, 60);
     if (helper) snippets.push(helper);
     const sourceLimited = connection.limited || !caller || caller.truncated || !helper || helper.truncated;
     const guards = connection.guards.slice(0, 6).map(guard => ({ expression: guard.expression.slice(0, 240), outcome: guard.outcome.slice(0, 120) }));
@@ -58,7 +75,10 @@ export async function buildFunctionCallNarrativeContext(parent: SymbolNode, sour
       relation: connection.relation, confidence: connection.confidence, guards, loops,
       deferred: connection.deferred || connection.relation !== "call", callerSnippet: caller?.id, calleeSnippet: helper?.id, sourceLimited: Boolean(sourceLimited || factsLimited) });
     if(range&&connection.relation==="call")targets.at(-1)!.arguments=readFunctionCallArguments(parent.language,source,parent.filePath,range);
+    candidates.push({ target: targets.at(-1)!, callerRange: range || undefined, callee });
   }
-  return { functionName: parent.name.slice(0, 240), language: parent.language, snippets, limited: Boolean(limited),
+  const context: FunctionNarrativeContext = { functionName: parent.name.slice(0, 240), language: parent.language, snippets, limited: Boolean(limited),
     callTask: { ...plan.facts, includeSummary: offset === 0, sourceLimited: Boolean(limited), targets } };
+  attachFunctionCallSourceReading(context, parent, source, candidates);
+  return context;
 }

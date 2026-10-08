@@ -1,0 +1,99 @@
+/** Source-only call details and complete guarded recipes; unsupported source/whole-flow meanings retain the configured model. */
+import type { FunctionNarrativeContext } from "../../shared/functionNarratives";
+import type { FunctionCallNarrativeChunk, FunctionCallNarrativeTarget, FunctionCallReading } from "../../shared/functionCallNarratives";
+import { getFunctionCallFixedInputs, isFunctionCallNarrativeChunk, isFunctionCallNarrativeLanguage } from "../../shared/functionCallNarratives";
+import { createFunctionCallSourceReader, type FunctionCallSourceFacts } from "../../analyzer/functionCalls";
+import type { SymbolNode, SourceRange } from "../../shared/types";
+import { buildFunctionCallSourceFlow } from "./sourceFlow";
+
+/** Full source is Host-owned and never goes through the model/Webview protocol. */
+export type FunctionCallSourceCandidate = { target: FunctionCallNarrativeTarget; callerRange?: SourceRange;
+  callee?: { node: SymbolNode; source: string } };
+
+/** The lazy port compiles facts only when local generation asks for them, without preparing runtime or weights. */
+export function attachFunctionCallSourceReading(context: FunctionNarrativeContext, parent: SymbolNode, source: string,
+  candidates: FunctionCallSourceCandidate[]): void {
+  const task = context.callTask!, snippets = context.snippets;
+  const sourceFingerprint = JSON.stringify(snippets);
+  const targets = task.targets.map(target => JSON.stringify(target));
+  const cache = new Map<"ko" | "en", FunctionCallNarrativeChunk | undefined>();
+  context.sourceCallReadings = { read(owner, language) {
+    if (owner.callTask !== task || owner.snippets !== snippets || JSON.stringify(snippets) !== sourceFingerprint
+      || task.targets.length !== candidates.length || task.targets.some((target, index) => JSON.stringify(target) !== targets[index])) return;
+    if (task.includeSummary) {
+      try { return buildFunctionCallSourceFlow(owner, parent, source, language); } catch { return; }
+    }
+    if (!task.targets.length) return;
+    if (cache.has(language)) return cache.get(language);
+    try {
+      const reader = createFunctionCallSourceReader(parent, source), calls: FunctionCallReading[] = [];
+      for (const candidate of candidates) {
+        const { target, callee, callerRange } = candidate;
+        const helper = snippets.find(snippet => snippet.id === target.calleeSnippet);
+        const root = snippets.find(snippet => snippet.role === "function");
+        if (!callee || !callerRange || !helper || helper.truncated || !root || root.truncated || target.sourceLimited
+          || target.relation !== "call" || target.deferred || !["exact", "resolved", "inferred"].includes(target.confidence)
+          || !target.arguments || target.arguments.some(argument => /^(?:\.\.\.|\*)|=/u.test(argument))) return;
+        const facts = reader.read(callee.node, callee.source, callerRange, target.expression);
+        if (!facts || facts.parameters.length !== target.arguments.length || !helper.text.includes(facts.returnSource)
+          || !root.text.includes(facts.callerSource)) return;
+        const reading = describeCall(target, facts, language);
+        if (!reading) return;
+        calls.push(reading);
+      }
+      const chunk = { calls, limitations: [] };
+      const valid = isFunctionCallNarrativeChunk(chunk, task.targets.map(target => target.callId), false)
+        && isFunctionCallNarrativeLanguage(chunk, language) ? chunk : undefined;
+      cache.set(language, valid); return valid;
+    } catch {
+      // Failed syntax proof keeps the original model path, never a false success.
+      cache.set(language, undefined); return;
+    }
+  } };
+}
+
+/** The same strict public response contract binds source output to original call IDs and unchanged fixed inputs. */
+export function buildSourceFunctionCallNarrativeResponse(context: FunctionNarrativeContext, language: "ko" | "en"):
+  { modelName: string; text: string } | undefined {
+  const chunk = context.sourceCallReadings?.read(context, language);
+  return chunk ? { modelName: language === "ko" ? "소스 분석" : "Source analysis", text: JSON.stringify(chunk) } : undefined;
+}
+
+/** Explain symbolic expressions and their exact syntactic use, without substituting guessed inputs or inventing business roles. */
+function describeCall(target: FunctionCallNarrativeTarget, facts: FunctionCallSourceFacts, language: "ko" | "en"): FunctionCallReading | undefined {
+  const ko = language === "ko", expression = "`" + facts.returnExpression + "`";
+  const transfers = facts.parameters.map((name, index) => "`" + target.arguments![index] + "` → `" + name + "` (" + facts.parameterTypes[index] + ")");
+  const guards = target.guards.map(guard => "`" + guard.expression + "` = " + guard.outcome);
+  const loops = target.loops.map(loop => "`" + loop + "`");
+  const conditions = [...guards, ...loops].join("; ");
+  const output = facts.use.kind === "return" ? ko ? `반환식 ${expression}의 결과를 이 호출부에서 부모 함수의 반환값으로 바로 전달합니다.`
+    : `The callee returns ${expression}; this callsite returns it directly from the parent.`
+    : facts.use.kind === "binding" ? ko ? `반환식 ${expression}의 결과를 지역 변수 \`${facts.use.name}\`에 저장합니다. 부모의 최종 반환은 별도입니다.`
+      : `The callee returns ${expression}; store it in local \`${facts.use.name}\`. This is not the parent's final return.`
+      : ko ? `반환식 ${expression}의 결과를 이 호출부에서는 저장하거나 반환하지 않습니다.`
+        : `The callee returns ${expression}; this callsite discards the result.`;
+  const reading = { callId: target.callId,
+    role: ko ? `대상 함수 \`${target.callee}\`의 반환식은 ${expression}입니다.` : `Call \`${target.callee}\` for its source return expression ${expression}.`,
+    inputs: getFunctionCallFixedInputs(target, language) ?? (ko ? `인자 전달: ${transfers.join(", ")}.` : `Argument transfer: ${transfers.join(", ")}.`),
+    output,
+    effects: ko ? "대상 본문에는 반환식 외의 변수 쓰기나 명시적인 다른 호출이 없습니다. 실제 실행 효과는 관찰하지 않았습니다."
+      : "The callee body has no writes or explicit calls beyond its return expression. Runtime effects are unobserved.",
+    reason: conditions ? ko ? `정적 도달 조건: ${conditions}. 이 조건 아래의 호출 관계이며 실제 실행 관찰은 아닙니다.`
+      : `Static reaching conditions: ${conditions}. This is a source relationship, not an observed execution.`
+      : ko ? "이 호출부에 별도의 정적 분기·반복 조건이 없습니다. 소스에 나타난 호출 관계를 읽습니다."
+        : "No separate static branch or loop condition guards this callsite; read the source relationship." };
+  // Proving a candidate's body never proves dispatch. Keep inferred relations
+  // conditional in every field as well as preserving the Host's confidence.
+  if (target.confidence === "inferred") {
+    reading.role = (ko ? "추정 대상의 원문: " : "Candidate source: ") + reading.role;
+    reading.inputs = (ko ? "이 후보가 실제 대상이라면, " : "If this candidate is selected, ") + reading.inputs;
+    reading.output = (ko ? "이 후보가 실제 대상이라면, " : "If this candidate is selected, ") + reading.output;
+    reading.effects = (ko ? "이 후보 본문의 사실: " : "Facts about this candidate body: ") + reading.effects;
+    reading.reason = (ko ? "호출 대상은 추정입니다. " : "The target is inferred. ") + reading.reason;
+    // Parser-proved zero-argument wording remains byte-identical to its public
+    // fixed-input contract; uncertainty belongs to the other call fields.
+    const fixed = getFunctionCallFixedInputs(target, language);
+    if (fixed !== undefined) reading.inputs = fixed;
+  }
+  return isFunctionCallNarrativeChunk({ calls: [reading], limitations: [] }, [target.callId], false) ? reading : undefined;
+}

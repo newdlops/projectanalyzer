@@ -22,7 +22,7 @@ type Dependencies = {
 };
 type Entry = { contextId: string; node: SymbolNode; source: string; slice: FunctionCallsResponse; lastRequestId: number };
 type Reading = { plan: FunctionCallNarrativePlan; calls: FunctionCallReadingEntry[]; summary?: string; flow?: string;
-  limitations: string[]; modelName?: string; language: "ko" | "en"; sourceLimited: boolean; hasSummary: boolean;
+  limitations: string[]; modelName?: string; language: "ko" | "en"; sourceLimited: boolean; hasSummary: boolean; allSourceDetails: boolean;
   calleeEvidence: NonNullable<import("../../shared/functionCallNarratives").FunctionCallNarrativeTask["calleeEvidence"]> };
 
 /** Recent contexts authorize source reads; recent routes retain prose, never a resident model. */
@@ -84,7 +84,7 @@ export class FunctionCallNarrativesHostDelivery {
     if (!provider) { await failure("unavailable"); return; }
     let reading = cached;
     try {
-      if (!reading) reading = { plan: buildFunctionCallNarrativePlan(entry.slice, request), calls: [], limitations: [], language, sourceLimited: entry.slice.limited, hasSummary: false, calleeEvidence: [] };
+      if (!reading) reading = { plan: buildFunctionCallNarrativePlan(entry.slice, request), calls: [], limitations: [], language, sourceLimited: entry.slice.limited, hasSummary: false, allSourceDetails: true, calleeEvidence: [] };
     } catch (error) { await failure(error instanceof FunctionNarrativeError ? error.code : "invalid-response"); return; }
     this.pending?.controller.abort();
     const pending = { request, controller: new AbortController() }; this.pending = pending;
@@ -95,7 +95,7 @@ export class FunctionCallNarrativesHostDelivery {
     } };
     const ensureActive = () => { if (signal.aborted || this.pending !== pending || !this.active(request, entry)) throw new FunctionNarrativeError("cancelled"); };
     try {
-      await provider.prepare?.(language, signal, operation); ensureActive();
+      await provider.prepare?.(language, signal, { ...operation, sourceReading: true }); ensureActive();
       // Retain one model only for this explicit action, across asynchronous
       // source reads/publication. Each chunk still owns its normal FIFO slot.
       const actionReading = reading;
@@ -116,6 +116,7 @@ export class FunctionCallNarrativesHostDelivery {
           const finalSummary = reading.plan.rows.length > 2 && offset === reading.plan.rows.length;
           context.callTask!.includeSummary = reading.plan.rows.length <= 2 || finalSummary;
           if (finalSummary) {
+            if (reading.allSourceDetails) context.sourceCallFlowProof = { inferred: reading.plan.rows.some(row => row.connection.confidence === "inferred") };
             context.callTask!.calleeEvidence = reading.calleeEvidence;
             context.callTask!.earlierModelReadings = reading.calls.slice(0, 8).map(call => ({ callId: call.callId,
               inputs: call.inputs.slice(0, 100), output: call.output.slice(0, 100), effects: call.effects.slice(0, 100) }));
@@ -130,6 +131,12 @@ export class FunctionCallNarrativesHostDelivery {
           finally { signal.removeEventListener("abort", abort); }
           ensureActive();
           const chunk = parseFunctionCallNarrative(response.text, context, language);
+          if (!context.callTask!.includeSummary) {
+            const source = context.sourceCallReadings?.read(context, language);
+            // Model-authored strings, even with a source-looking model name,
+            // cannot authorize a whole-flow recipe without matching the proof.
+            reading.allSourceDetails &&= Boolean(source && JSON.stringify(source) === JSON.stringify(chunk));
+          }
           if (context.callTask!.includeSummary) { reading.summary = chunk.summary; reading.flow = chunk.flow; reading.hasSummary = true; }
           reading.modelName = response.modelName.slice(0, 100); reading.sourceLimited ||= context.limited;
           // Intermediate limitations describe a bounded chunk. The final whole-flow

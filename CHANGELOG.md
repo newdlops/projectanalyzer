@@ -4,6 +4,25 @@ All notable user-visible changes to Project Analyzer: Code Flow are recorded in
 this file. The changelog starts with the first distribution-documented build;
 earlier local development builds were not tracked here.
 
+## 0.0.1129 - 2026-10-08
+
+### Improved
+
+- Derive checked TS/Kotlin simple call details directly from source, preserving
+  argument/parameter types, return expressions, caller storage/return use,
+  explicit effects and reaching guards. Keep inferred targets conditional.
+- Derive complete guarded call structures after every detail batch matches
+  source proof. Skip model preparation, downloads and inference for these
+  recipes; unknown, truncated, deferred and unsupported work retains the model.
+- Analyze open Plain Text Kotlin files by their supported filename, preserving
+  unsaved text and explicit editor language overrides.
+- Read the parser-owned declaration body when the native graph only supplies
+  its header, preserving caller and callee source context.
+- Bundle call-reading helpers behind their public facade within the existing
+  distribution file limit; retain cached paging, cancellation and source actions.
+- Keep the final whole-flow summary visible on earlier call pages and refresh
+  their cached prose when a later batch completes.
+
 ## 0.0.1128 - 2026-10-08
 
 ### Improved

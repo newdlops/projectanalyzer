@@ -8,7 +8,7 @@ import type { SourceFile } from "../shared/types";
 import type { WorkspaceFileSystem } from "../analyzer/core/workspaceScanner";
 import type { ProjectAnalyzerConfig } from "./configuration";
 import { createContentHash } from "../shared/hash";
-import { inferSourceLanguageId } from "./sourceLanguage";
+import { inferSourceLanguageId, resolveSourceLanguageId } from "./sourceLanguage";
 
 /** Maximum number of files returned by the initial scaffold scan. */
 const DEFAULT_FIND_LIMIT = 10_000;
@@ -50,7 +50,7 @@ export class VsCodeWorkspaceFileSystem implements WorkspaceFileSystem {
       if (openDocument) {
         // Open/dirty documents remain authoritative for unsaved analysis state.
         content = openDocument.getText();
-        languageId = openDocument.languageId;
+        languageId = resolveSourceLanguageId(uri.fsPath, openDocument.languageId);
         sizeBytes = Buffer.byteLength(content, "utf8");
       } else {
         // openTextDocument retains every scanned file in VS Code's document

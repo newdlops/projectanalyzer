@@ -48,4 +48,8 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
   const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
   const result = await bundleLocalNarrativeRuntime(path.join(projectRoot, 'out/llm/functionNarratives/index.js'));
   console.log(`Bundled ${result.modules} local narrative modules (${result.bytes} bytes); watchdog remains independent.`);
+  // The call-reading feature stays modular in source/dev output, while its
+  // public facade includes same-directory helpers within the existing file cap.
+  const calls = await bundleLocalNarrativeRuntime(path.join(projectRoot, 'out/application/functionCallNarratives/index.js'));
+  console.log(`Bundled ${calls.modules} call reading modules (${calls.bytes} bytes).`);
 }

@@ -1,5 +1,5 @@
 /**
- * Pure source-language inference for VS Code workspace files that are not open.
+ * Pure source-language selection for saved files and open documents without a registered editor language.
  * Keeping this independent from the VS Code API makes transient file reads
  * testable without constructing TextDocument objects.
  */
@@ -28,4 +28,9 @@ export function inferSourceLanguageId(filePath: string): string {
   const extensionIndex = normalized.lastIndexOf(".");
   const extension = extensionIndex >= 0 ? normalized.slice(extensionIndex) : "";
   return SOURCE_LANGUAGE_BY_EXTENSION.get(extension) ?? "plaintext";
+}
+
+/** Preserve explicit editor modes; Plain Text must not disable a supported filename's analyzer or drop unsaved Kotlin symbols. */
+export function resolveSourceLanguageId(filePath: string, editorLanguageId: string): string {
+  return editorLanguageId === "plaintext" ? inferSourceLanguageId(filePath) : editorLanguageId;
 }

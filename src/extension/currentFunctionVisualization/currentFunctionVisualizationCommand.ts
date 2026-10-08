@@ -12,6 +12,7 @@ import type { ExtensionServices } from "../extensionServices";
 import { resolveCurrentFunctionGraph } from "./currentFunctionGraph";
 import { localizeHost } from "../../localization/uiLanguage";
 import { readProjectAnalyzerConfig } from "../../vscode/configuration";
+import { resolveSourceLanguageId } from "../../vscode/sourceLanguage";
 
 /** Public command identity contributed to the editor context menu. */
 export const VISUALIZE_CURRENT_FUNCTION_COMMAND =
@@ -48,7 +49,7 @@ export async function visualizeCurrentFunction(
   const cursor = editor.selection.active;
   const target = findFunctionAtPosition({
     filePath: document.uri.fsPath,
-    languageId: document.languageId,
+    languageId: resolveSourceLanguageId(document.uri.fsPath, document.languageId),
     sourceText,
     position: { line: cursor.line, character: cursor.character }
   });
@@ -91,7 +92,7 @@ function createSourceFileSnapshot(
 ): SourceFile {
   return {
     path: document.uri.fsPath,
-    languageId: document.languageId,
+    languageId: resolveSourceLanguageId(document.uri.fsPath, document.languageId),
     content,
     sizeBytes: Buffer.byteLength(content, "utf8"),
     contentHash: createContentHash(content)

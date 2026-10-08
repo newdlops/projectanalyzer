@@ -31,6 +31,20 @@ the shared FIFO; cached selection opens no resource scope. Publish completion
 after teardown, checking cancellation/snapshot authority again. Keep the model
 prompt, response schema, all five call fields and source evidence unchanged.
 
+Local mode may read complete, parser-owned simple callee return bodies directly
+for detail-only batches. Preserve the exact argument→parameter map, return
+expression, caller storage/return use, explicit effects and reaching guards in
+all five existing fields. A complete guard/early-return/bind/return recipe may
+also provide the whole flow after every detail batch matched source proof;
+other whole-flow meaning remains model work. Preparation
+starts only at the first model-dependent stage; partial source details remain
+readable if model setup fails. Use the existing inference line for source/model
+reading, with the actual current producer, and preserve the flat layout, native
+selectors, source buttons, polite status and cancellation/cache states.
+Whole-flow summary, limitations and producer belong to the retained reading,
+not one call page. Refresh these shared fields on completion while preserving
+each page's call entries and the reader's current selection.
+
 Acceptance: real local TypeScript and Kotlin caller/callee readings; cross-file
 evidence, strict fixed call references, distinct repeated sites/visits, static
 guard/order parity in Host and browser, deferred/unknown outcomes and source

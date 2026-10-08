@@ -148,6 +148,86 @@ loop/exception transfer, inferred/partial/truncated evidence, 긴 식과 알 수
 초기 준비 문구는 저장하지 않는다. 각 시나리오의 상세 문단·대안은 계속 모델이 새로 작성한다.
 기존 노드 구문·동작·근거·효과·인용을 모두 유지하며 화면 배치도 유지한다.
 
+### 0.0.1129 호출의 상세·완전한 분기 요약을 소스에서 읽기
+
+`analyzer/functionCalls.createFunctionCallSourceReader`는 실제 언어 parser의 선언·제어 흐름·
+매개변수와 원문 범위를 읽는다. 대상 본문이 단일 반환식이고 인자와 매개변수가 완전히
+대응하며, 그 호출 결과를 직접 반환·지역 변수 초기화·버리기에 사용하는 경우만 상세를
+구성한다. 반환 식은 120자·64 token·괄호 16단계의 닫힌 문법으로 제한하며 매개변수와
+리터럴 이외의 참조, 내부 쓰기/호출, member access, 기본값/rest, nullable/미지원 타입,
+Kotlin string template와 비동기/constructor/특수 호출은 기존 모델 경로를 유지한다.
+이것은 소스 구문 해설이며 실행이나 임의 입력값 대입 계산이 아니다.
+
+`application/functionCallNarratives.attachFunctionCallSourceReading`은 snapshot-owned 원문과
+targets를 묶은 lazy proof port를 context에 붙인다. local adapter가 요청할 때만 분석한다.
+다섯 필드에 실제 인자→이름·선언 타입, 반환 식, 부모의 지역 저장/반환 위치, 명시적인
+쓰기/호출 유무와 도달 조건을 보존한다. inferred target도 원문은 읽을 수 있지만 모든 관련
+문구를 해당 후보가 실제 대상이라는 조건 아래 설명하고 static confidence는 바꾸지 않는다.
+원문/대상 변경, 잘림 또는 기존 prose 상한 초과 시 생략해서 맞추지 않고 모델을 유지한다.
+
+모든 완료된 상세가 독립 소스 proof와 일치했을 때만 Host가 `sourceCallFlowProof`를 발급한다.
+실제 CFG가 entry→guard→조기 반환 또는 지역 저장→반환→exit의 완전한 6-node/6-edge
+recipe이고 세 호출과 원문 대상이 모두 대응할 때 두 분기 전체를 연결한다. guard의 자유
+변수·누락/잘린 원문·다른 동작·default/rest·async·graph gap은 전체 요약을 모델에 남긴다.
+모델이 source-looking 이름이나 문장을 반환했다고 이 권한을 얻지 못한다. 앞선 모델 prose는
+proof로 승격하지 않는다. 두 proof port/flag는 외부 모델 prompt에서 제거한다.
+
+완전한 공개 두 파일 checkout 예제를 같은 PC에서 설치된 0.0.1128과 비교했다. parser/정적
+graph 준비는 측정 밖이고, 해설 시작부터 resource 정리와 모든 캐시 페이지 확인까지 포함한다.
+
+| 공개 예제 | 설치된 0.0.1128 | 소스 후보 | 실제 모델 요청 / 프로세스 시작 |
+| --- | ---: | ---: | ---: |
+| TypeScript, 세 호출·전체 분기 요약 | 23.29초 | 30.45ms | 3 / 1 → 0 / 0 |
+| Kotlin, 세 호출·전체 분기 요약 | 23.03초 | 21.56ms | 3 / 1 → 0 / 0 |
+
+묶은 VSIX의 격리 설치 runtime에서도 같은 예제를 다시 실행했다. TS 63.91ms/Kotlin
+123.11ms였고 두 언어 모두 15개 상세 항목과 전체 요약·페이지를 완료했다. 실제 모델 요청과
+프로세스 시작·잔존 수는 모두 0이었다. 다른 실행 부하와 parser cache의 영향을 받는 별도
+단일 측정이며 위 후보 측정과 같은 속도를 보장하지 않는다.
+네이티브 선언 범위 보정을 포함한 최종 설치본의 별도 측정은 TS 49.75ms/Kotlin 71.24ms이며
+같은 15개 상세 항목·전체 요약·캐시 페이지와 모델/프로세스 0회를 유지했다.
+
+단일 순차 측정의 관찰값이며 일반 성능/정확도 보장이 아니다. 각 언어의 3개 호출·15개
+상세 항목·모든 caller/callee source token, cache-only paging와 기존 Kotlin sourceLimited를
+유지했다. 입력/매개변수, `value + 5`, `adjusted` 저장, `value * 2` 반환과 `!enabled`의
+두 결과를 직접 검사했다. 마지막 요약에서도 근거 없는 통화 단위나 대상 원문 누락 주장을
+만들지 않고 각 후보/분기의 실제 소스 식을 서술한다. 소스와 실제 실행의 차이는 유지한다.
+
+중간 후보는 상세만 소스로 바꾸고 마지막 모델 요약을 유지해 TS 8.86초/Kotlin 10.71초였다.
+모델 요약의 통화 단위 추측·제공된 원문 누락 주장 때문에 해당 recipe의 마지막 요약까지
+독립 소스로 검증하도록 확장했다. 일반 함수의 의미를 제한된 recipe로 대체하지 않는다.
+한두 호출과 개별 호출/선택 경로의 전체 요약, 다른 제어 흐름과 구현은 여전히 모델이 필요하다.
+
+실제 VS Code의 Kotlin 미해석 원인 중 하나는 open document의 Plain Text mode를 그대로
+analyzer input에 넣는 것이었다. `vscode/sourceLanguage.resolveSourceLanguageId`는 Plain
+Text일 때만 지원 파일 확장자를 사용하고 explicit language mode는 유지한다. workspace
+scan과 현재 함수 command 모두 unsaved text를 그대로 두고 같은 언어 선택을 사용한다.
+현재 함수 command는 여전히 빠른 single-file graph이며 cross-file scope를 확장하지 않는다.
+
+네이티브 TS graph의 여러 줄 함수 range가 선언 줄까지만 제공될 수도 있다. 호출 해설의
+parent/helper excerpt는 정확한 name·kind·selection anchor가 일치하는 parser-owned 선언
+범위를 사용한다. graph ID나 confidence를 바꾸지 않고 같은 원문의 전체 함수 본문을 기존
+길이·줄 수 상한으로 읽는다. parser가 없거나 anchor가 다르면 기존 graph 범위를 유지한다.
+
+최종 기능 검증에는 실제 TS/Kotlin parser·Host와 source/machine adapter를 사용했다.
+누락된 runtime/weights 설정에서도 전체 recipe와 캐시 페이지를 완료하고 download·factory·
+notification·model history가 0임을 확인했다. packaging 15개가 통과했다.
+실제 화면에서 마지막 batch가 2페이지에 도착하면 첫 페이지의 전체 요약을 갱신하지 않는
+문제도 발견했다. 현재 선택과 각 페이지의 호출 항목은 유지하면서 summary/flow/limitations와
+producer를 모든 해당 캐시에 반영한다. 실제 TS/Kotlin Host의 다중 batch 응답을 browser
+script에 전달하는 두 regression test로 첫 페이지·캐시 다음/이전·모드 복귀를 확인한다.
+최종 전체 unit 1,120개 중 1,116개가 통과했고 네 실패는 기존 baseline과 같다. 설치된
+네이티브 Rust graph를 사용하는 공개 TS 예제에서도 수정한 Host의 세 batch가 모두 소스
+응답으로 `ready`에 도달했다. Kotlin 실제 VS Code 화면에서 첫 페이지 요약·캐시 다음/이전과
+대상 원문 이동을 확인했고, 1440×900 창에서 설명 줄바꿈을 확인했다.
+최종 설치본의 TS 화면에서도 첫 페이지의 두 분기 요약과 `number` 인자 타입, 캐시 다음/이전
+복귀를 확인했다. 770×900 창에서는 관계 그래프와 읽기 영역이 세로로 배치되고 전체 요약과
+상세 항목을 스크롤로 읽을 수 있었다. 모바일 크기·다른 테마·전체 접근성 audit는 이 변경에서
+검증하지 않았다. 변경한 UI 두 파일의 Impeccable detector는 빈 결과를 반환했고 기존 의미
+표시용 graph border 예외는 유지했다. 새 suppression은 추가하지 않았다.
+배포는 call-reading facade의
+같은 폴더 helper를 함께 묶어 기존 512-file 상한을 유지한다.
+
 ### 0.0.1128 호출 해설의 반복 모델 로딩 제거
 
 실제 `FunctionCallsHostDelivery.explain`은 다음 호출부의 원문을 비동기로 읽고 Webview에

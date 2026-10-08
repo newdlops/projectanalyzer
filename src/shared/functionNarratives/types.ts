@@ -54,6 +54,10 @@ export type FunctionNarrativeContext = {
   language: string;
   /** Independent call-reading task using the same on-demand provider/process lifecycle. */
   callTask?: import("../functionCallNarratives").FunctionCallNarrativeTask;
+  /** Host-only syntax proof port; neither full source ownership nor this callback is serialized to a model. */
+  sourceCallReadings?: { read(context: FunctionNarrativeContext, language: "ko" | "en"): import("../functionCallNarratives").FunctionCallNarrativeChunk | undefined };
+  /** Host-only: all earlier detail batches matched independent source proofs; never model-authored or serialized. */
+  sourceCallFlowProof?: { inferred: boolean };
   snippets: FunctionNarrativeSnippet[];
   /** Optional bounded syntax routes, not evaluated inputs or observed program execution. */
   sourceFlow?: FunctionNarrativeSourceFlow;

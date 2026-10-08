@@ -24,6 +24,10 @@ export function getFunctionCallReadingBrowserSource(): string {
       const pager = el("div", "calls-reading-pager"), pageLabel = el("span"); pager.append(pageLabel, previous, next);
       actions.append(start, cancel, refresh); section.append(heading, actions, help, status, content, pager);
       const remember = (map, key, value) => { map.delete(key); map.set(key, value); while (map.size > 8) map.delete(map.keys().next().value); };
+      /** Whole-flow prose belongs to the reading, while each page keeps its own call entries. */
+      const updateReading = (page, latest) => ({...page,status:latest.status,coverage:latest.coverage,
+        page:{...page.page,count:latest.page.count},modelName:latest.modelName,
+        narrative:{...page.narrative,summary:latest.narrative.summary,flow:latest.narrative.flow,limitations:latest.narrative.limitations}});
       const keyFor = value => JSON.stringify([value.graphVersion, value.sourceToken, value.contextId, value.scope, value.connectionId,
         [...(value.choices || [])].sort((a,b)=>a.key.localeCompare(b.key))]);
       function stop() { if (pending) options.postMessage({ type:"functionCalls/cancelExplanation",payload:pending.request }); pending=undefined;pagePending=undefined;task=undefined;phase="cancelled";render(); }
@@ -61,9 +65,13 @@ export function getFunctionCallReadingBrowserSource(): string {
         phase=progress?"pending":paging&&pending?"pending":payload.status;
         if(payload.narrative){
           if(!valid(payload)){phase="invalid-response";stop();phase="invalid-response";render();return;}
-          remember(pages,baseKey+":"+payload.language+":"+payload.page.index,payload);
+          const prefix=baseKey+":"+payload.language+":";
+          // A later chunk may complete on another page. Refresh shared prose in
+          // retained pages too, so cache-only navigation cannot resurrect partial text.
+          for(const [key,page] of pages)if(key.startsWith(prefix))pages.set(key,updateReading(page,payload));
+          remember(pages,prefix+payload.page.index,payload);
           if(!result||result.language!==payload.language||paging||result.page.index===payload.page.index)result=payload;
-          else result={...result,status:payload.status,coverage:payload.coverage,page:{...result.page,count:payload.page.count},modelName:payload.modelName};
+          else result=updateReading(result,payload);
           remember(saved,baseKey+":"+payload.language,result);
         }else if(payload.status==="ready"||progress){phase="invalid-response";}
         render();

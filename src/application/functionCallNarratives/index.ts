@@ -2,3 +2,4 @@
 export { buildFunctionCallNarrativePrompt, parseFunctionCallNarrative } from "./prompt";
 export { buildFunctionCallNarrativePlan, type FunctionCallNarrativePlan } from "./plan";
 export { buildFunctionCallNarrativeContext } from "./context";
+export { buildSourceFunctionCallNarrativeResponse } from "./sourceReading";

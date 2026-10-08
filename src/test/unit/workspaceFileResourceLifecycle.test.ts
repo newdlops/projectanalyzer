@@ -4,7 +4,9 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import test from "node:test";
-import { inferSourceLanguageId } from "../../vscode/sourceLanguage";
+import { inferSourceLanguageId, resolveSourceLanguageId } from "../../vscode/sourceLanguage";
+import { KotlinAnalyzer } from "../../analyzer/languages/kotlin";
+import { createContentHash } from "../../shared/hash";
 
 test("infers analyzer language IDs without loading VS Code TextDocuments", () => {
   assert.equal(inferSourceLanguageId("/workspace/View.TSX"), "typescriptreact");
@@ -29,6 +31,19 @@ test("reads unopened saved files transiently and preserves already-open document
   assert.match(source, /vscode\.workspace\.textDocuments/u);
   assert.match(source, /openDocument\.getText\(\)/u);
   assert.doesNotMatch(source, /workspace\.openTextDocument/u);
+});
+
+test("Plain Text Kotlin editor snapshots retain unsaved callable symbols without overriding explicit language modes", async () => {
+  const filePath = "/workspace/unsaved.KT", content = "fun changed(value: Int): Int { return value + 5 }";
+  const analyzer = new KotlinAnalyzer(), parsed = await analyzer.parse({ path: filePath,
+    languageId: resolveSourceLanguageId(filePath, "plaintext"), content, sizeBytes: Buffer.byteLength(content), contentHash: createContentHash(content) });
+  const symbols = await analyzer.extractSymbols(parsed);
+  assert.equal(symbols.find(node => node.kind === "function")?.name, "changed");
+  assert.equal(symbols.find(node => node.kind === "function")?.language, "kotlin");
+  assert.equal(resolveSourceLanguageId("/workspace/script.kts", "plaintext"), "kotlin");
+  assert.equal(resolveSourceLanguageId("/workspace/Main.kt", "markdown"), "markdown");
+  assert.equal(resolveSourceLanguageId("/workspace/Main.ts", "python"), "python");
+  assert.equal(resolveSourceLanguageId("/workspace/README", "plaintext"), "plaintext");
 });
 
 test("streams analyzer input and disposes owned child processes with extension services", () => {

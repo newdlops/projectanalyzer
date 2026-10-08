@@ -849,6 +849,19 @@ resource scope를 유지한다. 각 추론은 기존 FIFO 슬롯을 사용하고
 끝난 뒤에만 보낸다. 정리 중 취소·snapshot 변경·실패는 성공으로 게시하지 않는다. 캐시
 조회는 scope를 획득하지 않는다. 모델 입력·응답 schema·원문 상한과
 role/inputs/output/effects/reason을 유지한다.
+0.0.1129의 local mode는 실제 parser가 확인한 단일 반환 본문과 정확한 호출부 사용을
+다섯 상세 항목으로 읽을 수 있다. 인자→이름·선언 타입, 반환 식, 지역 저장/부모 반환,
+명시적인 쓰기/호출과 도달 조건을 보존하고 inferred target은 조건부로 설명한다. 모든
+완료 상세가 소스 proof와 일치한 경우에만 완전한 guard/조기 반환/지역 저장/반환의
+6-node/6-edge·세 호출 recipe를 전체 요약으로 읽는다. callback/권한 flag는 Host-only이며
+외부 prompt에서 제거한다. 다른 구현·제어 흐름·잘린 원문·상한 초과는 모델을 유지한다.
+source-only recipe는 모델 runtime/weights/factory/download 없이 완료한다. open Plain Text
+문서는 지원 확장자로 분석기를 선택하되 원문과 explicit editor language mode는 유지한다.
+현재 함수 command의 빠른 single-file graph와 원본 source confidence는 유지한다.
+호출 해설 원문은 name/kind/selection anchor가 일치하는 parser-owned 선언 범위를 우선하여
+native graph의 선언 줄 범위에서도 본문을 유지한다. 기존 snippet 길이·줄 수 상한은 같다.
+최종 summary/flow/limitations와 producer는 해당 reading의 모든 페이지 캐시에 반영한다.
+현재 호출 선택과 각 페이지의 호출 상세는 유지하며 페이지 이동으로 모델을 실행하지 않는다.
 순서 모델은 최대 512 블록·1,024 제어 연결, 하나의 경로는 1,024 탐색 단계·256 표시 항목으로
 제한한다. 근거 부족과 한도는 표시하며 원본 소스를 실행하지 않는다.
 

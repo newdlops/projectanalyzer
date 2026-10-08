@@ -5,12 +5,14 @@ import { buildFunctionNarrativeScenarioFrames } from "../scenarioFrames";
 import { buildPrimitiveWorksheetResponse, getPrimitiveWorksheetAnalysis, readCompletedPrimitiveTrace, readCompletedSourceTrace, traceSourceWorksheet } from "./index";
 import type { PrimitiveTrace } from "./trace";
 import { hasSimplePrimitiveScopes } from "./scope";
+import { buildSourceFunctionCallNarrativeResponse } from "../../functionCallNarratives";
 
 type Alternative = NonNullable<FunctionNarrativeContext["summaryTask"]>["sourceAlternative"];
 
 /** Source/cached readings do not require a runtime, weights or provider selection; all structured Host validation still applies. */
 export function buildSourceFunctionNarrativeResponse(context: FunctionNarrativeContext, language: "ko" | "en"):
   { modelName: string; text: string } | undefined {
+  if (context.callTask) return buildSourceFunctionCallNarrativeResponse(context, language);
   const sourceName = language === "ko" ? "소스 분석" : "Source analysis";
   const worksheet = buildPrimitiveWorksheetResponse(context, language);
   if (worksheet !== undefined) return { modelName: sourceName, text: worksheet };

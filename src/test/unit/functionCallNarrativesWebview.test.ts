@@ -51,3 +51,53 @@ test("call-mode generation, cached selection, source actions and locale retain t
     runtime.click("function-mode-calls");assert.ok(runtime.getRenderedText("function-calls").some(text=>text.includes("Caller arguments bind")));
   }finally{delivery.reset();runtime.restore();}
 });
+
+for (const language of ["typescript", "kotlin"] as const) test(`${language} final whole-flow prose reaches the visible and cached earlier call page`, async () => {
+  const f = await loadFunctionCallReadingFixture(language), graphDelivery = new WebviewGraphDelivery();
+  const graphVersion = graphDelivery.activate(f.graph).snapshot.version;
+  const sourceNodeTokens = new SourceNodeTokenRegistry(), evidenceTokens = new CodeFlowEvidenceTokenRegistry();
+  sourceNodeTokens.activate(graphVersion, f.graph); evidenceTokens.activate(graphVersion, f.graph);
+  const staticReplies: FunctionCallsResponse[] = [], replies: FunctionCallNarrativesResponse[] = [];
+  let generations = 0;
+  const delivery = new FunctionCallsHostDelivery({ graphDelivery, sourceNodeTokens, evidenceTokens, getLanguage: () => "en",
+    readSourceText: async file => f.files.find(candidate => candidate.path === file)?.content,
+    postMessage: async reply => { staticReplies.push(reply); }, postNarratives: async reply => { replies.push(reply); },
+    provider: { async generate(context) { generations++; return functionCallReadingReply(context); } } });
+  const runtime = installSidebarWebviewRuntime();
+  try {
+    const script = getFunctionVisualizerHtml({ webview: { cspSource: "vscode-webview:" } as never, nonce: "paged-call-test", language: "en" })
+      .match(/<script nonce="paged-call-test">([\s\S]*)<\/script>/u)?.[1];
+    assert.ok(script); new Function(script)();
+    runtime.dispatchMessage({ type: "functionVisualizer/sessionLoaded", payload: { graphVersion,
+      root: { sourceToken: sourceNodeTokens.createToken(f.root.id)!, label: f.root.name } } });
+    runtime.click("function-mode-calls");
+    await delivery.load(runtime.messages.at(-1)!.payload as never);
+    runtime.dispatchMessage({ type: "functionCalls/loaded", payload: staticReplies.at(-1)! });
+    // Select the existing relations toggle through its actual attached button.
+    const views = document.getElementById(runtime.getRenderedIdentityByClassNth("function-calls", "calls-view-switch", 0))!;
+    runtime.click(views.children[1].id);
+    runtime.clickRenderedByClassNth("function-calls", "calls-reading-request", 0);
+    const request = runtime.messages.at(-1)!.payload as FunctionCallNarrativesRequest;
+    assert.equal(request.scope, "overview");
+    await delivery.explain(request);
+    assert.equal(generations, 3);
+    assert.equal(replies.at(-1)!.page!.index, 1, "completion is delivered on the last generated page");
+    for (const payload of replies) runtime.dispatchMessage({ type: "functionCalls/explanationLoaded", payload });
+    const assertWhole = () => {
+      const text = runtime.getRenderedText("function-calls");
+      assert.ok(text.includes("Read the selected source calls."));
+      assert.ok(text.includes("Follow the source conditions, transfer arguments and read the return expression."));
+      assert.equal(runtime.countRenderedByClass("function-calls", "calls-reading-facts"), 1);
+    };
+    assertWhole();
+    assert.ok(runtime.getRenderedText("function-calls").includes("Calls page 1/2"));
+    const messageCount = runtime.messages.length;
+    // Cached next/previous controls must retain the final summary without Host traffic.
+    for (const childIndex of [2, 1]) {
+      const pager = document.getElementById(runtime.getRenderedIdentityByClassNth("function-calls", "calls-reading-pager", 0))!;
+      runtime.click(pager.children[childIndex].id); assertWhole();
+    }
+    assert.equal(runtime.messages.length, messageCount); assert.equal(generations, 3);
+    runtime.click("function-mode-statements"); runtime.click("function-mode-calls"); assertWhole();
+  } finally { delivery.reset(); runtime.restore(); }
+});
