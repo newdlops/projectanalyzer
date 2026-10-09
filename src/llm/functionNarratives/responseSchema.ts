@@ -1,6 +1,6 @@
 /** A small constrained JSON grammar guides local generation; Host validation still verifies snippet ownership. */
 import type { FunctionNarrativeContext, FunctionNarrativeFlowStep } from "../../shared/functionNarratives";
-import { createFunctionCallNarrativeSchema, getFunctionCallFixedReason, getFunctionCallFixedOutput } from "../../shared/functionCallNarratives";
+import { createFunctionCallNarrativeSchema, getFunctionCallFixedReason, getFunctionCallFixedOutput, getFunctionCallFixedEffects } from "../../shared/functionCallNarratives";
 import { buildFunctionNarrativeScenarioFrames, getFunctionNarrativeExampleConstraints, hasCompletePrimitiveWorksheet, getPrimitiveWorksheetAnalysis } from "../../application/functionNarratives";
 
 export function createLocalNarrativeSchema(context: FunctionNarrativeContext, language: "ko" | "en" = "en"): Record<string, unknown> {
@@ -13,6 +13,8 @@ export function createLocalNarrativeSchema(context: FunctionNarrativeContext, la
       // syntax evidence, not a computed result or finally-completion proof.
       const output = getFunctionCallFixedOutput(target, language);
       if (output) schema.properties.calls.items[index].properties.output = { const: output };
+      const effects = getFunctionCallFixedEffects(target, language);
+      if (effects) schema.properties.calls.items[index].properties.effects = { const: effects };
     }
     return schema;
   }

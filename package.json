@@ -2,7 +2,7 @@
   "name": "function-analysis",
   "displayName": "%extension.displayName%",
   "description": "%extension.description%",
-  "version": "0.0.1143",
+  "version": "0.0.1144",
   "publisher": "newdlops",
   "private": true,
   "license": "MIT",

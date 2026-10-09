@@ -26,3 +26,9 @@ export type FunctionCallReturnSyntax = {
   limited: boolean;
   syntaxOnly: true;
 };
+
+/** Explicit source writes/calls in lexical order; not execution order, successful I/O or actual state/effect proof. */
+export type FunctionCallEffectSite = {
+  kind: "write" | "call"; code: string; range: SourceRange; regions: FunctionCallReturnRegion[];
+};
+export type FunctionCallEffectSyntax = { sites: FunctionCallEffectSite[]; limited: boolean; syntaxOnly: true };

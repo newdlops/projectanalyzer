@@ -4,6 +4,22 @@ All notable user-visible changes to Project Analyzer: Code Flow are recorded in
 this file. The changelog starts with the first distribution-documented build;
 earlier local development builds were not tracked here.
 
+## 0.0.1144 - 2026-10-09
+
+### Improved
+
+- Read bounded lexical return/write/call evidence from the same exact callee
+  snapshot, preserving duplicate source occurrences and cleanup/branch scope.
+- Restore complete short explicit write/call inventories in local explanations;
+  retain unknown execution order, implicit effects, I/O and completion. Incomplete
+  expression writes, source/depth/count/string limits retain model generation.
+- Keep callback bodies separate from immediate calls, all five details, original
+  source, connected-model schemas and model-authored role/summary/flow.
+- Strengthen the public model benchmark to inspect authored prose independently:
+  correct immutable facts cannot mask generic roles or invented business/I/O.
+- Keep default/custom models and experimental profiles unchanged. Fast samples
+  still contain incorrect model prose; the full 3-second goal remains unproven.
+
 ## 0.0.1143 - 2026-10-09
 
 ### Improved

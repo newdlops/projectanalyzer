@@ -8,3 +8,4 @@ export { readFunctionCallSourceDeclaredParameters, type FunctionCallDeclaredPara
 export { readFunctionCallSourceObjectExpression } from "./sourceSyntax";
 export { readFunctionCallSourceExecution, type FunctionCallSourceExecution } from "./sourceExecution";
 export { readFunctionCallReturnSyntax } from "./sourceReturns";
+export { readFunctionCallSourceSyntax } from "./sourceEffects";

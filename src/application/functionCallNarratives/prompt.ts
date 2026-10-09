@@ -29,15 +29,20 @@ export function buildFunctionCallNarrativePrompt(context: FunctionNarrativeConte
   if (task.targets.some(target => target.returnSyntax)) rules.push(language === "ko"
     ? "returnSyntax는 parser가 원문에서 확인한 반환 구문과 어휘적 try/catch/finally·조건·반복 범위입니다. 값 계산·실제 도달·최종 반환의 증명이 아닙니다. output은 모든 반환 구문(예외 반환 포함)을 보존하고 finally의 반환 덮어쓰기·정상 완료와 호출부 사용을 실제 코드로 설명하세요. limited면 나머지 원문도 읽고 누락된 근거를 단정하지 않습니다."
     : "returnSyntax contains parser-owned return statements and lexical try/catch/finally/condition/loop regions. It does NOT prove calculated values, reachability or final completion. Preserve every return statement (including catch returns) in output; use actual code for finally overrides/normal completion and caller use. If limited, also read the remaining source and do not assert omitted behavior.");
+  if (task.targets.some(target => target.effectSyntax)) rules.push(language === "ko"
+    ? "effectSyntax는 명시적 쓰기·호출 구문과 어휘적 소유 범위입니다. 순서는 원문 위치 순서이며 실제 평가·실행 순서, 저장/로그/I/O 성공이나 정상 완료의 증명이 아닙니다. 모든 구문과 인수를 보존하고 구현이 없는 호출의 동작은 미확인으로 설명합니다. limited면 목록 이외의 원문도 읽으며 효과가 없다고 단정하지 않습니다."
+    : "effectSyntax inventories explicit write/call statements and lexical ownership. Its order is source position, NOT proved evaluation/execution order, storage/logging/I/O success or normal completion. Preserve every statement/argument and mark unsupplied call implementations unknown. If limited, also read the remaining source; do not conclude there are no effects.");
   return [rules.join("\n") + "\nJSON schema:\n" + JSON.stringify(outputSchema ?? createFunctionCallNarrativeSchema(task, language)),
     JSON.stringify({ functionName: context.functionName, language: context.language,
-      callTask: { ...task, targets: task.targets.map(target => target.returnSyntax ? { ...target,
+      callTask: { ...task, targets: task.targets.map(target => ({ ...target,
         // The Host keeps exact zero-based ownership ranges. The model needs
         // the authored statement and lexical regions, not duplicated operands
         // or another coordinate system beside the numbered original excerpts.
-        returnSyntax: { limited: target.returnSyntax.limited, syntaxOnly: true,
-          sites: target.returnSyntax.sites.map(site => ({ code: site.code, regions: site.regions })) }
-      } : target) },
+        ...(target.returnSyntax ? { returnSyntax: { limited: target.returnSyntax.limited, syntaxOnly: true,
+          sites: target.returnSyntax.sites.map(site => ({ code: site.code, regions: site.regions })) } } : {}),
+        ...(target.effectSyntax ? { effectSyntax: { limited: target.effectSyntax.limited, syntaxOnly: true,
+          sites: target.effectSyntax.sites.map(site => ({ kind: site.kind, code: site.code, regions: site.regions })) } } : {})
+      })) },
       snippets: context.snippets.map(snippet => ({ ...snippet, text: snippet.text.split("\n").map((line, index) => `${snippet.startLine + index}: ${line}`).join("\n") })) })];
 }
 

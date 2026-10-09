@@ -9,13 +9,14 @@ import { access, mkdir, mkdtemp, writeFile } from 'node:fs/promises';
 import { constants } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { checkPublicModelReading } from './benchmark-model-reading.mjs';
 
 const require = createRequire(import.meta.url);
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const { createLocalFunctionNarrativeProvider } = require(repo + '/out/llm/functionNarratives');
 const { ModelTaskManager } = require(repo + '/out/shared/modelTasks');
 const { parseFunctionCallNarrative } = require(repo + '/out/application/functionCallNarratives');
-const { readFunctionCallReturnSyntax, createFunctionCallSourceReader } = require(repo + '/out/analyzer/functionCalls');
+const { readFunctionCallSourceSyntax, createFunctionCallSourceReader } = require(repo + '/out/analyzer/functionCalls');
 const { analyzeFunctionLogic } = require(repo + '/out/analyzer/functionLogic');
 const { loadFunctionCallReadingFixture } = require(repo + '/out/test/unit/helpers/functionCallReadingFixture');
 const modelPath = process.argv[2] && path.resolve(process.argv[2]);
@@ -104,7 +105,9 @@ async function fixture(language, { parent, callee, effect }) {
   const parentNode = parsed.graph.nodes.find(node => node.name === parent), calleeNode = parsed.graph.nodes.find(node => node.name === callee);
   const site = analyzeFunctionLogic({ functionNode: parentNode, sourceText: caller }).callsites.find(call => call.calleeName === callee);
   const target = context.callTask.targets[0];
-  target.returnSyntax = readFunctionCallReturnSyntax(calleeNode, helper);
+  const syntax = readFunctionCallSourceSyntax(calleeNode, helper);
+  target.returnSyntax = syntax?.returns;
+  target.effectSyntax = syntax?.effects;
   target.resultUse = createFunctionCallSourceReader(parentNode, caller).readUse(site.range, target.expression);
   if (!target.returnSyntax || !target.resultUse) throw new Error('Missing public-fixture parser evidence.');
   return context;
@@ -112,7 +115,7 @@ async function fixture(language, { parent, callee, effect }) {
 
 /** Necessary source facts are checked independently from shape; this remains a bounded smoke check, not a semantic oracle. */
 function checkReading(reading, names) {
-  const call = reading.calls[0], failures = [];
+  const call = reading.calls[0], failures = checkPublicModelReading(reading, names);
   if (!/value\s*\+\s*5|(?:5\s*(?:를|을)\s*더|add(?:s|ing)?\s+5)/iu.test(call.output)) failures.push('missing-return-calculation');
   if (!/0/u.test(call.output) || !/catch|예외|오류/iu.test(call.output)) failures.push('missing-catch-return');
   if (!call.effects.includes(`${names.effect}(value)`)) failures.push('missing-exact-cleanup-argument');

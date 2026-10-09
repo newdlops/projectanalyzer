@@ -3,7 +3,7 @@ import type { FunctionCallsResponse } from "../../protocol/functionCalls";
 import type { FunctionNarrativeContext, FunctionNarrativeSnippet } from "../../shared/functionNarratives";
 import type { SymbolNode, SourceRange } from "../../shared/types";
 import type { FunctionCallNarrativePlan } from "./plan";
-import { readFunctionCallArguments, readFunctionCallSourceParameters, readFunctionCallReturnSyntax, createFunctionCallSourceReader } from "../../analyzer/functionCalls";
+import { readFunctionCallArguments, readFunctionCallSourceParameters, readFunctionCallSourceSyntax, createFunctionCallSourceReader } from "../../analyzer/functionCalls";
 import type { FunctionCallNarrativeTarget } from "../../shared/functionCallNarratives";
 import { attachFunctionCallSourceReading, type FunctionCallSourceCandidate } from "./sourceReading";
 import { findFunctionAtPosition } from "../../analyzer/functionLogic";
@@ -89,8 +89,9 @@ export async function buildFunctionCallNarrativeContext(parent: SymbolNode, sour
       // Add syntax anchors only from this provided declaration. They do not
       // repair CFG cleanup routing or turn a catch statement into an observed
       // result. A limited list stays explicitly limited; source caps are intact.
-      const returns = readFunctionCallReturnSyntax(callee.node, callee.source);
-      if (returns && returns.sites.every(site => helper.text.includes(site.code))) targets.at(-1)!.returnSyntax = returns;
+      const syntax = readFunctionCallSourceSyntax(callee.node, callee.source);
+      if (syntax?.returns.sites.every(site => helper.text.includes(site.code))) targets.at(-1)!.returnSyntax = syntax.returns;
+      if (syntax?.effects.sites.every(site => helper.text.includes(site.code))) targets.at(-1)!.effectSyntax = syntax.effects;
     }
     if (caller && !caller.truncated && range && connection.relation === "call" && !connection.deferred) {
       callerSyntax ??= createFunctionCallSourceReader(parent, source);

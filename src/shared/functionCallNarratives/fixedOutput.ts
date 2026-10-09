@@ -1,17 +1,14 @@
 /** Compact owned source-return syntax prevents omitted catch operands; semantic interpretation remains a model responsibility. */
 import type { FunctionCallNarrativeTarget } from "./types";
 import { isFunctionCallNarrativeTextLanguage } from "./validation";
+import { formatFunctionCallSyntaxSite } from "./syntaxText";
 
 /** Preserve every lexical site and exact caller use; never compute a result or claim which abrupt return completes. */
 export function getFunctionCallFixedOutput(target: FunctionCallNarrativeTarget, language: "ko" | "en"): string | undefined {
   const syntax = target.returnSyntax, use = target.resultUse;
   if (!syntax || syntax.limited || !syntax.syntaxOnly || !syntax.sites.length || !use || target.deferred || target.relation !== "call") return;
   const ko = language === "ko";
-  const sites = syntax.sites.map(site => {
-    const regions = site.regions.map(region => region.kind === "catch" && /^catch\b/u.test(region.label ?? "") ? region.label!
-      : region.kind + (region.expression ? `(${region.expression})` : region.label && !["try", "finally", "true", "false"].includes(region.label) ? `(${region.label})` : ""));
-    return (regions.length ? regions.join("→") + ": " : "") + "`" + site.code + "`";
-  }).join("; ");
+  const sites = syntax.sites.map(site => formatFunctionCallSyntaxSite(site.code, site.regions)).join("; ");
   const callerUse = use.kind === "return" ? ko ? "정상 복귀 시 부모가 " + (use.awaited ? "await한 결과를 " : "호출 결과를 ") + "반환합니다."
     : "On normal completion, the parent returns the " + (use.awaited ? "awaited " : "call ") + "result."
     : use.kind === "binding" && use.name ? ko ? `정상 복귀 시 ${use.awaited ? "await한 결과를 " : ""}지역 \`${use.name}\`에 저장합니다.`

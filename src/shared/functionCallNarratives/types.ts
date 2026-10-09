@@ -1,5 +1,5 @@
 /** Model-readable call facts and bounded prose; graph/source authority is held separately by the Host. */
-import type { FunctionCallReturnSyntax, FunctionCallResultUse } from "./sourceSyntaxTypes";
+import type { FunctionCallReturnSyntax, FunctionCallResultUse, FunctionCallEffectSyntax } from "./sourceSyntaxTypes";
 export type FunctionCallNarrativeScope = "overview" | "scenario" | "call";
 export type FunctionCallNarrativeTarget = {
   callId: string; caller: string; callee: string; language: string; expression: string;
@@ -16,6 +16,8 @@ export type FunctionCallNarrativeTarget = {
   returnSyntax?: FunctionCallReturnSyntax;
   /** Parser-owned use of the whole call expression, never inferred from callee names or model prose. */
   resultUse?: FunctionCallResultUse;
+  /** Complete explicit syntax still does not establish runtime effects, I/O success or completion. */
+  effectSyntax?: FunctionCallEffectSyntax;
 };
 export type FunctionCallNarrativeTask = {
   scope: FunctionCallNarrativeScope; signature: string; includeSummary: boolean;

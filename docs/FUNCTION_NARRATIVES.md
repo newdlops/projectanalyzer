@@ -56,7 +56,12 @@ deferred/event/render 경계와 대상 선택의 불확실성을 보존하며 �
 들어가면 `output`도 모든 원문 반환 구문·어휘적 조건/try/catch/finally 범위와 결과의 저장·
 반환·폐기·await 여부로 복원한다. 실제 도달·계산값·최종 완료는 미확인으로 표시한다.
 반환 목록이 제한되거나 사용을 확인하지 못하거나 deferred 관계이면 기존 모델 필드를
-유지한다. 역할·부수 효과·전체 요약과 흐름은 계속 모델이 작성한다. 연결된 VS Code 모델과
+유지한다. 완전한 `effectSyntax`의 명시적 쓰기·호출과 모든 어휘적 범위도 180자 안에 함께
+들어가면 `effects`를 원문 구문 목록으로 복원한다. 목록은 어휘적 위치 순서이며 실행 순서,
+실제 상태 변화/I/O 성공/호출 완료를 입증하지 않는다. 암묵적 효과도 미확인으로 유지한다.
+표현식 안의 쓰기를 목록이 다 담지 못하거나 callback/embedded/깊이/개수/문자열 한계가
+있으면 기존 모델 필드를 유지한다. 별도 callback의 본문은 독립된 즉시 호출로 추가하지 않는다.
+역할·전체 요약과 흐름은 계속 모델이 작성한다. 연결된 VS Code 모델과
 소스 분석 응답의 계약은 그대로다.
 
 대상 원문이 온전히 제공된 경우 `returnSyntax`는 해당 선언의 parser-owned 반환 구문,
@@ -96,8 +101,13 @@ Public API:
   bounded lexical 반환 근거. `createFunctionCallSourceReader().readUse`는 TypeScript/JavaScript/
   Kotlin의 호출부 사용만 독립적으로 읽으므로 복잡한 callee 본문이 전체 source proof를
   만들지 못해도 호출부 구문을 모델에 제공할 수 있다.
+- `analyzer/functionCalls.readFunctionCallSourceSyntax`: 같은 exact 선언/control snapshot에서
+  반환과 명시적 쓰기·호출 목록을 함께 읽는다. 최대 128블록·32단계 소유 범위·각 목록 8개,
+  구문당 160자이며 한계는 보존한다. nested calls와 동일 텍스트의 다른 발생은 유지한다.
+  Host의 원본 zero-based 범위를 유지하고 모델에는 code/kind/regions와 제한 여부만 보낸다.
 - `shared/functionCallNarratives`: task/target/chunk 계약, `getFunctionCallFixedInputs`,
-  `getFunctionCallFixedReason`, `getFunctionCallFixedOutput`의 정적 입력·도달 조건·반환 구문 문구,
+  `getFunctionCallFixedReason`, `getFunctionCallFixedOutput`, `getFunctionCallFixedEffects`의
+  정적 입력·도달 조건·반환·쓰기/호출 구문 문구,
   local JSON schema, 구조·언어 script 검증. 모델 사실성 검증 API는 아니다.
 - `application/functionCallNarratives`: `buildFunctionCallNarrativePlan`,
   `buildFunctionCallNarrativeContext`, `buildFunctionCallNarrativePrompt`,
