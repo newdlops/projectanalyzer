@@ -1,5 +1,5 @@
 /** Public production-parser/LLM benchmark, run after compile. Source is read as syntax, never executed.
- * Usage: node scripts/benchmark-function-narratives.mjs [runtime-root|-] [tag] [fixture|-] [model] [runner] [full-run] [configured|configured-source]
+ * Usage: node scripts/benchmark-function-narratives.mjs [runtime-root|-] [tag] [fixture|-] [model] [runner] [full-run] [configured|configured-source|-] [model-ready] [ko|en]
  * Omit runtime-root for the current workspace; use an installed older extension for the baseline.
  * Reports and raw public-fixture responses are written only to a private temporary directory.
  */
@@ -7,6 +7,7 @@ import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { tmpdir } from 'node:os';
 import { execFileSync } from 'node:child_process';
+import { checkPublicFunctionPurpose, isFreshCompleteFunctionReading } from './benchmark-function-reading.mjs';
 const require = createRequire(import.meta.url);
 const fs = require('node:fs');
 const path = require('node:path');
@@ -80,6 +81,17 @@ const corpus = [
     source: 'export function inspect(amount: number): number {\n    let adjusted = amount + 5;\n    adjusted -= 2;\n    adjusted *= 3;\n    adjusted += 4;\n    audit(adjusted);\n    return adjusted;\n}',
     operation: 'adjusted', writeValue: (inputs, code) => code.includes('-=') ? inputs.amount + 3 : code.includes('*=') ? (inputs.amount + 3) * 3 : code.includes('+=') ? (inputs.amount + 3) * 3 + 4 : inputs.amount + 5,
     expected: inputs => (inputs.amount + 3) * 3 + 4 },
+  // Calls interleaved with writes are deliberately outside the closed purpose
+  // recipe. Detailed source worksheets remain complete, but the purpose must
+  // come from a fresh model reading rather than a source-only response.
+  { name: 'kotlin-interleaved-effects', language: 'kotlin', extension: 'kt', effects: true, gaps: true,
+    source: 'fun inspect(amount: Int): Int {\n    var adjusted = amount + 5\n    audit(adjusted)\n    adjusted *= 2\n    return adjusted\n}',
+    operation: 'adjusted', writeValue: (inputs, code) => code.includes('*=') ? (inputs.amount + 5) * 2 : inputs.amount + 5,
+    expected: inputs => (inputs.amount + 5) * 2 },
+  { name: 'typescript-interleaved-effects', language: 'typescript', extension: 'ts', effects: true, gaps: true,
+    source: 'export function inspect(amount: number): number {\n    let adjusted = amount + 5;\n    audit(adjusted);\n    adjusted *= 2;\n    return adjusted;\n}',
+    operation: 'adjusted', writeValue: (inputs, code) => code.includes('*=') ? (inputs.amount + 5) * 2 : inputs.amount + 5,
+    expected: inputs => (inputs.amount + 5) * 2 },
   { name: 'kotlin-double-updates', language: 'kotlin', extension: 'kt', doubles: true,
     source: 'fun inspect(amount: Double): Double {\n    var adjusted = amount / 2\n    adjusted += 0.5\n    return adjusted * 3.0\n}',
     expected: inputs => (inputs.amount / 2 + 0.5) * 3 },
@@ -96,7 +108,10 @@ const modelPath = process.argv[5] && process.argv[5] !== '-' ? process.argv[5] :
 const binaryPath = await require(repo + '/out/vscode/functionNarrativeSetup/localBinary').resolveLocalBinary(process.argv[6] || '');
 const fullRun = process.argv[7] === 'full-run';
 const configurationMode = ['configured', 'configured-source'].includes(process.argv[8]) ? process.argv[8] : undefined;
-console.log(JSON.stringify({ outputDirectory, tag, runtime, fullRun, configurationMode, model: path.basename(modelPath), note: 'Public fixed-formula corpus and a narrow causal-language check, not a general accuracy guarantee.' }));
+const readyBoundary = process.argv[9] === 'model-ready';
+const locale = process.argv[10] === 'en' ? 'en' : 'ko';
+console.log(JSON.stringify({ outputDirectory, tag, runtime, fullRun, configurationMode, readyBoundary, locale,
+  model: path.basename(modelPath), note: 'Public fixed-formula corpus and a narrow causal-language check, not a general accuracy guarantee.' }));
 
 async function contextFor(fixture) {
   const lines = fixture.source.split('\n');
@@ -125,6 +140,14 @@ function score(fixture, pages, context) {
   let scenarios = 0, correctResults = 0, reachedWrites = 0, contradictoryWrites = 0, falseGuardExitClaims = 0, falseGuardBodyClaims = 0, trueGuardSkippedBodyClaims = 0, copiedOperationProse = 0, operationMismatches = 0, incorrectWriteValues = 0, completeNodes = 0, totalNodes = 0, detailedSourceNodes = 0, sourceDetailCharacters = 0;
   const failures = [];
   const kinds = new Map((context.scenarioGraph?.nodes || []).map(node => [node.graphNodeId, node.kind]));
+  if (context.scenarioGraph) for (const page of pages) {
+    const purposeFailures = checkPublicFunctionPurpose(page.narrative.summary, {
+      hasLoop: context.scenarioGraph.nodes.some(node => node.kind === 'loop'),
+      hasBranch: context.scenarioGraph.nodes.some(node => node.kind === 'condition'),
+      hasUnknownAudit: fixture.effects === true && fixture.gaps === true
+    });
+    failures.push(...purposeFailures.map(kind => ({ kind })));
+  }
   for (const page of pages) for (const scenario of page.narrative.scenarios) {
     scenarios++;
     const inputs = Object.fromEntries(scenario.example.inputs.map(input => [input.name, JSON.parse(input.json)]));
@@ -223,7 +246,7 @@ function score(fixture, pages, context) {
       const file = path.join(outputDirectory, fixture.name + '-context.json');
       fs.writeFileSync(file, JSON.stringify(preparation, null, 2), { mode: 0o600 });
       console.log(JSON.stringify({ contextOnly: file, limited: preparation.limited, groundingLimited: preparation.groundingLimited,
-        supportedWorksheet: application.buildPrimitiveWorksheetResponse?.(preparation, 'ko') !== undefined }));
+        supportedWorksheet: application.buildPrimitiveWorksheetResponse?.(preparation, locale) !== undefined }));
       continue;
     }
     const pages = new Map(), traces = [], metrics = [], watchdogPids = [], runnerPids = new Set();
@@ -277,22 +300,38 @@ function score(fixture, pages, context) {
     const store = { async write(index, narrative) { pages.set(index, narrative); }, async read(index) { return pages.get(index); }, async dispose() { pages.clear(); } };
     const session = new FunctionNarrativeScenarioSession(context, store);
     const began = performance.now();
-    let error;
+    let error, preparationMs, readingStarted, fullExplanationMs;
     const signal = new AbortController().signal;
-    const analyze = async () => { while (!session.complete) { const page = await session.analyzeNext(provider, 'ko', signal, { reselectModel: false }); if (!page) break; } };
+    const analyze = async () => { while (!session.complete) { const page = await session.analyzeNext(provider, locale, signal, { reselectModel: false }); if (!page) break; } };
+    // Preparation has no source context and generates no explanation. All
+    // scenario/node/synthesis calls and page writes remain inside this timer.
+    const read = async () => {
+      if (readyBoundary) {
+        if (!local.prepare) throw new Error('Model readiness is unavailable.');
+        const preparing = performance.now(); await local.prepare(locale, signal);
+        preparationMs = performance.now() - preparing;
+      }
+      readingStarted = performance.now();
+      try { await analyze(); } finally { fullExplanationMs = performance.now() - readingStarted; }
+    };
     try {
-      if (configurationMode && local.prepare) await local.prepare('ko', signal, { sourceReading: true, label: fixture.name });
-      if (fullRun) await provider.withRun('ko', signal, analyze); else await analyze();
+      if (configurationMode && local.prepare) await local.prepare(locale, signal, { sourceReading: true, label: fixture.name });
+      if (fullRun || readyBoundary) await provider.withRun(locale, signal, read); else await read();
     }
     catch (failure) { error = { code: failure.code || failure.message, detail: failure.detailCode }; }
     const renderedPages = [...pages.entries()].map(([index, narrative]) => ({ index, narrative }));
     const remainingRunnerPids = [...runnerPids].filter(pid => { try { process.kill(pid, 0); return true; } catch { return false; } });
-    const record = { name: fixture.name, milliseconds: performance.now() - began, requests: traces.length, complete: session.complete, coverage: session.coverage, score: score(fixture, renderedPages, context), error, traces, metrics,
+    const quality = score(fixture, renderedPages, context);
+    const record = { name: fixture.name, locale, readyBoundary, milliseconds: performance.now() - began, preparationMs, fullExplanationMs,
+      requests: traces.length, complete: session.complete, coverage: session.coverage, score: quality, error, traces, metrics,
       ...(configurationMode ? { setup, tasks: manager.snapshot().history.map(task => ({ kind: task.kind, phase: task.phase })) } : {}), watchdogPids, peakObservedRunnerRssKiB, remainingRunnerPids };
+    if (readyBoundary) record.modelReadingPassed = isFreshCompleteFunctionReading(record);
     fs.writeFileSync(outputDirectory + '/narrative-bench-' + tag + '-' + fixture.name + '-pages.json', JSON.stringify(renderedPages, null, 2), { mode: 0o600 });
     records.push(record); console.log(JSON.stringify({ tag, completedFixture: record }));
     await session.dispose(); await manager.dispose();
   }
-  fs.writeFileSync(outputDirectory + '/narrative-bench-' + tag + '-report.json', JSON.stringify({ tag, runtime, records }, null, 2), { mode: 0o600 });
-  if (records.some(record => !record.complete || record.error || record.score.failures.length || record.remainingRunnerPids.length)) process.exitCode = 1;
+  fs.writeFileSync(outputDirectory + '/narrative-bench-' + tag + '-report.json', JSON.stringify({ tag, runtime, locale, readyBoundary,
+    model: path.basename(modelPath), runner: path.basename(binaryPath), records }, null, 2), { mode: 0o600 });
+  if (records.some(record => !record.complete || record.error || record.score.failures.length || record.remainingRunnerPids.length
+    || readyBoundary && !record.modelReadingPassed)) process.exitCode = 1;
 })().catch(error => { console.error(error); process.exitCode = 1; });
