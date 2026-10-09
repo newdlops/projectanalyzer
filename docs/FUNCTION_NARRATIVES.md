@@ -215,6 +215,21 @@ node scripts/benchmark-model-context.mjs .local-models/Qwen3.5-0.8B-Q4_K_M.gguf 
 미구현 호출의 미확인 설명과 반복 문구를 검사한다. 이 검사는 짧은 고정 corpus의
 smoke 기준이며 자연어 의미 전체를 증명하거나 임의의 함수에 3초를 보장하지 않는다.
 
+실제 호출 Host의 세 scope는 별도로 측정한다. 새 manager/server와 Host를 각 조합에
+사용해 이전 설명과 source KV cache를 재사용하지 않는다. 모델의 source-free 준비와
+static graph 준비는 제외하고, 새 요청의 context 구성·전체 생성·검증·전달과 모든 페이지
+조회까지 포함한다. 페이지 조회는 모델을 다시 실행하면 실패다.
+
+```sh
+node scripts/benchmark-model-scopes.mjs .local-models/Qwen3-1.7B-Q4_K_M.gguf .local-models/experiments/three-second 1
+```
+
+Kotlin/TypeScript × 한국어/영어 × overview/call/scenario를 검사한다. 실제 모델 호출,
+완료 coverage, 다섯 상세와 summary/flow, 원문 evidence가 모두 있어야 한다. 생성한
+role/summary/flow와 limitations는 고정된 구문 필드와 별도로 검사하며, 없는 업무·I/O,
+잘못된 finally 순서, 입력 변경과 누락된 catch 반환은 성공으로 세지 않는다. 이 corpus는
+짧은 호출 설명에 한정하며 전체 함수의 rich 시나리오 성능을 증명하지 않는다.
+
 2026-10-09 Apple M5 Pro / 48 GiB, llama.cpp build 10964에서 각 조합 1회씩 측정했다.
 8개 모두 실제 모델을 실행했으며 완료 시간과 source 체크를 **함께** 통과한 모델은 없었다.
 

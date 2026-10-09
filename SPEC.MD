@@ -1659,6 +1659,10 @@ Webview는 Project Graph, 파일 시스템, VS Code API에 직접 접근하지 �
   template 적용부터 전체 응답 수신까지의 시간이다. parser/Host 검증까지 포함한 전체 설명
   시간은 `benchmark-model-context.mjs`에서 별도로 측정한다. 첫 token이나 streaming을
   3초 완료로 대체하지 않으며, 작은 GGUF도 같은 source/언어/다섯 항목 검증을 거친다.
+  `benchmark-model-scopes.mjs`는 실제 호출 Host의 overview/call/scenario를 새 manager와
+  Host로 측정한다. source-free 준비는 제외하고 context 구성부터 전체 페이지 전달까지
+  포함한다. 이전 설명/source KV cache는 재사용하지 않으며 고정 구문 필드가 생성문 의미
+  검사를 대신할 수 없다. 이 짧은 호출 corpus는 전체 함수 rich 시나리오의 보증이 아니다.
   ChatML fallback의 Qwen3.5 assistant 접미부에 공식 비추론 `<think>`/`</think>` 경계를
   적용한다. 이미 완성된 접미부나 다른 모델의 template은 덧붙이지 않는다.
   각 추론의 FIFO 진입·취소·실패·provider switch·Host 종료 정리를 유지한다. 실행기의
