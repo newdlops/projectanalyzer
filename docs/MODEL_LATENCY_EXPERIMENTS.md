@@ -877,6 +877,86 @@ parse 전에 확인하고 실패 기록에 finishReason/outputTokens를 남기�
 전체 scope/rich 검증으로 확대하지 않았다. 학습·병합·평가 프로세스는 모두 종료됐다.
 제품 runtime·기본 모델·사용자 설정·CSS와 설치된 **0.0.1145**를 유지한다.
 
+### Kotlin 합성 원문의 문장 구분자와 preflight 수정
+
+완전한 Kotlin 분기에 `returnSyntax`가 없었던 원인을 별도로 조사했다. 보존된 평가용
+원문에는 `if (...) { return 14 } return valueArg * 4`처럼 같은 줄의 `}`와 다음
+`return` 사이에 문장 구분자가 없었다. Kotlin의
+[공식 문장 문법](https://kotlinlang.org/spec/statements.html#code-blocks)과
+[문법 정의](https://kotlinlang.org/spec/syntax-and-grammar.html)는 statements 사이에
+newline 또는 semicolon을 요구한다. 제품 ANTLR 파서는 이름을 복구해 graph symbol을
+만들었지만 정확한 function owner를 찾지 못했고 source inventory도 제공하지 않았다.
+
+`kotlin-statement-separator-audit.json`은 뺄셈·음수 guard·분기/catch 결합·반복문 네
+원문에 original/semicolon/newline을 적용한 12개 결과다. 잘못된 세 종류에 줄바꿈이나
+세미콜론을 넣자 정확한 선언과 반환·변경 inventory가 복원됐고, 원래 유효했던 뺄셈은
+그대로였다. 잘못된 평가 입력을 받아들이도록 제품 analyzer를 느슨하게 바꾸지 않았다.
+로컬 Kotlin compiler는 없어 compiler/type 검증으로 표현하지 않는다.
+
+학습 corpus 자체를 별도로 검사하니 완전한 Kotlin 반복문 **104건**에도 같은 결함이
+있었다. 훈련 96건, 검증 8건이며 누락·의도적으로 잘린 예제는 이 완전성 검사에서
+제외했다(`kotlin-training-source-audit.json`). 이전 Host 응답 및 decoder grammar 검사는
+응답 형태를 확인했으므로 잘못된 입력 소스를 발견하지 못했다.
+
+별도 `training-data-production-kotlin-fixed.json`에서 이 104건의 `} return` 사이에만
+줄바꿈을 추가했다. 공백을 제외한 원문 token과 기존 summary/flow/role 정답을 보존하고,
+실제 파서의 반환·변경 정보와 현재 제품 schema로 해당 행의 prompt/wire를 다시 만들었다.
+해당 104건은 기존 role/output/effects 가변 wire에서 role 가변 wire로 바뀌었다.
+output/effects는 기존 제품의 source syntax 슬롯으로 복원되며, 모델에 전달되는 전체
+소스나 summary/flow를 줄이거나 정적 설명으로 대체하지 않았다. 나머지 **1,560행**은
+byte 수준에서 동일하다. corpus SHA-256은
+`d0168043019a2f1d1e7dfc692c612f886af9a43047532091d507d848933c9ff8`이다.
+
+`production-kotlin-source-repair.json`에서 1,248개 완전한 TypeScript/Kotlin fixture의
+선언·inventory를 확인했고, 완전한 Kotlin 624건에 parser diagnostics가 없었다.
+전체 1,664건의 Host 응답 및 decoder grammar/EOS 검사도 통과했다. 이전 corpus·가중치·
+응답은 보존했고, 이 학습 데이터 보정에는 heldout 응답을 사용하지 않았다.
+
+공개 offline helper `scripts/model-reading-fixture-validation.mjs`의
+`assertCompleteModelFixtureSyntax(callee, syntax, label, options)`는 복구된 선언과 누락된
+source inventory를 거부한다. 유효한 선언의 보수적인 `limited` 표시는 그대로 허용하며,
+균일한 inventory가 필요한 공개 context benchmark만 `requireCompleteInventories: true`를
+명시한다. 유효한 `notify(...)`의 inferred effect 때문에 inventory가 제한된 경우를
+문법 오류와 혼동하지 않는다. 제품 runtime에는 연결하지 않았다. 복구 선언·누락·형태 오류·
+의도적인 제한 metadata·빈 inventory를 다루는 회귀 검사를 포함해 **45개** 패키지/평가
+스크립트 테스트가 통과했다.
+
+새 평가의 preflight는 완전한 context 24개를 확인했다. Kotlin의 음수 guard·분기/catch
+결합·반복문 × 한국어/영어 **6개 context**만 유효한 원문과 inventory로 바뀌었고,
+나머지 **26개**는 기존과 byte가 같다(`production-holdout-preflight-ASXDP5/report.json`).
+입력이 바뀐 Kotlin 6건의 이전 시간과 이후 시간을 matched 속도 비교로 사용하지 않는다.
+이 준비 결과만으로 모델 정확도나 3초 달성을 주장하지 않는다.
+
+같은 fresh base·seed·LoRA 설정·200 iterations의 학습은 **279.96초**, peak allocation
+**8,107.13 MiB**를 사용했다. 별도 4bit/group 128 가중치는 914,316,110 bytes이며
+SHA-256은 `010808620d6c2a59ddb21e5ae81ae858d33996b678fcb5753e25a797deb8191e`다.
+기존 가중치를 덮어쓰거나 설치하지 않았다.
+
+`production-holdouts-pzA4Ig/report.json`에서 32건 모두 새 전체 응답이 완료됐고
+소요 시간은 **1.012–10.498초**, 3초 이내는 **21건**이었다. 자동 필요 조건은 26건,
+시간과 동시 통과는 18건이었다. 실제 wire의 모델 작성 필드를 32건 모두 읽은
+`kotlin-source-rereview.json`에는 **19건의 확실한 반례**를 별도로 기록했다.
+18건을 의미 정확성과 시간 목표의 달성 건수로 해석하지 않는다.
+
+영어 뺄셈은 없는 분기를, TypeScript 영어 단순 쓰기는 없는 finally를 만들었다.
+한국어 catch role은 역할 설명 대신 후보 본문 문구를 반복했다. 한국어 결합 분기에서는
+catch가 `valueArg * 4`를 반환한다고 설명하고 실제 `-3`을 빠뜨렸으며, summary가 부모의
+`seedValue`를 callee의 `valueArg`로 바꿨다. 영어 결합 분기는 올바른 flow와 함께
+catch를 빠뜨린 가변 output과 닫히지 않은 code span을 출력했다. Kotlin 영어 반복문의
+반환 조건·fallback도 잘못됐다. 반복문 flow의 문장 반복, 구현이 없는 한국어 callee의
+`seedValue < 10` 및 반환 `10` 창작, 잘린 본문의 `otherwise valueArg`나 `other` 반환과
+미확인 효과의 부정도 남았다. 정확한 role·flow·복원된 필드가 다른 가변 필드의 오류를
+상쇄하도록 평가하지 않았다.
+
+Kotlin 한국어 반복문은 447 output tokens를 만들었고 decode 구간만 약 9.995초였다.
+같은 token 수의 다른 응답에서도 시간 편차가 있어 문법 수정만의 속도 개선율을 주장하지
+않는다. 새 trial은 full prompt/provider/current Host parser 경계의 측정이며 outer Host
+전달과 전체 scope/rich 완료를 대신하지 않는다. 이미 필수 정확성과 3초를 함께 입증하지
+못했으므로 이 모델의 제품 통합이나 추가 scope/rich 생성으로 확대하지 않았다.
+
+학습·병합·평가 프로세스는 모두 종료됐다. 제품 runtime·기본 모델·사용자 설정·CSS와
+설치된 **0.0.1145**를 유지하며, 이번 변경은 offline fixture 검사와 검증 기록이다.
+
 ## 남은 완료 기준
 
 모델 변경, decoder 최적화 또는 입력 구조 변경을 채택하려면 다음을 함께 확인해야 한다.

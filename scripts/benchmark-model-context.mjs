@@ -10,6 +10,7 @@ import { constants } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { checkPublicModelReading } from './benchmark-model-reading.mjs';
+import { assertCompleteModelFixtureSyntax } from './model-reading-fixture-validation.mjs';
 
 const require = createRequire(import.meta.url);
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -108,7 +109,8 @@ async function fixture(language, { parent, callee, effect }) {
   const parentNode = parsed.graph.nodes.find(node => node.name === parent), calleeNode = parsed.graph.nodes.find(node => node.name === callee);
   const site = analyzeFunctionLogic({ functionNode: parentNode, sourceText: caller }).callsites.find(call => call.calleeName === callee);
   const target = context.callTask.targets[0];
-  const syntax = readFunctionCallSourceSyntax(calleeNode, helper);
+  const syntax = calleeNode && readFunctionCallSourceSyntax(calleeNode, helper);
+  assertCompleteModelFixtureSyntax(calleeNode, syntax, `${language} ${callee}`, { requireCompleteInventories: true });
   target.returnSyntax = syntax?.returns;
   target.effectSyntax = syntax?.effects;
   target.resultUse = createFunctionCallSourceReader(parentNode, caller).readUse(site.range, target.expression);
