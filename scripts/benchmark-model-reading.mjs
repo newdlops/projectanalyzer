@@ -5,7 +5,9 @@ export function checkPublicModelReading(reading, names) {
   const failures = [], call = reading.calls[0];
   const authored = [reading.summary, reading.flow, call.role, ...(reading.limitations ?? [])].filter(text => typeof text === 'string');
   const text = authored.join(' ');
-  if (/^(?:role|caller|callee|call|parent|child|호출|콜러|주문\s*처리)$/iu.test(call.role.trim())) failures.push('generic-or-unsupported-call-role');
+  const role = call.role.trim().replace(/^`([^`]+)`$/u, '$1');
+  if (/^(?:role|caller|callee|call|parent|child|호출|콜러|주문\s*처리)$/iu.test(role)
+    || role === names.callee || role === names.parent) failures.push('generic-or-unsupported-call-role');
   // These fixtures contain arithmetic and unimplemented audit/observe calls,
   // with no orders, business rules or observed I/O. Identifier addFee itself is
   // allowed: a word-boundary check rejects the invented business noun instead.
@@ -20,7 +22,13 @@ export function checkPublicModelReading(reading, names) {
   // Finally may override/throw before a function's return completes. The public
   // fixture has no post-return hook or write to value. Check authored sentences
   // independently; a correct immutable output/effects field cannot repair them.
-  if (/감사\s*호출은\s*완료\s*후|(?:finally|audit|observe)[^.!?\n]{0,100}(?:after\s+(?:the\s+)?(?:function\s+)?(?:returns?|complet(?:es|ion))|반환\s*(?:완료)?\s*후)|(?:returns?|completes)[^.!?\n]{0,50}before[^.!?\n]{0,50}(?:finally|audit|observe)/iu.test(text)) {
+  // Include the named function: "after addFee completes" is just as wrong as
+  // "after the function returns", even if all source-owned fields are correct.
+  const functionName = [names.parent, names.callee].map(name => name.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&')).join('|');
+  const namedCompletion = new RegExp('(?:finally|audit|observe)[^.!?\\n]{0,100}after\\s+(?:`?(?:' + functionName
+    + ')`?(?:\\([^\\n)]{0,60}\\))?\\s+)(?:returns?|complet(?:es|ion))', 'iu');
+  if (/감사\s*호출은\s*완료\s*후|(?:finally|audit|observe)[^.!?\n]{0,100}(?:after\s+(?:the\s+)?(?:function\s+)?(?:returns?|complet(?:es|ion))|반환\s*(?:완료)?\s*후)|(?:returns?|completes)[^.!?\n]{0,50}before[^.!?\n]{0,50}(?:finally|audit|observe)/iu.test(text)
+    || namedCompletion.test(text)) {
     failures.push('incorrect-finally-completion-order');
   }
   if (/(?:changes?|updates?|mutates?)\s+(?:the\s+)?(?:input\s+)?value\b|입력값을\s*(?:변경|갱신)|value\s*(?:를|을)\s*(?:변경|갱신)/iu.test(text)) failures.push('invented-input-write');

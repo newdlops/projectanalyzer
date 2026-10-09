@@ -382,6 +382,77 @@ backtick, 반복 문장과 영어 응답의 다른 언어 prose를 별도로 검
 산출물은 ignored 실험 폴더에 보존했으며 모든 모델 프로세스는 종료했다. 추가 조건의
 positive/counterexample을 포함해 패키지·평가 스크립트 테스트 20개가 통과했다.
 
+### 별도 M5 실행기와 LFM 2.6B 비교
+
+같은 날에는 prompt를 더 줄이는 대신 실행기와 모델 구조를 비교했다. 제품 runtime은
+여전히 0.0.1144 / `57fe41d`이며 아래 실행기·가중치·템플릿 보정은 제품에 적용하지 않았다.
+실험 중에는 compile·package·test를 실행하지 않았다.
+
+[BaseRT 0.3.0](https://github.com/basecompute/baseRT/tree/v0.3.0)은 별도 로컬 평가 환경에서
+공식 Qwen3.5 4B MLX 4bit checkpoint를 변환해 실행했다. converter의 검증은 packed
+weight/scales/biases 201개와 f16 tensor 153개의 일치, 재양자화 0개를 보고했다. 이 검증은
+전체 tensor의 독립 검증이나 원래 GGUF와의 동일성 증명이 아니다. engine 배포물의
+SHA-256도 확인했다. engine은 별도 내부 평가에만 사용했으며 VSIX에는 포함하지 않았다.
+
+원문 없는 준비 계산 뒤 실제 source와 기존 production wire/schema로 한 요청을 생성하고
+기존 Host parser로 검증했다. native grammar 경로의 전체 생성·검증은 **14.96초**, 같은
+형식의 LLGuidance mask 경로는 **8.96초**였다. 출력은 서로 달랐고 샘플링 경로도 달라
+실행기 최적화율로 제시하지 않는다. LLGuidance 경로에서 관측한 prefill은 1.70초,
+mask 0.50초, sampling 0.30초, decode forward 합계는 6.33초였다. forward 시간은 CPU
+호출과 GPU 완료 대기를 포함하며 GPU kernel만의 시간이 아니다. 없는 요금·감사 로그를
+서술했으므로 정확한 설명의 성공도 아니다. 실제 호출 Host 12개 scope나 전체 rich 시나리오를
+완료한 결과로 세지 않는다. 초기 schema dialect 오류로 생성이 시작되지 않은 시도도 제외했다.
+
+[공식 LFM2.5 2.6B GGUF](https://huggingface.co/LiquidAI/LFM2.5-2.6B-GGUF)는 다음 고정
+artifact를 사용했다. 파일 전체의 bytes와 SHA-256을 확인한 뒤 offline runner에 제공했다.
+
+- revision: `e7caca5d835a3901a8e0d63e94009429bafafdfc`
+- 파일: `LFM2.5-2.6B-QAD-Q4_0.gguf`
+- bytes: `1593894944`
+- SHA-256: `a247afd6414918eac8e520a9e6137dc271235461ecbe1180462221d5b8d40b03`
+
+새 모델을 기존 production provider에 그대로 넣은 실제 호출 Host 12개 조합은 전체 설명
+**2.58–5.60초**, 3초 이내 3/12였다. 각 조합은 새 manager/server를 사용하고 전체 summary/
+flow, 다섯 상세, 모든 페이지와 source evidence를 완료했다. 그러나 계산식·정리 인수 누락과
+미구현 audit의 동작 추정이 남아 원문 필요 조건 동시 통과는 0/12였다.
+
+GGUF의 공식 template가 assistant의 열린 `<think>`에서 끝나는 점도 확인했다. raw
+completion endpoint에서 즉시 JSON grammar를 적용하면 최종 답변 전환 없이 JSON을
+생성하게 된다. 별도 adapter에서 빈 추론 구간만 `</think>`로 닫고 source/schema/sampling을
+유지한 비교는 **2.26–6.60초**, 3초 이내 4/12였다. 이것을 공식 non-thinking 지원이나 품질
+개선으로 단정하지 않는다. 초기 필요 조건 검사에서는 한 건이 속도와 함께 통과했으나 직접
+검토하니 role이 함수 이름뿐이고 summary가 audit를 addFee 완료 뒤로 설명했다. 검사에 이
+counterexample과 올바른 finally-before-completion 문장을 추가했으며, 보강된 검사로 raw
+응답을 재평가한 결과는 원문 필요 조건 1/12, 시간·원문 동시 통과 **0/12**였다. 재평가는
+새 생성의 시간 측정이 아니며 원래 report를 덮어쓰지 않는다.
+
+[공식 DSpark draft](https://huggingface.co/LiquidAI/LFM2.5-2.6B-DSpark-GGUF)를 붙이는 비교도
+진행했다. F16 draft는 revision `7bc2896af56d82ccc7e156800197408db464d63b`,
+`663691776` bytes, SHA-256
+`e198962c08903f3ba29f0ce6bf8e17f5e60bf85ec2f8673e1e2aab03508937e5`를 검증했다.
+양쪽 모두 빈 추론 구간을 닫고 temperature 0, GPU placement 99, flash attention on,
+기존 context/thread/output 한도를 사용했다. 이 두 arm 사이에서만 draft 유무를 비교하며
+기존 temperature 0.2 측정과 decoder 하나의 개선율로 비교하지 않는다.
+
+| LFM 2.6B greedy / 실제 Host 12개 scope | 전체 설명 | 3초 이내 | 시간·원문 필요 조건 동시 통과 |
+| --- | ---: | ---: | ---: |
+| draft 없는 대조군 | 2.52–6.76초 | 3/12 | 0/12 |
+| DSpark F16, draft 최대 9 | 5.85–13.06초 | 0/12 | 0/12 |
+
+raw 출력은 12쌍 중 11쌍만 byte 단위로 같았다. 따라서 전체 출력의 동등성을 입증했다고
+주장하지 않는다. 첫 draft 응답의 runner timing은 제안 873 tokens 중 채택 168 tokens를
+보고했다. 다른 기기·workload의 공식 speedup을 이 환경의 결과로 제시하지 않는다.
+이번 비교에서는 가속 채택의 근거가 없고 source 해석 누락도 남았다.
+
+생성한 48개 실제 Host 응답은 모두 보강된 필요 조건으로 별도 재검토했다. 전체 시간과
+원문 필요 조건 동시 통과는 **0/48**이며, 이 검사조차 모든 문장의 의미를 증명하지는
+않는다. counterexample과 패키지 관련 테스트 21개를 통과했고 모델 프로세스는 모두
+해제했다. product source, managed download manifest와 사용자 모델 설정은 바꾸지 않았다.
+
+이 비교의 raw report, 변환 파일과 adapter는 ignored 실험 폴더에만 보존한다. 작은 공개
+corpus의 관측값이며 기본 모델 교체, 전체 함수 rich 시나리오의 검증이나 3초 목표 달성의
+근거로 사용하지 않는다.
+
 ## 남은 완료 기준
 
 모델 변경, decoder 최적화 또는 입력 구조 변경을 채택하려면 다음을 함께 확인해야 한다.

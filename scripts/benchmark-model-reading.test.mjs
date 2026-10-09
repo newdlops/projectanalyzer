@@ -40,6 +40,21 @@ test('finally-before-return wording and exact source expressions are not input w
     limitations: ['Actual completion of audit(value) is unknown.'] }, names);
   assert.deepEqual(result, []);
 });
+test('a function name alone is not a role and a named callee cannot complete before finally', () => {
+  for (const role of ['addFee', '`addFee`', 'checkout']) {
+    assert.ok(checkPublicModelReading({ ...reading, calls: [{ ...reading.calls[0], role }] }, names)
+      .includes('generic-or-unsupported-call-role'));
+  }
+  for (const summary of [
+    'The audit function is called in a finally block after addFee completes.',
+    'Finally calls audit(value) after `addFee` returns.',
+    'audit(value) runs after addFee(value) completes.'
+  ]) {
+    assert.ok(checkPublicModelReading({ ...reading, summary }, names).includes('incorrect-finally-completion-order'));
+  }
+  assert.deepEqual(checkPublicModelReading({ ...reading,
+    summary: 'After the try expression is evaluated, finally calls audit(value) before addFee completes.' }, names), []);
+});
 test('correct immutable returns cannot conceal copied numeric alternatives, clipped citations or missing cleanup arguments', () => {
   const source = 'function checkout(amount) { return addFee(amount); } function addFee(value) { try { return value + 5; } catch (error) { return 0; } finally { audit(value); } }';
   const options = { ...names, source, locale: 'en' };
