@@ -1018,11 +1018,62 @@ outer Host 전달·전체 scope·rich 시나리오는 이 결과로 입증되지
 적용할 수 있었다. 과거 실제 선택 index의 trace는 없어 어느 행을 배웠는지는 단정하지 않는다.
 
 이에 같은 1.7B fresh base·seed 42·rank 8·scale 20·dropout 0·16 layers·Adam 1e-4·
-batch 1을 유지하고, iteration 수만 훈련 행 수 **1,968**로 정한 완전한 한 epoch를 준비했다.
-전체 prompt와 정답을 보존하고 실제 yielded batch의 index를 기록하며, 훈련 종료 후
-1,968개의 서로 다른 index와 모든 update의 완료를 확인해야 전체 학습을 주장한다.
-이 offline 훈련 자체는 정확도나 3초 달성의 근거가 아니며, 종료 후 별도 병합·새 응답
-검증을 거쳐야 한다. 제품 runtime과 설치된 **0.0.1145**는 유지한다.
+batch 1의 update 설정을 유지하고, iteration 수를 훈련 행 수 **1,968**로 정한 완전한
+한 epoch를 실행했다. 긴 실행의 report/eval/save 간격은 각각 40/200/200 steps로 정했다.
+이전 짧은 실행의 간격은 10/80/40이었다. 이 관찰·저장 주기 차이를 숨기거나 학습 시간의
+차이를 iteration 수만의 효과로 해석하지 않는다.
+완료된 200-step snapshot과 앞선 짧은 실행의 최종 adapter는 `cmp`로 byte가 같음을
+확인했다. 두 SHA-256은 `7eb7fd45457c2374f1fbd66ed65b62e387341ced2702551ea82c5eadf9c00fec`다.
+이는 이 시점의 update 결과를 대조한 수치 control이며, 과거 실제 선택 index의 trace나
+전체 epoch의 정확도·완료 시간을 입증하지는 않는다.
+전체 prompt와 정답을 보존하고 실제 yielded batch의 index를 기록했다. 훈련 종료 후
+**1,968개 서로 다른 index**와 모든 update의 완료를 확인했다. trace SHA-256은
+`8d715df24e5f8a4e7e334829a9a9938136b7ce28d249a1e30c95f170f2175d40`이다.
+훈련은 **2,774.34초(약 46분 14초)**, peak MLX allocation **8,509.81 MiB**를 사용했다.
+완료된 훈련 기록과 trace를 별도로 검사한 뒤 병합했다. 새 4bit/group 128 가중치는
+914,316,110 bytes이며 SHA-256은
+`63b84afa8e7916230f8f83b07f647231d301186ebe8f6edb305da4cfb2c55ec4`다.
+
+`production-holdout-preflight-MP3B4C/report.json`의 32개 context는 직전 coverage trial과
+전부 byte가 같다. `production-holdouts-4TdJnv/report.json`에서 새 전체 응답 32건은
+**1.049–5.720초**에 완료됐다. 3초 이내는 **23건**, 자동 필요 조건 통과는 30건,
+둘 다 통과는 21건이었다. `coverage-epoch-rereview.json`에 실제 모델 작성 필드 32건을
+모두 읽은 결과와 **확실한 반례 2건**을 기록했다. 이번 응답에서는 쓰기 순서와 누락·잘린
+구현의 미확인 설명에 앞선 오류가 반복되지 않았지만, 일반 정확도 보장으로 해석하지 않는다.
+
+TypeScript 영어 결합 분기는 catch의 `-3`와 finally의 `inspectValue(valueArg)`를
+빠뜨리고 내부 호출이 없다고 설명했다. Kotlin 영어 결합 분기는 본문에 없는
+`valueArg = 14` 초기화를 만들고, 부모 인수 `seedValue`를 callee의 지역 초기화로
+설명했다. 실제 조건·일반 반환과 finally를 빠뜨리고 쓰기·내부 호출도 부정했다.
+복원된 source syntax 필드가 가변 flow/role/output의 오류를 상쇄하도록 평가하지 않았다.
+
+추론 worker의 누적 peak는 **MLX allocation 1,752.20 MiB**, **OS RSS 1,425.64 MiB**였다.
+두 값은 준비 구간을 포함한 서로 다른 측정치이며, 부모 Host와 VS Code 전체 메모리는
+포함하지 않는다. 한국어 잘린 본문의 TypeScript/Kotlin 설명은 모델 작성 문장이 byte가
+같고 각각 225 output tokens였지만, 전체 시간은 **2.960/5.720초**, decode는
+**2.594/5.369초**였다. prompt 구간은 0.346/0.327초였다. 이 차이를 Kotlin 자체의 비용이나
+cold prefill만의 문제로 확정하지 않으며, 별도 실행의 시간 차이로 개선율을 만들지 않는다.
+
+4bit 병합의 영향만 분리하기 위해 실패한 영어 두 context를 입력 전용 preflight에서 읽고,
+같은 base와 실제 학습한 floating LoRA를 병합 없이 사용했다.
+`coverage-epoch-unfused-0F8HhA/report.json`의 두 새 응답에서도 부모 인수를 callee의
+지역 초기화로 만들고, 참인 분기의 실제 `14`를 `-3`으로 바꾸며 finally를 빠뜨렸다.
+전체 시간은 **4.187/2.468초**였다. 병합을 제거하는 것만으로 실패가 해결되지 않았다.
+이 두 건으로 모든 수치 오차의 영향을 부정하거나 일반 성능을 주장하지 않는다.
+
+같은 folded 모델에 인수→매개변수 binding과 callee 내부 초기화를 구분하고 각 분기·catch
+반환과 finally 호출을 보존하라는 고정 안내만 추가해 두 context를 다시 확인했다.
+전체 원문·wire·필드·출력 제한은 유지했다.
+`coverage-epoch-call-boundary-QcJPvp/report.json`의 TypeScript 영어 응답은 여전히
+catch/finally를 빠뜨리고 내부 호출을 부정했다. Kotlin 영어 flow는 finally를 포함했지만
+없는 `valueArg = seedValue` 초기화를 만들었고 role도 잘못됐다. 가변 output은 180자
+경계에서 열린 code span의 `inspectValue(valueAr` 조각으로 끝났다. 전체 시간은
+**1.378/4.773초**였다. 이 안내도 제품 prompt에 반영하지 않았다. 추가 안내를 계속
+붙이는 것만으로 정확도나 3초를 입증했다고 해석하지 않는다.
+
+훈련·병합·32건 평가·두 건 수치 분리·두 건 안내 확인 프로세스는 모두 종료됐다. 제품 runtime과 설치된
+**0.0.1145**는 유지한다. 새 가중치를 채택하지 않았으며, 실제 outer Host 전달·전체 scope·
+rich 완료와 3초 목표는 아직 입증되지 않았다.
 
 ## 남은 완료 기준
 
