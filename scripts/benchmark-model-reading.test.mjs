@@ -1,7 +1,7 @@
 /** Counterexamples keep immutable syntax fields from masking unsupported model claims. */
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { checkPublicModelReading, collectModelAuthoredCallReadingTexts } from './benchmark-model-reading.mjs';
+import { checkPublicModelReading, collectModelAuthoredCallReadingTexts, findUnsupportedQuotedSourceLiterals } from './benchmark-model-reading.mjs';
 const names = { parent: 'checkout', callee: 'addFee', effect: 'audit' };
 const reading = { summary: 'checkout forwards amount to addFee and returns the result.',
   flow: 'The source calls addFee(amount). It calculates value + 5 or a catch return of 0; audit(value) is unimplemented.',
@@ -126,4 +126,22 @@ test('model prose provenance follows the exact tuple and never counts fixed flow
   assert.throws(() => collectModelAuthoredCallReadingTexts({ ...reading, calls: [] }, wire), /schema mismatch/u);
   assert.throws(() => collectModelAuthoredCallReadingTexts(reading, {}), /schema mismatch/u);
   assert.deepEqual(checkPublicModelReading({ ...reading, flow: 'Owned flow.' }, names, wire), []);
+});
+
+test('quoted source literals are compared as tokens inside expressions, independent of accurate restored or generated fields', () => {
+  const source = 'function mapInput(valueArg) { if (valueArg <= -3) { return 14; } return valueArg * 4; }';
+  const texts = ['Return `114` on the visible branch, otherwise `valueArg - 11`.',
+    'Another field correctly preserves `14`, `-3` and `valueArg * 4`.'];
+  assert.deepEqual(findUnsupportedQuotedSourceLiterals(texts, source), ['114','11']);
+  assert.deepEqual(findUnsupportedQuotedSourceLiterals(['Return `14` or `valueArg * 4` when `valueArg <= -3`.'], source), []);
+  const candidate = { ...reading, calls: [{ ...reading.calls[0], role: 'Return `value - 11`.' }] };
+  assert.ok(checkPublicModelReading(candidate, { ...names, source: 'return value + 5; catch (error) { return 0; }' })
+    .includes('invented-authored-numeric-literal'));
+});
+
+test('literal copying checks do not interpret identifier digits, unquoted prose or mutate their input', () => {
+  const texts = ['Step 114 refers to `inspectValue14(valueArg)` and returns `valueArg + 2.5`.'], before = [...texts];
+  assert.deepEqual(findUnsupportedQuotedSourceLiterals(texts, 'return valueArg + 2.5;'), []);
+  assert.deepEqual(texts, before);
+  assert.throws(() => findUnsupportedQuotedSourceLiterals(texts), TypeError);
 });

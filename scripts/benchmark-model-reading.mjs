@@ -25,6 +25,20 @@ function isGeneratedProperty(property) {
   return property && !Object.hasOwn(property, 'const') && !(Array.isArray(property.enum) && property.enum.length === 1);
 }
 
+/** Find unsupported decimal literals in quoted source for the bounded arithmetic fixtures.
+ * This checks source copying, not derived arithmetic or general program semantics.
+ * Token boundaries prevent `114` or an unrelated correct field from validating `14`.
+ */
+export function findUnsupportedQuotedSourceLiterals(authoredTexts, source) {
+  if (typeof source !== 'string') throw new TypeError('Fixture source is required');
+  const decimals = text => text.match(/(?<![\p{L}\p{N}_])[+-]?\d+(?:\.\d+)?/gu) ?? [];
+  const known = new Set(decimals(source).map(Number)), unsupported = new Set();
+  for (const text of authoredTexts) for (const quoted of text.matchAll(/`([^`]+)`/gu)) {
+    for (const literal of decimals(quoted[1])) if (!known.has(Number(literal))) unsupported.add(literal);
+  }
+  return [...unsupported];
+}
+
 /** Check actual model prose separately from Host syntax; legacy callers without a schema check summary/flow/role only. */
 export function checkPublicModelReading(reading, names, wireSchema) {
   const failures = [], call = reading.calls[0];
@@ -84,10 +98,7 @@ export function checkPublicModelReading(reading, names, wireSchema) {
     failures.push('non-english-authored-prose');
   }
   if (typeof names.source === 'string') {
-    // Only quoted standalone numeric literals are compared: calculated prose,
-    // line numbers and source identifiers are not treated as runtime values.
-    const literals = new Set((names.source.match(/(?<![\p{L}\p{N}_])[+-]?\d+(?:\.\d+)?/gu) ?? []).map(Number));
-    if (authored.some(value => [...value.matchAll(/`([+-]?\d+(?:\.\d+)?)`/gu)].some(match => !literals.has(Number(match[1]))))) {
+    if (findUnsupportedQuotedSourceLiterals(authored, names.source).length) {
       failures.push('invented-authored-numeric-literal');
     }
   }

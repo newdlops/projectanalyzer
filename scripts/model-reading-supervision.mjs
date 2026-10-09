@@ -34,3 +34,23 @@ export function createTwoReturnBranchSupervision(target, locale, sourceText) {
   // expression or silently falling back to a label with one missing branch.
   return role.length <= 160 ? role : undefined;
 }
+
+/** Restore the original partial-source label only for an owned, visibly unfinished if/return body.
+ * The unseen remainder has no known otherwise result, even if the visible return is a negative literal.
+ */
+export function createTruncatedReturnBranchSupervision(target, locale, snippet) {
+  if (!['ko', 'en'].includes(locale)) throw new TypeError('Unsupported supervision locale');
+  if (target?.sourceLimited !== true || !['exact', 'inferred'].includes(target.confidence)
+    || !target.calleeSnippet || snippet?.id !== target.calleeSnippet || snippet.role !== 'helper'
+    || snippet.truncated !== true || typeof snippet.text !== 'string') return undefined;
+  const opening = snippet.text.indexOf('{');
+  if (opening < 0) return undefined;
+  // Accept only the one visible branch. An outer closing brace, later statement
+  // or nested block would invalidate the evidence for this bounded label repair.
+  const body = snippet.text.slice(opening+1).trim();
+  if (!/^if\s*\([^{};\r\n]+\)\s*(?:\{\s*return\s+[^{};\r\n]+\s*;?\s*\}|return\s+[^{};\r\n]+\s*;?)\s*$/u.test(body)) return undefined;
+  const candidate = target.confidence === 'inferred';
+  return locale === 'ko'
+    ? `${candidate ? '후보 본문 기준으로, ' : ''}제공된 부분은 조건부 반환이며 잘린 나머지 작업은 미확인입니다.`
+    : `${candidate ? 'For this candidate body, ' : ''}The supplied part conditionally returns; the truncated remaining work is unknown.`;
+}

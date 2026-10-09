@@ -821,6 +821,62 @@ scopes의 공개 한 호출 corpus에서 provenance가 모호하면 성공으로
 패키지·평가 스크립트 테스트 **36개**가 통과했다. 제품 runtime·기본 모델·사용자 설정·
 CSS와 설치된 **0.0.1145**는 유지한다.
 
+### 잘린 본문을 완전한 분기로 가르친 정답 수정
+
+분기식 보정 후의 1,664건을 원문과 독립적으로 대조해 **추가 160건**의 확실한 role
+오류를 확인했다. 훈련 144건, 검증 16건이며 앞선 완전한 분기식 오류와 다른 행이다.
+예를 들어 원문이 `if (raw < 2) { return -9; }` 뒤에서 잘려도 정답은
+`Return -9 when raw < 2, otherwise -9`였다. 같은 응답의 output/effects는 나머지 결과와
+효과를 미확인으로 설명하므로 내부 모순도 있었다. 감사는 학습 corpus 자체만 읽었고
+heldout 응답을 정답으로 사용하지 않았다(`training-source-contract-audit.json`).
+
+`createTruncatedReturnBranchSupervision(target, locale, snippet)`을 공개 offline helper에
+추가했다. target이 가리키는 helper snippet의 identity·잘림 표시·confidence·보이는 단일
+if/return을 확인한다. 완전한 함수·다른 snippet·구현 누락·추가 statement에는 이 보정을
+적용하지 않는다. 기존의 정확했던 원본 label 문구와 candidate 표시를 그대로 복원해
+보이지 않는 otherwise 결과를 단정하지 않도록 했다. inference나 extension runtime에서
+설명을 대신 작성하는 기능은 아니다.
+
+`training-data-production-source-fixed.json`은 이전의 완전한 분기 160건 보정을 유지하고
+잘린 본문 160개 role만 추가로 고쳤다. 원문·prompt·schema·다른 설명 필드는 그대로다.
+SHA-256은 `f4bf1e4d23ad232ee05df9d03d94588f6edb404bd482e391cb3de13debe23c51`이며
+1,664건 모두 Host parser와 decoder grammar/EOS 검증을 통과했다. 제한적인 source 감사에서
+앞서 확인한 두 정답 결함은 더 나타나지 않았다. 이는 모든 정답의 의미 정확성을 증명하지
+않는다. 학습의 if 조건은 `< 양수`, compound write는 `+=`만 포함했고, 음수 guard와
+분기·catch 결합 사례는 0건이라는 별도 범위 한계도 확인했다.
+
+동일한 fresh base·seed·LoRA 설정·200 iterations 학습은 **323.48초**, peak allocation
+**7,885.87 MiB**를 사용했다. 분리한 4bit/group 128 가중치는 914,316,110 bytes이며
+SHA-256은 `a056d73d570d30756739dc51b150cb2f2088827881dec93efd452c964df65403`이다.
+기존 corpus·가중치와 분리해 보존했고 설치하지 않았다.
+
+`production-holdouts-4OT9eR/report.json`의 같은 32개 새 원문에서 30건의 전체 응답이
+완료됐고 2건은 JSONDecodeError로 실패했다. 18건이 전체 3초 이내였으며, 기존 필요
+조건은 24건, 그 조건과 시간의 동시 통과는 15건이었다. 실패를 포함한 최대 시간은
+**31.624초**다. 보정된 영어 partial role에는 미확인 표현이 생겼지만 flow/output은
+여전히 보이지 않는 `otherwise valueArg`를 만들었고, TypeScript output에는 원문 `14`
+대신 `114`가 있었다. 한국어 partial output은 반환 내용 대신 효과 설명을 복사했다.
+누락 callee의 반환값·부수 호출 부재 단정, 완전한 Kotlin 본문의 잘림 오인, 단순 쓰기의
+반복 조건 창작, 결합 분기의 계산·catch 반환 누락도 남았다.
+
+숫자 복사 검사를 `findUnsupportedQuotedSourceLiterals(authoredTexts, source)`로 공유하고
+단독 숫자뿐 아니라 인용된 식 안의 decimal token도 검사하도록 보완했다. `14`와 `114`,
+다른 필드의 올바른 값과 틀린 값, identifier의 숫자를 구별하는 회귀 테스트를 추가했다.
+이 검사는 제한된 산술 fixture의 원문 복사 필요 조건이며, 계산으로 도출한 상수나 일반적인
+프로그램 의미를 검증하는 도구가 아니다. 패키지·평가 스크립트 테스트 **41개**가 통과했다.
+
+`partial-source-label-rereview.json`에서 바로 전 모델과 새 모델을 같은 provenance·숫자
+검사로 재검토하면 필요 조건은 **18/32→22/32**, 원래 시간과의 동시 통과는 **12→14**다.
+32개 context는 byte가 같고 원래 응답·시간·판정은 보존했다. 서로 다른 시점의 시간이므로
+matched 성능 개선의 증거가 아니며, 위의 실제 반례 때문에 이 숫자를 정확성 통과로
+간주하지 않는다. 실패한 두 생성의 이전 진단에는 final stop reason이 없어 길이 제한과
+종료 token의 어느 문제였는지 단정하지 않는다. 후속 private worker는 완성 여부를 JSON
+parse 전에 확인하고 실패 기록에 finishReason/outputTokens를 남기도록 보완했다.
+
+필수 정확성과 전체 3초를 함께 입증하지 못해 새 모델을 채택하지 않았고 outer Host의
+전체 scope/rich 검증으로 확대하지 않았다. 학습·병합·평가 프로세스는 모두 종료됐다.
+제품 runtime·기본 모델·사용자 설정·CSS와 설치된 **0.0.1145**를 유지한다.
+
 ## 남은 완료 기준
 
 모델 변경, decoder 최적화 또는 입력 구조 변경을 채택하려면 다음을 함께 확인해야 한다.

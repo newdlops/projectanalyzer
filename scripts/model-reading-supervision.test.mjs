@@ -1,7 +1,7 @@
 /** Regression cases for public synthetic labels that previously taught both branches to return the same literal. */
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { createTwoReturnBranchSupervision } from './model-reading-supervision.mjs';
+import { createTwoReturnBranchSupervision, createTruncatedReturnBranchSupervision } from './model-reading-supervision.mjs';
 
 const target = { confidence: 'exact', returnSyntax: { limited: false, syntaxOnly: true, sites: [
   { expression: '-9', regions: [{ kind: 'then', expression: 'raw < 2' }] },
@@ -63,4 +63,43 @@ test('long expressions are refused intact and unsupported locales fail explicitl
   const input = structuredClone(target); input.returnSyntax.sites[1].expression = 'x'.repeat(200);
   assert.equal(createTwoReturnBranchSupervision(input, 'en', source.replace('raw + 2', 'x'.repeat(200))), undefined);
   assert.throws(() => createTwoReturnBranchSupervision(target, 'ja'), TypeError);
+});
+
+const partialTarget = { confidence: 'exact', sourceLimited: true, calleeSnippet: 'callee' };
+const partialSnippet = { id: 'callee', role: 'helper', truncated: true,
+  text: 'function convert(raw: number): number { if (raw < 2) { return -9; }' };
+
+test('a truncated branch retains unknown remaining work instead of copying its literal into an otherwise result', () => {
+  const ko = '제공된 부분은 조건부 반환이며 잘린 나머지 작업은 미확인입니다.';
+  const en = 'The supplied part conditionally returns; the truncated remaining work is unknown.';
+  assert.equal(createTruncatedReturnBranchSupervision(partialTarget, 'ko', partialSnippet), ko);
+  assert.equal(createTruncatedReturnBranchSupervision(partialTarget, 'en', partialSnippet), en);
+  for (const text of ['fun convert(raw: Int): Int { if (raw < 2) return -9',
+    'fun convert(raw: Int): Int { if (raw < 2) { return -9 }']) {
+    assert.equal(createTruncatedReturnBranchSupervision(partialTarget, 'en', { ...partialSnippet, text }), en);
+  }
+  assert.ok(!/otherwise|또는|-9/u.test(ko+en));
+});
+
+test('a partial candidate label preserves confidence and leaves its source untouched', () => {
+  const input = { ...partialTarget, confidence: 'inferred' }, before = structuredClone(partialSnippet);
+  assert.equal(createTruncatedReturnBranchSupervision(input, 'ko', partialSnippet),
+    '후보 본문 기준으로, 제공된 부분은 조건부 반환이며 잘린 나머지 작업은 미확인입니다.');
+  assert.equal(createTruncatedReturnBranchSupervision(input, 'en', partialSnippet),
+    'For this candidate body, The supplied part conditionally returns; the truncated remaining work is unknown.');
+  assert.deepEqual(partialSnippet, before);
+});
+
+test('complete, unowned, missing and unsupported partial bodies cannot receive the conditional-return repair', () => {
+  for (const snippet of [undefined, { ...partialSnippet, truncated: false }, { ...partialSnippet, id: 'caller' },
+    { ...partialSnippet, role: 'caller' }, { ...partialSnippet, text: undefined },
+    { ...partialSnippet, text: partialSnippet.text+' }' },
+    { ...partialSnippet, text: partialSnippet.text+' return raw + 2;' },
+    { ...partialSnippet, text: 'function convert(raw: number) { return -9;' },
+    { ...partialSnippet, text: 'function convert(raw: number) { if (raw < 2) { raw++; return -9; }' }]) {
+    assert.equal(createTruncatedReturnBranchSupervision(partialTarget, 'en', snippet), undefined);
+  }
+  assert.equal(createTruncatedReturnBranchSupervision({ ...partialTarget, sourceLimited: false }, 'en', partialSnippet), undefined);
+  assert.equal(createTruncatedReturnBranchSupervision({ ...partialTarget, confidence: 'unresolved' }, 'en', partialSnippet), undefined);
+  assert.throws(() => createTruncatedReturnBranchSupervision(partialTarget, 'ja', partialSnippet), TypeError);
 });
