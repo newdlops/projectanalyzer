@@ -255,6 +255,12 @@ grammar/prompt를 줄인 별도 실험은 다섯 항목과 전체 설명을 유�
 polling 및 decoder grammar의 후속 결과는 [모델 지연 실험 기록](MODEL_LATENCY_EXPERIMENTS.md)에
 정리했다. 후속 실험도 전체 설명의 3초 완료와 source 정확성을 함께 입증하지 못했다.
 
+전체 production 형식을 추가 학습한 별도 1.7B는 짧은 호출 Host 12건 중 9건에서 시간과
+원문 필요 조건을 함께 통과했다. 그러나 이름·연산·분기를 바꾼 후속 32건에서는 7건만
+함께 통과했고 계산·쓰기·조건 누락이 남았다. 이는 작은 모델의 가능성을 보여주는 실험
+결과이며 기본 모델 교체나 전체 rich 시나리오의 3초 보증이 아니다. message 분리와 짧은
+지시문 후보도 채택하지 않았다. 실험 가중치와 MLX 실행기는 VSIX에 포함하지 않는다.
+
 ### 0.0.1141 단순 try-return/finally 호출의 모델 대기 제거
 
 동기 plain TypeScript/JavaScript/Kotlin 함수의 본문 전체가 하나의 `try`이고, 그 안에

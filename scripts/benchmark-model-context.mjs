@@ -63,7 +63,7 @@ for (const language of ['typescript', 'kotlin']) {
           });
           if (!metrics.length) failures.push('missing-real-model-generation');
           if (fullExplanationMs > 3000) failures.push('full-explanation-over-3s');
-          failures.push(...checkReading(parsed, names));
+          failures.push(...checkReading(parsed, { ...names, locale, source: context.snippets.map(snippet => snippet.text).join('\n') }));
         } catch (error) { failures.push(error.code || 'generation-failed'); }
         finally { clearTimeout(timer); await manager.dispose(); }
         const record = { language, locale, fixture: names.callee, round, preparationMs, fullExplanationMs,

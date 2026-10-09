@@ -5,7 +5,7 @@ export function checkPublicModelReading(reading, names) {
   const failures = [], call = reading.calls[0];
   const authored = [reading.summary, reading.flow, call.role, ...(reading.limitations ?? [])].filter(text => typeof text === 'string');
   const text = authored.join(' ');
-  if (/^(?:role|caller|callee|call|parent|child|호출|주문\s*처리)$/iu.test(call.role.trim())) failures.push('generic-or-unsupported-call-role');
+  if (/^(?:role|caller|callee|call|parent|child|호출|콜러|주문\s*처리)$/iu.test(call.role.trim())) failures.push('generic-or-unsupported-call-role');
   // These fixtures contain arithmetic and unimplemented audit/observe calls,
   // with no orders, business rules or observed I/O. Identifier addFee itself is
   // allowed: a word-boundary check rejects the invented business noun instead.
@@ -26,6 +26,28 @@ export function checkPublicModelReading(reading, names) {
   if (/(?:changes?|updates?|mutates?)\s+(?:the\s+)?(?:input\s+)?value\b|입력값을\s*(?:변경|갱신)|value\s*(?:를|을)\s*(?:변경|갱신)/iu.test(text)) failures.push('invented-input-write');
   if (typeof reading.flow === 'string' && (!/\b(?:0|zero)\b/u.test(reading.flow) || !/catch|exception|error|예외|오류/iu.test(reading.flow))) {
     failures.push('missing-authored-catch-return');
+  }
+  // This corpus always returns value + 5 in try. The immutable output may
+  // preserve it while the model's complete flow omits the actual calculation.
+  if (typeof reading.flow === 'string' && !/value\s*\+\s*5|(?:5\s*(?:를|을)\s*더|add(?:s|ing)?\s+5)/iu.test(reading.flow)) {
+    failures.push('missing-authored-return-calculation');
+  }
+  if (typeof reading.flow === 'string' && !reading.flow.includes(`${names.effect}(value)`)) failures.push('missing-authored-cleanup-argument');
+  if (authored.some(value => (value.match(/`/gu)?.length ?? 0) % 2)) failures.push('unclosed-authored-source-expression');
+  if (names.locale === 'en' && authored.some(value => /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}]/u.test(value.replace(/`[^`]*`/gu, '')))) {
+    failures.push('non-english-authored-prose');
+  }
+  if (typeof names.source === 'string') {
+    // Only quoted standalone numeric literals are compared: calculated prose,
+    // line numbers and source identifiers are not treated as runtime values.
+    const literals = new Set((names.source.match(/(?<![\p{L}\p{N}_])[+-]?\d+(?:\.\d+)?/gu) ?? []).map(Number));
+    if (authored.some(value => [...value.matchAll(/`([+-]?\d+(?:\.\d+)?)`/gu)].some(match => !literals.has(Number(match[1]))))) {
+      failures.push('invented-authored-numeric-literal');
+    }
+  }
+  if (typeof reading.flow === 'string') {
+    const sentences = reading.flow.split(/(?<=[.!?。！？])\s*/u).map(sentence => sentence.trim()).filter(sentence => sentence.length >= 24);
+    if (new Set(sentences).size !== sentences.length) failures.push('repeated-authored-flow-sentence');
   }
   return failures;
 }

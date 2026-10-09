@@ -319,6 +319,69 @@ raw 응답·측정과 실험 코드는 ignored `.local-models/experiments/three-
 측정 후 모든 모델 프로세스를 해제했다. 새로운 기본 모델, prompt 형식, 가중치나 runtime을
 배포하지 않았으며 Default/QA 설치 버전은 0.0.1144다. 정확한 전체 설명의 3초 목표는 미완료다.
 
+### 전체 production 형식을 추가 학습한 작은 모델
+
+2026-10-10에는 기존 0.0.1144 runtime과 기본 모델을 유지한 채 conventional Qwen3
+1.7B의 별도 LoRA 실험을 진행했다. 모든 원문과 기존 production prompt/schema를
+유지하고, 모델이 role/summary/flow/limitations를 작성한 뒤 같은 Host parser가 다섯
+상세를 복원·검증한다. 출력 축소, 식별자 별칭, flow projection이나 응답 cache는 없다.
+
+추가 학습은 공개 합성 TypeScript/Kotlin × 한국어/영어의 8가지 구조에서 학습 1,536건,
+검증 128건을 사용했다. 실제 parser의 반환·효과·결과 사용 근거를 입력에 넣었고,
+평가에 쓰는 함수 이름·계산식·catch 값은 학습 corpus에서 제외했다. 첫 80-iteration
+실험의 정답 일부가 한국어 첫 글자 grammar와 맞지 않아 수정했다. 수정된 정답
+1,664건은 production grammar로 전체 completion과 EOS까지 검사해 모두 통과했다.
+이는 label 형식 검사이며 설명의 의미나 모델 품질 검증은 아니다.
+
+수정 후 fresh base에서 마지막 16개 layer에 rank 8/scale 20 LoRA를 200 iterations,
+batch 1, learning rate 0.0001로 학습했다. 최장 1,953 tokens를 자르지 않았고 학습은
+약 366초, peak allocation은 약 7.62 GiB였다. 추론은 4bit로 fuse한 별도 MLX 가중치를
+사용했다. source-free 64-token prefill과 incremental forward 이후에 새 source의
+tokenization·전체 생성·기존 decode/Host 검증까지 측정했다. 각 새 요청의 source KV는
+재사용하지 않았다. 원본 GGUF와 다른 가중치/실행기이므로 실행기만의 개선율은 아니다.
+
+| 추가 학습 1.7B / 전체 설명 | 건수 | 3초 이내 | 시간·원문 필요 조건 동시 통과 |
+| --- | ---: | ---: | ---: |
+| 실제 호출 Host overview/call/scenario × TS/Kotlin × 두 언어 | 12 | 9 | 9 |
+| 이름·연산·상수·분기를 바꾼 별도 context | 32 | 8 | 7 |
+
+실제 호출 Host의 완료 범위는 **1.15–3.90초**였고 TypeScript/한국어 세 scope는 모두
+3초를 넘었다. 이 12건의 필요 조건 통과는 일반 정확도 증명이 아니다. 후속 32건은
+뺄셈, 음수 guard, 지역 쓰기, catch/finally, 결합 분기, 감소 loop, 구현 누락과 잘린
+소스를 포함했다. 새 context에 production provider 형식과 parser를 적용한 검사이며
+32건 모두를 실제 호출 Host나 전체 rich 시나리오로 측정한 것은 아니다.
+
+후속 결과에는 쓰기·반환 계산·loop 조건의 누락과 구현 없는 함수에 대한 반환 추정이
+남았다. 숫자 존재만 확인하는 필요 조건을 통과해도 다른 분기의 계산을 빠뜨린 사례가
+있었다. 한 생성은 약 61.89초 뒤 실패했다. 학습 validation loss나 짧은 12건의 결과로
+기본 모델을 교체하지 않는다. MLX runtime, adapter와 추가 학습 가중치는 제품에 넣지
+않았으며 사용자 설정과 설치 버전 0.0.1144를 유지했다.
+
+### 원문 message 분리와 짧은 지시문의 부정 결과
+
+동일 4B 모델에서 원문을 첫 user message, task/schema를 다음 user message로 나누는
+후보를 기존 형식과 짝지어 비교했다. Kotlin/TypeScript × 두 언어에서 overview 후
+scenario를 새로 생성한 총 16건이며 응답 cache는 사용하지 않았다. 두 형식 모두
+scope 변경 후 다시 처리한 prompt는 **516 tokens**였다. 분리형의 cached token 10개
+증가는 message 경계 자체였으며 source 재처리 절감의 근거가 아니었다.
+
+기존 형식은 overview 7.03–16.41초, scenario 8.83–12.54초였고 분리형은 각각
+12.17–16.71초, 11.30–21.32초였다. 모델 출력 길이와 시스템 부하가 달라 이 범위를
+순수한 message 경계 비용으로 해석하지 않는다. 3초 개선을 입증하지 못해 후보 source,
+test와 문서 변경을 되돌렸다.
+
+별도 1.7B 비교에서는 중복 지시만 줄이고 전체 원문·schema·다섯 상세·summary/flow를
+유지했다. 8건 중 5건이 3초 이내였으나 원문/언어 필요 조건 동시 통과는 **0/8**이었다.
+일부 응답은 callee의 작업 대신 지시문이나 'call/콜러'를 쓰고 catch/정리 인수를
+누락했다. 이 형식도 제품에 적용하지 않았다.
+
+평가 스크립트는 생성한 flow의 실제 계산과 정리 인수, 없는 숫자 인용, 닫히지 않은
+backtick, 반복 문장과 영어 응답의 다른 언어 prose를 별도로 검사하도록 보강했다.
+고정된 반환·효과 필드로 생성문 누락을 숨길 수 없게 한 공개 corpus 전용 필요 조건이다.
+새로운 조건을 적용한 과거 결과 재검토는 재생성 측정과 구분한다. raw 응답과 학습·측정
+산출물은 ignored 실험 폴더에 보존했으며 모든 모델 프로세스는 종료했다. 추가 조건의
+positive/counterexample을 포함해 패키지·평가 스크립트 테스트 20개가 통과했다.
+
 ## 남은 완료 기준
 
 모델 변경, decoder 최적화 또는 입력 구조 변경을 채택하려면 다음을 함께 확인해야 한다.

@@ -40,3 +40,23 @@ test('finally-before-return wording and exact source expressions are not input w
     limitations: ['Actual completion of audit(value) is unknown.'] }, names);
   assert.deepEqual(result, []);
 });
+test('correct immutable returns cannot conceal copied numeric alternatives, clipped citations or missing cleanup arguments', () => {
+  const source = 'function checkout(amount) { return addFee(amount); } function addFee(value) { try { return value + 5; } catch (error) { return 0; } finally { audit(value); } }';
+  const options = { ...names, source, locale: 'en' };
+  assert.deepEqual(checkPublicModelReading(reading, options), []);
+  for (const [field, value, expected] of [
+    ['role', 'Calculate `value + 5` or `-1`.', 'invented-authored-numeric-literal'],
+    ['role', 'Choose `value + 5` or `0` in catch`.', 'unclosed-authored-source-expression'],
+    ['role', 'Return the result; 倘', 'non-english-authored-prose'],
+    ['role', '콜러', 'generic-or-unsupported-call-role'],
+    ['flow', 'Try computes the result and catch returns 0. Finally calls audit(value).', 'missing-authored-return-calculation'],
+    ['flow', 'Try returns value + 5 and catch returns 0. Finally calls audit.', 'missing-authored-cleanup-argument'],
+    ['flow', reading.flow + ' ' + reading.flow, 'repeated-authored-flow-sentence']
+  ]) {
+    const candidate = field === 'role' ? { ...reading, calls: [{ ...reading.calls[0], role: value }] } : { ...reading, [field]: value };
+    assert.ok(checkPublicModelReading(candidate, options).includes(expected), expected);
+  }
+  assert.deepEqual(checkPublicModelReading({ ...reading, calls: [{ ...reading.calls[0], role: 'Return `0` or `5`; identifiers such as `中文` stay quoted.' }] }, options), []);
+  assert.deepEqual(checkPublicModelReading({ ...reading, calls: [{ ...reading.calls[0], role: 'Return `0` or `5`.' }] },
+    { ...options, source: source.replace('value + 5', 'value +5') }), []);
+});

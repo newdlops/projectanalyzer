@@ -1662,7 +1662,10 @@ Webview는 Project Graph, 파일 시스템, VS Code API에 직접 접근하지 �
   `benchmark-model-scopes.mjs`는 실제 호출 Host의 overview/call/scenario를 새 manager와
   Host로 측정한다. source-free 준비는 제외하고 context 구성부터 전체 페이지 전달까지
   포함한다. 이전 설명/source KV cache는 재사용하지 않으며 고정 구문 필드가 생성문 의미
-  검사를 대신할 수 없다. 이 짧은 호출 corpus는 전체 함수 rich 시나리오의 보증이 아니다.
+  검사를 대신할 수 없다. 공개 corpus의 생성한 flow에는 계산식·catch 반환·정리 인수가
+  있어야 하며, 없는 숫자 인용·닫히지 않은 인용·반복 문장·다른 언어의 설명도 실패로
+  기록한다. 이는 해당 corpus의 필요 조건 검사이며 일반 의미 판정이나 전체 함수 rich
+  시나리오의 보증이 아니다.
   ChatML fallback의 Qwen3.5 assistant 접미부에 공식 비추론 `<think>`/`</think>` 경계를
   적용한다. 이미 완성된 접미부나 다른 모델의 template은 덧붙이지 않는다.
   각 추론의 FIFO 진입·취소·실패·provider switch·Host 종료 정리를 유지한다. 실행기의

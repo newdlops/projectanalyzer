@@ -100,7 +100,8 @@ for (const language of ['typescript', 'kotlin']) {
         if (!['role', 'inputs', 'output', 'effects', 'reason'].every(field => typeof call[field] === 'string' && call[field].trim())) failures.push('missing-detail-field');
         if (!evidenceTokens.resolve(call.callerEvidence) || !evidenceTokens.resolve(call.calleeEvidence)) failures.push('missing-source-evidence');
       }
-      if (narrative.calls.length) failures.push(...checkPublicModelReading(narrative, { parent: 'checkout', callee: 'addFee', effect: 'audit' }));
+      if (narrative.calls.length) failures.push(...checkPublicModelReading(narrative, { parent: 'checkout', callee: 'addFee', effect: 'audit',
+        locale, source: fixture.files.map(file => file.content).join('\n') }));
       if (fullExplanationMs > 3000) failures.push('full-explanation-over-3s');
     } catch (error) { failures.push(error.code || error.message || 'generation-failed'); }
     finally { clearTimeout(timeout); host.reset(); await manager.dispose(); }
