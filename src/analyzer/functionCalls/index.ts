@@ -7,3 +7,4 @@ export type { FunctionCallSourceBodyStep } from "./sourceFacts";
 export { readFunctionCallSourceDeclaredParameters, type FunctionCallDeclaredParameterFacts } from "./sourceParameters";
 export { readFunctionCallSourceObjectExpression } from "./sourceSyntax";
 export { readFunctionCallSourceExecution, type FunctionCallSourceExecution } from "./sourceExecution";
+export { readFunctionCallReturnSyntax } from "./sourceReturns";

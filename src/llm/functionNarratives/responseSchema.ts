@@ -1,10 +1,21 @@
 /** A small constrained JSON grammar guides local generation; Host validation still verifies snippet ownership. */
 import type { FunctionNarrativeContext, FunctionNarrativeFlowStep } from "../../shared/functionNarratives";
-import { createFunctionCallNarrativeSchema } from "../../shared/functionCallNarratives";
+import { createFunctionCallNarrativeSchema, getFunctionCallFixedReason, getFunctionCallFixedOutput } from "../../shared/functionCallNarratives";
 import { buildFunctionNarrativeScenarioFrames, getFunctionNarrativeExampleConstraints, hasCompletePrimitiveWorksheet, getPrimitiveWorksheetAnalysis } from "../../application/functionNarratives";
 
 export function createLocalNarrativeSchema(context: FunctionNarrativeContext, language: "ko" | "en" = "en"): Record<string, unknown> {
-  if (context.callTask) return createFunctionCallNarrativeSchema(context.callTask, language);
+  if (context.callTask) {
+    const schema = createFunctionCallNarrativeSchema(context.callTask, language) as any;
+    for (const [index, target] of context.callTask.targets.entries()) {
+      const reason = getFunctionCallFixedReason(target, language);
+      if (reason) schema.properties.calls.items[index].properties.reason = { const: reason };
+      // All lexical returns and exact caller use must fit together. This is
+      // syntax evidence, not a computed result or finally-completion proof.
+      const output = getFunctionCallFixedOutput(target, language);
+      if (output) schema.properties.calls.items[index].properties.output = { const: output };
+    }
+    return schema;
+  }
   // Anchored character classes are supported by llama.cpp's JSON grammar. A
   // Korean start guides the decoder's language while source const/enum fields
   // remain untouched. Bounds are in the pattern because pattern takes precedence.

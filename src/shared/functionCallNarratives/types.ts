@@ -1,4 +1,5 @@
 /** Model-readable call facts and bounded prose; graph/source authority is held separately by the Host. */
+import type { FunctionCallReturnSyntax, FunctionCallResultUse } from "./sourceSyntaxTypes";
 export type FunctionCallNarrativeScope = "overview" | "scenario" | "call";
 export type FunctionCallNarrativeTarget = {
   callId: string; caller: string; callee: string; language: string; expression: string;
@@ -11,6 +12,10 @@ export type FunctionCallNarrativeTarget = {
   parameters?: Array<{ name: string; type: string }>;
   /** Host-owned declaration kind; a method body does not establish actual receiver dispatch. */
   sourceKind?: "method";
+  /** Optional parser-owned lexical return sites; not computed values, selected paths or observed completion. */
+  returnSyntax?: FunctionCallReturnSyntax;
+  /** Parser-owned use of the whole call expression, never inferred from callee names or model prose. */
+  resultUse?: FunctionCallResultUse;
 };
 export type FunctionCallNarrativeTask = {
   scope: FunctionCallNarrativeScope; signature: string; includeSummary: boolean;

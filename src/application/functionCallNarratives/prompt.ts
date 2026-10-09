@@ -26,8 +26,18 @@ export function buildFunctionCallNarrativePrompt(context: FunctionNarrativeConte
   rules.push(language === "ko"
     ? "calleeEvidence는 이전 묶음에서 읽은 실제 원문입니다. earlierModelReadings는 이전 모델의 미검증 설명입니다. 원문을 우선하여 모든 호출 해설이 끝난 뒤 전체 흐름을 요약하세요. 요청 targets에 없는 호출도 sequence와 calleeEvidence에 있으면 누락된 함수가 아닙니다."
     : "calleeEvidence contains original source collected in earlier batches. earlierModelReadings contains unverified model prose. Prefer source and summarize the whole flow only after all call readings. A call absent from this chunk's targets is not missing when present in sequence/calleeEvidence.");
+  if (task.targets.some(target => target.returnSyntax)) rules.push(language === "ko"
+    ? "returnSyntax는 parser가 원문에서 확인한 반환 구문과 어휘적 try/catch/finally·조건·반복 범위입니다. 값 계산·실제 도달·최종 반환의 증명이 아닙니다. output은 모든 반환 구문(예외 반환 포함)을 보존하고 finally의 반환 덮어쓰기·정상 완료와 호출부 사용을 실제 코드로 설명하세요. limited면 나머지 원문도 읽고 누락된 근거를 단정하지 않습니다."
+    : "returnSyntax contains parser-owned return statements and lexical try/catch/finally/condition/loop regions. It does NOT prove calculated values, reachability or final completion. Preserve every return statement (including catch returns) in output; use actual code for finally overrides/normal completion and caller use. If limited, also read the remaining source and do not assert omitted behavior.");
   return [rules.join("\n") + "\nJSON schema:\n" + JSON.stringify(outputSchema ?? createFunctionCallNarrativeSchema(task, language)),
-    JSON.stringify({ functionName: context.functionName, language: context.language, callTask: task,
+    JSON.stringify({ functionName: context.functionName, language: context.language,
+      callTask: { ...task, targets: task.targets.map(target => target.returnSyntax ? { ...target,
+        // The Host keeps exact zero-based ownership ranges. The model needs
+        // the authored statement and lexical regions, not duplicated operands
+        // or another coordinate system beside the numbered original excerpts.
+        returnSyntax: { limited: target.returnSyntax.limited, syntaxOnly: true,
+          sites: target.returnSyntax.sites.map(site => ({ code: site.code, regions: site.regions })) }
+      } : target) },
       snippets: context.snippets.map(snippet => ({ ...snippet, text: snippet.text.split("\n").map((line, index) => `${snippet.startLine + index}: ${line}`).join("\n") })) })];
 }
 

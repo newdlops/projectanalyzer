@@ -4,6 +4,23 @@ All notable user-visible changes to Project Analyzer: Code Flow are recorded in
 this file. The changelog starts with the first distribution-documented build;
 earlier local development builds were not tracked here.
 
+## 0.0.1143 - 2026-10-09
+
+### Improved
+
+- Restore bounded reaching conditions and complete lexical return statements from
+  Host-owned facts in local call explanations, preserving catch returns, caller
+  storage/return/discard/await use and unknown final values/completion.
+- Retain model generation for incomplete, deferred, unsupported or over-budget
+  facts, and keep model-authored role, effects, summary and flow.
+- Reject stale declaration/name recovery and mismatched call ranges; preserve
+  Python except/finally regions and mark lowered try-else evidence as limited.
+- Omit duplicated return operands/Host coordinates from model input without
+  changing original source excerpts or the connected-model response schema.
+- Support conventional Qwen3's non-thinking prefix and persistent benchmark
+  reports. Keep existing default/custom models; the full 3-second target remains
+  unfulfilled, and experimental adapters/flow projection are not installed.
+
 ## 0.0.1142 - 2026-10-09
 
 ### Improved

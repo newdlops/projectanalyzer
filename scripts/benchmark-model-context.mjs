@@ -1,11 +1,11 @@
 /** Real model completion after readiness, including decoding and Host validation.
- * Usage after compile: node scripts/benchmark-model-context.mjs <model.gguf> [runner] [rounds=3]
+ * Usage after compile: node scripts/benchmark-model-context.mjs <model.gguf> [runner] [rounds=3] [output-directory]
  * The public catch fixtures require inference; source-only responses cannot pass.
  * This bounded corpus does not establish a latency guarantee for arbitrary functions.
  */
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
-import { access, mkdtemp, writeFile } from 'node:fs/promises';
+import { access, mkdir, mkdtemp, writeFile } from 'node:fs/promises';
 import { constants } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -15,6 +15,9 @@ const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const { createLocalFunctionNarrativeProvider } = require(repo + '/out/llm/functionNarratives');
 const { ModelTaskManager } = require(repo + '/out/shared/modelTasks');
 const { parseFunctionCallNarrative } = require(repo + '/out/application/functionCallNarratives');
+const { readFunctionCallReturnSyntax, createFunctionCallSourceReader } = require(repo + '/out/analyzer/functionCalls');
+const { analyzeFunctionLogic } = require(repo + '/out/analyzer/functionLogic');
+const { loadFunctionCallReadingFixture } = require(repo + '/out/test/unit/helpers/functionCallReadingFixture');
 const modelPath = process.argv[2] && path.resolve(process.argv[2]);
 const binaryPath = process.argv[3] || '/opt/homebrew/bin/llama-completion';
 const rounds = Number(process.argv[4] || 3);
@@ -25,7 +28,11 @@ if (process.platform === 'win32' || !/^(?:llama-completion|llama-cli)$/u.test(pa
   || !await access(path.join(path.dirname(binaryPath), 'llama-server'), constants.X_OK).then(() => true, () => false)) {
   throw new Error('This readiness benchmark requires a preinstalled llama-server companion on Unix.');
 }
-const directory = await mkdtemp(path.join(tmpdir(), 'model-context-'));
+// A persistent, ignored output directory keeps measured evidence across Host
+// restarts. The default remains a private temporary directory.
+const outputDirectory = path.resolve(process.argv[5] || tmpdir());
+await mkdir(outputDirectory, { recursive: true, mode: 0o700 });
+const directory = await mkdtemp(path.join(outputDirectory, 'model-context-'));
 const records = [];
 console.log(JSON.stringify({ directory, model: path.basename(modelPath), rounds,
   criterion: 'Full explanation after model readiness, not first token; public short-function corpus only.' }));
@@ -33,7 +40,7 @@ console.log(JSON.stringify({ directory, model: path.basename(modelPath), rounds,
 for (const language of ['typescript', 'kotlin']) {
   for (const names of [{ parent: 'checkout', callee: 'addFee', effect: 'audit' },
     { parent: 'transform', callee: 'adjustValue', effect: 'observe' }]) {
-    const context = fixture(language, names);
+    const context = await fixture(language, names);
     for (const locale of ['ko', 'en']) {
       for (let round = 1; round <= rounds; round++) {
         const manager = new ModelTaskManager(), controller = new AbortController(), metrics = [];
@@ -76,13 +83,13 @@ console.log(JSON.stringify(summary));
 if (summary.passed !== summary.samples) process.exitCode = 1;
 
 /** Neutral names detect name-driven business claims; original identifiers remain exact source evidence. */
-function fixture(language, { parent, callee, effect }) {
+async function fixture(language, { parent, callee, effect }) {
   const caller = language === 'kotlin' ? `fun ${parent}(amount: Int): Int { return ${callee}(amount) }`
     : `function ${parent}(amount: number): number { return ${callee}(amount); }`;
   const helper = language === 'kotlin'
     ? `fun ${callee}(value: Int): Int { try { return value + 5 } catch (error: Exception) { return 0 } finally { ${effect}(value) } }`
     : `function ${callee}(value: number): number { try { return value + 5; } catch (error) { return 0; } finally { ${effect}(value); } }`;
-  return { functionName: parent, language, limited: true, snippets: [
+  const context = { functionName: parent, language, limited: true, snippets: [
     { id: 'parent', role: 'function', startLine: 1, endLine: 1, text: caller, truncated: false },
     { id: 'caller', role: 'caller', startLine: 1, endLine: 1, text: `${callee}(amount)`, truncated: false },
     { id: 'callee', role: 'helper', startLine: 2, endLine: 2, text: helper, truncated: false }
@@ -91,6 +98,16 @@ function fixture(language, { parent, callee, effect }) {
     targets: [{ callId: 'call-1', caller: parent, callee, language, expression: `${callee}(amount)`, relation: 'call',
       confidence: 'exact', guards: [], loops: [], deferred: false, sourceLimited: false, callerSnippet: 'caller', calleeSnippet: 'callee',
       arguments: ['amount'], parameters: [{ name: 'value', type: language === 'kotlin' ? 'Int' : 'number' }] }] } };
+  // The production optimization requires real parser-owned syntax. Do not
+  // manufacture returns/use in a benchmark or let a source recipe hide inference.
+  const parsed = await loadFunctionCallReadingFixture(language, name => name === 'reading' ? caller : helper);
+  const parentNode = parsed.graph.nodes.find(node => node.name === parent), calleeNode = parsed.graph.nodes.find(node => node.name === callee);
+  const site = analyzeFunctionLogic({ functionNode: parentNode, sourceText: caller }).callsites.find(call => call.calleeName === callee);
+  const target = context.callTask.targets[0];
+  target.returnSyntax = readFunctionCallReturnSyntax(calleeNode, helper);
+  target.resultUse = createFunctionCallSourceReader(parentNode, caller).readUse(site.range, target.expression);
+  if (!target.returnSyntax || !target.resultUse) throw new Error('Missing public-fixture parser evidence.');
+  return context;
 }
 
 /** Necessary source facts are checked independently from shape; this remains a bounded smoke check, not a semantic oracle. */

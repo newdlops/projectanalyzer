@@ -48,6 +48,25 @@ TypeScript/JavaScript, Kotlin, Python parser가 명시적 호출 인자를 읽�
 않는다. Kotlin은 nested argument의 postorder, if arm, &&/||, Elvis와 safe-call 조건을
 추가로 읽지만 기존 symbolic-only·scope/coroutine/dispatch 한계는 유지한다.
 
+로컬 모델의 도달 조건(`reason`)도 정적 문구로 고정할 수 있다. 제공된 모든 guard·loop,
+deferred/event/render 경계와 대상 선택의 불확실성을 보존하며 실제 도달·실행으로 단정하지
+않는다. 제어 문자·180자 상한·언어 검증 때문에 전체 사실을 담지 못하면 기존 모델 필드를 유지한다.
+`getFunctionCallFixedReason`이 반환한 문구는 local wire가 생략하고 Host가 복원하므로 모델이
+새 조건으로 바꿀 수 없다. 완전한 parser 반환 목록과 정확한 호출부 사용이 함께 180자 안에
+들어가면 `output`도 모든 원문 반환 구문·어휘적 조건/try/catch/finally 범위와 결과의 저장·
+반환·폐기·await 여부로 복원한다. 실제 도달·계산값·최종 완료는 미확인으로 표시한다.
+반환 목록이 제한되거나 사용을 확인하지 못하거나 deferred 관계이면 기존 모델 필드를
+유지한다. 역할·부수 효과·전체 요약과 흐름은 계속 모델이 작성한다. 연결된 VS Code 모델과
+소스 분석 응답의 계약은 그대로다.
+
+대상 원문이 온전히 제공된 경우 `returnSyntax`는 해당 선언의 parser-owned 반환 구문,
+원본 zero-based 범위와 어휘적 소유 범위를 제공한다. 별도 callable/embedded 반환은 부모의
+반환으로 쓰지 않는다. 최대 128개 블록·8개 반환·32단계 소유 범위이며 어떤 한계도
+`limited`로 보존한다. Kotlin inline lambda의 non-local 반환과 Python의 낮춰진 try-else 등
+정확한 소유를 확인하지 못하는 경우 완전한 근거로 취급하지 않는다. `resultUse`는 정확히
+같은 호출 범위와 전체 표현식의 사용만 읽으며, 같은 텍스트의 다른 발생이나 더 큰 계산,
+외부 상태 대입을 단순 저장으로 바꾸지 않는다. 값 평가나 CFG 완료 증명을 추가하지 않는다.
+
 한 요청은 최대 두 호출부/방문, 최대 다섯 원문 스니펫이다. 부모 100줄/4,200자,
 각 호출부 12줄/600자, 각 대상 60줄/1,800자로 제한하고 줄 번호·선언 범위를 보존한다.
 두 호출보다 큰 묶음은 호출별 해설을 먼저 저장하고 마지막에 전체 흐름을 요약한다.
@@ -73,7 +92,12 @@ Public API:
   route contracts. source expressions를 실행하지 않고 step/cycle bounds를 유지한다.
 - `analyzer/functionCalls.readFunctionCallArguments`: parser가 확인한 명시적 인자 텍스트.
   최대 여덟 인자/각 160자이며 미확인은 `undefined`, 확인한 빈 호출은 `[]`다.
-- `shared/functionCallNarratives`: task/target/chunk 계약, fixed empty-input wording,
+- `analyzer/functionCalls.readFunctionCallReturnSyntax`: TypeScript/JavaScript/Kotlin/Python의
+  bounded lexical 반환 근거. `createFunctionCallSourceReader().readUse`는 TypeScript/JavaScript/
+  Kotlin의 호출부 사용만 독립적으로 읽으므로 복잡한 callee 본문이 전체 source proof를
+  만들지 못해도 호출부 구문을 모델에 제공할 수 있다.
+- `shared/functionCallNarratives`: task/target/chunk 계약, `getFunctionCallFixedInputs`,
+  `getFunctionCallFixedReason`, `getFunctionCallFixedOutput`의 정적 입력·도달 조건·반환 구문 문구,
   local JSON schema, 구조·언어 script 검증. 모델 사실성 검증 API는 아니다.
 - `application/functionCallNarratives`: `buildFunctionCallNarrativePlan`,
   `buildFunctionCallNarrativeContext`, `buildFunctionCallNarrativePrompt`,

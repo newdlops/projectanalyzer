@@ -57,10 +57,10 @@ export class LocalNarrativeServer implements ModelTaskResource {
     const template = await this.json("POST", "/apply-template", { messages: [{ role: "system", content: system },
       ...(typeof prompt === "string" ? [prompt] : prompt).map(content => ({ role: "user", content }))] }, signal);
     if (typeof template.body.prompt !== "string") throw new FunctionNarrativeError("failed", "runner-template");
-    // The tool-free ChatML fallback does not include Qwen3.5's official
+    // The tool-free ChatML fallback does not include Qwen3/Qwen3.5's official
     // non-thinking assistant prefix. Complete that prefix before constrained
     // generation, rather than forcing JSON inside an unfinished thinking turn.
-    const promptText = /^qwen3\.5-/iu.test(basename(this.options.modelPath))
+    const promptText = /^qwen3[.\-]/iu.test(basename(this.options.modelPath))
       && template.body.prompt.endsWith("<|im_start|>assistant\n")
       ? template.body.prompt + "<think>\n\n</think>\n\n" : template.body.prompt;
     const reply = await this.json("POST", "/completion", { prompt: promptText, json_schema: schema,

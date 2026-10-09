@@ -13,8 +13,8 @@ const context: FunctionNarrativeContext = { functionName: "describe", language: 
   snippets: [{ id: "root", role: "function", startLine: 1, endLine: 1, text: 'fun describe() = "ready"', truncated: false }] };
 
 /** The double replaces only inference; it accepts the real socket/key/limit protocol and reports its OS PID. */
-async function fixture(options: { loading?: boolean } = {}) {
-  const directory = await mkdtemp(join(tmpdir(), "server-qa-")), modelPath = join(directory, "Qwen3.5-fixture.gguf"), binaryPath = join(directory, "llama-completion");
+async function fixture(options: { loading?: boolean; modelName?: string } = {}) {
+  const directory = await mkdtemp(join(tmpdir(), "server-qa-")), modelPath = join(directory, options.modelName ?? "Qwen3.5-fixture.gguf"), binaryPath = join(directory, "llama-completion");
   await writeFile(modelPath, "fixture"); await writeFile(binaryPath, `#!${process.execPath}\nprocess.exit(9);`, { mode: 0o700 });
   await writeFile(join(directory, "llama-server"), `#!${process.execPath}
 const fs=require('node:fs'),http=require('node:http');const args=process.argv.slice(2),value=flag=>args[args.indexOf(flag)+1];
@@ -68,6 +68,14 @@ test("explicit preparation loads no source or generated tokens and the owning ru
       assert.equal((await readFile(join(f.directory, "started"), "utf8")).trim().split("\n").length, 1);
     });
     assert.ok(pid); assert.throws(() => process.kill(pid!, 0), { code: "ESRCH" });
+  } finally { await manager.dispose(); await rm(f.directory, { recursive: true, force: true }); }
+});
+
+test("conventional Qwen3 also starts constrained JSON after the non-thinking assistant prefix", { skip: process.platform === "win32" }, async () => {
+  const f = await fixture({ modelName: "Qwen3-1.7B-fixture.gguf" }), manager = new ModelTaskManager();
+  const provider = createLocalFunctionNarrativeProvider({ ...f, taskManager: manager });
+  try {
+    assert.equal((await provider.generate(context, "en", new AbortController().signal)).text, '{"summary":"cached"}');
   } finally { await manager.dispose(); await rm(f.directory, { recursive: true, force: true }); }
 });
 

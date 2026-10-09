@@ -21,8 +21,11 @@ export function isFunctionCallNarrativeChunk(value: unknown, ids?: readonly stri
 export function isFunctionCallNarrativeLanguage(chunk: FunctionCallNarrativeChunk, language: "ko" | "en"): boolean {
   const descriptions = [chunk.summary, chunk.flow, ...chunk.limitations,
     ...chunk.calls.flatMap(call => [call.role, call.inputs, call.output, call.effects, call.reason])].filter((text): text is string => text !== undefined);
-  return descriptions.every(text => {
-    const prose = text.replace(/`[^`]*`|"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'/gu, " ");
-    return language === "ko" ? (prose.match(/[가-힣]/gu)?.length ?? 0) >= 2 : /[A-Za-z]/u.test(prose) && !/[가-힣]/u.test(prose);
-  });
+  return descriptions.every(text => isFunctionCallNarrativeTextLanguage(text, language));
+}
+
+/** Shared internal check also keeps Host-owned prose compatible with the final response validator. */
+export function isFunctionCallNarrativeTextLanguage(text: string, language: "ko" | "en"): boolean {
+  const prose = text.replace(/`[^`]*`|"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'/gu, " ");
+  return language === "ko" ? (prose.match(/[가-힣]/gu)?.length ?? 0) >= 2 : /[A-Za-z]/u.test(prose) && !/[가-힣]/u.test(prose);
 }

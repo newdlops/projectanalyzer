@@ -5,7 +5,7 @@ import { createLocalNarrativeSchema } from "../../llm/functionNarratives/respons
 import { createLocalNarrativeWire } from "../../llm/functionNarratives/localWire";
 import { buildLocalNarrativePrompt } from "../../llm/functionNarratives/localPrompt";
 import { buildFunctionCallNarrativePrompt } from "../../application/functionCallNarratives";
-import { getFunctionCallFixedInputs } from "../../shared/functionCallNarratives";
+import { createFunctionCallNarrativeSchema, getFunctionCallFixedInputs } from "../../shared/functionCallNarratives";
 import type { FunctionNarrativeContext } from "../../shared/functionNarratives";
 
 test("a local call gets one flat wire blueprint, all original source data and five restored detail fields", () => {
@@ -22,9 +22,10 @@ test("a local call gets one flat wire blueprint, all original source data and fi
     assert.equal(source, data); assert.equal(prompt.match(/JSON schema:/gu)?.length, 1);
     assert.doesNotMatch(prompt, /OUTPUT JSON SCHEMA:|"\$ref"|"\$defs"/u);
     assert.equal(instructions.split("\nJSON schema:\n")[1].split("\n")[0], before);
-    assert.ok(neutral.endsWith(JSON.stringify(schema))); assert.equal(JSON.stringify(wire.schema), before);
+    assert.ok(neutral.endsWith(JSON.stringify(createFunctionCallNarrativeSchema(context.callTask!, language))));
+    assert.equal(JSON.stringify(wire.schema), before);
     assert.ok(prompt.includes("audit(n)")); assert.ok(prompt.includes("n + 3"));
-    const payload = { summary: "Purpose.", flow: "Flow.", calls: [{ role: "Role.", output: "Return.", effects: "Unknown.", reason: "Reached." }], limitations: [] };
+    const payload = { summary: "Purpose.", flow: "Flow.", calls: [{ role: "Role.", output: "Return.", effects: "Unknown." }], limitations: [] };
     const decoded = JSON.parse(wire.decode(JSON.stringify(payload)));
     assert.equal(decoded.calls[0].inputs, getFunctionCallFixedInputs(context.callTask!.targets[0], language));
     assert.match(decoded.calls[0].inputs, /`amount` → `value` \(number\)/u);

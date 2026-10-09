@@ -3,7 +3,7 @@ import type { FunctionCallsResponse } from "../../protocol/functionCalls";
 import type { FunctionNarrativeContext, FunctionNarrativeSnippet } from "../../shared/functionNarratives";
 import type { SymbolNode, SourceRange } from "../../shared/types";
 import type { FunctionCallNarrativePlan } from "./plan";
-import { readFunctionCallArguments, readFunctionCallSourceParameters } from "../../analyzer/functionCalls";
+import { readFunctionCallArguments, readFunctionCallSourceParameters, readFunctionCallReturnSyntax, createFunctionCallSourceReader } from "../../analyzer/functionCalls";
 import type { FunctionCallNarrativeTarget } from "../../shared/functionCallNarratives";
 import { attachFunctionCallSourceReading, type FunctionCallSourceCandidate } from "./sourceReading";
 import { findFunctionAtPosition } from "../../analyzer/functionLogic";
@@ -56,6 +56,7 @@ export async function buildFunctionCallNarrativeContext(parent: SymbolNode, sour
   const names = new Map(slice.nodes.map(node => [node.id, node]));
   const targets: FunctionCallNarrativeTarget[] = [];
   const candidates: FunctionCallSourceCandidate[] = [];
+  let callerSyntax: ReturnType<typeof createFunctionCallSourceReader> | undefined;
   for (const row of plan.rows.slice(offset, offset + 2)) {
     const connection = row.connection, target = names.get(connection.to);
     const range = connection.evidenceToken && callerRange(connection.evidenceToken);
@@ -83,6 +84,18 @@ export async function buildFunctionCallNarrativeContext(parent: SymbolNode, sour
       // fingerprints its targets; model prose cannot create or replace it.
       const parameters = readFunctionCallSourceParameters(callee.node, callee.source);
       if (parameters?.length === arguments_.length) targets.at(-1)!.parameters = parameters;
+    }
+    if (callee && helper && !helper.truncated) {
+      // Add syntax anchors only from this provided declaration. They do not
+      // repair CFG cleanup routing or turn a catch statement into an observed
+      // result. A limited list stays explicitly limited; source caps are intact.
+      const returns = readFunctionCallReturnSyntax(callee.node, callee.source);
+      if (returns && returns.sites.every(site => helper.text.includes(site.code))) targets.at(-1)!.returnSyntax = returns;
+    }
+    if (caller && !caller.truncated && range && connection.relation === "call" && !connection.deferred) {
+      callerSyntax ??= createFunctionCallSourceReader(parent, source);
+      const use = callerSyntax.readUse(range, row.expression);
+      if (use) targets.at(-1)!.resultUse = use;
     }
     candidates.push({ target: targets.at(-1)!, callerRange: range || undefined, callee });
   }
