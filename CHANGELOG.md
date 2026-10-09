@@ -4,6 +4,18 @@ All notable user-visible changes to Project Analyzer: Code Flow are recorded in
 this file. The changelog starts with the first distribution-documented build;
 earlier local development builds were not tracked here.
 
+## 0.0.1145 - 2026-10-10
+
+### Fixed
+
+- Include the shared prose-language helper in the generated call-reading browser
+  program, so valid Korean/English explanations render without a ReferenceError.
+- Preserve completed whole-flow prose across cached call pages and modes; align
+  the source-navigation architecture guard with the existing explicit Inspector.
+- Reject additional Korean business/logging inventions in the public model
+  benchmark. The catch-purpose experiment failed quality checks and is not shipped;
+  the complete, accurate 3-second explanation goal remains unmet.
+
 ## 0.0.1144 - 2026-10-09
 
 ### Improved

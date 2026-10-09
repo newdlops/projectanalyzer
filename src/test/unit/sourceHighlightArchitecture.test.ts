@@ -32,6 +32,7 @@ test("one disposable VS Code adapter owns graph source decorations", () => {
 test("source-backed graph uses explicit Inspector actions for decorated editor reveal", () => {
   const explorerGraph = readSource("src/webview/explorerClientScript.ts");
   const moduleGraph = readSource("src/webview/moduleVisualizer/moduleVisualizerBrowserSource.ts");
+  const moduleFunctionInspector = readSource("src/webview/moduleVisualizer/moduleFlowFunctionLogicBrowserSource.ts");
   const functionGraph = readSource("src/webview/codeFlow/functionLogicBrowserSource.ts");
 
   assert.match(
@@ -40,8 +41,10 @@ test("source-backed graph uses explicit Inspector actions for decorated editor r
   );
   assert.match(
     moduleGraph,
-    /if \(node\.kind === "function"\) \{[\s\S]*if \(node\.sourceToken\) \{[\s\S]*requestOpenSource\(/u
+    /if \(node\.kind === "function"\) \{[\s\S]*renderFunctionDetail\(node\)/u
   );
+  assert.match(moduleFunctionInspector,
+    /function renderFunctionDetail\(node\)[\s\S]*open-function-source[\s\S]*addEventListener\("click"[\s\S]*requestOpenSource\(\{ kind: "node", sourceToken: node\.sourceToken \}\)/u);
   assert.doesNotMatch(functionGraph, /openLogicEvidence\(block\.evidenceToken\)/u);
   assert.match(
     readSource("src/webview/codeFlow/functionLogicSelectionBrowserSource.ts"),

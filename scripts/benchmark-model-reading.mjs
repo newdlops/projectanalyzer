@@ -11,8 +11,8 @@ export function checkPublicModelReading(reading, names) {
   // These fixtures contain arithmetic and unimplemented audit/observe calls,
   // with no orders, business rules or observed I/O. Identifier addFee itself is
   // allowed: a word-boundary check rejects the invented business noun instead.
-  if (/\b(?:fees?|orders?|checkout\s+process|payment|discount|logging|storage)\b|주문|수수료|추가\s*요금|결제|할인/iu.test(text)) failures.push('invented-business-purpose');
-  if (/\b(?:audits?|auditing|observes?|observing|observation|logs?|logging|stores?|storing|monitors?|monitoring)\s+(?:the|a|an|value|data|result)\b|\bobservation\s+(?:side\s+)?effect\b|final observation|감시|관찰(?:이|을|합니다| 수행)|정보를 추적|감사\s*기록|로그|데이터를 저장/iu.test(text)) {
+  if (/\b(?:fees?|orders?|checkout\s+process|payment|discount|logging|storage)\b|주문|구매|수수료|추가\s*(?:요금|비용)|결제|할인|\d+\s*원(?:을|이|의|\s|$)/iu.test(text)) failures.push('invented-business-purpose');
+  if (/\b(?:audits?|auditing|observes?|observing|observation|logs?|logging|stores?|storing|monitors?|monitoring)\s+(?:the|a|an|value|data|result)\b|\bobservation\s+(?:side\s+)?effect\b|final observation|감시|관찰(?:이|을|합니다| 수행)|정보를 추적|감사\s*기록|로그|데이터를 저장|(?:금액|값|결과)(?:을|를)?\s*기록/iu.test(text)) {
     failures.push('unproved-inner-call-behavior');
   }
   if (/조건에\s*따라[^.!?]*호출|conditional(?:ly)?[^.!?]*call/iu.test(text)) failures.push('invented-parent-call-guard');

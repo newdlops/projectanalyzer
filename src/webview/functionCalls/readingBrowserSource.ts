@@ -1,10 +1,13 @@
 /** Explicit, retained call-reading UI; static facts stay separate and cached pages never load a model. */
-import { isFunctionCallNarrativeChunk, isFunctionCallNarrativeLanguage } from "../../shared/functionCallNarratives";
+import { isFunctionCallNarrativeChunk, isFunctionCallNarrativeLanguage, isFunctionCallNarrativeTextLanguage } from "../../shared/functionCallNarratives";
 import { isModelTaskProgress } from "../../shared/modelTasks";
 export function getFunctionCallReadingBrowserSource(): string {
+  // Serialized validators run without module imports. Include their shared
+  // prose helper before accepting a completed reading or cached page.
   return /* js */ String.raw`
     ${isModelTaskProgress.toString()}
     ${isFunctionCallNarrativeChunk.toString()}
+    ${isFunctionCallNarrativeTextLanguage.toString()}
     ${isFunctionCallNarrativeLanguage.toString()}
     function createFunctionCallReading(options) {
       const { el, button, t } = options;

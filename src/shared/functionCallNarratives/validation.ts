@@ -24,7 +24,7 @@ export function isFunctionCallNarrativeLanguage(chunk: FunctionCallNarrativeChun
   return descriptions.every(text => isFunctionCallNarrativeTextLanguage(text, language));
 }
 
-/** Shared internal check also keeps Host-owned prose compatible with the final response validator. */
+/** Self-contained prose check shared by the Host validator and the serialized browser program. */
 export function isFunctionCallNarrativeTextLanguage(text: string, language: "ko" | "en"): boolean {
   const prose = text.replace(/`[^`]*`|"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'/gu, " ");
   return language === "ko" ? (prose.match(/[가-힣]/gu)?.length ?? 0) >= 2 : /[A-Za-z]/u.test(prose) && !/[가-힣]/u.test(prose);
