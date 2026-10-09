@@ -957,6 +957,73 @@ Kotlin 한국어 반복문은 447 output tokens를 만들었고 decode 구간만
 학습·병합·평가 프로세스는 모두 종료됐다. 제품 runtime·기본 모델·사용자 설정·CSS와
 설치된 **0.0.1145**를 유지하며, 이번 변경은 offline fixture 검사와 검증 기록이다.
 
+### 학습 구조 범위의 공백 보완
+
+Kotlin 문법을 고친 보존 corpus 1,664건을 독립적으로 다시 검사했다.
+`kotlin-fixed-supervision-coverage-audit.json`의 제한된 source/prose 검사는 모순을 찾지
+못했지만, 훈련에는 **분기와 catch의 결합 0건, 음수 guard 0건, `-=` 갱신 0건**이었다.
+모델이 틀린 구조와 학습 범위의 공백이 겹쳤다. 이것만으로 모든 모델 오류의 원인이
+학습 범위라고 단정하지는 않는다.
+
+별도 corpus에 훈련 **432건**, 검증 **108건**을 추가했다. 계산·음수 guard·지역 쓰기·
+catch/finally·분기/catch 결합·감소 반복·구현 누락·잘린 본문을 포함한다. 완전한 소스는
+같은 본문에 exact/inferred와 외부 omission metadata를 독립적으로 변화시켜 이 표시를
+입력 조건으로 배우지 않도록 했다. Kotlin/TypeScript와 한국어/영어를 모두 포함하고,
+평가 corpus와 다른 함수명·변수·상수를 사용했다. 기존 1,664행은 그대로 보존했다.
+
+`scripts/model-reading-coverage-fixtures.mjs`는 이 제한된 fixture의 source renderer와
+전체 정답 설명을 제공한다. 실제 학습 전에는 별도 생성기가 제품 parser로 60종의 완전한
+본문을 읽어 반환식의 then/try/catch 소속과 finally 호출·쓰기 소속을 대조했다.
+Kotlin 30개 본문에는 parser diagnostics가 없었다. 공통 TypeScript loop inventory는
+predicate를 보존하지 않으므로 TypeScript AST의 실제 WhileStatement.expression으로
+반복 조건을 따로 확인했으며, runtime inventory를 강화하거나 만들어 넣지 않았다.
+구현 누락과 잘린 소스의 반환·효과는 각 가변 설명 필드에서 미확인으로 남겼다.
+
+`production-coverage-independent-audit.json`은 생성된 wire를 label renderer와 별도로
+검사했다. 전체 **2,204건**의 current prompt/schema와 Host 응답 검사가 통과했고,
+decoder grammar/EOS도 모두 통과했다. 실제 고정 입력 mapping 1,976건을 대조했다.
+완전한 예제의 사용되지 않는 input-template placeholder는 schema 소유 입력으로
+교체돼 학습 wire에 들어가지 않았으며, 공개 fixture helper도 선언된 매개변수를 표시한다.
+추가 검증 원문은 전체 훈련 원문과 분리했다. 필요 조건 검사에서 문제가 없다는 사실을
+일반적인 자연어 의미 정확성의 증명으로 해석하지 않는다.
+
+`training-data-production-coverage.json`의 SHA-256은
+`a7b9687356d89cfd5d1c40af09ea72b2f97b1c215014e6689f67bebf9375f0eb`이며,
+훈련 1,968건·검증 236건이다. 전체 소스·summary/flow·다섯 호출 상세와 현재의 출력 제한을
+유지했다. 모델이 소스를 읽는 실제 inference 대신 이 fixture 설명을 사용하는 경로는 없다.
+학습 데이터 생성과 감사는 heldout 응답을 읽지 않았다. 평가 preflight의 32개 context는
+직전 유효한 Kotlin trial과 전부 byte가 같았다(`production-holdout-preflight-tMyUZF/report.json`).
+
+회귀 검사를 포함한 패키지/평가 스크립트 테스트 **51개**가 통과했다. 같은 fresh base·seed·
+LoRA/optimizer 설정으로 200 iterations를 학습하는 데 **278.98초**, peak allocation
+**8,214.09 MiB**를 사용했다. 별도 4bit/group 128 가중치는 914,316,110 bytes이며
+SHA-256은 `0f108892f6a78484612beb845dfcfae4988f92e1987bc7b37abb349c703c1514`다.
+
+`production-holdouts-dTtU48/report.json`의 새 전체 응답 32건은 **0.872–4.372초**에
+완료됐다. 3초 이내는 **25건**, 자동 필요 조건 통과는 26건, 둘 다 통과는 21건이었다.
+32건의 실제 모델 작성 필드를 모두 읽고 `coverage-rereview.json`에 **확실한 반례 13건**을
+기록했다. 단순 쓰기의 `n -= 3`을 무시한 반환 설명, 실제 쓰기를 부정하는 flow,
+결합 분기의 잘못된 catch 반환, 구현이 없거나 잘린 본문의 반환·효과 창작이 남았다.
+영어 결합 분기의 가변 output은 유효한 JSON/EOS여도 180자 경계에서 `completi`로 끝났다.
+완료된 문장을 요구하므로 이것도 실패다. 자동 검사 21건을 의미 정확성과 시간의 동시
+달성으로 해석하지 않으며, 별도 실행의 최대 시간 차이를 속도 개선율로 사용하지 않는다.
+outer Host 전달·전체 scope·rich 시나리오는 이 결과로 입증되지 않았다. 이 가중치는
+채택하거나 설치하지 않았다.
+
+`coverage-wire-layout-audit.json`은 응답을 읽지 않고 실제 훈련 입력과 평가 preflight만
+비교했다. 평가 32건의 source 구조·언어·locale·wire layout 조합은 전부 훈련에 존재했다.
+따라서 남은 오류를 출력 layout 예제의 부재로 설명하거나 동일한 구조를 무작정 추가하지
+않는다. 설치된 MLX sampler는 길이별로 정렬한 singleton batch를 한 epoch 안에서 중복
+없이 순회한다. 기존 200-step 실험은 훈련 1,968건 중 **최대 200건(10.16%)**에만 update를
+적용할 수 있었다. 과거 실제 선택 index의 trace는 없어 어느 행을 배웠는지는 단정하지 않는다.
+
+이에 같은 1.7B fresh base·seed 42·rank 8·scale 20·dropout 0·16 layers·Adam 1e-4·
+batch 1을 유지하고, iteration 수만 훈련 행 수 **1,968**로 정한 완전한 한 epoch를 준비했다.
+전체 prompt와 정답을 보존하고 실제 yielded batch의 index를 기록하며, 훈련 종료 후
+1,968개의 서로 다른 index와 모든 update의 완료를 확인해야 전체 학습을 주장한다.
+이 offline 훈련 자체는 정확도나 3초 달성의 근거가 아니며, 종료 후 별도 병합·새 응답
+검증을 거쳐야 한다. 제품 runtime과 설치된 **0.0.1145**는 유지한다.
+
 ## 남은 완료 기준
 
 모델 변경, decoder 최적화 또는 입력 구조 변경을 채택하려면 다음을 함께 확인해야 한다.
