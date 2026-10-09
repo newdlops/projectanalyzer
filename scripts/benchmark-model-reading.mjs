@@ -1,9 +1,36 @@
 /** Independent necessary semantic checks for the public arithmetic/catch corpus; never a general proof of model truth. */
 
-/** Check model-authored role/summary/flow separately from Host-owned syntax so fixed fields cannot manufacture a pass. */
-export function checkPublicModelReading(reading, names) {
+/** Collect every generated prose slot from its actual wire schema, excluding Host-restored constant fields. */
+export function collectModelAuthoredCallReadingTexts(reading, wireSchema) {
+  const properties = wireSchema?.properties, items = properties?.calls?.items;
+  if (!properties || !items || !Array.isArray(reading.calls)
+    || Array.isArray(items) && items.length !== reading.calls.length) throw new TypeError('Call reading schema mismatch');
+  const result = [];
+  for (const field of ['summary', 'flow', 'limitations']) {
+    if (!isGeneratedProperty(properties[field])) continue;
+    const values = Array.isArray(reading[field]) ? reading[field] : [reading[field]];
+    result.push(...values.filter(value => typeof value === 'string'));
+  }
+  for (const [index, call] of reading.calls.entries()) {
+    const schema = Array.isArray(items) ? items[index] : items;
+    for (const field of ['role', 'inputs', 'output', 'effects', 'reason']) {
+      if (isGeneratedProperty(schema.properties?.[field]) && typeof call[field] === 'string') result.push(call[field]);
+    }
+  }
+  return result;
+}
+
+/** Required const/singleton values are source evidence, not model-authored interpretation. */
+function isGeneratedProperty(property) {
+  return property && !Object.hasOwn(property, 'const') && !(Array.isArray(property.enum) && property.enum.length === 1);
+}
+
+/** Check actual model prose separately from Host syntax; legacy callers without a schema check summary/flow/role only. */
+export function checkPublicModelReading(reading, names, wireSchema) {
   const failures = [], call = reading.calls[0];
-  const authored = [reading.summary, reading.flow, call.role, ...(reading.limitations ?? [])].filter(text => typeof text === 'string');
+  const authored = wireSchema ? collectModelAuthoredCallReadingTexts(reading, wireSchema)
+    : [reading.summary, reading.flow, call.role, ...(reading.limitations ?? [])].filter(text => typeof text === 'string');
+  const flow = !wireSchema || isGeneratedProperty(wireSchema.properties?.flow) ? reading.flow : undefined;
   const text = authored.join(' ');
   const role = call.role.trim().replace(/^[\p{P}\p{S}\s]+|[\p{P}\p{S}\s]+$/gu, '');
   if (/^(?:role|purpose|caller|callee|call|parent|child|역할|목적|역할\s*[/·]\s*목적|role\s*[/·]\s*purpose|호출|콜러|주문\s*처리)$/iu.test(role)
@@ -43,15 +70,15 @@ export function checkPublicModelReading(reading, names) {
     failures.push('incorrect-finally-completion-order');
   }
   if (/(?:changes?|updates?|mutates?)\s+(?:the\s+)?(?:input\s+)?value\b|입력값을\s*(?:변경|갱신)|value\s*(?:를|을)\s*(?:변경|갱신)/iu.test(text)) failures.push('invented-input-write');
-  if (typeof reading.flow === 'string' && (!/\b(?:0|zero)\b/u.test(reading.flow) || !/catch|exception|error|예외|오류/iu.test(reading.flow))) {
+  if (typeof flow === 'string' && (!/\b(?:0|zero)\b/u.test(flow) || !/catch|exception|error|예외|오류/iu.test(flow))) {
     failures.push('missing-authored-catch-return');
   }
   // This corpus always returns value + 5 in try. The immutable output may
   // preserve it while the model's complete flow omits the actual calculation.
-  if (typeof reading.flow === 'string' && !/value\s*\+\s*5|(?:5\s*(?:를|을)\s*더|add(?:s|ing)?\s+5)/iu.test(reading.flow)) {
+  if (typeof flow === 'string' && !/value\s*\+\s*5|(?:5\s*(?:를|을)\s*더|add(?:s|ing)?\s+5)/iu.test(flow)) {
     failures.push('missing-authored-return-calculation');
   }
-  if (typeof reading.flow === 'string' && !reading.flow.includes(`${names.effect}(value)`)) failures.push('missing-authored-cleanup-argument');
+  if (typeof flow === 'string' && !flow.includes(`${names.effect}(value)`)) failures.push('missing-authored-cleanup-argument');
   if (authored.some(value => (value.match(/`/gu)?.length ?? 0) % 2)) failures.push('unclosed-authored-source-expression');
   if (names.locale === 'en' && authored.some(value => /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}]/u.test(value.replace(/`[^`]*`/gu, '')))) {
     failures.push('non-english-authored-prose');
@@ -64,8 +91,8 @@ export function checkPublicModelReading(reading, names) {
       failures.push('invented-authored-numeric-literal');
     }
   }
-  if (typeof reading.flow === 'string') {
-    const sentences = reading.flow.split(/(?<=[.!?。！？])\s*/u).map(sentence => sentence.trim()).filter(sentence => sentence.length >= 24);
+  if (typeof flow === 'string') {
+    const sentences = flow.split(/(?<=[.!?。！？])\s*/u).map(sentence => sentence.trim()).filter(sentence => sentence.length >= 24);
     if (new Set(sentences).size !== sentences.length) failures.push('repeated-authored-flow-sentence');
   }
   return failures;

@@ -14,6 +14,8 @@ import { checkPublicModelReading } from './benchmark-model-reading.mjs';
 const require = createRequire(import.meta.url);
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const { createLocalFunctionNarrativeProvider } = require(repo + '/out/llm/functionNarratives');
+const { createLocalNarrativeSchema } = require(repo + '/out/llm/functionNarratives/responseSchema');
+const { createLocalNarrativeWire } = require(repo + '/out/llm/functionNarratives/localWire');
 const { ModelTaskManager } = require(repo + '/out/shared/modelTasks');
 const { parseFunctionCallNarrative } = require(repo + '/out/application/functionCallNarratives');
 const { readFunctionCallSourceSyntax, createFunctionCallSourceReader } = require(repo + '/out/analyzer/functionCalls');
@@ -63,7 +65,8 @@ for (const language of ['typescript', 'kotlin']) {
           });
           if (!metrics.length) failures.push('missing-real-model-generation');
           if (fullExplanationMs > 3000) failures.push('full-explanation-over-3s');
-          failures.push(...checkReading(parsed, { ...names, locale, source: context.snippets.map(snippet => snippet.text).join('\n') }));
+          failures.push(...checkReading(parsed, { ...names, locale, source: context.snippets.map(snippet => snippet.text).join('\n') },
+            createLocalNarrativeWire(createLocalNarrativeSchema(context, locale)).schema));
         } catch (error) { failures.push(error.code || 'generation-failed'); }
         finally { clearTimeout(timer); await manager.dispose(); }
         const record = { language, locale, fixture: names.callee, round, preparationMs, fullExplanationMs,
@@ -114,8 +117,8 @@ async function fixture(language, { parent, callee, effect }) {
 }
 
 /** Necessary source facts are checked independently from shape; this remains a bounded smoke check, not a semantic oracle. */
-function checkReading(reading, names) {
-  const call = reading.calls[0], failures = checkPublicModelReading(reading, names);
+function checkReading(reading, names, wireSchema) {
+  const call = reading.calls[0], failures = checkPublicModelReading(reading, names, wireSchema);
   if (!/value\s*\+\s*5|(?:5\s*(?:를|을)\s*더|add(?:s|ing)?\s+5)/iu.test(call.output)) failures.push('missing-return-calculation');
   if (!/0/u.test(call.output) || !/catch|예외|오류/iu.test(call.output)) failures.push('missing-catch-return');
   if (!call.effects.includes(`${names.effect}(value)`)) failures.push('missing-exact-cleanup-argument');

@@ -1,7 +1,7 @@
 /** Counterexamples keep immutable syntax fields from masking unsupported model claims. */
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { checkPublicModelReading } from './benchmark-model-reading.mjs';
+import { checkPublicModelReading, collectModelAuthoredCallReadingTexts } from './benchmark-model-reading.mjs';
 const names = { parent: 'checkout', callee: 'addFee', effect: 'audit' };
 const reading = { summary: 'checkout forwards amount to addFee and returns the result.',
   flow: 'The source calls addFee(amount). It calculates value + 5 or a catch return of 0; audit(value) is unimplemented.',
@@ -101,4 +101,29 @@ test('a conditional catch fallback cannot be presented as the unconditional fina
   ]) {
     assert.deepEqual(checkPublicModelReading({ ...reading, summary }, names), [], summary);
   }
+});
+
+test('a generated output or effect is checked even when role, flow and restored details are accurate', () => {
+  const wire = { properties: { summary: { type: 'string' }, flow: { type: 'string' }, limitations: { type: 'array' },
+    calls: { items: [{ properties: { role: { type: 'string' }, output: { type: 'string' }, effects: { type: 'string' } } }] } } };
+  const candidate = { ...reading, calls: [{ ...reading.calls[0], output: 'The result is 0.', effects: 'It logs the value.' }] };
+  const failures = checkPublicModelReading(candidate, names, wire);
+  assert.ok(failures.includes('unconditional-catch-result'));
+  assert.ok(failures.includes('unproved-inner-call-behavior'));
+  const fixed = structuredClone(wire);
+  delete fixed.properties.calls.items[0].properties.output;
+  fixed.properties.calls.items[0].properties.effects = { const: 'Owned unknown effects.' };
+  assert.deepEqual(checkPublicModelReading(candidate, names, fixed), []);
+});
+
+test('model prose provenance follows the exact tuple and never counts fixed flow, singleton prose or IDs', () => {
+  const wire = { properties: { summary: { type: 'string' }, limitations: { const: [] },
+    calls: { items: [{ properties: { role: { type: 'string' }, inputs: { enum: ['Owned inputs.'] },
+      output: { type: 'string' }, callId: { type: 'string' } } }] } } };
+  const before = structuredClone(reading);
+  assert.deepEqual(collectModelAuthoredCallReadingTexts(reading, wire), [reading.summary, reading.calls[0].role, reading.calls[0].output]);
+  assert.deepEqual(reading, before);
+  assert.throws(() => collectModelAuthoredCallReadingTexts({ ...reading, calls: [] }, wire), /schema mismatch/u);
+  assert.throws(() => collectModelAuthoredCallReadingTexts(reading, {}), /schema mismatch/u);
+  assert.deepEqual(checkPublicModelReading({ ...reading, flow: 'Owned flow.' }, names, wire), []);
 });

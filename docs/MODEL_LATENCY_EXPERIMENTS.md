@@ -705,6 +705,122 @@ bfloat16 변환 오류는 정확한 uint8 byte view로 수정했다. 실패했�
 진행하지 않았다. 일반 compile과 패키지·평가 스크립트 테스트 29개가 통과했다.
 runtime·기본 모델·사용자 설정·CSS와 설치된 **0.0.1145**는 유지한다.
 
+### 출력 단계 계측과 제약 검사 겹치기
+
+후속 네 건의 새 원문 생성에 token 간격과 CPU grammar 작업 계측을 추가했다.
+`mlx-instruction-cache-6pKqNr`의 전체 응답은 **1.145–1.318초**였고, 네 응답 모두 앞선
+안내문 cache 실험의 응답과 byte가 같았다. 이전 5.289초의 음수 분기도 1.318초에
+끝났으므로 이를 계측 코드가 해결한 성능 문제로 제시하지 않는다. CPU mask 계산은
+24.7–157.2ms였으며, token 소비 시간에는 GPU 동기화 대기가 포함된다. lazy graph 생성
+시간이나 CPU 대기만으로 GPU forward·sampler의 개별 시간을 단정하지 않는다.
+
+[LLGuidance의 canonical fast-forward 방식](https://github.com/guidance-ai/llguidance/blob/main/docs/fast_forward.md)도
+현재 전체 wire/schema에서 CPU로 검사했다. 실제 완료된 공개 응답 네 건에서 고정 token은
+각 5/5/5/7개였으며 모두 한 token짜리 구간이었다. 여러 token의 forward를 한 번으로
+묶을 기회는 0건이었다. 이 검사는 새 모델 설명 생성이나 속도 측정이 아니며,
+`ff-token-opportunity.json`을 보존하고 별도 jump decoder 구현은 진행하지 않았다.
+
+다음에는 원문·prompt·grammar·sampler·출력 상한을 유지하고, 앞선 token이 준비된 뒤
+기존 model forward graph를 먼저 enqueue해 CPU mask 검사와 겹치는 경로를 구현했다.
+`mlx-instruction-cache-gFPPBk/overlap-rereview.json`의 네 쌍 모두 전체 응답 byte가
+같았지만 전체 시간은 2/4건만 줄었다. 음수 분기는 1.506→3.371초였고 필요 조건과
+전체 3초를 함께 만족한 건수는 control 3/4, overlap 2/4였다. 앞선 결합 분기 오류도
+그대로였다. 시스템 변동과 분리한 일반적인 개선을 입증하지 못해 제품에 적용하지 않았다.
+
+### 학습 정답의 잘못된 분기식 복제 수정
+
+추가 학습에 쓴 1,664건을 다시 검사해 **160건의 확실한 정답 오류**를 확인했다.
+훈련 144건, 검증 16건이다. 기존 생성기가 `/[+*\-]/`로 계산식을 고르면서 단항 음수
+리터럴도 계산식으로 취급했다. 예를 들어 원문은 다음처럼 서로 다른 식을 반환한다.
+
+```typescript
+function convert(raw: number): number {
+  if (raw < 2) { return -9; }
+  return raw + 2;
+}
+```
+
+그런데 role 정답은 `조건 raw < 2에 따라 -9 또는 -9를 반환합니다`였다. 음수 상수를
+다른 경로의 계산식으로 다시 선택한 생성 오류이며, 이 결함이 실제 모델 오류 전체의
+원인이라고 단정하지는 않는다.
+
+공개 offline helper `scripts/model-reading-supervision.mjs`의
+`createTwoReturnBranchSupervision(target, locale, sourceText)`로 각 반환식을 자기
+소스 슬롯에서 읽도록 수정했다. 완전한 declaration이 `if`의 반환과 뒤의 반환만 포함하는지
+함께 확인한다. TypeScript/Kotlin의 중괄호 및 Kotlin의 단일 문장 if를 지원하고,
+잘린 inventory·중첩 경로·catch·사이의 throw/write/loop·너무 긴 정답은 거부한다.
+기존 문장 형식과 confidence를 유지하고 잘못 복제된 fallback 식만 바꾼다. 이 helper는
+학습 정답용이며 실제 inference·Host flow 작성·확장 runtime에는 연결하지 않는다.
+
+첫 보정 실험은 같은 160개 role을 고치면서 문장 형식도 바꿨다. 원문·입력·나머지 정답을
+보존하고 모든 1,664건의 Host parser 및 decoder grammar/EOS 통과를 확인했다.
+fresh base에서 같은 seed/LoRA 설정으로 200 iterations를 학습했고, 약 281.94초와
+peak allocation 8,009.78 MiB를 사용했다. 기존 가중치와 분리한 4bit/group 128 파일은
+914,316,110 bytes이며 설치하지 않았다.
+
+이 모델의 새 TypeScript/Kotlin × 한국어/영어 × 여덟 구조, 총 32건은 전체 설명
+**1.16–5.12초**, 22건이 3초 이내였다. 당시 필요 조건은 20건, 시간과 동시 통과는
+15건이었다. 그러나 전체 가변 필드·flow·실제 호출 인수를 별도 재검토하니 원문에 없는
+`mapInput(seed)`를 쓰고, 결합 분기에서 catch의 `-3`을 비음수 경로의 결과로 설명하며
+`valueArg * 4`를 빠뜨린 사례가 남았다. 구현 누락·잘린 본문에서 미확인 반환·효과를
+서술하지 않은 응답도 있었다.
+
+`label-repair-rereview.json`의 같은 제한적 필요 조건으로 다시 보면 원래 보존된 control은
+19/32, 새 문구 보정은 10/32이며 원래 시간과 동시에 통과한 건수는 양쪽 모두 6/32였다.
+32개 입력 context는 byte가 같다. 서로 다른 시점의 시간은 matched runtime 비교가
+아니므로 속도 개선을 정답 보정의 효과로 제시하지 않는다. 선택한 실제 반례와 필요
+조건 검사는 일반적인 의미 정확성의 증명도 아니다. 첫 보정 모델은 채택하지 않았고
+원래 응답·시간·판정과 corpus를 모두 보존했다.
+
+후속 실험에서는 문장 형식을 원래대로 유지하고 잘못 복제된 fallback 식만 바꿨다.
+`training-data-production-branch-fixed.json`의 SHA-256은
+`b63c1d5374b99f014350012610133aa402fe62e066f74b916fec1f653eb9f32b`이며,
+144개 훈련·16개 검증 role 외의 원문·입력·정답은 그대로다. 모든 1,664건의 Host
+parser 및 grammar/EOS 검증을 다시 통과했다. 별도의 fresh base와 같은 seed/LoRA
+설정으로 200 iterations를 학습했고 **281.17초**, peak allocation **7,777.97 MiB**를
+사용했다. 4bit/group 128 병합 가중치의 SHA-256은
+`adcbcc60d6980c631f33cfd16882852a1ed1d762e92227d1b04a570d429b8411`이다.
+파일 크기는 914,316,110 bytes이며 기존 모델과 분리해 보존했다.
+
+`production-holdouts-xrVbWN/report.json`의 같은 독립 사례 32건에서 전체 설명은
+**0.885–9.114초**였다. 20건이 3초 이내, 필요 조건 통과는 18건, 동시 통과는 12건이었다.
+`branch-fixed-label-rereview.json`에서도 같은 필요 조건 결과가 나왔으나, 실제 문장을
+읽으니 통과한 TypeScript/영어 결합 분기조차 catch의 `-3`에 `valueArg < 0` 조건을
+잘못 붙였다. 이 12건을 의미 정확성과 시간 목표의 달성 건수로 간주하지 않는다.
+
+추가 반례는 완전한 영어 뺄셈 본문을 구현 누락으로 설명하기, 한국어 음수 조건 뒤집기,
+영어 반복문에서 실제 지역 변수 갱신을 부정하기, 누락된 callee 대신 caller 본문을
+설명하기, 잘린 본문의 미확인 나머지를 `otherwise 14`로 단정하기였다. 한국어 반복
+설명은 문장을 되풀이했고 Kotlin 응답은 EOS로 끝나도 code span이 미완성이었다.
+다른 필드의 정확한 설명으로 이런 문장을 상쇄하지 않는다.
+
+입력 context 32개는 원래 control과 byte가 같지만 서로 다른 시점의 시간은 matched
+성능 비교가 아니다. 두 보정 모델 모두 현재 provider/resource 경계와 Host parser까지의
+측정이며 outer Host 전달·전체 scope·rich 검증을 대신하지 않는다. 이미 필수 설명
+정확성과 3초 조건을 만족하지 못해 제품 통합이나 설치, 추가 모델·학습 설정 탐색으로
+확장하지 않았다. 학습·병합·평가 프로세스는 모두 종료됐고 원래 모델을 유지했다.
+
+### 실제 모델 작성 필드의 평가 범위 보완
+
+`scripts/benchmark-model-reading.mjs`의
+`collectModelAuthoredCallReadingTexts(reading, wireSchema)`는 해당 요청의 실제 wire
+schema에 남은 summary/flow/limitations와 다섯 call prose 필드를 수집한다.
+Host에서 복원한 const/singleton 필드와 call ID는 모델 이해의 근거에서 제외한다.
+tuple 수가 다른 schema는 거부해 다른 요청의 필드를 실수로 평가하지 않는다.
+`checkPublicModelReading`의 세 번째 인자로 이 schema를 전달하면 생성된 output/effects의
+허위 주장도 검사한다. schema 없는 과거 호출은 summary/flow/role 검사만 유지한다.
+공개 context/scopes benchmark에는 실제 요청 context의 schema를 연결했다.
+scopes의 공개 한 호출 corpus에서 provenance가 모호하면 성공으로 세지 않는다.
+기존 실제 Host의 overview/call/scenario 응답 12건으로 schema 연결이 모두 유효한지도
+재검사했다(`model-prose-host-provenance-review.json`). 보존된 응답의 schema 검증이며
+새 모델 생성·시간 측정이나 실제 모델 정확성 통과를 의미하지 않는다.
+
+고정 상세가 정확한 상태에서 가변 output이 catch 값을 무조건 반환한다고 주장하거나
+가변 effects가 미구현 로그 동작을 단정하는 반례를 추가했다. offline 보정 helper의
+음수 리터럴·반환 순서·candidate confidence·Kotlin 구문·불완전 소스·길이 검사와 함께
+패키지·평가 스크립트 테스트 **36개**가 통과했다. 제품 runtime·기본 모델·사용자 설정·
+CSS와 설치된 **0.0.1145**는 유지한다.
+
 ## 남은 완료 기준
 
 모델 변경, decoder 최적화 또는 입력 구조 변경을 채택하려면 다음을 함께 확인해야 한다.

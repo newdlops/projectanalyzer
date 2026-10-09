@@ -17,6 +17,8 @@ const { WebviewGraphDelivery } = require(repo + '/out/webview/sidebarGraphDelive
 const { SourceNodeTokenRegistry } = require(repo + '/out/webview/sourceNavigation');
 const { CodeFlowEvidenceTokenRegistry } = require(repo + '/out/webview/codeFlow');
 const { createLocalFunctionNarrativeProvider } = require(repo + '/out/llm/functionNarratives');
+const { createLocalNarrativeSchema } = require(repo + '/out/llm/functionNarratives/responseSchema');
+const { createLocalNarrativeWire } = require(repo + '/out/llm/functionNarratives/localWire');
 const { ModelTaskManager } = require(repo + '/out/shared/modelTasks');
 const { exampleFunctionCallScenarios } = require(repo + '/out/shared/functionCalls');
 const modelPath = process.argv[2] && path.resolve(process.argv[2]);
@@ -100,8 +102,10 @@ for (const language of ['typescript', 'kotlin']) {
         if (!['role', 'inputs', 'output', 'effects', 'reason'].every(field => typeof call[field] === 'string' && call[field].trim())) failures.push('missing-detail-field');
         if (!evidenceTokens.resolve(call.callerEvidence) || !evidenceTokens.resolve(call.calleeEvidence)) failures.push('missing-source-evidence');
       }
-      if (narrative.calls.length) failures.push(...checkPublicModelReading(narrative, { parent: 'checkout', callee: 'addFee', effect: 'audit',
-        locale, source: fixture.files.map(file => file.content).join('\n') }));
+      if (narrative.calls.length && contexts.length === 1) failures.push(...checkPublicModelReading(narrative, { parent: 'checkout', callee: 'addFee', effect: 'audit',
+        locale, source: fixture.files.map(file => file.content).join('\n') },
+        createLocalNarrativeWire(createLocalNarrativeSchema(contexts[0], locale)).schema));
+      else failures.push('ambiguous-model-prose-schema');
       if (fullExplanationMs > 3000) failures.push('full-explanation-over-3s');
     } catch (error) { failures.push(error.code || error.message || 'generation-failed'); }
     finally { clearTimeout(timeout); host.reset(); await manager.dispose(); }
