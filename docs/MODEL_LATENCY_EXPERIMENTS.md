@@ -635,6 +635,76 @@ TypeScript/한국어 overview 한 건에서 일반 native 생성은 **4.72초**(
 패키지·평가 스크립트 테스트 29개가 통과했으며 모든 실험 프로세스의 종료를 확인했다.
 제품 runtime·기본 모델·설정·CSS와 설치된 0.0.1145는 유지한다.
 
+### 원문 없는 준비와 공통 안내문 KV 재사용
+
+2026-10-10에는 사용자 원문을 준비 단계에 넣지 않고, 요청마다 같은 공통 안내문만 미리
+계산하는 경로를 별도 실험으로 구현했다. 준비 완료 뒤에 전체 현재 원문을 새로 읽으며,
+이전 설명·원문 KV·예제 정답을 재사용하지 않는다. 출력 필드·상한·현재 production
+prompt/schema/grammar와 sampler도 유지했다. 첫 native hook은 번들 내부 provider에
+연결되지 않아 `source-free-prefix-xhNGjL`을 계측 무효로 표시했다. 모든 소비자가 끝난 뒤
+일반 compile을 실행하고 factory 연결과 실제 준비 receipt를 확인한 실험만 따로 기록했다.
+
+설치된 공식 llama.cpp `b29c606e2`의
+[server 문서](https://github.com/ggml-org/llama.cpp/blob/b29c606e2/tools/server/README.md)는
+`n_predict: 0`을 prompt 처리 전용으로 설명하지만, 실제 `/completion`은 출력 token
+한 개를 생성했다. raw에는 `n_predict: 0`, `tokens_predicted: 1`, content가 세 개의
+backtick으로 함께 남아 있다. 해당 버전의
+[server 구현](https://github.com/ggml-org/llama.cpp/blob/b29c606e2/tools/server/server-context.cpp)도
+prompt 완료 후 sampling하고 생성 budget을 검사하는 순서다. source-free라도
+**출력 0 tokens** 준비 조건에 맞지 않아 즉시 중단했다. 이를 정상 prefill-only 준비로
+취급하거나 그 뒤의 요청 시간을 유효한 prefix-cache 비교로 세지 않는다.
+`source-free-prefix-aGidWe/warm-preparation.jsonl-raw`에 응답을 보존했다.
+
+별도로 공식 native BOS/EOS forward warmup만 활성화해 같은 전체 rich session의
+TypeScript/한국어 interleaved-effects 한 건을 비교했다. 원문 없는 준비는 3.43→2.28초,
+준비 후 전체 설명은 **1.70→3.67초**였다. 두 응답 모두 581 prompt/41 output tokens였고
+원문 필요 조건을 통과했으나 warmup 쪽은 3초를 넘었다. 하나의 비교에서 개선을 입증하지
+못했으며, 시스템 부하나 출력 단계 변동을 분리한 일반적인 성능 결론도 아니다.
+`source-free-prefix-H6Hyxf/report.json`을 보존하고 제품의 warmup 설정은 유지했다.
+
+MLX 실험에는 이미 보유한 `model-1.7b-aligned-fused`를 사용했다. 이 가중치는 이전의
+넓은 heldout 검증에서 기본 모델 채택이 거절된 상태이며 이번에 새로 학습·다운로드하지
+않았다. 한국어/영어 × call/rich 네 공통 안내문을 실제 tokenizer/template으로 계산한 뒤
+준비 완료를 알렸다. 비교 양쪽 모두 같은 네 안내문과 고정 forward를 미리 계산하고,
+재사용 쪽만 원문 없는 KV를 보존했다. 요청마다 전체 token prefix가 정확히 같은지
+확인하고 cache를 복제해 남은 **전체 원문과 schema**를 처리했다. 보존된 cache의 모든
+byte와 offset을 SHA-256으로 검사해 요청 전후 불변을 확인했다. 검사·복제 비용도 전체
+응답 시간에 포함했다. 불일치·미완성 생성은 성공으로 세지 않는다.
+
+현재 provider의 FIFO/resource 경계와 Host parser를 거친 네 쌍의 결과는 다음과 같다.
+시간은 모델 준비 후 새 원문 처리부터 전체 생성·Host parse 완료까지이며, 실제 outer
+Host transport나 Webview 전달·전체 rich/heldout 조합의 측정은 아니다.
+
+| 공개 사례 | 재사용 없음 | 안내문 KV 재사용 | 검토 결과 |
+| --- | ---: | ---: | --- |
+| TypeScript/한국어 뺄셈 | 1.780초 | 1.433초 | 전체 응답 byte 일치, 필요 조건 통과 |
+| TypeScript/한국어 음수 분기 | 5.134초 | 5.289초 | 필요 조건 통과, 양쪽 모두 3초 초과 |
+| Kotlin/한국어 뺄셈 | 1.626초 | 1.488초 | 전체 응답 byte 일치, 필요 조건 통과 |
+| Kotlin/영어 분기·catch | 1.497초 | 1.545초 | 양쪽 모두 catch 반환 누락과 잘못된 반환 설명 |
+
+한국어 call 안내문은 675 tokens, 영어는 409 tokens를 재사용했다. 네 prefix 보존에
+**196 MiB**가 들었다. 이는 prefix KV 할당량이며 전체 worker peak 메모리 측정값은 아니다.
+prefill은 3/4건, 전체 응답은 2/4건에서 줄었다. TypeScript 뺄셈은 오히려 prefill이
+370→429ms로 늘고 출력 단계가 1,383→959ms로 줄어, 전체 시간 감소를 안내문 cache의
+고유 효과로 단정할 수 없다. 음수 분기는 prefill이 805→234ms로 줄어도 출력 단계가
+4,314→4,994ms로 늘었다. 원문 필요 조건과 전체 3초를 함께 만족한 건수는 양쪽 모두
+**2/4**이며, 그 필요 조건은 일반적인 의미 정확성의 증명이 아니다.
+
+원문 크기에 따라 고정 상세 budget이 달라지므로 모델이 쓴 필드를 role로만 한정하지
+않았다. 각 실제 schema→wire에서 가변 필드를 확인해 output/effects도 함께 검토했다.
+분기·catch 사례는 양쪽 모두 catch의 `-3` 반환을 빠뜨리고, `valueArg < 0`이 아닌
+경로의 `valueArg * 4`도 14로 잘못 설명했다. 생성된 effects는 14 반환을 단정하고
+정확한 `inspectValue(valueArg)` 호출을 빠뜨렸다. 모든 모델 작성 문장이 같은 쌍도
+2/4뿐이다. 고정 상세의 정확성으로 이 오류를 상쇄하거나 모델 이해 통과로 세지 않는다.
+
+`mlx-instruction-cache-P7A2pj/report.json`의 원래 응답·시간·판정과 두 준비 receipt를
+보존하고 `rereview.json`에 별도 검토를 기록했다. 초기 cache fingerprint의 NumPy
+bfloat16 변환 오류는 정확한 uint8 byte view로 수정했다. 실패했던
+`mlx-instruction-cache-4Ne0iB`의 네 control 응답은 유효한 paired 최적화 비교에서
+제외했다. 모든 실험 프로세스가 종료됐으며 추가 prompt/model 탐색이나 제품 통합은
+진행하지 않았다. 일반 compile과 패키지·평가 스크립트 테스트 29개가 통과했다.
+runtime·기본 모델·사용자 설정·CSS와 설치된 **0.0.1145**는 유지한다.
+
 ## 남은 완료 기준
 
 모델 변경, decoder 최적화 또는 입력 구조 변경을 채택하려면 다음을 함께 확인해야 한다.
