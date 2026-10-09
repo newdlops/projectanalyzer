@@ -5,8 +5,8 @@ export function checkPublicModelReading(reading, names) {
   const failures = [], call = reading.calls[0];
   const authored = [reading.summary, reading.flow, call.role, ...(reading.limitations ?? [])].filter(text => typeof text === 'string');
   const text = authored.join(' ');
-  const role = call.role.trim().replace(/^`([^`]+)`$/u, '$1');
-  if (/^(?:role|caller|callee|call|parent|child|호출|콜러|주문\s*처리)$/iu.test(role)
+  const role = call.role.trim().replace(/^[\p{P}\p{S}\s]+|[\p{P}\p{S}\s]+$/gu, '');
+  if (/^(?:role|purpose|caller|callee|call|parent|child|역할|목적|역할\s*[/·]\s*목적|role\s*[/·]\s*purpose|호출|콜러|주문\s*처리)$/iu.test(role)
     || role === names.callee || role === names.parent) failures.push('generic-or-unsupported-call-role');
   // These fixtures contain arithmetic and unimplemented audit/observe calls,
   // with no orders, business rules or observed I/O. Identifier addFee itself is
@@ -19,6 +19,17 @@ export function checkPublicModelReading(reading, names) {
   if (/값이\s*없|missing\s+(?:input|value)|no\s+value/iu.test(text)) failures.push('invented-missing-input-branch');
   if (/구현이\s*(?:제공되지|없)|implementation\s+is\s+missing/iu.test(call.role)) failures.push('invented-missing-callee');
   if (new RegExp('\\b(?:parent0|callee0|unknown0)\\b', 'iu').test(text)) failures.push('unrestored-callable-alias');
+  // These public snippets contain none of the transport's source-slot names or
+  // output labels. They cannot substitute for an actual callable or a result.
+  if (/\bcall-\d+-(?:caller|callee)\b|\b(?:callId|endResult)\b/u.test(text)) failures.push('leaked-internal-call-metadata');
+  // A copied catch return is not an unconditional whole-function result. Keep
+  // explicit exception-qualified sentences valid; this is a narrow necessary
+  // check for this corpus, not a general natural-language proof of control flow.
+  const sentences = authored.flatMap(value => value.split(/(?<=[.!?。！？])\s*/u));
+  if (sentences.some(sentence => !/catch|exception|error|\b(?:if|when)\b|예외|오류|경우/iu.test(sentence)
+    && /(?:always\s+returns?\s+`?0\b|(?:return(?:ed)?\s+value|(?:final\s+)?result)\s+(?:is|becomes|defaults?\s+to)\s+`?0\b|(?:항상|무조건)\s*`?0`?\s*(?:을|를)?\s*반환|(?:반환값|최종\s*(?:결과|값)|endResult)[^.!?]{0,16}0[^.!?]{0,10}(?:기본값|됩니다|결정))/iu.test(sentence))) {
+    failures.push('unconditional-catch-result');
+  }
   // Finally may override/throw before a function's return completes. The public
   // fixture has no post-return hook or write to value. Check authored sentences
   // independently; a correct immutable output/effects field cannot repair them.

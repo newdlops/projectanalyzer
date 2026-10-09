@@ -593,6 +593,48 @@ overview, 단일 call 버튼과 캐시 페이지 앞뒤 이동을 직접 실행�
 별개이며 모바일 장치나 native VS Code 안의 전 viewport 검증을 주장하지 않는다.
 기존 side-tab 디자인 훅은 사용자 답변 대기 상태로 유지하며 ignore를 추가하지 않았다.
 
+### 원문 대비 디코딩의 제한된 실행 검사
+
+2026-10-10에는 프롬프트 문구나 가중치를 다시 고르는 대신
+[Context-aware Decoding 논문](https://aclanthology.org/2024.naacl-short.69/)과
+[저자 구현](https://github.com/xhan77/context-aware-decoding)의 방식으로, 같은 모델의
+원문 포함 예측과 원문 제거 예측을 비교하는 별도 native probe를 작성했다. 실제 확장에는
+연결하지 않았다. 기존 검증된 LFM2.5 1.2B QAD Q4_0 GGUF와 설치된 공식 llama.cpp
+`b29c606e2`의 ABI·JSON grammar converter를 사용했다. 두 독립 sequence에 같은 출력
+token을 넣고 `1.5 * source_logits - 0.5 * ablated_logits`를 grammar/sampling 전에
+적용했다. 비교 가중치는 0과 0.5만 사용했다.
+
+현재 production prompt와 전체 wire/schema를 사용했다. 응답 필드·원문·출력 상한을
+줄이지 않았고 모든 다섯 상세 필드를 Host에서 복원했다. 고정 상세는 모델 이해의 증거로
+세지 않았다. 실제 production server의 `/apply-template` 출력과 native renderer의
+결과가 정확히 같은지 두 입력 모두 확인했다. 원문과 파서의 반환·효과 inventory만 제거한
+입력도 같은 system message·안내 문장·schema를 사용했다. 원문 없는 고정 token으로
+준비한 뒤 parent handshake로 측정을 시작했고, 전체 native 응답과 현행 Host parser가
+끝날 때까지 측정했다. 별도 native 도구이므로 실제 Host transport·Webview 전달이나
+전체 rich/heldout 성능 측정으로 제시하지 않는다.
+
+TypeScript/한국어 overview 한 건에서 일반 native 생성은 **4.72초**(출력 204 tokens),
+원문 대비 생성은 **2.86초**(157 tokens)였다. 후자는 3초 이내였지만 실제 flow에서
+반환 계산·catch 조건·정확한 `audit(value)` 인수를 빠뜨리고, 내부 source-slot 이름과
+존재하지 않는 component, 잘못된 역순을 만들었다. summary는 정상 try 뒤 catch가
+이어지는 것처럼 설명하고 audit를 오류 상황에만 연결했다. role도 "역할/목적"이라는
+자리표시자였다. **정확도와 3초를 함께 통과한 결과는 0/2**이며 추가 언어·scope 조합,
+가중치 탐색이나 제품 통합을 진행하지 않았다. 이 두 건으로 방식 전체의 성능을 일반화하지
+않으며, 일반 native 도구의 시간도 production server와 같은 성능이라고 해석하지 않는다.
+
+최초 ablation은 source-dependent builder가 안내 문장도 생략하는 차이가 있어
+`instruction-confounded-*` 파일로 분리 보존했다. 그 초기 비교는 일반 생성 4.44초,
+원문 대비 생성 3.14초였고 후자는 자동 필요 조건을 통과했지만 수동 검토에서 catch의
+0을 항상 반환하는 기본값으로 단정하는 오류와 일반 role을 확인했다. 같은 안내 문장으로
+고친 뒤 위의 한 차례 비교를 진행했다. 초기 결과를 목표 달성이나 검증된 CAD 비교로
+세지 않는다. 원래 raw·시간·판정을 덮어쓰지 않고 `cad-rereview.json`에 별도 검토를 남겼다.
+
+공개 corpus의 평가에는 문장부호로 감싼 일반 role, 노출된 내부 호출 메타데이터,
+예외 한정 없이 최종 결과를 0으로 단정하는 반례를 추가했다. 명시적인 예외 조건이 붙은
+올바른 설명은 유지한다. 이 검사는 일반적인 의미 정확성의 증명이 아닌 제한된 필요 조건이다.
+패키지·평가 스크립트 테스트 29개가 통과했으며 모든 실험 프로세스의 종료를 확인했다.
+제품 runtime·기본 모델·설정·CSS와 설치된 0.0.1145는 유지한다.
+
 ## 남은 완료 기준
 
 모델 변경, decoder 최적화 또는 입력 구조 변경을 채택하려면 다음을 함께 확인해야 한다.

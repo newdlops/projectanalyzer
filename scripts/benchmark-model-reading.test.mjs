@@ -79,3 +79,26 @@ test('correct immutable returns cannot conceal copied numeric alternatives, clip
   assert.deepEqual(checkPublicModelReading({ ...reading, calls: [{ ...reading.calls[0], role: 'Return `0` or `5`.' }] },
     { ...options, source: source.replace('value + 5', 'value +5') }), []);
 });
+test('punctuation cannot turn a role placeholder into a description or source metadata into source behavior', () => {
+  for (const role of ['역할”, ', '“role”,', '`addFee`,', '역할/목적,', 'role/purpose']) {
+    assert.ok(checkPublicModelReading({ ...reading, calls: [{ ...reading.calls[0], role }] }, names)
+      .includes('generic-or-unsupported-call-role'));
+  }
+  for (const summary of ['call-1-caller가 value를 전달합니다.', 'callId를 따라 설명합니다.', 'endResult은 0이 됩니다.']) {
+    assert.ok(checkPublicModelReading({ ...reading, summary }, names).includes('leaked-internal-call-metadata'));
+  }
+});
+test('a conditional catch fallback cannot be presented as the unconditional final result', () => {
+  for (const summary of [
+    '반환값 0이 기본값으로 결정됩니다.', '최종 결과는 0이 됩니다.', '항상 0을 반환합니다.',
+    'The result is 0.', 'The returned value defaults to 0.', 'It always returns 0.'
+  ]) {
+    assert.ok(checkPublicModelReading({ ...reading, summary }, names).includes('unconditional-catch-result'), summary);
+  }
+  for (const summary of [
+    '예외가 발생한 경우 반환값은 0이 됩니다.', 'When catch is reached, the result is 0.',
+    'The returned value is 0 if an error is caught.', 'It returns value + 5 or a catch fallback of 0.'
+  ]) {
+    assert.deepEqual(checkPublicModelReading({ ...reading, summary }, names), [], summary);
+  }
+});
