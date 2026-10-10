@@ -1635,6 +1635,99 @@ Host/VS Code 전체 peak가 아니다. 수치·설명 일치에도 3초 기준�
 반복 문장, 실제 outer Host/전체 scope/rich/일반적인 전체 3초 기준은 여전히 미충족이며
 runtime/UI/기본 모델/설치 버전 **0.0.1145**를 유지한다.
 
+## Sampler의 동일 연산 생략과 정렬 공유
+
+앞선 실제 kernel inventory에 sort/partition/merge 반복이 있었으므로 설치된
+[MLX-LM 0.32.0 sampler](https://github.com/ml-explore/mlx-lm/blob/v0.32.0/mlx_lm/sample_utils.py)를
+확인했다. 원래 순서는 전체 vocabulary top-p → top-k → temperature categorical이다.
+이 순서나 확률 분포를 바꾸지 않고 중복 작업을 줄일 수 있는지 두 가지로 나눠 확인했다.
+이전에 효과가 작았던 동일 sampler의 compile 실험을 다시 실행한 것은 아니다.
+
+### 허용 토큰이 적을 때의 identity top-k
+
+유효한 finite/negative-infinity logits에서 문법이 허용한 토큰이 40개 이하라면 top-k=40은
+유한한 항목을 제거하지 않는다. Private CPU helper는 이미 있는 32-bit mask를 세며 GPU
+logits를 읽지 않는다. 빈 mask, 잘못된 shape/dtype/batch/threshold는 원래 연산으로
+돌아간다. Signed mask는 unsigned view로 센다. 음수의 절댓값을 세는 signed popcount로
+`-1`을 1bit로 잘못 세지 않으며 padding bit는 보수적으로 포함한다. 이 경계의 **8개 CPU
+검사**가 통과했다.
+
+`grammar-topk-opportunities.json`은 기존 다섯 실제 응답의 token 기록에 대응하는
+**706개 원래 native grammar prefix mask**를 재생했다. 모델을 로드하거나 새 설명을
+생성하지 않았다. 전체 151,936bit mask에서 각 기록당 12개, 합계 **60/706개(8.50%)**만
+이 조건을 만족했다. 추가 lookahead/EOS sampler 호출 전체를 센 값은 아니다. Mask
+집계의 thread CPU 합계는 사례별 **0.44~1.89ms**였다.
+
+`grammar-topk-identity-parity.json`은 float32/bfloat16, 허용 개수 1/2/39/40/41/512,
+세 분포의 **36조건 × 16seed = 576쌍**이다. 원래 전체 top-p와 categorical을 유지하고
+identity 조건에서만 top-k를 생략했다. 전체 필터 log-probability byte, temperature 뒤
+전체 probability byte, 선택 token과 갱신된 RNG 상태가 모두 같았다. 이는 모델 없는
+합성 배열 비교이며 새 소스 설명 576개가 아니다.
+
+Identity 조건 24개의 sampler 중앙값 절감은 **0.115~0.579ms**였다. 가장 큰 합성
+절감에 기록된 12단계를 곱해도 약 **6.95ms**이며 실제 요청의 절감이나 상한을 측정한
+값은 아니다. 적용 가능한 비중이 작아 이 후보의 새 모델 비교로 확대하지 않았다.
+
+### 모든 토큰에서 정렬을 한 번 공유하는 후보
+
+같은 버전의 [pinned Metal 정렬 구현](https://github.com/ml-explore/mlx/blob/64ea011cb65f14d9ce2737e60db9a4ae91ed7441/mlx/backend/metal/sort.cpp#L322)에서
+`ArgSort`와 `ArgPartition`은 모두 같은 `gpu_merge_sort(..., true)`를 호출한다.
+[argsort 문서](https://ml-explore.github.io/mlx/build/html/python/_autosummary/mlx.core.argsort.html)는
+동점의 원래 순서를 보존한다고 명시한다. 반면 [argpartition의 일반 API 계약](https://ml-explore.github.io/mlx/build/html/python/_autosummary/mlx.core.argpartition.html)은
+partition 내부 순서를 보장하지 않으므로 이 최적화를 다른 backend/버전에 일반화하지 않는다.
+
+Private 후보는 원래 log-probabilities의 안정된 내림차순 index를 한 번 구한다.
+그 index에서 전체 오름차순 값을 복원해 원래 float32 exp, reverse exclusive cumsum,
+전체 mass와 top-p threshold를 그대로 계산한다. 이어 같은 index의 top40과 원래 top-p
+조건의 교집합을 남긴다. 먼저 top40만으로 확률을 정규화하거나 top-p를 top-k 뒤로
+옮기지 않는다. Temperature0.2와 원래 categorical/RNG 연산도 유지한다.
+
+`shared-sampler-sort-parity.json`의 **32조건 × 32seed = 1,024쌍**은 float32/bfloat16에서
+dense/희소 분포, 전체 동점, signed zero, top40 경계의 39/40/41개 plateau와 exp 극단값을
+포함한다. 전체 필터 log-probability/probability byte와 support, 선택 token, 갱신 RNG가
+모두 같았다. 각 조건의 sampler 중앙값은 **0.023~1.432ms** 감소했으나 합성 배열의
+관찰이다. 입력 조건은 유효한 finite/negative-infinity logits이며 NaN/positive-infinity나
+일반 backend의 동점 계약까지 증명한 것은 아니다.
+
+### 원래 전체 소스의 새 설명 비교
+
+수치 검사를 통과한 정렬 공유만 실제 원문에 적용했다.
+`compound-shared-sampler-comparison-JJ9qvG/report.json`은 동일한 완전 본문 세 개를
+control → shared → shared → control로 읽은 **새 설명 12개**다. 각 arm은 준비 단계에
+같은 float32/bfloat16 고정 filter 배열 두 개를 평가한다. Categorical을 호출하거나
+소스 token을 읽지 않으며 준비 전후 RNG가 같음을 확인했다. 기존 64+1 EOS model forward,
+모델 graph/가중치, 원래 source/context/prompt/wire/native grammar/sampling/출력 한도,
+8GiB 메모리/256MiB allocator cache 한도를 유지했다. Projection 결합이나 canonical
+grammar를 함께 적용하지 않았다.
+
+준비 뒤 provider 요청부터 전체 wire decode/정규화와 Host parser까지 측정했다.
+각 요청은 실제 model call 한 번, cached tokens 0이다. 실제 wire hash와 정규화 후
+전체 설명은 같은 사례의 이전 응답 및 다른 arm과 모두 정확히 같고 prompt token 수도
+같았다. 세 원문과 summary/flow 및 다섯 상세 필드를 다시 읽어 쓰기/반환, try/catch와
+Kotlin 양쪽 조건, finally와 미확인 내부 동작·정상 복귀 조건을 확인했다.
+
+| 원문 | 원래 전체 완료 두 번 | 정렬 공유 전체 완료 두 번 |
+| --- | --- | --- |
+| TypeScript 영어 쓰기 | 1.264 / 0.962초 | 3.375 / 0.912초 |
+| TypeScript 한국어 catch/finally | 2.270 / 2.422초 | 3.150 / 1.634초 |
+| Kotlin 한국어 복합 분기 | 2.791 / 7.866초 | 2.338 / 3.239초 |
+
+원래 arm은 **5/6**이 3초 이내(평균 **2.929초**, 최대 **7.866초**), 정렬 공유는
+**3/6**(평균 **2.441초**, 최대 **3.375초**)였다. 평균이나 최대 하나만 골라 일반적인
+개선 또는 안정적인 3초를 주장하지 않는다. 실패 결과를 재실행으로 제외하지 않았고
+32원문/전체 scope/rich로 확대하지 않았다.
+
+Worker 누적 peak MLX allocation은 두 arm 모두 최대 **1,752.20MiB**였다. OS RSS
+peak는 각각 **1,419.61/1,419.92MiB**이며 준비를 포함한 worker의 누적 값이다.
+모델 준비/Host/VS Code 전체 메모리 또는 요청별 allocation delta와 구별한다.
+
+이번 단계는 실제 새 설명 **12개/서로 다른 원문 3개**와 별도의 기록 mask 706개,
+모델 없는 수치 비교 576+1,024쌍 및 CPU 검사 8개다. Python/Node 구문 검사와
+문서 diff 검사를 수행했고 공개 package 61개는 앞선 실제 통과 기록으로 유지했다.
+모든 소유 프로세스는 종료됐다. 정렬 공유의 수치·응답 보존과 연산 절감은 확인했지만
+전체 3초 기준과 기존 모델 의미 오류, 실제 outer Host/전체 scope/rich는 여전히
+미충족이다. 제품 runtime/UI/기본값/설치 버전 **0.0.1145**를 바꾸지 않는다.
+
 ## 남은 완료 기준
 
 모델 변경, decoder 최적화 또는 입력 구조 변경을 채택하려면 다음을 함께 확인해야 한다.
