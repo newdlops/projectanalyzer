@@ -2738,6 +2738,57 @@ tensor 평가·동기화를 추가하지 않았다. 실제 raw 및 최종 응답
 작업에 한정되므로 detail-only와 non-call의 전체 wire 경로도 통합 전에 유지해야 한다.
 Runtime·기본 모델·Default/QA 설치는 **0.0.1145**이며 3초 목표는 미완료다.
 
+### 단일 native mask에서 동일한 정렬만 생략한 0.6B 후보
+
+문법의 실제 전체 vocabulary mask가 token 하나만 허용하고, 기존 SDK가 계산한 해당
+token의 정규화 log-probability가 정확히 0일 때 top-p/top-k의 결과는 입력과 같다. 새
+private 경로는 이 조건에서만 정렬 filter를 생략한다. Mask는 읽기만 하고 certificate는
+한 번만 소비한다. 조건에 맞지 않거나 certificate가 오래된 경우 원래 full-sort filter로
+처리한다. 정규화 값은 실제 scalar read로 확인하므로 추가 동기화 비용도 측정에 포함한다.
+
+모든 model/head/logsumexp 계산, 원래 전체 vocabulary categorical 연산과 RNG 호출은
+유지한다. 확정 ID를 직접 응답하거나 모델 계산을 생략하는 경로가 아니다. 원래
+temperature0.2/top-p0.95/top-k40, 전체 source/schema/설명 항목, prefill512 및 source-free
+64+1 준비도 유지했다. 가중치·정밀도·학습·prompt 설정을 변경하지 않았다.
+
+`small-model06-singleton-filter-parity.json`은 float32/bfloat16의 **184개 조건**을 검사했다.
+160개 identity 조건과 24개 fallback 조건에서 **전체 filter 및 확률 tensor의 모든 byte,
+선택 ID와 최종 RNG가 일치**했다. 양/음의 zero, 여러 vocabulary 위치·EOS, 정규화 전
+서로 다른 유한 값, nonzero certificate 거부와 2/3/40/41개 허용 mask, certificate 재사용
+거부를 포함했다. 이는 source-free 합성 확률 검사이며 새 설명이나 속도 증거가 아니다.
+
+`small-model06-singleton-filter-Un8AZX/report.json`은 같은 0.6B 가중치와 기존 일곱 전체
+입력으로 한 번씩 새로 생성했다. 원래 모델 호출과 one-token lookahead를 포함한 sampler
+호출 수가 유지됐으며, 실제 identity filter 생략과 추가 scalar read는 각각 **306회**였다.
+원래 0.6B의 raw wire와 전체 Host 응답이 **7/7 byte 일치**했고, 모든 source와
+summary/flow/다섯 상세를 직접 다시 읽어 **의미 검토 7/7**을 확인했다.
+
+| 단일 mask 정렬 생략 후보 | 전체 설명 완료 | 의미 및 3초 |
+| --- | --- | --- |
+| TypeScript 한국어 누락 본문 | 1.320초 | 통과 |
+| Kotlin 한국어 누락 본문 | 4.212초 | 실패 |
+| TypeScript 한국어 지역 쓰기 | 1.698초 | 통과 |
+| Kotlin 한국어 지역 쓰기 | 2.060초 | 통과 |
+| Kotlin 한국어 감소 loop | 5.689초 | 실패 |
+| TypeScript 영어 음수 guard | 1.785초 | 통과 |
+| Kotlin 영어 복합 분기/catch/finally | 1.925초 | 통과 |
+
+전체 3초 통과는 **5/7**, 최대 **5,688.744ms**여서 채택하지 않았다. Kotlin 누락 본문은
+prompt **175.18ms**/output **3,843.75ms**, 감소 loop는 **379.17ms/5,197.10ms**였다.
+이 후보의 느린 두 건은 생성 단계에 시간이 집중됐다. 환경·순서를 통제한 paired 비교가
+아니므로 정렬 생략의 인과적인 효과나 추가 scalar read가 지연 증가의 유일한 원인이라고
+주장하지 않는다. 첫 0.6B 결과와 이 후보의 모든 실패를 각각 보존하며 재시도로 교체하지
+않는다. 새 설명은 7개이고 새로운 독립 원문 coverage는 0개다.
+
+Worker 누적 MLX peak는 **1,055.53 MiB**, RSS peak는 **710.06 MiB**이며 전체 VS Code
+memory가 아니다. Cached tokens·추가 활성 가중치는 0이고, source-free 준비에서 새
+sampler가 실행되지 않았음을 확인했다. 새 Python/Node 구문 검사, 전체 확률·ID·RNG
+검사, 실제 request의 mask/sampler 연결 및 전체 응답 일치 검증과 수동 의미 검토를
+수행했다. 모든 소유 수치 검사/model tool과 worker는 실제 종료했다. 공개 runtime은
+변경하지 않았으며 기존 package **87개 통과** 기록을 유지한다. 실제 outer Host·전체
+scope/full-rich·다운로드/lifecycle 및 3초 목표는 미완료이고 runtime/Default/QA 설치는
+**0.0.1145**다.
+
 ## 남은 완료 기준
 
 모델 변경, decoder 최적화 또는 입력 구조 변경을 채택하려면 다음을 함께 확인해야 한다.
