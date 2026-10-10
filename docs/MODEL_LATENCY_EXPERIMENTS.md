@@ -4,6 +4,11 @@
 응답이나 source-only 결과는 실제 모델 생성의 성공으로 세지 않는다. 함수 호출의 원문,
 조건, 반환, 부수 효과, 다섯 상세 항목과 전체 요약을 유지한다.
 
+2026-10-11 추가 검증까지 제품 runtime과 설치 버전은 **0.0.1145**다. 0.6B의 최초
+일곱 전체 설명은 의미 7/7, 의미와 3초 동시 통과 5/7이었다. 단일 mask 정렬 생략과
+Q/K 정규화·위치 변환 융합 후보도 각각 5/7과 1/7에 그쳐 채택하지 않았다. 아래의
+추적 결과나 빠른 개별 응답으로 기존 실패를 교체하지 않으며 3초 목표는 미완료다.
+
 ## 2026-10-09 후속 비교
 
 제품 상태는 `aa95940` / 0.0.1142이며 이 실험으로 managed default나 사용자 설정을
@@ -2788,6 +2793,131 @@ sampler가 실행되지 않았음을 확인했다. 새 Python/Node 구문 검사
 변경하지 않았으며 기존 package **87개 통과** 기록을 유지한다. 실제 outer Host·전체
 scope/full-rich·다운로드/lifecycle 및 3초 목표는 미완료이고 runtime/Default/QA 설치는
 **0.0.1145**다.
+
+### 0.6B의 호출 스레드 CPU와 Metal 구간을 함께 관찰
+
+기존 단계 추적은 wall-clock만 기록해 실제 호출 스레드 CPU 작업과 다른 시간의 구분이
+불가능했다. 새 private observer는 각 기존 span에 `time.thread_time_ns`를 추가하고,
+기존 native Metal completion/QoS/kernel inventory 계측을 함께 사용했다. 원래 SDK의
+yield scalar와 tensor 연산만 관찰하며 추가 tensor evaluation·GPU 명령·샘플링은 없다.
+정책·command buffer 설정·가중치·원문·schema·출력 범위·원래 64+1 준비도 유지했다.
+
+Python과 native host clock은 stream 시작 시 앞뒤 timestamp로 정렬하고 오차를 기록했다.
+실제 오차 상한은 한국어 **0.000167ms**, 영어 **0.000500ms**였다. 겹치는 command buffer의
+GPU elapsed interval은 합집합으로 계산한다. 호출 스레드 CPU는 다른 host thread의 CPU를
+포함하지 않으며 wall minus CPU를 특정 대기 원인으로 단정하지 않는다. GPU elapsed
+interval도 preemption을 포함할 수 있어 실제 점유율과 같지 않다.
+
+`small-model06-combined-profile-mTg785/report.json`은 최초 0.6B에서 실패한 TypeScript
+한국어 누락 본문과 영어 음수 guard를 **각각 한 번**, 같은 소유 worker에서 순서대로
+추적했다. 두 응답의 전체 raw wire·전달된 설명·parsed field가 최초 결과와 byte 단위로
+같았다. 모든 원문과 summary/flow/다섯 상세를 다시 읽었다. 영어는 올바른 영어 parser를
+사용했다. 이전 단계 추적의 잘못된 한국어 parser 호출과 오류 기록은 그대로 보존했다.
+
+| 관찰 전용 요청 | 전체 설명 | Stream wall | 호출 스레드 CPU | GPU interval 합집합 |
+| --- | ---: | ---: | ---: | ---: |
+| TypeScript 한국어 누락 본문 | 1,638.62ms | 1,605.18ms | 1,322.27ms | 1,048.91ms |
+| TypeScript 영어 음수 guard | 4,232.66ms | 4,204.38ms | 1,329.35ms | 1,998.40ms |
+
+CPU와 GPU는 겹쳐 실행되므로 위 열을 더하거나 빼서 전체 지연을 분해하지 않는다.
+한국어의 기존 async dispatch span은 wall **879.95ms**, 호출 스레드 CPU **790.90ms**였다.
+영어의 token-history grammar read는 wall **1,709.29ms**, 호출 스레드 CPU **40.23ms**이며
+그 구간과 겹친 GPU interval 합집합은 **1,148.28ms**였다. 이 read는 processor 하위
+span이므로 processor 합계에 다시 더하지 않는다. 영어의 가장 긴 후속 yield 구간은
+**284.38ms**였지만 그 안의 관측 GPU 합집합은 **13.66ms**였다. 관측 GPU 실행만으로
+설명되지 않는 긴 구간도 존재한다. 이를 다른 앱의 경쟁, 특정 kernel의 비용이나 scheduling
+정책의 문제로 확정하지 않는다.
+
+완료된 command buffer는 **2,995/1,881개**, 모두 requested QoS **33**이었다. Pending
+callback과 record overflow는 0이다. 원래 응답을 먼저 flush한 뒤 callback 종료·record
+복사·kernel 이름 수집에 **25.71/21.05ms**가 들었다. 기존 native callback 대기는 최대
+1초이며 실제 GPU 동기화 명령을 추가하지 않는다. Parent는 응답 timer 밖에서 저장 완료
+marker를 최대 5초 기다려 다음 요청과 종료가 sidecar 기록을 자르지 않게 했다. 계측과
+응답 후 작업은 다음 요청의 scheduling에도 영향을 줄 수 있다.
+
+실행 전 합집합·시계 정렬·잘못된 record 거부의 CPU-only **10개 검사**, Python 구문과
+실제 thread-clock span 검사를 통과했다. 이 두 fresh 설명은 진단용 반복이며 **새 독립
+원문 coverage 0개**이고 3초 성공 증거가 아니다. Report SHA-256은
+`eaaa8a4db63be6691b2d93087ac1117b9c9c154964379883feacd866f0eecb61`, 수동 검토 기록은
+`small-model06-combined-profile-review.json`에 있다. 모든 소유 tool/worker는 실제 종료했다.
+
+### Q/K 정규화·위치 변환을 한 커널로 묶은 0.6B 후보
+
+반복되는 Q/K RMSNorm 두 번과 RoPE 두 번을 한 single-row 커널로 묶는 private 후보를
+구현했다. 계산은 고정된 MLX 0.32.3의
+[RMSNorm](https://github.com/ml-explore/mlx/blob/v0.32.3/mlx/backend/metal/kernels/rms_norm.metal)과
+[RoPE](https://github.com/ml-explore/mlx/blob/v0.32.3/mlx/backend/metal/kernels/rope.metal)를
+따랐다. RMSNorm의 float32 reduction 뒤 bfloat16 변환, bfloat16 weight 곱과 두 번째
+반올림, 그 결과를 float32로 읽는 RoPE 순서를 보존했다. 128-wide head의 32-lane SIMD와
+lane당 4개 reduction, precise rsqrt·fast sin/cos를 유지했다. Safe math mode는 stock
+[kernel build의 `-fno-fast-math`](https://github.com/ml-explore/mlx/blob/v0.32.3/mlx/backend/metal/kernels/CMakeLists.txt)에 맞췄다.
+정밀도·학습·모델·prompt·샘플링·buffer/QoS 설정을 순회하지 않았다.
+
+Batch/sequence가 각각 1일 때만 융합하고 모든 multi-row/batch는 원래 attention으로
+처리한다. 원래 projection·SDPA·SDK cache 쓰기·head·logsumexp·전체 vocabulary
+categorical/RNG 호출은 유지했다. 원래 packed-weight release 뒤 같은 tensor 참조에
+wrapper를 붙이며 가중치를 복제하지 않는다. Readiness는 기존 source-free 64+1과
+두 dtype filter 준비 그대로다. 소스에 의존하는 추가 준비나 응답/KV cache는 없다.
+
+첫 source-free numeric audit는 학습된 28개 layer의 Q/K norm weight와 zero/작은 값/큰 값,
+offset 0/1/63/64/1023/2048/8191의 **252쌍**, 전체 model logits와 모든 활성 SDK KV의
+**37쌍**에서 byte 일치·최대 차이 0을 기록했다. 이후 전체 active-memory assertion에서
+**exit 1**로 끝났다. 비교 기준은 합성 RNG 입력을 만들기 전이었고, assertion 당시 값은
+기록하지 않아 최초 차이를 사후에 특정하지 않는다. 이 실패를 정상 종료로 바꾸지 않았다.
+
+별도 allocation 진단에서는 융합 전·후, 원래 모듈 복원, 양쪽 원래 64+1 준비 후 모두
+**316,768,264 bytes**로 같았다. 첫 allocation 진단은 이후 지원하지 않는
+`mx.random.state` item assignment 때문에 **exit 1**이었다. Public `seed()`로 수정한
+진단도 모든 관측을 기록한 뒤, 이미 baseline에 있던 seed key를 다시 추가로 계산한
+잘못된 assertion 때문에 **exit 1**이었다. 두 실패는 helper의 오류이며 그대로 보존했다.
+
+마지막 저장 관측에서 seed→seed는 active memory 차이 **0 bytes**, 합성 입력을 만든 뒤
+폐기하면 **+8 bytes**, 다시 public seed로 바꾸면 **0 bytes**였다. RNG의 logical 8-byte
+view와 두 key의 16-byte split storage를 구분해야 한다. 첫 allocation 진단은 이전 key
+참조까지 보유해 +16 bytes를 기록했다. 원래 RNG 참조 복원에 성공했다고 주장하지 않는다.
+
+`small-model06-qk-numeric-review.json`은 GPU를 다시 실행하지 않고 고정된 component/hash와
+저장된 252+37개 전체 byte 비교, 원래/융합 readiness의 추가 가중치 **0 bytes**를 검토했다.
+이 완전한 핵심 관측으로 한 번의 full-source 후보 실행만 진행했다. 실패한 부수 assertion
+세 개나 audit suite 전체가 통과했다고 간주하지 않는다. 검토 SHA-256은
+`fd9dcc922922f86bfd5d8e88f6bc93457349251b186cf719579452ff2bcc5328`이다.
+
+`small-model06-qk-norm-rope-od2lkl/report.json`은 원래 일곱 전체 입력으로 각각 한 번씩
+새 설명을 생성했다. 원래 0.6B의 전체 raw wire·Host 전달 응답·parsed field가 **7/7 byte
+일치**했고, 모든 원문과 summary/flow/다섯 상세를 직접 다시 읽어 **의미 검토 7/7**을
+확인했다. Source-limited/dispatch/실제 완료의 미확인, 쓰기와 loop의 순서, catch/finally
+및 미구현 내부 호출을 유지했다. 실제 outer Host 전달을 측정한 결과는 아니다.
+
+| Q/K 융합 후보 | 전체 설명 완료 | 의미 및 3초 |
+| --- | ---: | --- |
+| TypeScript 한국어 누락 본문 | 5.566초 | 실패 |
+| Kotlin 한국어 누락 본문 | 3.313초 | 실패 |
+| TypeScript 한국어 지역 쓰기 | 4.559초 | 실패 |
+| Kotlin 한국어 지역 쓰기 | 7.764초 | 실패 |
+| Kotlin 한국어 감소 loop | 7.090초 | 실패 |
+| TypeScript 영어 음수 guard | 1.751초 | 통과 |
+| Kotlin 영어 복합 분기/catch/finally | 5.546초 | 실패 |
+
+전체 3초 통과는 **1/7**, 최대 **7,763.656416ms**여서 채택하지 않았다. 실제 fused
+attention 호출은 **44,660회**, 원래 multi-row fallback 호출은 **952회**였다. 원래
+one-token lookahead까지 포함해 예상 호출 수와 일치했고 source-free 64+1 준비의
+fused/fallback 각 28회도 확인했다. Runtime/연결 실패는 0개다. 이 호출 수는 관측 scalar
+counter이며 개별 kernel의 GPU 시간이나 전체 속도 개선을 입증하지 않는다.
+
+Kotlin 지역 쓰기의 prompt/output은 **515.52ms/7,076.15ms**, 감소 loop는
+**1,679.85ms/5,052.33ms**였다. 서로 다른 시점의 unpaired 실행이므로 이 후보가 지연을
+증가시킨 단일 원인이나 인과적인 속도 개선율을 단정하지 않는다. 모든 기존 실패와 이번
+실패를 각각 유지한다. 같은 후보를 재시도하거나 kernel/정밀도/준비 설정을 순회하지 않았다.
+새 전체 설명은 7개이고 새 독립 원문 coverage는 0개다.
+
+Worker 누적 peak MLX는 **1,005.40 MiB**, RSS는 **709.28 MiB**이며 원래 readiness를
+포함하고 전체 VS Code memory가 아니다. 수치·메모리 진단과 full-source 생성 tool/worker는
+모두 실제 종료했다. Report SHA-256은
+`f3406ec2b03fc15909430fa2c77fb3106574cefad8ec925de3d9c995715ea4b5`, 수동 검토는
+`small-model06-qk-candidate-manual-review.json`이다. 공개 runtime은 바꾸지 않아 앞선
+package **87개 통과** 기록을 유지하고 전체 package 검사를 반복하지 않았다. 실제 outer
+Host·전체 scope/full-rich·다운로드/lifecycle·3초 목표는 미완료다. Runtime·Default/QA
+설치는 **0.0.1145**를 유지했다.
 
 ## 남은 완료 기준
 
