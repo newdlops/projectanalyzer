@@ -6,8 +6,10 @@
 
 2026-10-11 추가 검증까지 제품 runtime과 설치 버전은 **0.0.1145**다. 0.6B의 최초
 일곱 전체 설명은 의미 7/7, 의미와 3초 동시 통과 5/7이었다. 단일 mask 정렬 생략과
-Q/K 정규화·위치 변환 융합 후보도 각각 5/7과 1/7에 그쳐 채택하지 않았다. 아래의
-추적 결과나 빠른 개별 응답으로 기존 실패를 교체하지 않으며 3초 목표는 미완료다.
+Q/K 정규화·위치 변환 융합 후보도 각각 5/7과 1/7에 그쳐 채택하지 않았다. 후속 K/V
+캐시 쓰기 통합 후보는 설명을 모두 보존하고 6/7을 통과했지만 Kotlin 지역 쓰기가
+3.138초여서 역시 채택하지 않았다. 아래의 추적 결과나 빠른 개별 응답으로 기존 실패를
+교체하지 않으며 3초 목표는 미완료다.
 
 ## 2026-10-09 후속 비교
 
@@ -2918,6 +2920,113 @@ Worker 누적 peak MLX는 **1,005.40 MiB**, RSS는 **709.28 MiB**이며 원래 r
 package **87개 통과** 기록을 유지하고 전체 package 검사를 반복하지 않았다. 실제 outer
 Host·전체 scope/full-rich·다운로드/lifecycle·3초 목표는 미완료다. Runtime·Default/QA
 설치는 **0.0.1145**를 유지했다.
+
+### 실패한 Q/K 후보의 CPU와 Metal 구간 추적
+
+같은 Q/K 후보의 TypeScript 한국어 누락 본문과 Kotlin 한국어 지역 쓰기 요청 두 개만
+추적했다. 이전에 실패한 후보의 시간 기록은 교체하지 않는다. 원래의 calling-thread CPU
+clock과 passive Metal observer에 Q/K 함수 전체 및 custom-kernel graph builder의
+nested span을 추가했다. Tensor 평가·복사·동기화, GPU 작업, prompt나 sampling은 추가하지
+않았다. CPU-only forwarding/예외 전달 **4개 검사**, JavaScript/Python 구문을 확인한 뒤
+한 worker에서 두 새 설명을 생성했고 실제 tool/worker 종료를 확인했다.
+
+| 관측 항목 | TS 한국어 누락 본문 | Kotlin 한국어 지역 쓰기 |
+| --- | ---: | ---: |
+| 전체 설명 | 3,855.99ms | 1,678.88ms |
+| Stream wall | 3,817.95ms | 1,411.43ms |
+| Stream calling-thread CPU | 1,412.39ms | 955.50ms |
+| 관측 GPU interval 합집합 | 3,345.63ms | 1,166.27ms |
+| Prefill 평가 wall / CPU | 1,519.69 / 191.06ms | 240.96 / 134.61ms |
+| Model graph wall / CPU | 368.87 / 348.08ms | 245.01 / 240.22ms |
+| Q/K 함수 wall / CPU | 85.03 / 77.39ms | 54.83 / 51.21ms |
+| 내부 custom graph wall / CPU | 40.81 / 36.13ms | 26.82 / 24.22ms |
+| Async dispatch wall / CPU | 760.32 / 708.37ms | 481.50 / 470.12ms |
+| Grammar token read wall / CPU | 1,023.06 / 29.92ms | 345.34 / 16.53ms |
+
+Q/K 함수와 내부 custom graph는 model graph 안의 nested span이므로 합산하지 않는다.
+관측 CPU는 해당 호출 thread에 한정되고, GPU elapsed에는 preemption이 포함될 수 있다.
+서로 겹치는 CPU/GPU 구간을 더하거나 GPU interval을 실제 점유율로 해석하지 않는다.
+계측이 없는 일곱 실패 기록의 지연 원인을 이 두 관측만으로 확정하지 않는다.
+
+Custom kernel은 각각 **6,860/6,412회**로 예상 호출 수 모두를 관측했다. 같은 trace의
+`gg2_copybfloat16bfloat16`는 **14,224/13,608회**였다. 이 inventory는 복사 경로를 조사할
+근거이며 각 copy의 호출 원인이나 개별 GPU 시간을 입증하지 않는다. 설치된 고정 SDK의
+`mlx_lm/models/cache.py`를 직접 확인하면 stock KVCache는 K와 V를 별도 storage에 각각
+slice update한다. 다음 후보는 이 두 쓰기를 합치는 구현으로 한정했다.
+
+두 raw wire·Host 전달 응답·모든 parsed field는 실패한 Q/K 후보와 일치했다. 전체
+원문과 다섯 상세를 다시 읽었으며 누락 구현의 미확인과 지역 갱신 순서를 유지했다.
+응답 후 native collection은 **12.66/11.92ms**, clock alignment 불확실성은
+**0.000292/0.0003335ms**였다. 계측·sidecar 수집은 scheduling에 영향을 줄 수 있으므로
+두 요청 모두 **진단용 반복, 새 독립 원문 coverage 0개, 성능 통과 증거 아님**으로 남겼다.
+
+Report `small-model06-qk-combined-profile-8Plt4I/report.json` SHA-256은
+`ed872ea30d889061ecdc5cfc2462f29882ab959d3392ce9668069a03603f9e2e`, 전체 검토 기록은
+`small-model06-qk-combined-profile-review.json`이다. 이전 Q/K 일곱 요청의 **의미 및 3초
+통과 1/7** 결과는 그대로다. 준비 중 문자열 치환 개수 assertion 하나는 모델 실행 전에 실패했고,
+아직 공개하지 않은 generator의 치환 범위를 수정한 뒤에만 artifacts를 봉인했다.
+
+### K/V 캐시 쓰기를 통합한 0.6B 후보
+
+Private `fused_qk_packed_kv.py`는 봉인된 Q/K kernel의 계산 순서를 그대로 두고 V를 계산
+없이 K 옆에 복사한다. Leading K/V 축 하나를 가진 cache storage를 사용해 single-row
+attention마다 cache slice update를 한 번 수행한다. SDK가 지원하는 model cache factory를
+통해 설치하며 원래 **256-row 증설**, 활성 K/V shape·dtype·값, mask와 trim을 유지한다.
+Multi-row/batch attention은 원래 계산을 사용하고 해당 cache 입력만 K/V 축으로 모은다.
+원래 projection·SDPA·head·전체 vocabulary sampling·RNG·grammar는 유지했다.
+
+새 수치 검증은 **실제 exit 0**으로 끝났다. 앞선 Q/K 보조 audit의 exit 1 세 개를
+바꾸거나 그 실패 suite를 통과로 간주하지 않는다.
+
+- 28개 learned norm weight와 경계 값, 일곱 offset의 **Q/K/V 252쌍**이 전부 byte 일치했다.
+  V의 signed zero까지 원본과 비교했다.
+- Batch 1/2에서 **cache 쓰기·확장·trim 후 재쓰기 52쌍**의 모든 활성 K/V byte와
+  offset·할당 capacity bytes가 원래 SDK cache와 같았다.
+- 원래 단일/다중 row, batch 1/2, 분할 prefill과 decode의 **전체 모델 37쌍**에서 모든
+  raw logit와 28개 layer의 활성 K/V byte가 일치했고 최대 차이는 0이었다.
+- 원래 source-free 64+1 준비 뒤, wrapper 부착, 후보의 같은 64+1 입력 뒤, 원래 모듈과
+  cache factory 복원 뒤 active memory는 모두 **316,768,264 bytes**였다. 추가 가중치는
+  **0 bytes**이고 readiness의 RNG는 같았다. 이 상주 검사는 합성 RNG 입력 생성 전에
+  별도로 끝내 이전 helper의 잘못된 메모리 기준을 반복하지 않았다.
+
+수치 report `small-model06-packed-kv-parity.json` SHA-256은
+`16c1e56ecbc20a7ffbe7a35d8b1279014f3ad6dfaa2cfe944f28c16383a3c90b`다. 이후 새 후보로
+원래 일곱 전체 입력을 **한 번씩** 실행했다. 모델·학습·prompt·출력 항목·precision·
+sampling·buffer/QoS·준비 입력을 순회하지 않았고 실패 요청을 재시도하지 않았다.
+
+| K/V 쓰기 통합 후보 | 전체 설명 완료 | 의미 및 3초 |
+| --- | ---: | --- |
+| TypeScript 한국어 누락 본문 | 1.141초 | 통과 |
+| Kotlin 한국어 누락 본문 | 2.829초 | 통과 |
+| TypeScript 한국어 지역 쓰기 | 2.045초 | 통과 |
+| Kotlin 한국어 지역 쓰기 | 3.138초 | 실패 |
+| Kotlin 한국어 감소 loop | 1.521초 | 통과 |
+| TypeScript 영어 음수 guard | 0.929초 | 통과 |
+| Kotlin 영어 복합 분기/catch/finally | 2.636초 | 통과 |
+
+전체 raw wire·Host 전달 응답·parsed field는 원래 0.6B 응답과 **7/7 byte 일치**했다.
+원문, summary/flow, 호출의 role/inputs/output/effects/reason을 모두 다시 읽어 의미 검토
+**7/7**을 확인했다. 모델 prose와 정적 syntax 소유 필드를 구분하고 누락 구현·실제 완료의
+미확인, 쓰기·반복 순서, 분기 반환·catch·finally를 유지했다. Runtime/연결 실패는 0개다.
+
+그러나 의미와 전체 3초의 동시 통과는 **6/7**, 최대 **3,137.597833ms**다. 137.60ms의
+초과도 실패로 남기며 후보를 채택하지 않았다. Fused attention **44,660회**, 원래
+multi-row fallback **952회**, 원래 source-free 64+1 입력의 fused/fallback 각 **28회**를
+확인했다. 이는 scalar 호출 수이며 실제 GPU dispatch 감소량이나 인과적인 속도 개선율을
+입증하지 않는다. 서로 다른 시점의 실행 결과를 직접적인 개선율로 비교하지 않는다.
+
+Worker 누적 peak MLX는 **1,207.46 MiB**, RSS는 **712.16 MiB**다. 상주 가중치 동등성과
+전체 생성 peak memory는 다른 관측이며 이번 후보의 peak 감소는 입증되지 않았다.
+원래 준비를 포함한 worker 관측이고 전체 VS Code 메모리가 아니다.
+
+Report `small-model06-packed-kv-VIGQFz/report.json` SHA-256은
+`b7cd1da95b83b27b5bb9c8471500fa7705c5e44300a3dfe9a55f7f10ed8d3d17`, 수동 검토 기록은
+`small-model06-packed-kv-candidate-manual-review.json`이다. 모든 소유 model/audit tool과
+worker는 실제 종료했다. 이번 새 전체 설명은 **9개**(Q/K 진단 2개와 새 후보 7개)이며
+새 독립 원문 coverage는 **0개**다. 독립 holdout·실제 outer Host·전체 scope/full-rich·
+다운로드/lifecycle gate는 열지 않았다. 공개 runtime·package·Default/QA 설치는
+**0.0.1145**로 유지하며, 공개 runtime 변경이 없어 앞선 package 87개 통과 검사를
+반복하지 않았다. 3초 목표는 미완료다.
 
 ## 남은 완료 기준
 
