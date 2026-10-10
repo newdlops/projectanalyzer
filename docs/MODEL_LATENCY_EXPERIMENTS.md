@@ -2160,6 +2160,99 @@ confidence 검증 완료로 해석하지 않는다. 새로운 입력만으로 �
 전체 scope/rich 검증이나 제품 설치로 확대하지 않았다. 제품 runtime/기본값/UI/버전/설치는
 **0.0.1145** 그대로이며 전체 목표는 미완료다.
 
+### 보존된 전체 응답과 native flow의 token 점수 진단
+
+추가 학습이나 새 모델 비교 대신, 앞선 두 입력 방식의 원래 7개 context를 그대로 둔
+점수 전용 진단을 수행했다. 각 실제 raw 응답과, **flow만** 독립 native source 라벨로
+바꾼 참조를 비교했다. Summary/calls/limitations의 원래 오류도 그대로 남겼으므로 참조를
+올바른 전체 응답으로 부르지 않는다. 원문과 모든 응답을 보존하고 실제 모델의 sampling,
+추가 학습, 정적 응답 제공, 응답 교정은 각각 0회다.
+
+CPU native grammar 검사는 **28개 전체 경로**(7개 source × 두 입력 × 두 응답),
+response와 EOS **8,612 targets**를 허용했다. 첫 CPU 검사에는 이미 종료한 matcher에
+EOS를 다시 consume하는 진단 코드 오류가 있었고 실패와 native API 점검을 보존했다.
+실제 worker의 EOS 종료 경계에 맞춘 별도 v2가 전체 검사를 통과했다. 제품 오류나 새
+generation 실패로 세지 않는다.
+
+같은 기존 1.7B fused 가중치로 모든 target의 teacher-forced logit을 읽었다. 원래 응답을
+줄이지 않고 새 cache에 전체 source/prompt를 읽었으며, 원래 multi-row model 연산을
+사용했다. 점수는 temperature 1의 미필터 log-sum-exp로 계산한 NLL이다. 실제 sampling
+확률·설명 시간·의미 정답률로 해석하지 않는다. 내용이 같은 **8쌍**은 모든 target 점수와
+집계가 정확히 같았다.
+
+| Kotlin 한국어 loop의 callee flow | 원래 입력의 평균 native-masked NLL | native 제어 입력의 평균 native-masked NLL |
+| --- | --- | --- |
+| 보존된 반복 문장 | 0.0231 | 0.0168 |
+| 원문에서 만든 flow 참조 | 0.7245 | 0.7231 |
+
+낮은 NLL은 해당 teacher-forced 경로의 높은 모델 점수다. 반복 문장은 길이가 다르고
+문맥을 스스로 반복하므로 이 차이를 정확도 비교나 일반 원인 증명으로 사용하지 않는다.
+올바른 native flow의 target을 grammar가 막는다는 관찰은 없었으며, 단순한 grammar
+형식 변경만으로 해결할 근거는 부족하다. 첫 token 차이는 표현 방식 차이일 수도 있다.
+
+예전 worker가 실제 sampled token ID를 저장하지 않아 여기서는 raw 문자열의 canonical
+tokenization을 사용했다. 원래 loop와 제어 입력의 Kotlin 쓰기는 보존된 생성 token 수와
+각각 **2개/1개** 차이가 났다. 나머지 길이가 같아도 sampled 경로의 동일성을 입증하지
+않는다. `source-owned-prose-probe-v2/report.json`과 각 target 점수·검토를 보존했다.
+진단 peak MLX는 **1,901.27MiB**, release 후 active는 **8 bytes**였으며 worker 설명 자원
+측정으로 대체하지 않는다. 모든 handle이 종료됐고 이 단계의 실제 새 설명은 **0개**다.
+
+### 지역 동작에 연결한 다섯 문장 출력의 부정 결과
+
+Native 제어 입력만 더해도 지역 상태 설명이 반복돼, 각 동작의 출력 문장을 독립적으로
+연결하는 별도 contract를 구현했다. 오프라인 `native-operation-flow.cjs`의
+`createNativeOperationFlowContract(context, base, evidence, locale)`는 완전한
+초기화/갱신 또는 while/반환 본문에서만 flow를 다섯 칸으로 연결한다. 순서는 부모 인수
+전달, 대상 초기화, 대상 갱신 또는 반복, 대상 반환, 정상 복귀 시 부모 결과 사용이다.
+각 schema 칸에는 native event와 소유자가 있고 `sourceId`는 해당 본문으로 고정한다.
+자연어 `text`와 기존 모델 작성 필드는 계속 모델이 작성하며, 구문 기반 상세 복원의
+기존 경계도 유지한다.
+
+원래 전체 source, 기존 600자 flow 합계와 summary/calls/limitations 한도를 유지하고,
+문장을 고치거나 자르지 않는다. 일반 코드 지원을 이 작은 실험 문법으로 축소하지 않는다.
+지역 상태가 없는 나머지 네 context는 앞선 typed contract/input 그대로다.
+두 native 언어의 loop 내부 갱신과 loop 밖 반환, 소유자/문장 수 불일치 및 전체 overflow의
+거부, 생성 문자의 무변경을 확인한 private 계약 검사 **3개**가 통과했다. 실제 provider
+pipe mock **7개**, 소유 source span **16개**, native grammar/EOS **7개**도 통과했다.
+변경한 schema와 guidance만 원래대로 되돌리면 이전 실제 mock 입력과 byte 표현이 같다.
+Mock 문장은 전송 검사 전용이며 모델 응답이나 정확도 사례가 아니다.
+
+`native-operation-flow-5R9nBA/report.json`의 고정 7개 실제 요청은 같은 가중치·sampling·
+cache 0/model call 1회와 준비 이후 타이머를 유지했다. Native 분석·schema 생성·전체
+generation·현재 Host parser 완료/거부를 포함하며 실제 outer VS Code Host는 아니다.
+
+| 원래 사례 | 준비 후 전체 완료/실패 | Host 및 3초 | 전체 원문·문장·다섯 상세 검토 |
+| --- | --- | --- | --- |
+| TypeScript 한국어 누락 본문 | 1.874초 | 통과 | 통과 |
+| Kotlin 한국어 누락 본문 | 2.042초 | 통과 | 통과 |
+| TypeScript 한국어 지역 쓰기 | 2.602초 | 통과 | 실패 — 대상 초기화를 인수 전달로 표현하고 갱신·반환 의미 혼동 |
+| Kotlin 한국어 지역 쓰기 | 8.897초 | 실패 | 실패 — 세 문장과 role에서 지역 변수·입력을 반복하며 미완성 |
+| Kotlin 한국어 감소 loop | 2.910초 | 통과 | 실패 — 지역 변수·호출 인수 설정을 혼동하고 반복을 조건 계산으로 표현 |
+| TypeScript 영어 음수 guard | 1.216초 | 통과 | 통과 |
+| Kotlin 영어 복합 분기/catch/finally | 2.178초 | 통과 | 통과 — 불필요한 candidate 한정은 남음 |
+
+형식·3초와 필요 조건은 **6/7**이지만, 전체 의미와 3초를 함께 통과한 것은 **4/7**이다.
+변경된 지역 상태 세 사례의 의미 통과는 **0/3**이다. 소유자 ID·동작 칸·원문 식이
+존재하는 것만으로 문장이 그 동작을 설명한다고 세지 않는다. 빠른 Kotlin loop도 잘못된
+문장이 있어 성공이 아니다. 미완성 쓰기는 **1,168 actual output tokens**와 전체 raw를
+보존했다. 나머지 네 입력의 실제 raw 출력은 앞선 것과 byte가 같았지만 새로 생성한
+반복 사례이므로 독립 source coverage가 늘었다고 하지 않는다.
+
+Worker 누적 peak는 MLX **1,912.51MiB**, RSS **1,272.11MiB**다. 준비 및 실패 후 재시작을
+포함하며 전체 Host 메모리나 요청별 추가 allocation이 아니다. 이번 actual 요청 **7개**를
+합쳐 source-owned 학습 후 실제 요청은 **24개**다. 점수 전용 28경로/CPU mock은 더하지 않는다.
+모든 실행 handle과 소유 worker가 종료됐다. 이 contract도 **거부**했고 all32/native 변환/
+실제 outer Host/전체 scope/rich로 확대하지 않았다. 공개 package 78개 통과는 앞선 실제
+코드 검사 기록이며 이 문서 변경에서 재실행하지 않았다. 제품 runtime/기본 모델/UI/버전/
+설치는 **0.0.1145**를 유지하며 목표는 미완료다.
+
+추가 read-only coverage audit는 frozen corpus 전체를 native source로 읽었다. 새 다섯
+동작 칸에 해당하는 지역 상태 예제는 training **456개**(쓰기 228/loop 228), validation
+**60개**(쓰기 32/loop 28)였다. 모두 기존 세 문장 label이고 다섯 동작별 label 및 해당
+event-bound schema는 각각 **0개**였다. 평가 응답은 읽지 않았고 corpus/라벨/가중치를
+수정하지 않았다. 이는 새 contract의 학습 형식 공백이며 실제 실패의 원인이나 추가
+학습의 개선 가능성을 입증하지 않는다. 추가 training은 수행하지 않았다.
+
 ## 남은 완료 기준
 
 모델 변경, decoder 최적화 또는 입력 구조 변경을 채택하려면 다음을 함께 확인해야 한다.
