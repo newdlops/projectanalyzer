@@ -3120,6 +3120,68 @@ driver PID 부재·dispose 후 기록된 worker 종료 marker·완성된 일곱 
 열지 않았다. 공개 runtime·package·Default/QA 설치는 **0.0.1145**를 유지하며, 공개 runtime
 변경이 없어 앞선 package 87개 통과 검사를 반복하지 않았다. 3초 목표는 미완료다.
 
+### 직전 token의 CPU 읽기보다 먼저 model graph 보내기
+
+앞선 trace에서 grammar token read의 wall **1,350.23ms** 중 해당 thread CPU는
+**25.44ms**였다. 고정 SDK는 다음 model graph를 만든 후 직전 sampled token을 CPU로
+읽고 grammar mask를 작성한 뒤, 다음 sample의 전체 graph를 enqueue한다. 새 private
+`early_forward_dispatch.py`와 파생 worker는 **CPU token 읽기 전에 기존 마지막 행의
+raw logits를 `mx.async_eval`로 제출**한다. 모델 계산이 직전 token에 의존하는 관계는
+그대로이며 CPU와 GPU의 실행 순서만 바꾼다. 앞서 실패한 overlap은 token 읽기 **이후**에
+제출했으므로 이번 경로와 다르다.
+
+앞선 Q/K·K/V 통합 경로는 유지하고 잔차/RMSNorm 후보는 포함하지 않았다. 기존 모델·head·
+전체 vocabulary sampler의 계산을 생략하지 않는다. 원문·prompt·schema·출력 항목·
+sampling·precision·buffer/QoS·source-free 64+1 준비 입력을 유지했다. Grammar마다
+scalar 제출 수만 보관하고 tensor를 추가로 유지하지 않는다. 파생 worker의 실제 Grammar
+class를 추출해 최초 호출·decode·EOS와 enqueue/consume/mask 오류 전달을 확인하는
+**CPU-only 7개 검사**가 통과했다. 모델이나 MLX를 import하는 검사가 아니다.
+
+새 수치 audit은 **실제 exit 0**으로 종료했다. 단일/다중 행·batch 1/2·분할 prefill과
+decode의 **전체 모델 37쌍**에서 모든 raw logit·28개 layer의 활성 K/V byte·offset·
+할당 capacity가 일치했다. 각 쌍의 첫 batch 행에서 **151,936개 전체 확률**, 선택 token과
+원래 categorical RNG 상태도 일치했다. 같은 sampler에 source-free sparse mask를 쓴
+수치 비교이며 실제 요청의 모든 sampler step을 기록한 검사는 아니다. 변경하지 않은 앞선
+Q/K/V 252쌍과 cache 52쌍은 참조만 하고 새 검사 수에 넣지 않았다. 원래 준비 뒤·부착·
+같은 준비 입력 뒤·복원 뒤 active memory는 모두 **316,768,264 bytes**, 추가 가중치는
+**0 bytes**, readiness RNG는 같았다. 수치 report `small-model06-early-forward-parity.json`
+SHA-256은 `ec3ba3e6c0ba209a88beb5a1f0928802c2d5207520f61759bd3cc19756bb5bcd`다.
+
+같은 일곱 전체 원문을 새 경로로 **한 번씩** 실행했다. 모델·prompt·설정 순회나 실패 요청
+재시도는 하지 않았다. Source-free 준비 완료 뒤 요청부터 shipped Host parser의 전체
+응답 처리 완료까지 잰 결과다.
+
+| CPU token 읽기 전 제출 후보 | 전체 설명 완료 | 의미 및 3초 |
+| --- | ---: | --- |
+| TypeScript 한국어 누락 본문 | 4.158초 | 실패 |
+| Kotlin 한국어 누락 본문 | 1.641초 | 통과 |
+| TypeScript 한국어 지역 쓰기 | 1.683초 | 통과 |
+| Kotlin 한국어 지역 쓰기 | 5.510초 | 실패 |
+| Kotlin 한국어 감소 loop | 1.836초 | 통과 |
+| TypeScript 영어 음수 guard | 0.970초 | 통과 |
+| Kotlin 영어 복합 분기/catch/finally | 1.885초 | 통과 |
+
+원문·raw wire·전달 응답·parsed field는 원래 0.6B 결과와 **7/7 일치**했다. 전체 원문과
+summary/flow 및 호출의 다섯 상세를 모두 다시 읽어 의미 **7/7**을 확인했다. 누락 구현과
+실제 완료의 미확인, 지역 갱신·loop·분기 반환·catch·finally를 유지했다. 연결/runtime
+실패는 0개다. 의미와 전체 3초 동시 통과는 **5/7**, 최대 **5,510.413291ms**여서
+채택하지 않았다. 이전 후보의 실패를 교체하지 않으며 unpaired 시간 차이로 인과적인 개선율을
+단정하지 않는다.
+
+실제 CPU 읽기 전 제출은 **1,595회**로 각 요청의 원래 one-token lookahead를 포함한
+예상 step 수와 같았다. 원래 준비에는 추가 제출이 0회였으며 fused attention
+**44,660회**, multi-row fallback **952회**도 유지했다. Worker 누적 peak MLX는
+**1,171.49 MiB**, RSS는 **706.41 MiB**이며 readiness를 포함한다. Peak 감소나 전체
+VS Code 메모리를 입증하는 비교가 아니다.
+
+Report `small-model06-early-forward-fIfSBi/report.json` SHA-256은
+`9d2935231cbcf83d8c0c1ae603c8d6b688e9388fc5116f4b3e8390ddc4da4778`, 전체 검토는
+`small-model06-early-forward-pilot-manual-review.json`이다. 수치 audit·pilot 모두 실제
+exit 0으로 종료했고 소유 worker도 종료했다. 새 전체 설명은 **7개**, 새 독립 원문 coverage는
+**0개**다. 독립 holdout·outer Host·전체 scope/full-rich·다운로드/lifecycle gate는 열지
+않았다. 공개 runtime·package·Default/QA 설치는 **0.0.1145**를 유지한다. 공개 runtime
+변경이 없어 앞선 package 87개 통과 검사는 반복하지 않았다. 3초 목표는 미완료다.
+
 ## 남은 완료 기준
 
 모델 변경, decoder 최적화 또는 입력 구조 변경을 채택하려면 다음을 함께 확인해야 한다.
