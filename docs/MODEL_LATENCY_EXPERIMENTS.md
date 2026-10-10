@@ -1127,9 +1127,59 @@ target이 있음을 확인했다. 보정된 응답+EOS target은 각각 266,027/
 기존과 같은 2,028 tokens다. 전체 행에 gradient 실험을 반복한 결과는 아니다.
 
 이 점검은 추가 padding target을 입증했으며, 기존 영어 결합 분기 오류나 추론 지연의 원인임을
-입증하지 않았다. 보정 loss로 새 학습을 실행하거나 기존 가중치를 바꾸지 않았다.
-이번 grammar·모델·합성 sampler·loss 검증 프로세스는 모두 종료됐고 제품 runtime과 설치된
+입증하지 않았다. 이 경계 점검이 끝난 시점에는 새 학습을 실행하지 않았다. 후속 학습과
+새 응답은 아래에 별도로 기록한다. grammar·모델·합성 sampler·loss 검증 프로세스는 모두 종료됐고 제품 runtime과 설치된
 **0.0.1145**를 유지한다. 실제 outer Host·전체 scope·rich 완료 및 3초 목표는 여전히 미달이다.
+
+### 패딩 손실 보정 후 동일 순서 학습과 역할 재읽기
+
+`completion_loss.py`의 exclusive-end 보정을 적용해 같은 fresh 1.7B base와 동일한
+1,968행을 한 차례 학습했다. 원문·응답·EOS·최대 길이 2,028 tokens와 seed 42,
+rank 8/scale 20/dropout 0/16 layers/Adam 1e-4/batch 1/최대 sequence 3,072를 유지했다.
+report/eval/save 간격도 앞선 전체 epoch와 같은 40/200/200이다. 변경한 학습 의미는
+EOS 뒤 padding target의 제외와 그에 맞는 유효 target 수의 정규화다.
+
+`training-epoch-adapter-production-coverage-exclusive-eos-result.json`은 **1,968개 서로
+다른 행의 update 완료**, 소스·정답 무절단과 이전 전체 epoch와 byte가 같은 처리 trace를
+확인했다. trace SHA-256은 `8d715df24e5f8a4e7e334829a9a9938136b7ce28d249a1e30c95f170f2175d40`이다.
+학습은 **2,508.41초(약 41분 48초)**, peak MLX allocation **8,598.05 MiB**를 사용했다.
+별도 실행의 학습 시간 차이를 손실 보정의 속도 개선율로 해석하지 않는다.
+완료 기록·trace를 다시 검사한 뒤 만든 4bit/group 128 병합본은 914,316,110 bytes이며
+SHA-256은 `9e39d6964fb1fc4fe154edaf4a25262881a9bfe579d48c7f1020cf180002d444`다.
+
+`production-holdout-preflight-sX8qoB/report.json`의 32개 context는 기존 preflight와 전부
+byte가 같다. `coverage-epoch-exclusive-eos-9110Q3/report.json`에서 실패했던 영어 결합 분기
+두 건을 새로 생성했다. 전체 설명은 TypeScript **1.268초**, Kotlin **1.237초**였다.
+각각 실제 모델 요청 한 번과 기존 Host parser를 거쳤다. 두 응답의 flow/output은 조건·
+일반 반환·catch 반환과 finally를 보존했지만, role은 완전한 callee를 잘린 본문이라고
+설명했다. `exclusive-eos-rereview.json`에 실제 생성 필드를 모두 읽고 두 반례를 기록했다.
+따라서 전체 32건·실제 outer Host·rich로 확대하거나 새 가중치를 채택하지 않았다.
+worker 누적 peak는 MLX allocation **1,711.90 MiB**, OS RSS **1,398.05 MiB**였으며
+Host와 VS Code 전체 메모리를 포함하지 않는다.
+
+이어 전체 설명 생성 후 동일 원문을 다시 읽어 role만 모델이 새로 작성하는 두 단계 경로를
+별도 실험했다. 원래 설명은 먼저 full wire로 검증하고, 재읽기에도 원래 source data와
+metadata를 전부 제공했다. 새 모델 role만 합치고 다섯 상세의 다른 항목과 summary/flow는
+보존했다. 정적 답변으로 대체하지 않았으며 원래 role 160자 제한도 유지했다. 원문·완전성
+flag·누락/부분 구현·target 수·다른 상세·최종 Host 제한의 회귀 검사 **8개**가 통과했다.
+
+`coverage-epoch-exclusive-eos-role-reread-k0ZLHn/report.json`의 전체 완료는 두 실제 모델
+요청을 모두 포함해 **5.871/3.562초**였다. 새 role은 정상 `valueArg * 4` 반환을 catch에
+잘못 배정했다. Kotlin은 exact 관계도 candidate라고 불렀다. 첫 단계의 실제 생성 필드는
+앞선 단일 요청과 byte가 같고, 최종 결과의 role 외 필드는 모두 보존됐다. 그러나 첫 단계
+자체도 3.986/2.864초로 달라졌으므로 전체 시간 차이를 재읽기 비용만의 영향으로 단정하지
+않는다. 이 방식도 채택하지 않았으며 추가 안내문이나 재시도를 계속 붙이지 않았다.
+
+`compound-source-diversity-audit.json`은 기존 자료만 읽어 결합 분기의 고유 소스와 metadata
+반복을 구분했다. 언어·locale별 훈련 16행은 **고유 소스 4세트**, 검증 4행은 **1세트**다.
+exact/inferred와 task.sourceLimited 양쪽 값, 실제 wire layout은 이미 포함돼 있다.
+네 소스에서는 이름·비교식·상수·계산식·catch 값이 네 묶음으로 함께 변한다. 이 결과는
+독립적인 소스 조합을 더 확인할 근거이며, 남은 오류의 원인을 입증한 것은 아니다.
+진행 중인 학습 자료나 기존 corpus를 바꾸거나 heldout 응답을 새 학습에 쓰지 않았다.
+
+훈련·병합·두 단일 요청·두 재읽기 요청과 회귀 검사 프로세스는 모두 종료됐다.
+제품 runtime과 설치된 **0.0.1145**를 유지한다. 두 빠른 응답을 전체 3초·정확도 달성으로
+해석하지 않으며 실제 outer Host·전체 scope·rich 완료 기준도 그대로 남아 있다.
 
 ## 남은 완료 기준
 
