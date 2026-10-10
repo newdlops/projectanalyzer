@@ -2575,6 +2575,91 @@ raw wire와 전체 Host 응답이 **7/7 byte 일치**했다. 모든 원문과 su
 실제 outer Host·전체 scope/rich 검증과 3초 목표는 미완료이며, runtime·기본 모델·
 Default/QA 설치 **0.0.1145**를 유지한다.
 
+### 512행 원문 입력에서 MLP gate/up만 결합한 후보
+
+앞선 모든 입력의 Q/K/V 결합은 split-K 반올림 차이로 기각했고, gate/up의 64행
+primitive는 byte 일치했다. 이를 근거로 새 후보는 원래 SDK의 **512행 prefill**에서만
+gate/up을 함께 계산한다. Q/K/V prefill, 다른 입력 shape, 한 token decode, 원래
+SwiGLU/down projection·정밀도·가중치 파일은 유지한다. 기존 packed storage의 view를
+사용해 새 가중치를 복사하지 않는다. 다른 prefill 길이로 설정을 순회하지 않았다.
+
+`prefill-gate-up-numeric.json`은 같은 1.7B 가중치에서 EOS 또는 JSON 구조 ID만 사용했다.
+Prefix 64/513/1,025/1,684/1,988/3,023을 SDK와 같이 512행씩 처리하고 마지막 prompt
+token을 남겼다. **6개 조건에서 전체 normalized hidden tensor 18개, 후속 전체 logit
+tensor 24개, 활성 KV tensor 2,352개가 byte 일치**했고 최대 차이는 0이었다. 원래 weight
+객체 identity와 RNG도 같았다. 비교 데이터를 해제한 뒤 활성 memory는 전후
+**914,245,640 bytes**, 추가분 0이었다. 이 검사는 원래 SDK가 버리는 마지막 prefill
+hidden도 평가해 비교했으며, **2,250.32 MiB** peak에는 비교용 cache가 들어간다.
+실제 추론의 시간/peak나 새 설명으로 사용하지 않는다.
+
+Private hook은 검증한 MLP factory만 연결하며 원래 SDK/worker 파일·grammar·sampling은
+수정하지 않는다. Weak model reference와 정수 counter만 읽어 source/KV 소유권을
+늘리지 않는다. 실제 receipt에는 변경된 gate/up shape를 명시하고, 기존의
+`originalMultiRowPrefillShapes`를 false로 바로잡았다. Source-free 64+1 준비에서
+512행 후보를 실행하지 않았음을 확인한 뒤 실제 요청을 시작했다.
+
+`prefill-gate-up-candidate-wXpCVB/report.json`의 원래 일곱 전체 소스는 각각 한 번씩 새로
+생성했다. 실제 raw wire와 전체 Host 응답 모두 **7/7 byte 일치**했다. 원문과
+summary/flow/다섯 최종 상세를 다시 읽어 **의미 검토 7/7**을 확인했다. 기존 source fact
+복원으로 채워지는 상세를 모두 모델 작성 문장으로 표현하지 않는다.
+
+| 512행 MLP prefill 후보 | 전체 설명 완료 | 의미 및 3초 |
+| --- | --- | --- |
+| TypeScript 한국어 누락 본문 | 1.931초 | 통과 |
+| Kotlin 한국어 누락 본문 | 2.069초 | 통과 |
+| TypeScript 한국어 지역 쓰기 | 2.121초 | 통과 |
+| Kotlin 한국어 지역 쓰기 | 2.320초 | 통과 |
+| Kotlin 한국어 감소 loop | 3.680초 | 실패 |
+| TypeScript 영어 음수 guard | 1.736초 | 통과 |
+| Kotlin 영어 복합 분기/catch/finally | 2.735초 | 통과 |
+
+실제 request별 fused graph 작성 수는 512행 chunk 수 × 28 layers와 일치했고 총
+**756회**였다. 이는 GPU dispatch 완료 횟수나 kernel 시간 측정이 아니다. 3초 통과는
+**6/7**, 최대 **3,680.424375ms**여서 후보를 채택하지 않았다. 환경·순서 변동을 통제한
+실험이 아니므로 이전 4/7·1/7·1/7과 비교해 인과적 개선율을 주장하지 않는다. 각 실패를
+보존하고 같은 후보나 tail shape를 반복해 느린 결과를 교체하지 않았다.
+
+Worker 누적 MLX peak는 **1,912.81 MiB**, RSS peak는 **1,273.81 MiB**이며 전체
+VS Code memory가 아니다. Cached tokens·추가 활성 가중치는 0이었다. 모든 소유
+모델/audit handle과 worker는 종료했다. 새 Python AST/Node 구문 검사, 모델 없는 hook
+연결 확인, 위 수치 및 실제 요청 검증을 수행했다. 공개 runtime source는 변경하지 않아
+앞선 package **87개 통과** 기록을 유지하며 전체 테스트를 반복하지 않았다. 실제 outer
+Host·전체 scope/rich 및 3초 목표는 미완료이고 runtime/Default/QA 설치는 **0.0.1145**다.
+
+### 같은 전체 작업을 읽는 0.6B 후보의 학습 전 준비
+
+여러 1.7B 실행 비용 절감에도 전체 지연 실패가 남아, 같은 Qwen3 계열의 더 작은
+후보 하나를 함수 설명용 합성 데이터로 학습할 준비를 했다. 이는 범용 모델·epoch·
+prompt 설정을 순회하는 비교가 아니다. 원래 source/schema/설명 항목과 학습 설정은
+유지하고 매 token의 모델 계산 및 가중치 traffic을 크게 줄일 수 있는지 확인할 후보다.
+모델 크기만으로 정확도나 전체 3초를 입증하지 않는다.
+
+[공식 Qwen3 0.6B MLX 4bit](https://huggingface.co/Qwen/Qwen3-0.6B-MLX-4bit/tree/173234aa840d113125e9f2271100ddbaf16c9620)의
+revision은 `173234aa840d113125e9f2271100ddbaf16c9620`다. 가중치 파일은
+**316,825,742 bytes**, SHA-256
+`36162e7f72fe3eca308471e55161269e4605ab87d2666ae1f33ef800749c97dd`이며 다운로드 뒤
+공식 LFS hash와 일치했다. Data 파일 8개만 받았고 다른 파일도 Git blob ID 또는 LFS
+SHA-256으로 검증했다. 모델 구조는 hidden/intermediate **1,024/3,072**, 28 layers,
+vocabulary 151,936, affine4bit/group128이다. 이는 inference peak memory가 아니다.
+
+어휘·merges·tokenizer JSON은 기존과 byte 일치했지만 공식 `chat_template`는 달랐다.
+공식 파일은 보존하고 별도 base 폴더에서 그 필드 하나만 기존 1.7B 양식으로 맞췄다.
+가중치는 같은 저장 파일을 참조하며 복사하거나 requantize하지 않았다. 채팅 양식을
+속도용으로 축소하지 않고 기존 전체 prompt를 그대로 유지하기 위한 호환 처리다.
+
+`small-model06-tokenization-audit.json`은 실제 tokenizer와 native grammar로
+**4,136건의 전체 prompt·completion·EOS token 배열이 기존과 정확히 같음**을 확인했다.
+학습 3,256/검증 880, 최대 전체 길이 **3,326 tokens**, 할당 **3,584**로 원문·답변을
+자르지 않는다. 236개 native schema에서 모든 label/EOS가 허용됐고 원래 Host/provider,
+source disjointness 및 completion-through-EOS loss 검사도 유지했다. 공식 파일은 다시
+hash해 변경되지 않았음을 확인했다.
+
+학습 준비 코드는 기존 rank8/scale20/dropout0, 16 LoRA layers, Adam1e-4, seed42,
+batch1의 **서로 다른 학습 3,256건 한 번**을 유지한다. Yielded row와 실제 완료 update를
+구분해 기록하고 tool 종료 후 독립 검증해야 완전한 학습으로 인정한다. 이 단계의
+다운로드/토큰 검사는 모델 설명 생성·품질·지연 증거가 아니며 기존 실패와 모든 scope/
+lifecycle 완료 기준을 유지한다. 기본 모델·runtime·Default/QA 설치는 **0.0.1145**다.
+
 ## 남은 완료 기준
 
 모델 변경, decoder 최적화 또는 입력 구조 변경을 채택하려면 다음을 함께 확인해야 한다.
