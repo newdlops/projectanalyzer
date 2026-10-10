@@ -2101,6 +2101,65 @@ Kotlin 쓰기는 없는 호출과 반환 누락, loop는 지역 변수를 미구
 이름 변경만으로 문제를 해결하지 못했으며 추가 학습·새 모델·precision 변경·설치도
 하지 않았다. 모든 실행 handle과 소유 worker는 종료됐다.
 
+### 원래 응답 형식을 유지한 native 제어 구조 입력
+
+지역 변수 이름을 바꾸는 진단도 실패해, 원문에서 직접 얻은 제어 구조를 추가 입력으로
+제공하는 별도 도구를 구현했다. `scripts/model-reading-source-control-evidence.mjs`의
+`createModelReadingSourceControlEvidence(context)`는 기존 native 선언 reader를 사용해
+호출자·대상별 지역 binding, 초기화·갱신·반환, 중첩 `if`/`while`/`try`/`catch`/`finally`,
+명시적 호출 목록을 기계적인 객체로 반환한다. 별도 ledger의 모든 code/expression은
+해당 소유자의 원래 snapshot 안에 있어야 한다. 자연어 설명이나 대체 응답은 만들지 않는다.
+
+본문의 complete/truncated/missing 상태와 graph 관계의 exact/inferred/unresolved를
+분리했다. 대상 안의 자기/부모 호출도 원래 부모 edge의 exact confidence를 빌리지 않는다.
+미제공 구현·잘린 tail·실제 dispatch·효과·완료는 입증하지 않는다. 명시적 호출 목록이
+완전하다는 표시는 제공된 전체 본문의 명시적 구문에만 해당한다. Queue/visited와
+depth 16/node 128 상한을 유지하고, 지원하는 작은 합성 문법·단일 직접 호출 범위를
+벗어나면 거부한다. 이 helper는 **오프라인 실험 전용**이며 제품 analyzer나 inference의
+지원 범위를 줄이거나 대체하지 않는다.
+
+새 회귀 검사 7개는 두 native 언어의 계산/loop 소유 범위, loop 밖 반환, catch/finally,
+부분/누락 본문, 잘못된 ID/인수/재귀 binding, 내부 호출의 confidence 혼동을 포함한다.
+`npm run test:package`는 기존 검사와 합쳐 **78/78개**가 실제 통과했다.
+
+별도 실제 provider의 CPU pipe audit **3,903개 payload**(training 3,036/validation
+860/기존 고정 사례 7개)는 새 metadata block만 제거하면 원래 messages와 byte 표현이
+같고 source·출력 schema가 보존됨을 확인했다. 소유 source의 정확한 span **19,238개**를
+검사했다. 준비 중에는 원문을 읽지 않았고, mock 응답은 새 모델 설명으로 세지 않았다.
+호출 상세 전용 240행은 이 전체 설명 provider 검사에서 제외했다.
+
+실제 모델에서는 앞서 학습한 같은 1.7B 4bit 가중치·sampling·상한·source-owned 출력
+형식을 유지했다. 기존 전체 source/prompt에 native metadata만 더했으며 새 자연어 hint,
+추가 학습, source 이름 변경, precision 변경, 정적 설명은 없다. **요청 타이머 안에서**
+native parse와 metadata 직렬화를 수행했다. Source-free 모델 준비 이후부터 현재 Host
+parser 완료/거부까지의 결과는 `source-owned-control-evidence-t7NfpA/report.json`에
+모든 원문·raw 출력·소유자 단계·실패와 함께 보존했다.
+
+| 원래 사례 | 준비 후 전체 완료/실패 | Host 형식 통과 | 전체 문장·다섯 필드 수동 검토 |
+| --- | --- | --- | --- |
+| TypeScript 한국어 누락 본문 | 2.028초 | 예 | 통과 — 부모 작업과 미제공 대상 동작 구분 |
+| Kotlin 한국어 누락 본문 | 2.226초 | 예 | 통과 — 구현·효과·완료 미확인 보존 |
+| TypeScript 한국어 지역 쓰기 | 2.374초 | 예 | 실패 — 초기화·갱신을 반환 대상으로 나열하고 role 반복·깨진 코드 인용 |
+| Kotlin 한국어 지역 쓰기 | 7.304초 | 아니요 | 실패 — 산술 반복·없는 내부 호출·반환 누락·미완성 문장 |
+| Kotlin 한국어 감소 loop | 5.868초 | 아니요 | 실패 — 조건 반복·감소 동작과 loop 종료 후 반환 누락 |
+| TypeScript 영어 음수 guard | 1.293초 | 예 | 통과 — 정확한 조건·분기 반환·fallback 계산 |
+| Kotlin 영어 복합 분기/catch/finally | 2.474초 | 예 | 통과 — 분기/catch 반환·finally 호출·미확인 구현·정상 완료 조건 |
+
+Host는 **5/7**, 필요 조건 검사는 **4/7**, 수동 의미와 3초를 함께 통과한 것은 **4/7**이다.
+한국어 쓰기/loop의 실패를 구문에서 복원한 상세 필드로 보완했다고 세지 않는다.
+Kotlin 영어 복합 role/output의 불필요한 candidate 한정은 여전히 남아 있으며 일반
+confidence 검증 완료로 해석하지 않는다. 새로운 입력만으로 세 실패를 해결하지 못했다.
+한 번씩 고정 순서로 읽은 사례이므로 이전 실행 대비 시간 차이를 개선율로 제시하지 않는다.
+
+각 실제 요청은 model call 1회/cache 0이며, native evidence 생성은 **0.83~161.02ms**로
+전체 시간에 포함했다. Worker 누적 peak의 최대 MLX는 **1,824.90MiB**, RSS는
+**1,273.27MiB**다. 준비와 실패 후 재시작을 포함한 worker 측정이며 전체 VS Code/Host나
+요청별 추가 메모리로 해석하지 않는다. 실제 모델 요청은 이번 입력 변형 **7개**, 앞선
+학습 후 원래 입력 7개와 이름 진단 3개를 합치면 **17개**다. CPU mock/audit는 더하지 않는다.
+모든 실행 handle과 소유 worker가 종료됐다. 이 경로는 **거부**했고 all32·실제 outer Host·
+전체 scope/rich 검증이나 제품 설치로 확대하지 않았다. 제품 runtime/기본값/UI/버전/설치는
+**0.0.1145** 그대로이며 전체 목표는 미완료다.
+
 ## 남은 완료 기준
 
 모델 변경, decoder 최적화 또는 입력 구조 변경을 채택하려면 다음을 함께 확인해야 한다.
