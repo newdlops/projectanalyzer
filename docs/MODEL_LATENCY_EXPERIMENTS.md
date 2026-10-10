@@ -2253,6 +2253,85 @@ event-bound schema는 각각 **0개**였다. 평가 응답은 읽지 않았고 c
 수정하지 않았다. 이는 새 contract의 학습 형식 공백이며 실제 실패의 원인이나 추가
 학습의 개선 가능성을 입증하지 않는다. 추가 training은 수행하지 않았다.
 
+### Native 동작별 학습 데이터의 독립 구현과 검증
+
+다섯 칸 inference contract는 유지하고, 그 형식의 학습 예제가 없던 공백을 별도 데이터로
+보완했다. 공개 오프라인 모듈 `scripts/model-reading-native-operations/`의 aggregate
+entrypoint는 `index.mjs`이며 public API는 다음과 같다.
+
+- `createNativeOperationFlowPlan(context)`: 원래 context만 받아 native parser로 소유자와
+  동작을 도출한다. 완전한 초기화/갱신 또는 단일 갱신 while/동일 지역 변수 반환에만 다섯
+  operation slot을 만든다. 누락·부분·다른 모양은 native evidence를 유지하되 slot은 없다.
+- `createNativeOperationFlowContract(context, base, locale)`: 위 plan에서 flow schema와
+  guidance를 만든다. 추론 전용 public 경계는 `contract.mjs`다. 이전 private pilot의
+  schema/guidance와 같으며 label 모듈을 import하지 않는다. decoder는 개수와 소유자를
+  검사한 뒤 원래 raw 문자열을 base decoder에 전달한다. 합계 한도·문장 검증은 기존
+  decoder가 처리하고, 잘못된 문장을 고치지 않는다.
+- `createNativeOperationFlowSupervision(context, locale)`: 오프라인 학습 전용 API다.
+  원문만 받아 부모 전달, 대상 초기화, 갱신 또는 반복, 대상 반환, 정상 복귀 시 부모 결과
+  사용을 독립적인 다섯 문장으로 만든다. 반복 조건의 참 방향과 반복 종료 경로를 보존한다.
+  후보 confidence를 승격하지 않으며, 지원되지 않는 모양에는 label을 만들지 않는다.
+
+Positive claim에는 실제 소유 본문의 원문 span과 식이 있다. “명시적 내부 호출 없음”은
+반환문의 span만으로 입증하지 않는다. 완전한 native 본문 및 전체 invocation inventory를
+별도 absence assertion으로 보존하고 독립 audit가 본문 전체를 다시 순회한다. 기존 답변,
+평가 응답이나 오래된 return/effect inventory는 label 생성기에 전달하지 않는다.
+이 문장은 학습 target이며 추론 응답·fallback·repair에 사용하지 않는다.
+
+`model-reading-native-operations.test.mjs`의 9개 검사는 두 언어/두 locale, exact/inferred,
+식·조건의 source counterfactual, loop 안 갱신과 밖 반환, 누락/부분/숨은 호출, 원문과
+raw 무변경, 잘못된 소유자·문장 수 및 base decoder 오류 전달을 다룬다. 최초 실행에서
+추가 invocation을 parser 오류로 예상한 검사가 실패했다. 이 구문은 native evidence에서
+허용되는 모양이므로 지원 slot과 label이 없음을 검사하도록 구분했고, 이후 package
+검사 **87/87**이 통과했다. 실제 runtime의 aggregate bound 및 전체 Host 검사는 별도
+아래 corpus audit로 확인했다. UI·browser·outer VS Code QA는 이번 단계에서 수행하지 않았다.
+
+별도 frozen corpus `training-data-native-operations.json`의 SHA-256은
+`11e0ee5da5e919e1de4d5eed790a9d7710677e7d9f631f31b0ab5c621143f61a`다.
+기존 원본 corpus와 모델은 보존했다.
+
+| 분할 | 전체 | 동작별 flow label | 기존 flow 보존 | call-only row 전체 보존 |
+| --- | ---: | ---: | ---: | ---: |
+| training | 3,256 | 456 | 2,580 | 220 |
+| validation | 880 | 60 | 800 | 20 |
+
+모든 원문/context와 summary/calls/limitations는 기존 데이터와 byte 표현이 같다.
+원문 shape별 label은 training 쓰기 228/loop 228, validation 쓰기 32/loop 28이다.
+타입·locale 분포는 각각 training 228/228, validation 30/30이다. 원문 집합은 기존
+training 1,028/validation 178을 보존하며 서로 겹치지 않는다. 평가 source의 기존 분리
+증명도 동일 context를 통해 유지된다. Label 생성 시 평가 응답을 읽지 않았다.
+
+전체 reading 3,896개의 messages에는 실제 실패 pilot과 같은 native control metadata를
+포함했다. 516개 지역 상태 label 외의 flow와 모든 비-flow 필드는 바꾸지 않았다. 전체
+reading의 private contract byte 검사 **3,896개**, 독립 native positive span **2,836개**,
+완전한 본문의 호출 부재 검사 **516개**, 원래 wire와 현재 Host parser roundtrip
+**4,136개**가 통과했다. 전체 연결 flow 최대 길이는 원래 한도 안의 **500 scalar**다.
+
+새 provider는 추론 label API를 사용하지 않는다. 실제 provider의 FIFO/pipe에 fixture를
+통과시켜 학습/validation reading **3,896개**의 messages/schema를 frozen corpus와
+byte 비교했다. 원래 고정 7개 평가 context의 messages/schema도 기존 pilot 입력과
+같았다. 총 **3,903 payload**, mock child 1개 생성/종료를 확인했다. 이 fixture는 새
+모델 응답·정확도·지연 측정으로 세지 않는다.
+
+고정 tokenizer와 현재 worker의 canonical Korean/compact JSON grammar로 전체 응답과
+EOS를 검사해 **4,136/4,136**이 통과했다. 학습 데이터의 전체 prompt는 **6,697,257 tokens**,
+응답 및 EOS target은 **733,709개**다. 전체 sequence 최대 **3,326 tokens**는 종전 학습
+할당 3,072를 넘으므로, 자르지 않고 다음 512 배수인 **3,584**를 할당하도록 했다.
+추론 context 8,192/output 2,400 및 response-through-EOS loss 경계는 그대로다.
+
+다음 실행은 원래 `model-1.7b`에서 별도 adapter로 시작하는 새 full pass 한 번이다.
+기존 adapter를 이어서 학습하거나 epoch/learning rate/precision을 순회하지 않는다.
+rank 8/scale 20/마지막 16개 layer/Adam 1e-4/seed 42/batch 1/3,256 updates를 유지한다.
+유한 학습 wall ceiling **9,600초**는 종전 측정 full pass 시간에 전체 token 작업량 비율
+**1.1651**과 25% 여유를 적용하고 600초 단위로 올린 값이다. 사용자 요청의 3초 추론
+목표를 늘린 것이 아니다. 모든 실제 yielded index와 전체 완료를 확인하기 전에는
+학습 완료로 세지 않는다.
+
+현재까지 이 단계의 실제 새 모델 설명은 **0개**이며, 데이터/문법/전송 검사는 모델의
+품질이나 속도 개선을 입증하지 않는다. 새 가중치의 원래 7개 전체 의미·3초 검증이
+먼저이며, 성공해야 all32/native 변환/실제 outer Host/모든 scope/full rich/자원 경계를
+확대한다. 제품 runtime·기본 모델·버전·설치는 **0.0.1145**를 유지하며 목표는 미완료다.
+
 ## 남은 완료 기준
 
 모델 변경, decoder 최적화 또는 입력 구조 변경을 채택하려면 다음을 함께 확인해야 한다.
