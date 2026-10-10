@@ -1,4 +1,4 @@
-/** Independent necessary semantic checks for the public arithmetic/catch corpus; never a general proof of model truth. */
+/** Independent necessary source-ownership and bounded arithmetic/catch checks; never a general proof of model truth. */
 
 /** Collect every generated prose slot from its actual wire schema, excluding Host-restored constant fields. */
 export function collectModelAuthoredCallReadingTexts(reading, wireSchema) {
@@ -23,6 +23,33 @@ export function collectModelAuthoredCallReadingTexts(reading, wireSchema) {
 /** Required const/singleton values are source evidence, not model-authored interpretation. */
 function isGeneratedProperty(property) {
   return property && !Object.hasOwn(property, 'const') && !(Array.isArray(property.enum) && property.enum.length === 1);
+}
+
+/** Find explicit body-work claims when a single callee has no supplied body.
+ * A caller's source cannot prove work inside an unavailable callee. Check the
+ * positive claim's own sentence: an unrelated "unknown" sentence cannot repair
+ * it. This deliberately narrow offline check skips multi-call flows, provided
+ * or truncated helper bodies, modal/unknown claims and Host-restored fields.
+ */
+export function findUnavailableCalleeBodyClaims(reading, context, wireSchema) {
+  if (!Array.isArray(context?.snippets) || !Array.isArray(context?.callTask?.targets)) {
+    throw new TypeError('Source ownership requires a call context');
+  }
+  const targets = context.callTask.targets;
+  if (targets.length !== 1 || reading.calls?.length !== 1) return [];
+  const [target] = targets;
+  const helper = context.snippets.find(snippet => snippet.id === target.calleeSnippet
+    && snippet.role === 'helper' && typeof snippet.text === 'string' && snippet.text.trim());
+  if (helper) return [];
+  const texts = collectModelAuthoredCallReadingTexts(reading, wireSchema), claims = new Set();
+  const korean = /(?:대상|피호출)(?:\s*함수)?\s*(?:의\s*)?본문에서[^.!?。！？]{0,140}(?:전달|계산|반환|초기화|갱신|수정)(?:합니다|하며)/u;
+  const english = /\b(?:in|inside)\s+(?:the\s+)?callee(?:'s)?\s+body[^.!?]{0,140}\b(?:passes|forwards|returns|calculates|updates|mutates)\b/iu;
+  const uncertain = /미확인|알\s*수\s*없|\b(?:unknown|unverified|whether|may|might|could)\b/iu;
+  for (const text of texts) for (const sentence of text.split(/(?<=[.!?。！？])\s*/u)) {
+    if (uncertain.test(sentence)) continue;
+    if (korean.test(sentence) || english.test(sentence)) claims.add(sentence.trim());
+  }
+  return [...claims].map(text => ({ callId: target.callId, reason: 'unsupported-missing-callee-body-work', text }));
 }
 
 /** Find unsupported decimal literals in quoted source for the bounded arithmetic fixtures.

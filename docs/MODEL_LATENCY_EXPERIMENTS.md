@@ -1239,6 +1239,74 @@ target 169,935개를 보존했다. 기존에 gradient로 확인한 exclusive-end
 완료로 해석하지 않는다. 현재 자료와 사전 검증은 모델의 정확도·3초 완료·실제 outer Host·
 전체 scope·rich 달성의 증거가 아니며 설치된 **0.0.1145**를 유지한다.
 
+## 독립 조합 전체 학습과 확장 검증
+
+`training-epoch-adapter-production-compound-exclusive-eos-result.json`에서 새 corpus의
+**3,256개 서로 다른 행의 update 완료**와 원문·응답·EOS 무절단을 확인했다. 기존 seed 42,
+rank 8/scale 20/16 layers/Adam 1e-4/batch 1 및 exclusive-end 손실을 유지했다. 기존 adapter를
+이어 학습하지 않았다. 실제 yielded-index trace SHA-256은
+`ad5d6ca72f06343980291d4c635aff7681d0f34078ffaee85e7003cb9917be05`다.
+학습은 **4,722.25초(약 78분 42초)**, peak MLX allocation **8,638.02 MiB**였다. 이는 오프라인
+학습 자원이며 추론의 메모리나 설명 시간을 뜻하지 않는다.
+
+전체 완료·trace·corpus·손실 코드의 hash를 확인한 뒤 별도 4bit/group 128 가중치로
+병합했다. 914,316,110 bytes이며 SHA-256은
+`d0897d47139255bf679994252c5b78505e71aa676634f9ca1921aa9498e56212`다.
+기존 가중치·설정·설치 모델을 보존했다. `production-holdout-preflight-jVsTvM/report.json`의
+32개 context는 기존 `MP3B4C` preflight와 모두 byte가 같다. 완전 본문 24개와 의도적인
+누락/잘림 8개이며, source-free 준비 이후 매번 전체 원문으로 새 설명을 생성했다.
+원래 단일 요청 prompt/wire/출력 한도를 유지했고 안내문·재읽기 단계를 추가하지 않았다.
+
+`compound-exclusive-eos-pilot-Y2dJ1q/report.json`의 새 영어 결합 분기 설명은 TypeScript
+**1.429초**, Kotlin **2.439초**였다. 각각 실제 모델 호출 한 번, cached tokens 0, 출력
+192 tokens다. 실제 생성 summary/flow/role/output과 복원된 다섯 상세를 모두 읽었다.
+이 두 필요 사례에서는 이전의 잘린 본문이라는 역할 오류가 사라졌고, 조건·try의 두
+반환·catch 반환·반환 완료 전 finally 호출·미확인 내부 동작과 정상 완료 조건을 보존했다.
+두 사례의 통과를 전체 정확도나 실제 outer Host의 3초 완료로 해석하지 않았다.
+
+이어서 `production-holdouts-h5ogvh/report.json`에서 한국어/영어·TypeScript/Kotlin의
+**32개 설명을 모두 새로 생성**했다. 원문 숫자·필수 flow 사실 등에 대한 기존 자동 검사는
+32개가 통과했지만, **25개만 3초 이내**였고 범위는 **0.960~4.598초**였다. 각 설명에는
+실제 모델 호출 한 번과 Host parser 처리가 있으며 모든 cached tokens는 0이다.
+
+`compound-all32-rereview.json`에 32개 실제 생성 필드와 다섯 최종 상세를 모두 읽은
+결과를 기록했다. 자동 통과만으로 채택할 수 없는 다음 반례가 있다.
+
+- 한국어 누락 구현 2개는 flow에서 호출부의 입력 전달을 **없는 대상 본문의 작업**으로
+  설명했다. role/output/effects의 미확인 표현이 이 별도 긍정 주장을 정당화하지 않는다.
+- 한국어 쓰기 사례 2개와 Kotlin 한국어 loop는 flow 문장을 그대로 반복했다.
+- Kotlin 한국어 loop의 “종료 조건이 참인 동안 … 반환”은 불명확한 종료 설명이다.
+  이 문구만으로 조건의 반대 의미를 단정하지 않으며 명확한 조건 반전 오류로 세지 않았다.
+
+`findUnavailableCalleeBodyClaims(reading, context, wireSchema)`를 오프라인 검증 모듈에
+추가했다. 단일 callee의 본문이 제공되지 않았는데 모델이 본문 작업을 긍정하는 좁은
+한국어/영어 표현을 찾는다. 실제 생성 필드만 검사하고, 제공되거나 잘린 helper 본문과
+다중 호출 flow에는 이 판정을 적용하지 않는다. 다른 문장의 “미확인”이 근거 없는 본문
+주장을 가리지 않도록 문장별로 처리한다. 일반 의미 검증기나 runtime 응답 교정기는 아니다.
+4개 새 회귀 검사를 포함한 관련 테스트 **16개**, 전체 `npm run test:package` **61개**가
+통과했다. 실제 32개 응답에서는 누락 구현 2개가 이 검사에도 걸린다.
+
+`compound-label-ownership-audit.json`은 현재 corpus만 읽었다. 전체 **4,136행** 중 본문이
+없는 target은 **240개**이며, 좁은 본문 작업 표현과 18자 이상의 동일한 flow 문장 반복은
+각각 **0개**다. 데이터나 가중치를 바꾸지 않았고 heldout 응답을 읽어 정답을 만들지 않았다.
+문자열 검색 결과는 다른 모든 문장의 의미가 맞다는 증명도, 모델 오류의 원인 증명도
+아니다. 따라서 이번 결과만으로 잘못된 학습 문장이 원인이라고 하거나 추가 학습을 반복할
+근거로 삼지 않는다.
+
+시간 변동은 출력 길이만의 문제가 아니다. 영어 쓰기 두 응답은 실제 생성 wire가 byte로
+같고 **121 tokens**다. TypeScript/Kotlin의 전체 완료는 **1.240/2.892초**, prefill은
+**0.289/0.325초**, decode는 **0.940/2.548초**였다. prompt는 1,180/1,178 tokens이며
+캐시 응답은 없다. 작은 prefill 차이와 같은 출력이 이 decode 차이를 설명하지 않지만,
+GPU 대기·grammar 처리·token 이동·sampler·iteration 중 원인은 아직 분리하지 않았다.
+다음 성능 검증은 원문·출력·generation 설정을 유지한 실제 전체 생성 경로의 profiling이다.
+source-free sampler 실험이나 임의의 안내문/추가 epoch/다른 정밀도 반복으로 대체하지 않는다.
+
+32개 실행의 worker 누적 peak는 MLX allocation **1,752.20 MiB**, OS RSS **1,426.58 MiB**다.
+이는 Host와 VS Code 전체 메모리가 아니다. 훈련·병합·두 pilot·32개 실행은 모두 정상
+종료됐고, 테스트는 모델 프로세스 종료 후 실행했다. 의미·시간 반례 때문에 이 모델을
+채택하거나 실제 outer Host/전체 scope/rich/native 변환으로 확대하지 않았다.
+제품 runtime과 설치된 **0.0.1145**를 유지하며 목표는 아직 달성하지 않았다.
+
 ## 남은 완료 기준
 
 모델 변경, decoder 최적화 또는 입력 구조 변경을 채택하려면 다음을 함께 확인해야 한다.
