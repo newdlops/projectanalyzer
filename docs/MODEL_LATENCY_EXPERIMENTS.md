@@ -2404,6 +2404,107 @@ SDK의 yield object를 그대로 전달하며, 추가 tensor 평가/동기화나
 초기 decode의 실행 비용을 좁히는 진단이며, 다른 모델·학습 epoch·prompt·precision
 순회나 답변 축소/복원으로 3초를 통과시킨 것으로 세지 않는다.
 
+### 원문 없는 입력 크기 진단과 SDK 구간별 관찰
+
+동일한 새 가중치에서 원문·grammar·sampling 없이 고정 EOS 배열을 순서대로 실행했다.
+입력/후속 행 수는 앞서 관찰한 요청과 같은 **1,988/240**, **3,023/244**이며 마지막
+조합을 한 번 반복했다. 각 행의 전체 logits와 KV 완료를 기다리는 진단이므로 실제 SDK의
+lookahead/overlap과 다르다. 설명 생성·새 원문 coverage·3초 통과 자료로 사용하지 않는다.
+
+첫 실행은 모든 forward 후 보고서 metadata에서 없는 `mx.promote_types` API를 호출해
+종료 코드 1이었다. 원래 stdout과 실패를 보존했고 전체 step 보고서를 성공으로 만들지
+않았다. V2는 모델 작업을 그대로 두고 dtype metadata와 중간 기록만 고쳤다. 전체
+**245개 유한 logit tensor와 56개 활성 KV tensor**가 반복 사이에 byte 일치했고 RNG는
+변하지 않았다. 비교용 객체를 해제한 뒤 추가 활성 memory는 0 bytes였다.
+
+| 원문 없는 V2 실행 | Prefill | 후속 1행 forward 합계 |
+| --- | --- | --- |
+| 첫 1,988/240 | 661.62ms | 7,152.19ms |
+| 첫 3,023/244 | 1,544.21ms | 4,237.00ms |
+| 반복 3,023/244 | 1,238.50ms | 6,492.82ms |
+
+반복의 후속 계산이 더 느려 일정한 warmup 효과를 입증하지 못했다. 자료는
+`native-operation-source-free-shapes-v2-report.json`에 있다. Model-only 직렬 실행의
+수치 일치가 실제 요청의 지연 원인을 확정하지는 않는다.
+
+이어서 원래 SDK 연산 순서에 CPU timer만 넣어 Kotlin 누락 본문/감소 loop를 진단
+반복했다. `native-operation-stage-profile-cfR9sa/report.json`과 sidecar에 기록했다.
+추가 tensor 평가/동기화 없이 모델 graph 작성, 기존 token 읽기, native grammar,
+sampling graph와 dispatch 호출을 나눴다. 원래 SDK/worker 파일은 수정하지 않았으며
+파생 코드의 타이머 편집을 되돌리면 원문 byte가 복원되는지 검사했다.
+
+| SDK 구간 관찰 | 누락 본문 | 감소 loop |
+| --- | --- | --- |
+| 전체 생성·Host parser 완료 | 2.918초 | 2.244초 |
+| Prefill 완료 대기 합계 | 733.70ms | 482.74ms |
+| 생성 model graph 작성 합계 | 141.00ms | 140.27ms |
+| 기존 token 읽기 대기 합계 | 1,501.82ms | 1,144.49ms |
+| Native grammar mask 계산 합계 | 25.48ms | 23.34ms |
+| Native token consume 합계 | 2.64ms | 2.57ms |
+| Async dispatch 호출 합계 | 343.40ms | 344.95ms |
+
+Token 읽기에는 이전 GPU 작업의 완료를 기다리는 시간이 들어간다. 이를 token 복사만의
+비용이나 순수 GPU kernel 시간으로 해석하지 않는다. 중첩된 processor 합계와 그 내부
+구간도 더하지 않는다. 두 raw wire/완전한 Host 응답은 원래 pilot과 byte 일치했지만
+이번 빠른 진단 두 건으로 원래 **4/7** 판정이나 5초대 실패를 교체하지 않는다.
+
+### Grammar용 전체 token 이력 제거 후보의 검증과 기각
+
+SDK는 grammar processor용 전체 token 이력을 이어 붙인 뒤 새 부분만 읽는다. 고정
+prompt는 int32, 실제 sampler ID는 uint32여서 이력은 int64가 된다. Native grammar는
+첫 호출에서 prompt를 소비하지 않고 이후 새 ID만 필요하므로, 이 전달 경로만 바꾼
+단일-owner 어댑터를 구현했다. 전체 prompt의 모델 처리, 모든 문장/필드, model/cache/
+sampling/yield 코드는 유지한다. 다른 processor나 여러 입력 행은 거절한다. 파생 SDK와
+worker의 선언된 편집을 역으로 적용해 나머지 원문 byte가 같은지 확인했다.
+
+첫 replay 검사는 EOS 이후에도 native matcher가 오류 상태가 아니라고 잘못 가정해
+실패했다. 고정 SDK의 lookahead는 이미 `NoExtension`으로 끝난 matcher에 EOS를 한 번
+더 전달한다. Native matcher는 `InternalError`이면서 stopped 상태가 되고 기존 worker는
+원래 stopped 분기를 유지한다. 검사도 이 원래 동작의 동일성을 비교하도록 고쳤으며
+첫 실패를 보존했다. 종료 정책을 바꿔 통과시키지는 않았다.
+
+수정한 `incremental-grammar-parity-v3.json`은 **1,615개 전체 vocabulary mask**와
+**63개 전체 masked logit/확률/선택 token/RNG 비교**를 통과했다. 각 mask는 151,936개
+vocabulary bit를 비교했다. 두 token 열은 실제 SDK ID이고 나머지 다섯은 저장 wire의
+canonical re-tokenization이므로 원래 sampled history라고 표현하지 않는다. 확률 검사는
+합성 logits를 사용했으며 모델 로딩·새 설명·지연 검증은 0개다.
+
+첫 실제 연결은 어댑터가 통합 worker의 compiler wrapper 설치 전에 native 클래스를
+보관한 오류로 실패했다. 원래 canonical/compact compiler와 schema receipt를 우회해
+`Missing native-only schema evidence`가 발생했다. 7개 요청을 시도했지만 수신한 완료
+응답/metrics는 0개다. 이 0개는 실패한 child 내부에서 sampling이 없었다는 뜻이 아니다.
+`incremental-grammar-candidate-wUVkG6`와 별도 실패 annotation을 보존했다. 생성자에서
+현재 compiler wrapper를 참조하도록 연결을 고쳤고, 실제 wrapper 호출 검사와 위 전체
+동일성 검사를 통과한 뒤 다음 단일 후보를 실행했다.
+
+`incremental-grammar-candidate-v2-vcwdTq/report.json`은 원래 일곱 원문을 한 번씩 새로
+읽은 결과다. 모든 실제 raw wire와 최종 Host 응답이 원래 pilot과 byte 일치했다. 전체
+원문·summary/flow·다섯 최종 상세를 다시 읽었고 **의미 검토 7/7**을 유지했다. 기존 source
+fact 복원이 있는 상세를 모두 모델 작성 문장으로 계산하지 않는다.
+
+| 이력 제거 후보 | 전체 설명 완료 | 의미 및 3초 |
+| --- | --- | --- |
+| TypeScript 한국어 누락 본문 | 5.128초 | 실패 |
+| Kotlin 한국어 누락 본문 | 2.441초 | 통과 |
+| TypeScript 한국어 지역 쓰기 | 3.041초 | 실패 |
+| Kotlin 한국어 지역 쓰기 | 5.309초 | 실패 |
+| Kotlin 한국어 감소 loop | 3.703초 | 실패 |
+| TypeScript 영어 음수 guard | 4.105초 | 실패 |
+| Kotlin 영어 복합 분기/catch/finally | 3.328초 | 실패 |
+
+후보는 **1/7**만 전체 3초를 만족했고 최대는 **5,309.378292ms**였다. 전체 token 이력
+concat과 int64 확장을 제거한 것만으로 지연이 해결되지 않아 채택하지 않았다. 환경·순서
+변동을 분리한 비교가 아니므로 이 수치만으로 인과적 성능 악화율도 주장하지 않는다.
+후보 worker의 누적 MLX peak는 **1,912.81 MiB**, RSS peak는 **1,270.97 MiB**이며 전체
+VS Code process tree memory가 아니다. Source-free 준비·원래 입력/출력 상한·sampling·
+cached tokens 0·중복 가중치 활성 memory 0을 유지했다.
+
+모든 audit/모델 handle과 소유 worker는 종료했다. 공개 runtime source를 바꾸지 않은
+진단이므로 앞선 package 테스트 **87개** 통과 기록을 유지하고 전체 테스트를 반복하지
+않았다. 새 private Python/Node 구문 검사, native replay/확률 검사와 위 실제 요청 검증은
+수행했다. 공개 runtime·기본 모델·Default/QA 설치는 **0.0.1145**이며, 원래 7개 판정
+**4/7**도 보존한다. 실제 outer Host·전체 scope/rich 및 3초 목표는 아직 미완료다.
+
 ## 남은 완료 기준
 
 모델 변경, decoder 최적화 또는 입력 구조 변경을 채택하려면 다음을 함께 확인해야 한다.
