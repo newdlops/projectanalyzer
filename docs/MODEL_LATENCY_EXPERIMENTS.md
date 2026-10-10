@@ -3182,6 +3182,192 @@ exit 0으로 종료했고 소유 worker도 종료했다. 새 전체 설명은 **
 않았다. 공개 runtime·package·Default/QA 설치는 **0.0.1145**를 유지한다. 공개 runtime
 변경이 없어 앞선 package 87개 통과 검사는 반복하지 않았다. 3초 목표는 미완료다.
 
+### 고정 single-row MLP graph 컴파일과 생성 stream 정렬
+
+앞선 profile에서 반복되는 Python model graph 작성이 확인됐다. 기존 `PackedMLP`는
+gate/up projection·split·SwiGLU·down projection을 매 token마다 연결한다. Private
+`compiled_single_row_mlp.py`는 **(1, 1, 1024) bfloat16 입력**에 한해 같은 계산을 고정
+graph로 컴파일한다. 여섯 quantized weight/scales/bias 배열을 명시적 입력으로 전달하며
+원래 배열을 복사하거나 상수로 캡처하지 않는다. 원래 SwiGLU·4bit/group128 matmul과
+중간 반올림을 유지한다. Multi-row/batch와 다른 dtype은 실제 원래 MLP로 처리한다.
+앞선 Q/K·공유 K/V 경로는 유지하고 잔차/RMSNorm·early-forward 후보는 포함하지 않는다.
+함수 소스·prompt·출력 항목·모델 가중치·sampler·precision·buffer/QoS는 유지했다.
+
+가중치 배열의 동일 참조·fallback·오류 전달을 확인하는 **CPU-only 8개 검사**가 통과했다.
+첫 수치 audit에서 28개 MLP와 signed zero·작은 값·큰 값·반올림 경계 등 **출력 336쌍**,
+**전체 모델 37쌍**의 모든 raw logit·활성 K/V byte·offset·할당 capacity가 일치했다.
+원래 준비 뒤·부착·같은 준비 입력 뒤·복원 뒤 active memory는 모두
+**316,768,264 bytes**, 추가 가중치는 **0 bytes**, readiness RNG는 같았다. Report
+`small-model06-compiled-mlp-parity.json` SHA-256은
+`1435ca4730a11ad1d7162b4df53b6f24e5d4c389a9a34969687385eee5809812`다.
+최종 tool 출력이 유실돼 수치 audit 종료 코드는 **미관측(null)**이다. 같은 handle의
+closed/unknown·해당 프로세스 부재·완성된 수치 증거를 독립 확인했고 종료 코드 0을
+추정하지 않았다. 복구 기록은 `small-model06-compiled-mlp-numeric-terminal-recovery.json`이다.
+
+첫 실제 요청인 TypeScript 한국어 누락 본문은 **1,166.642292ms**에 끝났고 원문·raw wire·
+전달 응답·parsed field는 기존 결과와 같았다. 전체 설명을 읽어 의미는 확인했지만 준비
+직후 compile trace **1회**가 실제 생성 후 **2회**로 늘어 실행 검증에 실패했다.
+`small-model06-compiled-mlp-G1d86o`의 첫 응답과 **실제 exit 1**을 보존하고 나머지 여섯
+요청을 실행하지 않았다. 이 빠른 실패 응답을 3초 통과로 인정하지 않는다. 수동 검토
+`small-model06-compiled-mlp-failure-review.json`은 의미 1개·채택 가능한 시간 통과 0개다.
+
+원인은 준비와 생성의 실행 맥락 차이다. 설치된 SDK는 `generation_stream`에서 생성하지만
+원래 worker의 source-free 준비는 그 stream 밖에서 실행했다. MLX 0.32.3의 compile
+cache는 입력 shape/dtype 외에 현재 stream도 구분한다.
+[MLX compile cache 구현](https://github.com/ml-explore/mlx/blob/v0.32.3/mlx/compile.cpp)
+이에 파생 `mlx-production-worker-generation-ready.py`는 **원래 EOS 64+1 준비의 다섯
+문장만 기존 SDK 생성 stream 안에서 실행**한다. 새 모델 호출·입력·dtype 준비를 추가하지
+않는다. 실제 파생 worker의 준비 AST를 추출해 동일 입력·순서·stream 복원·오류 전달을
+검사한 **CPU-only 7개 검사**가 통과했다. 최초 실패는 이 수정으로 덮어쓰지 않는다.
+
+생성 stream에서 새로 비교한 **MLP 336쌍·전체 모델/KV 37쌍**도 byte 일치했고 최대
+차이는 0이었다. 준비 뒤와 audit 종료의 compile trace는 모두 **1회**이며 동일 active
+memory·RNG를 유지했다. 변경하지 않은 앞선 cache 검사 52개는 참조만 하고 새 검사 수에
+넣지 않았다. 이 수치 audit은 **실제 exit 0**으로 종료했다. Report
+`small-model06-compiled-mlp-generation-stream-parity.json` SHA-256은
+`5743248eef3f077e20ac69702a9d4cb495cc0127802115ba3ea1e6d80f187cff`다.
+
+수정한 실행 경로에서 같은 일곱 전체 원문을 **한 번씩** 새로 읽었다. Source-free 준비
+완료 뒤 요청부터 shipped Host parser의 전체 응답 처리 완료까지 측정했다.
+
+| 고정 MLP·생성 stream 준비 후보 | 전체 설명 완료 | 의미 및 3초 |
+| --- | ---: | --- |
+| TypeScript 한국어 누락 본문 | 1.114초 | 통과 |
+| Kotlin 한국어 누락 본문 | 1.204초 | 통과 |
+| TypeScript 한국어 지역 쓰기 | 1.280초 | 통과 |
+| Kotlin 한국어 지역 쓰기 | 1.377초 | 통과 |
+| Kotlin 한국어 감소 loop | 1.272초 | 통과 |
+| TypeScript 영어 음수 guard | 0.703초 | 통과 |
+| Kotlin 영어 복합 분기/catch/finally | 1.284초 | 통과 |
+
+원문·raw wire·전달 응답·parsed field는 원래 0.6B 결과와 **7/7 일치**했다. 전체 원문과
+summary/flow·role/inputs/output/effects/reason을 전부 읽어 의미 **7/7**, 의미와 전체
+3초 동시 통과 **7/7**, 최대 **1,377.011ms**를 확인했다. 누락 구현·실제 완료의 미확인,
+지역 갱신 순서·callee loop·두 분기 반환·catch·finally를 유지했다. 모델이 작성한 prose와
+정적 syntax 소유 필드를 구분한다. 모든 실제 요청에서 compile trace는 **1회**로 유지됐고
+추가 재컴파일은 **0회**였다. 연결/runtime 검증 실패도 0개다.
+
+Fused attention과 compiled MLP는 각각 **44,660회**, multi-row fallback은 각각
+**952회**였으며 준비 counter는 각각 28회였다. Worker 누적 peak MLX는
+**1,182.46 MiB**, RSS는 **702.75 MiB**로 readiness를 포함한다. 전체 VS Code 메모리,
+prefill peak 감소나 서로 다른 시점의 시간 차이에 따른 인과적 속도 개선을 입증하지 않는다.
+
+Report `small-model06-compiled-mlp-generation-stream-kilO8z/report.json` SHA-256은
+`136334e1c4d09f04e937498d627f2fb11f44089dba700eec402f9f991ab076c8`, 전체 검토는
+`small-model06-compiled-mlp-generation-stream-pilot-manual-review.json`이다. Tool은
+일곱 응답과 worker 종료를 반환했지만 최종 종료 코드는 누락했다. 같은 handle 재조회,
+driver PID 부재·dispose 후 marker·완성된 report로 종료를 독립 확인했으며 종료 코드는
+**미관측(null)**로 남겼다. 복구 기록은
+`small-model06-compiled-mlp-generation-stream-terminal-recovery.json`이다. 재실행하지 않았다.
+
+고정 일곱 건 통과 후 기존에 동결한 **32개 전체 원문**을 같은 실행 경로에서 한 번씩
+검증했다. TypeScript/Kotlin × 한국어/영어 × subtract·음수 guard·지역 쓰기·
+catch/cleanup·복합 분기/catch·감소 loop·누락 본문·잘린 본문이다. 원래 원문 32개와
+flow 외 응답 항목을 전부 유지했다. 기존 pilot 일곱 맥락과 후보에 추가된 **25개 맥락**을
+포함하므로 32개 모두 처음 본 독립 원문이라고 부르지 않는다. 실패 시간 재시도나
+모델·prompt·설정 변경은 하지 않았다.
+
+전체 설명 완료는 **637.127791–1,527.485750ms**였고 자동 원문 검사·실행 검증은
+**32/32** 통과했다. 전체 원문·raw wire·전달 응답의 모든 모델 작성 문장을 실제로 읽었으며
+parsed field와 전달 값의 완전 일치도 확인했다. 의미 **32/32**, 의미와 전체 3초 동시
+통과 **32/32**다. 원문의 계산·비교 연산자·지역 갱신 순서·반복 조건·두 반환·catch·
+finally의 인수를 보존했다. 누락/잘린 구현의 나머지 동작·효과·실제 완료를 미확인으로
+유지했으며 parent 결과 사용의 정상 복귀 조건을 보존했다. 이미 본 일곱 건은 원래
+0.6B raw wire와 전달/parsed 값도 일치했다. 모델 작성 필드와 syntax 소유 필드를 구분했다.
+
+Compile trace는 준비부터 32개 요청 종료까지 **1회**이며 추가 재컴파일과 연결/runtime
+실패는 0개다. Fused attention/compiled MLP는 각각 **190,624회**, multi-row fallback은
+각각 **4,088회**였다. Worker 누적 peak MLX **1,182.46 MiB**, RSS **708.14 MiB**는
+readiness를 포함한다. 전체 VS Code 메모리나 peak 감소를 입증하는 값이 아니다.
+
+Report `small-model06-compiled-mlp-stream-holdouts-GqtRA5/report.json` SHA-256은
+`ec2305ea5329798391fa33a48ba225da6a31454f0daa2e5f9c2d920cbed4ac9f`, 전체 검토
+`small-model06-compiled-mlp-stream-holdout-manual-review.json` SHA-256은
+`a200ea0832e15b26cb6ad4704ee1a645c6120f70e8704caa0e6b0a11d4c30e1b`다. 이 평가
+driver는 **실제 exit 0**으로 종료했고 소유 worker도 종료했다. 이 후보의 함수 전체 호출
+설명 검증 통과는 실제 outer Host·전체 scope/detail-only·full-rich·다운로드/lifecycle·
+설치 검증을 대체하지 않는다. 해당 연결 검증을 다음 gate로 열었다. 공개 runtime·package·
+Default/QA 설치는 **0.0.1145**를 유지하며 제품 채택과 3초 목표 전체 완료는 아직 미검증이다.
+
+### 전체 작업 연결 검증: 빠른 호출 응답과 full-rich 실패
+
+고정 일곱 건과 동결 32건의 검토를 마친 후 private adapter를 실제 작업 범위에 연결했다.
+지원되는 단일 호출 전체 설명은 기존 source-owned/native-operation 경로를 유지하고,
+detail-only·overview·선택 경로·여러 대상·일반 시나리오/node/final-synthesis는 원래 전체
+wire/schema/prompt로 처리한다. 제한된 원문 parser가 거부하는 문법도 모델 생성 전에 원래
+전체 형식으로 보낸다. 모든 분기는 **같은 소유 worker와 FIFO manager**를 사용하며 원문,
+출력 항목, 가중치, sampling 설정을 유지한다. 정적 응답 대체나 실패 응답 재생성은 없다.
+
+CPU 검증 **41개**에서 기존 32건의 실제 adapter 요청 schema/message와 전달 응답이
+전부 일치했다. 다른 범위의 원래 전체 형식·원문 유지, parser 거부 시 분기, 동일 worker의
+FIFO 직렬 처리와 해제를 확인했다. Fake worker 검사는 의미/속도 또는 새 원문 coverage로
+계산하지 않는다.
+
+실제 `FunctionCallsHostDelivery`로 TypeScript/Kotlin × 한국어/영어 ×
+overview/call/scenario **12건**을 새로 생성했다. 각 요청은 source-free 준비를 마친 뒤
+원문 구성·생성·Host parsing·모든 page 읽기 완료까지 측정했다. 모든 page는 model을 다시
+부르지 않는 cache 읽기였고 전체 설명은 **404.949833–1,614.875042ms**였다. 하지만
+모델 작성 flow/role이 callee의 catch 반환·계산 또는 finally `audit(value)`를 충분히
+설명하지 않아 원문 필요 조건 **0/12**였다. 일부 한국어 응답은 `addFee`를 `addF`/`addFi`로
+잘못 썼다. 원래 syntax 소유 output/effects에 구문이 남아 있다는 이유로 모델 읽기의
+누락을 통과시키지 않았다. 실제 원문·raw·전달·Host 응답을 모두 읽었고 의미와 3초 동시
+통과는 **0/12**로 기록했다.
+
+실제 call 요청에서 기존 제한 parser의 범위 차이도 확인했다. TypeScript의 `export`
+modifier를 거부하고, Kotlin Host가 반환하는 `resolved` confidence를 기존 synthetic
+`exact`/`inferred` vocabulary에 포함하지 않았다. 해당 원문이나 confidence를 바꾸지 않고
+원래 전체 wire로 보냈다. 이 fallback의 JSON 파싱 성공은 모델 의미 검증 통과가 아니다.
+
+같은 두 언어/locale의 detail-only 요청 **4건**은 **204.207–499.539833ms**에 생성·파싱을
+마쳤다. 전체 raw/전달/parsed 상세를 원문과 대조하니 한국어 두 건은 순차
+`n = valueArg * 4; n -= 3; return n`에 존재하지 않는 **try/catch**를 설명했다.
+영어 두 건은 일반적인 calculate/update/return 문장이라 구체적인 연산을 읽었음을 충분히
+확인하지 못했다. 한국어의 확실한 반례와 영어의 미확인 상세를 구분하며, 의미와 전체
+3초 통과로 인정한 것은 **0/4**다.
+
+처음 full-rich 구간을 연결할 때 검증기가 원래 benchmark의 비동기 IIFE를 기다리지 않아
+다음 구간을 먼저 시작했다. 단일 worker 소유권 검사가 이를 차단했고 실제 driver는
+**exit 1**, 준비 중이던 소유 child는 종료됐다. 첫 rich phase의 조기 exit-0 marker는
+성공이 아니며 이 구간에서 완성된 모델 응답은 **0개**다. 실패 파일과 16개 실제 완료된
+호출/상세 응답을 보존했다. 원래 benchmark IIFE에 top-level `await`와 파일 이동에 필요한
+상대 경로만 추가했고, 이미 실행한 호출/상세 16건은 반복하지 않았다.
+
+수정한 검증기로 원래 interleaved-effects 원문을 **4개 전체 rich session**에서 측정했다.
+실제 `FunctionNarrativeScenarioSession`이 scenario→남은 node/value→최종 summary의
+**세 번의 모델 요청**을 수행하고 모든 page/node를 마칠 때까지 잰 값이다.
+
+| 전체 rich session | 준비 후 전체 설명 | 의미 및 3초 |
+| --- | ---: | --- |
+| TypeScript 한국어 | 4.848초 | 실패 |
+| TypeScript 영어 | 7.544초 | 실패 |
+| Kotlin 한국어 | 5.979초 | 실패 |
+| Kotlin 영어 | 5.188초 | 실패 |
+
+네 session 모두 구조상 완료됐지만 의미와 전체 3초 동시 통과는 **0/4**다. 모든 실제
+raw/전달 모델 작성 필드와 원문을 읽었다. 외부 `audit(adjusted)` 호출 **이전**의
+`adjusted = amount + 5`에도 정확한 수치 대신 `null` 또는 caller/callee 설명 문장을
+넣었다. 선언·갱신·호출을 서로 다른 동작으로 설명하지 못하고 최종 synthesis도 잘못된
+값과 설명을 이어받았다. Audit 구현/실제 완료의 미확인도 올바르게 유지하지 못했다.
+정상 audit 복귀를 전제로 한 수학적 반환값과 실제 실행 완료를 구분하며, 외부 호출 전
+선언값의 확실한 반례만으로도 의미 실패를 확인할 수 있다. 원래 step/value/synthesis
+필드와 모든 원문은 줄이지 않았다.
+
+이 연결 검증의 새 실제 model 응답은 **28개**이며 사용자 단위 전체 읽기는 **20건**이다.
+모든 요청에서 source KV 재사용은 0이고 compile trace는 소유 worker당 1회로 유지됐다.
+수치 최적화의 runtime 검증 실패는 없었다. Worker 누적 peak MLX **1,025.10 MiB**,
+RSS **707.00 MiB**는 readiness를 포함하며 전체 VS Code 메모리나 peak 감소의 근거가
+아니다. 두 driver 모두 실제 exit 1로 끝났고 모든 소유 worker는 종료했다. 모델·prompt·
+precision·sampling 설정 순회나 실패 응답 재시도는 하지 않았다.
+
+실패 검토 `small-model06-complete-task-failure-review.json` SHA-256은
+`19302127b46a5338b9e1ba30618ee7bcc13be5356d25be763f20bc61cebc27d3`다. Rich report
+`small-model06-awaited-rich-gates-NB30Qw/report.json` SHA-256은
+`278eac3d12b238f473345ca924a0dd072480dbd31d2902977786c54f92c5eb98`이다. 앞선
+고정 일곱 건·32건 성공과 기존 실패는 그대로 남기며, 이 **전체 작업 후보는 미채택**이다.
+빠른 단일 호출 결과로 상세/전체 시나리오 지원을 대신 입증할 수 없다. 다운로드·무결성·
+custom model·취소/idle lifecycle와 설치 gate를 통과했다고 주장하지 않는다. 공개
+runtime/package/Default·QA 설치는 **0.0.1145**이고 3초 목표는 미완료다.
+
 ## 남은 완료 기준
 
 모델 변경, decoder 최적화 또는 입력 구조 변경을 채택하려면 다음을 함께 확인해야 한다.
