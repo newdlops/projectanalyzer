@@ -1728,6 +1728,117 @@ peak는 각각 **1,419.61/1,419.92MiB**이며 준비를 포함한 worker의 누�
 전체 3초 기준과 기존 모델 의미 오류, 실제 outer Host/전체 scope/rich는 여전히
 미충족이다. 제품 runtime/UI/기본값/설치 버전 **0.0.1145**를 바꾸지 않는다.
 
+## Packed 가중치의 중복 상주 제거와 최적화 조합 검증
+
+앞선 decode-only projection 결합은 단일 token의 연산과 원래 multi-row prefill을
+구분해 수치를 보존했지만 원래 projector의 가중치도 남겨 **476MiB**를 추가로
+상주시켰다. 새 private 구현은 q/k/v/gate/up의 원래 shape를 유지하면서 각 prefill
+projector가 packed 가중치의 해당 row view를 참조하게 한다. Decode에서만 앞서
+검증한 결합을 사용한다. 모델 파일, 저장 가중치 byte, dtype, 원래 multi-row prefill
+연산 shape를 바꾸지 않는다.
+
+### 원래 가중치와 수치·상주 메모리 비교
+
+`shared-projection-weights-parity.json`의 **37개 실제 모델 비교**는 다음을 포함한다.
+
+- Batch1의 prefix1/64/257/512/1023, batch2의 prefix1/64/257 각각에서 prefill과
+  뒤따르는 세 개의 one-token decode를 비교한 32개.
+- Batch1에서 512+511 chunked prefill과 세 decode를 비교한 5개.
+
+각 control은 원래 Python array 객체를 실제로 복원한다. Candidate와 control이
+같은 새 view를 참조하는 비교가 아니며 복원된 객체 identity도 검사했다. 전체
+logit byte와 28개 layer의 활성 K/V byte, dtype/shape/offset이 모두 같고 차이는
+0이었다. 단순 argmax 일치나 허용 오차 비교로 대체하지 않았다. 원래 projector의
+140개 binding과 weight/scales/biases 총 420개 view도 원래 shape/dtype를 유지한다.
+
+수치 비교 뒤 원래 control 참조를 해제하고 GC/allocator cache 정리를 수행했다.
+원래 source-free 64+1 EOS forward 후 KV를 버리고 다시 측정한 결과는 다음과 같다.
+
+| MLX 활성 메모리 관찰 | Bytes |
+| --- | ---: |
+| Packing 전 원래 모델 | 914,245,640 |
+| Packed 가중치와 원래 control을 함께 보유 | 1,413,367,816 |
+| 원래 control 해제 후 | 914,245,640 |
+| Source-free readiness 및 KV 해제 후 | 914,245,640 |
+| 해제한 원래 저장 가중치 | 499,122,176 |
+
+추가 활성 가중치 메모리는 실제로 **0 byte**였다. 이는 이 구현/모델에서 측정한
+상주 중복 제거 결과이며 OS 전체 RAM이나 일반적인 peak의 보증이 아니다. 수치
+probe의 peak MLX 약 **3,350.69MiB**는 원래 control과 두 비교용 KV를 포함하므로
+실제 설명 요청의 peak로 제시하지 않는다. 이 probe는 소스를 읽거나 token을
+sampling하지 않았고 새 설명 37개를 생성한 것이 아니다.
+
+### 세 가지 검증된 연산 절감의 고정 조합
+
+새 후보는 가중치 공유, 앞서 2,787개 mask를 비교한 native-only Korean schema
+canonicalization, 전체 확률/token/RNG가 같은 1,024쌍의 one-sort sampler를 함께
+사용한다. 원래 prompt/wire schema/source/context, temperature0.2/top-p0.95/top-k40,
+출력 한도와 EOS 완료 조건, 8GiB 메모리/256MiB allocator cache 한도를 유지했다.
+Original schema hash와 native-only compiler schema hash는 별도로 남긴다.
+
+양쪽 arm은 준비 단계에서 source-free float32/bfloat16 고정 filter 배열 두 개를
+평가하고 RNG가 변하지 않았음을 확인한다. 실제 source나 출력 token을 준비에
+사용하지 않고 기존 64+1 EOS model forward와 KV 해제를 유지한다. Ready 시 추가
+활성 가중치 0 byte와 control 참조 해제를 실제 요청 metrics에도 남긴다.
+
+`compound-integrated-latency-comparison-Q1kQQM/report.json`은 같은 완전 원문 세 개를
+control → integrated → integrated → control로 읽은 **새 설명 12개**다. 준비 이후
+provider 요청부터 전체 wire decode/정규화 및 실제 Host parser 완료까지 측정했다.
+각 요청은 model call 한 번, cached tokens 0이며 모든 arm의 전체 raw wire hash와
+정규화 후 설명이 같았다. 이전에 검토한 같은 원문의 응답과도 정확히 같았다.
+
+| 원문 | 원래 전체 완료 두 번 | 조합 후보 전체 완료 두 번 |
+| --- | --- | --- |
+| TypeScript 영어 쓰기 | 0.995 / 0.986초 | 1.084 / 1.436초 |
+| TypeScript 한국어 catch/finally | 3.699 / 1.725초 | 2.043 / 1.709초 |
+| Kotlin 한국어 복합 분기 | 7.370 / 2.952초 | 2.554 / 2.154초 |
+
+후보는 **6/6**이 3초 이내(평균 **1.830초**, 최대 **2.554초**), control은 **4/6**
+(평균 **2.954초**, 최대 **7.370초**)였다. Worker 누적 peak MLX는 후보/control
+각각 **1,711.20/1,752.20MiB**, OS RSS peak는 **1,275.875/1,470.00MiB**였다.
+준비를 포함한 worker 누적 값이며 Host/VS Code 전체나 요청별 allocation delta가
+아니다. 세 원문의 두 번 반복 결과만으로 일반적인 성능 개선을 확정하지 않는다.
+
+### 전체 32개 원문으로 확대했을 때의 실패 보존
+
+예비 후보가 6/6을 통과해 `compound-integrated-all32-LZWlR2/report.json`에서
+원래 holdout **32개 전체**를 한 번씩 새로 읽었다. 완전 본문 24개와 의도적으로
+본문이 없거나 부분적인 8개를 모두 포함했다. 원래 source/context와 현재 wire의
+일치를 먼저 검사하고 원문·응답을 줄이거나 response/KV cache를 사용하지 않았다.
+Provider 요청부터 Host parser 완료까지 같은 기준으로 측정했다.
+
+| 전체 32개 관찰 | 결과 |
+| --- | ---: |
+| 실제 새 model call / cached tokens | 32 / 0 |
+| 3초 이내 | 27/32 |
+| 최소 / 평균 / 최대 | 1.105 / 2.412 / 5.736초 |
+| 원래 필요 조건 / runtime 설정 검사 | 32/32 / 32/32 |
+| 이전 전체 응답과 byte 일치 | 32/32 |
+| Worker 누적 peak MLX / RSS | 1,814.20 / 1,272.77MiB |
+
+3초 초과는 TS 영어 guard **3.869초**, TS 한국어 누락 본문 **5.552초**, TS 영어
+누락 본문 **3.091초**, Kotlin 한국어 복합 분기 **5.736초**, Kotlin 영어 부분 본문
+**5.240초**였다. 실패를 제외하거나 재실행해 덮어쓰지 않았다. 이전 32개와는 별도
+실행이므로 두 실행의 평균 차이를 matched speedup으로 계산하지 않는다.
+
+전체 source/context와 최종 응답이 byte 단위로 같아 앞선 실제 32개 수동 검토의
+결과도 그대로 적용된다. TS/Kotlin 한국어 누락 본문의 **2개 내부 동작 단정**과
+한국어 TS/Kotlin 쓰기 및 Kotlin loop의 **3개 반복 flow**가 모두 남았다. 새 offline
+검토는 다섯 최종 상세 필드와 authored summary/flow를 Host가 변경하지 않았음도
+검사했다. 필요 조건 32/32 통과를 의미 정확성의 증명으로 제시하지 않는다.
+
+측정 중 한 번 관찰한 시스템 메모리 압박만으로 느린 요청의 원인을 paging이라고
+단정하지 않는다. 설치된 SDK의 `stream_generate`는 이미 생성 동안 recommended
+wired limit을 적용하고 복원한다. 시스템 정책이나 다른 앱을 변경하지 않았다.
+
+이번 단계는 원문 **32개**, 새 설명 **44개**(예비 비교 12개 + 전체 검증 32개),
+별도의 source-free 실제 모델 수치 비교 37개와 Python/Node 구문 검사다. 모든
+소유 handle과 worker는 종료됐고 원래 실패 artifact도 보존했다. 가중치 중복은
+해결됐지만 안정적인 전체 3초와 모델 의미 정확성은 충족하지 못해 채택하지 않는다.
+실제 outer Host/전체 scope/rich도 미검증이다. 공개 package 61개는 앞선 통과 기록이며
+이번 문서 변경에서 다시 실행하지 않았다. 제품 runtime/UI/기본값/설치 버전
+**0.0.1145**를 유지한다.
+
 ## 남은 완료 기준
 
 모델 변경, decoder 최적화 또는 입력 구조 변경을 채택하려면 다음을 함께 확인해야 한다.
