@@ -2660,6 +2660,84 @@ batch1의 **서로 다른 학습 3,256건 한 번**을 유지한다. Yielded row
 다운로드/토큰 검사는 모델 설명 생성·품질·지연 증거가 아니며 기존 실패와 모든 scope/
 lifecycle 완료 기준을 유지한다. 기본 모델·runtime·Default/QA 설치는 **0.0.1145**다.
 
+### 0.6B 한 차례 학습 완료와 첫 전체 설명 측정
+
+준비한 설정 그대로 서로 다른 **3,256건을 한 번** 학습했고 실제 tool이 정상 종료됐다.
+종료 후 독립 검증에서 전체 index trace의 중복·누락이 없음을 확인했다. Kotlin/
+TypeScript와 한국어/영어는 각각 1,628건이며, 원래 source·응답·completion-through-EOS
+loss를 유지했다. 전체 학습 시간은 약 **101.4분**이다. 학습 중 누적 MLX peak
+**11,185.19 MiB**는 일시적인 학습 비용이며 추론 memory로 사용하지 않는다.
+
+새 어댑터를 별도 affine4bit/group128 모델로 병합했다. 모델 파일은 **316,825,700 bytes**
+(약 **302.15 MiB**), SHA-256은
+`92a3a9585dbb562df951797ad699dd302caaf328f2c7f09e19471d98f73f9bc1`다. 기존 공식 base와
+1.7B 모델은 보존했다. 병합 후 저장된 실제 tokenizer로 **4,136건의 전체 prompt·응답·EOS
+배열과 고정 일곱 IPC prompt의 모든 token**이 기존과 정확히 같음을 다시 확인했다.
+원문이나 설명 항목을 줄여 얻은 작은 모델 결과가 아니다.
+
+새 가중치에서 별도로 수행한 수치 검사는 **37개 전체 logit/활성 KV tensor 쌍**이 byte
+일치했고 최대 차이는 0이었다. 원래 weight reference 복구와 control 해제 후 활성
+memory는 **316,768,264 bytes**, 추가 활성 가중치는 0이었다. 이전 1.7B의 수치 검사를
+새 모델의 증거로 재사용하지 않았다. 이후 모델 없는 pipe 검사는 **3,903건**의 전체
+message/schema, 실제 새 worker 경로와 기존 Host fixture parser 연결을 확인했다.
+Fixture 응답은 모델 설명 품질이나 지연 증거로 계산하지 않는다.
+
+`small-model06-native-operation-4SGhif/report.json`은 기존 일곱 전체 입력을 각각 한 번씩
+새로 생성한 결과다. Source-free 모델 준비 이후 `provider.generate`에서 shipped Host
+parser 완료까지 측정했다. 다운로드·준비·FIFO 대기는 제외하며 전체 source 처리,
+생성·decode·검증은 포함한다. 실제 outer VS Code Host의 전달 완료 측정은 아직 아니다.
+
+| 0.6B 첫 측정 | 전체 설명 완료 | 의미 및 3초 |
+| --- | --- | --- |
+| TypeScript 한국어 누락 본문 | 3.326초 | 실패 |
+| Kotlin 한국어 누락 본문 | 1.754초 | 통과 |
+| TypeScript 한국어 지역 쓰기 | 1.925초 | 통과 |
+| Kotlin 한국어 지역 쓰기 | 2.076초 | 통과 |
+| Kotlin 한국어 감소 loop | 2.954초 | 통과 |
+| TypeScript 영어 음수 guard | 3.768초 | 실패 |
+| Kotlin 영어 복합 분기/catch/finally | 2.435초 | 통과 |
+
+모든 원문, 실제 raw summary/flow/call 문장과 최종 다섯 상세를 직접 검토해 **의미 검토
+7/7**을 확인했다. 누락 본문과 내부 호출의 unknown, 지역 계산·갱신, 반복 조건,
+try/catch/finally와 정상 완료 조건을 유지했다. 기존 source fact 복원으로 채워지는
+상세를 전부 모델 작성 문장으로 계산하지 않는다. 첫 측정의 전체 3초 통과는 **5/7**,
+최대 **3,767.88825ms**여서 후보를 채택하지 않았다. 더 작은 모델에서도 이 고정 사례들의
+설명은 유지됐지만, 이 결과가 범용 정확도나 모든 기능의 3초 완료를 보장하지 않는다.
+
+Worker 누적 MLX peak는 **1,085.48 MiB**, RSS peak는 **724.77 MiB**다. 각각 source-free
+준비를 포함하는 worker 누적 peak이며 전체 VS Code process tree의 memory가 아니다.
+Cached tokens와 추가 활성 가중치는 0이었다. 서로 다른 출력·환경·순서를 통제한 비교가
+아니므로 이전 모델 대비 인과적인 속도 개선율은 주장하지 않는다.
+
+### 0.6B의 지연 두 건에 대한 관찰 전용 추적
+
+실패한 TypeScript 한국어 누락 본문/영어 음수 guard만 같은 가중치·전체 입력·schema·
+sampling으로 추적했다. 기존 SDK 연산에 monotonic clock과 scalar event 기록만 추가하고
+tensor 평가·동기화를 추가하지 않았다. 실제 raw 및 최종 응답 byte는 두 건 모두 첫
+0.6B 응답과 같았다. 추적 시간 **2,427.026209ms/1,569.001750ms**는 진단용 반복이며
+첫 실패 시간 **3,325.876334ms/3,767.88825ms**를 교체하거나 새 coverage로 계산하지 않는다.
+
+추적기가 기존 한국어 parser 인자를 영어 사례에도 넘긴 오류 한 건을 보존했다. 저장된
+같은 전체 응답으로 한국어 검증의 오류를 재현하고 올바른 영어 검증을 수행해, 첫 측정의
+모든 parsed field와 같음을 확인했다. 모델을 재요청하지 않았으며 이 영어 추적 시간을
+성공한 Host 전달 시간으로 표현하지 않는다.
+
+첫 추적의 prefill 평가 합계는 **396.55ms**, grammar token 읽기는 **632.27ms**, async
+제출은 **879.18ms**였다. 영어 추적은 각각 **290.26ms/140.97ms/655.26ms**다. Grammar의
+하위 span을 processor 합계에 다시 더하지 않는다. 이는 dependency 대기와 scheduling을
+포함하는 CPU wall-clock 구간이므로 분리된 GPU 시간이나 최초 지연의 단일 원인으로
+해석하지 않는다. 최초와 같은 크기의 지연이 재현되지 않았다는 사실만으로 준비 횟수나
+모델·prompt·정밀도·학습 설정을 순회하지 않았다.
+
+모든 학습·병합·audit·모델 tool과 소유 worker는 실제 종료했다. 전체 학습 trace/파일
+무결성, 병합 후 tokenizer/native grammar, 새 가중치 수치/활성 memory, pipe wiring,
+일곱 fresh 설명 및 수동 의미 검토, 관찰 전용 두 추적과 올바른 locale의 저장 응답 검증을
+수행했다. 공개 runtime source를 바꾸지 않아 앞선 package **87개 통과** 기록을 유지하며
+전체 테스트를 반복하지 않았다. 실제 outer Host·모든 scope·full-rich의 단계/값/최종 종합과
+다운로드/lifecycle 검증은 미실행이다. 현재 private provider는 summary를 포함하는 call
+작업에 한정되므로 detail-only와 non-call의 전체 wire 경로도 통합 전에 유지해야 한다.
+Runtime·기본 모델·Default/QA 설치는 **0.0.1145**이며 3초 목표는 미완료다.
+
 ## 남은 완료 기준
 
 모델 변경, decoder 최적화 또는 입력 구조 변경을 채택하려면 다음을 함께 확인해야 한다.
