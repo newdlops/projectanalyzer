@@ -2008,6 +2008,76 @@ missing-body 회귀 테스트는 그대로 유지하고 새 테스트를 별도 
 않는다. 그 판단에는 별도로 준비 경계 밖의 모델 로딩을 제외한 새 inference와 전체
 필드/범위 검증이 필요하다. 제품 runtime/기본 모델/UI/버전/설치는 **0.0.1145** 그대로다.
 
+## Source-owned corpus 한 번 학습 후 실제 7사례 검증
+
+별도 `adapter-source-owned-flow-exclusive-eos`는 원래 1.7B 4bit base에서 시작해
+**3,256개 서로 다른 training 행을 한 번씩** 처리한 뒤 정상 종료했다. Resume나
+추가 epoch는 없었다. 실제 yielded-index trace와 종료 후 결과 파일을 확인했다.
+기존 source·모든 응답 필드·response-through-EOS loss·rank 8/scale 20/learning rate
+0.0001/seed 42/batch 1을 유지했으며, 원문과 정답을 자르지 않았다. 학습 시간은
+**6,482,835ms**, 학습 중 peak MLX는 **10,528.66MiB**다. 이는 일회성 학습 수치이며
+익스텐션 inference 메모리나 설명 시간으로 사용하지 않는다.
+
+기존 모델을 덮어쓰지 않은 별도 4bit fused 파일의 SHA-256은
+`626668459f8a3014f803e5db6684eef1ace1eb036b14237636f5e339600244a8`이며,
+크기는 **914,316,110 bytes**다. 이 **새 가중치 자체**에서 수행한 37개 source-free
+full-logit/모든 active KV byte 비교가 모두 같았다. 원래 배열을 복원한 뒤 control
+가중치를 해제했고, 준비 후 추가 active weight는 **0 bytes**였다. 이전 모델의 수치
+검사를 새 모델의 근거로 대체하지 않았다. 이 검사는 실제 함수 설명을 생성하지 않는다.
+
+`trained-source-owned-flow-ld7niF/report.json`에는 고정된 **새 모델 요청 7개**의
+원문·모든 실제 출력·실패·소유자 단계·계측을 보존했다. 매 요청 **앞에서** source-free
+prepare를 기다린 뒤 provider.generate 시작부터 실제 현재 Host parser 종료까지
+측정했다. 실패 후 worker를 해제한 다음 요청도 로딩이 타이머에 들어가지 않는다.
+원래 full source/summary/flow/다섯 호출 상세 필드/wire 복원/상한/sampling을 유지했고,
+각 요청의 model call은 1회, cached token은 0이다. 실제 outer VS Code Host는 아니다.
+
+| 원문 사례 | 준비 후 전체 완료/실패 | Host 형식 통과 | 원문·전체 필드 수동 검토 |
+| --- | --- | --- | --- |
+| TypeScript 한국어 누락 본문 | 1.916초 | 예 | 통과 — 부모 작업과 미제공 대상 동작을 구분 |
+| Kotlin 한국어 누락 본문 | 2.012초 | 예 | 통과 — 미제공 본문을 명시적 미확인으로 보존 |
+| TypeScript 한국어 지역 쓰기 | 3.349초 | 예 | 실패 — 없는 내부 호출을 주장하고 계산·갱신·반환 설명 누락 |
+| Kotlin 한국어 지역 쓰기 | 2.405초 | 예 | 실패 — 계산·갱신 표현을 반복하며 반환 설명이 불명확 |
+| Kotlin 한국어 감소 loop | 10.554초 | 아니요 | 실패 — 같은 표현 반복과 미완성 문장 |
+| TypeScript 영어 음수 guard | 1.212초 | 예 | 통과 — 정확한 조건·분기 반환·fallback 계산 보존 |
+| Kotlin 영어 복합 분기/catch/finally | 2.243초 | 예 | 통과 — 반환 선택·finally 호출·미확인 구현·정상 완료 조건 보존 |
+
+Host 형식과 기존 필요 조건은 **6/7**, 형식 통과 및 3초는 **5/7**이지만, 수동 의미
+검토까지 함께 통과한 3초 설명은 **4/7**이다. Kotlin 영어 복합 사례의 role/output에는
+exact 관계인데도 불필요한 candidate 한정이 남아 있으며, 이를 일반 confidence 검증
+완료로 해석하지 않는다. 단어·식의 존재와 JSON 통과를 의미 정답으로 세지 않는다.
+Loop의 **1,163개 실제 생성 token**과 native 필드 상한까지 반복된 원문을 모두 보존했다.
+이를 dedup·정적 문장·출력 일부로 고치지 않았고 실패를 재실행해 지우지 않았다.
+
+이 worker들의 누적 peak 중 최대 MLX는 **1,910.20MiB**, RSS는 **1,274.84MiB**다.
+준비 및 실패 후 재시작을 포함한 worker 값이며, 요청별 allocation delta나 전체
+VS Code/Host 메모리가 아니다. 모든 소유 worker와 실행 handle은 정상 종료했다.
+
+실패 후에는 추가 학습 대신 입력 경계와 export를 별도로 점검했다.
+
+- 가중치를 로드하지 않은 in-memory pipe mock에서 **변경하지 않은 실제 provider**를
+  실행해 전체 설명 training/validation **3,896행**의 요청 messages/schema가 frozen
+  corpus와 byte 표현으로 같음을 확인했다. 호출 상세 전용 240행은 이 typed provider
+  검사에서 제외했다. 별도 7개 mock payload의 실제 고정 tokenizer 길이도 각각 보존된
+  실제 worker의 prompt-token 계측과 같았다. 길이 일치만으로 실제 IPC payload 전체
+  hash 일치를 주장하지 않는다. Mock fixture 응답은 새 모델 설명으로 세지 않는다.
+- 사전에 고정한 첫 KO TS/Kotlin 쓰기/loop/guard training/validation **12행**, 정답과
+  EOS **2,144 targets**를 teacher-force해 기존 fused와 학습 직후 어댑터를 비교했다.
+  평균 NLL은 **0.150972 / 0.146585**, top-one 정답 token은 **2,067 / 2,076**이었다.
+  학습·sampling·새 precision export·새 완성 설명은 각각 0회다. 이 작은 corpus 표본의
+  점수 차이만으로 실제 생성 오류의 원인이나 export 영향 부재를 입증하지 않는다.
+- 독립 native 선언 audit에서 training의 서로 다른 함수 이름은 **24개**, 매개변수는
+  **25개**, 지역 변수는 **5개**였다. 기존 평가의 함수·매개변수·지역 변수 이름은 모두
+  training에 없었다. 이는 정상적인 heldout 조건과 lexical coverage 관찰이며,
+  이름이 다르다는 사실을 오류 원인으로 단정하거나 평가 정답을 학습에 넣지 않았다.
+
+이 단계의 실제 새 완성 설명 요청은 **7개**다. Teacher-forcing/tokenizer/pipe mock/
+native audit는 실제 생성 수에 더하지 않는다. 새 가중치를 채택하지 않았고 all32나
+native conversion/실제 outer Host/전체 scope/rich 검증으로 확대하지 않았다.
+공개 package **71개 통과**는 앞선 실제 코드 검사 기록이며 이 문서 변경에서 다시
+실행하지 않았다. 제품 runtime/기본 모델/버전/설치는 **0.0.1145** 그대로이고,
+목표는 **미완료**다.
+
 ## 남은 완료 기준
 
 모델 변경, decoder 최적화 또는 입력 구조 변경을 채택하려면 다음을 함께 확인해야 한다.
