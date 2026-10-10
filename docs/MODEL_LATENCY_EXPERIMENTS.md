@@ -1397,6 +1397,127 @@ bit가 같았고, 길이 한도 이하는 허용하고 초과는 두 방식 모�
 설치된 **0.0.1145**는 바꾸지 않았다. 앞선 누락 본문 설명 오류와 반복 문장, 실제 Host의
 전체 scope/rich 검증 및 전체 3초 완료 기준은 계속 미충족이다.
 
+## 한국어 native grammar의 중복 길이 검증 제거
+
+설치된 LLGuidance **1.9.1**의 [문자열 compiler 원문](https://github.com/guidance-ai/llguidance/blob/f0971424ec072d3e4d4196bcc7f31a2f60527df9/parser/src/json/compiler.rs#L735)을
+확인했다. Pattern과 minLength/maxLength가 함께 있으면 둘의 regex를 교차한다.
+이 동작을 llama.cpp의 pattern 우선 처리와 같다고 가정하지 않았다. 현재 한국어 prose의
+원래 pattern은 Hangul 첫 글자와 나머지 허용 문자 **0~limit-1개**를 이미 제한한다.
+Native compiler에만 넘기는 별도 복사본에서, 이 정확한 유한 pattern과 minLength 1/
+maxLength limit가 일치하는 경우의 중복 길이 키를 제거하는 helper를 작성했다.
+**모델이 읽는 원래 prompt/wire/schema와 원문은 그대로**이며 pattern의 문자·길이 제한도
+유지한다. 영어, 인식하지 못한 pattern, const/enum 및 schema처럼 생긴 고정 JSON 데이터는
+바꾸지 않는다. Cycle/depth/node guard가 있는 반복 탐색으로 구현했다. 일반적인 JSON Schema
+rewrite의 안전성을 주장하는 helper가 아니라 설치된 native compiler의 좁은 실험이다.
+
+`test_grammar_canonical.py`의 **6개 회귀 검사**는 복사본 독립성, 고정 데이터/실제 schema
+경계, 유한 문자 조합, 공유 참조, cycle/depth/node 한도와 인식하지 못한 제약 보존을 확인했다.
+`canonical-grammar-mask-parity.json`에서는 원래 32개 wire schema를 양쪽 방식으로 컴파일했다.
+한국어 16개만 바뀌었고 영어 16개는 그대로이며 양쪽 native warning은 0개였다.
+기록된 실제 wire **706 tokens/5개 사례**, summary/flow/role 길이 경계 **15개** 및
+Unicode/escape/control 문자 **16개**를 재생했다. **2,787개 prefix**에서 vocabulary
+**151,936개 전체 bit**가 같았고 길이 한도 이하는 허용하고 초과는 거부했다.
+이 CPU 재생에서는 모델을 불러오거나 새 설명을 생성하지 않았다.
+
+한국어 두 실제 wire 재생의 mask thread CPU 합계는 다음과 같다. 길이 경계 재생 시간을
+모델 설명 시간으로 세거나, GPU 동기화 대기를 이 CPU 비용으로 합치지 않았다.
+
+| 기록된 wire | 원래 grammar | 중복 길이 제거 | CPU 감소 |
+| --- | --- | --- | --- |
+| TypeScript catch/finally | 171.47ms | 11.34ms | 93.38% |
+| Kotlin 복합 분기/catch/finally | 214.29ms | 14.23ms | 93.36% |
+
+`compound-canonical-comparison-srdjzc/report.json`에서는 세 완전 본문을 원래/후보 순서를
+앞뒤로 바꿔 각각 두 번 읽었다. **12개 새 설명**이며 한 arm의 worker를 종료한 뒤 다음
+worker를 준비했다. 양쪽 모두 같은 진단 wrapper로 원래 worker loop를 사용하고,
+원래 단일 요청 prompt/wire, sampling, prefill 512와 출력 2,400 tokens/24,000 characters를
+유지했다. 매번 실제 모델 호출 한 번, cached tokens 0이며 원문·출력을 자르지 않았다.
+준비 뒤 전체 생성과 Host parser까지 측정했고 실제 outer Host 전달은 아니다.
+원래 schema의 hash와 무변경을 확인했다. 각 사례의 **실제 생성 wire hash와 Host 정규화 후
+전체 응답 byte가 모든 실행에서 같았다**. 앞서 읽은 세 전체 설명과도 byte가 같다.
+현재 응답의 계산·반환·조건·finally/미확인 설명과 다섯 최종 상세를 다시 읽었다.
+
+| Native schema | 3초 이내 | 평균 전체 완료 | 최대 전체 완료 |
+| --- | --- | --- | --- |
+| 원래 제약 | 3/6 | 3.354초 | 6.777초 |
+| 중복 길이 제거 | 1/6 | 4.063초 | 5.305초 |
+
+한국어 복합 분기는 후보에서도 **3.262~5.263초**였다. Schema가 바뀌지 않은 영어 사례도
+기본 **0.937~2.447초**, 후보 **4.550~5.305초**로 달랐다. CPU 재생의 개선과 실제 전체
+시간의 변동을 구별하며, 이 비교에서 전체 개선이나 안정적인 3초를 주장하지 않는다.
+앞선 누락 본문 설명 오류와 반복 문장도 이 native-only 변경으로 해결하지 않았다.
+후보를 채택하거나 32개/전체 scope/rich로 확대하지 않았다.
+
+## 실제 Metal command buffer의 완료 시각 진단
+
+설치된 MLX **0.32.3**의 [pinned Metal 실행 원문](https://github.com/ml-explore/mlx/blob/64ea011cb65f14d9ce2737e60db9a4ae91ed7441/mlx/backend/metal/device.cpp#L516)을
+확인하고 private worker 프로세스 안에서만 동작하는 계측을 작성했다. 원래 commit을
+같은 command buffer로 한 번 호출하고 완료 callback에서 시각을 기록한다. 다른 앱이나
+시스템 정책을 바꾸지 않는다. 기록은 최대 16,384개이며 callback과 commit 반환의 기록이
+끝난 뒤 복사한다. 1초 수집 한도 뒤 미완료 callback이나 overflow가 있으면 완전한
+profile로 인정하지 않는다. 원래 model graph/grammar/sampler에 fence를 추가하지 않았다.
+
+Apple의 [GPUStartTime 문서](https://developer.apple.com/documentation/metal/mtlcommandbuffer/gpustarttime?language=objc)에
+따라 GPU 시작·종료 시각은 완료 callback 이후 읽고 같은 system-mach-time 단위의 host
+시각과 비교했다. [KernelStartTime](https://developer.apple.com/documentation/metal/mtlcommandbuffer/kernelstarttime)은
+**CPU의 command scheduling 시각**이며 GPU kernel 시작 시각으로 해석하지 않는다.
+GPU command buffer 경과 구간은 preemption을 포함할 수 있으므로 active hardware occupancy로
+부르지 않는다. 제출 후 GPU 시작까지의 간격에도 자기 queue의 작업·의존성이 들어갈 수
+있어 다른 앱의 경합으로 확정하지 않는다. 겹치는 구간은 합집합으로 계산하며 각 buffer의
+대기 합계를 전체 요청의 critical path로 더하지 않는다.
+
+두 고정 배열 실행에서 계산 결과가 정확히 같고 완료 상태와 양수 GPU timestamp를
+확인했다. 모델 로딩·샘플링·소스 설명이 없는 검증이다. 순수 interval helper의 **6개
+회귀 검사**는 중첩/인접/역순 구간, 빈 구간, 잘못된 timestamp, 합계와 합집합의 차이,
+token window clipping 및 commit 반환 전에 GPU가 시작할 수 있는 음수 차이를 보존한다.
+
+`compound-metal-profile-tSemm0/report.json`은 변경하지 않은 두 완전 본문의 **새 설명 2개**다.
+원래 단일 요청·원문·출력 한도와 sampling을 유지했고 cached tokens는 0이다. 두 실제 wire
+hash와 Host 정규화 후 전체 설명은 앞서 읽은 응답과 같았다. Native callback과 yield 기록,
+파일 저장 비용이 전체 시간에 포함되므로 다음 수치를 비계측 속도 개선으로 사용하지 않는다.
+
+| 원문 | 전체 완료 | Command buffers | GPU 경과 구간 합집합 | CPU scheduling 구간 합집합 |
+| --- | --- | --- | --- | --- |
+| TypeScript 영어 쓰기 | 2.739초 | 2,075 | 2,601.74ms | 49.96ms |
+| Kotlin 한국어 복합 분기 | 3.544초 | 3,184 | 2,977.48ms | 94.30ms |
+
+첫 yield 구간에는 prefill과 lookahead가 포함될 수 있다. 이 구간을 제외한 가장 느린
+yield 간격은 각각 **53.50/95.17ms**, 그 안의 GPU 경과 구간 합집합은 **52.76/93.15ms**였다.
+이는 진단 실행의 시간 위치를 좁히지만 GPU 내부의 계산·메모리 대기·preemption을 분리하지는
+못한다. 현재 환경에는 `xctrace`가 없었으며 해당 도구로 kernel별 분석을 수행하지 않았다.
+
+### 작업 묶음 크기의 한 가지 진단과 기각
+
+위 command 수와 pinned 실행기의 분할 조건을 근거로 **한 가지** 작업 묶음 후보만 확인했다.
+MLX가 문서화한 [작업 수/자원 한도 환경 변수](https://github.com/ml-explore/mlx/blob/64ea011cb65f14d9ce2737e60db9a4ae91ed7441/docs/src/usage/environment_variables.rst#L108)를
+private worker에서만 각각 **1,024 operations/1,024 MiB**로 설정했다. 전체 decode를 적은
+buffer로 묶는 진단이며 기존 **8 GiB 메모리 상한과 256 MiB allocator cache 상한**은 유지했다.
+원래 prompt/원문/grammar/sampler/model/출력 한도도 그대로다. 환경 값은 준비 receipt에
+기록했고 시스템 전역 설정으로 저장하지 않았다.
+
+`compound-metal-profile-larger-JdJKgp/report.json`의 **새 설명 2개**는 실제 wire hash와
+Host 정규화 후 전체 byte가 기존 응답과 같았고 callback 미완료/overflow는 없었다.
+
+| 원문 | 기본 진단의 buffer 수 | 큰 묶음의 buffer 수 | 큰 묶음의 전체 완료 |
+| --- | --- | --- | --- |
+| TypeScript 영어 쓰기 | 2,075 | 247 | 1.383초 |
+| Kotlin 한국어 복합 분기 | 3,184 | 404 | 7.632초 |
+
+제출 횟수는 줄었지만 Kotlin의 GPU 경과 구간 합집합은 **6,654.70ms**였다. 별도 준비와
+계측이 있는 두 실행을 matched causal speedup으로 주장하지 않는다. 큰 묶음에서도
+전체 3초를 넘었으므로 비계측 반복 matrix나 다른 한도 값 탐색으로 확대하지 않았다.
+작업 수만 감소한 것을 목표 달성으로 보거나 제품 기본값에 적용하지 않는다.
+두 요청의 worker 누적 peak MLX allocation은 기본 **1,752.20 MiB**, 큰 묶음
+**1,996.74 MiB**였다. OS RSS peak는 각각 **1,457.69/1,425.47 MiB**이며 allocator 지표와
+다른 측정이다. Host나 VS Code 전체 메모리로 제시하지 않는다.
+
+이번 작업의 실제 새 설명은 총 **16개**이며 서로 다른 원문은 **3개**다. 반복 실행을
+새로운 독립 원문 16개나 전체 scope/rich 검증으로 세지 않는다. CPU helper 검사 12개와
+Python/Node 구문 검사, native build 및 고정 배열 검증을 실행했다. 공개 package 테스트
+61개는 앞선 통과 기록이며 이번 문서 변경에서 다시 실행하지 않았다. 모든 모델 worker는
+종료됐고 runtime/UI/기본 모델/버전/설치된 **0.0.1145**를 유지한다. Native 비용의 원인을
+좁혔지만 기존 모델의 의미 오류와 실제 outer Host/전체 scope/rich/전체 3초 기준은 미충족이다.
+
 ## 남은 완료 기준
 
 모델 변경, decoder 최적화 또는 입력 구조 변경을 채택하려면 다음을 함께 확인해야 한다.
