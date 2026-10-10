@@ -2505,6 +2505,76 @@ cached tokens 0·중복 가중치 활성 memory 0을 유지했다.
 수행했다. 공개 runtime·기본 모델·Default/QA 설치는 **0.0.1145**이며, 원래 7개 판정
 **4/7**도 보존한다. 실제 outer Host·전체 scope/rich 및 3초 목표는 아직 미완료다.
 
+### Native 확정 토큰 구간의 제출 순서 변경과 기각
+
+설치된 LLGuidance 1.9.1의 `deep_copy`/`compute_ff_tokens`를 사용해, 현재 native schema에서
+다음 토큰이 하나로 확정되는 구간을 검사했다. API의 강제 byte/token 처리는
+[해당 revision의 원문](https://github.com/guidance-ai/llguidance/blob/f0971424ec072d3e4d4196bcc7f31a2f60527df9/parser/src/api.rs#L62)을
+참고했다. 원래 matcher를 바꾸지 않고 복사본의 각 전체 vocabulary mask가 정확히 한
+token만 허용하는지 검증한다. EOS 포함, 출력 잔여 한도 초과, 오류/정지 및 검증된 최대
+길이 9를 넘는 구간은 기존 한 token 경로로 처리한다. 강제 토큰을 정적 답변으로 넣거나
+모델·head·sampler 계산을 생략하는 구현이 아니다.
+
+`native-forced-run-audit.json`은 원래 일곱 응답의 replay다. 두 token 열은 실제 SDK ID,
+나머지 다섯은 저장 wire의 canonical re-tokenization이다. 원래/control matcher와
+**3,216개 전체 mask 쌍**이 같았고, 원래 matcher를 변경하지 않았다. 겹치지 않는 유효
+구간은 **70개**, 후속 행은 **221개**, 최대 길이는 **9**였다. 예전 출력 형식에서 다중
+token 절감이 없었던 결과를 새 형식의 결과로 교체하지 않는다. 이 검사는 모델 로딩·
+sampling·새 설명이 모두 0개다.
+
+새 private model helper는 입력이 알려진 짧은 구간에서 layer 바깥/token 안쪽 순서로
+lazy graph를 작성한다. 각 embedding, attention/KV, MLP 및 head 연산은 원래
+**batch 1/길이 1** shape와 uint32 입력을 유지한다. 여러 token을 하나의 QMM으로
+바꾸지 않는다. 모든 행의 전체 logits와 원래 full-vocabulary sampler도 계산한다.
+따라서 위 221행은 제출 순서를 묶을 기회이며 모델 계산 221회를 없앴다는 뜻이 아니다.
+
+`native-forced-run-numeric.json`은 같은 1.7B 가중치의 source-free 실제 모델 검사다.
+Prefix 64에서 길이 2/3/4/5/6/8/9, prefix 255/3,023/3,068에서 길이 9,
+prefix 1,988에서 길이 4를 비교했다. **11개 조건의 전체 유한 logit tensor 68개와
+활성 KV tensor 616개가 byte 일치**했고 최대 차이는 0이었다. 원래 weight 객체 identity와
+RNG도 유지했다. 비교 데이터를 해제한 뒤 활성 memory는 전후 **914,245,640 bytes**로
+추가분이 0이었다. 비교 peak **2,270.69 MiB**에는 두 비교용 cache와 전체 control logits가
+포함되므로 실제 생성 peak로 사용하지 않는다. 이 검사 역시 새 설명은 0개다.
+
+이후 기존 SDK의 one-token lookahead와 sampler를 유지하는 제한된 queue를 연결했다.
+Native singleton 구간의 후속 graph만 미리 제출하고 실제로 선택된 ID를 반환할 때마다
+원래 mask에서 기대한 ID와 같은지 확인한다. 모델 없는 실제 SDK 검사는 출력 한도
+1/2/3/9/64, 확률적 영어/Unicode, 길이 9 초과 구간의 fallback을 포함했다.
+`native-forced-run-scheduler-parity.json`의 **8개 조건/77개 전체 log-probability tensor**와
+선택 ID·최종 RNG·논리 cache offset이 모두 같았다. 7개 native batch를 실제로 사용했고,
+출력 한도를 넘겨 queue를 만들지 않았다. EOS lookahead의 원래 native stopped/error
+동작도 유지했다. 이는 합성 logits의 scheduler 검증이며 실제 Qwen3 수치 검사를 대신하지 않는다.
+
+`native-forced-run-candidate-cU6tnv/report.json`은 이 두 검사를 통과한 경로로 원래 일곱
+소스를 한 번씩 새로 읽은 결과다. 기존 frozen provider, 전체 원문·schema·sampling·출력
+상한·source-free 준비·FIFO/취소/worker 소유권과 shipped Host parser를 유지했다. 실제
+raw wire와 전체 Host 응답이 **7/7 byte 일치**했다. 모든 원문과 summary/flow/다섯 최종
+상세를 직접 다시 읽어 **의미 검토 7/7**을 확인했다. Source fact 복원으로 채워진 기존
+상세를 모델이 모두 작성했다고 계산하지 않는다.
+
+| Native 확정 구간 제출 후보 | 전체 설명 완료 | 의미 및 3초 |
+| --- | --- | --- |
+| TypeScript 한국어 누락 본문 | 3.722초 | 실패 |
+| Kotlin 한국어 누락 본문 | 3.127초 | 실패 |
+| TypeScript 한국어 지역 쓰기 | 4.373초 | 실패 |
+| Kotlin 한국어 지역 쓰기 | 3.646초 | 실패 |
+| Kotlin 한국어 감소 loop | 3.402초 | 실패 |
+| TypeScript 영어 음수 guard | 1.816초 | 통과 |
+| Kotlin 영어 복합 분기/catch/finally | 4.305초 | 실패 |
+
+실제 queue 반환/미리 작성한 후속 행은 모두 일치했고 합계 **221개**였다. 후보의 전체
+3초 통과는 **1/7**, 최대 **4,373.24025ms**여서 채택하지 않는다. 원래 **4/7**과 이력
+제거 후보 **1/7**은 각각의 실패 기록으로 유지한다. 새 설명은 7개이며 새로운 독립
+원문 coverage는 0개다. 환경·순서 변동을 통제한 비교가 아니므로 개선율을 주장하지 않는다.
+후보 worker의 누적 MLX peak는 **1,910.20 MiB**, RSS peak는 **1,272.52 MiB**이며
+전체 Host/VS Code memory가 아니다. Cached tokens와 추가 활성 가중치는 모두 0이었다.
+
+모든 소유 audit/model handle과 worker는 종료했다. Python/Node 구문 검사, native replay,
+전체 수치 및 SDK scheduler 검사와 위 실제 요청 검증을 수행했다. 공개 runtime 코드를
+바꾸지 않아 앞선 package **87개 통과** 기록을 유지하고 전체 테스트를 반복하지 않았다.
+실제 outer Host·전체 scope/rich 검증과 3초 목표는 미완료이며, runtime·기본 모델·
+Default/QA 설치 **0.0.1145**를 유지한다.
+
 ## 남은 완료 기준
 
 모델 변경, decoder 최적화 또는 입력 구조 변경을 채택하려면 다음을 함께 확인해야 한다.
