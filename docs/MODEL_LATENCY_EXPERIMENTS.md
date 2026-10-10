@@ -1075,6 +1075,62 @@ catch/finally를 빠뜨리고 내부 호출을 부정했다. Kotlin 영어 flow�
 **0.0.1145**는 유지한다. 새 가중치를 채택하지 않았으며, 실제 outer Host 전달·전체 scope·
 rich 완료와 3초 목표는 아직 입증되지 않았다.
 
+### 설명 생성 순서와 샘플링 연산 확인
+
+`calls-first-layout-grammar.json`은 실제 1.7B tokenizer와 설치된 LLGuidance로,
+JSON `properties`의 순서가 생성 순서를 제한함을 확인했다. 기본 wire는 summary를
+먼저 요구하고 calls를 먼저 시작하면 거부했다. root properties에서 calls만 앞으로
+옮기면 calls로 시작하는 prefix를 받아들였다. required 배열의 순서를 함께 바꿀 필요는
+없었다. 이 검사는 모델 실행이나 설명 정확도·속도 측정이 아니다.
+
+같은 full-epoch 가중치와 두 영어 결합 분기 context에서 calls를 summary/flow보다 먼저
+생성했다. 실제 원문, 모든 필드·제한과 원래 identity 기반 wire decoder를 유지하고
+전체 schema 제약의 동등성도 검사했다. `coverage-epoch-calls-first-4KqfJN/report.json`의
+새 전체 설명은 TypeScript **1.581초**, Kotlin **4.975초**였다. 모델 요청은 각각 한 번이며
+기존 Host parser를 거쳤지만 실제 outer Host 전달을 측정한 결과는 아니다.
+
+`calls-first-layout-review.json`에 모든 생성 필드를 읽은 **반례 2건**을 기록했다. 두 role은
+완전한 callee 본문을 잘린 본문이라고 설명했다. TypeScript flow는 catch의 `-3`을 finally의
+선택으로 잘못 옮겼고, 가변 output은 180자 경계에서 불완전한 절로 끝났다. Kotlin output은
+일반 반환과 catch를 빠뜨렸고 flow는 finally 호출을 누락하며 내부 호출도 부정했다.
+이 순서 변경은 제품에 적용하지 않았다. 앞선 잘못된 flow만이 뒤 필드 오류의 원인이라는
+가설이나 정확도·3초 개선은 입증되지 않았다.
+
+설치된 MLX sampler는 top-p에서 전체 vocabulary를 정렬하고 이어서 top-k와 categorical
+sampling을 수행한다. `stock-sampler-cost.json`은 원문·모델 가중치 없는 합성 tensor에서
+이 연산의 비용만 측정했다. vocabulary 151,936, 서로 다른 분포·mask의 여섯 설정에서
+전체 sampler의 중앙값은 **약 0.79–2.79ms**였다. 이 수치를 실제 모델 decode의 시간
+비중으로 해석하거나, 각 설정 간 시간 차이를 분포 자체의 영향으로 단정하지 않는다.
+
+이어 동일한 sampler를 `mx.compile`로 감싼 경로를 비교했다. temperature 0.2, top-p 0.95,
+top-k 40과 연산 순서는 유지했다. float32/bfloat16 × 세 분포 × 두 mask의 12개 설정에서
+실행 순서를 번갈아 바꾸고 같은 입력·초기 난수 상태로 **768쌍**을 실행했다.
+`compiled-sampler-comparison.json`에서 선택 token과 갱신된 난수 상태는 모두 같았다.
+중앙값은 8/12 설정에서 감소했지만 감소량은 최대 약 **0.023ms**였고 나머지 네 설정은
+늘었다. 의미 있는 완료 시간 개선을 입증하지 못해 실제 모델이나 제품 실행기로 확대하지
+않았다. 이 합성 비교를 새 소스 설명 768건 또는 전체 3초 측정으로 세지 않는다.
+
+### 학습 손실의 응답·EOS 경계 점검
+
+전체 epoch의 encoder는 이미 원문 prompt를 전부 입력으로 유지하면서 prompt 위치의
+손실을 제외했다. 따라서 남은 오류를 prompt 전체를 학습하는 설정 탓으로 설명하지 않는다.
+다만 설치된 trainer의 기본 loss는 exclusive sequence length와 같은 위치까지 target으로
+포함했다. stock iterator가 EOS 뒤에 붙인 첫 zero-padding token도 손실에 들어갔다.
+현재 tokenizer에서 token 0은 `!`다.
+
+`completion-loss-boundary-audit.json`은 stock iterator와 실제 SDK loss의 작은 fixture에서
+target 위치와 gradient를 직접 검사했다. prefix 뒤 응답 두 token과 EOS인 위치 3/4/5 외에
+padding 위치 6도 기본 loss의 gradient가 있었다. 실험용 `completion_loss.py`의 exclusive
+end 보정에서는 위치 3/4/5만 남고 원문 prompt·EOS·응답은 보존됐다. 이어 전체 **2,204행**의
+실제 tokenizer 결과에서 경계를 열거해 훈련 1,968행·검증 236행 모두에 같은 추가 padding
+target이 있음을 확인했다. 보정된 응답+EOS target은 각각 266,027/35,183개이며 최대 길이는
+기존과 같은 2,028 tokens다. 전체 행에 gradient 실험을 반복한 결과는 아니다.
+
+이 점검은 추가 padding target을 입증했으며, 기존 영어 결합 분기 오류나 추론 지연의 원인임을
+입증하지 않았다. 보정 loss로 새 학습을 실행하거나 기존 가중치를 바꾸지 않았다.
+이번 grammar·모델·합성 sampler·loss 검증 프로세스는 모두 종료됐고 제품 runtime과 설치된
+**0.0.1145**를 유지한다. 실제 outer Host·전체 scope·rich 완료 및 3초 목표는 여전히 미달이다.
+
 ## 남은 완료 기준
 
 모델 변경, decoder 최적화 또는 입력 구조 변경을 채택하려면 다음을 함께 확인해야 한다.
