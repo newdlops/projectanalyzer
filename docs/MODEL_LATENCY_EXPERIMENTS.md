@@ -2319,7 +2319,7 @@ EOS를 검사해 **4,136/4,136**이 통과했다. 학습 데이터의 전체 pro
 할당 3,072를 넘으므로, 자르지 않고 다음 512 배수인 **3,584**를 할당하도록 했다.
 추론 context 8,192/output 2,400 및 response-through-EOS loss 경계는 그대로다.
 
-다음 실행은 원래 `model-1.7b`에서 별도 adapter로 시작하는 새 full pass 한 번이다.
+이 준비 단계에서 정한 실행은 원래 `model-1.7b`에서 별도 adapter로 시작하는 새 full pass 한 번이다.
 기존 adapter를 이어서 학습하거나 epoch/learning rate/precision을 순회하지 않는다.
 rank 8/scale 20/마지막 16개 layer/Adam 1e-4/seed 42/batch 1/3,256 updates를 유지한다.
 유한 학습 wall ceiling **9,600초**는 종전 측정 full pass 시간에 전체 token 작업량 비율
@@ -2327,10 +2327,82 @@ rank 8/scale 20/마지막 16개 layer/Adam 1e-4/seed 42/batch 1/3,256 updates를
 목표를 늘린 것이 아니다. 모든 실제 yielded index와 전체 완료를 확인하기 전에는
 학습 완료로 세지 않는다.
 
-현재까지 이 단계의 실제 새 모델 설명은 **0개**이며, 데이터/문법/전송 검사는 모델의
+학습 시작 전 이 단계의 실제 새 모델 설명은 **0개**이며, 데이터/문법/전송 검사는 모델의
 품질이나 속도 개선을 입증하지 않는다. 새 가중치의 원래 7개 전체 의미·3초 검증이
 먼저이며, 성공해야 all32/native 변환/실제 outer Host/모든 scope/full rich/자원 경계를
 확대한다. 제품 runtime·기본 모델·버전·설치는 **0.0.1145**를 유지하며 목표는 미완료다.
+
+### 연산별 supervision 완료와 원래 7개 설명 검증
+
+새 adapter는 원래 1.7B base에서 한 번 학습했고, 실제 학습 handle은 정상 종료됐다.
+전체 **3,256개의 서로 다른 index**가 한 번씩 처리됐음을 종료 후 별도로 확인했다.
+전체 reading 3,036개 중 새 연산별 flow는 456개이고, 별도 기존 call-only는 220개다.
+두 언어와 두 locale은 각각 1,628개다. 원문·답변은 자르지 않았고 sealed corpus/code/loss/config의
+hash도 일치했다. 학습은 **7,449,144ms**, 일회성 학습 peak MLX는 **13,871.22MiB**였다.
+이는 추론 상주 메모리나 확장 자원 사용량으로 해석하지 않는다.
+
+별도 4bit/group128 모델의 전체 가중치는 **914,316,110 bytes**, SHA-256은
+`be0ed65853fd44f3b66089d3092c1d4e20948e69d59c55836966ceaedb9f22a4`다.
+이전 가중치를 덮어쓰지 않았다. 새 가중치에서도 원래 배열과 공유 view의 전체 logit/
+활성 KV byte를 **37개** 비교해 모두 일치했다. 원래 control을 해제하고 source-free
+준비를 마친 뒤 활성 가중치는 **914,245,640 bytes**로 동일해, 추가 상주 가중치는 0이다.
+수치 비교 peak에는 비교용 두 cache와 control이 포함되므로 추론 peak로 세지 않는다.
+
+`native-operation-supervision-qsr5Xp/report.json`의 실제 7개 요청은 실패한 이전
+native-operation pilot과 **동일한 전체 원문/messages/schema**를 사용했다. 달라진 것은
+한 번 학습한 가중치다. 모델 준비 이후 native evidence 생성·전체 generation·현행 Host
+parser 완료까지 측정했다. 실제 outer VS Code Host/Webview 전달은 이 측정에 포함하지
+않았다. 각 요청은 실제 model call 1회/cache 0이며 응답을 수정하거나 재시도하지 않았다.
+
+| 원래 사례 | 전체 설명 완료 | 전체 원문·summary/flow·다섯 상세 검토 | 3초 이내 |
+| --- | ---: | --- | --- |
+| TypeScript 한국어 누락 본문 | 2.647초 | 통과 — 대상 동작·반환·효과는 미확인 | 예 |
+| Kotlin 한국어 누락 본문 | 5.005초 | 통과 — 대상 본문을 추정하지 않음 | 아니요 |
+| TypeScript 한국어 지역 쓰기 | 2.821초 | 통과 — 초기화·갱신·반환과 소유자 구분 | 예 |
+| Kotlin 한국어 지역 쓰기 | 3.010초 | 통과 — 정확한 초기화·갱신·반환 | 아니요 |
+| Kotlin 한국어 감소 loop | 5.705초 | 통과 — 조건 중 갱신 반복, loop 밖 반환 | 아니요 |
+| TypeScript 영어 음수 guard | 2.451초 | 통과 — 정확한 조건·분기 값·fallback 계산 | 예 |
+| Kotlin 영어 복합 분기/catch/finally | 2.740초 | 통과 — catch 경로·정확한 finally 인수·완료 조건·미확인 구현 | 예 |
+
+Host와 기존 필요 조건은 **7/7**, 전체 수동 의미 검토도 **7/7**이다. 이전에 실패한
+지역 쓰기·loop 세 건은 모두 정확한 연산과 소유자를 설명했고 반복 출력이 사라졌다.
+그러나 전체 의미와 3초를 함께 통과한 것은 **4/7**, 지역 상태 세 건에서는 **1/3**이다.
+3.010초도 실패로 남겼다. 모델이 기존에 작성하던 모든 prose 칸을 보존했으며 기존 wire의
+source fact 복원도 그대로 사용했다. 다섯 상세 필드 전체가 항상 모델 생성문이라고
+주장하지 않는다. 일곱 사례의 의미 판정은 일반 정확도나 모든 scope 검증을 대신하지 않는다.
+
+Worker 누적 peak의 최대는 MLX **1,912.81MiB**, OS RSS **1,277.59MiB**다. 이는 parent/
+전체 VS Code process tree의 peak가 아니다. 학습·fusion·수치 비교·pilot handle과 소유
+worker는 모두 종료됐다. 새 가중치는 **지연 기준 미충족으로 채택하지 않았고**, all32/
+native 변환/실제 outer Host/모든 scope/full rich로 확대하지 않았다. 공개 package
+**87개 통과**는 변경되지 않은 공개 코드에 대한 앞선 실제 검사 기록이다. 이번 단계의
+후속 검증 도구는 Node 구문 검사 2개/Python AST 검사 2개를 통과한 뒤 실행했다.
+
+### 같은 원문·가중치·응답의 토큰별 지연 관찰
+
+지연의 위치를 보기 위해 Kotlin 누락 본문과 감소 loop 두 건만 별도 진단으로 반복했다.
+`native-operation-latency-profile-W8JCj3/report.json`과 완전한 sidecar에는 실제 SDK가
+뽑은 token ID, yield 간격, 기존 GC event와 CPU 사용 counter를 보존했다. 관찰자는 원래
+SDK의 yield object를 그대로 전달하며, 추가 tensor 평가/동기화나 sampler 변경을 하지
+않는다. Sidecar는 원래 응답을 flush한 뒤 쓴다. 기존 provider·전체 source/schema·sampling/
+상한은 동일하다. 두 응답의 raw wire와 전체 decoded response는 각각 위 pilot과 byte
+일치했다. 계측·요청 순서·환경의 영향을 분리한 실험은 아니므로 개선율로 쓰지 않는다.
+
+- 누락 본문은 **2.082초**, 첫 yield **330.99ms**, 이후 가장 긴 간격은 **15.92ms**였다.
+  원래 5.005초 실패를 새 통과로 교체하지 않는다.
+- Loop는 **5.436초**로 지연을 다시 관찰했다. 첫 yield가 **2,463.34ms**였고, 이후
+  첫 32개 간격의 중앙값은 **33.56ms**였다. 65~96번째는 중앙값 **7.27ms**, 최대
+  **8.75ms**였다. 20ms 초과 간격은 처음 49개 위치 안에서 관찰됐다.
+- 두 stream 모두 기존 Python GC event는 **0개**였다. Loop의 stream wall은
+  **5,348.65ms**, process CPU user+system 합계는 약 **1,118.89ms**였다. 이는 GPU
+  kernel 시간이나 pipeline compile의 원인 증명이 아니다. 정확한 실행기 내부 구간은
+  아직 분리하지 않았다.
+
+이 두 건은 실제 새 생성 **진단 반복 2회**, 새로운 사례 coverage **0개**다. 원래
+7개 gate의 의미/3초 판정 **4/7**과 모든 실패를 유지한다. 계측 worker도 정상 종료됐고,
+공개 runtime·기본 모델·Default/QA 설치는 **0.0.1145**다. 다음 작업은 입력 전처리 및
+초기 decode의 실행 비용을 좁히는 진단이며, 다른 모델·학습 epoch·prompt·precision
+순회나 답변 축소/복원으로 3초를 통과시킨 것으로 세지 않는다.
 
 ## 남은 완료 기준
 
