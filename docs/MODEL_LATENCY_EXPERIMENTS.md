@@ -3368,6 +3368,100 @@ precision·sampling 설정 순회나 실패 응답 재시도는 하지 않았다
 custom model·취소/idle lifecycle와 설치 gate를 통과했다고 주장하지 않는다. 공개
 runtime/package/Default·QA 설치는 **0.0.1145**이고 3초 목표는 미완료다.
 
+## 실제 Host 계약 수정과 한 번의 전체 rich 읽기 검증 — 미채택
+
+다음 구현에서는 앞서 관찰한 두 가지 Host 경계 차이를 수정했다. TypeScript 선언의
+`export`/`default` modifier를 원문 그대로 허용하고, Kotlin의 `resolved` confidence를
+다른 값으로 변환하지 않고 보존했다. Async/generator나 추가 최상위 선언, 알 수 없는
+confidence는 계속 제한 parser 밖으로 처리한다. 전체 요약이 있는 단일 대상의
+overview/call/scenario가 같은 source-owned operation 계약을 사용하며, 원문·span·
+정적 근거와 원래 상세 필드는 유지한다. 공개 runtime에 적용하지 않은 별도 private
+파생 파일이며 기존 실패 파일과 원본 parser는 변경하지 않았다.
+
+전체 rich 읽기에는 명시적인 `generateRichReading` API를 추가했다. 모델이 **한 응답**에
+모든 원문 구문의 `syntax`/`text`/`reason`/`effect`/`values`와 최종 요약·설명·analysis·
+입력·결과·가정을 생성한다. 기존 primary parser, 두 구문 단위 node parser, final
+summary parser로 모두 검증한 뒤 원문 소유 graph ID를 결합하고 페이지를 저장한다.
+나중의 `generate` 호출에 이전 응답을 반환하는 방식은 사용하지 않았다. 원래 primary의
+첫 두 구문 view와 전체 nodeDetails를 함께 유지하며, 이후 구문과 최종 설명을 삭제하거나
+잘못된 값을 원문 평가기로 고치지 않는다. 새 작업을 설명하기 위해 prompt의 “첫 두
+구문” 지시 한 곳만 “모든 도달 구문을 순서대로”로 변경했다. 모든 원문과 다른 지시는
+유지했고 모델·정밀도·sampler·RNG·KV·출력 한도는 변경하지 않았다.
+
+모델 실행 전 **CPU 검증 105개**가 통과했다. 기존 32건의 payload/schema/guidance/
+decode 동등성과 실제 Host 12건의 원문/근거 경계를 50개 검증으로 확인했다. Rich
+필드 보존·잘못된 값의 무수정·누락/위조 거부 28개, 실제 provider/FIFO/Session의
+취소·저장 실패 후 재개·cache-only 조회·리소스 해제·반복 graph ID의 서로 다른
+occurrence·8구문 보존 27개를 확인했다. 예전 실패 응답을 합친 것은 CPU fixture
+구성에 한정하며 새 추론·의미·시간의 성공으로 세지 않았다. Prompt suffix와 live
+grounding 함수의 직렬화 차이 때문에 실패한 CPU 검증/reader도 별도 파일로 보존했다.
+
+준비 영수증 `small-model06-complete-reading-gate-preparation.json` SHA-256은
+`c0ea5b146e73dea8e9f01e80fb8eac2c489f5262ea103eba1cf89075a2298d1b`다. 고정한 새
+구현을 실제 Host 12건과 전체 rich 4건에서 각각 한 번씩 실행했다. 원문은 앞선 실패
+검증과 같으므로 새로운 독립 source coverage로 세지 않는다.
+
+| 실제 Host 요청 | 모델 준비 후 전체 설명 | 내용과 3초 동시 통과 |
+| --- | ---: | --- |
+| TypeScript 한국어 overview / call / scenario | 3.097 / 1.331 / 4.150초 | call 1건 |
+| TypeScript 영어 overview / call / scenario | 1.037 / 1.987 / 3.145초 | overview·call 2건 |
+| Kotlin 한국어 overview / call / scenario | 1.524 / 3.909 / 1.363초 | overview·scenario 2건 |
+| Kotlin 영어 overview / call / scenario | 1.712 / 2.561 / 1.127초 | 0건: 반환 상세 미완성 |
+
+12건 모두 생성·Host 파싱을 마쳤고 기존 자동 검사와 3초를 통과한 것은 **8/12**다.
+모든 새 raw 작성 문장을 읽고 전달된 설명과 대조하니, 호출 흐름은 12건 모두 인수 전달,
+try/catch 반환 선택, finally의 `audit`, 미제공 audit 본문/완료의 미확인, 정상 완료 시
+부모 반환을 포함했다. 다만 Kotlin 영어 세 건의 자유 `output` 상세는 finally/audit만
+설명하고 `value + 5` 또는 `0`라는 반환 선택을 빠뜨렸다. 다른 role/flow에 있는 설명으로
+해당 필드의 미완성을 대신 통과시키지 않았다. 요청된 상세까지 내용 검증 통과는
+**9/12**, 내용과 전체 3초 동시 통과는 **5/12**다. 5개 상세 필드의 key와 원래 상수
+필드는 보존했고, 자유 `output`을 이전 응답의 상수로 잘못 비교한 reader 실패도 남겼다.
+
+| 단일 응답 전체 rich 읽기 | 모델 준비 후 전체 설명 | 결과 |
+| --- | ---: | --- |
+| TypeScript 한국어 | 8.407초 | 전체 구문·페이지 완료, 의미 실패 |
+| TypeScript 영어 | 8.132초 | 전체 구문·페이지 완료, 의미 실패 |
+| Kotlin 한국어 | 6.378초 | 전체 구문·페이지 완료, 의미 실패 |
+| Kotlin 영어 | 19.345초 | 2,400 output token 한도에서 생성 실패 |
+
+완료된 세 건은 모두 원래 **4구문·6 graph node**와 최종 설명을 보존했다. 그러나
+외부 audit **이전**의 `amount + 5`부터 틀린 값·null·호출 설명 문장을 넣었고, 구문별
+설명과 최종 설명도 caller/callee 개념을 잘못 적용했다. Audit의 정상 복귀를 가정한
+조건부 계산과 실제 완료의 미확인을 구분하지 못했다. 이 확실한 반례로 세 건을 모두
+거부했다. Kotlin 영어는 첫 example input의 숫자 생성을 반복하다 한도에 도달했다.
+그 partial raw와 `Incomplete generation: length`를 보존했으며 입력값 제한·재시도·
+응답 수정으로 통과시키지 않았다. 전체 rich의 의미와 3초 통과는 **0/4**다.
+
+완료된 rich 응답의 output token은 각각 **734 / 609 / 754개**, decode 시간은
+**6.624 / 7.724 / 5.885초**였다. Prefill은 **1.554 / 0.275 / 0.329초**였다. 요청 수를
+세 번에서 한 번으로 줄이는 것만으로 완료 시간이 개선되지는 않았다. 한 번의 전체
+읽기는 정확한 값과 설명을 생성하는 능력, 충분한 decode 속도를 함께 갖춰야 한다.
+
+이번에는 **16개 실제 fresh model 요청** 중 **15개 provider 응답**이 완료됐고 한 건은
+생성 중 실패했다. 실패 건의 완료 metrics가 0개인 것은 추론을 실행하지 않았다는 뜻이
+아니다. 완료된 15개 metrics에서 source KV 재사용 0, compile trace 1, 추가 상주 가중치
+0을 확인했다. 실패한 생성의 같은 metrics는 제공되지 않아 성공으로 주장하지 않는다.
+Worker 누적 peak MLX **1,466.11 MiB**, RSS **712.92 MiB**는 readiness를 포함하고 전체
+VS Code 메모리나 메모리 감소를 입증하지 않는다. 실제 driver는 **exit 1**이며 소유
+worker 16개 모두 종료했다.
+
+학습/검증 corpus **4,136건 전체**의 형식도 별도로 조사했다. Training 3,256건은 전체
+호출 읽기 3,036건과 detail-only 220건, validation 880건은 전체 호출 읽기 860건과
+detail-only 20건이다. **Rich context, scenario completion, nodeTask, summaryTask,
+단계별 values, 숫자 example input/result, 전체 rich 필드의 감독 예시는 모두 0건**이다.
+`resolved` confidence의 예시도 없었다. Rich 작업 형식의 감독 공백은 확인됐지만 이것이
+실패의 유일한 원인이라거나, 새 감독 데이터만으로 3초를 달성할 수 있다는 증거는 아니다.
+이 조사에서 모델/학습은 실행하지 않았고 평가 응답을 학습 데이터로 사용하지 않았다.
+
+형식 조사 `small-model06-complete-task-format-coverage.json` SHA-256은
+`94fddb967eb084ee045aeac244846bf4d114e20b13725050456ac7334ff35a82`다. 최종 검토
+`small-model06-complete-reading-manual-review.json` SHA-256은
+`eb394fe110176c01439c0a5b42870dfe5cb4c945ef5b069f95ebf990d69544ce`이고, 실제 trial
+report SHA-256은 `7fe7de5af5c316acef7bcba7d43a1ff466ef54070bc49b017a1595153c63d916`다.
+모든 실패와 이전 고정 7건/32건 성공을 보존했다. 기존 detail-only 4건의 실패는 그대로
+남아 있고 새 구현에서 반복하지 않았다. 전체 작업 후보는 **미채택**, 공개 runtime/
+package/설치 변경은 없으며 **0.0.1145**를 유지한다. **3초 목표는 미완료**다.
+
 ## 남은 완료 기준
 
 모델 변경, decoder 최적화 또는 입력 구조 변경을 채택하려면 다음을 함께 확인해야 한다.
