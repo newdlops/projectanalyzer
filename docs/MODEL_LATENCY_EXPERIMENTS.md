@@ -1307,6 +1307,96 @@ source-free sampler 실험이나 임의의 안내문/추가 epoch/다른 정밀�
 채택하거나 실제 outer Host/전체 scope/rich/native 변환으로 확대하지 않았다.
 제품 runtime과 설치된 **0.0.1145**를 유지하며 목표는 아직 달성하지 않았다.
 
+## 실제 생성 단계 계측과 모델 그래프 컴파일
+
+`compound-generation-profile-n2aZ3A/report.json`에서 동일한 완전 본문 다섯 개를
+기본 실행, 관찰 계측, 단계별 완료를 기다리는 진단 계측으로 각각 새로 읽었다.
+**15개 실제 모델 요청** 모두 원래 prompt/wire/schema, temperature 0.2/top-p 0.95/top-k 40,
+출력 2,400 tokens/24,000 characters, prefill 512 및 캐시 없는 원문 읽기를 유지했다.
+모델 준비 이후 전체 생성과 Host parser까지 측정했으며 실제 outer Host 전달은 아니다.
+원문과 다섯 가지 최종 상세를 모두 읽었고, 각 사례의 Host 정규화 후 전체 설명이
+세 실행에서 byte로 같았다. 관찰/진단 실행의 실제 생성 wire와 prompt hash도 같았다.
+
+관찰 계측은 모델 graph 작성, token 읽기, grammar consume/mask 계산, sampler graph
+작성의 wall time과 현재 Python thread CPU time을 나눴다. 진단 계측은 한 token의
+model logits와 sampler 결과를 명시적으로 평가했다. 버리는 다중 token prefill logits를
+추가로 평가하지 않았다. **lazy graph 작성 시간은 GPU 계산 시간이 아니며**, 평가 대기에는
+Metal dispatch·실행·동기화·스케줄링이 함께 들어간다. Wall time에서 한 thread의 CPU time을
+뺀 값을 순수 GPU 시간으로 부르지 않는다. 계측·파일 기록 비용은 전체 요청에 포함된다.
+
+`compound-generation-profile-review.json`의 주요 관찰은 다음과 같다.
+
+- 한국어 catch/복합 분기의 mask 계산은 관찰 실행에서 각각 **341.49/496.68ms thread CPU**였다.
+  영어 쓰기 두 사례는 **28.51/31.05ms**였다. Token 읽기의 GPU 대기를 이 CPU 비용에 합치지 않았다.
+- Kotlin 복합 분기의 관찰 실행은 **7.152초**였다. Mask 계산은 wall **1,049.66ms**와
+  thread CPU **496.68ms**, token 읽기는 wall **2,305.92ms**와 thread CPU **50.85ms**였다.
+  CPU 작업 외의 대기·스케줄링도 크지만 이 측정만으로 OS/GPU 원인을 확정하지 않는다.
+- 진단 실행의 영어 쓰기 TypeScript/Kotlin은 model 평가 대기가 **723.34/2,644.04ms**였다.
+  해당 구간의 p95는 **6.59/94.72ms**, 최대는 **14.03/159.84ms**였다. 단계별 평가가
+  overlap을 바꾸므로 이 수치를 기본 실행의 단계별 소요나 속도 개선으로 제시하지 않는다.
+- 관찰 실행 다섯 개의 한 token model graph 작성은 **113~343ms thread CPU 합계**였다.
+  이 반복 비용을 줄일 후보로 sampler가 아닌 모델 decode graph의 컴파일을 확인했다.
+
+### KV 위치를 명시한 컴파일 후보와 실제 원문 비교
+
+원래 Qwen3 layer와 가중치·bf16 KV·attention을 재사용하는 private functional decode를
+작성했다. 위치를 tensor 입력으로 받고 모든 유효 KV를 전달한다. Python 정수 위치를
+처음 trace에 고정하지 않는다. 한 token decode만 이 경로를 사용하고 원래 SDK prefill을
+유지한다. KV 저장을 concatenate 방식으로 바꾼 영향과 컴파일 영향을 구별하기 위해
+기본 SDK, functional 미컴파일, functional 컴파일의 세 경로를 따로 비교했다.
+
+`functional-decode-feasibility.json`은 원문 없는 고정 입력의 수치 검사다. Prefix 길이
+64/257/1,023과 서로 다른 입력 token 세 개를 사용한 두 후보의 **18개 비교**에서 logits와
+모든 layer의 **유효 KV 수치 차이는 0**이었다. 한 signature의 컴파일 trace는 한 번이었다.
+모델은 실행했지만 token을 샘플링하거나 소스 설명을 생성하지 않았다. 이 수치 검사를
+새 설명 18개나 실제 생성 준비의 완전성으로 세지 않는다.
+
+`compound-functional-comparison-CXvRGW/terminal-review.json`에는 다섯 원문을 실행 순서를
+앞뒤로 바꿔 각 경로에서 두 번 읽은 **30개 새 전체 설명**이 있다. 한 worker를 종료한 뒤
+다음 worker를 준비했다. 모두 실제 모델 호출 한 번, cached tokens 0이며 앞서 직접 읽은
+다섯 설명과 Host 정규화 후 전체 byte가 같다. 결과는 다음과 같다.
+
+| 경로 | 3초 이내 | 평균 | 최대 |
+| --- | --- | --- | --- |
+| 기본 SDK | 9/10 | 1.716초 | 3.520초 |
+| Functional 미컴파일 | 8/10 | 1.959초 | 3.140초 |
+| Functional 컴파일 | 9/10 | 2.081초 | 3.082초 |
+
+이 실행의 집계 driver는 **종료 코드 1**이었다. 실제 생성 이후 컴파일 trace가 준비 시의
+1개에서 3개로 늘어 준비 게이트에 걸렸다. 30개 개별 결과는 assertion 전에 보존됐지만
+정상 집계 `report.json`은 만들어지지 않았다. 이를 성공한 준비 검증으로 고치거나
+원래 결과를 덮어쓰지 않았다. 순서를 바꾼 비교도 시스템 부하를 완전히 통제하지 못하며,
+컴파일 경로가 전체 3초나 안정적인 개선을 입증하지 못했다.
+
+이후 실제 SDK 생성 stream에서 int32/uint32 입력을 고정 EOS로 미리 실행했다. 원문 읽기와
+샘플링 없이 두 signature의 컴파일을 마친 뒤 원래 worker 준비를 거쳐 hook을 설치했다.
+`functional-decode-readiness-review.json`의 **두 새 설명**은 준비 trace 2개, 생성 중 추가
+trace 0개이며 앞서 읽은 설명과 전체 byte가 같다. TypeScript 쓰기는 **1.163초**, Kotlin
+복합 분기는 **4.768초**였다. 준비 누락은 이 두 사례에서 보완됐지만 느린 완료가 남았으므로
+초기 컴파일만을 지연 원인으로 삼지 않고 후보를 채택하지 않았다. 이전 30개를 단순히
+실패한 준비 게이트를 교체하려는 목적으로 다시 실행하지 않았다.
+
+### JSON 전용 slicer의 동일성 검사
+
+설치된 LLGuidance는 mask 최적화용 `general_slices()`와 `json_slices()`를 제공한다.
+`json-slices-mask-parity.json`은 기록된 **실제 wire 706 tokens**와 한국어 원래 regex의
+summary/flow/role 길이 경계 **12개**를 CPU에서 재생했다. MaxLength 240/600/160과
+한국어 시작 조건을 유지했다. **1,907개 prefix**에서 vocabulary **151,936개**의 모든 mask
+bit가 같았고, 길이 한도 이하는 허용하고 초과는 두 방식 모두 거부했다.
+
+현재 설치 버전에서는 두 API가 반환하는 slice 설정 목록 자체가 **동일했다**. 같은 설정의
+시간 차이를 최적화 효과로 해석하지 않고 실제 모델 비교로 확대하지 않았다. 이 재생은
+모델이나 새 설명을 실행하지 않았으며 전체 요청 시간 측정도 아니다. 다음 진단은 한국어
+길이 제한 regex가 native grammar의 mask 비용에 주는 영향을 분리하는 것이다. Pattern의
+유한 길이를 제거해도 maxLength가 적용된다고 가정하지 않고 원래 문자·언어·길이 한도의
+동등성을 먼저 검증해야 한다.
+
+이번 계측 helper의 CPU 회귀 테스트 **4개**와 Python/Node 구문 검사를 실행했다. 이전
+공개 코드의 package 테스트 **61개 통과 기록**은 유지하며 문서만 바뀐 이번 작업에서
+재실행했다고 주장하지 않는다. 모든 실험 프로세스는 종료됐고 runtime/UI/기본 모델/
+설치된 **0.0.1145**는 바꾸지 않았다. 앞선 누락 본문 설명 오류와 반복 문장, 실제 Host의
+전체 scope/rich 검증 및 전체 3초 완료 기준은 계속 미충족이다.
+
 ## 남은 완료 기준
 
 모델 변경, decoder 최적화 또는 입력 구조 변경을 채택하려면 다음을 함께 확인해야 한다.
