@@ -3028,6 +3028,98 @@ worker는 실제 종료했다. 이번 새 전체 설명은 **9개**(Q/K 진단 2
 **0.0.1145**로 유지하며, 공개 runtime 변경이 없어 앞선 package 87개 통과 검사를
 반복하지 않았다. 3초 목표는 미완료다.
 
+### K/V 통합 후보의 생성 지연과 prefill peak 추적
+
+앞선 K/V 통합 후보에서 실패한 Kotlin 한국어 지역 쓰기 요청 하나를 진단했다. 이전의
+**의미 및 3초 통과 6/7** 기록을 유지한다. Source·전체 출력·준비·sampling은 유지하고,
+기존 passive CPU/Metal observer에 cache 조립·쓰기의 nested span과 MLX 메모리 counter
+읽기를 추가했다. Counter는 getter 세 개만 읽고 tensor 평가·동기화·보관이나 allocator
+설정·peak reset을 수행하지 않는다. CPU-only counter/forwarding/예외 전달 **12개 검사**와
+JavaScript/Python 구문을 확인한 뒤 새 설명 한 개를 생성했다.
+
+전체 설명은 **3,249.86375ms**, stream wall은 **2,982.56ms**, calling-thread CPU는
+**1,234.56ms**, 관측 GPU interval 합집합은 **2,483.11ms**였다. Grammar token read는
+wall **1,350.23ms**, 해당 thread CPU **25.44ms**, GPU overlap **1,298.21ms**로 관측됐다.
+이 wall 구간을 grammar CPU 비용으로 해석하지 않는다. Model graph의 wall/CPU는
+**341.87/310.67ms**, async dispatch는 **744.70/609.61ms**, prefill 평가는
+**409.76/166.59ms**였다. Nested span과 겹치는 GPU 구간을 합산하지 않는다.
+
+관측 command buffer는 **2,367개**, kernel dispatch는 **99,062개**였다. Inventory에서
+`rmsbfloat16` **13,713회**, `vv_Addbfloat16` **12,824회**, `gg2_copybfloat16bfloat16`
+**6,888회**를 확인했다. Dispatch metadata overflow **3,211회**도 보존했다. 이 호출 수는
+개별 kernel 시간이나 지연 원인, GPU 점유율을 입증하지 않는다. GPU elapsed에는
+preemption이 포함될 수 있으며 외부 앱이나 priority의 영향은 확인하지 않았다.
+
+메모리 counter **935개 지점**의 읽기 bracket 합계는 **0.804256ms**였다. 누적 peak의
+최댓값 **1,394,585,466 bytes(1,329.98 MiB)**를 마지막 `prefill_after_eval`에서 처음
+관측했고 이후 decode 종료까지 증가하지 않았다. 관측 active 최댓값은
+**724,020,894 bytes(690.48 MiB)**였다. Counter는 그 시점의 전역 값이며 개별 연산의
+할당량이나 peak 발생 원인을 확정하지 않는다. 원래 readiness도 누적 peak에 포함된다.
+
+Raw wire·전달 응답·parsed field는 앞선 같은 요청과 일치했다. 전체 원문과 모든 설명을
+읽어 곱셈 초기화→감소→반환, 정상 완료 조건의 부모 반환을 확인했다. 실제 tool은 exit 0으로
+끝났고 worker도 종료했다. 이 요청은 **진단용 반복, 새 독립 원문 coverage 0개, 성능 통과
+증거 아님**이다. Report `small-model06-packed-profile-dJn6pg/report.json` SHA-256은
+`2fa229759b474efc6bcdbc9add3c047896567884304482e6ce52c1709592c4dd`, 검토 기록은
+`small-model06-packed-profile-review.json`이다. 반복되는 잔차 덧셈과 RMS 정규화를 다음
+구현 대상으로 정했으며 이 변경으로 prefill peak가 감소한다고 주장하지 않는다.
+
+### 잔차 덧셈과 post-attention RMS 정규화 통합 후보
+
+Private `fused_residual_norm.py`는 앞선 Q/K·K/V 통합을 유지하고 single-row block의
+`h = x + attention`과 이어지는 post-attention RMSNorm을 한 kernel로 처리한다. 원래
+중간 `bfloat16` 반올림과 RMSNorm의 **256 thread·thread당 네 값** reduction 순서를
+보존한다. 이후 MLP가 사용할 normalized 값과 마지막 잔차 덧셈에 필요한 원래 `h`를
+함께 반환한다. Input norm·MLP·마지막 잔차 덧셈·projection·SDPA·head·전체 vocabulary
+sampler·grammar는 유지한다. Multi-row/batch와 source prefill은 원래 block 계산이다.
+원래 block·attention·cache factory를 복원할 수 있고 추가 가중치를 만들지 않는다.
+
+새 수치 audit은 **실제 exit 0**으로 종료했다. 28개 learned weight와 signed zero,
+상쇄·작은 값·큰 값·반올림 경계를 포함한 **잔차/정규화 336쌍**이 byte 일치했다.
+**전체 모델 37쌍**의 모든 raw logit와 28개 layer의 활성 K/V byte 및 할당 capacity도
+일치했고 최대 차이는 0이었다. 변경하지 않은 앞선 cache 검사 52개는 참조만 하며 다시
+실행하거나 새 검사 수에 넣지 않았다. 원래 준비 뒤·부착·같은 준비 입력 뒤·복원 뒤
+active memory는 모두 **316,768,264 bytes**, 추가 가중치는 **0 bytes**, readiness RNG는
+동일했다. Report `small-model06-residual-norm-parity.json` SHA-256은
+`292395044c97964b84c0652dfbbe7f128a0df1ab05661131344c3f771406e24c`다.
+
+같은 일곱 원문을 새 후보로 **한 번씩** 실행했다. 모델·가중치·prompt·출력 항목·precision·
+sampling·buffer/QoS·source-free 64+1 준비 입력을 유지하고 실패 요청을 재시도하지 않았다.
+
+| 잔차/RMSNorm 통합 후보 | 전체 설명 완료 | 의미 및 3초 |
+| --- | ---: | --- |
+| TypeScript 한국어 누락 본문 | 3.106초 | 실패 |
+| Kotlin 한국어 누락 본문 | 3.344초 | 실패 |
+| TypeScript 한국어 지역 쓰기 | 3.563초 | 실패 |
+| Kotlin 한국어 지역 쓰기 | 7.020초 | 실패 |
+| Kotlin 한국어 감소 loop | 3.355초 | 실패 |
+| TypeScript 영어 음수 guard | 2.511초 | 통과 |
+| Kotlin 영어 복합 분기/catch/finally | 2.238초 | 통과 |
+
+전체 원문·raw wire·전달 응답·parsed field는 원래 0.6B 결과와 **7/7 일치**했다.
+Summary/flow와 role/inputs/output/effects/reason을 전부 읽어 **의미 7/7**을 확인했다.
+누락 구현의 미확인, 지역 갱신·반복 순서, 두 분기 반환, catch·finally와 정상 완료 조건을
+유지했다. 모델 prose와 정적 syntax 소유 필드를 구분한다. 연결/runtime 실패는 0개다.
+그러나 의미와 전체 3초의 동시 통과는 **2/7**, 최대 **7,020.236583ms**여서 채택하지
+않았다. 서로 다른 시점의 실행으로 인과적인 속도 개선이나 저하를 단정하지 않는다.
+
+Fused attention/잔차 정규화는 각각 **44,660회**, multi-row fallback은 각각 **952회**로
+예상 호출 수와 일치했다. 같은 source-free 준비에서도 네 counter가 각각 28회였다.
+Worker 누적 peak MLX는 **1,215.40 MiB**, RSS는 **705.66 MiB**이며 readiness를 포함한다.
+전체 VS Code 메모리나 prefill peak 감소를 입증하는 값이 아니다.
+
+Report `small-model06-residual-norm-mt21YA/report.json` SHA-256은
+`ff305e5dcd7723d709a7e3b9b277d043491a084a3b582306c64aae48c829d1ce`, 수동 검토는
+`small-model06-residual-pilot-manual-review.json`이다. 마지막 tool 출력이 유실돼 pilot
+종료 코드는 **미관측(null)**으로 기록했다. 같은 handle 재조회가 closed/unknown을 반환했고,
+driver PID 부재·dispose 후 기록된 worker 종료 marker·완성된 일곱 응답을 독립 확인했다.
+종료 코드 0을 추정하거나 모델을 재실행하지 않았다. 복구 receipt는
+`small-model06-residual-terminal-recovery.json`이다. 소유 model/audit handle과 worker는
+모두 종료했고 새 전체 설명은 **8개**(진단 1개·새 후보 7개), 새 독립 원문 coverage는
+**0개**다. 독립 holdout·outer Host·전체 scope/full-rich·다운로드/lifecycle gate는 아직
+열지 않았다. 공개 runtime·package·Default/QA 설치는 **0.0.1145**를 유지하며, 공개 runtime
+변경이 없어 앞선 package 87개 통과 검사를 반복하지 않았다. 3초 목표는 미완료다.
+
 ## 남은 완료 기준
 
 모델 변경, decoder 최적화 또는 입력 구조 변경을 채택하려면 다음을 함께 확인해야 한다.
