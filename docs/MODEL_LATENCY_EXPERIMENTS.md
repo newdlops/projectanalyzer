@@ -1802,7 +1802,7 @@ provider 요청부터 전체 wire decode/정규화 및 실제 Host parser 완료
 ### 전체 32개 원문으로 확대했을 때의 실패 보존
 
 예비 후보가 6/6을 통과해 `compound-integrated-all32-LZWlR2/report.json`에서
-원래 holdout **32개 전체**를 한 번씩 새로 읽었다. 완전 본문 24개와 의도적으로
+원래 holdout **32개 언어·locale 사례 전체**를 한 번씩 새로 읽었다. 완전 본문 24개와 의도적으로
 본문이 없거나 부분적인 8개를 모두 포함했다. 원래 source/context와 현재 wire의
 일치를 먼저 검사하고 원문·응답을 줄이거나 response/KV cache를 사용하지 않았다.
 Provider 요청부터 Host parser 완료까지 같은 기준으로 측정했다.
@@ -1831,13 +1831,122 @@ Provider 요청부터 Host parser 완료까지 같은 기준으로 측정했다.
 단정하지 않는다. 설치된 SDK의 `stream_generate`는 이미 생성 동안 recommended
 wired limit을 적용하고 복원한다. 시스템 정책이나 다른 앱을 변경하지 않았다.
 
-이번 단계는 원문 **32개**, 새 설명 **44개**(예비 비교 12개 + 전체 검증 32개),
+이번 단계는 원문·locale 사례 **32개**, 새 설명 **44개**(예비 비교 12개 + 전체 검증 32개),
 별도의 source-free 실제 모델 수치 비교 37개와 Python/Node 구문 검사다. 모든
 소유 handle과 worker는 종료됐고 원래 실패 artifact도 보존했다. 가중치 중복은
 해결됐지만 안정적인 전체 3초와 모델 의미 정확성은 충족하지 못해 채택하지 않는다.
 실제 outer Host/전체 scope/rich도 미검증이다. 공개 package 61개는 앞선 통과 기록이며
 이번 문서 변경에서 다시 실행하지 않았다. 제품 runtime/UI/기본값/설치 버전
 **0.0.1145**를 유지한다.
+
+## Flow의 소스 소유 관계와 JSON 구조 공백 검증
+
+이전 모델의 본문 소유 관계 혼동과 반복 flow를 해결하기 위해 private 출력 계약을
+구현했다. 모델이 작성하는 flow를 긴 문자열에서 `sourceId`/`text`를 가진 3~5개
+객체로 바꾸며, sourceId는 실제 제공된 함수 본문 ID 또는 미확인 근거의 null이다.
+Summary와 모든 호출 상세 필드, limitations, 원래 source/context 및 전체 flow
+600자 한도를 유지한다. 변환은 모든 text를 원래 순서대로 공백 하나로 연결하며
+내용을 삭제·수정·정적으로 채우지 않는다. 중복·불완전·상한 초과 출력은 원문 그대로
+보존하고 거부한다. 이 새로운 transport와 prompt는 이전 wire와 같다고 주장하지 않는다.
+
+원문/나머지 schema slot 보존, 모든 작성 문자 보존, 누락/부분 본문, 중복, 전체
+길이, 잘못된 ID/필드, 한국어 제한의 **8개 경계 검사**가 통과했다. 이는 transport
+검증이며 sourceId가 맞는 자연어 의미까지 증명하지 않는다.
+
+### 구조 공백으로 출력 한도를 소진한 첫 실제 요청
+
+`compound-source-owned-flow-jJzVGZ`의 첫 TS 한국어 누락 본문 요청은 준비 이후
+**33.537초**에 `Incomplete generation: length`로 실패했다. 첫 문장 객체 뒤에서
+2,342개의 구조 공백을 생성했고 전체 JSON 문자열 바깥의 공백은 2,343개였다.
+2,400토큰 한도에 도달한 부분 출력과 실패 이유를 보존했다. 계획한 초기 7사례 중
+실제로 요청한 것은 이 **1개뿐**이며 나머지 여섯 개는 실행하지 않았다. 성공 metrics가
+없어도 부분 생성의 2,400토큰은 실제 모델 요청 한 번의 증거다. 0회 생성으로 세지 않는다.
+
+설치된 LLGuidance1.9.1의 [JSON compiler](https://github.com/guidance-ai/llguidance/blob/f0971424ec072d3e4d4196bcc7f31a2f60527df9/parser/src/json/compiler.rs#L163)는
+기본적으로 구조 공백에 길이 상한 없는 패턴을 사용한다. 새 native-only wrapper는
+`whitespace_flexible:false`, `whitespace_pattern:null`, comma/colon separator를
+명시해 compact JSON을 생성하게 한다. 문자열 **안의** 공백·Unicode·escape나
+schema의 JSON 값은 바꾸지 않는다. 이미 생성된 출력을 후처리해 공백을 제거한
+것이 아니며 formatting token의 허용 집합은 달라지므로 mask/확률 동일성도 주장하지 않는다.
+
+**7개 native parser 검사**는 원래 32개 wire와 새 32개 transport schema의 compact
+값을 모두 허용하고, 원래 schema를 변경하지 않았음을 확인했다. 문자열 내부의
+공백·한글·emoji·escaped control도 보존한다. 첫 객체 뒤의 space/tab/newline/carriage
+반복과 저장된 실제 실패 prefix는 원래 문법에서 허용되지만 compact 문법에서 거부된다.
+모델 가중치를 로드하지 않은 CPU 검사다. 새 원문 설명 64개를 생성한 것이 아니다.
+
+### 공백 반복을 막아도 작성 문장의 반복은 남음
+
+`compound-source-owned-flow-compact-jYxWN6/report.json`은 기존의 다섯 오류 사례와
+TS 영어 guard, Kotlin 영어 복합 분기·예외 처리를 읽은 **새 요청 7개**다. 모든 요청이
+EOS까지 JSON을 생성했고 구조 공백은 0개였지만, 일곱 개 모두 flow 객체의 text를
+그대로 반복해 거부됐다. 이를 dedup하거나 정적 설명으로 채우지 않았다. Host가
+받은 완성 설명은 **0개**다. 전체 실제 생성 필드와 원문을 읽어 다음도 확인했다.
+
+- 누락 본문 두 사례는 부모의 입력 전달·결과 사용만 반복하며 flow에서 대상의
+  미확인 동작을 설명하지 않았다. effects의 모호한 소유 관계를 명백한 내부 동작
+  단정으로 과장해 세지는 않는다.
+- 쓰기와 loop 사례는 지역 계산을 반복하며 명확한 대상 반환·초기화 설명이 부족했다.
+  Callee 소유 태그 아래 부모의 결과 사용도 섞였다.
+- Kotlin 영어 복합 분기의 첫 객체에는 조건·catch·finally·정확한 인수와 미확인 동작이
+  있었으나 뒤의 두 객체가 반복됐고, 전체 연결 문장은 **662자**로 원래 600자도 넘었다.
+
+첫 요청의 준비 후 실패는 **5.921초**다. 이후 여섯 실패 시간은 **준비 후 설명 시간으로
+비교할 수 없다**. 실제 scheduler가 검증 실패 후 모델을 해제하므로 다음 요청의 타이머에
+새 process import와 source-free 재준비가 포함됐다. 일곱 개 readiness 기록으로 이를
+확인했고 기존 실패 시간을 보존했다. Ready의 preparedMs를 사후 차감하지 않는다.
+해당 driver의 정확한 snapshot을 보관하고 향후 driver는 매 요청 타이머 **앞에서**
+prepare를 기다리게 수정했다. 이미 실패한 일곱 사례를 다시 실행해 덮어쓰지 않았다.
+공개 benchmark는 이미 이 준비 경계를 지키고 있어 변경하지 않았다.
+
+이 일곱 소유 worker의 누적 peak 중 최대 MLX는 **1,909.90MiB**, RSS는
+**1,273.59MiB**였고, 매 readiness의 추가 활성 가중치는 0이었다. 하나의 worker가
+계속 상주한 일곱 요청이나 Host/VS Code 전체 peak로 표현하지 않는다.
+
+### 원래 wire에서 compact formatting만 분리한 비교
+
+새 배열 형식의 영향과 공백 제어를 구분하기 위해 기존 원문·prompt·wire·전체
+필드·sampling·출력 상한을 그대로 사용했다. `compound-original-wire-compact-ZhYnww`
+비교는 네 사례를 original → compact → compact → original로 읽은 **새 요청 16개**다.
+Original arm도 앞선 가중치 공유/canonical/one-sort 조합을 사용하며 이번 차이는
+native 구조 공백 설정뿐이다. 매 요청 prepare는 타이머 밖에서 완료하고 전체
+provider/wire/Host parser 완료까지 측정했다. Model call 한 번, cached tokens 0이다.
+
+| 원문·locale 사례 | 원래 JSON 두 번 | Compact JSON 두 번 |
+| --- | --- | --- |
+| TS 한국어 누락 본문 | 3.945 / 2.506초 | 2.586 / 1.621초 |
+| Kotlin 한국어 복합 분기 | 3.346 / 2.488초 | 8.245 / 4.259초 |
+| TS 영어 guard | 2.266 / 1.375초 | 4.749 / 1.840초 |
+| Kotlin 영어 부분 본문 | 2.518 / 3.578초 | 4.427 / 2.389초 |
+
+원래 설정은 **5/8**이 3초 이내(평균 **2.753초**, 최대 **3.945초**), compact는
+**4/8**(평균 **3.764초**, 최대 **8.245초**)였다. 사례별 모든 raw wire hash와
+정규화 후 전체 설명은 서로 및 이전 수동 검토한 응답과 같았다. 따라서 이전 TS
+한국어 누락 본문의 소유 관계 오류도 그대로 남았다. Host 형식 통과 16개를 의미가
+정확한 완성 설명 16개로 세지 않는다. 이 결과로 안정적인 3초나 성능 개선을 주장하지
+않으며 32사례로 재확대하지 않았다.
+
+Worker 누적 최대 MLX는 original/compact **1,729.20/1,814.20MiB**, RSS는
+**1,276.17/1,274.56MiB**다. 요청마다 추가 활성 가중치는 0이지만 allocator/OS
+peak 차이까지 원인으로 해석하지 않는다. 준비를 포함한 worker 값이며 전체 VS Code
+메모리나 요청별 allocation delta가 아니다.
+
+추가로 현재 corpus 4,136행을 read-only로 확인했다. Training 3,256행 중 flow가
+문자열인 것은 **3,036행**, 없는 것은 220행이며 validation 880행은 문자열 860행,
+없는 것 20행이다. 새 source-owned 배열 target/schema는 양쪽 모두 **0행**이다.
+정확한 source-key 기준 training 1,028개와 validation 178개는 겹치지 않았고,
+기존 평가의 16개 source-key도 두 split에 없었다. 평가 응답은 이 audit에서 읽지
+않았고 corpus/가중치를 바꾸거나 학습하지 않았다. 형식 coverage 관찰이며 실패의
+원인이나 새 라벨·학습의 성능 개선을 입증하지 않는다.
+
+이번 단계는 **실제 모델 요청 24개**(부분 생성 1개 + 거부된 structured JSON 7개 +
+원래 형식의 Host 통과 JSON 16개), 언어·locale 사례 **9개**, 언어·원문 쌍 **8개**다.
+순수 경계 검사 8개와 native parser 검사 7개, Python/Node 구문 검사, 보존된 실제
+출력·source의 검토를 수행했다. 첫 native 검사 6개는 원래 wire 32개 검사를 더하기
+전 통과 기록이며 별개의 모델 실험으로 세지 않는다. 모든 소유 handle과 worker는
+종료됐다. 공개 package 61개는 이전 실제 통과 기록이고 이번 문서 변경에서 재실행하지
+않았다. 새 모델 학습이나 runtime/UI/기본값/버전/설치는 진행하지 않았다.
+**0.0.1145**를 유지하며 전체 3초·정확성·실제 outer Host/전체 scope/rich 목표는 미완료다.
 
 ## 남은 완료 기준
 
