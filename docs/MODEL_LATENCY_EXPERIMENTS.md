@@ -1518,6 +1518,123 @@ Python/Node 구문 검사, native build 및 고정 배열 검증을 실행했다
 종료됐고 runtime/UI/기본 모델/버전/설치된 **0.0.1145**를 유지한다. Native 비용의 원인을
 좁혔지만 기존 모델의 의미 오류와 실제 outer Host/전체 scope/rich/전체 3초 기준은 미충족이다.
 
+## 실제 실행기 메타데이터와 생성 구간 projection 결합
+
+목표는 **모델 준비 뒤 원문을 읽는 새 요청부터 전체 설명 완료까지 3초**로 유지한다.
+다운로드·로딩·FIFO 대기는 제외하지만 원문이나 응답을 줄이지 않는다. 이번 private
+비교는 기존 provider의 FIFO/자원 소유권, 전체 wire decode/정규화와 Host parser까지
+측정했다. 실제 outer Host 전달과 모든 scope/rich 기능을 검증한 것은 아니다.
+
+### 지원 counter와 요청 QoS의 확인
+
+Apple의 [counter 지원 조회 절차](https://developer.apple.com/documentation/metal/gpu-counters-and-counter-sample-buffers)에
+따라 실제 장치의 기능을 조회했다. `metal-capabilities.json`에서 Apple M5 Pro의
+architecture는 `applegpu_g17s`, counter set은 `timestamp/GPUTimestamp` 하나였다.
+Sampling point는 stage만 지원하고 dispatch/draw/blit는 지원하지 않았다. 지원하지
+않는 dispatch counter를 호출하거나 GPU 내부의 연산·메모리 대기를 측정했다고 하지 않는다.
+이 조회는 모델 로딩·샘플링·소스 설명이 없으며 시스템 정책을 바꾸지 않았다.
+
+기존 완료 timestamp 계측을 별도 private native library로 확장해 실제 제출 스레드의
+요청 QoS와 pipeline 함수 이름, dispatch 수를 기록했다. 원래 commit/encoder 메서드는
+같은 인자로 전달하며 GPU 명령·fence를 추가하지 않는다. Kernel 이름 registry는
+1,024개, 각 command buffer의 이름별 slot은 16개로 제한하고 초과 수를 따로 남긴다.
+Native/ctypes record 크기를 확인했고 고정 identity 배열 검증에서 결과가 정확히 같았다.
+순수 집계 helper의 **6개 검사**는 누락 ID, overflow, 수량 불일치, 잘못된 QoS와 빈
+buffer를 검증한다.
+
+`compound-metal-profile-executor-KNVCxo/report.json`의 실제 새 설명 2개는 앞서 읽은
+응답과 생성 wire hash 및 Host 정규화 후 전체 byte가 같았다. 모든 제출에서 QoS 조회가
+성공했고 요청 값은 **33(userInteractive)**였다. 이는 이 실행의 요청 QoS가 낮다는
+가설을 지지하지 않는다. [pthread QoS 정의](https://github.com/apple-oss-distributions/libpthread/blob/main/include/pthread/qos.h)의
+요청 값과 실제 override/유효 GPU 우선순위는 구별하며 우선순위 변경은 하지 않았다.
+
+| 원문 | 전체 완료 | Command buffers | 전체 dispatch | 이름을 연결한 dispatch | slot 초과 dispatch |
+| --- | --- | --- | --- | --- | --- |
+| TypeScript 영어 쓰기 | 0.966초 | 1,898 | 78,452 | 77,476 | 976 |
+| Kotlin 한국어 복합 분기 | 1.897초 | 3,172 | 127,750 | 126,150 | 1,600 |
+
+연결률은 각각 **98.756%/98.748%**, registry 초과와 미등록 ID는 0이다. Slot 초과분을
+숨겨 100% coverage로 제시하지 않는다. 관찰된 QMV fast 호출은 **24,034/39,400회**,
+RMS normalization은 **14,116/23,040회**였다. 가장 긴 command buffer의 GPU 경과는
+**6.003/6.029ms**였다. 이 수치를 kernel 호출 수에 비례해 배분하거나 kernel별 시간으로
+해석하지 않는다. 완료 callback/encoder 관찰이 scheduling에 영향을 주므로 두 요청의
+3초 통과를 비계측 성능 개선이나 전체 목표 달성으로 사용하지 않는다.
+
+### 여러 입력 행을 결합한 첫 후보의 수치 실패
+
+실제 QMV 호출 수를 근거로 같은 입력을 쓰는 Q/K/V와 gate/up의 quantized 행을 묶는
+별도 private 구현을 작성했다. 원래 affine 4bit/group128 weight/scales/biases의 저장
+byte를 그대로 연결하고 각 행의 일치를 검사한다. Dequantization/requantization,
+모델 파일·정밀도·원문·prompt·grammar·sampling·출력 한도 변경은 하지 않았다.
+
+첫 전체 모델 검사에서 Q/K/V를 모든 입력에 결합하면 **64행 prefill부터 실패**했다.
+Argmax는 같았지만 최대 logit 차이는 **1.03125**, active KV 차이는 **5.125**였다.
+`projection-fusion-feasibility-failed.json`에 실제 반례를 보존하고 새 설명 비교로
+진행하지 않았다. Argmax 일치나 허용 오차 완화로 실패를 통과시키지 않는다.
+
+`projection-operator-parity.json`의 source-free 연산 검사 네 조건으로 차이를 좁혔다.
+64행 Q/K/V의 최대 차이는 각각 **0.03125/0.03125/0.015625**였지만 단일 행에서는 세
+출력이 모두 byte 단위로 같았다. Gate/up은 64행과 단일 행 모두 byte가 같았다.
+
+[MLX 0.32.3 pinned split-K 구현](https://github.com/ml-explore/mlx/blob/64ea011cb65f14d9ce2737e60db9a4ae91ed7441/mlx/backend/metal/quantized.cpp#L1152)은
+출력 폭과 입력 행 수로 K 분할 수를 정하고 입력 dtype으로 부분합을 저장한다.
+64행/입력 폭 2,048에서 원래 Q의 분할은 4, K/V는 8인 반면 결합 출력 폭 4,096이면
+2가 된다. 이는 원문 수식과 모델 차원으로 계산한 설명이며 실제 grid를 계측한 값은
+아니다. 같은 split-K kernel 이름이어도 reduction 분할과 bf16 반올림은 달라질 수 있다.
+저장 가중치 byte 일치만으로 계산 결과 일치를 보장할 수 없다는 반례다.
+
+### 단일 행 생성만 결합한 후보의 비교와 기각
+
+여러 행의 원문 prefill/batch는 원래 모듈을 그대로 호출하고 **전체 입력 행이 하나일
+때만** 결합한 QMV를 사용하도록 범위를 제한했다. 원래 SDK cache, normalization,
+RoPE, attention, SwiGLU/down projection을 유지한다. Q/K/V만 결합한 경우와 gate/up도
+결합한 경우를 각각 prefix 1/64/257/1,023 및 이후 고정 토큰 세 개로 검사했다.
+`projection-decode-fusion-feasibility.json`의 **32개 비교 모두 전체 logit과 active KV
+byte가 정확히 같고 최대 차이는 0**이었다. 소스나 설명을 생성한 검사는 아니다.
+
+결합 weight는 Q/K/V만 **124,780,544byte(119MiB)**, gate/up 포함
+**499,122,176byte(476MiB)**다. 이 구현은 원래 prefill 모듈도 보유하므로 해당 복사본이
+추가 상주한다. 생성 시 quantized matmul 호출은 layer당 2개/3개 줄지만 전체 GPU
+dispatch나 전체 시간이 같은 비율로 줄어든다고 주장하지 않는다.
+
+수치 검사를 통과한 gate/up 포함 후보 하나만 전체 원문으로 비교했다.
+`compound-projection-decode-comparison-FMx3GV/report.json`은 완전한 원문 세 개를
+control → candidate → candidate → control 순서로 읽은 **새 설명 12개**다. 준비는
+각 worker에서 기존 64+1 EOS forward만 수행하며 소스 상태·답변·KV를 미리 보유하지
+않는다. 모델/구현 hash와 원래 wire를 확인했고 단일 요청·cached tokens 0·seed42·
+temperature0.2/top-p0.95/top-k40·prefill512·8GiB 메모리/256MiB allocator cache 한도를
+유지했다. Canonical grammar나 command-buffer 한도 후보를 함께 적용하지 않았다.
+
+모든 요청의 실제 wire hash와 정규화 후 전체 응답은 해당 사례의 이전 응답 및 다른
+arm과 정확히 같고 prompt token 수도 같았다. 세 전체 응답을 원문과 함께 다시 읽어
+계산/쓰기, try/catch의 모든 반환, Kotlin 조건의 양쪽 결과, finally 호출과 미확인
+동작·정상 복귀 조건, summary/flow 및 다섯 상세 필드를 확인했다.
+
+| 원문 | 원래 전체 완료 두 번 | 결합 후보 전체 완료 두 번 |
+| --- | --- | --- |
+| TypeScript 영어 쓰기 | 1.003 / 3.721초 | 0.945 / 0.970초 |
+| TypeScript 한국어 catch/finally | 3.964 / 2.822초 | 1.846 / 2.224초 |
+| Kotlin 한국어 복합 분기 | 5.121 / 2.299초 | 6.975 / 2.880초 |
+
+원래 arm은 **3/6**이 3초 이내(평균 **3.155초**, 최대 **5.121초**), 후보는 **5/6**
+(평균 **2.640초**, 최대 **6.975초**)였다. 두 반복과 세 원문에서의 관찰이며 통계적
+일반 개선이나 안정적인 3초를 입증하지 않는다. 후보의 가장 느린 결과를 재실행으로
+제외하지 않았고 더 큰 matrix나 다른 결합 설정의 탐색으로 확대하지 않았다.
+
+Worker 누적 peak MLX allocation은 원래 최대 **1,752.20MiB**, 후보
+**2,228.20MiB**로 증가했다. OS RSS peak는 각각 **1,421.31/1,421.58MiB**이며 MLX
+allocation과 다른 지표다. 둘 다 준비를 포함한 worker 누적 peak이고 요청별 delta나
+Host/VS Code 전체 peak가 아니다. 수치·설명 일치에도 3초 기준과 자원 목표를 만족하지
+못해 후보를 채택하지 않는다.
+
+이번 작업은 서로 다른 원문 **3개**, 실제 새 설명 **14개**(계측 2개 + 비교 12개)다.
+별도로 source-free 실패 반례 한 개, primitive 네 조건, decode 비교 32개, CPU 집계
+검사 6개, Python/Node 구문 검사와 native build/고정 배열 검증을 수행했다.
+공개 package 테스트 61개는 이전 실제 통과 기록이며 이번 문서 변경에서 다시
+실행하지 않았다. 모든 소유 worker가 종료됐다. 기존 1.7B 모델의 누락 본문 설명 오류와
+반복 문장, 실제 outer Host/전체 scope/rich/일반적인 전체 3초 기준은 여전히 미충족이며
+runtime/UI/기본 모델/설치 버전 **0.0.1145**를 유지한다.
+
 ## 남은 완료 기준
 
 모델 변경, decoder 최적화 또는 입력 구조 변경을 채택하려면 다음을 함께 확인해야 한다.
