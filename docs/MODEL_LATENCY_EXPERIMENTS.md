@@ -1948,6 +1948,66 @@ peak 차이까지 원인으로 해석하지 않는다. 준비를 포함한 worke
 않았다. 새 모델 학습이나 runtime/UI/기본값/버전/설치는 진행하지 않았다.
 **0.0.1145**를 유지하며 전체 3초·정확성·실제 outer Host/전체 scope/rich 목표는 미완료다.
 
+## 원문에서 만드는 flow 소유자 학습 라벨
+
+새 형식을 실제 학습 데이터로 검증하기 위해 기존 corpus를 보존한 별도 라벨 생성기를
+구현했다. 기존 flow를 문장으로 나누거나 평가 응답을 복사하지 않는다. TypeScript AST와
+Kotlin의 공개 native syntax API에서 호출자·대상 선언, 반환식, 조건, 지역 쓰기,
+try/catch/finally 소유 범위와 호출 인수를 독립적으로 읽는다. 이 도구는 **오프라인
+합성 학습 예제 전용**이며 extension inference에서 import하지 않는다.
+
+공개 helper 경계는 다음과 같다.
+
+- `scripts/model-reading-source-ownership-evidence.mjs`의
+  `readModelReadingDeclaration(snippet, language)`는 원래 source snapshot과 span을
+  보존한 작은 statement IR을 반환한다. AST 탐색은 visited set과 명시적 queue를 사용하며
+  depth 16/container 128 상한을 둔다. 임의 코드 분석기를 대신하지 않는다.
+- `scripts/model-reading-source-ownership-supervision.mjs`의
+  `createSourceOwnedFlowSupervision(context, locale)`는 그 원문만으로 3~5개의
+  `{sourceId,text}`와 별도 claim ledger를 만든다. 호출·인수 전달과 정상 반환값 사용은
+  부모, 계산·조건·반환·지역 쓰기·finally 호출은 대상 본문에 연결한다. 없는 구현과 잘린
+  나머지는 `null` 근거와 명시적인 미확인 설명으로 남긴다.
+- 지원 범위를 벗어난 문장, 추가 작업, nested scope, 복수 대상, deferred 호출, 다른
+  인수·본문 ID, 미제공 구현으로 잘못 표현될 수 있는 자기/부모 재호출은 거부한다.
+  이 제한을 실제 제품의 지원 언어·scenario·rich 기능 축소에 사용하지 않는다.
+
+부분 본문은 원문에 없는 tail을 만들어 설명하지 않는다. 기존 corpus의 **단일 조건부
+반환으로 끝나는 미완성 선언**에 한해서 검증용 닫는 중괄호 하나를 별도 native parse에
+추가한다. 원래 snippet/prompt에는 이를 넣지 않으며, positive claim의 span은 모두 원래
+제공된 source 안에 있어야 한다. 검증용 suffix와 `nativeParseComplete:false`를 기록해
+원래 선언을 완전한 구문으로 주장하지 않는다. 나머지 결과·쓰기·호출·효과·완료는 미확인이다.
+
+기존 3,256/880개 training/validation 행과 source를 유지한 별도 corpus의 SHA-256은
+`9653cdac2650a1c822835454646f16887b5a70442cde12a7d31d4f274fc1a8ed`다.
+전체 설명 **3,896행**(training 3,036/validation 860)의 flow만 소스 소유자 문장으로
+교체했다. Summary, calls의 원래 모든 모델 필드, limitations와 비-flow schema는 그대로다.
+Flow가 없는 호출 상세 **240행**(220/20)은 context·schema·prompt·completion을 모두
+원래 byte 표현으로 보존했다. 모든 full source, source/confidence/deferred 정보와 scope도
+유지했다. 전체 flow는 최대 **500 Unicode scalar**로 원래 600 상한 안에 들어갔다.
+
+Training의 산술/guard/쓰기/loop/catch/finally/복합/누락/부분 예제는 각각 독립 native
+source로 읽었다. 정확한 source-key는 training 1,028개, validation 178개, 기존 평가
+16개이며 세 집합은 서로 겹치지 않는다. 평가 **응답**은 라벨 생성·audit에 읽지 않았다.
+Generator를 다시 호출하지 않는 별도 audit가 4,136행의 source와 비-flow 필드 보존,
+source를 가진 claim **21,052개**, 미확인 claim **2,864개**, 부분 본문 600행의 경계를
+확인했다. 모든 행이 실제 현재 wire 복원과 Host parser를 통과했다. 이는 라벨의 범위와
+전송 형식 검사이며 일반 의미 정답 판정기는 아니다.
+
+실제 고정 tokenizer와 LLGuidance 1.9.1 compact/canonical native grammar에서도
+**4,136/4,136행**의 완전한 response와 EOS를 검사했다. 최대 sequence는 **2,509 tokens**,
+prompt **2,212**, response **326**이며 원래 3,072 학습/8,192 문맥/2,400 출력 token
+상한 안에 있다. 원문·응답을 자르지 않았고 response-through-EOS loss 경계를 보존했다.
+이 검사는 CPU/tokenizer만 사용했고 가중치를 로드하거나 학습하지 않았다.
+
+새 회귀 검사는 8개 source shape, 두 언어·locale, exact/inferred, 독립 compound recipe,
+잘린 단일 statement 반환, 숨은 추가 작업·getter·scope·재호출의 거부를 포함한다. 기존
+missing-body 회귀 테스트는 그대로 유지하고 새 테스트를 별도 파일로 분리했다.
+새 검사 10개와 기존 검사 전체를 포함한 `npm run test:package` **71/71개**가 실제
+통과했다. 별도 corpus/Host 검사와 CPU tokenizer/native grammar 검사도 종료됐다.
+라벨 통과만으로 실제 모델의 소유 관계 오류·반복 문장·전체 3초가 개선됐다고 주장하지
+않는다. 그 판단에는 별도로 준비 경계 밖의 모델 로딩을 제외한 새 inference와 전체
+필드/범위 검증이 필요하다. 제품 runtime/기본 모델/UI/버전/설치는 **0.0.1145** 그대로다.
+
 ## 남은 완료 기준
 
 모델 변경, decoder 최적화 또는 입력 구조 변경을 채택하려면 다음을 함께 확인해야 한다.
