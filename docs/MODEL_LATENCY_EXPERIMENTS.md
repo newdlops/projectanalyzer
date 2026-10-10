@@ -1181,6 +1181,64 @@ exact/inferred와 task.sourceLimited 양쪽 값, 실제 wire layout은 이미 �
 제품 runtime과 설치된 **0.0.1145**를 유지한다. 두 빠른 응답을 전체 3초·정확도 달성으로
 해석하지 않으며 실제 outer Host·전체 scope·rich 완료 기준도 그대로 남아 있다.
 
+## 복합 분기의 독립 조합과 학습 전 검증
+
+기존 결합 분기 자료에서 이름·비교식·상수·계산식·catch 반환값이 네 묶음으로 함께
+변한다는 관찰에 따라, 소스 조합을 확장했다. 이는 남은 역할 설명 오류의 원인을
+확정한 조치가 아니며 작은 모델의 새 설명으로 검증해야 할 가설이다.
+
+오프라인 public helper `scripts/model-reading-compound-fixtures.mjs`는 다음 API를 제공한다.
+제품 runtime은 이 모듈이나 정답 문장을 가져오지 않는다.
+
+- `compoundCases(split, kind)`는 `training`/`valid`와 `combined`/`partial`/`missing`에
+  맞는 고유 소스 descriptor를 반환한다. 사용하지 않는 차원의 반복은 제외한다.
+- `compoundSpec(kind, language, descriptor)`는 TypeScript/Kotlin 소스와 그 소유 표현을
+  만든다. 설명 문장은 기존 `coverageReading`을 재사용한다. 실제 추론에 정적 설명을
+  주입하거나 heldout의 생성 응답으로 정답을 만들지 않는다.
+
+비교 연산·비교 상수·일반 계산 연산·조기 반환값·catch 반환값을 각각 4수준으로 두고
+OA(16,5,4,2)로 조합했다. 각 요인 쌍은 16가지 수준 쌍을 모두 포함하지만 4⁵가지의
+전체 조합은 아니다. 함수/인수/매개변수 이름군과 계산 피연산자 수준은 각 16행에
+별도로 교차한다. 훈련은 이름군 2개와 피연산자 2개, 검증은 새 이름군 1개와 새
+피연산자 2개를 사용한다. 검증용 숫자 풀도 별도로 구성했다.
+
+같은 이름의 완전·부분·누락 구현을 함께 제공한다. 부분 구현은 직접 if/return만 보이는
+미완성 선언이며, 완전한 try 본문의 prefix라고 주장하지 않는다. 완전 본문에는
+exact/inferred 및 root sourceLimited 양쪽 값을 유지하고, target.sourceLimited는 false다.
+부분 본문은 target 제한과 잘림 flag를 유지한다. 누락 구현에는 매개변수 선언을 만들지
+않는다. scope는 소스마다 회전하며 모든 의미 조합과 scope의 전체 교차를 주장하지 않는다.
+
+기존 **2,204행**을 보존한 새 corpus는 훈련 **3,256행**, 검증 **880행**이다. 추가분은
+각각 1,288/644행이며 SHA-256은
+`67ded9ef4d3a0bdce95cfb70925e64dcde89b750c4f0a559b794a4a03255c717`이다.
+언어별 완전한 훈련 소스 64개와 검증 소스 32개, 총 **192개**를 실제 parser로 검사했다.
+세 반환값의 try/조건/catch 소유권, finally 호출 위치, 부모의 반환 사용을 확인했고
+Kotlin 복구 구문을 허용하지 않았다. 부분 구현 384행은 기존의 제한된 잘림 guard도 통과했다.
+전체 설명을 wire에 투영하기 전에 1,932개 추가 행의 모든 문장 길이·원문 인용·confidence·
+미확인 효과를 검사했다. 원문이나 설명을 잘라 제한에 맞추지 않았다.
+
+`production-compound-independent-audit.json`은 renderer를 가져오지 않고 실제 corpus와
+native parser에서 요인을 다시 추출했다. 12개 언어/이름/피연산자 그룹의 각 10개 요인 쌍,
+총 **120개 검사**에서 모두 16개의 서로 다른 수준 쌍을 확인했다. 새 검증 소스는 기존
+자료를 포함한 모든 훈련 소스와 겹치지 않는다. 전체 **4,136행**의 현재 production prompt·
+schema·wire decode·Host parser가 일치했고 선언이 있는 **3,896행**의 실제 인수 매핑도
+확인했다. 이는 문장의 모든 의미나 실제 모델의 정확도를 입증하는 검사는 아니다.
+
+`production-compound-tokenization-audit.json`은 전체 4,136행의 정답과 EOS가 실제
+LLGuidance schema에서 완료되는지 확인했다. 최대 sequence는 기존과 같은 **2,028 tokens**다.
+훈련 prompt 4,637,589 tokens와 응답+EOS target 534,763개, 검증 prompt 1,289,120 tokens와
+target 169,935개를 보존했다. 기존에 gradient로 확인한 exclusive-end 손실 코드를 그대로
+사용하며 응답+EOS만 학습하고 뒤 padding은 제외한다. 이 손실 보정의 정확도 개선은 아직
+채택 근거가 없다.
+
+새 helper의 6개 회귀 검사를 포함한 `npm run test:package` **57개**가 통과했다.
+다음 학습은 기존 seed/model에서 새로 시작하는 **3,256 update의 한 번의 완전한 pass**로
+제한한다. 기존 adapter를 이어서 학습하거나 임의의 추가 epoch를 반복하지 않는다.
+기존 rank/scale/layers/optimizer·원래 단일 요청 prompt/wire·전체 원문·출력 한도를 유지한다.
+90분 상한, 실제 yielded-index trace 및 모든 update 종료 검사를 적용하며 중간 snapshot을
+완료로 해석하지 않는다. 현재 자료와 사전 검증은 모델의 정확도·3초 완료·실제 outer Host·
+전체 scope·rich 달성의 증거가 아니며 설치된 **0.0.1145**를 유지한다.
+
 ## 남은 완료 기준
 
 모델 변경, decoder 최적화 또는 입력 구조 변경을 채택하려면 다음을 함께 확인해야 한다.
