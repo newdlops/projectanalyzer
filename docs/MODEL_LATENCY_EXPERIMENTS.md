@@ -4941,6 +4941,16 @@ V141은 같은새가중치에서실행할 **원래14개joint stream 전체**를�
 - V140 fullnumeric CPU preparation: `09c1e880b982c39a94ba68890c2195c5893e86466d84a4af1587f7d2cd632c6b`
 - V141 all14joint CPU scope preparation: `aa5697f50eb74f3b68cb6523bbaeff3b9dbedc5af4e7eb19214516f39b996c21`
 
+## V137: 1,200-step 전체 guard 통과와 독립 원시 벡터 재검증
+
+실제 동일 학습 session55468/PID99592에서 원래72개 전체의 **1,200-step guard가 통과**했다. Legacy48 meanNLL은0.3921879958467352,원래nullable24는0.6229709986672461이다. 이 값은 training-only 안정성 관측이며 새 함수의 의미·생성 지연 증거로 사용하지 않는다. 현재 문서snapshot은1280개 evaluatedupdate/311,508개target이고 실제live진행은 이보다 빠를 수 있다.
+
+원래0/200/600/1200의 **네 guard 모두**에서72개owner/20,275개fullresponse-EOS,source byte/target digest,loss/sdk/top dtype·shape·범위와각mean/accuracy/recorded policy를 unchanged CPU verifier로 독립재구성했다. 각snapshot SHA와완전한72행을기록했으며GPU/model/optimizer/sourceNN은이재검증에서0회다. 기존guard를수정·rerun하거나favorable subset을고르지않았다.
+
+전체2,944 distinctupdate/717,709target과2000/2920/2944 세guard,final-only 저장·actualterminal/PID부재·assets/RNG8byte 및독립최종감사는아직미완료다. 동일livehandle을관찰하고재시작/partialresume/설정변경/두번째모델로드를하지않는다. V140/V141은CPUcodescope준비상태이며currentweights/GPU수치/joint를실행하지않았다. 실제 전체새source의미/Host3000ms와제품통합·기능·시각QA/release/install,원래84미노출/20rootcell/전체source-context/type/confidence/unknown보존은여전히필요하다. 여섯wholefamily금지/제품0.0.1145/전체목표active를유지한다.
+
+- V137독립네guard/livepartial기록: `a3c2ec3d4f2f0394c85610deb71a965b0ea2abd3dcaf4e4d32bf0ea58a3d44a4`
+
 ## 남은 완료 기준
 
 모델 변경, decoder 최적화 또는 입력 구조 변경을 채택하려면 다음을 함께 확인해야 한다.
