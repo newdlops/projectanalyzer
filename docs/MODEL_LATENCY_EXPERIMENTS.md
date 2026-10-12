@@ -4951,6 +4951,37 @@ V141은 같은새가중치에서실행할 **원래14개joint stream 전체**를�
 
 - V137독립네guard/livepartial기록: `a3c2ec3d4f2f0394c85610deb71a965b0ea2abd3dcaf4e4d32bf0ea58a3d44a4`
 
+## V137: 2,000-step 전체 guard 독립 검증
+
+동일 실제 학습 session55468/PID99592에서 2,000-step의 원래72개 guard가 통과했다. Legacy48 meanNLL은0.2243912757114673, nullable24는0.3006702242302774다. CPU에서 전체20,275개 target/EOS의 raw NLL/sdk/top/source/범위/통계와 원래 policy를 독립 재구성했고, 실제 CPU exit0을 확인했다. 이로써0/200/600/1200/2000의 다섯 guard가 독립 검증됐다. 학습 데이터 안정성으로 생성 설명의 의미나 지연을 추정하지 않는다.
+
+현재 문서 snapshot은 **2,500/2,944 evaluated updates, 608,472/717,709 targets**다. 실제 세션이 계속 실행 중이며 2920/2944 guards, final-only 저장, 실제 terminal/PID부재/RNG8/assets와 독립 최종감사는 미완료다. 재시작, 설정 변경, 부분 재개, 두 번째 모델 로드를 하지 않았다.
+
+## V142~V145: 새 숫자 함수의 전체 평가 준비와 원래 토큰 한도 보존
+
+새 숫자 함수는 정수 배열을 순서대로 읽고 직전 양수 상태에 따라 양수 구간 시작 횟수를 세는 `ordered-integer-array-positive-run-start-count`다. 여섯 금지 함수군의 이름·연산자 변형을 재사용하지 않았으며 전체 optimizer/monitor source owner와 겹치지 않는다. Kotlin/TypeScript 및 한국어/영어의 네 원래 구조적 경로를 모두 보존했다. 독립 TypeScript 실행은 빈 배열, 양수 연속 구간, 0·음수 경계, 시작 상태와 긴 배열을 검증했다. 원래 analyzer의 네 경로에는 빈 배열/단일 원소 예시를 사용하며 모든 입력의 실행을 관찰했다고 주장하지 않는다.
+
+V142 draft의 iterator slot/기존 문자 한도 실패를 보존하고 수정한 다섯 reference 검사는 통과했다. 첫 exclusive builder는 새28개 occurrence와 기존 delivered assertion20의 불일치로 실패했다. 실제 exit1/PID부재와 첫 실패를 보존했고 이 builder를 수정하거나 재실행하지 않았다. V143은 새 버전에서 원래 Host 전 경계를 검사한 뒤 **16개 전체 경로·112개 source occurrence·16개 disk page**와 original capture/parser/codec/validator/dispose를 통과했다. Kotlin iterator slot의 범위 밖 값과 uncertified source facts를 그대로 보존했다. 실제 exit0/PID부재이며 모델이나 source NN 요청은0회다.
+
+V144는 모든 원래84 미노출 요청과20 return-language-locale cell을 결합했다. 전체36 action/100 request/68 rich route/340 rich occurrence/40 call/92 disk page/28 final callee body를 보존하고 세 scope 검사와 전체 inverse를 통과했다. 전체100 token/grammar/EOS 검사를 실행했지만 `frozen:0`의 complete prompt5797+원래 output allowance2400이8192를 **5token 초과**했다. 나머지 검사는 통과했으나 전체 후보를 거부했다. 실제 construction exit0/token audit exit1/PID부재와 전체 결과를 보존하고 해당 독점 작업을 재실행하지 않는다.
+
+V145는 trusted compiler의 긴 format discriminator만 integer1로 표현한다. 전체 source schema, recipe, source/context/noncompiler messages, native schema와 모든 응답 byte는 유지되며 original discriminator를 복원한 뒤 독립 V127 inverse로 원본을 검증한다. Unsupported 입력은 원래 전체 fallback을 유지한다. 네 CPU 검사가 통과했고, **원래4043+새100=4143개 전체 frame**의 입력·응답·inverse byte 검사가 오류0으로 통과했다.4103개는 projected,40개는 whole fallback이다. Duplicate source가 포함된 frame 수이며4143개 고유 함수라고 주장하지 않는다. 모든 원래3939/이전100/새100의 target-EOS vector digest4139개가 그대로 일치하며 나머지 네 actual 응답도 전체 byte inverse로 검증됐다.
+
+전체4143 tokenizer/native grammar/EOS와 원래8192/2400/196608byte/24000character 한도가 오류0으로 통과했다. 총 prompt9,632,564/target-EOS1,075,176, 최대 prompt **5791**, 최대 실제 sequence7104다. 새100 최대prompt5791+원래2400 allowance=8191로 한도를 유지했다. Inverse/token job은 실제 exit0/PID부재, MLX/model/sourceNN/optimizer/monitor 추가0회다. 기존 모델·가중치·sampler·학습seal·한도를 변경하지 않았다.
+
+V145는 prompt discriminator가 고정 V137 학습 표현과 다르므로 실제 생성 설명의 의미가 미검증이다. 현재 준비된 V140의 original166/336 범위를 줄이지 않고 **새 최대5791의 전체 prefill/decode geometry 수치 검증을 추가**해야 한다. 실제 V137 fullpass/terminal/독립 final audit, 새 최종 가중치의 numeric 및 원래14 joint stream이 모두 통과한 뒤 새 catalog/runtime binding이 필요하다. V145 마지막100 `positive-run-frozen:0..99`만 허용 평가 범위이며 archived4043에는 여섯 금지 source가 포함되므로 neural 입력으로 사용하지 않는다. 원래84/20cells/전체 부모·callee·fields/type/confidence/unknown와 actual whole Host3000ms/제품 통합/기능·시각QA/release/install은 계속 필수다. 제품0.0.1145와 전체 목표active를 유지한다.
+
+증거 SHA-256:
+
+- V137 guard2000 독립 기록: `7bb094475433e8ff591acd97c195483cbe86c7168de7cdf59a5f399ce424c4af`
+- V137 current snapshot2500: `0069522ea8225d99bba2b7bedfe89bd54493a2a798bfd8ad00528fb00dc859a1`
+- V142 첫 exclusive CPU 실패: `254f2fc6e0f01b31f5413f0ad589f8716e14ebebccf3d3ba7e4ac379b432e74b`
+- V143 전체 새16 references terminal: `df5ff41b15fc1fa2852834f01b35848152d6a77fa02eed0c1a72185ef06769ca`
+- V144 전체100 budget 거부: `1f4c32fbd5a57e9a1a7885eb00632c81c485a2e53ce5174b986b00f0c76bc23e`
+- V145 전체4143 byte/token terminal: `c54eb8a5392c5f49b9a58200b54d75f5913ece7b8aab6661dece76c100a66085`
+- V145 whole inverse: `49dbcaa846b3cb068e801db1b03d7430be17a6346e89ea3cdfb98bbb963a5e0d`
+- V145 whole token/grammar/EOS: `17f03d067852b45e8a3624e43a8e199f8cda677007dcff2e52abced95d0f4306`
+
 ## 남은 완료 기준
 
 모델 변경, decoder 최적화 또는 입력 구조 변경을 채택하려면 다음을 함께 확인해야 한다.
