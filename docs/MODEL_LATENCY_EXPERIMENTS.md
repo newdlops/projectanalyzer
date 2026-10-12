@@ -4903,6 +4903,26 @@ V137은 **단 한 번의 original-base 전체 named 학습**을 고정했다. �
 - V137 singlefixedfullpass seal: `2380b6264607595d6b9f76530d3d4a3bd605cee00a6312b15787d1ed1caa3a27`
 - V137 partialactualprogress/livehandle: `d103f0b32543a33ce1a045bb6631f3bdb7f1c3dc72e7c1d91d00c880c2dd11ff`
 
+## V138~V139: 입력 변환 중복 제거와 독립 최종 감사 준비
+
+V138은 V127 요청 변환에서 같은 source/compiler와 old/named wire를 반복 생성·검증하던 작업을 줄였다. 신뢰된 system/footer, 유일한 전체compiler JSON, 독립 원래compiler 재생성과 lexical byte equality, 원래native schema equality, source schema factoring/inverse equality, 원문/context/noncompiler message 보존은 유지했다. 독립 V127 역변환 API를 그대로 사용한다. 각 요청이 자기 wire를 소유하며, 다른 owner의 source/KV/응답 캐시나 모델 문장 수정은 없다.
+
+기존3,939개 전체와 현재100개 frozen/4개 실제응답을 모두 포함한 **4,043개 frame**에서 새 payload와 전체 응답 byte가 V127과 같고, 원래 native payload/response가 모든 byte로 독립 복원됐다. 기존84개 평가가 두 catalog에 포함되므로4,043은 서로 다른source개수로 주장하지 않는다.4,011개 변환/32개 whole fallback이며 오류0개다. 새16개 전체경로, 실제네응답, 변조/모호한입력/fallback/독립역변환/요청격리를 포함한CPU4개 검사도 통과했다. frame loader의 code/README를JSON으로읽은초안실패를보존하고 exclusive감사전에 수정했다.
+
+모든4,043개에서 reference/candidate의 실행순서를 번갈아 CPU생성시간을 관측했다. 전체reference25,206.543389ms/candidate13,413.737418ms로 해당factory작업은 약46.8% 적었다. **각factory 내부검사를 포함하며, 생성후 외부전체byte/inverse증명만 timing밖이다.** 닫힌proof의 `validationExcludedFromBothConstructionTimings`는 이 외부검사를 뜻하며 terminal에범위를명시했다. V137학습이동시에실행되는CPU관측이므로 모델속도·전체Host3초로 환산하지 않는다. 실제NNpayload/target/token/nativegrammar/budget을 바꾸지 않았으며 모델/sourceNN은0회다. session22024/PID20487 actualexit0/PID부재를확인했고 재실행하지 않는다.
+
+V137학습은 여전히 **session55468/PID99592에서live**다. 문서snapshot에서 실제620개update/151,375개target이보고됐고, 원래72개 항목의0/200/600-step guard가 모두통과했다.200-step의legacy48/new24 meanNLL은0.90927684/1.07624425,600-step은0.61635611/0.73195681이다. 같은 training-only owner의raw20,275개loss/sdk/top/source/target/EOS와mean/accuracy/policy를 CPU에서독립재구성했다. 이 관측은 학습안정성이고 새로운 함수설명정확성이나latency가 아니다. 나머지1200/2000/2920/2944 guard, 전체2944update/717709target과final-only/actualexit/RNG8/assets는미완료다.
+
+V139는 실제학습종료뒤 사용할 독립CPU감사runner를 결과가나오기전에고정했다. 원래pure trace verifier/rawadapter inspector/raw72guard policy를 현재경로·대상개수·실제session/PID에역복원가능하게연결했다. foreign/live/중복terminal/partialupdate/cleanup/asset실패와변조된NLL/통계/source를거부하는6개CPU검사가통과했다. 실제0/200guard각20,275개전체벡터를 재검증했고,600guard도별도read-onlyCPU재검증이통과했다. **실제PID가live이므로 terminalRecordingReady/finalAuditReady는둘다false**였다. Syntheticcontrol을실제terminal로저장하지않았다.
+
+독립최종감사는 actualterminal+PID부재 이후에만 전체2,944 distinctsource/148 evaluatedreport/717,709target-EOS,일곱raw72owner/20,275target guard,224개F32finaladapter/2,883,584parameters,원래baseassets/외부RNG8bytes를확인한다. 아직최종감사는실행하지않았다. 이후newweight원래arithmetic/numeric/전체14sampler-cancel-resource proof,원래84개미노출과모든20return-language-locale cell/fullsource/context/type/confidence/unknown을유지한새비금지neural평가/Host3000ms,제품통합·기능·시각QA/release/install이계속필요하다. 여섯wholefamily금지/폐기한source계획/제품0.0.1145를유지하고목표는active다.
+
+증거 SHA-256:
+
+- V137 livepartialprogress/guard600: `58d9757b281adb5907afc0c95a726ef00adae0e076027d88f6e987c074ea8b87`
+- V138 whole4043 byteproof terminal: `b1e06b3352fa0de8650104cac0741e48c898a579411f6517ff1763fa67d1ddea`
+- V139 independentCPUfinalaudit preparation: `8c95728c39c69b89904fab0f1aec0006a4c02af64e8c80a20096438e0bb7563b`
+
 ## 남은 완료 기준
 
 모델 변경, decoder 최적화 또는 입력 구조 변경을 채택하려면 다음을 함께 확인해야 한다.
