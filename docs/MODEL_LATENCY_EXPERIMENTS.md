@@ -3669,6 +3669,61 @@ V67·V68·V69는 소스 없는 연산 검증이며, 모두 고정 성능 기준�
 진단 수치이며 실제 제품의 전체 설명 시간이나 process RAM이 아니다.
 **0.0.1145 유지, 전체 설명의 정확성과 준비 후 3초 목표 미완료**다.
 
+## 요청별 원래 샘플링 호출을 묶는 별도 검증
+
+V70은 여러 요청의 원래 full-filter 함수를 하나의 tuple 실행 그래프로 묶었다.
+전체 151,936-token stable sort·top-p 0.95·top40·temperature 0.2·categorical·
+요청별 seed42 key split은 유지했다. 확률·logit·필터 결과·key를 stack하거나
+공유하지 않았고, 단독 요청·혼합 dtype·원래 native singleton certificate 경로도
+보존했다. CPU 경계·준비 상태 테스트 16개와 원래 RNG 연산의 AST 동일성 검사를
+통과했다.
+
+첫 GPU 실행에서 full-filter·token·key·draw count **514개 비교**가 모두 정확히
+같았다. 두 dtype·요청 수 1–8·순서 변경·혼합 dtype fallback·실제 retain 8→3→1을
+포함한다. 외부 RNG는 그대로였고, 숫자 검증·12개 성능 case·최종 해제 뒤 할당은
+모두 원래 **8 bytes**였다. control/candidate 각각 **5,050회**의 합성 categorical
+draw를 실제 수행했다. 모델·소스·grammar·함수 설명 생성은 없었다.
+
+고정한 성능 기준은 실패했다. 8개 요청의 6개 경우 중 5개가 요구한 1.10 속도
+비율에 미달했다. bfloat16 dense/sparse/ties 비율은 1.008626/1.002821/0.990890이었다.
+float32 ties 단독 비용 1.072861과 bfloat16 sparse 단독 비용 1.053021도 1.05를
+넘었다. 12개 case·variant당 10개 교대 interval·interval당 8회 호출·모든 sampled
+token history와 최종 key 검사를 보존했고, 유리한 경우만 고르거나 다시 실행하지
+않았다. 실제 session99223/PID57087은 terminal `b7c983` exit1로 끝났고,
+`3ade16`에서 해당 PID가 사라진 것도 확인했다.
+`grouped-sampler-v70/decision.json` SHA-256은
+`4e93875d53050ec9502311b19f89801d47402647ccb221cce32d389e44ea6cdb`다.
+
+이 후보는 미채택이며 전체 모델·grammar·sampler 통합, 설명 정확도와 3초 완료를
+입증하지 않는다. 공개 runtime·설치본은 0.0.1145를 유지한다.
+
+## 작은 모델의 완전한 tuple-wire 학습 입력 준비
+
+V71은 V59의 손실 없는 응답 형식과 V63의 검증된 prompt를 전체 학습 2,920건·검증
+868건에 결합했다. 원문·호출 맥락·schema·언어·설명·반환값·종료 토큰을 보존했으며,
+별도로 고정한 진단 요청 100건은 두 split에서 모두 제외했다. CPU 단위 테스트
+11개와 Python 모듈 파싱 3개가 통과했다. 실제 CPU tokenizer의 전체 3,788건 검사,
+저장한 토큰 배열의 행별 hash 검사, 실제 SDK `iterate_batches`의 전체 CPU 배치
+검사가 모두 통과했다. 마지막 검사는 MLX driver를 초기화했지만 GPU 계산·모델
+가중치 로딩·학습·설명 생성은 수행하지 않았다.
+
+학습 대상인 응답·EOS 토큰은 697,695 → **624,170**으로 73,525개(약 10.54%) 줄었다.
+반면 prompt 토큰은 6,618,845 → **6,918,479**로 약 4.53% 늘었다. 검증 대상은
+202,975개다. 출력 토큰 감소를 전체 학습 비용이나 설명 속도의 개선으로 해석하지
+않는다. 설명과 모든 경로·노드의 값은 여전히 각각 LLM이 생성해야 한다.
+
+완전한 학습·검증 sequence의 최대 길이는 5,181/5,180이었다. 실제 SDK negative
+control에서 예전 5,120 제한은 학습 index 2,680의 61개 토큰과 마지막 EOS를 잘랐다.
+이 배치는 학습에 사용하지 않았다. 새 6,144 제한에서는 전체 행·응답·EOS·loss mask가
+보존됐다. 원래 모델 window 8,192와 출력 허용량 2,400은 유지한다.
+`tuple-training-input-v71/decision.json` SHA-256은
+`4273e5fa21b634a9069caec283774d9412173f2fc8b9e2a8509688f5ee47aa79`다.
+
+이는 새 학습 입력 준비의 검증이다. 새 응답 길이에 맞는 loss 균형, 학습 데이터만
+사용하는 안정성 기준선, 전체 1-pass trainer를 고정해야 학습을 시작할 수 있다.
+이후에도 최종 모델의 새 독립 함수 정확도와 실제 Host의 전체 설명 3초를 검증해야
+한다. 새 모델 학습·기본 모델 교체·버전 변경·설치는 아직 없었다.
+
 ## 남은 완료 기준
 
 모델 변경, decoder 최적화 또는 입력 구조 변경을 채택하려면 다음을 함께 확인해야 한다.
