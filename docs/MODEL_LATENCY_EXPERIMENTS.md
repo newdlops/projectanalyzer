@@ -4982,6 +4982,38 @@ V145는 prompt discriminator가 고정 V137 학습 표현과 다르므로 실제
 - V145 whole inverse: `49dbcaa846b3cb068e801db1b03d7430be17a6346e89ea3cdfb98bbb963a5e0d`
 - V145 whole token/grammar/EOS: `17f03d067852b45e8a3624e43a8e199f8cda677007dcff2e52abced95d0f4306`
 
+## V137~V141, V146~V150: 전체 학습·수치 완료 후 실제 소스 설명 실패
+
+V137 단일 고정 named-representation 학습이 **2,944 update/717,709 target-EOS 전체를 완료**하고 실제 session55468 exit0/PID99592부재로 종료됐다.2,920/2,944-step의 원래72개 guard도 통과했다. 최종 legacy48/nullable24 meanNLL은0.12213361383715589/0.19604222628514148이다. 원래 base,1epoch,1e-5,seed42/2944모든row/rationalweights/896unweightedmonitor/final-only를 유지했다. TrainingDuration9158255.77037502ms, 최종adapter SHA는`5131e24cd751b13b786a1d82dde9449ec0e3e916f0da0658d3d308611ae5606d`다. 모델·optimizer 해제와 외부MLX/NumPy RNG 및8byte 복원을 확인했다. 학습 자체는 설명 품질이나3초 완료를 증명하지 않는다.
+
+V139는 실제 ownedterminal과PID부재를 기록한 뒤, 전체2944 distinctowner/148 evaluatedreports/717709target/일곱72-owner20275-target rawguard/224F32 tensor·2883584parameter/baseassets/RNG8을 CPU에서 독립 검증했다. 실제 exit0이며 최종audit도 통과했다. 이전 부분 학습을 선택하거나 학습을 재개하지 않았다.
+
+새 최종가중치의 V140 **원래166 full-model pair+336 MLP**가 모두 byte일치했다. V146은 기존 scope를 줄이지 않고 V145입력최대5791의512×11+159 전체prefill12조각/3decode를두implementation에서 추가15+15 비교했다. 추가30도fulllogit/KV/dtype/shape/capacity와RNG/owner조건을통과하여 **총196 model+336 MLP**가완료됐다. 각각actualexit0/PID부재/최종8byte,originalbase+F32adapter보존과extraweight0/두graph를확인했다. V141의 원래14joint도13whole+1explicitcancel/206candidate transition/fullhistory·key·KV·native·output·lookahead·owner를통과했다. Reference218/candidate206 draw의차이는명시적으로취소한stream의reference tail이며,전체218회가동일했다고주장하지않는다. 모두source-free증거이며source품질/latency증거가아니다.
+
+V147은 V145의마지막100eligible compact frame만원래36action/20rootcell/84unexposed/68richroute/340occurrence/40call/92page/28finalcallee로고정했다. Archived4143 CPU자료는neural범위가아니다. V148은새모델·현재fullnumeric196/336·14joint와전체100scope를동시에요구했다. Worker의원래다섯functionbody/64+1source-freeReady/twoGraph/FIFO/UIDfreshKV/sampler/nativevalidators/EOF/RNG8은그대로다. CPU gate3개와actualHost·codec·input/client6개검사후새전체계획을sealed했고,actualsource-freeworker ready/EOF도source0/실제root-childexit0/PID부재로통과했다.
+
+첫실제source는 **Kotlin/한국어 `countPositiveRuns`,전체4paths/28occurrences/4modelrequests**다. Native4response와모든raw/expandedwire를보존했고전체source/schema/staticinputbyte및ready/모델ownedclose가통과했다. 그러나 **전체Host81609.14291699999ms**로3000ms를초과했으며,원래validator의`invalid-response`와wholeaction실패로 **전달path/page0**이었다. Rootsession49497/PID95535 실제exit1/부재,modelchild95621 exit0/부재를확인했다. 출력일부나첫token을latency로대체하지않고실제whole실패를기록했다. 제품source/기존Host/설치변경은없다.
+
+V149는모든네rawnative/expandedresponse를별도로보존하고native205/expanded284leaf 및28occurrence를전부inventory했다. 모델이작성한prose140개를수동검토해 **34correct/44incomplete/62incorrect**로판정했다. 모든step의syntax/action/reason/effect와title/explanation/analysis3fields/summary/limitation을포함했다. 네example 모두declaredIntArray `values`를scalar0로출력하고본문에서는[0]으로바꿔설명했다. Negation을다른비교로설명하고,0+1을0+true=0으로바꾸며,comparison이상태를변경한다고하거나iterator exit를return으로바꾸고정수counter를null로반환한다고설명했다. 완전한source/graphstep은그대로지만내용은정확하지않다. 원래native/expanded/views나modelsentence를수정하지않았다.
+
+첫전체실패후 **전체100계획을폐기**했고나머지35actions96requests는실행하지않았다. 일곱째family `ordered-integer-array-positive-run-start-count`를모든weights/names/operators/languages/locales/scopes와parent/helper변형에서영구neural금지했다. 기존여섯wholefamily금지도유지한다. 실패source/plan을재실행하거나favorable subset·teacher/staticprose·repair·threshold완화로통과시키지않는다.
+
+V150의독립CPU읽기에서는원래IntArray examplevalue schema가`{}`여서scalar0와array[0]를모두허용함을확인했다. 이domain gap은잘못된prose를설명하거나정당화하는원인으로단정하지않는다. 실제복합tokenization+generation **78964.47312500095ms**,wholepacket79102.68825001549ms,aggregateprompt20652/output3189/sampling3193을기록했다. 이숫자는prefill/decoder/GPU만의시간이아니며permemberlatency를유도하지않는다. 현재wholegoal은accuracy/latency모두미달이다.
+
+학습과numeric/joint는종료되어currentlivehandle없다. 후속작업은generictypedexample/whole-source comprehension/actualruntimecost를개선할때도LLM의모든값·문장작성책임과전체original84/20cells/source/context/parent/callee/field/confidence/unknown을유지해야한다. 모든일곱failedfamily와종료job을재poll/수정/retry하지않고model/dtype/LR/epoch/sampler sweep도하지않는다. 제품0.0.1145를유지하며원래wholeHost3000ms·전체정확성·제품통합·기능/시각QA·release/install이충족돼야전체goal을완료한다.
+
+증거 SHA-256:
+
+- V139 전체최종감사: `e54e81ba7b132d032b7a3aae39994cb546a4bfdd853d0420dc620e5acd45ca35`
+- V140 실제166/336 terminal: `2a957f9996b4a0467ff6c98aee557d7fc5664c83601934d8cb6487f20433f6ad`
+- V146 추가30 terminal: `7f52e538a4436b3f895cc0aed413f10547ce812ac96cd7d93953dec88af52d8d`
+- V141 실제14joint terminal: `67903622e9560e78b65a09c008be644aa0f22a0990146d23daa347f1d83f4548`
+- V147 eligible100 terminal: `491f5d79beea8100aa7821274d326d940dd28f6fe64c97f6db220d3a86cd1f90`
+- V148 첫실제whole failure terminal: `5c4f85e757c9fe430e4eb6410a1f95c28ccea189f3068e3845665c398f6039ce`
+- V149 전체140prose검토: `bca626d4d53e1ec53b2a36ccbf266c9ba9bd328416e636a3ae45636be77fa2fa`
+- V149 전체계획폐기결정: `14b65264f363e42f4c1dc016ccea8f1e509b0bd3ea0c678737c22aa8b70bf5cb`
+- V150 실제domain/복합cost증거: `3c2b18b0a48ebfa7a87eae84412ca9f21838f6fa87a8b46b76fabbba34beded8`
+
 ## 남은 완료 기준
 
 모델 변경, decoder 최적화 또는 입력 구조 변경을 채택하려면 다음을 함께 확인해야 한다.
