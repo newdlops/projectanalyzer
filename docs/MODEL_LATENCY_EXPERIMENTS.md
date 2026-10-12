@@ -4768,6 +4768,78 @@ profile의 inclusive CPU wall time은 prefill2,027.5175ms, model forward/eval
 제품/설치 버전은 **0.0.1145**다. 후보는 채택하지 않았고,
 **정확한 전체 Host≤3000ms·제품 통합/QA/release/install은 계속 미완료**다.
 
+## V122~V123: 문자열 진단 실패와 전체 native mask 재생
+
+V122는 같은 원본 base·최종 F32 adapter에서 네 EOS-only 길이와 member당
+48개 문자열·1..160 scalar 제한을 준비했다. 한국어 anchored pattern 두 개와
+일반 문자열 문법 두 개다. 일반 문법은 영어 출력을 강제하지 않는다.
+실제 native 경계까지13개 CPU 검사가 통과했다. 최초 HF tokenizer wrapper
+호출 오류를 보존하고 GPU 실행 전에 수정했다.
+
+실제 첫 control 네 stream 중 한국어 문법 두 개는 완료됐지만 일반 문법 두 개가
+**2,400 output token의 length 결과**로 끝났다. 각 output/sample 수는677/678,
+2400/2401,1897/1898,2400/2401이었다. 모든 완성/부분 raw 응답을 보존했고,
+scope나 budget을 줄여 재실행하지 않았다. control282,264.729167ms는 완료된
+paired 프로파일 시간이나 실제 함수 시간으로 해석하지 않는다. **profile 단계는
+실행하지 않았다.** session70181/PID94640 실제exit1/PID 부재, 원래 model/adapter/
+RNG와 최종8 bytes를 확인했다. 실제 함수나 금지 소스를 모델에 제공하지 않았다.
+
+V123은 추가 모델 실행 없이 **학습2,944개·모니터링896개·준비 평가96개·실제 완료
+응답3개**, 전체3,939개를 CPU native matcher에서 재생했다. 모든3,936개 archived
+response/EOS의 **870,395개 target**이 원래 token 배열과 같다. 각 token 앞의
+full-vocabulary mask를 확인하고 전체 mask sequence를 fingerprint했다.
+원래 schema/canonicalizer/native consume/exclusive EOS를 유지했고 오류는0개다.
+초안 admission의 placeholder test receipt는 거부·보존했고 실제 CPU 검사 receipt로
+새 준비를 만들었다. session34422/PID40687 실제exit0/PID 부재다.
+
+실제 생성 응답의 sampled token IDs는 보존되지 않았으므로 text를 canonical하게
+재인코딩했다. output count는311/312/419로 원래312/313/424와 다르고,
+EOS 포함1,045개는 실제 sample1,052개와 다르다. 이 차이를 같다고 처리하지 않는다.
+세 응답의 CPU 재생은 compilation13.915957ms, mask136.082708ms,
+consume2.983673ms다. 이 수치는 **알려진 문자열 상태의 CPU 작업**이며, 실제
+모델·GPU·sampler 비용이나 whole Host13.78초를 직접 분해한 관측이 아니다.
+실제 함수3초와 설명 의미는 계속 미검증 상태다.
+
+## V124~V126: 설명 필드 이름 복원과 전체 응답 보존
+
+V119에는 syntax/reason/effect와 summary/반환 의미가 혼동된 설명이 있었다.
+이를 다루기 위해 named model-field codec을 CPU에서 구현했다. 원래 source schema를
+기존 pure inverse로 복구하고, `syntax`, `text`, `reason`, `effect`, `analysis`,
+`summary` 같은 원래 이름을 객체 필드로 노출한다. optional/union 제약은 통째로
+유지하며 schema가 보장한 single value만 ledger에서 복원한다. 모델 문장을
+작성·수정·축약하거나 다른 owner로 복사하지 않는다.
+
+V124의 실제3개 응답에 대한 직접 codec 검사에서는 모든 값과 문장이 보존됐지만,
+전체 감사에서 **3,909/3,939개가 실패**했다. 연결부가 원래 ordered-slot→owner-tuple
+순서를 반대로 구성했고24개 원래 fallback을 처리하지 않았다. 성공30개만 골라
+사용하지 않았으며 최초 실패와 코드는 그대로 보존했다.
+
+V125는 core named codec을 유지하고 연결 순서와 whole original fallback을
+복구했다. 실제 call/rich/완료 응답 fixture를 포함한4개 CPU 검사 후, **3,939개
+모든 응답의 값·모델 문장·원래 native lexical byte**가 복원됨을 확인했다.
+원래 source/context/noncompiler message는 변경하지 않았다. 오류0개,
+session71815/PID68613 실제exit0/PID 부재다. V124는 수정하거나 재실행하지 않았다.
+
+V126은 모든3,939개 named output을 원래 tokenizer·native grammar에서 다시
+검증했다. **991,075개 target/EOS**, 가장 긴 응답999 token으로 원래
+2,400-token/24,000-character 제한과 exclusive EOS를 모두 통과했다.
+원래871,440개보다 token이 늘었으므로 속도 향상을 주장하지 않는다.
+session32569/PID74669 실제exit0/PID 부재이며 모델·학습·source NN은0회다.
+
+현재 통과한 범위는 **전체 값/문장 복원 및 output 문법/EOS/budget**이다.
+새 compiler input adapter, 신뢰된 output mode 지침, 전체 prompt8192/stdIO196608
+제한은 아직 검증되지 않았다. 그 작업을 완료한 뒤에도 실제 모델의 설명 의미·
+prepared-model 전체 Host≤3000ms와 제품 통합/QA/release/install은 별도로 필요하다.
+다섯 neural 금지 함수군과 폐기한96개 계획을 유지하며, 제품/설치는0.0.1145다.
+
+증거 SHA-256:
+
+- V122 최초 control 실패: `9ac3aaf1c08f91edc566c6bf19f7b1b95bf36da4eeddf2747740315f8f4e3a7b`
+- V123 전체 CPU mask/EOS: `c67b2a6f4e058c8d1f543175e3aaf8b3578052491db61888e471991b1cb1338d`
+- V124 전체 연결 실패: `ee716dcfb90ee007a725f7c9e65d2a09b4c9c795ff40f2c1a132e63586322ce8`
+- V125 전체 named roundtrip: `70ed6615d4e5f3dc7e100243d2b1aa4c66e93a66d94c7e647bed59b6a0487f2e`
+- V126 전체 named output: `cce727956a8969bf0ab2e46da6dba7430fbdf031d11f28b16b56006425413b19`
+
 ## 남은 완료 기준
 
 모델 변경, decoder 최적화 또는 입력 구조 변경을 채택하려면 다음을 함께 확인해야 한다.

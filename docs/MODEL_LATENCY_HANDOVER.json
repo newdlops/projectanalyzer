@@ -1,6 +1,6 @@
 {
-  "purpose": "이전 전체 3초 목표 인계. V112 원본 base+최종 F32 LoRA 복원/V113 수치/V116 공동 검증 후 V117~V118 전체96 입력을 준비했다. V119 실제 세 경로 설명은13779.76825ms 및 의미 실패로 전체96 계획 폐기·다섯 번째 함수군 영구금지. V120 전체 관측 CPU 분석/V121 현재 모델 합성 비용 측정 완료. 정확한 전체3초·제품 적용·QA·release/install 미완료.",
-  "savedAtUtc": "2026-10-12T17:59:13.838035+00:00",
+  "purpose": "이전 전체 3초 목표 인계. V119 실제 전체설명13779.76825ms/의미 실패·전체96 계획 폐기·다섯 함수군 금지 유지. V122 source-free 문자열 control은2개length 실패로profile미실행. V123 전체3939 CPUmask/EOS 재생, V125 named-field 원래응답byte복원, V126 전체3939 named-output 문법/EOS/2400제한 통과. 새입력adapter/실제neural정확성/전체3초/제품QA·release/install 미완료.",
+  "savedAtUtc": "2026-10-12T19:16:46.445909+00:00",
   "workspace": "/Users/lky/project/projectanalyzer",
   "resumeInstruction": "이 파일을 먼저 읽고 checkpoint.json에서 필요한 항목만 확인한다. 긴 대화나 실험 문서 전체를 다시 읽지 않는다. 이전의 반복적·추측성 분석은 구현 결정으로 취급하지 않는다.",
   "userIntent": {
@@ -16,24 +16,24 @@
     "branch": "main",
     "productVersion": "0.0.1145",
     "handover": "docs/MODEL_LATENCY_HANDOVER.json. 다음 시작에서 실제 git 상태와 checkpoint의 현재상태를 확인한다.",
-    "checks": "V112 all72/16783 training vectors restored; V113 whole numeric/V116 all14 sampler-cancel-owner proofs retained. V117 whole12 references; V118 all96 tokenizer/native grammar/EOS and all84 unexposed requests/all20root cells retained. V119 CPU12/source-free worker preparation+EOF passed; actual Kotlin/KO whole3paths/8occurrences/3pages parser, exact inputs and cleanup passed, but13779.76825ms and all57prose-field meaning failed. V120 all72/all16783 stored targets audited on CPU. V121 all4 synthetic cases/control+profile8 streams/RNG/model+compiled owners8-byte cleanup passed. No live model process; product0.0.1145.",
+    "checks": "V112 all72/16783 training vectors restored; V113 whole numeric/V116 all14 sampler-cancel-owner proofs retained. V117 whole12 references; V118 all96 tokenizer/native grammar/EOS and all84 unexposed requests/all20root cells retained. V119 CPU12/source-free worker preparation+EOF passed; actual Kotlin/KO whole3paths/8occurrences/3pages parser, exact inputs and cleanup passed, but13779.76825ms and all57prose-field meaning failed. V120 all72/all16783 stored targets audited on CPU. V121 all4 synthetic cases/control+profile8 streams/RNG/model+compiled owners8-byte cleanup passed. No live model process; product0.0.1145. V122 actual4 control streams:2stop/2length2400; profile0, raw retained/RNG/assets/final8/runnerexit1/PIDmissing. V123 all3939 CPU full-vocab masks/EOS/errors0/all3936 archived targets exact. Actual3 canonical counts differ from sampling counts,136.082708ms native-mask replay not actual runtime. V124 whole named bridge failed3909/3939 and preserved. V125 original ordered→owner-tuple order +24fallbacks corrected, all3939 original native values/prose bytes restored. V126 all3939 named targets/native grammar/EOS budgets pass,total991075,max999, no neural use. All owned jobs terminal; no product source/weights/install changes.",
     "productImplementationBaselineCommit": "1827aa4cd4ccb7c96b33d320d23d73a715904ad3",
-    "documentationContent": "이 인계와 docs/MODEL_LATENCY_EXPERIMENTS.md에 V117~V121 실제 결과를 기록했다. publication commit/원격은 실제git와 private receipt를 확인한다."
+    "documentationContent": "인계와 docs/MODEL_LATENCY_EXPERIMENTS.md에 V122~V126 실제 결과를 기록했다. publication commit/remote는 실제git/private receipt를 확인한다."
   },
   "executionState": {
     "activeToolHandles": [],
     "activeModelProcesses": false,
-    "lastTurn": "V117 fresh bound references/all12; V118 full36actions96requests incl.all84 unexposed/all20root cells. V119 originalbase+finalF32 runtime CPU12/source-free2graph/EOF passed, then actualwhole3path source action failed13779.76825ms and prose meaning.65native/116expanded/328delivered leaves and57prose fields reviewed. Entire96 plan retired;35actions93requests not run; fifth whole family banned. V120 all72training-owner16783target CPU analysis; V121 all4source-free integer cases/control+profile8streams complete/RNG/final8/actualexit0/PIDmissing. Full original objective remains active.",
+    "lastTurn": "V122 string control four streams on fixed originalbase+finalF32 adapter,2stop/2length2400, profile notexecuted; firstresult/raw/RNG/assets/final8/actualexit1/PIDmissing preserved. V123 CPUwhole3939/all870395 archived target+EOS/fullvocabmasks/EOS pass;actual3 canonical1045 differs1052sample draws, mask136.082708ms not runtime proof. V124 core directactual3 tests passed but reconstructed bridge wrongorder failed3909/3939; savedunchanged. V125 correct ordered→owner transformation/24whole fallbacks, all3939 exactoriginalNative values/prose bytes restored/CPU4tests pass. V126 all3939 namedtarget grammar/EOS/output2400/char24000 pass,target991075/max999. Namedinputadapter/window/stdIO/neuralquality/fullHost3000/productQA stillmissing.",
     "noProgressConsecutiveTurns": 0,
-    "terminalRule": "V101세션12644/PID15853,V106세션94555/PID70326와CPU66900/PID74450,V107세션32542/PID3542,V108세션73709/PID15889 모두실제exit0/PID부재 확인됐다. 이 세션을 다시poll/실행하지 않는다. 현재livehandle없다. V109세션39331/root58396/model58415도 실제runnerexit1/modelchildexit0/PID부재 확인됐다. 재poll/재실행 금지. V111세션43828/PID94704,V112세션86222/PID21622도 실제exit0/PID부재 확인됐다. 재poll/재실행하지 않는다. V110준비는GPU전CPU거부라실행하지않는다. V113numeric세션38963/PID14100,V116joint세션93955/PID76670 실제exit0/PID부재 확인. 이세션 재poll/relaunch금지. V114/V115는GPU전최초실패보존,재실행금지. 현재live없다. V117 builder48096/PID18603/token92273/PID24443와 V118 builder82440/PID55664/token10432/PID59916 실제exit0/PID부재. V119 source-free50332/root13442/model13443 실제exit0/PID부재; actualsource72250/root14461/model14493 runnerexit1/childexit0/PID부재. V120CPU39219 실제exit0. V12142898/PID54361 실제exit0/PID부재. 종료 작업 재poll/relaunch 금지. 현재live없음."
+    "terminalRule": "V101세션12644/PID15853,V106세션94555/PID70326와CPU66900/PID74450,V107세션32542/PID3542,V108세션73709/PID15889 모두실제exit0/PID부재 확인됐다. 이 세션을 다시poll/실행하지 않는다. 현재livehandle없다. V109세션39331/root58396/model58415도 실제runnerexit1/modelchildexit0/PID부재 확인됐다. 재poll/재실행 금지. V111세션43828/PID94704,V112세션86222/PID21622도 실제exit0/PID부재 확인됐다. 재poll/재실행하지 않는다. V110준비는GPU전CPU거부라실행하지않는다. V113numeric세션38963/PID14100,V116joint세션93955/PID76670 실제exit0/PID부재 확인. 이세션 재poll/relaunch금지. V114/V115는GPU전최초실패보존,재실행금지. 현재live없다. V117 builder48096/PID18603/token92273/PID24443와 V118 builder82440/PID55664/token10432/PID59916 실제exit0/PID부재. V119 source-free50332/root13442/model13443 실제exit0/PID부재; actualsource72250/root14461/model14493 runnerexit1/childexit0/PID부재. V120CPU39219 실제exit0. V12142898/PID54361 실제exit0/PID부재. 종료 작업 재poll/relaunch 금지. 현재live없음. V12270181/PID94640 actualexit1/PIDmissing, profile neverrun; no relaunch. V12334422/PID40687 actualexit0/PIDmissing; V12415860/PID62136 actualexit1/PIDmissing; V12571815/PID68613 actualexit0/PIDmissing; V12632569/PID74669 actualexit0/PIDmissing. Allclosedjobs immutable and not repolled/relaunched. Currentlive=[]; modelprocess=false."
   },
   "evidence": {
     "root": ".local-models/experiments/three-second/",
     "authoritativeState": "checkpoint.json",
     "latestRecord": {
-      "path": "trained-cost-profile-v121/terminal.json",
-      "sha256": "b4f6c6b259671e986c75dae02183786daa584beb71ccbf51e71a76378732ab66",
-      "status": "source-free integer attribution complete; actual V119 source meaning/whole3s failed"
+      "path": "named-response-admission-v126/terminal.json",
+      "sha256": "cce727956a8969bf0ab2e46da6dba7430fbdf031d11f28b16b56006425413b19",
+      "status": "whole3939 named output constraints passed CPU-only; namedinput/neuralquality/fullHost3000ms unproven"
     },
     "v87ActualSource": {
       "directory": "tuple-source-runtime-v87/",
@@ -506,6 +506,31 @@
       "path": "trained-cost-profile-v121/terminal.json",
       "sha256": "b4f6c6b259671e986c75dae02183786daa584beb71ccbf51e71a76378732ab66",
       "result": "Original V90 four EOS-only synthetic integer-array cases used as data, control+profile8streams/current originalbase+finalF32 adapter. Allraw/counts equal, graphs1+1/model328302600/final8/RNG/assets; actualexit0/PIDmissing. Control4485.914208/profile4439.496958 difference not speedup evidence. Inclusive prefill2027.5175/model-forward2274.648332/mask-sample120.771081ms, nested times not added. Integer-only does not attribute actual bounded Korean/English prose grammar; no source quality/3s claim."
+    },
+    "v122BoundedStringsFirstFailure": {
+      "path": "bounded-string-profile-v122/terminal.json",
+      "sha256": "9ac3aaf1c08f91edc566c6bf19f7b1b95bf36da4eeddf2747740315f8f4e3a7b",
+      "result": "Source-free four EOS-only control cases48 boundedstrings1..160/currentoriginalbase+finalF32 adapter,13CPU/native tests passed. Ko grammar requires Hangul initial; general schema does not enforce English. Control282264.729167ms, UID0stop677/678,UID1length2400/2401,UID2stop1897/1898,UID3length2400/2401. Profile0. No sourceNN; allraw retained, no budget/scope retry,RNG/assets/final8,exit1/PIDmissing. Native test HFwrapper initialdraft failure preserved beforeseal. Does not establish actual source grammar or function performance."
+    },
+    "v123WholeNativeMaskReplay": {
+      "path": "whole-native-mask-replay-v123/terminal.json",
+      "sha256": "c67b2a6f4e058c8d1f543175e3aaf8b3578052491db61888e471991b1cb1338d",
+      "result": "All2944training/896monitor/96frozen references/actual3=3939 CPU frames, noerrors. All870395 archived target/EOS bytes exact; everyfull-vocab mask sequence hashed/exclusiveEOS. Actual3 canonical target1045 vs1052 originalsample draws; sampledIDs notrecorded. Canonical output311/312/419 differs312/313/424. Actualcanonical compile13.915957ms/mask136.082708ms/consume2.983673ms describesCPUknown states, notmodel/GPU/sampler/Host runtime. Draftadmission placeholder receipt rejected/preserved before replay; final actualCPU3tests. Model0."
+    },
+    "v124FirstNamedRoundtripFailure": {
+      "path": "named-native-fields-v124/terminal.json",
+      "sha256": "ee716dcfb90ee007a725f7c9e65d2a09b4c9c795ff40f2c1a132e63586322ce8",
+      "result": "Direct actual3 codec tests passed preserving sentences/values; whole3939 audit failed3909,only30passed. Bridge incorrectly did owner-tuples before orderedslots and rejected24 wholeoriginalfall backs. Failure/code/data preserved, no successfulsubset/no sourceNN/adoption."
+    },
+    "v125WholeNamedCodec": {
+      "path": "named-native-fields-v125/terminal.json",
+      "sha256": "70ed6615d4e5f3dc7e100243d2b1aa4c66e93a66d94c7e647bed59b6a0487f2e",
+      "result": "Core namedcodec unchanged; originalorderedslots thenownertuples and24 wholeoriginalfall backs restored. CPU4tests withrealcall/rich/currentactualfixtures; actualwhole3939 allnativevalues/freeprose/lexicalresponsebytes restored/errors0. Originalsource/context/noncompiler messages notrewritten. Everyvariableconstraint retained; onlyschema-proven singlevalues restored. No sourceNN; notqualifiedfor actualmeaning/time."
+    },
+    "v126WholeNamedOutputAdmission": {
+      "path": "named-response-admission-v126/terminal.json",
+      "sha256": "cce727956a8969bf0ab2e46da6dba7430fbdf031d11f28b16b56006425413b19",
+      "result": "All3939 complete namedresponses re-tokenized withoriginaltokenizer,realnativegrammar/EOS/output2400/char24000 passed/errors0. Complete991075 target/EOS,max999. More tokens thanoriginal871440; no speedupclaim. Named inputprotocol/systemmode/prompt8192/stdIO196608 andactualNNcorrectness/Host3000 remainunqualified. No models/training/sourceNN,product0.0.1145 unchanged."
     }
   },
   "preparedAssets": {
@@ -542,6 +567,20 @@
       "base": "model-0.6b-base-weight-control-v16",
       "finalAdapter": "adapter-small-model06-aligned-coverage-v101",
       "qualified": "Original arithmetic/2graphs/328302600 idle and actual V119 worker preparation+EOF passed. First whole3path source action failed meaning and13.779s; entire96 plan retired. V121 source-free integer cost diagnostic passed. No product adoption."
+    },
+    "namedFieldPrototype": {
+      "codec": "named-native-fields-v125/wire.cjs",
+      "schemaRecovery": "named-native-fields-v125/schema.cjs",
+      "bridge": "named-native-fields-v125/bridge.cjs",
+      "roundtripProof": {
+        "path": "named-native-fields-v125/roundtrip-proof.json",
+        "sha256": "c71e5fe47ac2658db4fd1ed0c2a9fff568e6245106fa69be9bfe5b39fa8d137f"
+      },
+      "outputAdmission": {
+        "path": "named-response-admission-v126/output-proof.json",
+        "sha256": "e07e11d7f6ed4e32c72db4989d064f87ab37e05c4a8429c723750b8de96d8936"
+      },
+      "qualification": "Whole3939 source/value/prose response-byte roundtrip and outputgrammar/EOS/2400 passed. Actualsource inputadapter/window/stdIO/neural quality/3s notqualified; no adoption."
     }
   },
   "constraints": [
@@ -562,9 +601,9 @@
     "ownership": "준비 모델 하나 공유, 요청 UID별 fresh KV·grammar·sampler·detokenizer. 답변·소스 KV 재사용 금지."
   },
   "nextSession": {
-    "first": "이 인계와 checkpoint.trainedSourceEvaluationV119/trainedSourceReviewV120/trainedCostProfileV121, 다섯family bans와 실제terminal hashes/git상태를 확인한다. 현재live없다. V117~V121 종료작업/폐기된V87/V109/V119계획 재poll/relaunch 금지.",
-    "nextIndependentWork": "Prepare CPU-only genuinely new source-free bounded Korean/English string grammar attribution on the same original trained weights. V121 integer-only mask costs do not establish actual free-string grammar costs; source-free four cases/control+profile all8 streams must use fixed strict language/length constraints, complete outputs/EOS, original unchanged sampler/window2400/prefill512 and actual RNG8-byte cleanup. No real or banned source body, source-derived const/code values or instructions may enter prompt/grammar/generated feedback. Keep all five neural bans and retired96 plan. Also investigate semantic native role clarity with whole reversible input/context/schema/target proofs before any genuinely new complete actual-source plan; goal quality/Host3000ms/productQA remains.",
-    "notImplemented": "새 bounded Korean/English grammar 프로파일, source-free instruction prefix, 명시적 prose-role 표현과 추가kernel 변경은 아직 구현·검증하지 않았다. 이전 반복 분석의 제안은 완료 증거가 아니다.",
+    "first": "확인할현재증거: checkpoint.boundedStringProfileV122/wholeNativeMaskReplayV123/namedNativeFieldsV124/namedNativeFieldsV125/namedResponseAdmissionV126 및5개permanent family bans. 현재live없음. 종료된V122~V126 작업과폐기된V87/V109/V119 neural계획 재poll/relaunch 금지. 실제git/terminal SHA 확인.",
+    "nextIndependentWork": "Implement a new reversible named compiler input adapter on V125 codec/V126 whole3939 output proof. Preserve every original source/context/nearby parent+callee/field/type/confidence/unknown and every noncompiler message byte. Rewrite only exactly recognized provider compiler data/instructions/system output mode; restore the complete old native payload byte-for-byte; unsupported ambiguous requests keep the whole original. Prove whole3840+96+actual3 input/output schemas/targets/newprompt8192+2400/stdIO196608/char24000/nativeEOS with unchanged tokenizer and all20cells/all84unexposed. Role naming/sourceful output equality are not actual neural quality/Host3000ms proof. All5 failed whole families/retired96 plan remain banned. New neural admission needs genuinely fresh full numeric algorithm +all84unexposed, original runtime/math/sampler/resource/lifecycle gates and complete per-action meaning+3000ms review. Product0.0.1145 untouched; original full goalactive.",
+    "notImplemented": "Named compiler inputadapter와 whole newprompt/window/stdIO/grammar admission은 아직 없다. Namedcodec/output proof alone is not model quality or3s proof. Model/dtype/LR/epoch/sampler changes,source-freeprefixcache,newkernel changes are not implemented/adopted.",
     "completionStillMissing": "새로운 허용 범위 전체의 설명 의미·정확성과 prepared-model 전체 host 완료 ≤3초를 실제 검증하고 제품 통합·QA 후에만 release/install한다.",
     "publication": "실패와 성공한 진단을 인계 문서에 기록하고 문서만 commit/push한다. 실제 원격/publication receipt를 확인한다. 실패candidate release/install 금지; product0.0.1145 유지."
   }
