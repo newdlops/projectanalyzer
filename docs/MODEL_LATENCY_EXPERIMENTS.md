@@ -3946,6 +3946,665 @@ scope 변경으로 재시험하지 않는다. 기준·원문·설명 필드·LLM
 - actual action report: `3d036783a4b64fb251d8cc154ac200b22538cbef3eadfeb8fb1a61963aae2864`
 - separate meaning review: `801650f2e7d3ae70392ecc784dd6e9b484182d1f89bf74f7fe582bd311260fba`
 
+## 구간별 비용 측정과 입력 묶음 검증
+
+V87에서 실제 모델 요청이 전체 시도의 대부분을 차지했으므로, 다음 작업은
+모델 내부 비용을 분리하는 source-free 진단이었다. 실패한 실제 함수 family를
+다시 요청하지 않았다. 준비된 모델에서 원래 worker·MLP·sampler·문법·평가
+barrier를 유지한 채 Python 표준 `cProfile`을 사용했다.
+
+첫 V88 진단은 모든 synthetic 출력이 같았지만 종료 allocation이 **16 bytes**로
+남아 원래 **8 bytes** 검사에 실패했다. V89의 모델 없는 복구 probe도 RNG
+state의 item assignment를 지원하지 않아 실패했다. 두 최초 결과를 보존하고
+코드를 수정하거나 동일 실행을 다시 하지 않았다.
+
+MLX 0.32.3의 state는 thread-local key를 읽는 sentinel이고, `key(uint64)`는
+상위/하위 uint32 두 word로 구성된다. V90은 저장한 두 word를 uint64로
+복원해 지원되는 `seed()` API로 원래 key를 돌려놓았다. 모델 없는 실제 GPU
+probe에서 sentinel identity, 원래 다음 default 난수와 advanced key,
+최종 **8-byte allocation**을 확인했다. 이 변경은 실험 도구의 종료 처리이며
+extension과 request sampler를 바꾸지 않는다.
+[MLX state 구현](https://github.com/ml-explore/mlx/blob/v0.32.3/python/src/random.cpp),
+[MLX key 구현](https://github.com/ml-explore/mlx/blob/v0.32.3/mlx/random.cpp).
+
+V90의 모델 진단에는 길이 **3,289/4,911/5,675/4,587**의 EOS 정수 token 입력과
+48개의 작은 정수만 생성하는 synthetic JSON grammar를 사용했다. 함수 원문,
+instruction, reference 설명은 모델에 주지 않았다. 일반 실행과 profile 실행의
+**전체 8개 stream**이 완결됐고 raw JSON·48개 값·종료 사유·출력/추가 draw
+수가 모두 같았다. 각 stream은 98개 출력 token과 99개 draw를 기록했다.
+종료 후 원래 RNG와 8-byte allocation을 복구했고 실제 exit0 및 PID 부재도
+확인했다.
+
+일반 실행은 **8,440.892 ms**, profile 실행은 **5,009.913 ms**였다. 둘은 같은
+로직이며 이 시간 차이를 최적화 효과로 사용하지 않는다. profile 구간은 다음과
+같다. 구간 시간은 내부 호출을 포함하고, mask 시간은 sampling에 포함된다.
+
+| profile 구간 | 시간 |
+| --- | ---: |
+| 모델 입력 처리(prefill) | 2,483.547 ms |
+| 다음 token의 모델 계산과 평가 barrier | 2,297.039 ms |
+| mask·정규화·sampling과 평가 barrier | 197.636 ms |
+| native mask만 측정한 내부 호출 | 15.191 ms |
+| 최초 schema compiler | 1.752 ms |
+
+이 값은 CPU wall time과 GPU 동기화 대기를 포함하며 GPU device timestamp가
+아니다. 실제 함수의 tokenization·설명 품질·전체 Host 완료 시간도 측정하지
+않았다. 관찰된 주요 비용은 모델 입력 처리와 반복 forward였다.
+
+V91은 완전한 **512-token BF16 입력 묶음**을 원래 MLP에 함께 보내는 하나의
+고정 후보를 구현했다. 모든 UID와 입력 행을 보존하며, singleton·짧거나 섞인
+길이·decode 형태·F32는 원래 호출을 유지했다. 새 가중치나 precision 변경은
+없었다. CPU contract 검사 4개가 통과했다.
+
+속도 측정 전에 실제 최종 모델의 **28개 MLP·308개 cohort·1,400개 출력**을
+원래 comparator로 비교했다. 전체 shape/dtype/finite/byte 검사가 통과했다.
+입력에는 signed zero와 subnormal도 포함했다. 가중치 객체 identity와 종료
+residency는 유지됐고, 마지막 allocation은 8 bytes로 복구됐다.
+
+이후 각 조건의 3회 warmup과 순서를 번갈아 수행한 23쌍을 모두 보존했다.
+고정 기준은 8개 묶음에서 2배 이상 가속, singleton 비용은 1.05배 이하였다.
+
+| 조건 | 원본 median | 후보 median | 원본/후보 속도 배율 | 판정 |
+| --- | ---: | ---: | ---: | --- |
+| BF16 8개 묶음 | 289.131 ms | 290.484 ms | 0.9953 | 2배 가속 기준 실패 |
+| BF16 singleton | 31.995 ms | 32.195 ms | 0.9938 | singleton 비용 한도 통과 |
+| F32 singleton | 43.782 ms | 43.073 ms | 1.0165 | singleton 비용 한도 통과 |
+
+전체 후보는 실패로 기록했다. 좋은 조건만 골라 채택하거나 기준을 바꾸지
+않았고 동일 후보를 다시 측정하지 않는다. whole-model cache/취소 통합이나
+실제 함수 요청에 사용하지 않았다. V90/V91은 입력 비용과 계산 비용의 다음
+최적화 대상을 좁히는 근거이며, **전체 설명 3초 목표를 증명하지 않는다**.
+설치본과 공개 버전은 0.0.1145다.
+
+- V90 실제 종료·profile 증거: `a39272d3639e3578eb20620c8738d1576d08ee6187839da3d0a3f3b4e32cf36b`
+- V91 전체 수치·성능 거부 증거: `91caf14b8ddb867dafa24db9d7e56c024fc963067a947d773dcacf68fbc6f813`
+
+## 전체 준비 입력의 토큰 비용과 새 스키마 표현 거부
+
+2026-10-12 인계 이후에는 종료된 실험을 재시작하지 않고, 기록된 다음 작업인
+전체 준비 입력의 CPU 비용 분석을 수행했다. V92는 기존 V83의 **2,920개 학습
+입력·868개 monitoring 입력·100개 준비 평가 입력**, 합계 **3,888개**를 읽었다.
+이 입력을 다시 학습하거나 실제 모델에 요청하지 않았다. 금지된 함수 family의
+원문을 CPU로 읽는 것과 neural 재시험은 구분했다.
+
+원래 tokenizer와 chat template로 각 전체 입력을 처리해, 저장된 전체 prompt
+token 배열과 **모든 byte가 같은지** 확인했다. 같은 token을 두 구간에 더하지
+않도록 실제 offset으로 비용을 분해했다. 경계를 가로지르는 token은 별도로
+집계했다. JSON의 `const`, 설명, 원문 문자열을 schema로 오인하지 않았으며
+모든 입력의 구간 합계가 원래 전체 token 수와 일치했다.
+
+| 전체 입력 묶음 | 전체 prompt token | 원래 지침 | compiler schema·metadata | 원문 본문 문자열 |
+| --- | ---: | ---: | ---: | ---: |
+| 학습 입력 2,920개 | 6,910,212 | 48.19% | 18.39% | 3.00% |
+| monitoring 입력 868개 | 2,032,388 | 47.96% | 16.53% | 3.57% |
+| 준비 평가 입력 100개 | 308,854 | 42.96% | 27.54% | 3.54% |
+
+표의 지침은 system·task·output instruction 합계다. compiler 항목에는 전체
+source/slot binding, schema keyword·제약·설명·소유자 annotation·manifest가
+포함된다. 원문 본문은 `snippets[].text` 문자열 구간만 뜻하며, 나머지 source
+facts·조건·역할·호출 정보는 별도 집계했다. 이 비율은 입력 token 비용이고
+모델의 GPU 시간이나 실제 함수 설명 완료 시간의 비율은 아니다.
+
+V93은 이 근거에서 출발한 **하나의 고정된 새 prompt 표현**이었다. 인접한
+문자열 type/길이/pattern, 배열 길이/추가 항목 제약을 짧은 그룹으로 묶고,
+canonical `$comment` JSON을 한 번만 인코딩했다. 모든 compiler object는
+키 순서까지 원래 JSON으로 복원했다. 원문·부모/근접 callee·소스별 설명·
+전체 지침·native schema·모델이 작성할 전체 값과 설명 필드는 그대로 두고,
+표현 해독 지침만 명시적으로 추가했다. 충돌·미지원 입력과 이득 없는 입력은
+원래 요청 전체를 사용했다. 원래 출력과 EOS의 **861,213개 target**도 모두
+저장된 배열과 byte가 같았고, 기존 window·output·stdio 한도를 유지했다.
+
+| 전체 입력 묶음 | 원래 prompt token | 후보 prompt token | 입력 token 증가 사례 |
+| --- | ---: | ---: | ---: |
+| 학습 입력 2,920개 | 6,910,212 | 6,881,525 | 1,204개 |
+| monitoring 입력 868개 | 2,032,388 | 2,027,362 | 384개 |
+| 준비 평가 입력 100개 | 308,854 | 306,778 | 12개 |
+
+전체 원문을 보존하는 역변환 자체는 통과했지만, 해독 지침까지 포함한 실제
+전체 token 비용은 **1,600개 입력에서 증가**했다. 합계 절감도 **35,789 /
+9,251,454 token, 0.386847%**에 그쳤다. 전체 입력의 token 비증가 기준을
+통과하지 못해 **후보 전체를 거부**했다. 유리한 입력만 고르거나 기준을
+완화하지 않았으며, 같은 표현을 수정해 재실행하지 않는다.
+
+비용 집계의 source/offset 경계 검사 7개와 새 표현의 정확한 역변환·literal
+격리·예약 키 충돌·cycle/depth·전체 fallback 검사 9개가 통과했다. 실제
+전체 audit은 V92 exit0, V93 construction exit0, V93 token audit exit1로
+종료했고 소유한 audit PID의 부재를 확인했다. 모델·GPU 실행과 학습은 0회다.
+제품 코드, 설치 모델과 공개 버전 0.0.1145는 바꾸지 않았다.
+
+이 결과는 단순한 schema 축약만으로 현재 지연과 품질 문제를 해결할 근거가
+부족하다는 뜻이다. 다음 개선은 실제 decode 계산/스케줄링에서 새 병목을
+해소하거나, 전체 맥락과 LLM 책임을 유지하는 설명 품질 개선의 근거를 먼저
+확보해야 한다. **정확한 전체 설명 3초 목표는 계속 미달성**이다.
+
+- V92 전체 비용 증거: `485d7e4bc072b13efe2f9b018505004d8fd9536293d5a1f6dc4b09bbd807788e`
+- V93 전체 token/target 증거: `219d29e351c224101bf39f7eb82f865ea08d12c0bd64f22c50a60104aef7fa01`
+- V93 전체 거부 결정: `05dd6f23935e579184e064ebf73ee74fb04d63de21059ff6490c254a66c643d5`
+
+## Decode 수치 거부와 runtime에 맞춘 전체 학습 입력 준비
+
+V94는 이전 V91의 512-token prefill 묶음과 구분되는 **단일 token decode
+MLP 행 묶음**을 구현했다. 기존 M=1 batch-axis projection과도 달리 원래
+2차원 quantized weight에 M=2/4/8 행을 전달했다. 가중치·dtype·양자화·
+SwiGLU·전체 출력·UID를 보존했지만, 다른 행 geometry의 반올림 결과가
+같다고 가정하지 않고 먼저 실제 모델에서 검증했다.
+
+원래 28개 MLP에 대해 BF16 1/2/4/8개, 순서가 다른 UID, F32, prefill,
+mixed-length fallback을 포함한 **1,372개 전체 출력 비교**를 수행했다.
+원래 shape/dtype/finite/byte comparator를 변경하지 않았다.
+
+| 실제 비교 조건 | 비교 수 | 원래 출력과 byte가 다른 수 |
+| --- | ---: | ---: |
+| BF16 decode 2개 묶음 | 56 | 56 |
+| BF16 decode 4개 묶음 | 112 | 112 |
+| BF16 decode 8개 묶음 | 224 | 224 |
+| 순서가 다른 BF16 UID 8개 묶음 | 224 | 224 |
+| 원래 singleton/F32/prefill/mixed fallback | 756 | 0 |
+
+모든 묶음의 모든 층에서 수치 동일성을 통과하지 못해 **후보 전체를 거부**했다.
+수치 실패 후 속도를 측정하지 않았다. 가중치 객체 identity와 종료 시
+**316,768,264 model bytes**는 유지했고, 외부 RNG를 복구한 뒤 최종 allocation은
+원래 **8 bytes**였다. 실제 exit1 및 PID 부재를 확인했다. source/model 설명
+요청과 sampler draw는 0회다. 이 결과는 MLP 연산의 검사이며 whole-model
+logits/KV/문법/sampling/실제 설명 품질·Host 시간의 새 검증은 아니다.
+
+이후에는 실제 학습 입력과 runtime 표현·반환 범위의 차이를 CPU로 확인했다.
+V95의 첫 전체 감사는 monitoring에서 빠진 반환 유형도 정확히 두 개일
+것이라는 검사 가정이 잘못되어 중단됐다. 첫 코드·실패·실제 exit1을 보존했다.
+V95 전체 감사를 통과했다고 기록하거나 수정해 재실행하지 않았다.
+
+V96은 별도의 **전체 runtime-aligned 학습 입력 준비**다. 실제 V74 seal이
+지정한 **2,920개 학습·868개 monitoring**, 합계 **3,788개**의 모든 원문,
+context, native schema, 모델 정답, confidence/unknowns, split과 행 순서를
+보존했다. 입력 message만 이미 검증된 최종 V83 runtime 표현과 맞췄다.
+**학습 143개·monitoring 48개**의 message가 바뀌었으며, 나머지는 그대로다.
+전체 **827,145개 native target/EOS**와 input/window/grammar 증거는 불변
+V83 결과와 정확한 identity로 연결했다. 새로운 tokenization이나 neural
+품질 검사를 했다는 뜻은 아니다. 준비된 평가 source/teacher를 학습 자료에
+넣지 않았다.
+
+이 준비본에는 원래 실제 학습 입력에 없었던 세 compiler 표현이 포함된다.
+현재 저장된 실제 V87 실패 요청 네 개는 모두 학습에서 보지 못했던 V82
+comment 표현을 사용했었다. 그러나 이 차이나 아래의 범위 누락만으로 이전
+설명 실패의 원인을 증명하지는 않는다. 입력을 맞춘 자료를 준비한 것이며
+모델을 다시 학습하거나 요청한 결과는 아니다.
+
+| rich 작업의 실제 선언 반환 유형 | 학습 행 | monitoring 행 |
+| --- | ---: | ---: |
+| numeric | 188 | 84 |
+| Boolean | 24 | 8 |
+| String | 24 | 0 |
+| nullable numeric | 0 | 0 |
+| nullable String | 0 | 0 |
+
+nullable parameter가 있는 예제를 nullable return 예제로 세지 않았다.
+call task의 선언 반환 유형도 자료에 없는 경우 추측하지 않았다. 전체 root
+읽기에서 다섯 반환 유형×Kotlin/TypeScript×한국어/영어의 **20개 조합**을
+따로 확인했으며, 학습에서는 nullable 반환 **8개 조합**, monitoring에서는
+String/nullable 반환 **12개 조합**이 비어 있다. node/summary-only 예제나
+다른 locale의 예제로 이 누락을 숨기지 않았다.
+
+새 준비본의 입력 표현 차이는 해소했지만 실제 반환 유형 누락이 남아 있어
+**학습 허용 상태는 false**다. 기존 자료를 전부 유지하면서 금지된 family나
+reserved 평가 source와 다른 새 원문으로 해당 root 읽기 조합을 보완해야
+한다. 이후에도 전체 teacher 의미·native grammar/token/소유권을 확인하고,
+실제 새 모델의 모든 scope 의미와 전체 Host 3초 검증을 통과해야 한다.
+세 단계의 CPU 계약 검사는 합계 **15개**가 통과했다. 새 학습·실제 함수
+neural 요청·제품 변경·설치는 없고 **3초 목표는 계속 미달성**이다.
+
+- V94 수치 거부 결정: `187b95ef6f917b7691386bd25f5543d71f798492a316836c0476577073c1e292`
+- V95 최초 CPU 감사 실패: `36a924e284758054a0e1f984929cef238ddfb1b1ee7d28a6b3484bb421da549f`
+- V96 전체 입력 준비: `e0da4a69155778f036430842715eef681c5af520960c6e0f4766a96a0dcb50e9`
+- V96 실제 종료·누락 판정: `1ae05e896366cf7f0c6eea07227655a30b80983f4d703368e30c683b5d7c234c`
+
+## 실제 nullable 반환·String monitoring 범위 보완
+
+V97은 V96에서 확인한 누락을 보완하는 **새 원문 10개·52개 전체 root 예제**를
+작성했다. 학습에는 실제 null/Boolean guard 뒤에 nullable numeric/String을
+반환하는 두 family, monitoring에는 Boolean으로 고르는 String, ceiling과
+비교하는 nullable product, 빈 문자열을 검사하는 nullable concatenation의
+세 별도 family를 추가했다. 기존 학습·monitoring·예약 평가 source와의 전체
+원문/hash/정규화 source 부재와 whole-algorithm 의미 차이를 함께 검토했다.
+세 영구 neural 금지 family와 이전 parent/helper 금지는 유지했다.
+
+첫 독점 V97 생성은 TypeScript live worksheet의 `owns` 함수가
+`structuredClone`에 전달돼 실패했다. 최초 코드·실패·실제 exit1을 보존하고
+수정해 재실행하지 않았다. V98은 **live 소유권 검사와 JSON 감사 snapshot을
+구분하는 adapter**를 추가했다. model payload와 source-certified 값은 원래
+live context에서 처리하고, 모든 직렬화 가능 source/graph/type/data를 snapshot에
+보존했다. callable 경로와 소유권 검사 receipt는 따로 남겼다. snapshot을
+runtime worksheet로 사용하지 않으며 실제 runtime은 전체 source에서 다시
+구성해야 한다. 역치환으로 원래 V97 builder의 모든 byte가 복구된다.
+
+V98 실제 생성은 원래 Host/provider/native codec/validator와 디스크 페이지
+저장을 사용했다. Kotlin/TypeScript×한국어/영어의 **20개 action·52개 전체 경로·
+148개 source occurrence**가 모두 전달됐고 페이지·capture 자원도 닫혔다.
+학습 24행과 monitoring 28행을 추가해 **2,944개 학습·896개 monitoring**이
+됐다. 기존 3,788개 행의 원문·context/schema·정답·split·순서는 그대로다.
+source-certified 예제 44개는 독립 scalar reference와 비교했고, 나머지 8개는
+실제 경로와 모든 graph occurrence를 만족하는 예제를 독립적으로 골랐다.
+
+| rich 작업의 실제 선언 반환 유형 | 학습 행 | monitoring 행 |
+| --- | ---: | ---: |
+| numeric | 188 | 84 |
+| Boolean | 24 | 8 |
+| String | 24 | 8 |
+| nullable numeric | 12 | 8 |
+| nullable String | 12 | 12 |
+
+학습과 monitoring 모두 다섯 반환×두 언어×두 locale의 **20개 full-root
+조합**이 채워졌고 runtime compiler 표현의 미노출도 남지 않았다. 자료의
+존재를 실제 모델 일반화나 3초 완료의 근거로 사용하지 않는다.
+
+전체 **3,840행**의 실제 token 배열을 생성해 모든 기존 **827,145개 target/EOS
+byte**를 보존했다. 새 52개 native/object grammar pair는 완성된 실제 target
+token과 terminal EOS를 모두 받아들였다. 합계 target/EOS는 **840,699개**,
+최대 전체 sequence는 **5,059 token**이다. 원래 8,192 window·2,400 output·
+196,608-byte 요청 한도 안에서 모두 통과했다. source/target/EOS를 자르거나
+monitoring·reserved teacher를 학습으로 옮기지 않았다.
+
+별도 의미 검토는 실제 선택 입력에 대한 controlled TypeScript oracle,
+Kotlin 예제의 같은 범위 정수 연산, **1,788개 original teacher leaf·748개
+model prose field·148개 source occurrence**를 포함했다. 모든 고유 한국어/
+영어 문장을 읽었고 원문 연산·null 결과·분기·지역 상태·전체 목적을 확인했다.
+String monitoring의 source-certified active/inactive 값이 같다는 한계는
+명시했으며 branch identity는 원래 code·graph outcome으로 별도 확인했다.
+원래 계약이 source-only literal/Boolean prose를 복원하는 경계도 유지했다.
+`narrative.steps`를 전체 graph occurrence 목록으로 오인하지 않았다.
+
+reference/경로/잘못된 source/Int overflow 검사 6개와 live worksheet/snapshot
+격리 검사 3개가 통과했다. 생성과 token audit의 실제 exit0, 소유 PID 부재,
+증거 hash를 확인했다. **새 model load·학습·source neural 요청·설치는 0회**다.
+학습 전에는 전체 자료의 기존 equal-per-source-component/completion objective,
+실제 SDK shuffle/loss/mask stream과 final-only 안정성·자원 보존을 검증해야
+한다. 이후 새 고정 전체 pass 후보와 실제 all-scope 의미·전체 Host 3초
+기준이 필요하며 **목표는 계속 미달성**이다.
+
+- V97 첫 생성 실패: `2ba864544b9541c8e3f6bc59f9c3bd407094d5287a0bed76da1e11a0c59fcfd3`
+- V98 전체 생성: `7f4bde4780084d73d356cf768a93641519b978ccde0b6be7519ccdb0f92b61bc`
+- V98 전체 token/grammar/EOS 증거: `b947fb0e1db371c6d83ab0b29f711ce1dbafec56d055c26863d5a9b64a54108b`
+- V98 전체 teacher 의미 검토: `9e48a1096c4882682a62509f68fba6a668821fea7abc6b653942f585df73c9f9`
+- V98 준비·종료 결정: `2c7b0c00f4bb81e5872b5178b9750646826159b205c6fb72ed6dea45bd84cecb`
+
+## V99: 전체 정렬 자료의 원래 objective와 실제 SDK CPU 스트림
+
+V98 전체 **3,840행**에 원래 equal-per-completion hierarchy를 재적용했다.
+기존 classifier·source connectivity·balance·completion/EOS loss는 수정하지
+않았고, 새 5개 source family는 검토된 전체 원문·이름·타입·split과 정확히
+일치할 때만 별도 adapter에서 허용했다. curriculum의 nullable-input 분류와
+실제 root 반환형 coverage를 분리해 기록했다.
+
+기존 **3,788개 source owner와 component identity**를 보존했다. 새 10개
+원문을 포함한 component는 **91개**다. 전체 학습 2,944행의 양의 Rational
+weight를 다시 계산했고, 각 stage의 objective mass **0.25**, rich primitive
+type의 mass **0.05**를 유지했다. 전체 행 수와 family partition이 바뀌어
+기존 2,920행의 수치 weight는 달라졌지만 원래 정책은 동일하다. monitoring
+896행과 reserved source에는 optimizer weight를 부여하지 않았다.
+
+실제 변경 없는 SDK `iterate_batches`와 원래 V73 public ledger/stream을
+사용한 CPU 감사에서 모든 3,840행이 통과했다. stable length sort·seed42
+순서, 전체 source/response/EOS byte, **47개 동적 Rational weight**, prompt/
+padding 제외와 첫 response/마지막 EOS 포함을 확인했다. 학습 target/EOS
+**630,150개**, monitoring **210,549개**를 모두 보존했다. optimizer 보고를
+실제 학습으로 시뮬레이션하지 않았다.
+
+policy 6개·array admission 5개·원래 compiled loss/gradient 3개 테스트가
+통과했다. 처음 MLX import는 sandbox Metal 접근 실패로 테스트 시작 전에
+거부됐고, 필요한 권한으로 같은 CPU 테스트를 실행했다. 전체 SDK 감사는
+실제 exit0와 PID 부재를 확인했다. 모델/optimizer/source neural 요청은 0회다.
+
+- 전체 objective: `ede4aab37fb739e72e532d8fd0c0b0f055242e3a1b0ed409b59d2f731e2ea1a5`
+- 실제 전체 SDK CPU 증거: `3e500f7c5cf7c61f482206b31b6f8280f91347c4139a86ba00b728cafc257a05`
+- V99 준비·종료 결정: `bdd55ccc172ef8ca0108cd99b888b3f858f6e6cc17411f1f28e332a9e1c71776`
+
+## V100/V101: 전체 새 반환 자료의 안정성 검증과 고정 전체 학습 시작
+
+V100은 원래 **48개 training-only owner·24개 group**을 현재 전체 입력에
+다시 연결하고, **새 nullable 학습 24행 전부**를 추가했다. 총 **72행·32개
+group**이며 monitoring/heldout을 선택하지 않았다. 원래 V54 evaluator와
+모든 수치 기준·검사 시점 **0/200/600/1200/2000/2920**은 유지한다.
+원래 final2920 improvement 검사도 남기고, 실제 마지막 update **2944**의
+검사를 추가했다. 원래 48행과 새 24행의 global/group 검사는 독립적이어서
+추가 행의 개선이 기존 행의 악화를 가리지 않는다.
+
+원본 0.6B 모델을 한 번 로드해 원본과 zero-B LoRA에서 **144회**의 전체
+teacher-forced forward를 실행했다. 각 variant의 전체 **16,783개 target/EOS**
+NLL vector를 보존했다. 원래 48행 평균 NLL **3.0483297103**, 새 24행 평균
+**3.3660131448**, zero-LoRA 평균 NLL 최대 차이 **0**이며 두 initial guard가
+통과했다. RNG 보존·원래 active allocation **8 bytes**로 해제·실제 exit0·
+소유 PID 부재를 확인했다. 97,356.788ms는 이 진단 전체 실행 시간이며
+설명 지연 측정이 아니다. policy/admission 8개 테스트가 통과했다. 이
+실행에는 optimizer·sampler·설명 요청·adapter 저장이 없다.
+
+V101은 원래 V74 trainer를 변경하지 않고 역변환 가능한 전체 byte recipe로
+새 trainer를 만들었다. 변경은 자료 수, V100 public guard 연결, 버전/상태,
+학습 후 canonical asset hash 확인이다. 원래 학습률 **1e-5**, **1 epoch**,
+seed42, batch/accumulation1, LoRA layers16/rank8/scale20/dropout0, BF16 base/
+F32 adapter, SDK gradient checkpointing, allocation6144, memory10GiB/cache256MiB,
+time10200seconds, **final-only** 저장을 유지한다. iterations2944·maxSequence5059는
+전체 자료에 따른 값이다. 이전 adapter를 로드하거나 setting sweep을 하지
+않는다. 추가 fixed trainer admission 3개 테스트와 preflight가 통과했다.
+
+실제 **한 번의 전체 학습**을 시작했다. 실행 세션은 **12644**, 소유 PID는
+**15853**이고, optimizer 전 iteration0의 원래 48행·새 24행 guard가 통과했다.
+최종 adapter와 2,944개 완료 update 증거는 아직 없다. 진행/종료 상태는
+`checkpoint.json`, 실제 `completed-update-reports.jsonl`, `training-result.json`
+및 해당 소유 세션으로 확인한다. 종료되거나 실패한 attempt를 재시작하지
+않으며 다른 모델을 동시에 로드하지 않는다.
+
+- V100 전체 panel: `fd7e797f3625ec693806bdbef12d585dfdb89db05fc492946008b877594929b0`
+- V100 실제 fresh/zero-LoRA baseline: `e0ac907fcfd5e762d7c7d8b2027442afacd16571923d5f2fbaa77e83f47af038`
+- V100 준비·종료 결정: `e688b67a45a8d6d3a8efafaa61f437c9b72d49669614fe0786c8fc023e6468a6`
+- V101 단일 전체 학습 seal: `3eda9323bab85025856a11c1540ebd77a632d1558802b4ddd6eadfd430f20022`
+
+현재까지 제품 코드·설치 버전은 **0.0.1145** 그대로다. 전체 학습·최종
+무결성/해제 후에도 새로운 non-banned family의 모든 scope/field/route에
+대한 실제 모델 설명 의미·정확성 및 올바른 전체 Host **≤3000ms** 검증이
+필요하다. **목표는 아직 미달성**이며 실패 후보를 출시하거나 설치하지 않는다.
+
+## V102/V103: 새 숫자 family와 전체 92개 frozen 평가 요청 준비
+
+영구 금지된 숫자 family를 `calculated-nonnegative-difference-factor-product`
+라는 새 전체 소스로 교체했다. `left-right`의 계산 결과가 음수면 0을,
+그 외에는 그 결과와 `factor`의 곱을 반환한다. factor의 부호를 검사하지
+않으므로 반환 곱은 음수일 수도 있다. remainder·String mismatch·budget
+loop 및 새 nullable 학습 family와 다르며, 학습/monitoring 자료에 넣지
+않았다. Kotlin/TypeScript·한국어/영어의 모든 **4 action·8 path·28 source
+occurrence**를 유지했다.
+
+독립 TypeScript VM/Kotlin Int 연산, 음수 factor·동등 경계·Int overflow·
+signed zero·전체 graph/prose/value/final 필드 검사 5개가 통과했다. 첫 draft
+테스트의 TypeScript `-0` 기대값 오류와 원래 schema 길이를 넘은 참고
+문구 실패는 독점 생성 전에 보존·수정했다. 원래 기준을 완화하지 않았다.
+실제 Host/codec/validator/디스크 해제와 8개 native/object grammar/EOS pair,
+전체 **29,616 prompt token·3,124 target/EOS·maxSequence5,011**을 검증했다.
+별도 의미 검토는 **336 teacher leaf·152 prose field**를 포함했다. 모든
+고유 KO/EN 문구를 읽었다. 실제 source-certified 예제의 두 경로 결과가
+모두 0이라는 한계를 명시했다. 값만으로 곱셈이나 경로의 정확성을 판정할
+수 없으며 원문·code·graph·전체 설명과 분석을 함께 검토해야 한다.
+
+V103은 이 새 8개 요청과 기존 **32개 미실행 non-banned action의 84개
+요청을 전부** 합쳤다. 종료된 V77/V87 executable catalog/builder를 호출하지
+않고 원래 V77 자료와 실제 V83 전체 입력을 불변 hash로 직접 연결했다.
+모든 caller/callee source, context, schema, 자유 prose/value, confidence/
+unknowns, compiler 밖 지침과 fallback 요청을 보존했다. 원래 scope를
+줄이거나 유리한 행만 고르지 않았다.
+
+전체는 **36 action·92 request·60 rich route·256 source occurrence·40 call·
+84 disk page·28 final callee body**다. 다섯 반환형×KT/TS×KO/EN의 **20개
+full-root 조합**을 포함한다. catalog 경계 검사 4개와 전체 92개 실제
+retokenization 검사가 통과했다. 모든 전체 sequence/target/EOS byte가
+원래 V83 또는 V102 owner 배열과 같았고, 실제 LLGuidance가 92개 native
+target과 terminal EOS를 모두 받아들였다. 합계 **271,667 prompt token·
+28,724 target/EOS**, maxPrompt **5,203**, maxSequence **5,937**이며 원래
+8192/2400/196608-byte 한도 안이다. 실제 CPU exit0/PID 부재를 확인했다.
+모델·source neural 요청은 0회이며 **모델 의미/전체 Host 지연 증거가 아니다**.
+
+- V102 frozen 숫자 준비 결정: `c31e1f968aeb862d164b501b4472487476c0fe8acf7bec5b26bb361ba9a63730`
+- V103 전체 생성: `6b243fc76e4f934222404ce7dcb996ac32842b623a4c1b6e4c2e07521a4959d9`
+- V103 실제 전체 token/grammar/EOS: `bb9b45909dafe19755a930c112d01ba33d7c38097d03018dca18ab13e60aa589`
+- V103 전체 scope 준비 결정: `1cd35d797aaa02b53278f74509624486b9247c04dd4cb29fa39b4e65e249ebc0`
+
+## V104: 실제 최종 종료를 기다리는 독립 증거 검사 준비
+
+원래 V75 adapter public inspector를 그대로 재사용한다. 최종 파일의 모든
+**224 F32 array·2,883,584개 유한 parameter**, 이름/shape/offset/전체 file
+extent를 검사하며 모델을 로드하지 않는다. 원래 전체 trace 함수를 정확한
+function byte로 추출해 수와 마지막 보고만 바꾼 역변환 가능한 recipe를
+준비했다. 실제 전체 **2,944개 owner·630,150 target/EOS·148개 완료 보고**를
+요구하며, interval20 보고 147개 이후 **마지막 2,944회 보고**가 빠지면
+실패한다. 이전 hardcoded dataset loader나 종료 entrypoint는 실행하지 않는다.
+
+각 안정성 검사의 원래 48개+새 24개, 총 **72 owner·16,783개 NLL/top-token
+entry**를 CPU에서 다시 계산한다. source/target byte와 실제 저장된 평균·
+accuracy·독립 원래/새 정책 결정이 모두 일치해야 한다. 실제 완료된
+**0/200/600/1200** vector를 재검증했고, partial prefix·누락된 final report·
+잘못된 동적 weight·오염 NLL/source owner를 포함한 검사 5개가 통과했다.
+첫 draft의 숫자 치환 역변환 충돌은 테스트 시작 전 보존·수정했다.
+합성 보고와 이전 immutable adapter의 header 검사는 API 검사이며 실제
+현재 학습의 종료나 품질을 뜻하지 않는다.
+
+V101 학습은 **소유 세션12644/PID15853에서 계속 실행 중**이다. 기록된
+실제 완료 prefix는 **2,120회·453,558 target/EOS**이고, 이후 최신 상태는
+실제 `completed-update-reports.jsonl` 및 소유 세션을 확인한다. 원래/새
+guard0/200/600/1200/2000이 통과했다. 1200회의 평균 NLL은 원래 48행
+**0.5607026517**, 새 24행 **0.8830051017**이다. 추가로 실제2000 guard의
+전체16,783-entry vector를 독립 재계산했고, 원래48행 **0.3277042358**,
+새24행 **0.4018687598**과 두 고정 정책의 통과가 일치했다. 최종 adapter·전체 완료·
+최종 해제·실제 새로운 source NN/3초 검증은 아직 없다. 학습률/epoch/
+checkpoint를 바꾸지 않으며 다른 GPU 모델을 동시에 로드하지 않는다.
+
+- V104 독립 최종 검사 준비: `df35ff8948c02f945dd67b70eb3b7e6d40d9b2f03c966728124d66e6091c6f31`
+
+실제 소유 학습의 exit0/PID 부재·전체 ledger·7개 guard·final-only adapter·
+원본 asset·RNG/8-byte cleanup을 확인한 후에만 최종 CPU 감사를 시작한다.
+그 뒤에도 fixed fusion/tensor/numeric/joint-runtime 검증, V103 전체 source
+의미와 올바른 전체 Host **≤3000ms**, 제품 통합·QA·release/install이 필요하다.
+**목표는 계속 미달성**이며 제품/설치 버전은 **0.0.1145**다.
+
+## V105~V108: 실제 전체 학습 완료·최종 모델 생성·새 가중치 수학/공동 스트림 검증
+
+V101의 실제 소유 세션12644/PID15853이 **exit0**로 종료됐다. 전체
+**2,944개 distinct update·148개 완료 보고·630,150 target/EOS**를 처리했고,
+원래 검사 시점 및 actual-final을 포함한 **0/200/600/1200/2000/2920/2944**
+검사가 모두 통과했다. 마지막 평균 NLL은 원래48행 **0.1878828771**,
+새24행 **0.2274369092**다. 학습 전체 시간 **7,874,875.654ms**는 실제 학습
+시간이며 설명 지연이 아니다. final-only adapter가 저장됐고, source/target/
+EOS를 자르거나 부분 adapter를 재개하지 않았다. 원본 자산 hash, NumPy/
+MLX RNG 보존, 원래 **8 active bytes**로 해제, 실제 소유 PID 부재를 확인했다.
+
+V105 실제 최종 CPU 감사는 모든 source/target/동적 weight/SDK 순서·148개
+완료 보고·7개 raw72-owner/16,783-entry NLL/top-token 관측·224 F32 array/
+2,883,584 finite parameter·전체 file extent·설정·원본 자산을 독립 검사해
+통과했다. 모델 생성 KV의 검사는 아래 V107/V108에 해당한다.
+종료/소유/partial/final-ready 경계 검사 4개도
+통과했다. 합성 terminal/API 제어를 실제 종료 증거로 사용하지 않았다.
+
+V106은 이 **한 최종 adapter**를 원래 SDK의 **Q4/group128** 수학으로 한 번
+합쳤다. 원래8GiB/cache256MiB/time180seconds 제한과 canonical tokenizer
+archive/복원을 유지했다. CPU 경계·tensor/SDK·fusion 소유/해제 검사 6개와
+실제 GPU exit0/PID 부재·RNG/8-byte cleanup을 확인했다. 이후 독립 CPU
+감사가 **704개 array 전체**의 shape/dtype/finite/file extent를 확인했고,
+선언된 adapted array **336개**가 바뀌며 나머지 **368개**는 원본 byte와
+같았다. tokenizer/config는 canonical byte로 복원됐다. 원본 weight와
+의도적으로 합쳐진 weight는 각자의 hash로 확인했으며 같은 파일로 취급하지
+않았다. 이전 종료된 V75/V84 executable을 수정하거나 다시 실행하지 않았다.
+
+V107은 **새 모델961f4852…**에서 원래 function/cache/readiness 수학의 전체
+byte identity를 유지한 수치 검사를 한 번 실행했다. **51 projection pair·
+51 compiled pair·336 MLP pair**, **19+19 full8192-window pair**의 유한 logits/
+active KV/할당 byte/MLP 출력이 모두 일치했다. 원래 더 큰 **5,181-token**
+geometry를 유지해 새 실제 최대5,059를 포함했고 모든 작은 geometry와
+3 decode를 유지했다. 모델만의 **316,768,264 bytes**, 추가 packed weight
+0bytes, readiness RNG, 한 번의 compile을 확인했다. 실제 exit0/PID 부재를
+확인했다. **32,594.486ms는 합성 수치 진단 시간**이며 설명 지연이 아니다.
+
+V108은 새 가중치에서 원래 모든 function/class/case body를 보존한
+**14 reference/candidate 전체 합성 스트림**을 비교했다. **206개 token/key
+transition**, 전체 normalized logits·초기/terminal/cancelled KV·complete raw/
+parsed text·EOS extra draw·sampler/grammar/cache 소유 해제가 모두 같았다.
+결과는 **13개 전체 완료와 명시적 취소1개**다. source-free 준비/모든 소유
+해제 뒤에도 모델만의316,768,264bytes와 outside RNG/weight owner가 같았다.
+실제 exit0/PID 부재를 확인했다. 합성 reference/candidate draw 총합은
+424개이며 **실제 함수 source/설명 요청은 0회**다.
+
+- V105 실제 최종 감사: `d0bbcb7f0e00360f78abb2dfdb2210b6a6307eb9b62322a42df99c0914b514ac`
+- V101 final-only adapter: `f3f3cd2e75abbf290cdb908486c96547853e5cb27995de8ba70510ece2edde47`
+- V106 새 모델 weight: `961f4852834d70c2d20044280db9a1414cbdaf48d37e54faa31286e9d65d2ef2`
+- V106 전체 tensor/asset 결정: `da39353be5e3f1d75a11fda5078794a8f7301ea5677cef491492a4f8f2091c46`
+- V107 실제 수치 terminal: `e2a93893cbc8958be979dc654ae56abf41b26a7b5fd94e612d6d87599269f4a3`
+- V108 실제 공동 스트림 terminal: `d50761c96a998ebf58ec406d2f2cd599aecb2ffc0d74a02fb7b2a18b0f1fbab1`
+
+이 증거는 새 모델의 기본 수학·owner·sampler/decoder 구현을 확인한다.
+실제 source의 자유 설명 의미나 전체 Host3초를 입증하지 않는다. 다음에는
+V103 전체 **36action·92request·20root 조합·60rich route·40call·28 final callee
+body**를 유지한 새 실제 runtime 계획을 CPU에서 검증한 뒤 whole action을
+하나씩 실행하고 모든 실제 필드를 검토해야 한다. 실제 quality/time 실패는
+family 전체를 모든 weight/이름/언어/locale/scope 변형에서 재추론 금지로
+기록하고 계획을 폐기한다. 모델/precision/sampler/scope sweep이나 유리한
+사례 선택을 하지 않는다. **목표는 아직 미달성**, 제품/설치0.0.1145다.
+
+## V109: 새 최종 모델의 첫 실제 전체 함수 평가 실패
+
+새 모델961f4852…의 실제 source runtime은 원래 V87 worker와 input-audit의
+전체 byte를 그대로 유지했다. provider와 action runner는 새 모델/폴더/상태
+binding만 바뀌며 역변환으로 원본 전체 byte를 확인했다. source 분석·모든
+검증·disk page 읽기·요청/모델/store 해제를 포함한 원래 전체 Host timer와
+3,000ms 기준을 유지했다. CPU refusal5개, 전체 catalog/실제 Host 검사4개가
+통과했다. 후자의 실제 Host 검사는 새 Kotlin/TypeScript·한국어/영어 4개
+action의 8개 경로·28개 소스 occurrence와 native 입력 byte를 전부 확인했다.
+오프라인 reference를 CPU validator에만 사용했으며 모델에 답을 전달하지 않았다.
+
+전체 **36action/92request** 계획을 봉인한 후 첫 **Kotlin/한국어
+scaleNonnegativeGap(left,right,factor)** 함수의 **두 경로 전체**를 한 번
+실행했다. 모델 준비 이후 소스 파싱부터 모든 완료/해제까지 실제 Host 시간은
+**22,295.021333ms**다. 두 native response의 prompt token은 **3,962/4,313**,
+output token은 **951/204**이며 EOS를 포함한 sampled token은 **952/205**다.
+단일 cohort의 tokenization+generation은 **21,318.576583ms**, 전체 packet은
+**21,382.340792ms**다. 이 시간을 두 요청으로 나누어 개별 지연으로 표시하지
+않는다. 이전 V87과 함수/경로/출력이 다르므로 속도 개선 비교로 사용하지 않는다.
+
+원래 parser/validator는 두 응답을 받아 모든 **2개 경로·7개 소스 occurrence·
+2개 disk page**를 전달했다. 원본 소스/지침/schema 입력 byte는 준비 자료와
+일치하고 source-free readiness·fresh KV/owner 해제·모델 child exit0와
+요청 상태 미보존도 확인했다. root runner는 시간 실패 때문에 실제 **exit1**로
+끝났으며 root/model PID 둘 다 부재를 관측했다. 형식 통과가 설명 의미의
+통과를 뜻하지 않는 결과다.
+
+독립 검토는 두 native 확장의 **87개 leaf/빈 collection**, 전달 페이지의
+**244개 leaf**, 모든 **41개 자유 prose/빈 collection**을 포함한다. 참 경로의
+대입은 difference=-10을 저장하는데 설명은 중간 계산을 하지 않는다고 한다.
+조건/요약/분석/가정에는 소스에 없는 Elvis lowering 문장을 반복한다. 거짓
+경로에서는 대입의 근거에 조건식을 쓰고, 곱셈 대입의 효과를 반환으로 잘못
+표현한다. summary/alternative는 실제 두 분기와 factor의 검사되지 않은
+부호를 설명하지 못하고, limitations는 산술 표현10이라는 무관한 문장이다.
+따라서 **전체 의미와 전체 3초 모두 실패**다.
+
+고정 source 값·code·graph·literal-return 설명은 기존 계약이 복원한 값이며
+모델이 계산이나 자유 설명을 맞혔다는 증거로 사용하지 않는다. 실제 선택된
+두 예시의 반환값이 모두0이므로, 결과값 일치만으로 일반 곱셈/분기 의미를
+입증할 수도 없다. 모든 raw request/wire/native expansion/페이지/검토 결과를
+그대로 보존하고 수정·잘라내기·재추론하지 않았다.
+
+- runtime binding: `f726b3f901e63f6c9722a68205d019ae67714f51afce9b47e267cb4543363690`
+- 전체92개 계획: `65a625ff3cb412382a74f8063dd6dbae03678339df24f21de5e31d0d7a9d7445`
+- 실제 소유 세션39331/root PID58396/model PID58415, exit1: `918176`
+- 두 PID 부재 관측: `8b34dc`
+- 전체 필드 의미 검토: `297be0dc49967e464660fdd7a82b7353208a1f8f2caecaed353e6a476adae7ce`
+
+`calculated-nonnegative-difference-factor-product` family 전체를 모든 이름·
+연산자·언어·locale·scope·weight 변형에서 neural 재추론 금지로 기록하고
+**92개 계획 전체를 폐기했다**. 남은 **35action/90request는 실행하지 않았다**.
+앞선 세 family 금지와 별도의 기존 parent/helper 금지를 유지한다. 최종 학습
+NLL·byte-exact 수치 증거를 실제 새 소스 자유 설명의 일반화/정확성으로
+대체할 수 없다. 다음은 실제 원본 입력/출력의 CPU 비용·학습/추론 직렬화
+일관성 감사로 실패 원인을 구체화하는 작업이다. 제품 채택·버전 변경·설치
+없이 **0.0.1145**를 유지하며 **목표는 미달성**이다.
+
+## V110~V111: 학습 후 Q4 fusion에서 실제 목표 손실 증가 확인
+
+V109의 실제 의미 실패 뒤, 앞선 수치 검사가 비교한 대상을 다시 확인했다.
+V107/V108은 **같은 fused 가중치**에서 원래 수학과 최적화한 수학을 비교했다.
+학습 중의 **원래 Q4 base+F32 LoRA 연산**과 최종 fusion 이후 사이의 학습
+목표 보존은 확인하지 않았다. 실제 SDK `LoRALinear.fuse`는 원본을 dequantize한
+뒤 low-rank delta를 더하고 다시 quantize한다. 이를 바로 원인으로 단정하지
+않고 동일한 전체 학습 검증자료에서 직접 측정했다.
+
+V110 준비는 실행 전 CPU 감사에서 예상 메모리를 8bytes 중복 계산한 것을
+발견해 폐기했다. 실제 원래 model active316,768,264bytes에는 이미 RNG가
+포함돼 있었다. V110 code/preparation/rejection을 그대로 보존했고 GPU나
+teacher-forced forward를 실행하지 않았다. V111은 실제 V107/V109 관측값을
+기준으로 별도 준비했다. 전체 vector/잘린 target/다른 owner/nonfinite 거부
+검사 4개가 통과했다.
+
+V111은 새 모델 후보를 고르는 실험 없이 **이미 고정된 fused 모델 하나**를
+로드했다. 원래 48행과 추가한 nullable24행, **전체 72개 학습 owner와
+16,783개 response/EOS target**을 동일한 원래 순수 statistics 함수로 측정했다.
+학습 후 저장된 실제 unfused-final vector는 독립 CPU 검사 뒤 재사용했으며
+이전 종료된 executable을 재실행하지 않았다. 학습자료의 source prompt
+199,246tokens를 실제 forward했으므로 **source-free 검사가 아니다**.
+금지된 family는 없고, 새로운 함수 설명·샘플링·optimizer update는 0회다.
+
+| 고정 학습자료 | 학습 직후 NLL | fusion 후 NLL | 학습 직후 정답 token 정확도 | fusion 후 정답 token 정확도 |
+| --- | ---: | ---: | ---: | ---: |
+| 원래48행 | 0.187883 | 1.328835 | 95.56% | 67.96% |
+| 추가24행 | 0.227437 | 1.683378 | 95.22% | 61.75% |
+| 전체72행 | 0.201068 | 1.447016 | 95.44% | 65.89% |
+
+표는 원래 guard와 같은 **행별 평균**이며 2,944개 학습자료 전체나 실제 새로운
+설명 품질의 정확도가 아니다. **72개 owner 모두** 평균 NLL이 증가했다.
+전체 target의 NLL/SDK NLL/top-token/start vector를 저장하고 CPU에서 전부
+재계산해 기록과 일치했다. 동일 후보의 최적화가 byte-exact여도 잘못 변환된
+학습 가중치를 보존할 수 있다는 검증의 한계를 실제로 확인한 것이다.
+
+실제 세션43828/PID94704가 **exit0**로 끝났고 PID 부재를 관측했다.
+72forward와 모든 target을 완료했으며 원래 RNG와 **8 active bytes**로
+해제, 모델 파일 hash 보존을 확인했다. **41,990.359ms는 이 진단 시간**이고
+함수 설명 지연이 아니다. 새 retention 임계값·허용 오차를 만들거나
+유리한 행만 선택하지 않았다.
+
+- V110 실행 전 admission rejection: `6ea122`
+- V111 준비: `bd2ef0f6186b6bded0d57e2facc3f5633535c929c20465b7ecaae8d917756b62`
+- 실제 exit0: `acff9b`, PID 부재: `084d80`
+- 모든72행/16,783target vector: `70ee8e8e36e4479e0d1755fda094eb1dd1b76a0a56a84f8dcdd993dc520951a3`
+- 독립 CPU 재계산·실제 terminal: `0582d0c0c7a80b682b86bb83226e791e4eaf0c44736d6128784186ae919414ac`
+
+다음 수정 방향은 **원본 base와 변경하지 않은 최종 LoRA의 학습 당시 연산을
+그대로 유지하는 런타임**이다. 모델/dtype/LR/epoch/sampler sweep을 하지
+않고, 고정 원본 base/최종 adapter가 저장된 최종 관측을 복원하는지 먼저
+전체 학습 검증자료로 확인한다. 이후에도 실제 새로운 전체 source 설명의
+의미·완료 **≤3000ms**와 제품 통합·QA·release/install은 별도로 필요하다.
+V109 실패 family의 모든 weight 변형 재추론 금지와 폐기된92개 계획은 유지한다.
+**목표는 미달성**이고 제품/설치 버전은 **0.0.1145**다.
+
+## V112: 원본 base+최종 LoRA의 학습 관측 전체 byte 복원
+
+V111에서 확인한 fusion 단계의 손실을 해결하기 위해, 실제 저장된 원본 Q4
+base와 **변경하지 않은 최종 F32 LoRA**를 원래 SDK `load(adapter_path=...)`로
+직접 불러오는 공개 경계 `aligned-unfused-control-v112/trained_model.py`를
+작성했다. 원본/adapter hash, 전체 safetensors extent, 224 F32 array·
+2,883,584 parameter, rank8/scale20/dropout0/16layers를 확인한다. fusion,
+requantization, 재학습, precision 변경, checkpoint 선택을 수행하지 않는다.
+
+첫 authoring 단계에서 파일 tensor extent를 전체 live model 크기로 취급한
+CPU admission 오류를 발견했다. 실제 base에는 파일 extent 이외의
+20,488bytes도 포함되어 있었다. 이 draft 실패를 `f2d648`로 보존하고,
+독점 준비 전에 실제 이전 base 관측+온전한 F32 adapter bytes로 수정했다.
+관련 전체 vector/owner/target·SDK loader·자산/소유 기준 검사 **6개**가 통과했다.
+
+실제 제어 측정은 **동일한 72개 학습 owner·16,783개 전체 response/EOS
+target**에서 원래 순수 statistics 함수를 사용했다. 학습 중 저장된 최종
+관측과 새 관측의 **F32 NLL, F32 SDK NLL, uint32 top-token, int64 starts**가
+dtype와 **모든 byte에서 일치**했다. 정답 token의 행별 평균은 95.44%, NLL은
+0.201068로 정확히 복원됐다. CPU에서 전체 vector와 모든 owner/target을
+다시 비교해 원본 file/result/terminal 연결을 확인했다.
+
+이는 학습 결과가 저장되거나 로드되는 단계의 오류가 아니라, 이후 Q4 fusion
+파이프라인에서 손상됐다는 직접 근거다. 새로운 소스 설명의 일반화나 완료
+3초를 입증하지는 않는다. source prompt199,246tokens를 읽는 학습자료 검사이며
+source-free 검사가 아니다. 금지 family나 새로운 함수 설명·샘플링·optimizer
+update는 없다. 새 모델을 고르는 sweep 없이 **기존 원본 base와 기존 최종
+adapter의 학습 당시 연산**을 보존했다.
+
+실제 세션86222/PID21622의 **exit0와 PID 부재**를 확인했다. 로드 중
+328,302,600activebytes는 실제 기존 base316,768,264bytes+최종 adapter
+11,534,336bytes이며 RNG를 두 번 더하지 않았다. 모든 소유 해제 후 원래
+**8activebytes/RNG**로 돌아왔고 base/adapter 파일은 그대로다.
+**52,446.233ms는 진단 시간**이며 실제 함수 설명 시간이 아니다.
+
+- V112 준비: `4552cbc1f4a259feab4e596a538f6956ed966f883cdc63e872a69a69c5f1e724`
+- 실제 exit0: `c4a6eb`, PID 부재: `4fb4ea`
+- 실제 전체 vector: `52cbb3a1138960c7357999bfd1403bc638d6a4521ec04170175dded3710cec60`
+- 독립 CPU byte 감사와 실제 terminal: `1860ea551920eae40a229cfa76b73041be530ae346d9a28cba6e399540117852`
+
+다음은 이 **학습 연산을 보존하는 준비 모델 runtime**을 구성하고, LoRALinear
+wrapper에 맞춰 최적화를 검증하는 작업이다. 기존 fused 전용 helper를 그대로
+적용하지 않으며 전체 trained-model numeric/KV/joint sampler/owner 검증이
+필요하다. 그런 다음 네 영구 금지 family를 제외한 실제로 새로운 전체 source
+계획과 모든 기존 미노출 scope/return 조합을 확인한다. 폐기된92개 계획이나
+실패한 family를 다른 weight로 다시 실행하지 않는다. 실제 정확한 전체
+Host **≤3000ms**·제품 통합/QA/release/install은 **여전히 미완료**다.
+
 ## 남은 완료 기준
 
 모델 변경, decoder 최적화 또는 입력 구조 변경을 채택하려면 다음을 함께 확인해야 한다.

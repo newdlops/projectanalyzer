@@ -1,0 +1,440 @@
+{
+  "purpose": "이전 목표의 압축 인계. V109 첫 실제전체2경로 설명은 의미/전체3초 실패. V111 전체72학습자료에서 Q4fusion 손실 증가를 확인했고 V112 원본base+변경없는최종LoRA로 모든최종학습 관측byte를 복원했다. 실제새소스 설명/3초/제품QA는 여전히미완료다.",
+  "savedAtUtc": "2026-10-12T15:10:32.790726+00:00",
+  "workspace": "/Users/lky/project/projectanalyzer",
+  "resumeInstruction": "이 파일을 먼저 읽고 checkpoint.json에서 필요한 항목만 확인한다. 긴 대화나 실험 문서 전체를 다시 읽지 않는다. 이전의 반복적·추측성 분석은 구현 결정으로 취급하지 않는다.",
+  "userIntent": {
+    "product": "VS Code 함수 도우미 renderer 자원 최적화, 함수 흐름·시나리오 summary, Kotlin 지원",
+    "model": "PC 로컬 LLM으로 맥락 설명. 모델 자동 다운로드 요구와 모델 요청 실패 문제를 다뤄 왔다.",
+    "activeGoal": "모델이 소스를 읽고 설명하는 시간을 3초 이내로 줄이자.",
+    "latencyBoundary": "모델 준비 완료 후 요청부터 올바른 전체 설명 완료까지 3초. 첫 토큰 지연 기준이 아니다.",
+    "goalStatus": "active; 미달. 사용자가 인계 문서의 이전 목표를 이어서 달성하라고 요청했다.",
+    "releaseAuthorization": "이전 버전업·커밋·푸시·설치 요청은 유지된다. 실패한 후보를 출시하거나 설치하지 않는다.",
+    "pendingPreference": "LLM이 전체 값을 작성할지 맥락 설명만 작성할지 선택은 확정되지 않았다. 기존 전체 LLM 책임을 보존하고 같은 질문을 반복하지 않는다."
+  },
+  "repository": {
+    "branch": "main",
+    "productVersion": "0.0.1145",
+    "handover": "docs/MODEL_LATENCY_HANDOVER.json. 다음 시작에서 실제 git 상태와 checkpoint의 현재상태를 확인한다.",
+    "checks": "V109 CPU9/actual2path completed formats, meaning/Host22295.021333ms failed. V110CPU admission rejected beforeGPU. V111CPU4+actual72/16783 final fusion learned loss worsens everyowner. V112CPU6+actualoriginalbase/finalLoRA72/16783 exactall4vectors restored, originalRNG8bytes and unchangedbase/adapter files. Allownedprocesses terminal/missing, no freshsourceNN afterV109, product0.0.1145.",
+    "productImplementationBaselineCommit": "1827aa4cd4ccb7c96b33d320d23d73a715904ad3",
+    "documentationContent": "docs/MODEL_LATENCY_EXPERIMENTS.md에 V88~V112 실제 결과, MODEL_LATENCY_HANDOVER.json에 최신 상태. 문서 publication commit/원격 상태는 실제 git log/status로 확인한다."
+  },
+  "executionState": {
+    "activeToolHandles": [],
+    "activeModelProcesses": false,
+    "lastTurn": "ActualV109firstwhole2path meaning/Host22.295s fail; whole92plan retired/4family bans. V110beforeGPU memoryadmission rejection preserved. V111fixedfusedmodel72trainingowners/16783targets proves allowner learnedloss worse (mean0.20106755→1.44701573, accuracy95.4446→65.8894%). V112originalQ4base36162+unchangedF32finalLoRAf3f3 restores every72/16783 originalfinal nll/sdk_nll/top_tokens/starts byte exactly, oneoriginalSDK load/no fusion/no sampler/dtype/model sweep/no freshsourceNN. Bothprobes actualexit0/PIDabsence/RNG8bytecleanup/allassets unchanged. Learned-arithmetic private runtime/whole newsource meaning+3000ms+productQA/release remains.",
+    "noProgressConsecutiveTurns": 0,
+    "terminalRule": "V101세션12644/PID15853,V106세션94555/PID70326와CPU66900/PID74450,V107세션32542/PID3542,V108세션73709/PID15889 모두실제exit0/PID부재 확인됐다. 이 세션을 다시poll/실행하지 않는다. 현재livehandle없다. V109세션39331/root58396/model58415도 실제runnerexit1/modelchildexit0/PID부재 확인됐다. 재poll/재실행 금지. V111세션43828/PID94704,V112세션86222/PID21622도 실제exit0/PID부재 확인됐다. 재poll/재실행하지 않는다. V110준비는GPU전CPU거부라실행하지않는다."
+  },
+  "evidence": {
+    "root": ".local-models/experiments/three-second/",
+    "authoritativeState": "checkpoint.json",
+    "latestRecord": {
+      "path": "aligned-unfused-control-v112/terminal.json",
+      "sha256": "1860ea551920eae40a229cfa76b73041be530ae346d9a28cba6e399540117852",
+      "status": "original-base-unchanged-final-lora-restores-all72-final-training-vectors-byte-exact"
+    },
+    "v87ActualSource": {
+      "directory": "tuple-source-runtime-v87/",
+      "case": "첫 Kotlin/한국어 affordablePrefix(limit,budget), 전체 4개 경로",
+      "fullHostMs": 63363.062959,
+      "deliveredPages": 0,
+      "result": "의미·정확성·시간 모두 실패. 151개 완성 leaf 검토도 실패. 36개 action 계획은 첫 실패 후 폐기했고 나머지 35개는 실행하지 않았다.",
+      "reports": [
+        "action-00/report.json",
+        "action-00-meaning-review.json",
+        "publication.json"
+      ],
+      "forbidden": "이 실행이나 폐기된 계획을 재실행하지 않는다."
+    },
+    "v88AndV89": "V88은 source-free 결과가 같았으나 RNG 복원 후 allocation 16 vs 8 bytes로 실패. V89는 _RandomState item assignment 실패. 최초 실패 보존, 재실행 금지.",
+    "v90SourceFreeOnly": {
+      "terminal": "sourcefree-cost-profile-v90/terminal.json",
+      "terminalSha256": "a39272d3639e3578eb20620c8738d1576d08ee6187839da3d0a3f3b4e32cf36b",
+      "result": "8개 합성 integer-only 스트림 결과 동일, RNG·8-byte cleanup 통과. 실제 함수 소스·설명 품질 검증이 아니다.",
+      "observedProfileMs": {
+        "total": 5009.913292,
+        "prefill": 2483.547208,
+        "modelForwardAndEval": 2297.038582,
+        "maskNormalizeSampleAndEval": 197.636044
+      },
+      "caveat": "CPU wall/synchronization 포함. 내부 nested 항목을 합산하지 않는다. control 8440.891709ms와 차이를 속도 개선으로 주장하지 않는다.",
+      "rngFix": "MLX 0.32.3 sentinel 유지. 저장 uint32[2] 키를 high<<32|low로 조합해 지원 API mx.random.seed로 복원한다. state 교체·item/slice assignment 금지."
+    },
+    "v92CompleteInputAttribution": {
+      "report": "prepared-payload-attribution-v92/result.json",
+      "sha256": "485d7e4bc072b13efe2f9b018505004d8fd9536293d5a1f6dc4b09bbd807788e",
+      "rows": 3888,
+      "result": "원래 tokenizer/chat template의 전체 token 배열 byte 일치. 실제 offset으로 token을 한 번씩 집계. 준비 평가100개에서 지침42.96%, compiler schema/metadata27.54%, snippets text3.54%. CPU 비용이며 모델 지연은 아니다.",
+      "modelLoadsAndRequests": 0
+    },
+    "v93RejectedPackedSchema": {
+      "report": "packed-schema-fields-v93/token-proof.json",
+      "sha256": "219d29e351c224101bf39f7eb82f865ea08d12c0bd64f22c50a60104aef7fa01",
+      "result": "전체3888개 compiler 역변환과 native response/EOS861213개 target byte 동일. 총9251454개 prompt token 중35789개(0.386847%) 절감에 그치고1600개 입력에서 token 증가. 전체 후보 거부.",
+      "actualTests": "비용 집계7개+역변환/격리/fallback9개 통과. V92 exit0, V93 construction exit0, token audit exit1 및 audit PID 부재 확인.",
+      "forbidden": "V93 표현을 수정·재실행하거나 유리한 행만 골라 채택하지 않는다. 모델·제품·설치 변경 없음."
+    },
+    "v94RejectedDecodePacking": {
+      "decision": "decode-mlp-row-packing-v94/decision.json",
+      "sha256": "187b95ef6f917b7691386bd25f5543d71f798492a316836c0476577073c1e292",
+      "result": "원래 현재 모델의28층1372개 finite shape/dtype/byte 비교. M=2/4/8 및 reordered 묶음616개 모두 byte 불일치, 원래 fallback756개 일치. 가중치 identity·model316768264bytes·RNG·최종8bytes 보존, 실제 exit1/PID 부재. 숫자 실패로 속도 측정하지 않았다.",
+      "forbidden": "종료된 V94 묶음을 수정·재실행하거나 numeric equality를 완화하지 않는다. source/설명 요청0회, sampler draw0회."
+    },
+    "v95FirstCoverageFailure": {
+      "report": "training-runtime-coverage-v95/result.json",
+      "sha256": "36a924e284758054a0e1f984929cef238ddfb1b1ee7d28a6b3484bb421da549f",
+      "result": "monitoring에 빠진 반환 유형이 학습과 같은 두 개일 것이라는 가정이 틀려 첫 CPU 감사 실패. 실제 monitoring에는 String도 없다. 최초 실패와 실제 exit1/PID 부재를 보존. 전체 감사 통과로 해석하거나 수정해 재실행하지 않는다."
+    },
+    "v96RuntimeAlignedSupervision": {
+      "preparation": "runtime-aligned-supervision-v96/preparation.json",
+      "sha256": "e0da4a69155778f036430842715eef681c5af520960c6e0f4766a96a0dcb50e9",
+      "corpus": "runtime-aligned-supervision-v96/aligned-corpus.json",
+      "result": "실제 V74 학습2920/monitoring868 모든 행·원문/context/schema/answer·split·순서를 보존하고 message만 실제 V83 runtime 입력으로 정렬. 학습143/monitoring48 변경. 원래827145 native target/EOS 및 전체 token/grammar/window 증거를 불변 identity로 연결. 평가 source/teacher를 학습에 넣지 않음.",
+      "representationGap": "원래 학습에는 V78 refs/V82 comment/empty tuple 표현이 없었고 준비본에는 포함됨. 실제 V87 네 실패 요청 모두 V82 comment 표현 사용. 원인 증명이나 이미 재학습한 모델을 뜻하지 않음.",
+      "coverageGaps": "rich 학습: nullable-numeric/nullable-String0행. monitoring: String/nullable-numeric/nullable-String0행. 다섯 반환×KT/TS×KO/EN의20개 full-root 조합 중 학습8,monitoring12 조합 누락. nullable 입력·node-only 예제로 대체하지 않음.",
+      "allowedForTraining": false,
+      "allowedForNeuralEvaluation": false,
+      "actualTests": "V94 UID/fallback5개,V95 분류/경계5개,V96 실제 root coverage admission5개 통과. V96 실제 exit0/PID 부재, 새 모델·학습·source 요청0회."
+    },
+    "v97FirstConstructionFailure": {
+      "report": "nullable-root-supervision-v97/construction.json",
+      "sha256": "2ba864544b9541c8e3f6bc59f9c3bd407094d5287a0bed76da1e11a0c59fcfd3",
+      "result": "live TypeScript worksheet owns 함수가 structuredClone에 들어가 최초 독점 생성 실패. 실제 exit1/PID 부재 확인. V97 builder와 최초실패는 수정/재실행하지 않음. 모델0회."
+    },
+    "v98CompleteRootSupervisionRepair": {
+      "construction": "nullable-root-supervision-v98/construction.json",
+      "constructionSha256": "7f4bde4780084d73d356cf768a93641519b978ccde0b6be7519ccdb0f92b61bc",
+      "corpus": "nullable-root-supervision-v98/corpus.json",
+      "tokenProof": "nullable-root-supervision-v98/token-proof.json",
+      "tokenProofSha256": "b947fb0e1db371c6d83ab0b29f711ce1dbafec56d055c26863d5a9b64a54108b",
+      "tokenArrays": "nullable-root-supervision-v98/complete-tokens.npz",
+      "meaningReview": "nullable-root-supervision-v98/meaning-review.json",
+      "meaningReviewSha256": "9e48a1096c4882682a62509f68fba6a668821fea7abc6b653942f585df73c9f9",
+      "result": "기존3788행 보존+새24train/28monitor=2944train/896monitor 전체3840행. 새10원문20action52root경로148source occurrence·원래Host/native/parser/디스크해제 통과. 전체840699target/EOS 중원래827145byte 동일,52새 native/object grammar/EOS pair통과,maxSequence5059. 학습과monitoring20개 root 반환/언어/locale조합과 runtime 표현 모두커버.",
+      "ownership": "Payload는 live context에서 처리. JSONsnapshot은 모든직렬화데이터 보존+callable경로/owns검사receipt 별도. snapshot을 runtime worksheet로 사용하지 않고 source에서 다시구성한다.",
+      "meaning": "별도 전체1788 teacher leaf/748 modelprose field 검토. Stringmonitor active/inactive source-certified값 동일 한계명시, branch는 code/graph로확인. 기존source-only literal/Boolean복원 경계유지.",
+      "actualTests": "reference/경로/오염/Intoverflow6개+live/snapshot경계3개 통과. 생성/token actualexit0/PID부재. 모델·학습·source 요청0회.",
+      "allowedForTraining": false,
+      "allowedForNeuralEvaluation": false
+    },
+    "v91RejectedPrefillCandidate": {
+      "terminal": "prefill-mlp-coalescing-v91/terminal.json",
+      "terminalSha256": "91caf14b8ddb867dafa24db9d7e56c024fc963067a947d773dcacf68fbc6f813",
+      "candidate": "완전한 BF16 512-token 입력들의 원래 MLP 호출 묶음",
+      "numeric": "28개 MLP 전체 1400개 유한 출력 byte 비교 통과. 전체 모델 KV/cancel/소스 통합은 검증하지 않았다.",
+      "baselineMedianMs": 289.13125,
+      "candidateMedianMs": 290.483583,
+      "speedup": 0.9953445458568307,
+      "requiredSpeedup": 2,
+      "decision": "속도 실패, 채택하지 않음. 재측정·기준 완화·유리한 행 선택 금지."
+    },
+    "v99WholeObjectiveAndSdk": {
+      "objective": "aligned-training-objective-v99/complete-objective-manifest.json",
+      "objectiveSha256": "ede4aab37fb739e72e532d8fd0c0b0f055242e3a1b0ed409b59d2f731e2ea1a5",
+      "actualSdkProof": "aligned-training-objective-v99/cpu-batch-proof.json",
+      "sdkProofSha256": "3e500f7c5cf7c61f482206b31b6f8280f91347c4139a86ba00b728cafc257a05",
+      "decisionSha256": "bdd55ccc172ef8ca0108cd99b888b3f858f6e6cc17411f1f28e332a9e1c71776",
+      "result": "전체3840 sourceowner/91component,원래3788sourceidentity 보존. training2944/630150targets와monitor896/210549targets,47동적weight/실제unchangedSDKsort+seed42순서 모두통과. 원래정책mass stage.25/richtype.05,모든weight재계산,monitoring/reserved optimizer제외.14tests/실제CPUexit0/PID부재. 모델0회."
+    },
+    "v100FullTrainingStability": {
+      "panel": "aligned-stability-v100/baseline-plan.json",
+      "panelSha256": "fd7e797f3625ec693806bdbef12d585dfdb89db05fc492946008b877594929b0",
+      "baseline": "aligned-stability-v100/baseline-result.json",
+      "baselineSha256": "e0ac907fcfd5e762d7c7d8b2027442afacd16571923d5f2fbaa77e83f47af038",
+      "decisionSha256": "e688b67a45a8d6d3a8efafaa61f437c9b72d49669614fe0786c8fc023e6468a6",
+      "result": "원래48owner/24group과모든새nullable24trainingrow/8group. 원본base1회/전체144teacherforcedforward/각variant16783targets/delta0/두독립initialguard 통과. 기존수치threshold/0,200,600,1200,2000,2920final검사유지하고 actualfinal2944추가.8CPUtests/실제GPUexit0/PID부재/RNG8bytecleanup. 설명요청/optimizer/adapter0회."
+    },
+    "v102FrozenNumericPart": {
+      "decision": "fresh-gap-evaluation-v102/decision.json",
+      "decisionSha256": "c31e1f968aeb862d164b501b4472487476c0fe8acf7bec5b26bb361ba9a63730",
+      "construction": "fresh-gap-evaluation-v102/construction.json",
+      "constructionSha256": "a20fbbbd4d8b1e3e35db5cabb5a253dd3ea6267bec85ab47cab83f803f38a448",
+      "tokenProof": "fresh-gap-evaluation-v102/token-proof.json",
+      "tokenProofSha256": "6fb088f5c8256981e97566340dea2b27b1c6dd17a25052840aa9556dbe59320c",
+      "meaningReview": "fresh-gap-evaluation-v102/meaning-review.json",
+      "meaningReviewSha256": "b081a9c6186d33ffaf28c1cd4ad891a061ff5d7c4c923c8146c4fe795cb811a7",
+      "result": "새계산된difference음수guard와factor곱family. KT/TS KO/EN 4action8전체path28sourceoccurrence,원래Host/native/originalgrammar/EOS/fulltoken/디스크해제통과.29616prompt/3124targets/maxSeq5011,336leaf/152prose.5CPUtests;draft첫signedzero/문구길이실패보존. 학습/monitoring/sourceNN에넣지않음.",
+      "limitation": "Both chosen branch results are numeric zero. Result value alone cannot prove factor multiplication or branch correctness; complete source/code/graph/prose/analysis must be reviewed independently. Positive/negative-factor/tie/Int-overflow/signed-zero controlled tests are separate CPU evidence, not model generalization.",
+      "completeScopeCatalogPending": true,
+      "requiredRemainingUnexposedActions": 32,
+      "allowedForNeuralEvaluation": false
+    },
+    "v103CompleteFreshScope": {
+      "decision": "full-fresh-evaluation-v103/decision.json",
+      "decisionSha256": "1cd35d797aaa02b53278f74509624486b9247c04dd4cb29fa39b4e65e249ebc0",
+      "constructionSha256": "6b243fc76e4f934222404ce7dcb996ac32842b623a4c1b6e4c2e07521a4959d9",
+      "tokenProofSha256": "bb9b45909dafe19755a930c112d01ba33d7c38097d03018dca18ab13e60aa589",
+      "corpus": {
+        "file": "full-fresh-evaluation-v103/corpus.json",
+        "sha256": "ab30d1864df26575cd21c205cd8f28b8d554ec6014031dacb6e9579dd4657412"
+      },
+      "tokenArrays": {
+        "file": "full-fresh-evaluation-v103/complete-tokens.npz",
+        "sha256": "f1bd22ee70de8f8c9727db3c1fb5f84881d94ef7bb2414f4553dad6d7302e51f"
+      },
+      "result": "모든32미실행non-bannedaction/84원래requests+새숫자8=36action92request.20root반환조합/60richroutes/256occurrence/40calls/84pages/28finalcallee 유지. 모든전체sequencebyte 동일+92actualnativegrammar/EOS통과,271667prompt/28724target,maxPrompt5203/maxSeq5937.4CPUtests,actualexit0/PID부재. 이전닫힌catalog/builders 실행안함. optimizer/monitor/NN에넣지않음.",
+      "allowedForNeuralEvaluation": false,
+      "modelLoadsByCpuPreparation": 0,
+      "goalComplete": false
+    },
+    "v104IndependentFinalAuditPreparation": {
+      "path": "aligned-final-verification-v104/preparation.json",
+      "sha256": "df35ff8948c02f945dd67b70eb3b7e6d40d9b2f03c966728124d66e6091c6f31",
+      "result": "원래V75 pureadapter검사재사용,역변환가능fulltrace cardinality2944/630150targets와148reports/actualfinal2944 검사준비. original48+new24 총72owner/16783vector를독립재계산해실제0/200/600/1200guard검증.5CPUtests통과;최초draft 숫자역변환import실패보존·독점final감사전수정. 합성보고/이전adapter header검사는API증거만이며현재final완료·품질증거아님.",
+      "actualFinalAuditStarted": false,
+      "allowedForNeuralEvaluation": false,
+      "additionalReal2000GuardVectorAudit": {
+        "passed": true,
+        "fullSourceOwners": 72,
+        "fullTargets": 16783,
+        "actualToolPollChunk": "070e41",
+        "modelLoads": 0
+      }
+    },
+    "v101CompletedFullPass": {
+      "directory": "aligned-full-training-v101/",
+      "seal": "aligned-full-training-v101/training-seal.json",
+      "sealSha256": "3eda9323bab85025856a11c1540ebd77a632d1558802b4ddd6eadfd430f20022",
+      "sessionId": 12644,
+      "pid": 15853,
+      "destination": "adapter-small-model06-aligned-coverage-v101",
+      "observedCompletedUpdates": 2944,
+      "targetUpdates": 2944,
+      "observedCompletedTargets": 630150,
+      "targetCompleteTargets": 630150,
+      "progress": "aligned-full-training-v101/independent-progress-02120.json",
+      "progressSha256": "e72a62dd5e3493cc0e81e2f2f5923ad4153aa10c297daa58421451f618a20616",
+      "result": "전체2944distinctupdate/148reports/630150targets와7fixedguard 실제완료. 최종NLL원래48행0.1878828771/새24행0.2274369092.원본asset/RNG/8bytecleanup·exit0/PID부재 확인. final-onlyadapter 독립검증통과. 실제sourceNN/3초미검증.",
+      "forbidden": "부분/실패adapter재개,중복launch,closedrun수정/재실행,setting/model/dtype/sampler sweep,동시다른모델로드금지.",
+      "allowedForNeuralEvaluation": false,
+      "installed": false,
+      "goalComplete": false,
+      "originalAndNewGuard200Passed": true,
+      "original48NllAfter200": 1.2966760124536212,
+      "new24NllAfter200": 1.6854646924233616,
+      "completedGuards": [
+        0,
+        200,
+        600,
+        1200,
+        2000,
+        2920,
+        2944
+      ],
+      "original48NllAfter1200": 0.5607026517139352,
+      "new24NllAfter1200": 0.8830051017153312,
+      "original48NllAfter2000": 0.3277042358315714,
+      "new24NllAfter2000": 0.40186875982911224,
+      "status": "actual-complete-pass-independently-verified",
+      "actualTerminalChunk": "cbea8e",
+      "processObservationChunk": "6709d6",
+      "actualExitCode": 0,
+      "finalAdapterSha256": "f3f3cd2e75abbf290cdb908486c96547853e5cb27995de8ba70510ece2edde47",
+      "finalVerification": {
+        "file": "aligned-final-audit-v105/verification.json",
+        "sha256": "d0bbcb7f0e00360f78abb2dfdb2210b6a6307eb9b62322a42df99c0914b514ac"
+      }
+    },
+    "v105ActualFinalAudit": {
+      "preparation": "aligned-final-audit-v105/preparation.json",
+      "verification": {
+        "file": "aligned-final-audit-v105/verification.json",
+        "sha256": "d0bbcb7f0e00360f78abb2dfdb2210b6a6307eb9b62322a42df99c0914b514ac"
+      },
+      "actualFinalAuditCompleted": true,
+      "modelLoads": 0
+    },
+    "v106NewFinalModel": {
+      "decision": {
+        "file": "aligned-final-fusion-v106/decision.json",
+        "sha256": "da39353be5e3f1d75a11fda5078794a8f7301ea5677cef491492a4f8f2091c46"
+      },
+      "modelDirectory": "model-0.6b-aligned-coverage-v106-fused",
+      "modelSha256": "961f4852834d70c2d20044280db9a1414cbdaf48d37e54faa31286e9d65d2ef2",
+      "result": "동일SDK Q4/group128 fusion1회,모든704array/336adapted변경/368unaffectedbyte동일/finite/configtokenizerarchive복원. actualGPUexit0/PID부재/RNG8bytes 및CPUtensor exit0/PID부재. NN source/3초미검증.",
+      "allowedForNeuralEvaluation": false
+    },
+    "v107NewWeightNumerics": {
+      "numeric": {
+        "file": "aligned-final-runtime-v107/numeric-terminal.json",
+        "sha256": "e2a93893cbc8958be979dc654ae56abf41b26a7b5fd94e612d6d87599269f4a3"
+      },
+      "result": "새model961f에서원래51projection+51compiled+336MLP/19+19full8192KVwindow/5181geometry 전체finitebyte동일. 모델316768264bytes/zeroExtraWeight/RNGready/compile1. actualexit0/PID부재. sourcefree32.594s진단은설명지연아님."
+    },
+    "v108NewWeightJoint": {
+      "terminal": {
+        "file": "aligned-final-joint-v108/terminal.json",
+        "sha256": "d50761c96a998ebf58ec406d2f2cd599aecb2ffc0d74a02fb7b2a18b0f1fbab1"
+      },
+      "result": "원래전체14합성reference/candidate streams,206token/keytransitions,전체logit/KV/text/EOSextraDraw/13whole+1cancel/weightowners/RNG/소유해제 통과. actualexit0/PID부재. 합성draw424,실제함수source0/설명0,전체의미3초미검증."
+    },
+    "v109ActualWholeSource": {
+      "directory": "aligned-source-runtime-v109/",
+      "modelSha256": "961f4852834d70c2d20044280db9a1414cbdaf48d37e54faa31286e9d65d2ef2",
+      "family": "calculated-nonnegative-difference-factor-product",
+      "case": "첫 Kotlin/한국어 scaleNonnegativeGap(left,right,factor),전체2경로",
+      "fullHostMs": 22295.021333,
+      "sourceRequests": 2,
+      "promptTokens": [
+        3962,
+        4313
+      ],
+      "outputTokens": [
+        951,
+        204
+      ],
+      "sampledTokensIncludingEos": [
+        952,
+        205
+      ],
+      "deliveredPaths": 2,
+      "deliveredSourceOccurrences": 7,
+      "deliveredPages": 2,
+      "completeOriginalLeafReview": 87,
+      "completeDeliveredLeafReview": 244,
+      "freeProseAndEmptyCollectionReview": 41,
+      "result": "원본입력·형식·전체경로·page·해제는 통과, 의미와 전체3초 실패. 최종NLL/synthetic proofs는 actualfreeprose일반화 증거가 아니다. 고정values 복원과 두result0일치를 모델 reasoning으로 주장하지 않는다.",
+      "terminal": {
+        "sessionId": 39331,
+        "rootPid": 58396,
+        "modelPid": 58415,
+        "runnerExit": 1,
+        "modelExit": 0,
+        "chunk": "918176",
+        "processMissingChunk": "8b34dc"
+      },
+      "retiredWholePlan": {
+        "actions": 36,
+        "requests": 92,
+        "remainingActionsNotRun": 35,
+        "remainingRequestsNotRun": 90
+      },
+      "reports": [
+        "action-00/report.json",
+        "action-00/projections.json",
+        "action-00/requests.json",
+        "action-00/input-audit.json",
+        "action-00/run-state.json",
+        "action-00-meaning-review.json"
+      ],
+      "forbidden": "이 실제action/전체92계획은 재실행하지 않는다. 이family는 모든weight/rename/operator/language/locale/scope에서 neural금지."
+    },
+    "v110AndV111FusionRetention": {
+      "v110RejectedPreparation": "aligned-fusion-retention-v110/admission-rejection.json",
+      "v110ModelLoads": 0,
+      "v111Terminal": {
+        "file": "aligned-fusion-retention-v111/terminal.json",
+        "sha256": "0582d0c0c7a80b682b86bb83226e791e4eaf0c44736d6128784186ae919414ac"
+      },
+      "trainingOwners": 72,
+      "fullTargetsIncludingEos": 16783,
+      "trainingPromptTokensRead": 199246,
+      "notSourceFree": true,
+      "beforeFinalMeanNll": 0.2010675544726198,
+      "afterFusionMeanNll": 1.4470157308509726,
+      "beforeFinalTargetAccuracyOwnerMean": 0.9544457234340595,
+      "afterFusionTargetAccuracyOwnerMean": 0.6588935774445469,
+      "everyOwnerMeanNllIncreased": true,
+      "freshExplanationRequests": 0,
+      "sampledTokens": 0,
+      "actualTerminal": {
+        "sessionId": 43828,
+        "pid": 94704,
+        "exitCode": 0,
+        "chunk": "acff9b",
+        "processMissingChunk": "084d80"
+      },
+      "result": "Same fused-model numerical identity did not prove learned objective survived Q4fusion. Direct all72 comparison establishes degradation; no parameter/precision/model/sampler choice or newsourcefamily retry."
+    },
+    "v112OriginalTrainedArithmetic": {
+      "terminal": {
+        "file": "aligned-unfused-control-v112/terminal.json",
+        "sha256": "1860ea551920eae40a229cfa76b73041be530ae346d9a28cba6e399540117852"
+      },
+      "publicLoader": "aligned-unfused-control-v112/trained_model.py",
+      "baseModel": "model-0.6b-base-weight-control-v16",
+      "baseSha256": "36162e7f72fe3eca308471e55161269e4605ab87d2666ae1f33ef800749c97dd",
+      "finalAdapter": "adapter-small-model06-aligned-coverage-v101",
+      "adapterSha256": "f3f3cd2e75abbf290cdb908486c96547853e5cb27995de8ba70510ece2edde47",
+      "trainingOwners": 72,
+      "fullTargetsIncludingEos": 16783,
+      "allOriginalFinalVectorBytesRestored": [
+        "nll",
+        "sdk_nll",
+        "top_tokens",
+        "starts"
+      ],
+      "fullOwnerMeanNll": 0.2010675544726198,
+      "fullOwnerMeanTargetAccuracy": 0.9544457234340595,
+      "observedLoadedActiveBytes": 328302600,
+      "initialAndFinalActiveBytes": 8,
+      "allOriginalAssetsAndRngUnchanged": true,
+      "actualTerminal": {
+        "sessionId": 86222,
+        "pid": 21622,
+        "exitCode": 0,
+        "chunk": "c4a6eb",
+        "processMissingChunk": "4fb4ea"
+      },
+      "cpuTests": 6,
+      "sampledTokens": 0,
+      "freshExplanationRequests": 0,
+      "result": "Original SDK base+unchangedfinalF32LoRA preserves trained arithmetic byte exactly without fusion. Source read is all72 training inputs, notsourcefree. Newsourcequality/whole3s/optimizedruntime numeric/KV/joint/owner proof still pending."
+    }
+  },
+  "preparedAssets": {
+    "experimentalModel": "model-0.6b-complete-tuple-v84-fused",
+    "weightsSha256": "f6d776da569023dc69ef1188661a758c6f5f449398e8ea68d6b7ea0333f75b30",
+    "qualification": "이 0.6B 실험 모델은 제품 채택 후보로 실패했다. 숫자·공동 sampler 검증 통과는 실제 설명 품질이나 3초 달성을 뜻하지 않는다.",
+    "inputCodec": "empty-tuple-constant-v82/contract.cjs 및 worker.cjs: 원본 소스·지침·전체 schema를 역변환으로 보존",
+    "completePrompts": "full-packed-input-v83/complete-prompts.json: 3888개 전체 준비 입력",
+    "inputDecision": "full-packed-input-v83/decision.json",
+    "frozenCorpus": "fresh-tuple-evaluation-v77/complete-corpus.json",
+    "priorProofs": "V74 최종 학습, V75 최종 검증, V84 원 SDK fusion/704 tensor, V85 전체 숫자/KV, V86 전체 sampler 공동 검증은 완료·봉인됨. 상세 hash는 checkpoint 사용.",
+    "trainingCandidate": {
+      "adapter": "adapter-small-model06-aligned-coverage-v101",
+      "status": "actual-final-only-complete-independently-verified",
+      "finalAdapterSha256": "f3f3cd2e75abbf290cdb908486c96547853e5cb27995de8ba70510ece2edde47",
+      "base": "model-0.6b-base-weight-control-v16",
+      "fullPassUpdates": 2944,
+      "allowedForNeuralEvaluation": false
+    },
+    "newFinalExperimentalModel": {
+      "directory": "model-0.6b-aligned-coverage-v106-fused",
+      "weightsSha256": "961f4852834d70c2d20044280db9a1414cbdaf48d37e54faa31286e9d65d2ef2",
+      "qualification": "V109 actualsource meaning/Host3s failed. V111 Q4fusion degraded learned objective on everyall72trainingowner. Thisfusedmodel is failed productcandidate, preserved but not installed or retried."
+    },
+    "trainedArithmeticControl": {
+      "base": "model-0.6b-base-weight-control-v16",
+      "finalAdapter": "adapter-small-model06-aligned-coverage-v101",
+      "publicLoader": "aligned-unfused-control-v112/trained_model.py",
+      "qualification": "V112 all72/all16783 originalfinal teacherforced vectors byteexact restored. Same originaltrainedQ4base/F32LoRA arithmetic, no retraining/dtype/sampler/model sweep. No actualnewsource explanation/3s proof, no optimizedpreparedruntime fullgates, no productadoption."
+    }
+  },
+  "constraints": [
+    "원본 전체 소스, 함수 부모·근접 callee 본문, 모든 필드·노드·경로, Kotlin/TS·한국어/영어·5가지 return class와 confidence/unknowns를 보존한다.",
+    "기존 validator, FIFO/cancel/dispose, 자동 다운로드·integrity·custom model 지원을 보존한다.",
+    "소스/출력 clipping, 정적 설명으로 LLM 대체, 다른 owner 소스·KV 재사용, 부분 checkpoint 선택, 좋은 사례만 선택, 임계값 완화 금지.",
+    "모델·dtype·학습률·epoch·sampler sweep 금지. 종료된 독점 builder/audit/probe는 성공·실패 모두 재실행·수정하지 않는다. 실질적으로 새 시도는 새 버전으로 기록한다.",
+    "영구 neural 금지 family: coupled-euclidean-remainder-loop; equal-length-string-pair-codeunit-mismatch-count; remaining-budget-bounded-increasing-cost-prefix-sum; calculated-nonnegative-difference-factor-product. 이름·연산자·언어·locale·scope·weights 변형도 포함. 다른 기존 금지는 checkpoint/catalog를 따른다. CPU 감사와 neural 재추론을 혼동하지 않는다.",
+    "src/test/fixtures/moduleFlowQaWorkspace/.vscode/.auto-import-cache/는 확인·수정·stage하지 않는다. 기존 모델 삭제 금지.",
+    "사용자 또는 적용 지침의 명시적 요청 없이는 subagent를 생성하지 않는다.",
+    "제품 UI 변경 시 AGENTS.md 및 ui-design-workflow 적용. 현재 단계는 UI 변경 없는 비공개 입력·학습 준비/실제 고정 학습과 결과 문서화다.",
+    "GPU/MLX 실행에는 필요한 sandbox 승인을 사용한다. Python 실행 경로는 .local-models/experiments/three-second/env/bin/python, login:false."
+  ],
+  "runtimeInvariants": {
+    "runtime": "MLX 0.32.3 / mlx-lm 0.32.0 / llguidance 1.9.1 / Python 3.11.15, M5 Pro 48 GiB",
+    "limits": "Q4/group128, 28 layers, window8192/output2400, cohort 최대8 UID, prefill512 chunks",
+    "sampler": "원 temp0.2/top-p0.95/top-k40/seed42와 full-vocab151936 stable sort·global top-p·key split을 보존한다. argmax/근사/국소 renormalization 금지.",
+    "ownership": "준비 모델 하나 공유, 요청 UID별 fresh KV·grammar·sampler·detokenizer. 답변·소스 KV 재사용 금지."
+  },
+  "nextSession": {
+    "first": "이인계와 checkpoint.alignedSourceEvaluationV109/alignedFusionRetentionV110/V111/alignedUnfusedControlV112/4개familybans를 읽고 실제V109report/allfieldreview,V111pairedloss,V112byteexactterminal hashes와git상태를 확인한다. 모든이전ownedsession은종료됐고현재live없다. 종료handle재poll/relaunch하지않는다.",
+    "nextIndependentWork": "Implement a private prepared model runtime using originalQ4base36162 and unchangedfinalF32LoRAf3f3, preserving trained SDK arithmetic verified byV112 all72/all16783 exactvectors. Adapt optimizations only after all trained-model numeric/KV/joint-sampler/owner proofs; existing fused-only SharedProjectionWeights/CompiledMlp helpers must not blindly replace LoRALinear wrappers. Then genuinelyfresh completewhole-source plan must retain all originalsource/context/fields/20returncells/scopes and exclude allfour permanentfamilies, never reuse retired92plan or bannedfamily undernewweights. No model/dtype/LR/epoch/sampler sweep or staticLLM replacement/clipping/subsets. Goal remains correctentireHost<=3000ms plusproductintegrationQA/release/install.",
+    "notImplemented": "이전 반복 분석에서 나온 layerwise schedule, 새 모델/토크나이저 등은 구현·채택되지 않았다.",
+    "completionStillMissing": "새로운 허용 범위 전체의 설명 의미·정확성과 prepared-model 전체 host 완료 ≤3초를 실제 검증하고 제품 통합·QA 후에만 release/install한다.",
+    "publication": "문서 인계와 실제 결과를 기록한다. publication commit/원격은 실제git에서확인하며 실패한 fused모델은 제품release/install하지않는다. 제품/설치0.0.1145 유지."
+  }
+}
