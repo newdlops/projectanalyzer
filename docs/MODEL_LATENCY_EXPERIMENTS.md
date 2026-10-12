@@ -4673,6 +4673,101 @@ timer·UID별fresh KV·disk/자원 해제를 보존한다. 새로운 numeric fam
 폐기된92개 계획과 네 금지 family는 모든 weight 변형에서도 재실행하지 않는다.
 **정확한 전체 Host≤3000ms·제품 통합/QA/release/install은 여전히 미완료**다.
 
+## V117~V119: 학습 연산을 보존한 실제 전체 설명의 실패
+
+V117은 새 `clampToWindow(value, lower, upper)`를 준비했다. `value < lower`이면
+`lower`, 그 조건이 거짓이고 `value > upper`이면 `upper`, 그 외에는 `value`를
+반환한다. 엄격한 `<`/`>`이며 경계 순서를 검증하거나 재정렬하지 않는다.
+Kotlin/TypeScript·한국어/영어의 **12개 요청·세 경로씩·32개 소스 occurrence**를
+실제 Host에서 준비했다. 전체 grammar/EOS와 독립 reference448개 teacher leaf·
+212개 설명 필드를 오프라인 검토했고, 학습이나 실제 모델 설명 요청은 없었다.
+
+V118은 새12개에 기존 V103의 **미노출84개 요청을 모두** 연결했다.
+**36개 action·96개 요청·64개 rich 경로·260개 소스 occurrence·40개 호출·
+88개 disk page·28개 final callee 본문**, 다섯 반환×언어×locale의20개 조합을
+유지했다. 기존84개의 source/context/schema/target와 noncompiler 지침은 모든
+바이트가 같다. 전체282,585 prompt token·29,696 target/EOS와 기존
+8192/2400/196608 제한을 확인했다. builder 종료 전에 의존 preflight를 실행한
+CPU 실패를 보존했다. 실제 builder 종료 후 전체96개 감사는 통과했다.
+stdout의 옛 `rows:92`는 잘못된 표기이며 admission/archive/proof는 모두96개다.
+봉인된 결과를 수정하거나 다시 실행하지 않았다.
+
+V119는 원본 Q4 base와 최종 F32 LoRA를 V113의 검증된 runtime에 연결했다.
+전체 수치·공동 스트림 증거와12개 CPU 검사를 유지했다. 실험용 전송 계층이
+두 graph를 받도록 연결했고, 기존 Host 실행/시간 경계와 cleanup 블록은 모든
+바이트가 같다. source-free64+1 준비·두 graph·모델328,302,600 bytes·EOF 후
+실제 정상 종료/최종8 bytes 해제를 확인했다. 최초 draft 테스트의 API 필드명
+오류를 보존한 뒤 봉인 전에 수정했다.
+
+첫 **Kotlin/한국어 함수의 세 경로를 모두** 실제 실행했다. 원문 입력 일치,
+parser 완료,8개 소스 occurrence,3개 disk page와 모델/스토어 cleanup은 통과했다.
+모델 준비 이후 소스 처리부터 전체 완료/해제까지 **13,779.76825ms**로3초를
+초과했다. 11,609 prompt token·1,049 output token·1,052 실제 sample을 기록했다.
+tokenization/generation13,229.97225ms와 나머지 Host549.796ms를 확인했다.
+Host 처리만 줄여서는 현재 생성 시간을3초 이내로 만들 수 없다.
+
+설명 의미도 실패했다. 원문 `<`에 대해 `<=`/`>=`를 설명하고 `0 > 10 = true`라고
+서술했다. 조건 평가를 Boolean 지역값 저장으로 표현하고, 분기 없는 함수라고
+주장했다. 마지막 경로의 정수 반환10을 `false`로 설명했다. codec으로 복원된
+고정 입력·값·그래프가 맞는다는 사실은 이런 자유 설명의 오류를 상쇄하지 않는다.
+**65개 native leaf·116개 복원 leaf·328개 전달 leaf·57개 설명 필드**를 모두
+검토했다. 공유된 reference DAG를 cycle처럼 거부한 최초 검토 CPU 실패를
+보존하고, 직렬화되는 각 occurrence를 검토하도록 고친 뒤 결과를 한 번 저장했다.
+실제 neural 결과는 변경하지 않았다.
+
+session72250/root14461/model14493은 실제 runner exit1/model child exit0,
+두 PID 부재를 확인했다. **`ordered-two-bound-direct-return-selection` 전체 함수군을
+weights·이름·연산자·언어·locale·scope 변형까지 영구 neural 금지**했다. 금지
+함수군은5개다. 전체96개 계획을 폐기했고 나머지35개 action·93개 요청은 실행하지
+않았다. 같은 함수나 폐기된 계획을 재시험하지 않는다.
+
+증거 SHA-256:
+
+- V117 오프라인 decision: `b14752a9a49d5b0eb48959042f879955b44b7e1fa5bc101a1bfb5d6b30e103ab`
+- V118 전체96개 decision: `b9471d1e2cdb2b3f3ddd236692a57e04992501fdf5773d5f6e00994bc6923e7d`
+- V119 전체 의미 검토: `ed41a6d40ba58b0cf732630c64c354090e3113d0708bc3399d67d5695511f2fe`
+- V119 실제 실패 decision: `5b005b44ff04ffd443504abd9755283fbfc8616956b836f5d4c1e258d2b9fce7`
+
+## V120~V121: 전체 관측 분석과 현재 학습 모델의 합성 비용
+
+V120은 기존 최종 관측을 CPU에서 읽어 **72개 학습 owner·16,783개 target/EOS를
+모두** 재검증했다. 전체 completion을 tokenizer로 다시 확인했고, V112의 복원된
+NLL/top-token vector와 모든 바이트가 같다. 모든 target을 문자열, 다른 scalar,
+JSON 구조/경계, EOS에 한 번씩 집계했다. 모델 forward나 source 설명 요청은 없었다.
+
+전체 token을 합쳐 계산하면 NLL0.2515646245, top-token accuracy94.1608%다.
+이전72개 owner별 평균0.2010675545/95.4446%와는 **집계 방식이 다르다**.
+모델 관측이 바뀐 결과가 아니다. 문자열 literal955개 중396개에는 정답 prefix를
+넣은 상태에서도 top-token 오류가 있고, 전체980개 오류 중907개는 문자열에 속했다.
+이 token 점수는 전체 문장이나 새 함수의 설명 의미를 증명하지 않는다.
+실제 자유 생성 실패와 같은 것으로 계산하거나 acceptance 기준을 바꾸지 않았다.
+
+V121은 이전 V90의 합성 case **네 개를 데이터로만** 사용해, 원본 base+최종 F32
+adapter/current trained runtime으로 control4개와 cProfile4개, **전체8개 stream**을
+새로 실행했다. 입력은 EOS ID뿐이고 출력은0/1/2 정수48개 배열이다. 실제 함수,
+지침, teacher 문장이나 금지된 소스를 모델에 제공하지 않았다. original sampler,
+512-token prefill,8192/2400 제한과 각 UID의 fresh KV/grammar를 유지했다.
+
+전체 raw 값과 output/sample/EOS count는 control과 profile에서 모두 같다.
+base/trained graph는 각각 한 번, idle 모델328,302,600 bytes, 최종8 bytes와
+원래 RNG/모델/adapter를 확인했다. session42898/PID54361은 실제 exit0/PID 부재다.
+control4,485.914208ms와 profile4,439.496958ms의 차이를 속도 향상으로 주장하지 않는다.
+
+profile의 inclusive CPU wall time은 prefill2,027.5175ms, model forward/eval
+2,274.648332ms, mask/normalize/sample120.771081ms다. GPU wait가 포함되고
+내부 native mask8.474701ms 같은 nested 값을 다시 더하지 않는다. **정수 문법의
+비용은 실제 bounded Korean/English 문자열 문법의 비용을 대표하지 않는다.**
+이 합성 시간을 실제 함수의3초 완료 시간으로 환산하거나 모델 품질 근거로 사용하지
+않는다. 다음에는 소스나 소스에서 가져온 const/code 없이 문자열 문법의 비용을
+확인하고, 설명 역할과 전체 target 정렬 문제를 별도로 검토해야 한다.
+
+- V120 전체 CPU 분석: `d98750b11b696973f260b3633bcaa042cda985eaaf4f78462ead7f4a86256e73`
+- V120 실제 terminal: `5597606b8d1deeb4adcc8ac1098519c81222b76d619d4f4002a91c90cc249532`
+- V121 실제 terminal: `b4f6c6b259671e986c75dae02183786daa584beb71ccbf51e71a76378732ab66`
+
+제품/설치 버전은 **0.0.1145**다. 후보는 채택하지 않았고,
+**정확한 전체 Host≤3000ms·제품 통합/QA/release/install은 계속 미완료**다.
+
 ## 남은 완료 기준
 
 모델 변경, decoder 최적화 또는 입력 구조 변경을 채택하려면 다음을 함께 확인해야 한다.
