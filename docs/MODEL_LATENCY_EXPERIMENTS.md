@@ -4840,6 +4840,51 @@ prepared-model 전체 Host≤3000ms와 제품 통합/QA/release/install은 별�
 - V125 전체 named roundtrip: `70ed6615d4e5f3dc7e100243d2b1aa4c66e93a66d94c7e647bed59b6a0487f2e`
 - V126 전체 named output: `cce727956a8969bf0ab2e46da6dba7430fbdf031d11f28b16b56006425413b19`
 
+## V127~V130: 전체 named 입력 검증과 새 전체 평가 범위
+
+V127은 원래 compiler JSON 한 줄과 신뢰된 footer/system 출력 mode만 새 source schema 표현으로 바꾼다. 원문·부모/근접 callee·필드·값·confidence·unknown·나머지 지침을 유지하고, 원래 compiler recipe를 사용해 전체 native payload와 응답의 lexical byte를 독립적으로 복원한다. 모호하거나 지원하지 않는 요청은 전체 원래 요청을 유지한다. 전체3,939개에서 오류0개,3,915개 변환·24개 whole fallback이며 CPU 검사5개가 통과했다.
+
+V128은 전체3,939개 새 prompt/response/EOS를 원래 tokenizer/native grammar에서 확인했다. prompt9,017,891개·target/EOS991,075개, 최대prompt5,420·최대sequence6,216이며 기존8192 window/2400 output 예약/196608 stdio bytes/24000 output characters를 유지했다. 모델·학습·source NN은0회다. 필드 이름을 노출하거나 byte를 복원하는 검사는 설명 정확성이나 속도 개선의 증거가 아니다.
+
+V129은 새 numeric 함수 `encodeState(active, visible)`를 준비했다. 지역 encoded를0으로 초기화하고, active가 참일 때1, visible이 참일 때2를 독립적으로 더해 반환한다. Kotlin/TS·KO/EN 네action의 모든16경로·80구문 발생과 원래 Host/값/문장/codec/validator/disposal을 검증했다. 영어 참조 목적 문장이 원래 길이 제한을 넘었던 초안 실패를 보존하고, 의미를 유지하며 제한 안에 작성했다. 실제 원문에는 입력 검증·else·early return·외부 상태 변경이 없다.
+
+V130은 새16개와 **원래 미노출84개 전부**를 합쳤다. 전체36actions/100requests/68rich routes/308source occurrences/40calls/92disk pages/28final callee bodies와 다섯 반환×KT/TS×KO/EN20개 full-root cell을 유지했다. 원래84개의 context/schema/prose/noncompiler message는 named inverse로 모든 byte가 복원되며, 전체100개 prompt/native target/EOS가 원래 budget을 통과했다. 이전 폐기 builder/catalog 실행, optimizer/monitor 추가, 좋은 행만 선택은 없었다.
+
+## V131~V133: 실제 전체 생성 실패와 모든 설명 필드 검토
+
+V131은 원래 base와 변경 없는 최종 F32 adapter, V113 두 compiled graph 및 V116 sampler/취소/resource 증거를 유지했다. backend worker는 V119와 byte 동일하고, provider·전체 Host timer·input audit는 실험 경로 외의 원래 동작을 유지했다. 요청별 V82 contract 뒤에 V127 named adapter를 붙였으며 모든 raw/native/expanded 응답을 보존했다. CPU14개 검사와 source-free 준비/EOF가 통과했다.
+
+실제 첫 Kotlin/한국어 함수는 **네 경로·20구문 발생·네 disk page 전체**를 처리했다. 원문/입력 byte, native grammar/EOS, 원래 파서, 2graphs, idle328,302,600 bytes와 종료 후8 bytes/childexit0를 유지했다. 그러나 prepared-model 전체 Host는 **57,687.038375ms**로3초 기준을 실패했다. tokenization+generation은53,886.267958ms이며 나머지 Host는3,800.770417ms다. 각 request prompt는4709/4377/4377/4038, output은570/552/473/443, sample/EOS는571/553/474/444였다. 서로 다른 함수/경로의 V11913.779초와 단순 속도 비교하지 않는다.
+
+V132 review는 Host `{context, locale, taskKind, response}` wrapper를 직접 context로 읽어 최초 CPU 실패했다. 첫 코드/실패를 보존했다. V133은 실제 context 연결을 바로잡고, 원래 파서가 공유하는 step/nodeDetails 객체를 **실제 저장 JSON의 모든 경로**로 inventory했다. shared-reference 초안 오류도 보존했다. 새 모델 실행 없이 네 경로의 **75개 model prose field 전부**를 검토했다.36개 incorrect·31개 incomplete·8개 correct이며, native107/expanded183/delivered551 leaf를 모두 기록했다. 원래 typed 값·source example·모든 source occurrence와 원래 codec/Host에서의 문장 byte 보존도 확인했다.
+
+대표 오류는 active/visible Boolean을 변경되는 numeric 지역 변수로 취급하기, `+=2`를1저장으로 설명하기, visible=false 경로에서2를 더했다고 말하기, return을 지역 대입/다음 구문 진행으로 설명하기, 서로 독립적인 플래그에 의존성을 만들기다. summary/alternative를 static disclaimer로 채우거나 static example을 관찰한 실행처럼 표현하기도 했다. 문법을 통과한 JSON이나 복원된 고정 값이 이 의미 오류를 상쇄하지 않는다.
+
+전체100개 계획을 폐기했고 **나머지35actions/96requests는 실행하지 않았다.** `two-independent-boolean-flags-additive-bit-code` 전체 family를 모든weights·이름·연산자·언어·locale·scope 변형에 대해 영구 neural 금지했다. 기존 다섯 금지를 유지해 현재 여섯 개다. 실제 session49185/root57921/model57974는 runnerexit1/childexit0/PID 부재이며 재poll/재실행하지 않는다. 기존 model/adapter hash는 유지되고 제품/설치는0.0.1145다.
+
+## V134~V135: 원래 전체 학습/모니터링 데이터의 표현 정렬
+
+V131 모델은 원래 tuple 표현으로 학습했지만 실제 요청/출력은 새 named 표현이었다. 이 차이가 모든 실패의 원인이라고 증명하지 않았으며, 표현 정렬의 품질·속도 개선도 아직 검증하지 않았다. V134는 **원래 학습2,944개·monitor896개 전체**를 V127/V128 named 형식으로 정렬했다.3,824개 입력/응답 표현이 바뀌고16개 whole original fallback은 유지됐다. 원문/context/응답 의미의 전체 byte inverse, 원래 positive rational weights·split/order·source component·stage/type/language/family hierarchy를 유지했다. 새 평가나 실패 모델 문장을 학습에 넣지 않았고 모든84reserved/all6failed source owner를 제외했다.
+
+새 complete training target/EOS는717,709개, monitor는237,628개다. prompt는각6,681,710개/2,041,515개이며 양쪽 최대sequence5,103으로 **기존6144 학습 할당** 안에 있다. V128에서 모든 prompt/answer/EOS를 그대로 복사해 원래 public substrate가 전체3,840개를 확인했다. 출력 일부나 EOS를 제거하지 않았고 optimizer update는0회다.
+
+V135는 원래 real SDK iterator/ledger/loss 경계를 MLX CPU에서 확인했다. **학습2,944개 distinct row 전체의 실제 stable length-sort/seed42 순서**,47개 rational weights,717,709개 complete target/EOS,896개 항상 unweighted monitor와237,628개 target/EOS가 통과했다. 모델·optimizer·sampling·source NN은0회다. 이 CPU 확인을 실제 학습 업데이트나 새 모델의 의미/속도 통과로 처리하지 않는다.
+
+다음 단계는 원래72개 training-only stability owner와 모든 coverage group,0/200/600/1200/2000/2920/2944 일곱 guard를 새 **전체** named token에 연결하는 것이다. 원래 threshold와 originalbase/1epoch/LR1e-5/seed42/batch1/LoRA16 rank8 scale20 dropout0/final-only/no resume를 유지하고, 준비와 fresh zero-adapter guard가 통과한 뒤에만 단일 full pass를 실행한다. 새 full pass/독립 final audit/새 비금지 전체 neural 의미·Host3000ms/제품 통합·기능·시각 QA/release/install은 아직 수행하지 않았다.
+
+증거 SHA-256:
+
+- V127 whole input inverse: `a5f2f880a1fc9940aba247c697e0ac8034feba122eb426e5e66f10ddfcf37c2b`
+- V128 whole prompt/native/EOS admission: `5661bb1ee4de02203ff7344bac65d235d3704163f3cf166c477d97e580b8c586`
+- V129 fresh complete references: `64d03654445740a7be2d3f102ece15dd8dbea85908d1e6ab9e6322810ea8c4f6`
+- V130 whole100 catalog decision: `53743b767a8c5d73579c6765af5cce7be1c1652ca2b38dfbd82208f6ee9774bb`
+- V131 first actual source terminal: `190b078087b5e31cc3f13bd56c2ecdd592176406c52bd57706cf43ccecbb23d3`
+- V133 complete actual meaning review: `f7bbe664e51bb8e48a98280c898ee96a88ef709d939a72fdd9a58533b607e4f3`
+- V134 named whole3840 objective: `d962049cb56f5509328b0c012c6dcb07b9cf6750632c6299b532efdde8581257`
+- V135 actual SDK whole3840 CPU: `d50e1b5ebc44be18fcee588a8b6763f96c0401c32a1b5d85f08b01a056cb8ece`
+
+제품/설치는 **0.0.1145**이며 새 후보를 채택하지 않았다. 전체 목표는 계속 active·미달 상태다. 모든 이번 owned job은 종료됐고 live tool/model process는 없다.
+
 ## 남은 완료 기준
 
 모델 변경, decoder 최적화 또는 입력 구조 변경을 채택하려면 다음을 함께 확인해야 한다.
