@@ -1,6 +1,6 @@
 {
-  "purpose": "이전 목표의 압축 인계. V109 첫 실제전체2경로 설명은 의미/전체3초 실패. V111 전체72학습자료에서 Q4fusion 손실 증가를 확인했고 V112 원본base+변경없는최종LoRA로 모든최종학습 관측byte를 복원했다. 실제새소스 설명/3초/제품QA는 여전히미완료다.",
-  "savedAtUtc": "2026-10-12T15:10:32.790726+00:00",
+  "purpose": "이전 목표 압축 인계. V109 실제설명 의미/전체3초 실패, V111fusion손실확인,V112원본base+최종LoRA 학습관측byte복원 후 V113훈련연산보존최적화 전체수치와 V116전체14jointstream 검증 통과. 실제새source worker/전체설명/3초/제품QA는미완료.",
+  "savedAtUtc": "2026-10-12T16:14:59.827088+00:00",
   "workspace": "/Users/lky/project/projectanalyzer",
   "resumeInstruction": "이 파일을 먼저 읽고 checkpoint.json에서 필요한 항목만 확인한다. 긴 대화나 실험 문서 전체를 다시 읽지 않는다. 이전의 반복적·추측성 분석은 구현 결정으로 취급하지 않는다.",
   "userIntent": {
@@ -16,24 +16,24 @@
     "branch": "main",
     "productVersion": "0.0.1145",
     "handover": "docs/MODEL_LATENCY_HANDOVER.json. 다음 시작에서 실제 git 상태와 checkpoint의 현재상태를 확인한다.",
-    "checks": "V109 CPU9/actual2path completed formats, meaning/Host22295.021333ms failed. V110CPU admission rejected beforeGPU. V111CPU4+actual72/16783 final fusion learned loss worsens everyowner. V112CPU6+actualoriginalbase/finalLoRA72/16783 exactall4vectors restored, originalRNG8bytes and unchangedbase/adapter files. Allownedprocesses terminal/missing, no freshsourceNN afterV109, product0.0.1145.",
+    "checks": "V112 all72/all16783 originalfinal vectors restored. V113draft5GPU tests then actualfull51+51/19+19 logits/KV/capacity andall336MLP bytes exact; trained/base graphs each1, idle328302600/no extraweights/RNG8bytecleanup. V114CPUcases parser/V115preGPU scalarreference failures preserved. V116CPU7/allactualpreGPU gates +actualall14synthetic streams/206transitions/13whole1cancel/logits/key/KV/native/EOS/owners exact, outsideRNG/allweights, final8bytes. Allownedmodel processes terminal/missing. No freshsourceexplanation afterV109; product0.0.1145.",
     "productImplementationBaselineCommit": "1827aa4cd4ccb7c96b33d320d23d73a715904ad3",
-    "documentationContent": "docs/MODEL_LATENCY_EXPERIMENTS.md에 V88~V112 실제 결과, MODEL_LATENCY_HANDOVER.json에 최신 상태. 문서 publication commit/원격 상태는 실제 git log/status로 확인한다."
+    "documentationContent": "docs/MODEL_LATENCY_EXPERIMENTS.md에 V88~V116 실제 결과, MODEL_LATENCY_HANDOVER.json 최신 상태. publication commit/원격은 실제git log/status에서 확인한다."
   },
   "executionState": {
     "activeToolHandles": [],
     "activeModelProcesses": false,
-    "lastTurn": "ActualV109firstwhole2path meaning/Host22.295s fail; whole92plan retired/4family bans. V110beforeGPU memoryadmission rejection preserved. V111fixedfusedmodel72trainingowners/16783targets proves allowner learnedloss worse (mean0.20106755→1.44701573, accuracy95.4446→65.8894%). V112originalQ4base36162+unchangedF32finalLoRAf3f3 restores every72/16783 originalfinal nll/sdk_nll/top_tokens/starts byte exactly, oneoriginalSDK load/no fusion/no sampler/dtype/model sweep/no freshsourceNN. Bothprobes actualexit0/PIDabsence/RNG8bytecleanup/allassets unchanged. Learned-arithmetic private runtime/whole newsource meaning+3000ms+productQA/release remains.",
+    "lastTurn": "V113private trained_runtime supports originalQ4base+finalF32LoRA withoutfusion. Draft4 arithmetic tests passed but final12vs8bytes; actualsourcefree diagnostic4byte globalcompiledcallable owner, originalsources preserved, fixedmodel-ownedgraph/dynamicscale, actual5tests pass. Fullnumeric140pairs/all336MLP/full5181and8192 exact/noextraviewweights/base+trainedgraphs1each/actualexit0/PIDmissing/RNG8cleanup. V114CPUconstructorCase failure andV115preGPUscalarref failure preserved withoutmodelrun. V116CPU7+actualallpreGPU gates and all14original joint streams206transitions/13whole1cancel/hash/KV/weight/RNG/owner/8bytecleanup pass actualexit0/PIDmissing. Needactualsourceworker/fullfreshplan/meaning+Host3000ms/productQA.",
     "noProgressConsecutiveTurns": 0,
-    "terminalRule": "V101세션12644/PID15853,V106세션94555/PID70326와CPU66900/PID74450,V107세션32542/PID3542,V108세션73709/PID15889 모두실제exit0/PID부재 확인됐다. 이 세션을 다시poll/실행하지 않는다. 현재livehandle없다. V109세션39331/root58396/model58415도 실제runnerexit1/modelchildexit0/PID부재 확인됐다. 재poll/재실행 금지. V111세션43828/PID94704,V112세션86222/PID21622도 실제exit0/PID부재 확인됐다. 재poll/재실행하지 않는다. V110준비는GPU전CPU거부라실행하지않는다."
+    "terminalRule": "V101세션12644/PID15853,V106세션94555/PID70326와CPU66900/PID74450,V107세션32542/PID3542,V108세션73709/PID15889 모두실제exit0/PID부재 확인됐다. 이 세션을 다시poll/실행하지 않는다. 현재livehandle없다. V109세션39331/root58396/model58415도 실제runnerexit1/modelchildexit0/PID부재 확인됐다. 재poll/재실행 금지. V111세션43828/PID94704,V112세션86222/PID21622도 실제exit0/PID부재 확인됐다. 재poll/재실행하지 않는다. V110준비는GPU전CPU거부라실행하지않는다. V113numeric세션38963/PID14100,V116joint세션93955/PID76670 실제exit0/PID부재 확인. 이세션 재poll/relaunch금지. V114/V115는GPU전최초실패보존,재실행금지. 현재live없다."
   },
   "evidence": {
     "root": ".local-models/experiments/three-second/",
     "authoritativeState": "checkpoint.json",
     "latestRecord": {
-      "path": "aligned-unfused-control-v112/terminal.json",
-      "sha256": "1860ea551920eae40a229cfa76b73041be530ae346d9a28cba6e399540117852",
-      "status": "original-base-unchanged-final-lora-restores-all72-final-training-vectors-byte-exact"
+      "path": "trained-joint-runtime-v116/terminal.json",
+      "sha256": "82846aaf7bdecc0c12474e28d19cc082fc5582329debadad7a810db7b4a78b1f",
+      "status": "trained-original-base-final-lora-all14-joint-streams-verified-awaiting-fresh-whole-source-runtime"
     },
     "v87ActualSource": {
       "directory": "tuple-source-runtime-v87/",
@@ -382,6 +382,88 @@
       "sampledTokens": 0,
       "freshExplanationRequests": 0,
       "result": "Original SDK base+unchangedfinalF32LoRA preserves trained arithmetic byte exactly without fusion. Source read is all72 training inputs, notsourcefree. Newsourcequality/whole3s/optimizedruntime numeric/KV/joint/owner proof still pending."
+    },
+    "v113TrainedPacking": {
+      "directory": "trained-packed-runtime-v113/",
+      "publicApi": "trained_runtime/__init__.py",
+      "arithmetic": "Share original quantizedbase rows only; retain originalperprojectorF32lowrank2matmuls/scale/BF16cast/addition. Largerprefill actualoriginalmatrixgeometry. No fusion/requantize/dtypechange.",
+      "fixedGraphs": {
+        "base": 1,
+        "trained": 1
+      },
+      "actualModelLayers": {
+        "baseOnly": 12,
+        "trainedLora": 16
+      },
+      "firstDraftFailure": "draft-gpu-failure.json",
+      "actualOwnershipDiagnosis": "owner-diagnosis.json",
+      "originalCodeSnapshot": "before-owner-fix/",
+      "ownerFix": "Globalcompiledcallable retained4bytes; model-ownedcallable+explicittemporaryF32scale input removescapture. All5draftGPUtests pass, idlebaseline exact328302600 and final8bytes.",
+      "numericTerminal": {
+        "file": "trained-packed-runtime-v113/numeric-terminal.json",
+        "sha256": "12f9dabba22171a1768d6e751fc46f620ba27b9c6efe48dc58fcb3a8ab50b978"
+      },
+      "fullPairs": {
+        "projection": 51,
+        "compiled": 51,
+        "windowProjection": 19,
+        "windowCompiled": 19,
+        "standaloneMlp": 336
+      },
+      "originalTrainingGeometry": 5181,
+      "originalFullInferenceWindow": 8192,
+      "actualTerminal": {
+        "sessionId": 38963,
+        "pid": 14100,
+        "exitCode": 0,
+        "chunk": "addcf7",
+        "missingChunk": "df3d7a"
+      },
+      "sourceRead": false,
+      "sampledTokens": 0,
+      "modelExplanationRequests": 0
+    },
+    "v114AndV115BeforeGpuFailures": {
+      "v114": "trained-joint-runtime-v114/preparation-failure.json",
+      "v115": "trained-joint-runtime-v115/before-gpu-failure.json",
+      "modelLoads": 0,
+      "policy": "Originalcode/preparation/failure frozen, no rerun. V116 fixes inputdata constructor and scalarproof reference, executes allactualpreGPU gates on CPU beforemodellaunch."
+    },
+    "v116TrainedJoint": {
+      "terminal": {
+        "file": "trained-joint-runtime-v116/terminal.json",
+        "sha256": "82846aaf7bdecc0c12474e28d19cc082fc5582329debadad7a810db7b4a78b1f"
+      },
+      "proof": {
+        "file": "trained-joint-runtime-v116/joint-proof.json",
+        "sha256": "a4cef60b6043dec1f84a9223139fd54e109873e7e8ce47ab935b273ceaf707d7"
+      },
+      "allOriginalFunctionAndClassBodies": 12,
+      "originalCases": 4,
+      "referenceAndCandidateStreams": 14,
+      "candidateWhole": 13,
+      "explicitCancel": 1,
+      "actualComparedTransitions": 206,
+      "syntheticDraws": {
+        "reference": 218,
+        "candidate": 206,
+        "sum": 424
+      },
+      "allFullLogitTokenKeyKvNativeEosOwnerBytesEqual": true,
+      "allWeightsAndOutsideRngUnchanged": true,
+      "modelOnlyActiveBytes": 328302600,
+      "finalModelAndCompilationActiveBytes": 8,
+      "actualTerminal": {
+        "sessionId": 93955,
+        "pid": 76670,
+        "exitCode": 0,
+        "chunk": "c90bb9",
+        "missingChunk": "c4bca7"
+      },
+      "sourceTokensProvided": 0,
+      "modelExplanationRequests": 0,
+      "explanationTimingsMeasured": 0,
+      "actualWholeSourceMeaningOrThreeSecondsProven": false
     }
   },
   "preparedAssets": {
@@ -410,7 +492,14 @@
       "base": "model-0.6b-base-weight-control-v16",
       "finalAdapter": "adapter-small-model06-aligned-coverage-v101",
       "publicLoader": "aligned-unfused-control-v112/trained_model.py",
-      "qualification": "V112 all72/all16783 originalfinal teacherforced vectors byteexact restored. Same originaltrainedQ4base/F32LoRA arithmetic, no retraining/dtype/sampler/model sweep. No actualnewsource explanation/3s proof, no optimizedpreparedruntime fullgates, no productadoption."
+      "qualification": "V112all72/all16783 originalfinal vectors byteexact restored; V113fulltrainedpacking numeric/KV/MLP and V116all14joint sampler/cancel/owners passed. Sourcefree/math proofs do not establish actualnewsource/prose/whole3s. No productadoption."
+    },
+    "trainedPreparedRuntime": {
+      "loader": "aligned-unfused-control-v112/trained_model.py",
+      "runtime": "trained-packed-runtime-v113/trained_runtime",
+      "base": "model-0.6b-base-weight-control-v16",
+      "finalAdapter": "adapter-small-model06-aligned-coverage-v101",
+      "qualified": "Originaltrainedarithmetic retained, fullnumeric/joint verified, model-only328302600, graphsbase1/trained1, final8bytecleanup. Complete-source worker/provider/Host binding and genuinelyfreshfullscope plan still needed."
     }
   },
   "constraints": [
@@ -431,8 +520,8 @@
     "ownership": "준비 모델 하나 공유, 요청 UID별 fresh KV·grammar·sampler·detokenizer. 답변·소스 KV 재사용 금지."
   },
   "nextSession": {
-    "first": "이인계와 checkpoint.alignedSourceEvaluationV109/alignedFusionRetentionV110/V111/alignedUnfusedControlV112/4개familybans를 읽고 실제V109report/allfieldreview,V111pairedloss,V112byteexactterminal hashes와git상태를 확인한다. 모든이전ownedsession은종료됐고현재live없다. 종료handle재poll/relaunch하지않는다.",
-    "nextIndependentWork": "Implement a private prepared model runtime using originalQ4base36162 and unchangedfinalF32LoRAf3f3, preserving trained SDK arithmetic verified byV112 all72/all16783 exactvectors. Adapt optimizations only after all trained-model numeric/KV/joint-sampler/owner proofs; existing fused-only SharedProjectionWeights/CompiledMlp helpers must not blindly replace LoRALinear wrappers. Then genuinelyfresh completewhole-source plan must retain all originalsource/context/fields/20returncells/scopes and exclude allfour permanentfamilies, never reuse retired92plan or bannedfamily undernewweights. No model/dtype/LR/epoch/sampler sweep or staticLLM replacement/clipping/subsets. Goal remains correctentireHost<=3000ms plusproductintegrationQA/release/install.",
+    "first": "이인계와 checkpoint.trainedPackedRuntimeV113/trainedJointRuntimeV116/4개familybans를 읽고 V112/V113numeric/V116joint 실제terminal hashes/git상태를 확인한다. 모든ownedsession은종료했고현재live없다. 종료handle재poll/relaunch금지. V109폐기92계획,V110/V114/V115실패도재실행하지않는다.",
+    "nextIndependentWork": "Buildprivate complete-source worker/provider/actionruntime on fixed originalQ4base36162+unchangedfinalF32LoRAf3f3 and V113trained_runtime model-ownedbase/trainedgraph controls. RequireV112learningretention,V113fullnumeric,V116joint evidence beforeGPU. DeriveoriginalwholeHosttimer/allfields/validators/sampler/source/KV/disk/disposal contracts; rebind actualidle328302600, graphbase1/trained1, bothassetintegrity andcompiledownerclose. CPUactualinput identity/completeHost/lifecycle tests first. Preparegenuinelyfreshnumericfamily and retainALL84originalunexposedrequests/32actions/all20returncells/scopes fromimmutableV103data only, nevercallretiredcatalog loaders or reuse old92plan. Exclude allfourbannedfamilies acrossweights/rename/operator/language/locale/scope. Then onewholeactualaction atatime with everyfreefieldmeaningreview, no retries/repair/clipping/staticLLMreplacement/subsets/thresholdrelaxation/model-dtype-LR-epoch-sampler sweeps. FullcorrectHost<=3000ms/productQA/release/install goal remains.",
     "notImplemented": "이전 반복 분석에서 나온 layerwise schedule, 새 모델/토크나이저 등은 구현·채택되지 않았다.",
     "completionStillMissing": "새로운 허용 범위 전체의 설명 의미·정확성과 prepared-model 전체 host 완료 ≤3초를 실제 검증하고 제품 통합·QA 후에만 release/install한다.",
     "publication": "문서 인계와 실제 결과를 기록한다. publication commit/원격은 실제git에서확인하며 실패한 fused모델은 제품release/install하지않는다. 제품/설치0.0.1145 유지."

@@ -4605,6 +4605,74 @@ wrapper에 맞춰 최적화를 검증하는 작업이다. 기존 fused 전용 he
 실패한 family를 다른 weight로 다시 실행하지 않는다. 실제 정확한 전체
 Host **≤3000ms**·제품 통합/QA/release/install은 **여전히 미완료**다.
 
+## V113~V116: 학습 연산 보존 최적화의 전체 수치·공동 스트림 검증
+
+V113은 원본 Q4 행 공유와 최종 F32 LoRA 연산을 함께 지원하는 비공개
+`trained_runtime` 모듈을 구현했다. projection·소유권·attention·compiled MLP를
+분리하고, low-rank 두 F32 matmul/scale/BF16 cast/addition을 원래 순서로
+유지했다. prefill/multi-row는 실제 원래 module과 matrix geometry를 사용한다.
+원래 base/최종 adapter의 파일이나 dtype·학습률·epoch·sampler를 바꾸지 않았다.
+
+실제 모델은 **보정 없는12개 MLP와 보정 있는16개 MLP**다. 서로 다른 원래
+연산의 고정 graph가 각각 한 번씩 compile되며 전체28개 레이어를 처리한다.
+이를 fused 모델의 단일 graph로 잘못 취급하거나, LoRA 보정을 삭제하거나,
+레이어 일부만 최적화한 결과를 전체 모델의 검증으로 사용하지 않았다.
+
+첫 draft의 실제4개 GPU 계산 검사는 통과했지만 해제 후8bytes 검사는
+실패했다(`1e6764`). 별도 source-free 진단은 모델/KV 해제 뒤 **12bytes**,
+전역 trained compiled callable을 해제한 뒤 **8bytes**를 관측했다(`262980`).
+이전 code 전체와 첫 실패를 보존하고, compile callable을 모델 수명에 묶었다.
+배율은 원래 F32 곱셈과 같은 임시 입력으로 전달해 cached scalar도 남기지
+않는다. 수정 후 전체 모델/레이어/KV·준비 상태 memory·해제 검사 **5개**가
+실제로 통과했다(`64b66d`). 첫 진단의 문법 오류도 GPU 전 draft 실패로 보존했다.
+
+그 뒤 V113의 **독점 전체 수치 검사**를 한 번 실행했다. 기존6개 순수 비교
+함수의 body를 byte 그대로 재사용하고 original geometry를 유지했다.
+**51 projection+51 compiled pair**, **19+19 full8192-window pair**의 모든
+logits·각 레이어 active K/V byte·할당 capacity가 같았다. 원래 더 큰
+**5,181-token** 학습 geometry도 유지했다. **28개 레이어×12가지 입력=336개
+MLP 사례**는 random/pattern/mixed exponent·양/음0·tiny/large·unit·half-ULP를
+포함하며 모두 byte가 같다. 두 graph는 각각1회이고, 준비/해제 전후
+모델만의 **328,302,600activebytes**가 유지돼 추가 model weight copy가 없다.
+전체 검사가 실제 exit0/PID 부재·원래 RNG/8-byte 해제·원본 자산 불변을
+통과했다. **41,079.619ms는 수치 진단 시간**이며 설명 지연이 아니다.
+
+공동 스트림 준비 중 V114는 원래 `dict/list/range` case 표현을
+`ast.literal_eval`로 읽는 CPU 오류로 GPU 전에 실패했다(`a0b12c`). V115는
+case parser를 보완했지만 metadata 참조 치환이 `scalar_proof`까지 바꿔
+GPU 전 gate에서 실패했다(`d8044c`). 두 최초 code/준비/실패를 모두 보존하고
+재실행하지 않았다. V116은 그 참조를 바로잡고, **7개 CPU 검사**와 실제
+실행의 **모든 pre-GPU gate**를 launch write만 제외하고 통과했다(`2c8028`).
+
+V116 실제 공동 검사는 원래 **12개 function/class body·4개 case·14개
+reference/candidate 스트림**을 그대로 유지했다. **206개 token/key transition**,
+전체 normalized logits·초기/terminal/cancelled KV·native raw/parsed 값·EOS
+lookahead·sampler/compilation owner가 모두 같다. **13개 전체 완료와 명시적
+취소1개**를 유지했다. 준비와 각 case 해제 후 model-only328,302,600bytes,
+outside RNG·원래 weight owner가 유지되고, 마지막 model/compile 해제 후에는
+원래 **8bytes**로 돌아왔다. 실제 exit0/PID 부재를 확인했다.
+
+206은 이번 실제 reference/candidate 관측값이다. 이전 모델의 같은 숫자를
+새 모델의 결과에 강제하거나 짧은 스트림을 골라 실행하지 않았다. 합성 draw
+합계는 **reference218+candidate206=424**이며 실제 source/설명/timing은
+**0회**다. 이 증거를 새로운 함수 자유 prose나 전체3초의 증거로 사용하지 않는다.
+
+- V113 전체 수치 준비: `a253f0ea6b31659ca4f8f39357048e16b57aaeedc6563ab5548d6424983e22bb`
+- 실제 numeric 세션38963/PID14100 exit0: `addcf7`, PID 부재: `df3d7a`
+- 실제 full numeric terminal: `12f9dabba22171a1768d6e751fc46f620ba27b9c6efe48dc58fcb3a8ab50b978`
+- V116 전체 joint 준비: `5eea8ddb769233324e1fc918d35752ceabf56ff4e69607229baceb9e84d9ac74`
+- 실제 joint 세션93955/PID76670 exit0: `c90bb9`, PID 부재: `c4bca7`
+- 실제 전체 joint proof: `a4cef60b6043dec1f84a9223139fd54e109873e7e8ce47ab935b273ceaf707d7`
+- 독립 CPU 전체 결과 확인·terminal: `82846aaf7bdecc0c12474e28d19cc082fc5582329debadad7a810db7b4a78b1f`
+
+다음은 이 준비 모델을 실제 complete-source worker/provider/whole Host에
+연결하는 작업이다. 원래 sampler·전체 지침/source/schema/field·validator·
+timer·UID별fresh KV·disk/자원 해제를 보존한다. 새로운 numeric family와
+기존32action/84개 미노출 요청·전체20return 조합/모든 scope를 유지하는
+**새 계획**을 CPU에서 검증한 뒤, 전체 action과 모든 필드 의미·시간을 확인한다.
+폐기된92개 계획과 네 금지 family는 모든 weight 변형에서도 재실행하지 않는다.
+**정확한 전체 Host≤3000ms·제품 통합/QA/release/install은 여전히 미완료**다.
+
 ## 남은 완료 기준
 
 모델 변경, decoder 최적화 또는 입력 구조 변경을 채택하려면 다음을 함께 확인해야 한다.
