@@ -4923,6 +4923,24 @@ V139는 실제학습종료뒤 사용할 독립CPU감사runner를 결과가나오
 - V138 whole4043 byteproof terminal: `b1e06b3352fa0de8650104cac0741e48c898a579411f6517ff1763fa67d1ddea`
 - V139 independentCPUfinalaudit preparation: `8c95728c39c69b89904fab0f1aec0006a4c02af64e8c80a20096438e0bb7563b`
 
+## V140~V141: 새 최종 가중치의 전체 수치·sampler 검증 코드 준비
+
+V137은 여전히 실제 session55468/PID99592에서 단일고정전체학습중이다. 문서snapshot은 **1060개 evaluatedupdate/257,726개target**이며, 원래72개guard0/200/600만통과했다. 전체2,944개update/717,709개target-EOS와1200/2000/2920/2944 guard/final-only/actualterminal/PID부재/assets/RNG8bytes/독립V139audit는미완료다. 부분train/monitor loss로새함수설명정확성이나3초완료를추정하지않는다.
+
+V140은 새가중치검증의CPU경계와원래runtime수치범위를학습결과전에고정했다. 원래Q4base+**독립최종감사를마친224개F32adapter만**로드하며, actualV137ownedterminal/PID부재/모든2944rows148reports717709targets/일곱raw72owner20275target guard/asset/RNG를요구한다. Live/foreign/partial/failed/unaudited상태를거부하는CPU2개검사가통과했다. 기존모델이나부분adapter를선택하지않고fusion/requantization/model·dtype·parameter변경을하지않는다.
+
+원래numerichelper **여섯함수body가byte동일**하며 기존51projection+51compiled pair,19+19전체8192window pair,28layers×12patterns=336MLP를모두유지했다. 기존최대5181geometry를제거하지않고, 현재named데이터최대5103token경계를prefill512×9+495 및세decode로 **13+13pair추가**했다. 전체모델수치비교는166pair다. Logit/KV활성byte/할당capacity/dtype/shape/weightowner/두graph/extraweight0/RNG8bytecleanup과모든원래source-free조건을유지한다. Geometry누락·경계축소·byte비교약화를거부하는CPU2개검사도통과했다.
+
+V141은 같은새가중치에서실행할 **원래14개joint stream 전체**를준비했다. 원래12개function/class body와네syntheticcase/length/UID/cancel이byte동일하다.13개wholecompletion과하나의explicitcancel,전체normalizedlogits/각sampledtoken·advancedkey/KV/nativegrammar/EOS/fullraw/value/output/lookahead/각ownerclosure/source-free64+1/최종8byte조건을유지한다. 원래수치범위나new13+13pair를빼면거부하고,live모델연결을거부하는CPU3개검사가통과했다. 새로운가중치에서는draw수가달라질수있으므로원래206회를새결과로가정하지않는다. 실제같은새가중치의reference/candidatehistories전체를비교한다.
+
+현재준비의총CPU7개검사는통과했지만 **finalBindingReady와jointBindingReady는둘다false**다. 학습이살아있으므로새모델/Metal/GPU수치/sampler/sourceNN은0회이고,가중치연결·수치/joint성공을주장하지않는다. Actualfullpass/독립finalaudit 이후한번의V140최종binding→전체numeric166/336실행→actualterminal/PID부재/8bytes→V141binding→전체14joint실행순서만허용한다. 실제sourcefield의미·정확한전체Host3000ms와모든84미노출/20rootcell/전체원문·부모/근접callee·필드·type/confidence/unknowns·제품통합/기능·시각QA/release/install은계속미완료다. 여섯wholefamily금지와제품0.0.1145를유지하며전체목표는active다.
+
+증거 SHA-256:
+
+- V137 livepartial runtimepreparation snapshot: `a34bbb793e8aef03dc21c42cb1a2b0c3329edec2ea2f68b2770d90cafbfd99cb`
+- V140 fullnumeric CPU preparation: `09c1e880b982c39a94ba68890c2195c5893e86466d84a4af1587f7d2cd632c6b`
+- V141 all14joint CPU scope preparation: `aa5697f50eb74f3b68cb6523bbaeff3b9dbedc5af4e7eb19214516f39b996c21`
+
 ## 남은 완료 기준
 
 모델 변경, decoder 최적화 또는 입력 구조 변경을 채택하려면 다음을 함께 확인해야 한다.
