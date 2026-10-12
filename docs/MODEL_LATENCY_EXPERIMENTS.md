@@ -3724,6 +3724,29 @@ control에서 예전 5,120 제한은 학습 index 2,680의 61개 토큰과 마�
 이후에도 최종 모델의 새 독립 함수 정확도와 실제 Host의 전체 설명 3초를 검증해야
 한다. 새 모델 학습·기본 모델 교체·버전 변경·설치는 아직 없었다.
 
+V72는 이 새 입력 전체의 source 분류와 연결된 source group 81개를 다시 계산해
+기존 학습 정책과 대조했다. 학습 2,920건의 모든 유리수 가중치가 같았다. 정책은
+완전한 응답·EOS의 **행별 평균 loss**에 가중치를 곱하므로, 응답 길이 변화가
+함수 유형·언어·기능별 학습 비중을 바꾸지 않는다. 검증 868건은 여전히 가중치
+없이 monitoring에만 사용하며, frozen 요청은 포함하지 않는다. CPU 테스트 10개가
+통과했다.
+
+동일한 학습 전용 48건·24개 group을 새 입력으로 고정하고 원본 0.6B 모델 및 초기
+LoRA에서 총 **96회**의 teacher-forced 계산을 실제 수행했다. variant당 응답·EOS
+10,803개 전체의 NLL·SDK NLL·top-token·시작 위치 벡터가 정확히 같았다. 두 평균
+NLL은 3.0507729018960212였고 기존 초기 drift 기준을 통과했다. 초기 LoRA는 기존과
+같은 F32 배열 224개·parameter 2,883,584개였다. 계산 중 RNG는 바뀌지 않았으며
+종료 후 외부 RNG 복구와 MLX active allocation의 원래 **8 bytes** 복귀를 확인했다.
+실제 session33604/PID33432의 terminal `a57a4d`는 exit0이었고, `9f209f`에서 해당
+PID가 사라진 것도 확인했다.
+`tuple-learning-prerequisites-v72/decision.json` SHA-256은
+`d0b1c42ad9bafc47c055dad2cbe447f977d70b5ce1356fbc69dbee2945510522`다.
+
+기준선 진단의 57.354초는 함수 설명 생성 시간이 아니다. optimizer update·sampling·
+설명 생성·adapter 저장은 없었다. 다음에는 새 SDK CPU trace의 전체 순서와 고정
+안정성 검사를 사용하는 trainer가 필요하다. 학습 정확도·새 함수 설명의 정확도·
+실제 Host의 3초 완료는 여전히 미검증이며, 공개 runtime·설치본은 그대로다.
+
 ## 남은 완료 기준
 
 모델 변경, decoder 최적화 또는 입력 구조 변경을 채택하려면 다음을 함께 확인해야 한다.
