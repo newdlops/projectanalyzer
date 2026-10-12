@@ -3650,7 +3650,20 @@ candidate/control 비용은 **1.079680**으로 고정한 1.05 한도를 넘어 �
 `interleaved-projection-v68/gpu-decision.json` SHA-256은
 `df2179ab917b5f9651477c0f106f26cb82de8013a60dd32613ff9f1c95e7be83`다.
 
-V67·V68은 소스 없는 연산 검증이며, 둘 다 고정 성능 기준에 따라 미채택이다.
+V69는 입력을 stack하고 출력을 slice하는 중간 연산을 제거하고, 실제 요청마다
+별도 입력 pointer와 출력 buffer를 연결했다. 원래 scalar 계산·입력 guard·단독
+native 경로는 유지했다. CPU 테스트 16개와 Python 모듈 파싱 7개가 통과했고,
+한 번의 GPU 실행에서 **4,068 raw 결과 쌍·모든 case의 원래 상주량·종료 전
+8 bytes 복귀**도 통과했다. 그러나 8개 요청 어휘 출력 control/candidate 중앙값
+3.439/2.091ms, 비율 **1.645180**은 요구한 2.0에 미달했고, QKV 단독 요청 비용
+**1.219565**도 1.05를 넘었다. 모든 12개 case와 interval을 보존해 미채택으로
+판정했다. 실제 session26858/PID91430의 terminal `9a9409`는 exit1이었고,
+`b8895d`에서 해당 PID가 사라진 것을 별도로 확인했다. V68의 실패 실행을 반복한
+것이 아니라 실제 GPU 입력·출력 ABI와 중간 연산을 변경한 별도 후보였다.
+`direct-row-projection-v69/decision.json` SHA-256은
+`2484f77e19a33631f1bbe58b4e5603ec98a297d816e1edf8816487a7c9b63dc7`다.
+
+V67·V68·V69는 소스 없는 연산 검증이며, 모두 고정 성능 기준에 따라 미채택이다.
 전체 모델 logit/KV·sampler·설명 생성·학습·실패 함수 재추론·공개 runtime·설치
 변경은 없었다. V68 audit의 14.63초와 peak 474,316,940 MLX bytes는 연산 검증의
 진단 수치이며 실제 제품의 전체 설명 시간이나 process RAM이 아니다.
