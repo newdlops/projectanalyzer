@@ -4885,6 +4885,24 @@ V135는 원래 real SDK iterator/ledger/loss 경계를 MLX CPU에서 확인했�
 
 제품/설치는 **0.0.1145**이며 새 후보를 채택하지 않았다. 전체 목표는 계속 active·미달 상태다. 모든 이번 owned job은 종료됐고 live tool/model process는 없다.
 
+## V136~V137: 전체 named baseline 통과와 단일 전체 학습 실행 중
+
+V136은 원래 V100의 **72개 training-only owner/32개 그룹**을 그대로 유지하고 전체 named prompt/response/EOS에 연결했다.48개 legacy와24개 nullable full-root의 선택·순서·source context·원래 row identity·rational weight를 유지했다. 모니터링/heldout 대체, target 일부 제거, loss에 따른 선택은 없다. 원래 통계 함수·독립 old/new group threshold와0/200/600/1200/2000/2920/2944 일곱 schedule을 그대로 사용한다. 원문/target/weight/split/중복 변경을 거부하는 CPU3개 검사가 통과했다.
+
+실제 원래 base 및 새 zero LoRA에서72회씩 **144회 teacher-forced forward**가 완료됐다. 전체20,275개 target/EOS의 `nll`, `sdk_nll`, `top_tokens`, `starts`가 두 variant 사이에서 dtype와 모든 byte가 같았다. 원래 초기 stability guard·measurement RNG·mode 및 종료 후8-byte allocation 복원이 통과했다. session96390/PID91386 actualexit0/PID 부재를 확인했다. 모델 로드는1회이며 optimizer update/sample/source explanation은0회다. 이 baseline은 실제 새 함수 설명 정확성이나3초 완료의 증거가 아니다.
+
+V137은 **단 한 번의 original-base 전체 named 학습**을 고정했다. 전체2,944 optimizer rows/717,709 target-EOS,896 unweighted monitor rows/237,628 target-EOS와 실제 SDK 순서/가중치를 유지한다.1epoch/LR1e-5/seed42/batch1/accumulation1/LoRA16layers/rank8/scale20/dropout0/6144 allocation/no resume/final-only 및 원래10200초/resource bound는 바꾸지 않았다. 원래 V101 trainer의 SDK/callback/guard/실제update report/final save/cleanup lifecycle은 byte 단위로 역복원되며, full target count와 completion-status metadata만 변경됐다. 설정/SDK/loss/stream 변경을 거부하는 CPU3개 검사와 실제preflight가 통과했다.
+
+현재 학습은 **실제 live session55468/PID99592**에서 진행 중이다. 원래72개 전체의0-step guard가 통과했고, 실제 SDK가 update state를 evaluate한 뒤 **80개 완료 update/20,482개 target**을 보고했다. 첫20개 report의train loss는1.4464096069다. 이 수치는 partial 학습 보고이며 전체훈련/모든group의학습효과나 실제 설명 의미/지연을 증명하지 않는다. `training-result.json`과 final adapter는 아직 없다. 전체2,944개 distinct updates/717,709 targets,200/600/1200/2000/2920/2944 여섯 guard, final-only 저장·assets/RNG8bytes/실제terminal/PID부재는 계속 확인해야 한다. 이전 같은 설정의 전체실행은 약131분이었으므로 경과시간만으로 종료를 판단하지 않는다.
+
+다음 turn은 **동일 live handle/process를 재검증하고 관찰**한다. marker/lock/artifact만으로live나terminal을 추정하거나 같은 작업을 재시작하지 않는다. 전체학습 이후에도 독립 final audit, 원래84개미노출을모두유지한새비금지full-scope neural 의미/Host3000ms, 제품통합·기능·시각QA/release/install이 필요하다. 여섯 whole-family 금지와 폐기한source계획을 유지한다. 제품/설치는0.0.1145이며 전체 목표는active·미달이다.
+
+증거 SHA-256:
+
+- V136 freshwhole72baseline terminal: `b731ba29d250347c990f6825dab81791dbdcaf0c23cbe3e9b6cbd1f1e89b10bc`
+- V137 singlefixedfullpass seal: `2380b6264607595d6b9f76530d3d4a3bd605cee00a6312b15787d1ed1caa3a27`
+- V137 partialactualprogress/livehandle: `d103f0b32543a33ce1a045bb6631f3bdb7f1c3dc72e7c1d91d00c880c2dd11ff`
+
 ## 남은 완료 기준
 
 모델 변경, decoder 최적화 또는 입력 구조 변경을 채택하려면 다음을 함께 확인해야 한다.
