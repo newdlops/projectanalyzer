@@ -3870,9 +3870,81 @@ V83은 학습 2,920건·monitoring 868건·새 평가 요청 100건의 **전체 
 `full-packed-input-v83/decision.json` SHA-256은
 `0a06eca2446fa3b17aeba996be389e359b65d24603449fc6bf63118599b22d06`다.
 
-다음은 최종 모델의 tensor/fusion·numeric·joint·runtime 검증과 새 독립 함수의
-모든 설명 필드에 대한 의미 검토, 실제 Host의 전체 설명 3초 검사다. 이번
-결과만으로 기본 모델·버전·설치본을 교체하지 않으며, 공개 버전은 0.0.1145다.
+이후 최종 모델의 tensor/fusion·numeric·joint·runtime 검증을 완료하고 새
+독립 함수의 실제 모델 응답을 측정했다. 결과는 다음 절과 같다. 공개 버전과
+설치본은 0.0.1145를 유지한다.
+
+## 최종 작은 모델의 실제 전체 설명 평가
+
+V84는 최종 V74 adapter만 사용해 원래 SDK로 한 번 fusion했다. 독립 CPU
+검사에서 **704개 tensor**의 이름·shape·dtype·유한값·파일 범위를 확인했다.
+adapter가 적용된 336개는 모두 변경됐고, 나머지 368개는 원래 base와 byte
+단위로 같았다. canonical tokenizer/template 복원 중 가중치는 변경되지
+않았다. 최종 Q4/group128 가중치 파일은 **316,825,700 bytes**이며 SHA-256은
+`f6d776da569023dc69ef1188661a758c6f5f449398e8ea68d6b7ea0333f75b30`다.
+
+V85의 수치 검사에서는 기존 계산과 전체 logits·28개 layer의 KV cache가
+byte 단위로 같았다. 원래 짧은 geometry와 전체 학습 최대 길이 **5,181**,
+전체 inference allocation **8,192**를 유지했다. projection/compiled 비교
+각 51개, 별도 MLP 비교 336개, inference window 비교 각 19개가 통과했다.
+모든 residency 단계는 316,768,264 bytes로 같았고 추가 가중치가 남지 않았다.
+
+V86에서도 기존 **14개 synthetic stream·206개 sampling 전이**를 모두
+검증했다. 전체 vocabulary logits/filter/token/RNG key, EOS, 디코딩,
+완료 JSON, 명시적 취소 stream의 KV와 소유자 해제 검사가 통과했다. V85와
+V86은 코드 소스를 읽거나 함수 설명을 생성하는 시험이 아니다.
+
+V87은 검증된 worker를 byte 변경 없이 연결하고, provider의 worker 경로와
+독립 검증된 V82 prompt codec 연결만 바꿨다. 기존 Host, scheduler, validator,
+FIFO, 취소와 해제 코드는 유지했다. 모든 원문·응답 필드를 유지하는 CPU
+거부/입력 검사 8개와 준비되지 않은 실행 거부 검사도 통과했다. 새 평가
+순서는 **36개 전체 action·100개 요청·68개 rich 경로·316개 source occurrence·
+40개 호출·92개 저장 페이지·28개 final callee body**로 고정했다. Kotlin/
+TypeScript, 한국어/영어, 다섯 반환 유형과 기존 호출 scope를 유지했다.
+
+실제 모델 평가는 첫 action인 Kotlin/한국어 `affordablePrefix(limit, budget)`의
+**네 경로를 모두** 요청했다. 모델 준비만 측정 전에 완료했고, 소스 분석부터
+전체 응답·기존 검증·페이지 처리·자원 해제까지 하나의 Host timer에 넣었다.
+가중치·입력·schema hash가 준비본과 같았고 원문/KV를 다른 요청에서 재사용하지
+않았다. 응답을 고치거나 실패한 출력을 잘라내지 않았다.
+
+| 요청 경로 | 실제 출력 token | 검토 결과 |
+| --- | ---: | --- |
+| 음수 budget의 조기 반환 | 163 | `budget=0`인데 음수 조건을 참으로 설명하고 숫자 반환에 `null`을 출력했다. 설명 필드는 예시 문구나 placeholder였다. |
+| 첫 비용을 감당하지 못해 반환 | 957 | 복원된 source 값은 해당 경로와 맞았지만, 모든 node 설명과 summary/analysis가 필드 이름과 반복 문자열이었다. |
+| loop 갱신 뒤 종료 | 2,400 | 기존 출력 한도에서 JSON이 끝나지 않았다. node 설명과 analysis에 같은 예시/조건 문구를 반복했다. |
+| loop에 들어가지 않고 반환 | 1,921 | 복원된 source 값은 해당 경로와 맞았지만, 덧셈이 없는 경로에 반복 덧셈 문구를 넣었고 원인·상태 변화·alternative 설명이 없었다. |
+
+전체 시도는 **63,363.063 ms**였다. worker의 tokenization/generation은
+62,599.704 ms, 전체 packet은 62,682.158 ms였다. 이 측정에서 대부분의
+시간은 모델 요청에 쓰였으며, renderer의 실제 시각 성능을 측정한 결과는
+아니다. **성공한 전체 설명과 전달 페이지는 0개**이므로 63.4초를 성공한
+설명 완료 시간으로 해석하지 않는다. 3초 기준을 통과하지 못했다.
+
+준비된 모델과 요청 종료 후 active allocation은 모두 **316,768,264 bytes**였다.
+MLX peak는 3,070.094 MiB, process peak RSS는 693.672 MiB였다. worker는
+요청 상태를 남기지 않고 정상 종료했고, 평가 runner의 실제 exit1과 양쪽
+PID 부재를 별도로 확인했다. 전체 raw 요청·native 응답·복원된 응답·실패를
+보존했다. 별도 의미 검토는 네 요청의 모든 raw 출력, 완결된 세 응답의
+**151개 leaf field**, 미완결 응답의 전체 partial 출력과 필수 필드 거부를
+포함한다. JSON 완결 여부와 설명의 정확도는 별도로 판단했다.
+
+첫 action 실패로 현재 평가 계획은 종료했다. 나머지 35개 action은 실행하지
+않았다. 실패한 전체 budget 알고리즘 family는 가중치·이름·연산자·언어·locale·
+scope 변경으로 재시험하지 않는다. 기준·원문·설명 필드·LLM 역할을 축소해
+통과시키지 않는다. 이 0.6B 후보는 기본 모델로 채택하거나 설치하지 않았다.
+다음 개선에서는 실제로 관찰된 설명 일반화 실패와 반복 출력, 전체 모델
+요청 비용을 함께 해결해야 한다. **전체 설명 3초 목표는 미달성**이다.
+
+주요 증거 SHA-256은 다음과 같다.
+
+- tensor proof: `77b96bc46be04f66bb735944260f444e78b17b22e31555296b4f2c004bdc24e9`
+- numeric proof: `2607e7cb5145f9dcc53db99b66cfe6f9966e3c3081efe07507f675aad3b87a72`
+- joint proof: `28a10fa1d7e1ccb950ae0d3f800270bbbdaeb424a37e2e03cc84bf9effdb8879`
+- runtime binding: `60ac66358523c0f9f4fdaae8a797176e0cdbf627e3cf878ef0ab4a044ad48438`
+- closed plan: `d79929b681343d05e49ac419b1f5f0dd8b46757f50edca834004ef86921fda82`
+- actual action report: `3d036783a4b64fb251d8cc154ac200b22538cbef3eadfeb8fb1a61963aae2864`
+- separate meaning review: `801650f2e7d3ae70392ecc784dd6e9b484182d1f89bf74f7fe582bd311260fba`
 
 ## 남은 완료 기준
 
