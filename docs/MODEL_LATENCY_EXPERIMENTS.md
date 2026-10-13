@@ -5890,6 +5890,63 @@ reduction/BF16 변환과 독립 버퍼·전체 검증 범위를 유지한다. st
 - V231 whole23 timing proof: `6bfbf294c101fc1f5d415c5b2816e9421796ff1da5117e618a96986f7d7d2213`
 - V231 actual terminal: `c80e7263aa04d2ed99752b87775eeffb4698f46b446302202a4177b8cf5a662b`
 
+## V232–V235: threadgroup 가중치 재사용의 첫 수치 실패와 typed ABI 비교
+
+새 V232는 원래64-thread group 안에서 q4 words/scales/biases를 읽어 별도 UID 입력과
+누산기에 사용한다. 입력·출력 버퍼를 합치지 않고 원래 load-vector/bit4 dot/누산/SIMD/BF16
+순서를 유지하는 source를 생성했다. 전체 주소·dot 식·buffer/weight/whole fallback/guard/close와
+28층 dependency에 대한 CPU16개, 새 전체 실행 계약5개가 통과했다. 이것을 실제 GPU 수치
+증거로 취급하지 않고 전체10368+12096/98/197 gate를 별도로 준비했다.
+
+**V233 session70557/PID7960 actualexit1/PID 부재**다. 실제 source-free64+1/all1..8 준비와
+모델328302600bytes, 원래2+8 graph/16 constructor signatures가 준비됐으며 기존 **MLP12096쌍**은
+통과했다. 추가 q4는 **88쌍 이후 layer0/QKV/count4/negative-zero 혼합/slot0**에서 첫 byte
+불일치했다. 혼합 입력 선택 순서상 실패 UID의 실제 fixture는 large-positive이며, stress 이름을
+모든 UID가 negative-zero였다는 뜻으로 해석하지 않는다. 원본·후보 전체8192bytes tensor와
+최초 오류를 저장했다. 모든4096 BF16 출력이 달랐고 큰 유한 값 오류를 포함했다. 원인을
+rounding이나 memory pressure로 단정하거나 byte 기준을 완화하지 않는다.
+
+별도 V234는 q4 word를 직접 typed thread pointer로 전달하여 byte-pointer round trip을
+제거했다. 완전한 SDK bit4 식/최종 식·주소·per-UID buffer·runtime guard를 포함한 CPU16개와
+실행 계약5개가 통과했다. 첫 CPU 검사는 함수 선언의 `(const thread`까지 cast로 보던 fixture
+오류로 보존하고 cast 패턴만 수정했다. 원래 dtype/scale/weights/threadgroup/sampler는 동일하다.
+
+**V235 session85612/PID30017 actualexit1/PID 부재**도 MLP12096쌍 뒤 q4 88쌍의 같은 context에서
+실패했다. 두 실행의 원본 전체tensor와 후보 전체tensor가 각각 byte 동일하며 mismatch NPZ SHA도
+동일하다. byte-pointer 제거만으로 해결되지 않았다는 직접 증거다. 실제 원인·compiler register
+allocation을 증명하지 않으며, 부분 성공을 전체 수치 통과로 해석하거나 모델/UID·joint·시간
+검사를 진행하지 않는다. 두 closed driver/prepare/첫 오류·원본 전체tensors는 수정·재실행하지 않는다.
+
+두 실행 모두 model load1/sourceNN0/sampling0/timing0, peak **689474056bytes(약658 MiB)**,
+최종8bytes/MLX·NumPy RNG/assets를 확인했다. 가중치 owner equality assertion은 실패 뒤 도달하지
+않았으므로 이를 통과했다고 주장하지 않는다. model/UID 비교 완료0, 채택·설치0이다.
+
+- V233 first result: `2a35e04f6db9af4cc941b1ea2b3a42582355c3ea41a294840bc4cbfe259a1779`
+- V235 first result: `79f9aafa19b64f84844a68235ae5dd31753c39dc1378a410c33b0ab83332d047`
+- 두 실행의 동일한 complete mismatch NPZ: `c0db7460fc31ee3701ff2e58a7fde3efe1c5a6ee462b9d097c0851302f6cde52`
+
+## V236: 별도 UID 임시 저장소의 미검증 수명 후보
+
+새 V236은 각 UID에 별도16-value thread 배열을 선언하여 input-register 수명을 분리한다.
+원래 q4 dot 식·누산 순서·dtype/scale/threadgroup/weights/sampler·별도 outputs와 immutable
+weight reuse를 유지한다. 실제 원인 해결을 주장하지 않는 새 구현이다. 모든1..8 선언과 pointer
+routing, 전체 주소·원래 dot 식, borrowed guard/whole fallback/close, 원래28층 dependency의
+**CPU17개**가 통과했다. model/GPU/source load0이며 실제 compiler storage/register allocation,
+full numeric·trace/residency·joint/speed는 미검증이다.
+
+다음 새 qualification에도 **ALL10368+12096/98/197**, 첫 전체 mismatch capture,
+원래 MLP-before-q4 fixture/advanced key, 64+1/2+8 graphs/16 constructor signatures,
+model328302600/final8/RNG/assets/owner·allocator peak/system pressure/swap를 유지한다.
+numeric 전체 성공 후에만 새15/217 joint와23/6쌍 시간을 실행하고 source에 사용한다.
+source/context/fields/values/prose 책임·여덟 family/parent/helper 금지·원래84/20root를 축소하지 않는다.
+
+종료 후 CPU snapshot 여유58%/swap23652 MiB이며, 한 모델·8 GiB 설정·256 MiB cache를 유지한다.
+모든 이번 owned model/tool은 실제 terminal/PID 부재로 종료됐다. 제품0.0.1145/frozenout/source
+작업본은 동일하다. 마지막 actual86.317초/59incorrect prose와 전체 정확한 설명3000ms·통합/QA/
+release/install 목표active/미달을 보존하며 public 기록은 문서만이다.
+
+- V236 CPU proof: `de03c708cd4aec77435961da4b1e2a65d4fd933b63b05f79bd024037deb3d2d5`
+
 ## 남은 완료 기준
 
 모델 변경, decoder 최적화 또는 입력 구조 변경을 채택하려면 다음을 함께 확인해야 한다.

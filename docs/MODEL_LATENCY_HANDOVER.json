@@ -1,6 +1,6 @@
 {
-  "purpose": "V225 first actual wrapper boundary rejection and V227 function-static Metal ABI rejection are closed/0 pairs; final8/RNG/assets preserved. Separate V226 wrapper CPU16 and V228 namespace-constant CPU17 passed; all complete original SDK math function bytes unchanged. V229 actual22184/PID56247 exit0/absent full10368q4+12096MLP/98model/197UID exact; peak3859071300/final8. V230 actual6515/PID68175 exit0/absent full15/217 raw-logits/token/key/KV/native/cancel exact; peak1852375416/final8. V231 actual6109/PID79683 exit0/absent whole23/six-pair timing full outputs exact but4/6 slower, long19547.820666→20740.043542ms(+6.10%); candidate rejected/not adopted. Peak3848864176/final8; one model/8GiB/256MiB cache, headroom/swap snapshots observed; after61%/24979MiB. No source NN; original8 bans/84/20root and last actual86.317s/59incorrect prose remain. Product0.0.1145/source worktree/frozenout unchanged; whole correct3000ms/integration/QA/release/install goal active/unmet.",
-  "savedAtUtc": "2026-10-13T18:36:55.232304+00:00",
+  "purpose": "V232 shared-weight threadgroup CPU16 passed, actual V23370557/PID7960 exit1/absent: original12096MLP pass then q4 first failure after88 pairs, layer0/qkv/count4/negative-zero mixed stress/slot0. Full4096 outputs differ; model/UID0, source/sampling/timing0, peak689474056/final8/RNG/assets restored. New V234 typed uint16-word ABI CPU16 and V23585612/PID30017 actualexit1/absent fail at identical context/counts with same full control AND candidate tensors (8192bytes each; mismatch artifact c0db7460... identical). Byte-pointer removal alone did not resolve corruption; actual cause not proved. V236 new separate16-value per-UID input register lifetime implemented and CPU17 passed; same q4 expression/order/dtype/scale/threadgroup/weights/sampler/full scope. GPU/model/source load0 inV236, internal compiler register allocation/numeric/speed unverified. After CPU headroom58%/swap23652MiB. All owned models idle; memory one-model/8GiB/256MiB constraint maintained. Product0.0.1145/frozenout/source worktree unchanged. Original8 bans/84/20root and last actual86.317s/59incorrect prose remain; full correct3000ms/integration/QA/release/install goal active/unmet.",
+  "savedAtUtc": "2026-10-13T19:15:30.610290+00:00",
   "workspace": "/Users/lky/project/projectanalyzer",
   "resumeInstruction": "이 파일을 먼저 읽고 checkpoint.json에서 필요한 항목만 확인한다. 긴 대화나 실험 문서 전체를 다시 읽지 않는다. 이전의 반복적·추측성 분석은 구현 결정으로 취급하지 않는다.",
   "userIntent": {
@@ -30,18 +30,18 @@
   "executionState": {
     "activeToolHandles": [],
     "activeModelProcesses": false,
-    "lastTurn": "V225 first actual wrapper boundary rejection and V227 function-static Metal ABI rejection are closed/0 pairs; final8/RNG/assets preserved. Separate V226 wrapper CPU16 and V228 namespace-constant CPU17 passed; all complete original SDK math function bytes unchanged. V229 actual22184/PID56247 exit0/absent full10368q4+12096MLP/98model/197UID exact; peak3859071300/final8. V230 actual6515/PID68175 exit0/absent full15/217 raw-logits/token/key/KV/native/cancel exact; peak1852375416/final8. V231 actual6109/PID79683 exit0/absent whole23/six-pair timing full outputs exact but4/6 slower, long19547.820666→20740.043542ms(+6.10%); candidate rejected/not adopted. Peak3848864176/final8; one model/8GiB/256MiB cache, headroom/swap snapshots observed; after61%/24979MiB. No source NN; original8 bans/84/20root and last actual86.317s/59incorrect prose remain. Product0.0.1145/source worktree/frozenout unchanged; whole correct3000ms/integration/QA/release/install goal active/unmet.",
+    "lastTurn": "V232 shared-weight threadgroup CPU16 passed, actual V23370557/PID7960 exit1/absent: original12096MLP pass then q4 first failure after88 pairs, layer0/qkv/count4/negative-zero mixed stress/slot0. Full4096 outputs differ; model/UID0, source/sampling/timing0, peak689474056/final8/RNG/assets restored. New V234 typed uint16-word ABI CPU16 and V23585612/PID30017 actualexit1/absent fail at identical context/counts with same full control AND candidate tensors (8192bytes each; mismatch artifact c0db7460... identical). Byte-pointer removal alone did not resolve corruption; actual cause not proved. V236 new separate16-value per-UID input register lifetime implemented and CPU17 passed; same q4 expression/order/dtype/scale/threadgroup/weights/sampler/full scope. GPU/model/source load0 inV236, internal compiler register allocation/numeric/speed unverified. After CPU headroom58%/swap23652MiB. All owned models idle; memory one-model/8GiB/256MiB constraint maintained. Product0.0.1145/frozenout/source worktree unchanged. Original8 bans/84/20root and last actual86.317s/59incorrect prose remain; full correct3000ms/integration/QA/release/install goal active/unmet.",
     "noProgressConsecutiveTurns": 0,
-    "terminalRule": "V13755468/PID99592 실제exit0/부재; V14019108/PID78530, V14679681/PID80723, V14119638/PID82365 실제exit0/부재. V148sourcefree84120/root94340/child94474 actualexit0/부재. V148실제source49497/root95535 exit1/부재, child95621 exit0/부재. 모두 종료됐으므로 재poll/실행/수정하지 않는다. V149CPU검토 exit0/최초결과보존. 이전 모든 종료 독점job도 그대로 재실행 금지. 현재livehandle없음; 실제상태를검증하고새독립CPU진단부터 진행하며 artifact/관측timeout으로완료나live를추측하지않는다. V152joint43575/PID16552 actualexit0/PID부재; V154timing25713/PID24293 actualexit0/PID부재. 모두닫힘. V152seal.py 첫import실패actualexit1도닫혀재실행/수정금지; V153seal은별도준비builder actualexit0. V152GPU와V154timing을재poll/재실행하지않는다. V15589451/PID39514, V15769394/PID54696, V15812178/PID61718 actualexit0/PID부재/최종8 확인. 모두닫힌exclusive GPU/profiler/timing이므로재poll/수정/replay금지. V156은CPU초안만이고model/GPU0이며sealed아님. V15979546/PID81282,V16023111/PID93177,V16130401/PID1709,V1626406/PID5381 모두actualexit0/PID부재/최종8로닫힘. V161 첫prepare.py는import오류exit1/model0이며닫힘; 별도prepare_explicit.py가actualexit0. 닫힌 모든driver/builder는재실행·수정·재poll하지않는다. V16355731/PID19877 import종료1/model0,V16451237/PID22391 Metalcompile종료1/비교0,V16546741/PID25145 12쌍일치후residency종료1,V16614920/PID28269 RNG진단종료0,V16747955/PID34711 전체1344종료0,V16836764/PID43144 전체336/98종료0,V16947749/PID49513 준비graph종료1/생성0,V17113461/PID54568 전체15/217종료0,V17034350/PID58193 전체23시간종료0;모두PID부재. 종료driver/builder/수치/시간검사재실행·수정·재poll금지. 검증된순수kernel/runtime공개helper는새scope의새구현에서재사용가능. V1726895/PID90943 exit1은root가model-ready전에active상태를기록해immutableloader의idlegate실패;SDK model0/kernel0. V17377921/PID99483 전체48384 exit0, V17571105/PID21799 전체12096/98/197 exit0, V17667141/PID30182 전체15/217 exit0, V17716135/PID38173 전체23시간 exit0; 모두PID부재. V174prepare exit0후CPU import사전검사에서STRESS_CASES누락발견,모델/GPU0이며그sealed준비본은보존. 새GPU의global activeModelProcesses/activeToolHandles등록은새model-ready.json에서현재PID/실제완료확인후에만한다;loader는입장검사를다시하므로launch파일만으로너무일찍등록하지않는다. 준비전live tool handle은별도로추적하고timeout을종료로해석하지않는다. V17827645/PID70584 exit134는첫Metal주소공간컴파일abort/완료model1/비교0/PID부재이며Python최종정리검증은없음. V17936265/PID75058 전체28224 exit0, V18087592/PID83094 전체12096/98/197 exit0, V18128564/PID89635 전체15/217 exit0, V18248607/PID95247 전체23시간 exit0; 모두PID부재. 각실제terminal·최초오류·sealedsource보존,재poll/수정/재실행금지. V18359621/PID12294 전체12096 operation exit0, V18438791/PID19321 전체12096MLP/98model/197UID exit0, V18582721/PID24239 전체15/217 exit0, V18692667/PID25640 전체23시간 exit0;모두PID부재/최종8bytes. preparation·actualtool·PID부재receipt보존,닫힌실행재poll·재실행·수정금지. V187 session56849/PID47521 exit0, V188 session50644/PID55198 exit0, V189 session69270/PID69711 exit0, V190 session73365/PID73307 exit0, V191 CPU session98558/PID92430 exit0; 모두 실제 terminal/PID부재 확인. V187~190 최종8bytes 확인. V188은 앞 turn에 완료됐으며 이번 turn에 실제 handle의 terminal을 회수했다. 모두 닫혔으므로 재poll·수정·재실행하지 않는다. V192 CPU84357/PID37784 exit1, V193 CPU27192/PID55961 exit0, V194 CPU86617/PID61208 exit1, V195 CPU97425/PID68792 exit0, V196 CPU16980/PID71537 exit0; 모두 실제 terminal/PID부재. V192 맥락16건 및 V194 8token초과 실패를 보존한다. 닫힌 builder/audit/prepare 재poll·수정·재실행 금지. V197 CPU87836/PID9604 exit0/PID부재, CPUbinding11895 exit0/MLXimport0. V198 prepare88572/PID22724 exit0, 실제root76772/PID31539 exit0 및child31674 exit0/PID부재. model-ready는실제load1/328302600 뒤 생성됐다. root가확인했을때child는이미정상종료되어global active를등록하지않았다. 모든현재handle닫힘, 재poll/수정/재실행금지. V199 prepare63098 exit0,실제36428/root76990 exit0. Child77007/77008은계획된SIGTERM close,79442는정상EOFexit0. 모든PID부재. 실제Bmodelready/현재PID확인뒤root가registration36428을제공했고,controller가close+OSPID부재를검사한뒤globalidle을기록하여C새load를허용했다. 현재livehandle없음;V199닫힌builder/run/검사재poll·수정·재실행금지. V201 CPU99633/PID2113 exit0/부재, V202 CPU40603/PID14299 exit0/부재, V203 CPU32104/PID50513 exit0/부재, V204 CPU96961/PID62606 exit1/부재(native8거부), V205 CPU32066/PID72335 exit0/부재, V206 CPU82766/PID78569 exit0/부재. 모든 종료 exclusive builder/audit/preparation과 최초 실패·code seal을 보존하며 재poll·수정·재실행 금지. 공개 pure factory/schema/normalizer/reference-order/helper는 실질적으로 새 scope의 새 구현에서 재사용 가능. 이번 model/sourceNN0이며 현재 livehandle 없음. V207 CPUaudit62225/PID52979 exit0/PID부재(36action100owner52packet),prepare59182actualexit0; V208 CPUaudit64124/PID4613 exit0/PID부재(100stage300node40call92page8fullprior),prepare38152actualexit0. V208 첫outerCPUtest91217exit1/8comparisonfixture실패와수정후82842exit0를보존한다. 닫힌exclusive audit/prepare·code·최초결과는재poll·수정·재실행하지않는다. 현재livehandle없음,model/sourceNN0. V209builder91254/PID20593 actualexit0/PID부재; V210native34682/PID23332 actualexit0/PID부재; V211prepare74965actualexit0/sourceactual34734/root43809 exit1/child44319exit0/둘PID부재/원래closed328302600확인. 모델SDK load/현재PID/준비완료후에만registration34734를제공했고정리후globalidle을확인했다. V212review95491/PID66834actualexit0/PID부재. 모든closedexclusive builder/prepare/audit/evaluate/review와최초결과·code수정/재poll/재실행금지. V211전체100계획은폐기되었고남은35action96source요청은실행하지않는다. 현재livehandle/loadedmodel없음. V21792917/PID71955 exit1, V21823975/PID97874 exit1/model0, V21926317/PID15671 exit1, V22059293/PID36224 exit0; all actual terminal/PID absent and closed. V22138449/PID93258 actualexit0/PIDabsent/full15-217/final8; closed and never repoll/replay/edit. V22246627/PID23626 actualexit1/PIDabsent/first variable collision with no final8 proof; V22360708/PID39540 actualexit0/PIDabsent/full23-sixpairs/final8. Both closed; never repoll/replay/edit. V2254401/PID20979 exit1, V22742736/PID39139 exit1, V22922184/PID56247 exit0, V2306515/PID68175 exit0, V2316109/PID79683 exit0; all actual terminal/PID absent/final8. Closed, never edit/replay/repoll.",
-    "previousGoalTurnClassification": "progress: full q4 numeric/joint/timing and memory evidence; candidate rejected, goal unmet"
+    "terminalRule": "V13755468/PID99592 실제exit0/부재; V14019108/PID78530, V14679681/PID80723, V14119638/PID82365 실제exit0/부재. V148sourcefree84120/root94340/child94474 actualexit0/부재. V148실제source49497/root95535 exit1/부재, child95621 exit0/부재. 모두 종료됐으므로 재poll/실행/수정하지 않는다. V149CPU검토 exit0/최초결과보존. 이전 모든 종료 독점job도 그대로 재실행 금지. 현재livehandle없음; 실제상태를검증하고새독립CPU진단부터 진행하며 artifact/관측timeout으로완료나live를추측하지않는다. V152joint43575/PID16552 actualexit0/PID부재; V154timing25713/PID24293 actualexit0/PID부재. 모두닫힘. V152seal.py 첫import실패actualexit1도닫혀재실행/수정금지; V153seal은별도준비builder actualexit0. V152GPU와V154timing을재poll/재실행하지않는다. V15589451/PID39514, V15769394/PID54696, V15812178/PID61718 actualexit0/PID부재/최종8 확인. 모두닫힌exclusive GPU/profiler/timing이므로재poll/수정/replay금지. V156은CPU초안만이고model/GPU0이며sealed아님. V15979546/PID81282,V16023111/PID93177,V16130401/PID1709,V1626406/PID5381 모두actualexit0/PID부재/최종8로닫힘. V161 첫prepare.py는import오류exit1/model0이며닫힘; 별도prepare_explicit.py가actualexit0. 닫힌 모든driver/builder는재실행·수정·재poll하지않는다. V16355731/PID19877 import종료1/model0,V16451237/PID22391 Metalcompile종료1/비교0,V16546741/PID25145 12쌍일치후residency종료1,V16614920/PID28269 RNG진단종료0,V16747955/PID34711 전체1344종료0,V16836764/PID43144 전체336/98종료0,V16947749/PID49513 준비graph종료1/생성0,V17113461/PID54568 전체15/217종료0,V17034350/PID58193 전체23시간종료0;모두PID부재. 종료driver/builder/수치/시간검사재실행·수정·재poll금지. 검증된순수kernel/runtime공개helper는새scope의새구현에서재사용가능. V1726895/PID90943 exit1은root가model-ready전에active상태를기록해immutableloader의idlegate실패;SDK model0/kernel0. V17377921/PID99483 전체48384 exit0, V17571105/PID21799 전체12096/98/197 exit0, V17667141/PID30182 전체15/217 exit0, V17716135/PID38173 전체23시간 exit0; 모두PID부재. V174prepare exit0후CPU import사전검사에서STRESS_CASES누락발견,모델/GPU0이며그sealed준비본은보존. 새GPU의global activeModelProcesses/activeToolHandles등록은새model-ready.json에서현재PID/실제완료확인후에만한다;loader는입장검사를다시하므로launch파일만으로너무일찍등록하지않는다. 준비전live tool handle은별도로추적하고timeout을종료로해석하지않는다. V17827645/PID70584 exit134는첫Metal주소공간컴파일abort/완료model1/비교0/PID부재이며Python최종정리검증은없음. V17936265/PID75058 전체28224 exit0, V18087592/PID83094 전체12096/98/197 exit0, V18128564/PID89635 전체15/217 exit0, V18248607/PID95247 전체23시간 exit0; 모두PID부재. 각실제terminal·최초오류·sealedsource보존,재poll/수정/재실행금지. V18359621/PID12294 전체12096 operation exit0, V18438791/PID19321 전체12096MLP/98model/197UID exit0, V18582721/PID24239 전체15/217 exit0, V18692667/PID25640 전체23시간 exit0;모두PID부재/최종8bytes. preparation·actualtool·PID부재receipt보존,닫힌실행재poll·재실행·수정금지. V187 session56849/PID47521 exit0, V188 session50644/PID55198 exit0, V189 session69270/PID69711 exit0, V190 session73365/PID73307 exit0, V191 CPU session98558/PID92430 exit0; 모두 실제 terminal/PID부재 확인. V187~190 최종8bytes 확인. V188은 앞 turn에 완료됐으며 이번 turn에 실제 handle의 terminal을 회수했다. 모두 닫혔으므로 재poll·수정·재실행하지 않는다. V192 CPU84357/PID37784 exit1, V193 CPU27192/PID55961 exit0, V194 CPU86617/PID61208 exit1, V195 CPU97425/PID68792 exit0, V196 CPU16980/PID71537 exit0; 모두 실제 terminal/PID부재. V192 맥락16건 및 V194 8token초과 실패를 보존한다. 닫힌 builder/audit/prepare 재poll·수정·재실행 금지. V197 CPU87836/PID9604 exit0/PID부재, CPUbinding11895 exit0/MLXimport0. V198 prepare88572/PID22724 exit0, 실제root76772/PID31539 exit0 및child31674 exit0/PID부재. model-ready는실제load1/328302600 뒤 생성됐다. root가확인했을때child는이미정상종료되어global active를등록하지않았다. 모든현재handle닫힘, 재poll/수정/재실행금지. V199 prepare63098 exit0,실제36428/root76990 exit0. Child77007/77008은계획된SIGTERM close,79442는정상EOFexit0. 모든PID부재. 실제Bmodelready/현재PID확인뒤root가registration36428을제공했고,controller가close+OSPID부재를검사한뒤globalidle을기록하여C새load를허용했다. 현재livehandle없음;V199닫힌builder/run/검사재poll·수정·재실행금지. V201 CPU99633/PID2113 exit0/부재, V202 CPU40603/PID14299 exit0/부재, V203 CPU32104/PID50513 exit0/부재, V204 CPU96961/PID62606 exit1/부재(native8거부), V205 CPU32066/PID72335 exit0/부재, V206 CPU82766/PID78569 exit0/부재. 모든 종료 exclusive builder/audit/preparation과 최초 실패·code seal을 보존하며 재poll·수정·재실행 금지. 공개 pure factory/schema/normalizer/reference-order/helper는 실질적으로 새 scope의 새 구현에서 재사용 가능. 이번 model/sourceNN0이며 현재 livehandle 없음. V207 CPUaudit62225/PID52979 exit0/PID부재(36action100owner52packet),prepare59182actualexit0; V208 CPUaudit64124/PID4613 exit0/PID부재(100stage300node40call92page8fullprior),prepare38152actualexit0. V208 첫outerCPUtest91217exit1/8comparisonfixture실패와수정후82842exit0를보존한다. 닫힌exclusive audit/prepare·code·최초결과는재poll·수정·재실행하지않는다. 현재livehandle없음,model/sourceNN0. V209builder91254/PID20593 actualexit0/PID부재; V210native34682/PID23332 actualexit0/PID부재; V211prepare74965actualexit0/sourceactual34734/root43809 exit1/child44319exit0/둘PID부재/원래closed328302600확인. 모델SDK load/현재PID/준비완료후에만registration34734를제공했고정리후globalidle을확인했다. V212review95491/PID66834actualexit0/PID부재. 모든closedexclusive builder/prepare/audit/evaluate/review와최초결과·code수정/재poll/재실행금지. V211전체100계획은폐기되었고남은35action96source요청은실행하지않는다. 현재livehandle/loadedmodel없음. V21792917/PID71955 exit1, V21823975/PID97874 exit1/model0, V21926317/PID15671 exit1, V22059293/PID36224 exit0; all actual terminal/PID absent and closed. V22138449/PID93258 actualexit0/PIDabsent/full15-217/final8; closed and never repoll/replay/edit. V22246627/PID23626 actualexit1/PIDabsent/first variable collision with no final8 proof; V22360708/PID39540 actualexit0/PIDabsent/full23-sixpairs/final8. Both closed; never repoll/replay/edit. V2254401/PID20979 exit1, V22742736/PID39139 exit1, V22922184/PID56247 exit0, V2306515/PID68175 exit0, V2316109/PID79683 exit0; all actual terminal/PID absent/final8. Closed, never edit/replay/repoll. V23370557/PID7960 and V23585612/PID30017 actualexit1/PIDabsent/final8; closed first errors/complete raw tensors preserved, never replay/edit/repoll.",
+    "previousGoalTurnClassification": "progress: full raw corruption comparison and new lifetime CPU17; objective unmet"
   },
   "evidence": {
     "root": ".local-models/experiments/three-second/",
     "authoritativeState": "checkpoint.json",
     "latestRecord": {
-      "path": "untrained-projection-timing-v231/result.json",
-      "sha256": "6bfbf294c101fc1f5d415c5b2816e9421796ff1da5117e618a96986f7d7d2213",
-      "status": "V225 first actual wrapper boundary rejection and V227 function-static Metal ABI rejection are closed/0 pairs; final8/RNG/assets preserved. Separate V226 wrapper CPU16 and V228 namespace-constant CPU17 passed; all complete original SDK math function bytes unchanged. V229 actual22184/PID56247 exit0/absent full10368q4+12096MLP/98model/197UID exact; peak3859071300/final8. V230 actual6515/PID68175 exit0/absent full15/217 raw-logits/token/key/KV/native/cancel exact; peak1852375416/final8. V231 actual6109/PID79683 exit0/absent whole23/six-pair timing full outputs exact but4/6 slower, long19547.820666→20740.043542ms(+6.10%); candidate rejected/not adopted. Peak3848864176/final8; one model/8GiB/256MiB cache, headroom/swap snapshots observed; after61%/24979MiB. No source NN; original8 bans/84/20root and last actual86.317s/59incorrect prose remain. Product0.0.1145/source worktree/frozenout unchanged; whole correct3000ms/integration/QA/release/install goal active/unmet."
+      "path": "uid-register-q4-v236/cpu-proof.json",
+      "sha256": "de03c708cd4aec77435961da4b1e2a65d4fd933b63b05f79bd024037deb3d2d5",
+      "status": "V232 shared-weight threadgroup CPU16 passed, actual V23370557/PID7960 exit1/absent: original12096MLP pass then q4 first failure after88 pairs, layer0/qkv/count4/negative-zero mixed stress/slot0. Full4096 outputs differ; model/UID0, source/sampling/timing0, peak689474056/final8/RNG/assets restored. New V234 typed uint16-word ABI CPU16 and V23585612/PID30017 actualexit1/absent fail at identical context/counts with same full control AND candidate tensors (8192bytes each; mismatch artifact c0db7460... identical). Byte-pointer removal alone did not resolve corruption; actual cause not proved. V236 new separate16-value per-UID input register lifetime implemented and CPU17 passed; same q4 expression/order/dtype/scale/threadgroup/weights/sampler/full scope. GPU/model/source load0 inV236, internal compiler register allocation/numeric/speed unverified. After CPU headroom58%/swap23652MiB. All owned models idle; memory one-model/8GiB/256MiB constraint maintained. Product0.0.1145/frozenout/source worktree unchanged. Original8 bans/84/20root and last actual86.317s/59incorrect prose remain; full correct3000ms/integration/QA/release/install goal active/unmet."
     },
     "v87ActualSource": {
       "directory": "tuple-source-runtime-v87/",
@@ -2987,6 +2987,151 @@
         "file": "untrained-projection-timing-v231/terminal.json",
         "sha256": "c80e7263aa04d2ed99752b87775eeffb4698f46b446302202a4177b8cf5a662b"
       }
+    },
+    "sharedWeightNumericV233": {
+      "savedAtUtc": "2026-10-13T18:53:56.190680+00:00",
+      "status": "closed-first-shared-weight-q4-byte-rejection",
+      "actualOwnedTerminal": {
+        "sessionId": 70557,
+        "pid": 7960,
+        "exitCode": 1,
+        "chunk": "4e7a70",
+        "processMissingObserved": true
+      },
+      "proof": {
+        "file": "shared-weight-numeric-v233/result.json",
+        "sha256": "2a35e04f6db9af4cc941b1ea2b3a42582355c3ea41a294840bc4cbfe259a1779"
+      },
+      "mismatch": {
+        "file": "shared-weight-numeric-v233/first-mismatch.npz",
+        "sha256": "c0db7460fc31ee3701ff2e58a7fde3efe1c5a6ee462b9d097c0851302f6cde52"
+      },
+      "firstError": {
+        "layer": 0,
+        "role": "qkv",
+        "count": 4,
+        "stress": "negative-zero",
+        "slot": 0
+      },
+      "untrainedQ4PairsCompared": 88,
+      "mlpPairsCompared": 12096,
+      "modelPairsCompared": 0,
+      "uidPairsCompared": 0,
+      "modelLoads": 1,
+      "sourceNeuralRequests": 0,
+      "peakActiveBytes": 689474056,
+      "finalActiveBytes": 8,
+      "originalWeightOwnerEqualityAssertReached": false,
+      "jointVerified": false,
+      "timingMeasured": false,
+      "adopted": false,
+      "installed": false,
+      "goalComplete": false
+    },
+    "sharedWordNumericV235": {
+      "status": "closed-first-direct-word-q4-byte-rejection",
+      "actualOwnedTerminal": {
+        "sessionId": 85612,
+        "pid": 30017,
+        "exitCode": 1,
+        "chunk": "ac172c",
+        "processMissingObserved": true
+      },
+      "proof": {
+        "file": "shared-word-numeric-v235/result.json",
+        "sha256": "79f9aafa19b64f84844a68235ae5dd31753c39dc1378a410c33b0ab83332d047"
+      },
+      "mismatch": {
+        "file": "shared-word-numeric-v235/first-mismatch.npz",
+        "sha256": "c0db7460fc31ee3701ff2e58a7fde3efe1c5a6ee462b9d097c0851302f6cde52"
+      },
+      "firstError": {
+        "layer": 0,
+        "role": "qkv",
+        "count": 4,
+        "stress": "negative-zero",
+        "slot": 0
+      },
+      "untrainedQ4PairsCompared": 88,
+      "mlpPairsCompared": 12096,
+      "modelPairsCompared": 0,
+      "uidPairsCompared": 0,
+      "modelLoads": 1,
+      "sourceNeuralRequests": 0,
+      "peakActiveBytes": 689474056,
+      "finalActiveBytes": 8,
+      "originalWeightOwnerEqualityAssertReached": false,
+      "jointVerified": false,
+      "timingMeasured": false,
+      "adopted": false,
+      "installed": false,
+      "goalComplete": false
+    },
+    "uidRegisterQ4V236": {
+      "savedAtUtc": "2026-10-13T19:15:30.610290+00:00",
+      "status": "per-uid-register-lifetime-cpu17-passed-gpu-unqualified",
+      "cpuTests": 17,
+      "codeSha256": {
+        "address_test.py": "2bffcf0a54945627f8a07f2528a65e6276a8d2740e58ba86cfe281a830d847c6",
+        "typed_source_test.py": "8dbe6db5713c4ce522f12a153f22907714a01b1bb183a842017b011111714780",
+        "sdk_math.py": "90cdaa0dcf052befc3fddb4c8135715a9cda374149ce6d611b93e76c2ad71849",
+        "createLifetimeScope.py": "51f3b4e42a21a8ad1954845760c78db45da703759e9b8cea7d906f7da4b03d69",
+        "wrapper_test.py": "39ed738041736d3ae8e7764cf6657a56fd3828988ee0df41d59aaed77e1dfea4",
+        "projection_source.py": "88aa4cace40cb28187e0ab66b78bcca580a8bfc4516730500f58ef70e539c832",
+        "forward_test.py": "480c1dbcb2f9036d3f8184b2d5d93786429c1015e110e03b86ac4d7c7482d4c5",
+        "runtime_guard_test.py": "69422cd2341be523a4026c0dd3c9e8feb1c56b2da61ce12fc1e940c543a56188",
+        "projection_kernel.py": "1220db35ba2aa2d428bb20be33915f9eccfa7be20c41a8538dbb510a0f93edf2",
+        "kernel_test.py": "9a27e8e0e2941349e80f0e71d31bd69c6803ec3988a99ed3749385b235dd8d07",
+        "model_runtime.py": "a0191dc2239133a52d8f908c934e38f777c7429419122d1d824f0b0f5d7ef329",
+        "recordCpu.py": "646eaea9734b253306619a09d7fca9699eb29035858b771df12f6e316f601656"
+      },
+      "sdkReferenceSha256": {
+        "stock_quantized.h": "8e2ca65d8d8dafe67b97120d1127d54ce57032f621bdba161e54a0bc4a948b8c",
+        "stock_quantized.cpp": "36b79607ee01bc213511dcdad590b2dc3b96099300551cbc3e7e6c7e13ba5982",
+        "MLX_LICENSE": "ccfab7ccb2ea306f71531c8ca77bb55507606cd90768b1e32b8b52ab5b48cf01"
+      },
+      "cpuEvidence": {
+        "file": "uid-register-q4-v236/cpu-results.json",
+        "sha256": "e7fe82332809fe6c11eeedc59e15ca76ada8f2c25809f63a8dbc9e8c32ee8130"
+      },
+      "privatePerUidInputRegisters": true,
+      "perUidDotLoopChanged": false,
+      "dtypeScaleThreadgroupChanged": false,
+      "oldFailureCauseProven": false,
+      "compilerRegisterAllocationObserved": false,
+      "modelLoads": 0,
+      "sourceNeuralRequests": 0,
+      "wholeQualificationRequired": {
+        "q4Pairs": 10368,
+        "mlpPairs": 12096,
+        "modelPairs": 98,
+        "uidPairs": 197,
+        "jointStreams": 15,
+        "drawTransitions": 217,
+        "timingStreamsPerVariant": 23,
+        "timingPairs": 6,
+        "originalSourceRequests": 84,
+        "fullRootCells": 20,
+        "modelActiveBytes": 328302600,
+        "finalActiveBytes": 8
+      },
+      "memorySettings": {
+        "maxConcurrentModels": 1,
+        "memoryBytes": 8589934592,
+        "cacheBytes": 268435456,
+        "pressureSwapAndAllocatorPeakRequired": true
+      },
+      "gpuCompilationVerified": false,
+      "gpuNumericVerified": false,
+      "jointVerified": false,
+      "timingMeasured": false,
+      "adopted": false,
+      "installed": false,
+      "goalComplete": false,
+      "proof": {
+        "file": "uid-register-q4-v236/cpu-proof.json",
+        "sha256": "de03c708cd4aec77435961da4b1e2a65d4fd933b63b05f79bd024037deb3d2d5"
+      }
     }
   },
   "preparedAssets": {
@@ -3498,6 +3643,72 @@
       "adopted": false,
       "installed": false,
       "goalComplete": false
+    },
+    "uidRegisterQ4V236": {
+      "savedAtUtc": "2026-10-13T19:15:30.610290+00:00",
+      "status": "per-uid-register-lifetime-cpu17-passed-gpu-unqualified",
+      "cpuTests": 17,
+      "codeSha256": {
+        "address_test.py": "2bffcf0a54945627f8a07f2528a65e6276a8d2740e58ba86cfe281a830d847c6",
+        "typed_source_test.py": "8dbe6db5713c4ce522f12a153f22907714a01b1bb183a842017b011111714780",
+        "sdk_math.py": "90cdaa0dcf052befc3fddb4c8135715a9cda374149ce6d611b93e76c2ad71849",
+        "createLifetimeScope.py": "51f3b4e42a21a8ad1954845760c78db45da703759e9b8cea7d906f7da4b03d69",
+        "wrapper_test.py": "39ed738041736d3ae8e7764cf6657a56fd3828988ee0df41d59aaed77e1dfea4",
+        "projection_source.py": "88aa4cace40cb28187e0ab66b78bcca580a8bfc4516730500f58ef70e539c832",
+        "forward_test.py": "480c1dbcb2f9036d3f8184b2d5d93786429c1015e110e03b86ac4d7c7482d4c5",
+        "runtime_guard_test.py": "69422cd2341be523a4026c0dd3c9e8feb1c56b2da61ce12fc1e940c543a56188",
+        "projection_kernel.py": "1220db35ba2aa2d428bb20be33915f9eccfa7be20c41a8538dbb510a0f93edf2",
+        "kernel_test.py": "9a27e8e0e2941349e80f0e71d31bd69c6803ec3988a99ed3749385b235dd8d07",
+        "model_runtime.py": "a0191dc2239133a52d8f908c934e38f777c7429419122d1d824f0b0f5d7ef329",
+        "recordCpu.py": "646eaea9734b253306619a09d7fca9699eb29035858b771df12f6e316f601656"
+      },
+      "sdkReferenceSha256": {
+        "stock_quantized.h": "8e2ca65d8d8dafe67b97120d1127d54ce57032f621bdba161e54a0bc4a948b8c",
+        "stock_quantized.cpp": "36b79607ee01bc213511dcdad590b2dc3b96099300551cbc3e7e6c7e13ba5982",
+        "MLX_LICENSE": "ccfab7ccb2ea306f71531c8ca77bb55507606cd90768b1e32b8b52ab5b48cf01"
+      },
+      "cpuEvidence": {
+        "file": "uid-register-q4-v236/cpu-results.json",
+        "sha256": "e7fe82332809fe6c11eeedc59e15ca76ada8f2c25809f63a8dbc9e8c32ee8130"
+      },
+      "privatePerUidInputRegisters": true,
+      "perUidDotLoopChanged": false,
+      "dtypeScaleThreadgroupChanged": false,
+      "oldFailureCauseProven": false,
+      "compilerRegisterAllocationObserved": false,
+      "modelLoads": 0,
+      "sourceNeuralRequests": 0,
+      "wholeQualificationRequired": {
+        "q4Pairs": 10368,
+        "mlpPairs": 12096,
+        "modelPairs": 98,
+        "uidPairs": 197,
+        "jointStreams": 15,
+        "drawTransitions": 217,
+        "timingStreamsPerVariant": 23,
+        "timingPairs": 6,
+        "originalSourceRequests": 84,
+        "fullRootCells": 20,
+        "modelActiveBytes": 328302600,
+        "finalActiveBytes": 8
+      },
+      "memorySettings": {
+        "maxConcurrentModels": 1,
+        "memoryBytes": 8589934592,
+        "cacheBytes": 268435456,
+        "pressureSwapAndAllocatorPeakRequired": true
+      },
+      "gpuCompilationVerified": false,
+      "gpuNumericVerified": false,
+      "jointVerified": false,
+      "timingMeasured": false,
+      "adopted": false,
+      "installed": false,
+      "goalComplete": false,
+      "proof": {
+        "file": "uid-register-q4-v236/cpu-proof.json",
+        "sha256": "de03c708cd4aec77435961da4b1e2a65d4fd933b63b05f79bd024037deb3d2d5"
+      }
     }
   },
   "constraints": [
@@ -3518,10 +3729,10 @@
     "ownership": "준비 모델 하나 공유, 요청 UID별 fresh KV·grammar·sampler·detokenizer. 답변·소스 KV 재사용 금지."
   },
   "nextSession": {
-    "first": "Read V229/V230/V231 actual terminal/proofs and current git/checkpoint. No live model at this saved snapshot; V228 speed rejected.",
-    "nextIndependentWork": "All V225/V227/V229/V230/V231 exclusive preparations/drivers/results are CLOSED; never edit/replay/repoll them or cherry-pick timing rows. V228 per-UID-threadgroup projection boundary is speed rejected despite full numeric/joint proof; no source use or installation. Next CPU-only investigate a genuinely different shared-weight q4 boundary: process separate UID activation buffers within one threadgroup so immutable weight loads can be reused, rather than another independent UID threadgroup or compiled submission wrapper. Keep every UID separate, original per-UID load/qdot accumulation and SIMD reduction order/BF16 conversion, fixed q4/group128/geometry/weights/sampler, no stack/tile/new weights/source/KV share. First derive a bounded typed interface and dependency/ownership/ABI/fallback CPU gates; do not pretend static/source equality proves numeric or speed. Any truly new implementation must keep all10368+12096/98/197 numeric,15/217 joint,23/six-pair timing and original64+1/2+8 graphs/model328302600/final8/RNG/assets/peak/headroom requirements before source use. Maintain one model/8GiB/256MiB cache and prefer CPU work when headroom declines. Eight whole-family bans/all parents/helpers, original84/20root and all original source/context/parent/callee/fields/confidence/unknown/model-authored values/prose remain. Actual allowed full source meaning and complete3000ms, product integration/functional and visual QA/release/install remain required.",
-    "notImplemented": "A faster qualified runtime and correct full20root actual source3000ms; integration/functional and visual QA/release/install.",
+    "first": "Read V233/V235 actual terminals/full mismatch identity and V236 CPU17/current git/checkpoint. No live owned model at this saved snapshot; V236 GPU unqualified.",
+    "nextIndependentWork": "V233 and V235 exclusive drivers/preparations/first errors/full raw tensors are CLOSED. Never replay/edit/repoll them or relax exact bytes; both whole-control AND whole-candidate artifacts are identical, so byte-pointer ABI change was insufficient. V236 is a genuinely new per-UID temporary register lifetime implementation with17 CPU tests; no actual compiler lifetime/register allocation or numeric claim. Next construct a NEW V237 complete numeric scope binding V236 current code/CPU17/SDK/license, all fixed V137224F32/base/adapter/eight bans and original proofs. Retain ALL10368 q4+12096MLP/98model/197UID pairs, first complete mismatch capture, all28KV/capacity/8192/heterogeneous/retention cases, original MLP-before-q4 fixture order and saved/restored advanced key, source-free64+1/2+8graphs/16 constructor signatures (not observed internal compiler traces), exact328302600/final8/RNG/assets/owners and allocator peak/system pressure/swap. Early atomic tool token before model allocation and actual-ready/current-PID self-registration only after preparation. One model/8GiB/256MiB cache. Only whole numeric success admits a NEW full15/217 joint and whole23/six-pair unobserved timing, before any source use/adoption. Never reuse retired source plans, bypass8 family/parent/helper bans, narrow original84/20root/context/fields/values/prose responsibility, stack/tile UID data, share source/KV, add weights, sweep dtype/model/sampler/settings or cherry-pick rows. Correct allowed full source meaning/whole3000ms and product integration/functional and visual QA/release/install remain required.",
+    "notImplemented": "V236 full GPU numeric/resource/joint/timing and correct full20root actual source3000ms; integration/functional and visual QA/release/install.",
     "completionStillMissing": "원래전체source/context/parent/callee/fields/confidence/unknown및모델의값·문장책임을유지한새전체허용범위에서의미·정확성과전체설명≤3초를실제검증한후,다운로드/integrity/custom model/FIFO/cancel/dispose와제품QA를확인해release/install한다.",
-    "publication": "This docs-only publication receipt is untrained-projection-timing-v231/publication.json; product0.0.1145/source candidates uninstalled."
+    "publication": "This docs-only publication receipt is uid-register-q4-v236/publication.json; product0.0.1145/source candidates remain uninstalled."
   }
 }
