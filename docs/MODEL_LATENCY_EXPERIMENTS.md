@@ -6262,6 +6262,79 @@ integrity-custommodels/FIFO-cancel-dispose/제품 통합/기능·시각QA/releas
 - coreHeadCostV255: `c1f011921aaaae75a5f60de26485bdd125678429eed395c156768e6420c9c01c`
 - coreHeadRemainingV256: `ba4b9f3ff222bc8da8356031e7178d6ff1bd56dfbfd232ea39d48e0c17115ac7`
 
+## V257–V258: 전체28-layer 단계 검증과 cache/SDPA SDK 경계 확인
+
+V257 CPU16개가 통과했다. 원래 V188 full forward AST를 복원하면 모든 식·branch·28-layer
+루프·UID 순서가 같다. 각 forward의 embedding/input norm/head 및 28×7 decoder stage에서
+199번의 **추가 평가**를 한다. 집계기는 tensor/KV를 갖지 않으며 모든28층의 scalar 집계만
+보존한다. 원래 raw/normalized logits·K/V hash는 모든 byte를512 KiB NumPy view/memoryview
+블록으로 처리하여 SHA/shape/dtype/finite-or-negative-inf 규칙이 같다. 첫 CPU scope_test 이름
+충돌을 기록하고 고유 이름으로 바꿨다. 초기 draft의 joint GPU import도 token/path 뒤로 옮겨
+CPU 검증한 뒤 봉인했다. 실패/성공한 기존 독점 driver는 변경하거나 반복하지 않았다.
+
+**session66184/PID20406 actualexit0/PID 부재**. 새 full98 model/197 UID의 전체 logits·28 active
+KV·capacity allocation, 새15 streams/217 raw-normalized logits/token/key/native/EOS/initial-terminal-
+cancel KV가 일치했다. SDK reference229/candidate217 draws 및 원래2+grouped8 traces다.
+전체23 streams/6쌍의 original timer, input·128원소 긴 output/raw/native/count/cancel 모두 보존했다.
+numeric83+joint75+timed334 observed forwards, 추가 stage eval97908회 시도·완료가 일치했다.
+
+| 전체 case | control(ms) | observed(ms) | observer−control(ms) |
+| --- | ---: | ---: | ---: |
+| one | 113.157 | 460.038 | 346.881 |
+| two-unequal | 159.019 | 715.802 | 556.783 |
+| eight-unequal | 1002.327 | 1942.170 | 939.843 |
+| explicit-cancel | 206.402 | 649.139 | 442.737 |
+| complete5791 | 799.721 | 1138.645 | 338.924 |
+| eight-long-output-full-inputs | 11524.151 | 21995.956 | 10471.805 |
+
+긴 출력의 관측 forward18845.068624ms에서 각 단계의 wall/동기화 포함 비용은 다음과 같다.
+
+| 전체 stage | ms |
+| --- | ---: |
+| embedding | 68.242 |
+| maskGraphAndInputNorm | 47.871 |
+| fullVocabularyHead | 699.795 |
+| qkv | 2602.847 |
+| qkNormalizeRope | 1467.036 |
+| cacheAndAttention | 5486.657 |
+| outputProjection | 1953.105 |
+| postAttentionResidualNorm | 1659.268 |
+| mlp | 3054.428 |
+| chainedResidualNorm | 1644.531 |
+
+**cache·attention5486.657398ms가 가장 크다.** 그러나 199개 평가 경계가 실행 순서를 직렬화했고
+긴 출력 전체가11524.150875→21995.955917ms로10471.805042ms 늘었다. 관측 수치로 원래
+GPU kernel 비율/physical memory traffic/속도 개선을 주장하지 않고, nested 시간을 중복 합산하지
+않는다. 모델328302600/최종8bytes, peak3859071300(약3.59 GiB), 하나의 model·8GiB setting/
+cache256MiB다. 시작67%/realready66%/during60%/after67%, swap22796.31→22772.31 MiB.
+현재 모델은 모두 해제됐으며 snapshot은 연속 최소 여유·host physical peak나 원인 증명이 아니다.
+
+V258 CPU7개와 exclusive CPU source audit는 설치된 MLX0.32.3 `sdpa_vector.h`를 공식 동일
+tag의 전체 파일과 대조했다. 두 SHA가 f52c8da21f2c31f3f77168d326a49815fc29bde4b573883896a8eb3298f11508
+로 같다. MIT licence를 보존했다. 현재 packed cache는256단위 증가와 한 slice write를 한다.
+source-derived KV view(1,8,N,128)의 last stride1은 native vector copy predicate를 만족한다.
+현재 GQA16/8=2는 SDK high-GQA8/12/16·길이8192 이상 branch의 지원 범위에 포함되지 않는다.
+이 branch는 원래 strided key partition을 contiguous subchunks로 바꾸어 순서도 달라진다.
+전체54개 원래 partition 사례의 모든 token이 한 번씩 보존됐고, 대체순서24건이 다름을 확인했다.
+이는 source-level 조건·순서 검사이며 실제 strides/kernel name/cache reuse/traffic을 관찰한 결과가
+아니다. 무조건 contiguous copy를 추가하거나 SDK GQA 설정을 바꾸는 안은 추진하지 않는다.
+[MLX0.32.3 SDPA dispatch](https://raw.githubusercontent.com/ml-explore/mlx/v0.32.3/mlx/backend/metal/scaled_dot_product_attention.cpp),
+[동일 버전 vector shader](https://raw.githubusercontent.com/ml-explore/mlx/v0.32.3/mlx/backend/metal/kernels/sdpa_vector.h).
+
+다음 새 후보는 **같은 UID의 두 query head**가 K/V를 읽을 때만 재사용하고, original strided
+token partition/scaled-query/score/simd sum/online-softmax/o update/BF16 partial과 원래2-pass
+reduction 순서를 보존하는 구현이다. 실제 device의 원래 routing/default blocks를 따라야 하며
+수학·주소·범위·unsupported whole fallback/close CPU검증 후 전체 numerical/joint/unobserved
+23/6쌍을 새로 통과해야 한다. 차원/설정 sweep, UIDstacktile, source-KV reuse, clipping, extra
+weights, 좋은 행 선택이나 tolerance 완화는 없다. 아직 이 후보를 구현하거나 GPU에서 검증하지 않았다.
+
+sourceNN0/채택·설치0, product0.0.1145/source/frozenout 동일. Original84/20root·전체 맥락과
+모델 값·prose/8 family bans를 유지하며 실제 correct whole≤3000ms/다운로드-integrity-custommodels/
+FIFO-cancel-dispose/통합·기능-시각QA/version-release-install 목표active·미달이다.
+
+- V257 full98/197/15/217/23/all28: `cfffe9bbe6f8869a64157d4613e8b016d6c671e15c380fbb570edd6cffa658a8`
+- V258 whole SDK/source audit: `6a62102349f7d24fe0c17ff5753b5e53a93ff1f40c75659376049ec8ae73e89d`
+
 ## 남은 완료 기준
 
 모델 변경, decoder 최적화 또는 입력 구조 변경을 채택하려면 다음을 함께 확인해야 한다.
