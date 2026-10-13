@@ -5132,6 +5132,51 @@ V162는 관측 wrapper 없이 동일한 원래 generation 함수를 두 variant�
 - V162 전체23 paired result: `472c69b257844ce5b2bde8f5fb7fd69772055cb8e97c8dd0d0a83eeed3ecc54b`
 - V162 actual terminal: `1dcc73c74f901155d693aa01aeb4222abfecd879cc5fedb9f2f68123b7969c3b`
 
+## V163~V171: rank-8 residual 연산 결합과 전체 수치·생성 검증
+
+현재 trained projector의 첫 F32 LoRA matmul과 Q4 base는 유지하고, 두 번째 rank8 matmul → F32 scale20 → BF16 cast → BF16 base addition을 하나의 Metal 호출로 구현했다. 기존 QKV graph를 넓히는 V160 방식과는 다른 연산 경계다. 원래 MLX0.32.3 GEMVT의 SM8/SN4/TM4/TN4, 두4항 부분합과 shuffle 순서, safe math를 보존했다. 최종 출력뿐 아니라 전체 F32 중간 delta도 반환해 비교한다. 원본 [GEMVT 구현](https://github.com/ml-explore/mlx/blob/v0.32.3/mlx/backend/metal/kernels/gemv.h), [dispatch](https://github.com/ml-explore/mlx/blob/v0.32.3/mlx/backend/metal/matmul.cpp), [컴파일 옵션](https://github.com/ml-explore/mlx/blob/v0.32.3/mlx/backend/metal/kernels/CMakeLists.txt)을 확인하고 MIT license와 원본 header를 보존했다.
+
+첫 실행들에서 발생한 검증 코드 오류와 실패를 모두 그대로 남겼다.
+
+- V163: CPU4개 통과 후 공용 helper가 요구하는 trained_runtime import 경로 누락으로 actual55731/PID19877 exit1. 모델·kernel·수치 비교0회였다.
+- V164: 경로만 명시한 별도 driver와 CPU2개 검사. 모델은328302600bytes였으나,0차원 scale 인자가 Metal의 scalar로 전달되는 데 `scale[0]`을 사용해 컴파일 실패했다. Actual51237/PID22391 exit1, 비교0, 최종8bytes/RNG/assets 정리 통과.
+- V165: scalar 참조와 first-error 보존을 수정한 새 버전, CPU3개 통과. 첫 q_proj의12쌍 F32/BF16이 일치한 뒤 model-only allocation 검사에서 실패했다. Actual46741/PID25145 exit1, 최종8bytes/RNG/assets 통과. 중간 allocation 숫자는 당시 기록하지 않았으므로 특정 초과량이나 원인을 그 실행에서 측정했다고 주장하지 않는다.
+- V166: 모델·kernel 없이 모든 입력 폭1024/2048/3072의 난수 생성 소유권을 독립 진단했다. 입력 제거 후16bytes, advanced key 평가 후에도16bytes, seed 재구성 후8bytes였다. Actual14920/PID28269 exit0. 단순 key 평가로 해결된다는 가설은 성립하지 않았다.
+
+V167은 실제 advanced uint32[2] key를64bit seed로 다시 구성하고 동일한 key bytes를 검사한다. Fixture를 매번 seed42로 초기화하지 않으므로 다음 난수 입력의 원래 순서도 유지한다. Kernel은 V165와 byte 동일하며 기준을 완화하지 않았다. CPU3개 검사 후 **전체112 projector ×12 입력 =1344쌍의 F32 delta와 BF16 결과가 모두 일치**했다. 각 projection 뒤 실제 allocation328302600bytes, 원래 weight identity/RNG/assets 및 최종8bytes를 확인했다. Actual47955/PID34711 exit0/PID부재다.
+
+V168은 검증된 같은 kernel을16개 trained layer의 M1 QKV·attention output·MLP에 연결한다.12개 base layer, 원래 prefill·Q4·첫 LoRA matmul·SwiGLU·normalization·attention·KV는 유지한다. 원래 두 MLP graph에 새 trained-MLP graph 하나를 별도로 소유하고, 종료할 때 원래 projection/callable을 정확히 복원한다. 가중치 복사는 없다. CPU4개 검사와 **전체336 MLP 출력,51+19+13+15=98개 model/logits/KV/capacity 비교가 바이트 단위로 통과**했다. 원래196 model/336 MLP 증거도 유지한다. Actual36764/PID43144 exit0/PID부재, 모델328302600/최종8bytes/RNG/assets 보존을 확인했다.
+
+V169의 첫 generation audit은 candidate MLP를 먼저 연결해 original trained graph가 준비되지 않은 상태에서 중단됐다. Graph counts는 base1/trained0/new1이었으며 actual47749/PID49513 exit1, 생성·draw0회였다. 이 실패를 보존했다. V171은 original64+1 준비 후 candidate64+1 준비를 수행하며 원래2+새1 graph와 같은 owner 조건을 유지한다. CPU5개 검사 후 **전체15 streams/14 complete+1 cancellation/217 raw·normalized logits/token/key/KV/native/count 전환이 일치**했다. Reference229와 candidate217의 차이는 취소된 tail12다. Actual13461/PID54568 exit0/PID부재, 모델·최종8bytes/RNG/assets도 통과했다.
+
+V170은 미실행 timing 초안의 선행 조건을 실제 V171 성공으로 연결한 뒤 실행했다. Timing 구현은 처음부터 양쪽64+1 준비와 timer 밖의 adapter 연결/해제를 사용했다. 원래15+긴출력8의 **전체23 stream/6조건**을 각각 한 번씩 교대 순서로 측정했다. CPU3개 검사, 모든 전체 raw/value/count/cancel이 서로 및 immutable V155 control과 일치했다. Actual34350/PID58193 exit0/PID부재, original2+new1 graph, 모델/가중치/MLX·NumPy RNG/assets/최종8bytes를 확인했다. 측정 중 별도 분석·빌드·GPU 작업은 실행하지 않고 해당 프로세스 출력과 작은 상태 기록만 확인했다.
+
+| 전체 합성 조건 | 기존 ms | rank8 후보 ms | 변화 |
+|---|---:|---:|---:|
+| 단일 UID | 484.899083 | 302.891667 | −37.54% |
+| 길이가 다른2 UID | 571.908667 | 586.439667 | +2.54% |
+| 길이가 다른8 UID | 3502.373167 | 3557.987250 | +1.59% |
+| 명시적 취소 | 625.664542 | 621.221541 | −0.71% |
+| 전체5791 input | 2534.034375 | 2058.968250 | −18.75% |
+| 전체8 long input/output | 94305.240250 | 58623.809666 | −37.84% |
+
+긴 출력은 이번 한 쌍에서37.84% 짧았지만2개·8개 UID 조건은 느렸다. 이전 실행들과 원래 코드의 시간 변동도 크며 그 원인을 측정하지 않았다. **반복 가능한 전반적 개선이나 실제 설명 Host3000ms는 미입증**이다. 빠른 행만 선택하거나 닫힌 측정을 다시 실행해 결론을 바꾸지 않는다. 새 연산의 전체 수치·생성 증거를 보존하고 제품에는 채택·설치하지 않았다.
+
+기존 V61 코드를 다시 읽어, 그것이 untrained Q4 post-attention tail의 독립 M1 작업을 compiled tuple로 감싼 구현임을 확인했다. 다음 실질적 후보를 검토한다면 새 rank8 kernel의 독립 UID 호출 자체를 묶을 수 있는지부터 확인해야 하며, 이전 V61이나 Q4 row-packing 실패를 그대로 다시 실행하지 않는다. UID별 값·KV·grammar·sampler·detokenizer와 원래 모든 geometry를 유지해야 한다. 이 검토는 새 구현이나 성능 증거가 아니다.
+
+모든 소스 설명 요청은0회이며 V148의140개 prose 검토에서 남은 오류와81.609초를 고쳤다는 증거는 없다. V151 public source/SPEC 작업본과 oldout, 제품0.0.1145를 유지한다. 원래84/20cells/전체source-context-parent-callee-fields-confidence-unknown/모델의 값·문장 작성 책임 및 일곱 whole-family 금지를 보존하고, 실제 전체 정확성·Host3000ms·제품통합/기능·시각QA/release/install까지 목표는 active미달이다.
+
+증거 SHA-256:
+
+- V167 전체1344 결과: `ebc9f844ce21a984844ce2cc6fa061d03f536225f85a463089b9e32efae70297`
+- V167 actual terminal: `b8f6c3edfb2571ef9d44302386a2904f18a11c6e27e255d63d4b651063452825`
+- V168 전체336/98 결과: `4dc4a819b2e018f26c1eaff185bcf34b992138f025955abfd57d3a653ef2c0c4`
+- V168 actual terminal: `e62386b5526807575e6520aaf00308e177288280939c0f6d3bdf947492607e3a`
+- V171 전체15/217 결과: `7c24c2017aa3db110422e58d2157f2a9c90aaa951952fbc79146befab8816072`
+- V171 actual terminal: `165526d6c3ea722b62c5651e632638197406eefc7e12158f25bcbc7cb60c9edb`
+- V170 전체23 paired 결과: `442db4d2a69173af3476fcc276afa8650bedc5b378fc26db0da545d0887db8bb`
+- V170 actual terminal: `27c3df7820fae7dd226b5705df7ff5226a0a20f3224cded47b26acdfd220531d`
+
 ## 남은 완료 기준
 
 모델 변경, decoder 최적화 또는 입력 구조 변경을 채택하려면 다음을 함께 확인해야 한다.
