@@ -5308,6 +5308,52 @@ V186 CPU3개 검사 후 관측 wrapper 없는 **전체23 stream/6조건**의 한
 - V186 전체23 paired 결과: `28eb1b78956d5b3709c1ee41f4bf061a4ab45d48d9681debed3b816f91558a2a`
 - V186 actual terminal: `426f934398d8cca5c9bb3f705c804d6f6e0767776677b5181971e4754bc6fa8f`
 
+## V187~V190: MLP 잔차와 다음 정규화 연결, 전체 검증
+
+V188의 새 `ChainedResidualRuntime`은 각 MLP 뒤 잔차 덧셈과 다음 층의 input RMSNorm을 V183 public kernel의 한 호출로 연결한다. 마지막 층은 final norm에 연결한다. 첫 층 input norm은 SDK 호출 그대로이며 임의 zero-add를 넣지 않는다. QK/rank8/post-attention 경계, 모든 원래 반올림·dtype·가중치·KV update·SDPA·prefill을 유지한다. 57개 norm module identity를 첫 KV 쓰기 전에 검사하고, 새 kernel owner나 다른 UID와 공유하는 output/KV allocation을 만들지 않는다. 각 forward에서 QK28/residual56/chained28 그룹을 호출한다.
+
+이 새 모델 경계를 구현한 뒤 V187은 기존28 post-attention norm에 input_layernorm1..27과 final norm28개를 더한 **전체56 norm × 원래12 paired stress × UID1~8의24192쌍**을 검사했다. 기존 V183 operation을 같은 범위로 반복한 검사가 아니다. CPU4개와 V188 CPU7개를 통과한 구현·범위를 봉인했다. Actual56849/PID47521 exit0/PID부재에서5376 GPU호출, 각 UID수마다672호출의 모든 residual/normalized 출력이 SDK 및 기존 fused kernel과 finite/shape/dtype/전체 byte 일치했다. 매 norm 뒤 model328302600bytes, 원래 weight/RNG/assets와 최종8bytes를 확인했다.
+
+V188 CPU7개는 독립 참조 식과 실제 새 forward의 결과·모든 norm 순서·첫 SDK norm 사용을 UID1~8에서 비교했다. alias/shape/window/모든 norm module 교체를 쓰기 전에 거부하고 close를 확인했다. Actual50644/PID55198 **exit0/PID부재**에서 **전체12096 MLP+98 model+197 UID full logits/28층 KV/capacity**가 일치했다. 8192window,5103/5791 input, batch2 fallback, 모든 UID수/unequal offsets/retain/reorder를 유지했다. 99forward/QK2772/residual5544/chained2772가 실행됐다. 앞 turn에서 실행한 프로세스의 실제 terminal을 이번 turn에 회수했으며 결과 파일만으로 종료를 추측하지 않았다.
+
+V189 CPU5개 후 actual69270/PID69711 exit0/PID부재에서 **전체15 stream/14 complete+1 cancellation/217전환**의 raw·normalized logits/token/key/native/count/initial·terminal·cancel KV가 일치했다. Reference229/candidate217 draws의 차이는 명시적 취소된 요청의 나머지12draws이며 후보에 추가 실행하지 않았다. 91forward/QK2548/residual5096/chained2548, 원래2+새8 MLP graph signature, model328302600/최종8bytes/weights/RNG/assets를 확인했다.
+
+V190 CPU3개 후 **전체23 stream/6조건**을 원래 교대 순서로 한 쌍씩 측정했다. 전체 generation/native grammar/sampling/disposal이 timer 안에 있다. 원래15개와 긴 출력8개를 모두 유지했고, 긴 출력2064tokens/2072draws와 모든 raw/value/count/cancel이 paired 및 immutable V155 결과와 일치했다. Actual73365/PID73307 exit0/PID부재,350forward/QK9800/residual19600/chained9800, 원래2+새8 graph, model328302600/최종8bytes/weights/RNG/assets를 확인했다. 측정 중 다른 분석·빌드·GPU 작업은 하지 않고 live handle과 작은 readiness 상태만 확인했다. 다른 앱의 부하는 측정하지 않았다.
+
+| 전체 합성 조건 | 기존 ms | cross-layer 후보 ms | 변화 |
+|---|---:|---:|---:|
+| 단일 UID | 355.040459 | 331.496459 | -6.63% |
+| 길이가 다른 2 UID | 1037.398583 | 610.970292 | -41.11% |
+| 길이가 다른 8 UID | 5368.820625 | 2821.490125 | -47.45% |
+| 명시적 취소 | 801.975791 | 663.464334 | -17.27% |
+| 전체 5791 input | 2862.959125 | 2210.588875 | -22.79% |
+| 전체 8 long input/output | 71599.718625 | 43026.112875 | -39.91% |
+
+이번 한 쌍에서는 여섯 조건 모두 단축됐다. **긴 출력43.026초는3초를 초과하며, 반복 가능한 개선이나 실제 설명의 의미·전체 Host3000ms는 미입증**이다. 과거 V186 시간과의 차이를 cross-layer 변경만의 독립 효과로 해석하지 않는다. 닫힌 측정을 재실행하거나 유리한 일부 조건을 선택하지 않는다. 전체178개 sealed code/SDK/asset/evidence 파일 identity와 실제 terminal/proof를 독립 확인했다. 제품0.0.1145/V151 public 작업본/oldout과 설치 상태는 유지한다.
+
+## V191: 새 배열 계약의 전체 보관 맥락 스키마 비교
+
+실험용 전체 설명 경로는 아직 frozen `out`의 schema/normalizer를 참조한다. V151의 공개 소스와 isolated build에 있는 배열 계약이 그 경로에 자동으로 반영되지 않는다. 이 연결을 준비하기 위해 새 CPU audit는 **전체4143 보관 프레임을 누락 없이 유지**하고, 맥락이 있는 **4136개**에서 기존·현재 schema factory를 비교했다. 새 TS를 메모리 안에서 transpile해5개 isolated JS와 byte 일치시키고, V151 source/SPEC/test hash 및 frozen out2개 hash를 확인했다. 실제 파일을 다시 compile하거나 덮어쓰지 않았다.
+
+Actual98558/PID92430 exit0/PID부재. Call3556/rich-primary380/node136/summary64개의 schema 중 **배열 입력16곳만** `{}`에서 선언된 array/item kind로 바뀌었다. 나머지 모든 비교된 schema field/설명/source constant/order와 전체 원래 row는 같았다. 16곳은 positive-run 보관 평가 프레임이며 **CPU 읽기만 수행했고 해당 금지 family를 neural 재추론하지 않았다**. Archived-actual3/current-actual4는 저장 row에 context가 없어 총7개를 schema 미비교로 명시했다. 이7개를 통과로 세거나 전체4143 schema를 검증했다고 주장하지 않는다.
+
+이 검사는 snapshot 데이터 비교다. live worksheet owner를 복원하거나 full rich transport/native token grammar/EOS·실제 의미를 검증하지 않았다. 다음 새 구현에서는 schema/normalizer 의존성을 명시적으로 주입한 전체 rich 계약을 만들고 원래 primary/node/final validator, source facts/wire/roles, 모든 필드·본문·parent/callee를 유지해야 한다. 기존 closed 모듈이나 frozen out/require cache를 변경하지 않는다. 원본으로 재구성해야 할7개와 live owner를 포함한 전체 입력·응답·native grammar/EOS 검증은 별도 미완료다.
+
+이번 실제 소스 설명 NN은0회다. V148의81.609초·parser 실패와140 prose의 의미 오류를 해결한 증거는 없다. 원래84 미노출 요청/20 root 조합, 모든 source/context/fields/confidence/unknown, LLM의 값·문장 작성 책임과 일곱 whole-family neural 금지를 유지한다. 전체 정확성·Host3000ms·제품통합/기능·시각QA/version/release/install까지 목표는 active 미달이다.
+
+증거 SHA-256:
+
+- residualChainOperationV187 결과: `4b8f7e5240139047bd58bcf5b86ae4c92ee6d13fbabe38474cfe2c49b3ddb725`
+- residualChainOperationV187 actual terminal: `00c6551995e721562c427d45d0ff7369142868a2edf6604d2ce6212f3dce5f7d`
+- residualChainModelV188 결과: `d0f3cb2357ca1c0701c5d5806e78e221cb68f1bf635ff5b65fe268296b42315a`
+- residualChainModelV188 actual terminal: `af9e72ca086ba7d3db7e9862a8e95e789a1a2d004080218c6a26675408eac67f`
+- residualChainJointV189 결과: `74725f66172c9ca2b1817b975c11e89888ead1059ca9b1d70071de628c20d7cd`
+- residualChainJointV189 actual terminal: `549f7291e37415deef2504ee03cde1e237eab098ec25645b9dd3e0cb7e84ecd0`
+- residualChainTimingV190 결과: `07f93d780a30851534867a5189030b15a1b2dffd7b57b420416239929c85603e`
+- residualChainTimingV190 actual terminal: `4129838ca0a165d7b8dbc58a3b61b71ea26662df02f39bb48402e961172c7126`
+- typedSchemaCohortV191 결과: `ab956ec1d4d9b50d85b1983f8859c6330b909170a57406ed144f6a0b09d48597`
+- typedSchemaCohortV191 actual terminal: `7c9d56971c3294e0b941a03d6fa0b8da453521a9915cc3217664ccc49544c42e`
+
 ## 남은 완료 기준
 
 모델 변경, decoder 최적화 또는 입력 구조 변경을 채택하려면 다음을 함께 확인해야 한다.
