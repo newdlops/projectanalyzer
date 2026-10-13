@@ -5014,6 +5014,21 @@ V150의독립CPU읽기에서는원래IntArray examplevalue schema가`{}`여서sc
 - V149 전체계획폐기결정: `14b65264f363e42f4c1dc016ccea8f1e509b0bd3ea0c678737c22aa8b70bf5cb`
 - V150 실제domain/복합cost증거: `3c2b18b0a48ebfa7a87eae84412ca9f21838f6fa87a8b46b76fabbba34beded8`
 
+## V151: 모델 책임을 유지한 선언 배열 예시 계약 수정
+
+V150에서확인한IntArray valueSchema{}가scalar0를허용하는gap을generic source code에서수정했다. `src/llm/functionNarratives/typedValues`의public `createDeclaredValueSchema`와`matchesDeclaredValueSchema`를localgrammar/normalizer가공유한다. Kotlinprimitive arrays/Array<T>,TS-JSpostfixarrays/readonly/nestedarrays의실제arrayshape와알려진itemkind를검증한다. Kotlinnullablecontainer/nullableelement를분리하고nonnullroute는containernull만제외한다. 미확인alias/itemkind는추측하지않으며기존primitive/null/portable한도·source-route·node/call/connected계약을유지한다.
+
+모델이선택한array길이·원소값·모든prose는유지하며scalar0나문자열배열리터럴을array로복구하지않는다. 반복기반typepeeling/matching은cycle/depth/workguard를갖는다. 이kind계약은source실행·언어별numericrange·설명semantics의증명이아니다. 구현/공개API와제약은SPEC.MD및moduleREADME에기록했다.
+
+기존실험의outdependency를보존하려고V151별도outDir에TypeScript전체를컴파일했다. oldout/llm/responseSchema.js·localResponse.js SHA는그대로다. 최초compile이진행중일때테스트를먼저호출해artifactmissing exit1이났으며test0회였다. 이launch결과를보존했고실제tsc exit0이후의tests를사용한다. 새typedValue8/기존response-wire15/provider-rich-call26의 **49개고유tests가통과**했다. scalar/문자열배열/잘못된원소kind거부,빈·중첩array와nullableelement,unknownaliases/cycleguard,modelauthoredprose/values와fullcontext불변 및기존FIFO/cancel/timeout/ownedEOF/legacycontracts를검증했다.
+
+Immutable V148expandedresponse4개를새normalizer에CPU로제공해잘못된scalarIntArray예시가모두거부됨을확인했다. 모델이나sourceNN을재실행하지않고원본·응답·prose를수정하지않았다. 일곱wholefamily금지와폐기한100plan은유지한다. 새GPU/model/sourceNN0이며currentproduct0.0.1145설치변경없다. Source/SPEC작업본은worktree에보존하고문서만publication한다.
+
+Latency경로를CPU코드로확인한결과기존SingleRowCohort는이미독립UID별M1/ownKVgraphs를한forward barrier에서co-schedule하고sampler는별도eval한다. Sharedforward자체를새최적화로간주하지않는다. Source-free실질적새진단·구현은기존model/math/sampler/history/UID/모든source·field·caps·RNG8조건을보존해야한다. 이번kind수정은V148잘못된140prose와81.609초완료를개선했다는증거가아니며,정확한wholeHost3000ms/전체84·20cells/제품QA/release/install이여전히필요하다.
+
+- V151구현·실제compile/tests/baseline보존증거: `47ae8313f5d3ec89f6dac2c8dc264bd53fbf21c4d56fa39342c2df488c49b095`
+- 네immutablebadresponse의새CPU거부: `686c58b08bb11b4a3c833c2c1b6caf13b387dac6cd627a908ad4f26eee527a31`
+
 ## 남은 완료 기준
 
 모델 변경, decoder 최적화 또는 입력 구조 변경을 채택하려면 다음을 함께 확인해야 한다.
