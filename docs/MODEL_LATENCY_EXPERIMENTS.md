@@ -5424,6 +5424,43 @@ Native요청3개/완전반환packet2개/취소거부1개,대기요청native미�
 - V199 actual terminal: `a62f3e82d8cf9d02db2b01495abb0fb03cdb13d046cc5ceba63b2c3c9300e66d`
 - V199 전체 returned-byte journal: `69f340ac6a9a9631e090e703ee0e8ac5efe2e0db4a17f67dabc7769933ff8ab9`
 
+## V200~V201: 숫자 전체 경로와 모델 설명 책임 복구
+
+V200은 활성화된 정수 배열에서 목표값의 **첫 일치 위치 또는 -1**을 반환하는 새 소스 `findFirstPosition`을 작성했다. 비활성/즉시일치/일치없음/빈반복 네 경로를 Kotlin/TypeScript와 한국어/영어의16맥락으로 모두 보존하며72소스구문을 포함한다. 이전 금지 가족의 나머지·차이곱·두경계선택·bitcode·불일치개수·budget·positive-run개수와 달리 배열+scalar의 첫 위치에서 즉시 반환한다. 독립 `indexOf` 데이터 oracle와12벡터, 반복 기반 trace/visited/depth/source ownership, 전체 primary/node/final 참조를 확인했다. 모델은 실행하지 않았다.
+
+코드 검토에서 이전 schema가 Boolean 조건/리터럴 반환/호출 이유·출력·효과 일부를 **Host 고정 설명으로 채워 모델 출력에서 생략**함을 확인했다. 기존 CPU byte inverse 통과는 목표의 모든 모델 설명 책임을 증명하지 못했다. 새 V201 schema/normalizer는 설명을 원래 필드별 길이·한국어 제약 안의 필수 모델 문자열로 돌리고 소스코드/위치/ID/인수전달/값·배열타입/이미같은task가소유한자료는 보존한다. 기존 call parser의 불완전한 summary 절단 경로는 생성문을 자르기 전에 거부한다. 완료된 문장은 바꾸지 않는다. 실제 전체 CPU99633/PID2113 exit0/PID부재에서 **4143보관맥락+16새맥락=4159건**, 설명9232필드 변경과 나머지 schema의 완전한 동일성을 확인했다. private CPU3+5검사와 첫 두 test 실패를 보존했다.
+
+## V202~V203: 원래84요청을 보존한 전체100 모델 설명 참조
+
+V202는 V103 immutable corpus의원래84요청(call32/rich52)과32action을 byte그대로 provenance로 보존하고 새numeric16요청/4action을 추가했다. 전체는 **100요청/36action/5반환×KT/TS×KO/EN20root/68richroute/300구문/40call/92page/28최종callee**다. 모든parent/helper 금지와일곱whole-family 금지는 유지했다. 실제40603/PID14299 exit0/PID부재, CPU2검사 통과다.
+
+V203은 source owner를 live로 다시 만들고 실제 provider와 같은 공개 schema/wire/messages/ordered/named recipe/primary/node/final/call 검증기에 연결했다. 이전 자유 참조 문장과 예시·값·소스는 모두 유지하고, 새 모델 책임이 된 **252설명 필드만 독립 offline 참조로 작성**했다. 원래84의 소스/schema/messages/answer/action은 원본 증거로 그대로 남긴다. 새100scope는 **모델이 작성할1732설명필드**를 요구한다. 참조 문장은 실제 runtime 입력에 넣지 않으며 생성 응답의 복구·대입으로 쓰지 않는다. 전체 CPU2검사와 실제32104/PID50513 exit0/PID부재에서100참조·300구문·40call을 기존 검증기로 확인했다. 첫 test의 일반 narrative parser를 call에 연결한 오류는 call 전용 parser로 수정했고 실패를 보존했다. 세 stdin CPU inspection의 원인 미확인 exit137/무출력도 보존했다. model load/source NN은0이다.
+
+## V204~V206: 첫 전체 문법 거부와 별도 참조 직렬화 수정
+
+V204 실제96961/PID62606 exit1/PID부재는100건을 모두 방문했다. 모든 토큰·byte·문자 한도는 통과했지만 zero-target call overview/scenario summary **8건의 native grammar가 거부**됐다. 전체 input prompt301734/max5381, target+EOS43257/max999다. 원래 schema는 `summary`, `flow`, `calls`, `limitations` 순서인데 새 offline reference projection의 LIFO stack이 객체를 역순으로 채웠다. 기존 Host JSON 검증기는 그 값과 필드를 받아도 실제 native 문법은 순서를 요구했다. 최초 전체 거부와 code/seal은 유지하며 같은 audit를 수정·재실행하지 않았다.
+
+새 V205 projection은 원래 schema key를 먼저 예약한 뒤 반복 기반으로 동일 값을 채운다. **100개 실제입력byte/모든전체source·값·문장은동일**하고8개 offline 참조의JSON속성순서만바뀌었다. 나머지92native응답은byte동일하다. 모델출력을재정렬·수정하지않는다. CPU2검사와실제32066/PID72335 exit0/PID부재를확인했다.
+
+V206 새독립전체 CPU82766/PID78569 exit0/PID부재에서 **100개 tokenizer/native grammar/EOS와원래모든한도가통과**했다. 전체prompt301734/max5381, target+EOS43249/max999, 최대전체sequence6177이다. 원래8192window에2400output reserve를통째로포함하고output2400tokens/stdio196608bytes/output24000chars를그대로유지했다. 완전한 EOS 뒤 stop mask는원래EOS단독이다. private CPU14검사가통과했으며이번새model load/source NN은0회다.
+
+현재기본 V197 provider 조합은이전Host const schema를사용하므로새source평가는V201명시적schema/normalizer/rich/cohort와V197provider/orderedworker/V199journal·cancel closebarrier/고정V188worker를새로연결해야한다. 원래call-summary의earlierModelReadings/calleeEvidence는offline맥락입력이며실제이전모델추론성공증거가아니다. 제품의실제call lifecycle에서는같은owner의실제모델응답소유권을확인한다. 새전체model source생성의미·값·전체Host≤3000ms와제품통합/기능·시각QA/release/install은미완료다. 제품0.0.1145/V151작업본/frozenout/일곱금지family/retired계획을유지하며전체목표는active다.
+
+증거 SHA-256:
+
+- modelAuthoredContractV201 결과: `dc18f128c9d726da10141b7565c28ba3a238cae03a15a9bc65dc09810fd80485`
+- modelAuthoredContractV201 actual terminal: `58b096eb70ea2ba56b7f6d803b7821eb3cc8c634018710149db05402a7567868`
+- fullAuthoredSourceScopeV202 결과: `7ea717f24e0a3d4adface2d4ab3dd6f62b2408fa751488f972d2cd59b01c6036`
+- fullAuthoredSourceScopeV202 actual terminal: `385e8fb07a1857e26c6dc72f31c36e5cae1b712dbc6b6934041d5f49e0bc336d`
+- fullAuthoredNativeReferenceV203 결과: `9b73aea7f615ff3ba9eebf6e8b1d3bce9429f173a866de9eea65514e3aec8abb`
+- fullAuthoredNativeReferenceV203 actual terminal: `97116f84e0843488a68cbbf72d6790d7ff2953a8f496466e2f106683f453800b`
+- fullAuthoredNativeAdmissionV204 결과: `98ae08fcc06022a8e17efdf5061ce5480a600acdd8d0ce68f33b1691f33ce163`
+- fullAuthoredNativeAdmissionV204 actual terminal: `9dde0d1c78951c6c3112f861dbfb8197e672b0dd18349332829784173528b614`
+- nativeReferenceOrderV205 결과: `5af90a89c0bbf14bc43242de95a612b643cf2bb4727c18f2e456abe733d42259`
+- nativeReferenceOrderV205 actual terminal: `0ebdb35093e4cabdc8ec00c6d90c3818aea63d78c24b333a68162131e906d034`
+- canonicalNativeAdmissionV206 결과: `abb11a4b2bee8c866adebf6fe197d9c4f6f40aa84294e2e1d39a7e0b0db9c6a5`
+- canonicalNativeAdmissionV206 actual terminal: `bcf07d6b2e2f114047f42eee7e006dcc3f47dc95e1eab7c914ec4fa29893535c`
+
 ## 남은 완료 기준
 
 모델 변경, decoder 최적화 또는 입력 구조 변경을 채택하려면 다음을 함께 확인해야 한다.
