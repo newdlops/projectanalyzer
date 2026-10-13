@@ -1,6 +1,6 @@
 {
-  "purpose": "V155 전체23source-free스트림×control/관측6쌍 모두raw/native/count/cancel/owners/RNG8 보존. 긴8UID의2064output/2072draw:control66921.606833ms/관측77962.051292ms,관측prefill5941.161167/forward+eval67874.014465/sampling3850.85525ms,forward87.06percent. V156allocator캐시초안CPU3통과/GPU미실행. V157 UID별M1즉시async제출 구현/CPU6 및전체15/217raw·normalized/token/key/KV actualexit0/PID부재/최종8 통과. V158새관측없는전체23/6쌍시간은긴출력60827.509583→62886.509708ms,최대입력2802.125→3868.997042ms로악화,전반적개선미입증/채택안함. source설명NN0/제품0.0.1145/원래V151작업본유지. 실제전체정확한Host3000ms 목표active미달.",
-  "savedAtUtc": "2026-10-13T01:34:14.918603+00:00",
+  "purpose": "V159 전체23 stream의 forward 구성/평가 경계를 분리했다. 긴출력 관측72.724초 중 graph구성12.329초/eval호출49.641초이며 GPU timestamp는 아니다. V160 원래 QKV 연산의 단일 graph 후보는192투영/98전체모델-KV byte비교, V161 전체15/217 raw·normalized/token/key/KV/native/cancel을 통과했다. V162 관측없는 전체23/6쌍에서 긴출력35.983→59.545초(+65.48percent), 최대입력2.116→2.206초로 악화해 채택하지 않는다. 실제종료/PID부재/모델328302600·최종8bytes/RNG/assets 보존 확인. source NN0, 제품0.0.1145와V151작업본 유지. 정확한 전체 Host3000ms 목표 active미달.",
+  "savedAtUtc": "2026-10-13T02:02:32.085151+00:00",
   "workspace": "/Users/lky/project/projectanalyzer",
   "resumeInstruction": "이 파일을 먼저 읽고 checkpoint.json에서 필요한 항목만 확인한다. 긴 대화나 실험 문서 전체를 다시 읽지 않는다. 이전의 반복적·추측성 분석은 구현 결정으로 취급하지 않는다.",
   "userIntent": {
@@ -23,17 +23,17 @@
   "executionState": {
     "activeToolHandles": [],
     "activeModelProcesses": false,
-    "lastTurn": "V155 전체23source-free스트림×control/관측6쌍 모두raw/native/count/cancel/owners/RNG8 보존. 긴8UID의2064output/2072draw:control66921.606833ms/관측77962.051292ms,관측prefill5941.161167/forward+eval67874.014465/sampling3850.85525ms,forward87.06percent. V156allocator캐시초안CPU3통과/GPU미실행. V157 UID별M1즉시async제출 구현/CPU6 및전체15/217raw·normalized/token/key/KV actualexit0/PID부재/최종8 통과. V158새관측없는전체23/6쌍시간은긴출력60827.509583→62886.509708ms,최대입력2802.125→3868.997042ms로악화,전반적개선미입증/채택안함. source설명NN0/제품0.0.1145/원래V151작업본유지. 실제전체정확한Host3000ms 목표active미달.",
+    "lastTurn": "V159 전체23 stream의 forward 구성/평가 경계를 분리했다. 긴출력 관측72.724초 중 graph구성12.329초/eval호출49.641초이며 GPU timestamp는 아니다. V160 원래 QKV 연산의 단일 graph 후보는192투영/98전체모델-KV byte비교, V161 전체15/217 raw·normalized/token/key/KV/native/cancel을 통과했다. V162 관측없는 전체23/6쌍에서 긴출력35.983→59.545초(+65.48percent), 최대입력2.116→2.206초로 악화해 채택하지 않는다. 실제종료/PID부재/모델328302600·최종8bytes/RNG/assets 보존 확인. source NN0, 제품0.0.1145와V151작업본 유지. 정확한 전체 Host3000ms 목표 active미달.",
     "noProgressConsecutiveTurns": 0,
-    "terminalRule": "V13755468/PID99592 실제exit0/부재; V14019108/PID78530, V14679681/PID80723, V14119638/PID82365 실제exit0/부재. V148sourcefree84120/root94340/child94474 actualexit0/부재. V148실제source49497/root95535 exit1/부재, child95621 exit0/부재. 모두 종료됐으므로 재poll/실행/수정하지 않는다. V149CPU검토 exit0/최초결과보존. 이전 모든 종료 독점job도 그대로 재실행 금지. 현재livehandle없음; 실제상태를검증하고새독립CPU진단부터 진행하며 artifact/관측timeout으로완료나live를추측하지않는다. V152joint43575/PID16552 actualexit0/PID부재; V154timing25713/PID24293 actualexit0/PID부재. 모두닫힘. V152seal.py 첫import실패actualexit1도닫혀재실행/수정금지; V153seal은별도준비builder actualexit0. V152GPU와V154timing을재poll/재실행하지않는다. V15589451/PID39514, V15769394/PID54696, V15812178/PID61718 actualexit0/PID부재/최종8 확인. 모두닫힌exclusive GPU/profiler/timing이므로재poll/수정/replay금지. V156은CPU초안만이고model/GPU0이며sealed아님."
+    "terminalRule": "V13755468/PID99592 실제exit0/부재; V14019108/PID78530, V14679681/PID80723, V14119638/PID82365 실제exit0/부재. V148sourcefree84120/root94340/child94474 actualexit0/부재. V148실제source49497/root95535 exit1/부재, child95621 exit0/부재. 모두 종료됐으므로 재poll/실행/수정하지 않는다. V149CPU검토 exit0/최초결과보존. 이전 모든 종료 독점job도 그대로 재실행 금지. 현재livehandle없음; 실제상태를검증하고새독립CPU진단부터 진행하며 artifact/관측timeout으로완료나live를추측하지않는다. V152joint43575/PID16552 actualexit0/PID부재; V154timing25713/PID24293 actualexit0/PID부재. 모두닫힘. V152seal.py 첫import실패actualexit1도닫혀재실행/수정금지; V153seal은별도준비builder actualexit0. V152GPU와V154timing을재poll/재실행하지않는다. V15589451/PID39514, V15769394/PID54696, V15812178/PID61718 actualexit0/PID부재/최종8 확인. 모두닫힌exclusive GPU/profiler/timing이므로재poll/수정/replay금지. V156은CPU초안만이고model/GPU0이며sealed아님. V15979546/PID81282,V16023111/PID93177,V16130401/PID1709,V1626406/PID5381 모두actualexit0/PID부재/최종8로닫힘. V161 첫prepare.py는import오류exit1/model0이며닫힘; 별도prepare_explicit.py가actualexit0. 닫힌 모든driver/builder는재실행·수정·재poll하지않는다."
   },
   "evidence": {
     "root": ".local-models/experiments/three-second/",
     "authoritativeState": "checkpoint.json",
     "latestRecord": {
-      "path": "early-uid-timing-v158/terminal.json",
-      "sha256": "e5bd5a54baf3571aef08ffff193fdada355f7e85d228f56939ddf35529033ac4",
-      "status": "V155 전체23source-free스트림×control/관측6쌍 모두raw/native/count/cancel/owners/RNG8 보존. 긴8UID의2064output/2072draw:control66921.606833ms/관측77962.051292ms,관측prefill5941.161167/forward+eval67874.014465/sampling3850.85525ms,forward87.06percent. V156allocator캐시초안CPU3통과/GPU미실행. V157 UID별M1즉시async제출 구현/CPU6 및전체15/217raw·normalized/token/key/KV actualexit0/PID부재/최종8 통과. V158새관측없는전체23/6쌍시간은긴출력60827.509583→62886.509708ms,최대입력2802.125→3868.997042ms로악화,전반적개선미입증/채택안함. source설명NN0/제품0.0.1145/원래V151작업본유지. 실제전체정확한Host3000ms 목표active미달."
+      "path": "compiled-qkv-timing-v162/terminal.json",
+      "sha256": "1dcc73c74f901155d693aa01aeb4222abfecd879cc5fedb9f2f68123b7969c3b",
+      "status": "V159 전체23 stream의 forward 구성/평가 경계를 분리했다. 긴출력 관측72.724초 중 graph구성12.329초/eval호출49.641초이며 GPU timestamp는 아니다. V160 원래 QKV 연산의 단일 graph 후보는192투영/98전체모델-KV byte비교, V161 전체15/217 raw·normalized/token/key/KV/native/cancel을 통과했다. V162 관측없는 전체23/6쌍에서 긴출력35.983→59.545초(+65.48percent), 최대입력2.116→2.206초로 악화해 채택하지 않는다. 실제종료/PID부재/모델328302600·최종8bytes/RNG/assets 보존 확인. source NN0, 제품0.0.1145와V151작업본 유지. 정확한 전체 Host3000ms 목표 active미달."
     },
     "v87ActualSource": {
       "directory": "tuple-source-runtime-v87/",
@@ -1083,6 +1083,57 @@
       "sourceRequests": 0,
       "adopted": false,
       "installed": false
+    },
+    "v159ForwardBoundaryCost": {
+      "status": "closed-full23-forward-boundaries-attributed",
+      "terminal": {
+        "file": "forward-boundary-cost-v159/terminal.json",
+        "sha256": "c9beba3b56892b26ac61e48b79b75da2876b254fa17a32aa14c0be7698fd0ccf"
+      },
+      "cpuTestsRun": 4,
+      "sourceRequests": 0,
+      "adopted": false,
+      "installed": false,
+      "goalComplete": false
+    },
+    "v160CompiledTrainedQkv": {
+      "status": "closed-all192-projection-and98-model-pairs-exact",
+      "terminal": {
+        "file": "compiled-trained-qkv-v160/terminal.json",
+        "sha256": "72012550c62d125203a33795e07ae73803c58395e72eb3e2f0e7e9c882ddbc7a"
+      },
+      "numericVerified": true,
+      "jointVerified": false,
+      "timingMeasured": false,
+      "cpuTestsRun": 5,
+      "sourceRequests": 0,
+      "adopted": false,
+      "installed": false,
+      "goalComplete": false
+    },
+    "v161CompiledQkvJoint": {
+      "status": "closed-all15-and217-joint-transitions-exact",
+      "terminal": {
+        "file": "compiled-qkv-joint-v161/terminal.json",
+        "sha256": "c6a8636a188693349c1b3a16a3cdc909981f2230b6424ff03219003f52509a00"
+      },
+      "jointVerified": true,
+      "cpuTestsRun": 4,
+      "sourceRequests": 0,
+      "adopted": false,
+      "installed": false,
+      "goalComplete": false
+    },
+    "v162CompiledQkvTiming": {
+      "status": "closed-full23-exact-long-output-regression-not-adopted",
+      "terminal": {
+        "file": "compiled-qkv-timing-v162/terminal.json",
+        "sha256": "1dcc73c74f901155d693aa01aeb4222abfecd879cc5fedb9f2f68123b7969c3b"
+      },
+      "cpuTestsRun": 3,
+      "adopted": false,
+      "installed": false,
+      "goalComplete": false
     }
   },
   "preparedAssets": {
@@ -1222,9 +1273,9 @@
     "ownership": "준비 모델 하나 공유, 요청 UID별 fresh KV·grammar·sampler·detokenizer. 답변·소스 KV 재사용 금지."
   },
   "nextSession": {
-    "first": "현재live모델handle없음. V15589451/PID39514, V15769394/PID54696, V15812178/PID61718 actualexit0/PID부재/최종8이며닫힌driver/profiler/timing 재실행/수정/재poll금지. V156은CPU3통과한미sealed초안/GPU0. 원래V151src/SPEC/test작업본과oldout을보존하고기본compile을하지않는다. 실제git/checkpoint 선택항목 확인. 원격문서publication receipt는early-uid-timing-v158/publication.json에기록한다.",
-    "nextIndependentWork": "V155현재fixedmodel의wholelong8UID 관측77962ms중forward+eval67874ms(87.06percent)가주비용. CPUgraphbuild와devicewait가합쳐져있으므로GPUtimestamp나GPU만의시간으로해석하지않는다. 다음실질적새source-free진단은같은전체23조건/128원소완전출력/UID/원래model·sampler·caps/RNG8을보존해forward의graphconstruction과evaluationwait를분리하고,큰비용을줄이는새구현지점을정한다. V157earlyasync는전체15/217rawproof를통과했지만V158긴출력과5791에서악화해성능채택안함;재측정/설정sweep/좋은조건선택으로뒤집지않는다. V156prefill allocatorcache초안은secondary이며GPU미실행. 기존Metalread-onlyreceipts를확인하면과거1024ops/1024MiB 설정이미사용됨;과거scheduler변형이나sharedforward/중복정렬제거를새작업으로제안하지않는다. 일곱failedfamily/retired100 source NN재사용금지 및full84/20cells/source/context/parent/callee/fields/confidence/unknown/LLM값·문장책임유지.",
-    "notImplemented": "V151배열contract49CPUtests와V15215/217,V1545timing,V15523전체cost,V15715/217,V15823전체paired검사는완료하나정확한실제sourceprose·전체Host3000ms개선은없다. 기존V148140prose정확성실패/81.609초는미개선. 원래84unexposed/20rootcell을포함한새허용전체scope의실제정확한Host3000ms,제품통합/기능·시각QA/version/release/install미완료. Sourcefree진단으로완료기준을대체하지않는다.",
+    "first": "현재livehandle없음. V159~V162 actualexit0/PID부재와첫실패prepare.py exit1 모두닫혔다. 이들의driver/수치/시간검사를수정·재실행·재poll하지않는다. V151 src/SPEC/test작업본과oldout보존,기본compile금지. 실제git와checkpoint선택항목확인. 새문서publication은compiled-qkv-timing-v162/publication.json을확인한다.",
+    "nextIndependentWork": "V159에따라forward의원래eval호출이큰비용이지만이는GPU전용timestamp가아니다. V160 QKV컴파일은수치정확하나V162긴출력에서악화해채택금지;같은후보재측정/유리한subset/설정sweep으로뒤집지않는다. 기존V61layerwise-tail과functional-whole-decode도이미성능거부됐으며바꾸지않은후보재실행금지. 다음구현전현재F32 LoRA/attention 연산과기존실패를비교해실제중복작업이나launch비용을줄이는새경계를CPU에서확인한다. V156 prefill allocator초안은CPU3통과/GPU0로남아있으나긴decode의3초해결로간주하지않는다. 모델설명정확성실패도그대로이므로source-free성공으로대체하지않는다. 원래84/20cells/source/context/parent/callee/모든fields/confidence/unknown/LLM값·문장책임및일곱wholefamily금지를유지한다.",
+    "notImplemented": "V151 typed-array49CPUtests,V159 whole23비용분리,V160192/98,V16115/217,V162whole23paired완료. QKV후보성능악화/미채택. 실제source140prose오류와81.609초는개선미증명이며원래84/20cells 전체정확성·Host3000ms·제품통합/기능·시각QA/version/release/install미완료.",
     "completionStillMissing": "새로운 허용 범위 전체의 설명 의미·정확성과 prepared-model 전체 host 완료 ≤3초를 실제 검증하고 제품 통합·QA 후에만 release/install한다.",
     "publication": "실패와 성공한 진단을 인계 문서에 기록하고 문서만 commit/push한다. 실제 원격/publication receipt를 확인한다. 실패candidate release/install 금지; product0.0.1145 유지."
   }

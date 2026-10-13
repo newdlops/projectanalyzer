@@ -5096,6 +5096,42 @@ V158은 관측 없는 새6조건/전체23 paired timing이다. 원래와 candida
 - V158 whole23 paired result: `4a4d348317b3c32f520b8fa90b83c84a4f5ad31e384126b0eb78f1f959bb6723`
 - V158 actual terminal: `e5bd5a54baf3571aef08ffff193fdada355f7e85d228f56939ddf35529033ac4`
 
+## V159~V162: forward 비용 분리와 Q/K/V 컴파일 후보의 성능 거부
+
+V159는 V155의 전체23 합성 스트림과 완전한128원소 출력을 유지하면서, 기존 forward 안에 graph 구성과 원래 `mx.eval` 호출의 시간 경계만 추가했다. 추가 평가 barrier는 없다. CPU4개 검사, 전체6쌍의 raw/native/count/cancel/owner/RNG 보존 및 actual session79546/PID81282 exit0/PID부재를 확인했다.
+
+긴8 UID의2064 output/2072 draws는 기존68625.104875ms, 관측72724.410625ms였다. 관측 prefill6844.248167ms, 전체 forward62085.782624ms, sampling3470.229788ms였고, forward 내부는 graph 구성12329.310920ms와 평가 호출49641.433544ms로 나뉘었다. **평가 호출은 dispatch·host·GPU 대기를 포함하며 GPU timestamp가 아니다.** 내부 항목을 전체 forward에 다시 더하지 않는다.
+
+V160은16개 학습 layer의 기존 packed Q4 Q/K/V base와 각각의 F32 LoRA A/B matmul, scale20, BF16 cast/add/concatenate를 하나의 모델 소유 graph로 컴파일했다. 가중치를 합치거나 복사하지 않았고, 기존12개 base layer와 prefill fallback을 유지했다. 원래 MLP graph2개에 QKV graph1개가 추가된다. CPU5개 검사 후192개 투영 쌍과51+19+13+15=98개 전체 model/KV geometry 쌍이 바이트 단위로 일치했다. 원래196 model/336 MLP 증거도 그대로 연결한다. Actual session23111/PID93177 exit0/PID부재, 준비모델328302600bytes와 최종8bytes, 원래 assets/MLX·NumPy RNG 해제를 확인했다. Terminal receipt 작성 중 modelRows를 평탄 배열로 잘못 세어 assertion이 한 번 실패했으며, 네 그룹의 합으로 바로잡았다. 수치 실행과 결과는 변경·재실행하지 않았다.
+
+V161은 원래 generation/cohort/sampler를 유지한 새 전체15 스트림 검증이다. Reference에서는 QKV 후보를 해제하고 candidate에서만 연결했다. CPU4개 검사 및 실제15 reference/candidate,14 complete+1 cancellation,217개의 전체 raw/normalized logits·token/key·initial/terminal KV·native/count 비교를 통과했다. Reference229/candidate217 차이는 취소된 tail12다. 준비 builder의 첫 실행은 동명 scope_test import 오류로 exit1/model0이었다. 첫 driver를 보존하고 현재 파일의 명시적 경로를 쓰는 별도 builder로 준비했다. Actual GPU session30401/PID1709 exit0/PID부재, 모델/가중치/RNG/최종8bytes 및 원래2개+새1개 graph를 확인했다.
+
+V162는 관측 wrapper 없이 동일한 원래 generation 함수를 두 variant에서 실행했다. QKV 연결/해제와 모든 결과 검사는 timer 밖에 있다. 기존15개와 긴출력8개를 포함한 전체23 stream/6조건을 고정 교대 순서로 각각1회 측정했다. CPU3개 검사와 모든 완전한 raw/value/count/cancel의 서로 및 immutable V155 control 일치를 확인했다. Actual session6406/PID5381 exit0/PID부재, 모든 assets/owners/RNG와 최종8bytes도 통과했다.
+
+| 전체 합성 조건 | 기존 ms | QKV 컴파일 ms | 변화 |
+|---|---:|---:|---:|
+| 단일 UID | 495.311958 | 363.316375 | −26.65% |
+| 길이가 다른2 UID | 636.628583 | 530.709250 | −16.64% |
+| 길이가 다른8 UID | 2960.745167 | 2573.461292 | −13.08% |
+| 명시적 취소 | 558.673750 | 492.101500 | −11.92% |
+| 전체5791 input | 2115.749375 | 2206.073792 | +4.27% |
+| 전체8 long input/output | 35983.380417 | 59544.602583 | +65.48% |
+
+**긴 출력과 최대 입력에서 더 느려 후보를 채택하지 않는다.** 한 번씩 측정한 관측값이며, 실행 간 원래 코드의 시간 변화 원인은 측정하지 않았다. 빠른 조건만 선택하거나 같은 timing을 재실행해 결론을 뒤집지 않는다. 모든 검사는 함수 source가 없는 합성 JSON이며 실제 설명 정확성·Host3000ms 증거가 아니다.
+
+현재 모델 프로세스는 모두 종료됐다. V151 public source/SPEC 작업본과 기존 out, 제품0.0.1145를 유지하고 UI·설치 변경은 없다. 이전 V61 layerwise-tail/전체 functional decoder 컴파일의 성능 거부도 다시 확인했다. 다음 변경은 기존 실패와 현재 연산을 대조해 실제로 줄일 수 있는 연산 또는 실행 경계를 먼저 확인해야 한다. 원래 전체84/20cells와 source/context/parent/callee/fields/confidence/unknown 및 LLM의 모든 값·문장 작성 책임을 유지한다. 기존 실제 source의140 prose 정확성 실패·81.609초는 해결되지 않았고, 전체목표는 active미달이다.
+
+증거 SHA-256:
+
+- V159 forward 경계 result: `a4442692bfd1341676ba5eeeb3fb8aac1e9ec25bc74db18a17580bb25f6cc9e9`
+- V159 actual terminal: `c9beba3b56892b26ac61e48b79b75da2876b254fa17a32aa14c0be7698fd0ccf`
+- V160 전체192/98 result: `985f3f5c230e4fe65114f1f477dfd29fef6c5ee5eba0d5112b2d0bc2d324725f`
+- V160 actual terminal: `72012550c62d125203a33795e07ae73803c58395e72eb3e2f0e7e9c882ddbc7a`
+- V161 전체15/217 result: `362668282262aea385d3e1ac9b23691e086dd2b90710adedc7ea4d827ad35fb2`
+- V161 actual terminal: `c6a8636a188693349c1b3a16a3cdc909981f2230b6424ff03219003f52509a00`
+- V162 전체23 paired result: `472c69b257844ce5b2bde8f5fb7fd69772055cb8e97c8dd0d0a83eeed3ecc54b`
+- V162 actual terminal: `1dcc73c74f901155d693aa01aeb4222abfecd879cc5fedb9f2f68123b7969c3b`
+
 ## 남은 완료 기준
 
 모델 변경, decoder 최적화 또는 입력 구조 변경을 채택하려면 다음을 함께 확인해야 한다.
