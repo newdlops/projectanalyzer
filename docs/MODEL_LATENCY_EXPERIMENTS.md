@@ -5266,6 +5266,48 @@ V182 CPU3개 검사 후 관측 wrapper 없이 원래15+긴출력8의 **전체23�
 - V182 전체23 paired 결과: `dc9e86588ef8cd54e8e4bdcc2dac0375f116afd3dfcaef45450a4fc9ecc69b38`
 - V182 actual terminal: `b6e9454fb615583dfe35d49a05726a3a46bc2ee4c2b2f054d0420757b557e705`
 
+## V183~V186: 요청별 잔차 덧셈·정규화 묶기와 전체 검증
+
+V183은 현재 V184 모델 경계에서 각 요청의 post-attention 잔차 덧셈과 RMSNorm을 묶는 새 `GroupedResidualNormKernel`을 구현했다. 원래 public `fused_residual_norm.SOURCE`의 계산 본문은 그대로이며1024열/256threads/8SIMD/4reads, BF16 잔차 반올림·정규화 반올림·weight 곱을 보존한다. 각 UID의 left/right 입력과 출력 allocation은 독립적이다. 하나의 UID 안에서 잔차 행과 정규화 행만 서로 겹치지 않는(1,1,1024) view로 돌려준다.8UID에서16입력+1불변weight+8출력=25binding이며 다른 UID의 데이터나 KV는 공유하지 않는다.
+
+CPU6개 검사는 원래 계산 본문, 전체1024열 읽기·2048열 쓰기 범위, UID별 출력 소유권과 두 view, invalid geometry/dtype/count/close, 원래12 paired stress 식의 그대로 보존을 확인했다. 이전 단일 요청 audit의 데이터 생성 식만 읽어 새 순수 fixture로 추출했으며 그 닫힌 audit나 source pilot은 실행하지 않았다. 원래12쌍은 random/mixed pattern/exponents, 양·음·혼합0, tiny/large sum·cancel, unit cancel과 BF16 half-ULP다.
+
+Actual59621/PID12294 exit0/PID부재에서 **현재28 post-attention norm owner ×12원래 paired stress ×모든 UID 수1~8의12096쌍**을 통과했다.2688회 grouped 호출이며 각 UID 슬롯이12쌍을 모두 받는다. 모든 잔차·정규화 행의 finite/shape/dtype/전체 byte가 현재 SDK 및 원래 fused kernel과 일치했다. 각 층 뒤 model328302600bytes, weight identity, MLX·NumPy RNG/assets, 최종8bytes를 확인했다. 원래 audit의 다른 weights에 대한 결과를 현재 모델 결과로 취급하지 않았다.
+
+V184의 `GroupedResidualRuntime`은 검증된 QK/rank8 owner를 확장한다. 기존 forward에서 post-attention 잔차 덧셈과 norm 부분만 새 호출로 연결하고, 입력 정규화/QKV/QK/KV/SDPA/출력 projector/MLP/최종 잔차/logits의 나머지 식은 유지했다. 모든28 norm의 weight shape·dtype·epsilon을 생성자에서 검증하며 모델 module을 복사·치환하지 않는다. 새 array-free kernel은 QK/rank8 parent보다 먼저 해제한다. CPU7개 검사는 모든1~8UID에서 모든28층의 입력·offset·결과 순서, cache alias/잘못된 window/model/shape의 쓰기 전 거부, norm 계약, close와 기존 cohort prefill/retain을 확인했다.
+
+Actual38791/PID19321 exit0/PID부재에서 **전체12096 MLP, 기존98 model geometry,197 UID의 full logits/28층 KV/capacity 비교**가 통과했다.8192 전체 window, batch2 fallback,5103/5791 입력, 모든1~8UID 및 unequal offsets/retain/reorder를 유지했다.99회 forward에서 QK와 residual 그룹 각각2772회가 실행됐다. 원래2개 MLP graph와 새8개 signature는 각각 한 번만 trace됐고 model328302600/최종8bytes/weight/RNG/assets를 보존했다.
+
+V185 CPU5개 검사와 actual82721/PID24239 exit0/PID부재에서 **전체15 stream/14 complete+1 cancellation/217전환의 raw·normalized logits/token/key/native/count/initial·terminal·cancel KV**가 일치했다. 원래 SDK reference/observer/sampler/generation/비교 loop와 전체 case를 유지하고 후보 owner만 V184로 선택했다. 준비를 포함한91 forward에서 QK/residual 각각2548회, 원래2+새8 graph와 model328302600/최종8bytes/weights/RNG/assets를 확인했다. 소스 설명 요청은0회다.
+
+V186 CPU3개 검사 후 관측 wrapper 없는 **전체23 stream/6조건**의 한 쌍씩 완료 시간을 측정했다. 기존 전체 generation/native grammar/sampler/disposal은 timer 안이며 factory 전환은 밖이다. 고정 교대 순서와 긴 출력2064tokens/2072draws, 전체 raw/value/count/cancel의 paired 및 immutable V155 baseline 일치를 유지했다. Actual92667/PID25640 exit0/PID부재,350 forward에서 QK/residual 각각9800회, 원래2+새8 graph, model328302600/최종8bytes/weights/RNG/assets를 확인했다. 측정 중에는 별도 분석·빌드·GPU 작업 없이 live handle과 작은 상태 기록만 확인했다. 다른 앱 부하는 측정하지 않았다.
+
+| 전체 합성 조건 | 기존 ms | 잔차·정규화 묶음 후보 ms | 변화 |
+|---|---:|---:|---:|
+| 단일 UID | 615.773958 | 363.172500 | −41.02% |
+| 길이가 다른2 UID | 598.331791 | 615.825834 | +2.92% |
+| 길이가 다른8 UID | 3824.066667 | 2067.134042 | −45.94% |
+| 명시적 취소 | 596.309000 | 571.199875 | −4.21% |
+| 전체5791 input | 1963.306917 | 1961.453625 | −0.09% |
+| 전체8 long input/output | 58248.897375 | 36977.453084 | −36.52% |
+
+다섯 조건은 이번 한 쌍에서 단축됐지만2UID 조건은 악화됐다. **반복 가능한 전반적 속도 개선, 실제 설명의 정확성과 전체 Host3000ms는 미입증**이다. 비교 대상은 이번 실행의 원래 runtime이며 과거 V182의 시간과 직접 비교해 잔차 변경만의 독립 효과로 해석하지 않는다. 빠른 행만 선택하거나 닫힌 측정을 재실행하지 않는다. 제품0.0.1145/V151 public 작업본/oldout과 설치 상태는 유지했다.
+
+다음 새 경계는 MLP 뒤 잔차 덧셈과 다음 층 input RMSNorm(마지막 층은 final norm)의 연결 가능성이다. SDK qwen3와 현재 forward에서 연속된 식임을 CPU로 확인했다. 첫 층 input norm을 그대로 두고 V183 public kernel로 다음 hidden과 정규화 값을 함께 생성하는 새 구현을 검토할 수 있다. 아직 구현·GPU 검증은 없다. 기존28 post-attention norm 외에 input_layernorm1..27+finalnorm28개가 포함되므로 현재 전체56norm/원래12pairedstress/UID1~8의24192쌍 및 기존 전체 model/generation/timing 범위를 보존해야 한다. Signed-zero를 바꾸는 임의의 zero-add로 첫 norm을 대체하지 않는다. 과거 audit·source pilot·동일 V183 operation·V186 timing·Q4 실패를 그대로 반복하지 않는다.
+
+이번에도 실제 소스 설명 추론은0회다. V148의81.609초·parser 실패와140 prose 검토의 의미 오류를 해결한 증거는 없다. 원래84 미노출 요청/20root 조합, 전체source/context/parent/callee/fields/confidence/unknown, LLM의 값·문장 작성 책임과 일곱 whole-family neural 금지를 유지한다. 전체 허용 범위의 정확성·Host3000ms·제품통합/기능·시각QA/version/release/install까지 목표는 active미달이다.
+
+증거 SHA-256:
+
+- V183 전체12096 operation 결과: `837d2522d09773d083ea4af7d144322a6e5f20d93faeefd854f985504f4da05c`
+- V183 actual terminal: `4abd8967393daf9235e2123adbc98bece1d734dcca851abbbcee5df02b53a6ce`
+- V184 전체12096MLP/98/197 결과: `584d21b691bc9ee38a7c8824f3e44498db3046ab525d92ca1b13faf7e1dd2558`
+- V184 actual terminal: `b6b33118e9c76adfe7c1dd0e879f6309fe6bb7f400e2a82c9266c50d0a537ff1`
+- V185 전체15/217 결과: `97bea192aaac8607b9a60eaee51afd9a0971e5a5928617dc919f99bdfd71a20a`
+- V185 actual terminal: `d03f0607118ceecfff0cb7f6d94e2de6dd5cd191b6b9206318ef819abafcbe81`
+- V186 전체23 paired 결과: `28eb1b78956d5b3709c1ee41f4bf061a4ab45d48d9681debed3b816f91558a2a`
+- V186 actual terminal: `426f934398d8cca5c9bb3f705c804d6f6e0767776677b5181971e4754bc6fa8f`
+
 ## 남은 완료 기준
 
 모델 변경, decoder 최적화 또는 입력 구조 변경을 채택하려면 다음을 함께 확인해야 한다.
