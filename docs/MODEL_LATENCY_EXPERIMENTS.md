@@ -5029,6 +5029,36 @@ Latency경로를CPU코드로확인한결과기존SingleRowCohort는이미독립U
 - V151구현·실제compile/tests/baseline보존증거: `47ae8313f5d3ec89f6dac2c8dc264bd53fbf21c4d56fa39342c2df488c49b095`
 - 네immutablebadresponse의새CPU거부: `686c58b08bb11b4a3c833c2c1b6caf13b387dac6cd627a908ad4f26eee527a31`
 
+## V152~V154: forward/sampling 단일 평가의 전체 바이트 검증과 혼합된 시간 결과
+
+V152는 기존 독립 UID별 M1 forward와 원래 sampling 연산을 한 평가 경계에서 수행한다. 원래 prefill512, 모델·dtype·전체 vocabulary151936·stable sort·global top-p·key split·원래8192/2400/8/출력 한도를 유지한다. 미평가 wave에서는 UID 제거를 거부하고, 실패 시 pending graph를 처리한 뒤 모든 요청 owner의 정리를 시도한다. 기존 준비 모델과 가중치 검사 코드는 그대로 사용하며, 과거 6개 family 수 검사만 현재 7개 금지 family의 정확한 목록을 요구하도록 강화했다. Public product source에는 통합하지 않았다.
+
+CPU 8개 검사가 통과했다. 첫 V152 독점 준비 builder는 과거 helper가 경로 앞에 삽입한 같은 이름의 scope_test를 가져오는 import 오류로 실패했다. 실제 exit1/model0과 첫 실패를 보존했고 builder는 수정·재실행하지 않았다. V153의 별도 CPU builder는 현재 scope helper를 파일 경로로 지정해 동일 전체 조건을 고정했다.
+
+새 GPU 검사에서 기존 14개 stream을 모두 유지하고 5,791-token 전체 입력을 추가했다. **15 reference/candidate stream, 14 whole completion + 1 explicit cancellation, 217 compared transitions**의 전체 raw/normalized logits·sample token·advanced key·initial/terminal KV·capacity·raw/parsed native·lookahead count가 바이트 단위로 일치했다. Reference229/candidate217 차이는 취소한 reference tail12이며 229개 모두를 비교했다고 주장하지 않는다. 원래 model allocation328302600bytes, weight identity/두 graph/outside RNG와 최종8bytes를 보존했다. Actual session43575/PID16552 exit0/PID부재를 확인했다. Source 설명 요청0회이며 이 관측형 검사를 시간 증거로 사용하지 않는다.
+
+V154는 logits/key/KV hash observer를 제거한 새 성능 측정이다. 원래 동일5조건을 모두 유지해 control/candidate를 각각1회씩 고정된 교대 순서로 실행했다. 준비 후 새 grammar/KV/sampler/detokenizer 생성부터 전체 생성·정리까지 wall time을 측정하고 결과 비교는 timer 밖에서 했다. CPU3개 검사와 actual session25713/PID24293 exit0/PID부재, 전체 raw/native/count 일치 및 매 조건의 model-only allocation/최종8bytes/outside MLX·NumPy RNG 보존을 확인했다.
+
+| 전체 합성 조건 | 기존 코드 ms | 후보 ms | 후보 변화 |
+|---|---:|---:|---:|
+| 단일 UID | 532.748583 | 672.847167 | +26.30% |
+| 길이가 다른 2 UID | 1232.821000 | 484.896292 | −60.67% |
+| 길이가 다른 8 UID | 3705.400125 | 2940.974167 | −20.63% |
+| 명시적 취소 | 702.189875 | 864.089625 | +23.06% |
+| 전체 5,791-token 입력 | 2277.087042 | 2400.692208 | +5.43% |
+
+세 조건은 더 느렸다. 한 번씩 측정한 결과로 전반적 개선이나 반복 가능한 속도 향상을 입증하지 않으며, 빠른 행만 골라 채택하지 않는다. 전부 합성 native JSON이며 실제 함수의 의미·전체 설명 Host3000ms 증거가 아니다. 후보는 제품에 채택·설치하지 않았다. 원래 sampler CPU 코드를 확인하니 이미 전체 stable argsort는 한 번뿐이므로 중복 정렬 제거도 새 최적화가 아니다. 다음 작업은 최대 입력 prefill과 긴 출력 decode/native-mask/normalize/sample의 실질 비용을 분리하거나 새 구현을 검증하는 것이다.
+
+V151 source/SPEC 작업본과 기존 out, 일곱 neural 금지 family, 원래84/20cells/전체source·context·parent·callee·fields·confidence·unknown와 모델의 값·문장 작성 책임을 유지한다. 제품0.0.1145/전체목표active미달이며 실제 전체 정확성·Host3000ms·제품통합/기능·시각QA/release/install은 계속 미완료다. 닫힌 V152/V153/V154 독점 작업을 재실행하지 않는다.
+
+증거 SHA-256:
+
+- V153 CPU preparation: `94fe8b8d376487de46880f5a257ed864eda4f58f07a7966ec98d06e7c8bd3422`
+- V152 전체15/217 proof: `062fd1cc27a1ec9d6b30851c36ce071edf89af1bbe3889ec4e2972fab5f5b867`
+- V152 actual terminal: `aab97a936e9d1b8fd7948a1fe7e32c5e8ce44b02d2b45c5b11e2e29d2039725b`
+- V154 전체5조건 paired result: `2e51ac7eb645deb179e0a28000219af66e68743574267c757385a42874738f81`
+- V154 actual terminal: `889e8710abfd3aa48eff131903911d5573f985466912296b4c19d88128316102`
+
 ## 남은 완료 기준
 
 모델 변경, decoder 최적화 또는 입력 구조 변경을 채택하려면 다음을 함께 확인해야 한다.
