@@ -1,6 +1,6 @@
 {
-  "purpose": "V249 new head-only V188 integration/whole original SDK qmv, full151936 logits/independent UID buffers, no rejected untrained projection runtime. CPU19 passed (full source/real stockM1 geometry/guard/fallback/close/core AST/all28KV dependencies/row IO/core adapter); initial constructor draft preserved and head guard moved before parent allocation before seal. Bounded full151936 head rows149blocks, combinedmax557056bytes/total82653184, independent full field hashes/allBF16 affinefinite/base/NumPy preserved, Pythonpeak42582016(~40.6MiB), no MLX/model loads inCPU. V250 CPU7/prep4a432c... actual49632/PID1136 exit0/absent: ALL432head+10368q4+12096MLP/98model/197UID fullbytes/KV/capacity/8192/retention, advanced key/RNG/assets/owners pass. Real64+1/2+8/8 head constructors and BF16 guard verified, absolute328302600/final8,peak3859071300(~3.59GiB), live ready memory64→70%/swap24598.62 before+ready; after70%/24248. V251 CPU5/prep2135b0... actual67804/PID13266 exit0/absent full15/217 raw-normalized logits/token-key/native/cancel/UID/KV and owners pass, reference229/candidate217,peak1852408212(~1.73GiB)/final8; externalready memory handshake67→68→69%/swap24216 stable. V252 CPU9/prepf030da... actual99105/PID22045 exit0/absent whole23/six-pair unobserved outputs/native/count/cancel match all original references and each other. 4/6 slower(two+29.27%,eight+57.08%,cancel+181.49%,complete5791+0.19%); one-46.85%,long-0.43%(13360.732→13303.610ms) do NOT prove repeatable overall gain. V249 head candidate REJECTED, no favourite counts/inputs or retiming. Peak3848864176/final8, every owner/RNG/assets released; before64%/swap24184, actualready70%/24184,after62%/24160,final72%/24128; no continuousminimum/causalclaim. All models idle; one-model8GiB/cache256MiB policy maintained; sourceNN0/adoption/install0/product0.0.1145/source/frozenout unchanged. Old V155 phase data uses SingleRowCohort, predates current V188 grouped QK/residual/norm/rank8 baseline. Next independent complete current-baseline cost attribution, not another head/pointer/settings variant. Original8 bans/84/20root/fullcontext/model values-prose and lastactual86.317s/59incorrect prose remain; correctwhole3000ms/integration/functional-visualQA/release/install active/unmet.",
-  "savedAtUtc": "2026-10-13T21:42:22.682050+00:00",
+  "purpose": "V253 current V188 baseline CPU11/actual33421 PID52630 exit0/absent: ALL23/six control-observed pairs whole raw/native/count/cancel/owners/RNG/assets equal, original whole generation-disposal timer and zero new evals. Long control12889.446917/observed13225.384583ms; prefill2333.668333/forward10117.57493/sampling739.536913ms; current forward76.50% of observed, not old V15587% or source latency. V254 CPU6/actual59709 PID62204 exit0/absent: exact full original cohort forward AST restored, only two original call clocks, zero new evals, ALL23/six equality. Long control11373.8075/observed11362.064291ms; forward8390.712077, lazy owner graph1497.152496, original eval6872.7445ms(81.91% of forward); eval includes CPU dispatch/device waits, no GPU timestamps. xctrace unavailable(exit72), no hardware kernel trace/cache/physicaltraffic proof. V255 initial CPU AST string guard failure retained/corrected structurally before seal, CPU6 passed; actual26139 PID76232 exit1/absent after COMPLETE98 model/fullKV pairs, then missing cohort_cases import before any197/timing. First failed driver/prep/result immutable, model328302600/final8, peak3470176122; result partial counter0 is incorrect for completed stages: full geometry+forward counts prove31 observed forwards/62 added barriers, separately annotated in terminal. V256 NEW only unexecuted197 UID/ALL23 scopes, unchanged stage helper and fixed assets bind full closed98 receipts; no replay of98 or closed V255 driver. New CPU6 whole compiled global-name audit detects original missing import/rejects unresolved new names; actual eval attempt/completion counter delegates once and preserves exceptions. Actual79771 PID84124 exit0/absent, NEW197/full28 KV and complete98 reference, ALL23/six raw/native/count/cancel equality;52 numeric+334 timed observed forwards,772 additional stage evals attempted/completed. Long control12091.9895/observed11530.465208ms; evaluated decoder/KV7757.739364 vs full151936 head685.296826ms, 91.20% vs8.06% of observed forward8506.543719. Extra barriers change scheduling, nested costs are not added twice; no repeatable speed or real Host3000ms claim. CPU29 passing tests in new scopes, sourceNN0/models one at a time, 8GiB/cache256MiB setting; peak max3859071300(~3.59GiB), all4 jobs actually terminal/PID absent/final8. V253 before69/ready58/during54/after57 percent, swap23936→23928 MiB; V25465/72/65/72,swap23920 stable; V25569/74/71/66,swap23896 stable; V25674/74/70/74,swap22828.31 stable. Snapshots not continuous minimum/host physicalpeak or memory-change causal proof. Actual decoder stage diagnosis guides next genuinely new full decoder-stage attribution; head/pointer/settings variants remain rejected. Original8 family bans/84/20root/fullsource/context/model values-prose retained. Last actual source86.317s/59incorrect prose remains; product0.0.1145/source/frozenout unchanged, correct whole3000ms plus download-integrity-custommodels/FIFO/cancel/dispose/product functional-visualQA/release/install active/unmet.",
+  "savedAtUtc": "2026-10-13T22:27:10.222626+00:00",
   "workspace": "/Users/lky/project/projectanalyzer",
   "resumeInstruction": "이 파일을 먼저 읽고 checkpoint.json에서 필요한 항목만 확인한다. 긴 대화나 실험 문서 전체를 다시 읽지 않는다. 이전의 반복적·추측성 분석은 구현 결정으로 취급하지 않는다.",
   "userIntent": {
@@ -30,18 +30,18 @@
   "executionState": {
     "activeToolHandles": [],
     "activeModelProcesses": false,
-    "lastTurn": "V249 new head-only V188 integration/whole original SDK qmv, full151936 logits/independent UID buffers, no rejected untrained projection runtime. CPU19 passed (full source/real stockM1 geometry/guard/fallback/close/core AST/all28KV dependencies/row IO/core adapter); initial constructor draft preserved and head guard moved before parent allocation before seal. Bounded full151936 head rows149blocks, combinedmax557056bytes/total82653184, independent full field hashes/allBF16 affinefinite/base/NumPy preserved, Pythonpeak42582016(~40.6MiB), no MLX/model loads inCPU. V250 CPU7/prep4a432c... actual49632/PID1136 exit0/absent: ALL432head+10368q4+12096MLP/98model/197UID fullbytes/KV/capacity/8192/retention, advanced key/RNG/assets/owners pass. Real64+1/2+8/8 head constructors and BF16 guard verified, absolute328302600/final8,peak3859071300(~3.59GiB), live ready memory64→70%/swap24598.62 before+ready; after70%/24248. V251 CPU5/prep2135b0... actual67804/PID13266 exit0/absent full15/217 raw-normalized logits/token-key/native/cancel/UID/KV and owners pass, reference229/candidate217,peak1852408212(~1.73GiB)/final8; externalready memory handshake67→68→69%/swap24216 stable. V252 CPU9/prepf030da... actual99105/PID22045 exit0/absent whole23/six-pair unobserved outputs/native/count/cancel match all original references and each other. 4/6 slower(two+29.27%,eight+57.08%,cancel+181.49%,complete5791+0.19%); one-46.85%,long-0.43%(13360.732→13303.610ms) do NOT prove repeatable overall gain. V249 head candidate REJECTED, no favourite counts/inputs or retiming. Peak3848864176/final8, every owner/RNG/assets released; before64%/swap24184, actualready70%/24184,after62%/24160,final72%/24128; no continuousminimum/causalclaim. All models idle; one-model8GiB/cache256MiB policy maintained; sourceNN0/adoption/install0/product0.0.1145/source/frozenout unchanged. Old V155 phase data uses SingleRowCohort, predates current V188 grouped QK/residual/norm/rank8 baseline. Next independent complete current-baseline cost attribution, not another head/pointer/settings variant. Original8 bans/84/20root/fullcontext/model values-prose and lastactual86.317s/59incorrect prose remain; correctwhole3000ms/integration/functional-visualQA/release/install active/unmet.",
+    "lastTurn": "V253 current V188 baseline CPU11/actual33421 PID52630 exit0/absent: ALL23/six control-observed pairs whole raw/native/count/cancel/owners/RNG/assets equal, original whole generation-disposal timer and zero new evals. Long control12889.446917/observed13225.384583ms; prefill2333.668333/forward10117.57493/sampling739.536913ms; current forward76.50% of observed, not old V15587% or source latency. V254 CPU6/actual59709 PID62204 exit0/absent: exact full original cohort forward AST restored, only two original call clocks, zero new evals, ALL23/six equality. Long control11373.8075/observed11362.064291ms; forward8390.712077, lazy owner graph1497.152496, original eval6872.7445ms(81.91% of forward); eval includes CPU dispatch/device waits, no GPU timestamps. xctrace unavailable(exit72), no hardware kernel trace/cache/physicaltraffic proof. V255 initial CPU AST string guard failure retained/corrected structurally before seal, CPU6 passed; actual26139 PID76232 exit1/absent after COMPLETE98 model/fullKV pairs, then missing cohort_cases import before any197/timing. First failed driver/prep/result immutable, model328302600/final8, peak3470176122; result partial counter0 is incorrect for completed stages: full geometry+forward counts prove31 observed forwards/62 added barriers, separately annotated in terminal. V256 NEW only unexecuted197 UID/ALL23 scopes, unchanged stage helper and fixed assets bind full closed98 receipts; no replay of98 or closed V255 driver. New CPU6 whole compiled global-name audit detects original missing import/rejects unresolved new names; actual eval attempt/completion counter delegates once and preserves exceptions. Actual79771 PID84124 exit0/absent, NEW197/full28 KV and complete98 reference, ALL23/six raw/native/count/cancel equality;52 numeric+334 timed observed forwards,772 additional stage evals attempted/completed. Long control12091.9895/observed11530.465208ms; evaluated decoder/KV7757.739364 vs full151936 head685.296826ms, 91.20% vs8.06% of observed forward8506.543719. Extra barriers change scheduling, nested costs are not added twice; no repeatable speed or real Host3000ms claim. CPU29 passing tests in new scopes, sourceNN0/models one at a time, 8GiB/cache256MiB setting; peak max3859071300(~3.59GiB), all4 jobs actually terminal/PID absent/final8. V253 before69/ready58/during54/after57 percent, swap23936→23928 MiB; V25465/72/65/72,swap23920 stable; V25569/74/71/66,swap23896 stable; V25674/74/70/74,swap22828.31 stable. Snapshots not continuous minimum/host physicalpeak or memory-change causal proof. Actual decoder stage diagnosis guides next genuinely new full decoder-stage attribution; head/pointer/settings variants remain rejected. Original8 family bans/84/20root/fullsource/context/model values-prose retained. Last actual source86.317s/59incorrect prose remains; product0.0.1145/source/frozenout unchanged, correct whole3000ms plus download-integrity-custommodels/FIFO/cancel/dispose/product functional-visualQA/release/install active/unmet.",
     "noProgressConsecutiveTurns": 0,
     "terminalRule": "V13755468/PID99592 실제exit0/부재; V14019108/PID78530, V14679681/PID80723, V14119638/PID82365 실제exit0/부재. V148sourcefree84120/root94340/child94474 actualexit0/부재. V148실제source49497/root95535 exit1/부재, child95621 exit0/부재. 모두 종료됐으므로 재poll/실행/수정하지 않는다. V149CPU검토 exit0/최초결과보존. 이전 모든 종료 독점job도 그대로 재실행 금지. 현재livehandle없음; 실제상태를검증하고새독립CPU진단부터 진행하며 artifact/관측timeout으로완료나live를추측하지않는다. V152joint43575/PID16552 actualexit0/PID부재; V154timing25713/PID24293 actualexit0/PID부재. 모두닫힘. V152seal.py 첫import실패actualexit1도닫혀재실행/수정금지; V153seal은별도준비builder actualexit0. V152GPU와V154timing을재poll/재실행하지않는다. V15589451/PID39514, V15769394/PID54696, V15812178/PID61718 actualexit0/PID부재/최종8 확인. 모두닫힌exclusive GPU/profiler/timing이므로재poll/수정/replay금지. V156은CPU초안만이고model/GPU0이며sealed아님. V15979546/PID81282,V16023111/PID93177,V16130401/PID1709,V1626406/PID5381 모두actualexit0/PID부재/최종8로닫힘. V161 첫prepare.py는import오류exit1/model0이며닫힘; 별도prepare_explicit.py가actualexit0. 닫힌 모든driver/builder는재실행·수정·재poll하지않는다. V16355731/PID19877 import종료1/model0,V16451237/PID22391 Metalcompile종료1/비교0,V16546741/PID25145 12쌍일치후residency종료1,V16614920/PID28269 RNG진단종료0,V16747955/PID34711 전체1344종료0,V16836764/PID43144 전체336/98종료0,V16947749/PID49513 준비graph종료1/생성0,V17113461/PID54568 전체15/217종료0,V17034350/PID58193 전체23시간종료0;모두PID부재. 종료driver/builder/수치/시간검사재실행·수정·재poll금지. 검증된순수kernel/runtime공개helper는새scope의새구현에서재사용가능. V1726895/PID90943 exit1은root가model-ready전에active상태를기록해immutableloader의idlegate실패;SDK model0/kernel0. V17377921/PID99483 전체48384 exit0, V17571105/PID21799 전체12096/98/197 exit0, V17667141/PID30182 전체15/217 exit0, V17716135/PID38173 전체23시간 exit0; 모두PID부재. V174prepare exit0후CPU import사전검사에서STRESS_CASES누락발견,모델/GPU0이며그sealed준비본은보존. 새GPU의global activeModelProcesses/activeToolHandles등록은새model-ready.json에서현재PID/실제완료확인후에만한다;loader는입장검사를다시하므로launch파일만으로너무일찍등록하지않는다. 준비전live tool handle은별도로추적하고timeout을종료로해석하지않는다. V17827645/PID70584 exit134는첫Metal주소공간컴파일abort/완료model1/비교0/PID부재이며Python최종정리검증은없음. V17936265/PID75058 전체28224 exit0, V18087592/PID83094 전체12096/98/197 exit0, V18128564/PID89635 전체15/217 exit0, V18248607/PID95247 전체23시간 exit0; 모두PID부재. 각실제terminal·최초오류·sealedsource보존,재poll/수정/재실행금지. V18359621/PID12294 전체12096 operation exit0, V18438791/PID19321 전체12096MLP/98model/197UID exit0, V18582721/PID24239 전체15/217 exit0, V18692667/PID25640 전체23시간 exit0;모두PID부재/최종8bytes. preparation·actualtool·PID부재receipt보존,닫힌실행재poll·재실행·수정금지. V187 session56849/PID47521 exit0, V188 session50644/PID55198 exit0, V189 session69270/PID69711 exit0, V190 session73365/PID73307 exit0, V191 CPU session98558/PID92430 exit0; 모두 실제 terminal/PID부재 확인. V187~190 최종8bytes 확인. V188은 앞 turn에 완료됐으며 이번 turn에 실제 handle의 terminal을 회수했다. 모두 닫혔으므로 재poll·수정·재실행하지 않는다. V192 CPU84357/PID37784 exit1, V193 CPU27192/PID55961 exit0, V194 CPU86617/PID61208 exit1, V195 CPU97425/PID68792 exit0, V196 CPU16980/PID71537 exit0; 모두 실제 terminal/PID부재. V192 맥락16건 및 V194 8token초과 실패를 보존한다. 닫힌 builder/audit/prepare 재poll·수정·재실행 금지. V197 CPU87836/PID9604 exit0/PID부재, CPUbinding11895 exit0/MLXimport0. V198 prepare88572/PID22724 exit0, 실제root76772/PID31539 exit0 및child31674 exit0/PID부재. model-ready는실제load1/328302600 뒤 생성됐다. root가확인했을때child는이미정상종료되어global active를등록하지않았다. 모든현재handle닫힘, 재poll/수정/재실행금지. V199 prepare63098 exit0,실제36428/root76990 exit0. Child77007/77008은계획된SIGTERM close,79442는정상EOFexit0. 모든PID부재. 실제Bmodelready/현재PID확인뒤root가registration36428을제공했고,controller가close+OSPID부재를검사한뒤globalidle을기록하여C새load를허용했다. 현재livehandle없음;V199닫힌builder/run/검사재poll·수정·재실행금지. V201 CPU99633/PID2113 exit0/부재, V202 CPU40603/PID14299 exit0/부재, V203 CPU32104/PID50513 exit0/부재, V204 CPU96961/PID62606 exit1/부재(native8거부), V205 CPU32066/PID72335 exit0/부재, V206 CPU82766/PID78569 exit0/부재. 모든 종료 exclusive builder/audit/preparation과 최초 실패·code seal을 보존하며 재poll·수정·재실행 금지. 공개 pure factory/schema/normalizer/reference-order/helper는 실질적으로 새 scope의 새 구현에서 재사용 가능. 이번 model/sourceNN0이며 현재 livehandle 없음. V207 CPUaudit62225/PID52979 exit0/PID부재(36action100owner52packet),prepare59182actualexit0; V208 CPUaudit64124/PID4613 exit0/PID부재(100stage300node40call92page8fullprior),prepare38152actualexit0. V208 첫outerCPUtest91217exit1/8comparisonfixture실패와수정후82842exit0를보존한다. 닫힌exclusive audit/prepare·code·최초결과는재poll·수정·재실행하지않는다. 현재livehandle없음,model/sourceNN0. V209builder91254/PID20593 actualexit0/PID부재; V210native34682/PID23332 actualexit0/PID부재; V211prepare74965actualexit0/sourceactual34734/root43809 exit1/child44319exit0/둘PID부재/원래closed328302600확인. 모델SDK load/현재PID/준비완료후에만registration34734를제공했고정리후globalidle을확인했다. V212review95491/PID66834actualexit0/PID부재. 모든closedexclusive builder/prepare/audit/evaluate/review와최초결과·code수정/재poll/재실행금지. V211전체100계획은폐기되었고남은35action96source요청은실행하지않는다. 현재livehandle/loadedmodel없음. V21792917/PID71955 exit1, V21823975/PID97874 exit1/model0, V21926317/PID15671 exit1, V22059293/PID36224 exit0; all actual terminal/PID absent and closed. V22138449/PID93258 actualexit0/PIDabsent/full15-217/final8; closed and never repoll/replay/edit. V22246627/PID23626 actualexit1/PIDabsent/first variable collision with no final8 proof; V22360708/PID39540 actualexit0/PIDabsent/full23-sixpairs/final8. Both closed; never repoll/replay/edit. V2254401/PID20979 exit1, V22742736/PID39139 exit1, V22922184/PID56247 exit0, V2306515/PID68175 exit0, V2316109/PID79683 exit0; all actual terminal/PID absent/final8. Closed, never edit/replay/repoll. V23370557/PID7960 and V23585612/PID30017 actualexit1/PIDabsent/final8; closed first errors/complete raw tensors preserved, never replay/edit/repoll. V23798220/PID58705 actualexit1/PIDabsent/final8; no replay/edit/repoll.",
-    "previousGoalTurnClassification": "progress: new full-head CPU19/bounded whole rows and real complete numeric/joint/timing prove equality but reject slower candidate; next current-baseline attribution; full objective unmet"
+    "previousGoalTurnClassification": "progress: new current-baseline full phase/forward data and qualified remaining UID/core-head diagnosis; decoder priority established, first failure retained; full objective unmet"
   },
   "evidence": {
     "root": ".local-models/experiments/three-second/",
     "authoritativeState": "checkpoint.json",
     "latestRecord": {
-      "path": "vocab-head-timing-v252/result.json",
-      "sha256": "fbf809ded8583e8d441530743378967c4b55e94766c7142bbb4e1704fa8b6232",
-      "status": "V249 new head-only V188 integration/whole original SDK qmv, full151936 logits/independent UID buffers, no rejected untrained projection runtime. CPU19 passed (full source/real stockM1 geometry/guard/fallback/close/core AST/all28KV dependencies/row IO/core adapter); initial constructor draft preserved and head guard moved before parent allocation before seal. Bounded full151936 head rows149blocks, combinedmax557056bytes/total82653184, independent full field hashes/allBF16 affinefinite/base/NumPy preserved, Pythonpeak42582016(~40.6MiB), no MLX/model loads inCPU. V250 CPU7/prep4a432c... actual49632/PID1136 exit0/absent: ALL432head+10368q4+12096MLP/98model/197UID fullbytes/KV/capacity/8192/retention, advanced key/RNG/assets/owners pass. Real64+1/2+8/8 head constructors and BF16 guard verified, absolute328302600/final8,peak3859071300(~3.59GiB), live ready memory64→70%/swap24598.62 before+ready; after70%/24248. V251 CPU5/prep2135b0... actual67804/PID13266 exit0/absent full15/217 raw-normalized logits/token-key/native/cancel/UID/KV and owners pass, reference229/candidate217,peak1852408212(~1.73GiB)/final8; externalready memory handshake67→68→69%/swap24216 stable. V252 CPU9/prepf030da... actual99105/PID22045 exit0/absent whole23/six-pair unobserved outputs/native/count/cancel match all original references and each other. 4/6 slower(two+29.27%,eight+57.08%,cancel+181.49%,complete5791+0.19%); one-46.85%,long-0.43%(13360.732→13303.610ms) do NOT prove repeatable overall gain. V249 head candidate REJECTED, no favourite counts/inputs or retiming. Peak3848864176/final8, every owner/RNG/assets released; before64%/swap24184, actualready70%/24184,after62%/24160,final72%/24128; no continuousminimum/causalclaim. All models idle; one-model8GiB/cache256MiB policy maintained; sourceNN0/adoption/install0/product0.0.1145/source/frozenout unchanged. Old V155 phase data uses SingleRowCohort, predates current V188 grouped QK/residual/norm/rank8 baseline. Next independent complete current-baseline cost attribution, not another head/pointer/settings variant. Original8 bans/84/20root/fullcontext/model values-prose and lastactual86.317s/59incorrect prose remain; correctwhole3000ms/integration/functional-visualQA/release/install active/unmet."
+      "path": "core-head-remaining-v256/result.json",
+      "sha256": "ba4b9f3ff222bc8da8356031e7178d6ff1bd56dfbfd232ea39d48e0c17115ac7",
+      "status": "V253 current V188 baseline CPU11/actual33421 PID52630 exit0/absent: ALL23/six control-observed pairs whole raw/native/count/cancel/owners/RNG/assets equal, original whole generation-disposal timer and zero new evals. Long control12889.446917/observed13225.384583ms; prefill2333.668333/forward10117.57493/sampling739.536913ms; current forward76.50% of observed, not old V15587% or source latency. V254 CPU6/actual59709 PID62204 exit0/absent: exact full original cohort forward AST restored, only two original call clocks, zero new evals, ALL23/six equality. Long control11373.8075/observed11362.064291ms; forward8390.712077, lazy owner graph1497.152496, original eval6872.7445ms(81.91% of forward); eval includes CPU dispatch/device waits, no GPU timestamps. xctrace unavailable(exit72), no hardware kernel trace/cache/physicaltraffic proof. V255 initial CPU AST string guard failure retained/corrected structurally before seal, CPU6 passed; actual26139 PID76232 exit1/absent after COMPLETE98 model/fullKV pairs, then missing cohort_cases import before any197/timing. First failed driver/prep/result immutable, model328302600/final8, peak3470176122; result partial counter0 is incorrect for completed stages: full geometry+forward counts prove31 observed forwards/62 added barriers, separately annotated in terminal. V256 NEW only unexecuted197 UID/ALL23 scopes, unchanged stage helper and fixed assets bind full closed98 receipts; no replay of98 or closed V255 driver. New CPU6 whole compiled global-name audit detects original missing import/rejects unresolved new names; actual eval attempt/completion counter delegates once and preserves exceptions. Actual79771 PID84124 exit0/absent, NEW197/full28 KV and complete98 reference, ALL23/six raw/native/count/cancel equality;52 numeric+334 timed observed forwards,772 additional stage evals attempted/completed. Long control12091.9895/observed11530.465208ms; evaluated decoder/KV7757.739364 vs full151936 head685.296826ms, 91.20% vs8.06% of observed forward8506.543719. Extra barriers change scheduling, nested costs are not added twice; no repeatable speed or real Host3000ms claim. CPU29 passing tests in new scopes, sourceNN0/models one at a time, 8GiB/cache256MiB setting; peak max3859071300(~3.59GiB), all4 jobs actually terminal/PID absent/final8. V253 before69/ready58/during54/after57 percent, swap23936→23928 MiB; V25465/72/65/72,swap23920 stable; V25569/74/71/66,swap23896 stable; V25674/74/70/74,swap22828.31 stable. Snapshots not continuous minimum/host physicalpeak or memory-change causal proof. Actual decoder stage diagnosis guides next genuinely new full decoder-stage attribution; head/pointer/settings variants remain rejected. Original8 family bans/84/20root/fullsource/context/model values-prose retained. Last actual source86.317s/59incorrect prose remains; product0.0.1145/source/frozenout unchanged, correct whole3000ms plus download-integrity-custommodels/FIFO/cancel/dispose/product functional-visualQA/release/install active/unmet."
     },
     "v87ActualSource": {
       "directory": "tuple-source-runtime-v87/",
@@ -4019,6 +4019,536 @@
       "currentGpuNumericPassed": true,
       "currentJointPassed": true,
       "currentTimingCandidateRejected": true
+    },
+    "currentBaselineCostV253": {
+      "savedAtUtc": "2026-10-13T21:58:23.278044+00:00",
+      "status": "closed-complete-current-optimized-baseline-whole-phase-attribution",
+      "actualOwnedTerminal": {
+        "sessionId": 33421,
+        "pid": 52630,
+        "exitCode": 0,
+        "chunk": "341be9",
+        "processMissingObserved": true
+      },
+      "proof": {
+        "file": "current-baseline-cost-v253/result.json",
+        "sha256": "3615e813a4b918d3b5d4bf7ee1bde198ac7e56b1ddc668d3f2a7e7bd300158e3"
+      },
+      "preparation": {
+        "file": "current-baseline-cost-v253/preparation.json",
+        "sha256": "3193fc3fae5025d18940b886a0dc90b9e7229e94eb7b82651ffb000e0fa3558e"
+      },
+      "pairsCompleted": 6,
+      "streamsPerVariant": 23,
+      "runsPerVariantPerCase": 1,
+      "comparisons": [
+        {
+          "case": "one",
+          "controlMs": 115.899959,
+          "observedMs": 96.378792,
+          "observerMinusControlMs": -19.52116699999999,
+          "phaseTotalsMs": {
+            "prefill": 21.102709,
+            "forwardAndEval": 66.034874,
+            "maskNormalizeSampleAndEval": 8.287251999999999,
+            "nativeMaskInsideSampling": 0.7404139999999999,
+            "lazySamplerInsideSampling": 0.35275
+          },
+          "forwardWaveCount": 11,
+          "forwardFractionOfObserved": 0.6851598015463817
+        },
+        {
+          "case": "two-unequal",
+          "controlMs": 138.429291,
+          "observedMs": 141.681625,
+          "observerMinusControlMs": 3.2523339999999905,
+          "phaseTotalsMs": {
+            "prefill": 33.335917,
+            "forwardAndEval": 95.32916700000001,
+            "maskNormalizeSampleAndEval": 11.760916000000002,
+            "nativeMaskInsideSampling": 1.08725,
+            "lazySamplerInsideSampling": 0.5988739999999998
+          },
+          "forwardWaveCount": 13,
+          "forwardFractionOfObserved": 0.6728407229942487
+        },
+        {
+          "case": "eight-unequal",
+          "controlMs": 799.323667,
+          "observedMs": 678.255417,
+          "observerMinusControlMs": -121.06825000000003,
+          "phaseTotalsMs": {
+            "prefill": 182.339042,
+            "forwardAndEval": 445.9769580000001,
+            "maskNormalizeSampleAndEval": 45.639625,
+            "nativeMaskInsideSampling": 3.336084,
+            "lazySamplerInsideSampling": 2.8266359999999997
+          },
+          "forwardWaveCount": 25,
+          "forwardFractionOfObserved": 0.6575354163371173
+        },
+        {
+          "case": "explicit-cancel",
+          "controlMs": 173.270541,
+          "observedMs": 175.464458,
+          "observerMinusControlMs": 2.193916999999999,
+          "phaseTotalsMs": {
+            "prefill": 53.118875,
+            "forwardAndEval": 107.76182999999997,
+            "maskNormalizeSampleAndEval": 13.110252000000001,
+            "nativeMaskInsideSampling": 1.2036250000000002,
+            "lazySamplerInsideSampling": 0.7171249999999999
+          },
+          "forwardWaveCount": 15,
+          "forwardFractionOfObserved": 0.6141518985001508
+        },
+        {
+          "case": "complete5791",
+          "controlMs": 1448.074,
+          "observedMs": 1805.283041,
+          "observerMinusControlMs": 357.20904099999984,
+          "phaseTotalsMs": {
+            "prefill": 1578.215292,
+            "forwardAndEval": 208.855877,
+            "maskNormalizeSampleAndEval": 16.772416,
+            "nativeMaskInsideSampling": 0.826873,
+            "lazySamplerInsideSampling": 0.38770899999999997
+          },
+          "forwardWaveCount": 11,
+          "forwardFractionOfObserved": 0.11569148563225216
+        },
+        {
+          "case": "eight-long-output-full-inputs",
+          "controlMs": 12889.446917,
+          "observedMs": 13225.384583,
+          "observerMinusControlMs": 335.9376659999998,
+          "phaseTotalsMs": {
+            "prefill": 2333.668333,
+            "forwardAndEval": 10117.574930000004,
+            "maskNormalizeSampleAndEval": 739.5369130000003,
+            "nativeMaskInsideSampling": 32.52592600000006,
+            "lazySamplerInsideSampling": 27.826303000000014
+          },
+          "forwardWaveCount": 259,
+          "forwardFractionOfObserved": 0.7650117746296168
+        }
+      ],
+      "modelActiveBytes": 328302600,
+      "peakActiveBytes": 3848864176,
+      "finalActiveBytes": 8,
+      "modelLoads": 1,
+      "sourceNeuralRequests": 0,
+      "externalLiveReadyPressureSwapHandshakeVerified": true,
+      "wholeRawNativeCountsCancelResultsEqual": true,
+      "newEvaluationBarriers": 0,
+      "nestedTimesMustNotBeAdded": true,
+      "wallTimesIncludeCpuAndDeviceWait": true,
+      "deviceTimestampsMeasured": false,
+      "observedTimesAreNotUnobservedLatency": true,
+      "actualHostLatencyMeasured": false,
+      "adopted": false,
+      "installed": false,
+      "goalComplete": false,
+      "terminal": {
+        "file": "current-baseline-cost-v253/terminal.json",
+        "sha256": "f3bb274e50596c72de34684dd5c03a392f46fd50ca2b2f4d84516e713df1f685"
+      }
+    },
+    "forwardBoundaryCostV254": {
+      "savedAtUtc": "2026-10-13T22:06:56.059443+00:00",
+      "status": "closed-complete-current-forward-boundary-whole-attribution",
+      "actualOwnedTerminal": {
+        "sessionId": 59709,
+        "pid": 62204,
+        "exitCode": 0,
+        "chunk": "743cb5",
+        "processMissingObserved": true
+      },
+      "proof": {
+        "file": "forward-boundary-cost-v254/result.json",
+        "sha256": "8ea5bcb02b9c92e8085857048508fe341ce8baaf6266de3f856652492d4a0cbd"
+      },
+      "preparation": {
+        "file": "forward-boundary-cost-v254/preparation.json",
+        "sha256": "c240e1777650e33c169544b405e9237a48f7c71a08aa96a5fa392e6691c95ca7"
+      },
+      "pairsCompleted": 6,
+      "streamsPerVariant": 23,
+      "runsPerVariantPerCase": 1,
+      "comparisons": [
+        {
+          "case": "one",
+          "controlMs": 118.332375,
+          "observedMs": 94.34875,
+          "observerMinusControlMs": -23.983625000000004,
+          "phaseTotalsMs": {
+            "prefill": 20.649292,
+            "forwardAndEval": 65.071957,
+            "maskNormalizeSampleAndEval": 7.715833999999999,
+            "nativeMaskInsideSampling": 0.6677510000000001,
+            "lazySamplerInsideSampling": 0.351916,
+            "lazyOwnerForwardInsideForward": 15.512875,
+            "originalEvalInsideForward": 49.230209
+          },
+          "forwardWaveCount": 11,
+          "lazyForwardBuildMs": 15.512875,
+          "originalEvalMs": 49.230209,
+          "evalFractionOfForward": 0.7565503063016839,
+          "forwardOtherArgumentsStreamScheduleAndObserverMs": 0.3288729999999944
+        },
+        {
+          "case": "two-unequal",
+          "controlMs": 136.259833,
+          "observedMs": 138.586583,
+          "observerMinusControlMs": 2.326750000000004,
+          "phaseTotalsMs": {
+            "prefill": 35.875584,
+            "forwardAndEval": 90.35287299999999,
+            "maskNormalizeSampleAndEval": 11.155665,
+            "nativeMaskInsideSampling": 0.9488340000000001,
+            "lazySamplerInsideSampling": 0.5277100000000001,
+            "lazyOwnerForwardInsideForward": 24.136543000000003,
+            "originalEvalInsideForward": 65.79387599999998
+          },
+          "forwardWaveCount": 13,
+          "lazyForwardBuildMs": 24.136543000000003,
+          "originalEvalMs": 65.79387599999998,
+          "evalFractionOfForward": 0.7281879791470492,
+          "forwardOtherArgumentsStreamScheduleAndObserverMs": 0.4224540000000019
+        },
+        {
+          "case": "eight-unequal",
+          "controlMs": 662.840459,
+          "observedMs": 648.451125,
+          "observerMinusControlMs": -14.389333999999963,
+          "phaseTotalsMs": {
+            "prefill": 184.447542,
+            "forwardAndEval": 416.30271000000005,
+            "maskNormalizeSampleAndEval": 43.870332,
+            "nativeMaskInsideSampling": 3.1076690000000005,
+            "lazySamplerInsideSampling": 2.7482509999999998,
+            "lazyOwnerForwardInsideForward": 105.45325100000001,
+            "originalEvalInsideForward": 309.368038
+          },
+          "forwardWaveCount": 25,
+          "lazyForwardBuildMs": 105.45325100000001,
+          "originalEvalMs": 309.368038,
+          "evalFractionOfForward": 0.7431324143914412,
+          "forwardOtherArgumentsStreamScheduleAndObserverMs": 1.4814210000000116
+        },
+        {
+          "case": "explicit-cancel",
+          "controlMs": 175.377,
+          "observedMs": 172.02,
+          "observerMinusControlMs": -3.3569999999999993,
+          "phaseTotalsMs": {
+            "prefill": 52.812666,
+            "forwardAndEval": 105.08129100000001,
+            "maskNormalizeSampleAndEval": 12.705376999999999,
+            "nativeMaskInsideSampling": 1.065838,
+            "lazySamplerInsideSampling": 0.6784589999999999,
+            "lazyOwnerForwardInsideForward": 27.239995999999998,
+            "originalEvalInsideForward": 77.37495799999999
+          },
+          "forwardWaveCount": 15,
+          "lazyForwardBuildMs": 27.239995999999998,
+          "originalEvalMs": 77.37495799999999,
+          "evalFractionOfForward": 0.7363342918959759,
+          "forwardOtherArgumentsStreamScheduleAndObserverMs": 0.46633700000001
+        },
+        {
+          "case": "complete5791",
+          "controlMs": 782.571166,
+          "observedMs": 779.986625,
+          "observerMinusControlMs": -2.5845409999999447,
+          "phaseTotalsMs": {
+            "prefill": 680.255917,
+            "forwardAndEval": 91.24199899999999,
+            "maskNormalizeSampleAndEval": 7.394583,
+            "nativeMaskInsideSampling": 0.662292,
+            "lazySamplerInsideSampling": 0.301167,
+            "lazyOwnerForwardInsideForward": 15.219373000000003,
+            "originalEvalInsideForward": 75.715999
+          },
+          "forwardWaveCount": 11,
+          "lazyForwardBuildMs": 15.219373000000003,
+          "originalEvalMs": 75.715999,
+          "evalFractionOfForward": 0.8298371345415174,
+          "forwardOtherArgumentsStreamScheduleAndObserverMs": 0.30662699999999177
+        },
+        {
+          "case": "eight-long-output-full-inputs",
+          "controlMs": 11373.8075,
+          "observedMs": 11362.064291,
+          "observerMinusControlMs": -11.743209000000206,
+          "phaseTotalsMs": {
+            "prefill": 2327.155167,
+            "forwardAndEval": 8390.712077000006,
+            "maskNormalizeSampleAndEval": 614.1224940000001,
+            "nativeMaskInsideSampling": 28.26411200000004,
+            "lazySamplerInsideSampling": 25.36536599999999,
+            "lazyOwnerForwardInsideForward": 1497.1524959999988,
+            "originalEvalInsideForward": 6872.744499999996
+          },
+          "forwardWaveCount": 259,
+          "lazyForwardBuildMs": 1497.1524959999988,
+          "originalEvalMs": 6872.744499999996,
+          "evalFractionOfForward": 0.8190895405455576,
+          "forwardOtherArgumentsStreamScheduleAndObserverMs": 20.81508100001065
+        }
+      ],
+      "modelActiveBytes": 328302600,
+      "peakActiveBytes": 3848864176,
+      "finalActiveBytes": 8,
+      "modelLoads": 1,
+      "sourceNeuralRequests": 0,
+      "externalLiveReadyPressureSwapHandshakeVerified": true,
+      "wholeRawNativeCountsCancelResultsEqual": true,
+      "newEvaluationBarriers": 0,
+      "nestedTimesMustNotBeAdded": true,
+      "wallTimesIncludeCpuAndDeviceWait": true,
+      "deviceTimestampsMeasured": false,
+      "observedTimesAreNotUnobservedLatency": true,
+      "actualHostLatencyMeasured": false,
+      "adopted": false,
+      "installed": false,
+      "goalComplete": false,
+      "terminal": {
+        "file": "forward-boundary-cost-v254/terminal.json",
+        "sha256": "11f312c7b1a8f4810fd3a7ecd6c0086bf13103bcc029462efecb1af1157696a6"
+      }
+    },
+    "coreHeadCostV255": {
+      "savedAtUtc": "2026-10-13T22:17:56.316292+00:00",
+      "status": "closed-first-core-head-import-failure-after-complete98-model-pairs",
+      "actualOwnedTerminal": {
+        "sessionId": 26139,
+        "pid": 76232,
+        "exitCode": 1,
+        "chunk": "d5f98d",
+        "processMissingObserved": true
+      },
+      "proof": {
+        "file": "core-head-cost-v255/result.json",
+        "sha256": "c1f011921aaaae75a5f60de26485bdd125678429eed395c156768e6420c9c01c"
+      },
+      "preparation": {
+        "file": "core-head-cost-v255/preparation.json",
+        "sha256": "a58c486f03b5225be455c2a67d1c1bc864a4370bc38194dfd4e89d5fdc5cfece"
+      },
+      "completeModelPairs": 98,
+      "completeUidPairs": 0,
+      "pairsCompleted": 0,
+      "completeWholeQualification": false,
+      "firstFailure": {
+        "type": "NameError",
+        "message": "name 'cohort_cases' is not defined",
+        "traceback": "Traceback (most recent call last):\n  File \"/Users/lky/project/projectanalyzer/.local-models/experiments/three-second/core-head-cost-v255/run.py\", line 166, in <module>\n    for numeric_case in cohort_cases():compare_cohort(baseline_owner,numeric_case,model_numeric['cohortRows'])\n                        ^^^^^^^^^^^^\nNameError: name 'cohort_cases' is not defined\n",
+        "partialGeneration": null
+      },
+      "observedModelForwardCalls": 31,
+      "actualAdditionalStageBarriersDerived": 62,
+      "resultReportedNewEvaluationBarriers": 0,
+      "partialCounterCaveat": "result counter assigned after UID loop; first import failure left0; complete geometry/count/AST prove actual two barriers per observed forward",
+      "modelActiveBytes": 328302600,
+      "peakActiveBytes": 3470176122,
+      "finalActiveBytes": 8,
+      "modelLoads": 1,
+      "sourceNeuralRequests": 0,
+      "externalLiveReadyPressureSwapHandshakeVerified": true,
+      "allModelAndCompilationOwnersReleased": true,
+      "wholeStageHeadTimingMeasured": false,
+      "adopted": false,
+      "installed": false,
+      "goalComplete": false,
+      "terminal": {
+        "file": "core-head-cost-v255/terminal.json",
+        "sha256": "d68ddb1b3f604f10ab750fb5e0fd5c8346af0651b139ebe2ae9b941e74dc889b"
+      }
+    },
+    "coreHeadRemainingV256": {
+      "savedAtUtc": "2026-10-13T22:24:20.968265+00:00",
+      "status": "closed-complete-core-head-remaining197-whole23-with-bound98",
+      "actualOwnedTerminal": {
+        "sessionId": 79771,
+        "pid": 84124,
+        "exitCode": 0,
+        "chunk": "83305d",
+        "processMissingObserved": true
+      },
+      "proof": {
+        "file": "core-head-remaining-v256/result.json",
+        "sha256": "ba4b9f3ff222bc8da8356031e7178d6ff1bd56dfbfd232ea39d48e0c17115ac7"
+      },
+      "preparation": {
+        "file": "core-head-remaining-v256/preparation.json",
+        "sha256": "172dc8cd1c3e6a7f41f367dfe6759f31c8d29dedbd116f59e9f6cab5b3b5ef40"
+      },
+      "completeModelPairs": 98,
+      "newCompleteUidPairs": 197,
+      "complete98Replayed": false,
+      "complete98BoundReference": {
+        "proof": {
+          "file": "core-head-cost-v255/result.json",
+          "sha256": "c1f011921aaaae75a5f60de26485bdd125678429eed395c156768e6420c9c01c"
+        },
+        "terminal": {
+          "file": "core-head-cost-v255/terminal.json",
+          "sha256": "d68ddb1b3f604f10ab750fb5e0fd5c8346af0651b139ebe2ae9b941e74dc889b"
+        },
+        "firstFailureRetained": true,
+        "reusedWholeModelPairs": 98,
+        "closedDriverReplayed": false
+      },
+      "pairsCompleted": 6,
+      "streamsPerVariant": 23,
+      "runsPerVariantPerCase": 1,
+      "comparisons": [
+        {
+          "case": "one",
+          "controlMs": 112.875875,
+          "observedMs": 92.2265,
+          "observerMinusControlMs": -20.649374999999992,
+          "phaseTotalsMs": {
+            "prefill": 20.741167,
+            "forwardAndEval": 63.24475,
+            "maskNormalizeSampleAndEval": 7.432584999999999,
+            "nativeMaskInsideSampling": 0.657791,
+            "lazySamplerInsideSampling": 0.30670600000000003,
+            "evaluatedDecoderAndKvInsideForward": 56.68025,
+            "evaluatedFullVocabHeadInsideForward": 5.3679559999999995
+          },
+          "evaluatedDecoderAndKvMs": 56.68025,
+          "evaluatedFullVocabHeadMs": 5.3679559999999995,
+          "coreFractionOfObservedForward": 0.8962048233252562,
+          "headFractionOfObservedForward": 0.08487591460160723,
+          "forwardWaveCount": 11
+        },
+        {
+          "case": "two-unequal",
+          "controlMs": 138.149125,
+          "observedMs": 140.357042,
+          "observerMinusControlMs": 2.207917000000009,
+          "phaseTotalsMs": {
+            "prefill": 32.449375,
+            "forwardAndEval": 95.467501,
+            "maskNormalizeSampleAndEval": 11.276252000000001,
+            "nativeMaskInsideSampling": 1.016542,
+            "lazySamplerInsideSampling": 0.556377,
+            "evaluatedDecoderAndKvInsideForward": 84.13941600000001,
+            "evaluatedFullVocabHeadInsideForward": 9.844001
+          },
+          "evaluatedDecoderAndKvMs": 84.13941600000001,
+          "evaluatedFullVocabHeadMs": 9.844001,
+          "coreFractionOfObservedForward": 0.8813409287837126,
+          "headFractionOfObservedForward": 0.10311363445032462,
+          "forwardWaveCount": 13
+        },
+        {
+          "case": "eight-unequal",
+          "controlMs": 645.253417,
+          "observedMs": 666.020833,
+          "observerMinusControlMs": 20.767416000000026,
+          "phaseTotalsMs": {
+            "prefill": 180.885083,
+            "forwardAndEval": 437.10454300000004,
+            "maskNormalizeSampleAndEval": 44.026547000000015,
+            "nativeMaskInsideSampling": 3.103287999999999,
+            "lazySamplerInsideSampling": 2.4479189999999993,
+            "evaluatedDecoderAndKvInsideForward": 384.410961,
+            "evaluatedFullVocabHeadInsideForward": 47.75841499999999
+          },
+          "evaluatedDecoderAndKvMs": 384.410961,
+          "evaluatedFullVocabHeadMs": 47.75841499999999,
+          "coreFractionOfObservedForward": 0.8794485602040516,
+          "headFractionOfObservedForward": 0.10926085250045088,
+          "forwardWaveCount": 25
+        },
+        {
+          "case": "explicit-cancel",
+          "controlMs": 172.894333,
+          "observedMs": 178.1405,
+          "observerMinusControlMs": 5.246167000000014,
+          "phaseTotalsMs": {
+            "prefill": 53.607459,
+            "forwardAndEval": 110.56816700000002,
+            "maskNormalizeSampleAndEval": 12.566833,
+            "nativeMaskInsideSampling": 1.0773320000000002,
+            "lazySamplerInsideSampling": 0.6716229999999996,
+            "evaluatedDecoderAndKvInsideForward": 97.695003,
+            "evaluatedFullVocabHeadInsideForward": 11.039874
+          },
+          "evaluatedDecoderAndKvMs": 97.695003,
+          "evaluatedFullVocabHeadMs": 11.039874,
+          "coreFractionOfObservedForward": 0.8835726018683115,
+          "headFractionOfObservedForward": 0.0998467669270487,
+          "forwardWaveCount": 15
+        },
+        {
+          "case": "complete5791",
+          "controlMs": 784.533167,
+          "observedMs": 781.288208,
+          "observerMinusControlMs": -3.2449589999999944,
+          "phaseTotalsMs": {
+            "prefill": 681.002708,
+            "forwardAndEval": 92.009126,
+            "maskNormalizeSampleAndEval": 7.189749000000001,
+            "nativeMaskInsideSampling": 0.617502,
+            "lazySamplerInsideSampling": 0.303167,
+            "evaluatedDecoderAndKvInsideForward": 85.741834,
+            "evaluatedFullVocabHeadInsideForward": 5.245374
+          },
+          "evaluatedDecoderAndKvMs": 85.741834,
+          "evaluatedFullVocabHeadMs": 5.245374,
+          "coreFractionOfObservedForward": 0.9318840176788551,
+          "headFractionOfObservedForward": 0.057009279709927904,
+          "forwardWaveCount": 11
+        },
+        {
+          "case": "eight-long-output-full-inputs",
+          "controlMs": 12091.9895,
+          "observedMs": 11530.465208,
+          "observerMinusControlMs": -561.5242920000001,
+          "phaseTotalsMs": {
+            "prefill": 2391.319542,
+            "forwardAndEval": 8506.543718999998,
+            "maskNormalizeSampleAndEval": 599.2413280000002,
+            "nativeMaskInsideSampling": 27.596461999999935,
+            "lazySamplerInsideSampling": 25.414022000000017,
+            "evaluatedDecoderAndKvInsideForward": 7757.739363999996,
+            "evaluatedFullVocabHeadInsideForward": 685.2968260000002
+          },
+          "evaluatedDecoderAndKvMs": 7757.739363999996,
+          "evaluatedFullVocabHeadMs": 685.2968260000002,
+          "coreFractionOfObservedForward": 0.911973137418022,
+          "headFractionOfObservedForward": 0.08056113606626612,
+          "forwardWaveCount": 259
+        }
+      ],
+      "numericObservedForwardCalls": 52,
+      "timedObservedForwardCalls": 334,
+      "additionalStageEvaluationAttempts": 772,
+      "completedAdditionalStageEvaluations": 772,
+      "modelActiveBytes": 328302600,
+      "peakActiveBytes": 3859071300,
+      "finalActiveBytes": 8,
+      "modelLoads": 1,
+      "sourceNeuralRequests": 0,
+      "externalLiveReadyPressureSwapHandshakeVerified": true,
+      "wholeRawNativeCountsCancelResultsEqual": true,
+      "nestedTimesMustNotBeAdded": true,
+      "wallTimesIncludeCpuAndDeviceWait": true,
+      "deviceTimestampsMeasured": false,
+      "extraStageBarriersChangeScheduling": true,
+      "observedTimesAreNotUnobservedLatency": true,
+      "actualHostLatencyMeasured": false,
+      "adopted": false,
+      "installed": false,
+      "goalComplete": false,
+      "terminal": {
+        "file": "core-head-remaining-v256/terminal.json",
+        "sha256": "f2144c8b3f2bbd120187f819151b8331b85b45cf6dcd382e4f14772b85de235b"
+      }
     }
   },
   "preparedAssets": {
@@ -4910,6 +5440,23 @@
       "currentGpuNumericPassed": true,
       "currentJointPassed": true,
       "currentTimingCandidateRejected": true
+    },
+    "currentBaselineAttributionV253V256": {
+      "completeWhole23Cases": 6,
+      "currentRuntime": "V188 unchanged",
+      "zeroExtraEvalForwardProbe": {
+        "file": "forward-boundary-cost-v254/result.json",
+        "sha256": "8ea5bcb02b9c92e8085857048508fe341ce8baaf6266de3f856652492d4a0cbd"
+      },
+      "twoBarrierCoreHeadProbe": {
+        "file": "core-head-remaining-v256/result.json",
+        "sha256": "ba4b9f3ff222bc8da8356031e7178d6ff1bd56dfbfd232ea39d48e0c17115ac7"
+      },
+      "driverGlobalNameAdmission": "core-head-remaining-v256/driver_contract.py",
+      "runtimeCandidateAdopted": false,
+      "sourceNeuralRequests": 0,
+      "modelsIdle": true,
+      "goalComplete": false
     }
   },
   "constraints": [
@@ -4930,10 +5477,10 @@
     "ownership": "준비 모델 하나 공유, 요청 UID별 fresh KV·grammar·sampler·detokenizer. 답변·소스 KV 재사용 금지."
   },
   "nextSession": {
-    "first": "Read V249 CPU19/whole row proof, actual V250/V251 complete proof and V252 four-slower rejection; all models idle.",
-    "nextIndependentWork": "Read closed V249 CPU/row proof, V250 ALL432+10368/12096/98/197, V25115/217 and V252 full four-slower rejection and actualgit/registry first. No live model. Never replay/edit/repoll exclusive audits/builders/preparations/numeric/joint/timing; never adopt V249/V243 or select favourite count/input ranges. Next genuinely independent V253 work: current V188 optimized baseline cost attribution for ALL original23 streams/six control-probe pairs, full inputs/128-element long outputs and source-free reference results. Old V155 run.py uses SingleRowCohort and predates grouped rank8/QK/residual/chained norm; do not replay it or use its87% forward ratio as current. Reuse only public pure PhaseCollector/case/request/validation helpers. Build a new CPU-verified owner adapter around actual GroupedRank8Cohort and ChainedResidualRuntime, preserve complete original prefill/forward/mask-normalize-sample/eval/cancel/retention/close semantics and original timed function boundaries. Separate outer phases from nested grammar/lazy sampler construction; do not sum nested twice. If adding per-core stages, verify all tensor dependency/rounding and report any forced-eval observer overhead rather than treating it as unobserved latency. New paired control/probe requires entire raw/native/count/cancel equality and exact weights/global/private sampler RNG/owners/328302600-final8; retain full prior numerical432/10368/12096/98/197 and15/217 evidence, and all original fixture/cardinality gates for any changed math boundary. No kernel design based only on nominal head bytes/cache assumptions. One model8GiB/cache256MiB, CPU<=1MiB data blocks, atomic actual tool token beforeallocation, actualready/currentPID registration and external live memory confirmation before running, realpeak/pressure/swap/actualterminal/PIDabsence. Do not substitute profiling time for correct actual Host3000ms. Preserve original 84/20root/allsource/context/parent/callee/fields/confidence/unknown and model values-prose responsibility; no old8 family/parent/helper neural retry, retired source plan, source/KV reuse, response/vocab/topK clipping, UIDstacktile, extra weights or dtype/model/sampler/settings sweeps. Actual allowed-source complete correctness/3000ms plus download-integrity-custommodels/FIFO/cancel/dispose and productintegration/functional-visualQA/release/install remain required.",
-    "notImplemented": "Current optimized-baseline full23 cost attribution; actual allowed-source full20root correct3000ms/productintegration/functional-visualQA/release/install.",
+    "first": "Read V253/V254 complete current costs, V255 first failure, V256 remaining197/bound98/core-head attribution; all models idle.",
+    "nextIndependentWork": "Read closed V253/V254 full23 cost evidence, V255 first import failure and counter caveat, V256 new197 plus bound98/whole23/core-head proof and actualgit/checkpoint. All models idle; never replay/edit/repoll closed builders/preps/numeric/joint/timing/audits. V256 evaluates complete decoder/KV and head; long decoder91.20% of observed forward, head8.06%; extra2 per-forward barriers change scheduling, not GPU timestamps or unobserved latency. V254 original eval 81.91% includes dispatch/device wait; no xctrace available. Next genuinely independent V257: inspect original complete V188 decoder stage dependencies and build CPU-verified observation for all28 layers (QKV, QK-normalization/RoPE, full cache-update/attention, O projection, residual/norm, MLP, chained residual/norm; include original embedding/input norm). Attribute evaluated stages without changing any original expressions/rounding, UID order/buffers/KV/capacity or sampler. Explicitly enumerate any additional eval barriers and observer overhead; if barriers are added, qualify full original98 model/197UID and new full15/217 raw-normalized-logits/token/privatekey/native/initial-final-cancelKV/owner checks before ALL23/six control-observed cases, full128 outputs and original timers. Preserve complete lower numeric10368/12096 proofs and requalify their whole original scope if math/kernel boundaries change. New CPU whole-driver name admission is public driver_contract.undefined_names; use it before allocation alongside semantic owner/AST/call tests. Do not repeat complete V25598 just to fix its import; V256 already qualifies remaining197 and binds unchanged full98. No new head/pointer/cache kernel based on byte-count or apparent scheduling gain, no favourite counts/input thresholds, sweeps, clipping, UIDstack/tile, extra weights, cross-source/KV reuse or tolerance relaxation. One model8GiB/cache256MiB, bounded1MiB artifact IO, atomic actual tool token before allocation, actualready/selfPID registration/live external pressure-swap ack before work, real allocatorpeak/actualterminal/PIDabsence then clear only owned jobs. Source tests remain original84/20root/whole context-parent-callee-fields-confidence-unknown/model values-prose, eight whole-family/parent/helper neural bans and retired plans unchanged. The full allowed-source correct≤3000ms, download/integrity/custommodels/FIFO/cancel/dispose, product integration/functional-visualQA/version/commit/push/install remain mandatory and unmet; keep goal active.",
+    "notImplemented": "Full current decoder stage attribution; allowed-source full20root correct3000ms/product integration/functional-visualQA/release/install.",
     "completionStillMissing": "원래전체source/context/parent/callee/fields/confidence/unknown및모델의값·문장책임을유지한새전체허용범위에서의미·정확성과전체설명≤3초를실제검증한후,다운로드/integrity/custom model/FIFO/cancel/dispose와제품QA를확인해release/install한다.",
-    "publication": "Docs-only publication receipt vocab-head-timing-v252/publication.json; product0.0.1145/source candidates uninstalled."
+    "publication": "Docs-only receipt core-head-remaining-v256/publication.json; product0.0.1145/source candidates uninstalled."
   }
 }

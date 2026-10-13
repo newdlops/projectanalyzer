@@ -6181,6 +6181,87 @@ sourceNN0, 채택·설치0, product0.0.1145/frozenout/source 작업본이 같다
 - V251 full15/217 joint: `e5fff7d0fdb286c1485f6eb4cc22a2b373279cb81e49bf7de705be7e4fa53c36`
 - V252 whole23/six-pair timing: `fbf809ded8583e8d441530743378967c4b55e94766c7142bbb4e1704fa8b6232`
 
+## V253–V256: 현재 기준 모델의 전체 단계·forward·decoder/head 비용
+
+새 CPU 검증은 V253 11개, V254 6개, V255 수정 후6개, V256 6개로 총29개가 통과했다.
+원래 모델·가중치·전체 source-free23 streams/6쌍·완전한128원소 긴 출력과 original timed
+generation/disposal 경계를 유지한다. 모델은 하나씩만 실행했고 모두 actualterminal/PID 부재/
+최종8byte RNG를 확인했다. 제품 및 실제 source 설명은 바꾸거나 재검증하지 않았다.
+
+V253은 현재 V188/GroupedRank8Cohort의 prefill/forward+eval/sampling+eval을 감싼다.
+GPU eval을 추가하지 않으며 grammar/lazy sampler는 sampling 안의 중첩 비용이다.
+전체 raw/native/output-draw counts/cancel, weight identities/RNG/assets/owners가 같다.
+**session33421/PID52630 exit0**, 원래2+grouped8 graph/328302600bytes, peak3848864176이다.
+
+| 전체 case | control(ms) | observed(ms) | prefill | forward+eval | sampling+eval |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| one | 115.900 | 96.379 | 21.103 | 66.035 | 8.287 |
+| two-unequal | 138.429 | 141.682 | 33.336 | 95.329 | 11.761 |
+| eight-unequal | 799.324 | 678.255 | 182.339 | 445.977 | 45.640 |
+| explicit-cancel | 173.271 | 175.464 | 53.119 | 107.762 | 13.110 |
+| complete5791 | 1448.074 | 1805.283 | 1578.215 | 208.856 | 16.772 |
+| eight-long-output-full-inputs | 12889.447 | 13225.385 | 2333.668 | 10117.575 | 739.537 |
+
+긴 출력의 forward는 관측 시간76.50%다. 예전 V155의87%는 이전 SingleRowCohort 자료라
+현재 비율로 사용하지 않는다. 한 쌍의 차이를 관측 overhead의 순수 측정이나 속도 개선으로 쓰지 않는다.
+
+V254는 original GroupedRank8Cohort.forward의 AST를 보존하고 owner.forward와 이미 있던
+mx.eval의 두 호출만 관측한다. 입력/반환/stream/scheduler/error close가 그대로이며 **추가
+eval0**이다. **session59709/PID62204 exit0**, 전체23/6쌍 결과 일치, peak3848864176/최종8이다.
+긴 출력 control11373.8075/observed11362.064291ms, forward8390.712077 중 lazy graph1497.152496/
+original eval6872.7445ms(81.91%)다. eval 시간은 CPU dispatch·device wait를 포함한다.
+`xcrun --find xctrace`는 exit72(utility 없음)이며 device timestamp/실제 cache traffic은 측정하지 않았다.
+
+V255는 **두 추가 평가 경계**로 complete decoder/28KV와 full151936 head를 나눴다.
+초기 CPU draft의 ast.unparse 문자열 괄호 검사 실패를 기록하고 seal 전에 AST 구조 비교로
+고쳤다. 이후 CPU6개는 통과했지만 **session26139/PID76232 exit1**: 전체 model98건의
+logits/KV/capacity bytes가 모두 같은 뒤 cohort_cases import 누락으로 첫 UID 비교 전에 종료됐다.
+197 UID/timing0, 첫 실패·driver·preparation·result를 변경하거나 재실행하지 않는다.
+peak3470176122/최종8 및 actual PID 부재 확인. result의 extra-eval counter0은 UID 루프 뒤
+대입 전에 실패하여 정확하지 않다. 전체 geometry와 forward counts는31 observed forwards/
+62 추가 barriers를 보장하므로 terminal에 별도로 기록했고 원래 result는 보존했다.
+
+V256은 **미실행197 UID+whole23**만 새로 진행했다. 같은 stage helper SHA·원래 가중치/
+model method에 대한 완료된98건의 전체 receipt를 연결하고, 실패한 V255 driver/98 scope를
+반복하지 않는다. CPU 전체 compiled globals 검사로 실제 누락 cohort_cases를 검출했으며 새
+driver의 미정의 이름은 없다. eval 시도·완료 counter를 원래 평가 호출마다 갱신한다.
+**session79771/PID84124 exit0/PID 부재**, 새197 UID/all28KV·완료98 참조, full23/6쌍
+raw/native/count/cancel/owners/RNG/assets가 일치했다. numeric52/timed334 observed forwards,
+772 stage eval 시도·완료, baseline총736 forward/20608 QK/41216 residual이다.
+
+| 전체 case | control(ms) | observed(ms) | evaluated decoder/KV(ms) | full head(ms) |
+| --- | ---: | ---: | ---: | ---: |
+| one | 112.876 | 92.227 | 56.680 | 5.368 |
+| two-unequal | 138.149 | 140.357 | 84.139 | 9.844 |
+| eight-unequal | 645.253 | 666.021 | 384.411 | 47.758 |
+| explicit-cancel | 172.894 | 178.141 | 97.695 | 11.040 |
+| complete5791 | 784.533 | 781.288 | 85.742 | 5.245 |
+| eight-long-output-full-inputs | 12091.989 | 11530.465 | 7757.739 | 685.297 |
+
+긴 출력의 complete decoder/KV7757.739364ms는 observed forward8506.543719ms의91.20%,
+head685.296826ms는8.06%다. **추가 eval이 scheduling을 바꾸므로 관측 stage 비용을
+원래 실행의 GPU kernel 비율이나 unobserved latency로 쓰지 않는다.** 중첩 비용을 다시 더하지
+않고 작은 observer/control 차이를 gain으로 채택하지 않는다. 다음 독립 작업은 원래28-layer
+decoder 내 QKV/QK/cache-attention/O/MLP/residual/norm의 전체 evaluated stage attribution이다.
+새 barrier/math 경계는 whole 모델·UID·15/217 sampling/KV proof 뒤 full23/6쌍을 요구한다.
+head/pointer/settings 변형, favourable counts/inputs, clipping/UIDstacktile/source-KV reuse는 하지 않는다.
+
+V256 peak3859071300bytes(약3.59 GiB), 네 실제 실행 모두 model1·8GiB setting/cache256MiB,
+최종8 및 full owners/RNG/assets 해제다. V253 시작69%/ready58%/during54%/after57%, swap
+23936→23928 MiB; V25465/72/65/72%,swap23920; V25569/74/71/66%,swap23896;
+V25674/74/70/74%,swap22828.31이다. 각 run 내 stable swap 기록과 마지막 model idle을 확인했다.
+이는 snapshot이며 연속 최소 여유/host physical peak나 실행간 swap 변화의 원인 증명이 아니다.
+
+sourceNN0/채택·설치0, product0.0.1145와 source/frozenout은 같다. 마지막 actual source86.317초와
+59incorrect prose는 미해결이며, original84/20root/full source-context-parent-callee-fields-confidence-
+unknown 및 모델의 값·문장 책임/8family bans를 유지한다. Correct whole≤3000ms/다운로드-
+integrity-custommodels/FIFO-cancel-dispose/제품 통합/기능·시각QA/release/install 목표active·미달이다.
+
+- currentBaselineCostV253: `3615e813a4b918d3b5d4bf7ee1bde198ac7e56b1ddc668d3f2a7e7bd300158e3`
+- forwardBoundaryCostV254: `8ea5bcb02b9c92e8085857048508fe341ce8baaf6266de3f856652492d4a0cbd`
+- coreHeadCostV255: `c1f011921aaaae75a5f60de26485bdd125678429eed395c156768e6420c9c01c`
+- coreHeadRemainingV256: `ba4b9f3ff222bc8da8356031e7178d6ff1bd56dfbfd232ea39d48e0c17115ac7`
+
 ## 남은 완료 기준
 
 모델 변경, decoder 최적화 또는 입력 구조 변경을 채택하려면 다음을 함께 확인해야 한다.
