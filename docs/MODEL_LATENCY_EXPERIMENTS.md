@@ -5522,6 +5522,63 @@ V210actual34682/PID23332 exit0/PID부재에서**전체100dynamic tokenizer/nativ
 - modelAuthoredSourceReviewV212 actual terminal: `6b48c9a6bc7c36aa1daa2f012da5f2d7a45f1418701f741b0476ca711ef8506b`
 - V211 전체100계획 폐기: `a5bd650dd2c156e1091ccd3bbb2d89c3e4e5d5f3713cd5ee22b0c1e16e951d77`
 
+## V213: 전체 선언문 초기값 검증과 기존 계약 보존
+
+실제 V211 UID1은 `var index = 0`에 Boolean/문자열 `false`를 작성했는데도
+기존 Host를 통과했다. 기존 리터럴 판독은 이미 낮춰진 `0` 같은 피연산자만
+인식했으며, 배열 때문에 primitive IR 전파가 제한된 맥락에서는 지역 선언문
+전체의 초기값을 확인하지 못했다.
+
+새 `src/llm/functionNarratives/operationValues` 모듈은 Kotlin/TypeScript/JavaScript의
+단일 exact write에서 전체 `val/var/let/const` 선언 또는 직접 대입의 왼쪽 이름과
+유일한 write target이 일치하는지 확인한다. 지원하는 primitive 리터럴만 source-owned
+데이터로 제약하고, 별칭·호출·접근·대입 체인·산술식·숫자 suffix는 기존 unknown
+fallback을 유지한다. `0`·`false`·`null`을 구분하며 소스나 설명 문장을 실행·생성하지
+않는다. 잘못된 값은 수리하지 않고 거부한다. SPEC 작업본에도 이 경계를 기록했다.
+
+V213의 별도 build에 새 source schema/normalizer를 연결하고, V201의 설명 필드 해제와
+V192의 기존 primary/node/final 검증·compact prompt·source role 경계를 그대로 사용했다.
+모델 문장은 계속 모델 책임이며 소스의 confidence/unknowns·타입·별칭·함수 부모와
+callee 맥락은 보존한다. 제품 `out`과 설치 버전은 바꾸지 않았다.
+
+새 unit 6개와 기존 배열 unit 8개, 관련 회귀 80개가 통과했다. 긴 직접 실행 명령
+두 번의 시작 전 exit137/무출력은 최초 결과로 보존했고, 짧은 CPU 실행기에서 같은
+회귀 범위를 순차 실행하여 actual session79433/root31865/child31885 exit0 및 두 PID
+부재를 확인했다. exit137의 원인은 확정하지 않는다.
+
+별도 전체 계약 CPU 검사에서 **100요청/원래84/20root/300소스 구문/40call**의 모든
+최종 값·소스·노드·문장이 이전 독립 참조와 동일했다. 변경된 **24개 after 데이터
+규칙/24개 offline JSON 인코딩**은 소스에서 확인한 동일 리터럴 값만 문자열에서 실제
+JSON primitive로 바꾼 것이다. 참조 파일과 실제 생성 응답은 변경하지 않았다. 첫 검사는
+V109/V119의 기존 금지가 optional boolean 대신 reason에 명시된 형태를 새 reader가
+인식하지 못해 전체 소스 방문 전에 실패했다. 원래 실패를 보존한 뒤 여덟 family의
+정확한 목록과 두 직렬화 형식의 명시적 retry 금지를 검사하도록 수정했다. 금지나
+neural 허용 범위를 바꾸지 않았다. 두 번째 actual session54755 exit0에서 CPU2검사가
+통과했다. 네 실제 V211 응답을 다시 읽은 결과 기존 acceptance `[false,true,false,false]`는
+새 계약에서 `[false,false,false,false]`가 됐다. 이 과정은 CPU read-only이며 재추론이 아니다.
+
+새 독립 exclusive CPU audit **session37896/PID61611 actual exit0/PID부재**에서
+**전체 보관 4143요청·387개 새 소스 owner·27567개 자유 설명 필드**를 확인했다.
+원래 schema의 72개, 전체 rich schema의 84개 source-owned after 규칙만 변경됐고
+나머지 모든 제약은 일치했다. 원래 source input/example facts/reading roles와 frozen
+`out`의 두 SHA도 동일했다. 최초 proof/terminal/code/실제 tool 종료와 PID 부재 receipt를
+보존했으며 닫힌 audit는 수정·재실행하지 않는다. 모델 load/source NN은 **0**이다.
+
+이번 결과는 초기값 검증과 계약 보존의 CPU 증거다. 새 native 입력의 전체 tokenizer/
+grammar/EOS/한도 검사, 조건·반복 값 슬롯 및 배열 예시와 경로의 정합성 검증은 아직
+필요하다. V211의 59개 잘못된 문장과 마지막 실제 Host **86316.839833ms**는 그대로
+실패 증거다. 의미·정확성·전체 3000ms·제품 통합/기능·시각 QA/version/release/install은
+미완료이며 goal은 active다. 여덟 whole-family 금지, 원래84 미노출, 폐기된 전체 계획,
+제품 **0.0.1145**와 source 작업본을 유지한다. 이번 공개 기록은 문서만 commit/push한다.
+
+증거 SHA-256:
+
+- V213 전체 archive schema proof: `0a454ac2d20a5f7c4485ecf26fa563d485474205df973ca72411a072ef3ece34`
+- V213 최초 terminal: `e49aa6439db9076b13633f3b64e582e628fdfdd113a1d90067673a672ed3036e`
+- V213 실제 종료/PID 부재 receipt: `ff7d0c39bb23192e9ad68a31984d0b308a5a4d6fef269c87d199cd9bf7ec4115`
+- V213 전체100 CPU 검사 출력: `1cdc56aaaa46744c29a518da8e49484d01826683ceef7bd1f6ed1efffd3a74b1`
+- V213 관련80 회귀 출력: `60629cc151d9e30c63efef70ac1ad247da76f7685527f242d94878ac9b4add73`
+
 ## 남은 완료 기준
 
 모델 변경, decoder 최적화 또는 입력 구조 변경을 채택하려면 다음을 함께 확인해야 한다.
