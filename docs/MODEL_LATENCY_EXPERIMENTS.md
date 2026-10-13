@@ -6044,6 +6044,74 @@ actual86.317초/59incorrect prose를 보존하며 전체correct3000ms·통합/QA
 - V242 complete CPU oracle: `8eca6b101628de2a219187265a4fa907654e487c58042483f98596712105075e`
 - V243 CPU15 prototype: `2b5745a7f5af14e384d0e2b4fb6708e8d55aba58f8106ac58bd8920afd1fa97e`
 
+## V244–V248: 전체 GPU 수치·joint 통과와 6쌍 시간 거부
+
+새 V244는 CPU5 후 **session11097/PID18978 actualexit0/PID 부재**로 닫혔다.
+ALL10368 q4+12096 MLP/98 full-model/197 UID의 shape/dtype/finite/fullbytes와28-layer
+KV/capacity/8192/retention, 원래 advanced fixture/key, borrowed owners/RNG/assets를 보존했다.
+real64+1/2+8 graphs/16 constructor signatures·model328302600/final8, peak3859071300bytes
+(약3.59 GiB)다. 내부 Metal compiler trace 수를 주장하지 않는다. 원래 전체 SDK 호출이
+cached interleave 구현의 byte 오류를 피했으나 이전 실패의 실제 원인은 증명하지 않는다.
+
+V245는 CPU5 후 **session72502/PID26346 actualexit0/PID 부재**, 원래15 streams/217
+전환이 모두 일치했다. raw/normalized logits·token/key·native/EOS/count·initial/final/cancel
+KV·UID retention과 owner 정리를 유지했다. reference229/candidate217 draws,
+peak1852408212bytes(약1.73 GiB), model328302600/final8/RNG/assets가 같다.
+실행 중 외부 시스템 snapshot은 다음 관측 전에 종료돼 미확보다. 이를 통과라고 쓰거나
+닫힌 실행을 반복하지 않고, 다음 새 실행의 준비 절차를 보완했다.
+
+V246은 준비 단계에 **actualready 이후 live PID·pressure/swap 확인 파일을 기다리는
+bounded atomic handshake**를 추가했다. CPU9 후 **session7014/PID37835 actualexit0/
+PID 부재**, 관측을 확인한 뒤 원래 unobserved timer를 시작했다. 타이머 함수와 sampler,
+전체 입력/128-element 출력·원래23 streams/6쌍/variant1회·고정 alternating 순서를 유지했다.
+같은 모델1개를 빌린 V188 baseline과 V243 candidate의 전체 raw/native/count/cancel 결과가
+참조 및 서로 동일하다. 내부 logits/key/KV observer는 측정 안에 없다.
+
+| 전체 case | control(ms) | candidate(ms) | 변화 |
+| --- | ---: | ---: | ---: |
+| one | 126.938 | 98.407 | −22.48% |
+| two-unequal | 159.371 | 147.538 | −7.43% |
+| eight-unequal | 682.493 | 755.018 | +10.63% |
+| explicit-cancel | 195.374 | 185.078 | −5.27% |
+| complete5791 | 823.472 | 1182.164 | +43.56% |
+| eight-long-output-full-inputs | 16734.397 | 17898.671 | +6.96% |
+
+**6쌍 중3쌍이 느려 V243을 거부한다.** numeric/joint 성공을 속도나 실제 source 의미의
+증거로 대체하지 않는다. 특정 count·입력의 빠른 행만 골라 채택하거나 닫힌 측정을 반복하지
+않는다. long output2064tokens/2072draw를 모두 유지했다. timing peak3848864176bytes
+(약3.58 GiB), 최종8bytes·모든 model/compilation owner/RNG/assets 정리를 확인했다.
+
+모든 실행은 한 모델·8 GiB 설정·256 MiB cache다. V244 시작57%/live ready45%/live 중56%,
+swap23388 MiB로 실행 중 증가 없음, 종료51%/23380이다. V245는 시작/종료51%/23522.12 MiB
+snapshot만 있다. V246 시작58%/swap24935.44 MiB, 준비 handshake live66%/24927.44,
+종료67%/24927.44, 마지막64%/24854.62다. 단계 사이 swap은 증가했다. 모델이 원인이라는
+측정이나 연속 최소 여유를 주장하지 않으며 phase별 시작값과 실제 allocator peak를 구분한다.
+
+다음 독립 경계는 **전체 vocabulary 출력 head**다. V247 CPU inspection은 SDK의 dotted
+attribute를 가정한 string assertion으로 종료됐다. 실제 SDK는 `self["weight"]`,
+`self["scales"]`, `self.get("biases")`를 사용한다. 최초 실패를 보존한 V248은 반환 call의
+모든 AST arguments/transpose/group/bits/mode와 고정 safetensors header를 검증했다.
+V188 core는28-layer norm 뒤 UID별 tied QuantizedEmbedding.as_linear를 호출한다.
+head151936×1024 affine4/group128, weight77791232+scales2430976+biases2430976=
+**82653184bytes(약78.8 MiB)**다. 여덟 UID의 logical uses661225472bytes는 physical memory
+traffic이나 cache/bottleneck 측정이 아니다. array/MLX/model load0, header77958bytes만
+읽었다. 새 head 구현이나 속도는 아직 없다.
+
+다음 CPU prototype은 V188 core 위에서 full151936 logits를 보존하는 head schedule을
+검토한다. rejected untrained-projection runtime을 이어 붙이지 않는다. 기존 전체 gates에
+432 head pairs를 추가하고, 한<=1 MiB row block씩 읽어 CPU 메모리 부담을 제한한다.
+head math/normalization/dtypes/sampler·별도UID/source/KV와 original84/20root를 보존한다.
+vocab/topK 축소·scope/output clipping·모델의 값/문장을 정적으로 대체·dtype/settings sweep은 없다.
+
+이번 source 설명NN0, 채택·설치0, 모든 모델 종료다. product0.0.1145/frozenout/source
+작업본·8 family/parent/helper 금지와 마지막 actual86.317초/59incorrect prose를 보존한다.
+전체 올바른 설명3000ms·제품통합/기능·시각QA/release/install 목표는 active/미달이다.
+
+- V244 full numeric: `c2d8b333fd965803620f08e6591cf396cca1bf888db984e447cfc07cfa945c34`
+- V245 full15/217 joint: `7db0d3d48873cb3c59756b86357c5bb45e3c39a77d95f19224c088ba45c0b082`
+- V246 whole23/six-pair timing: `6ab68141d4071e140528b0e7b827ec1705e521599f6094e58faa2b963608af32`
+- V248 full-head CPU inspection: `c5b9e706cf0275486aa01b442ad76e554e1c0d92ba70803033d48ca789dfc6d9`
+
 ## 남은 완료 기준
 
 모델 변경, decoder 최적화 또는 입력 구조 변경을 채택하려면 다음을 함께 확인해야 한다.
