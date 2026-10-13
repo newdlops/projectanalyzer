@@ -5223,6 +5223,49 @@ V177은 CPU3개 검사 후 관측 wrapper 없이 원래15+긴출력8의 **전체
 - V177 전체23 paired 결과: `a99c54e2ccfdcbd7125d876e4480122a69254ccacf4b0a993e011dfb81bb257f`
 - rank8-uid-timing-v177 actual terminal: `d4ab1cc436396e0f0b1fde25fe173e3f81ab20af1ed6cdfb6804e018212810c7`
 
+## V178~V182: 요청별 QK 정규화·RoPE 호출 묶기와 전체 검증
+
+V178은 각 요청의 packed QKV, Q 출력, packed KV 출력과 offset을 독립적으로 유지하며 원래 `fused_qk_packed_kv.PACKED_SOURCE`를 그대로 실행하는 새 UID1~8 커널을 만들었다. GPU grid의 y축으로 요청 포인터만 선택한다. 원래24heads/32lanes, RMSNorm reduction, BF16 중간 반올림, RoPE 수식과 V 복사는 유지한다. 원래 Q4/LoRA, 캐시 갱신·성장, SDPA는 변경하지 않는다.8UID에서 입력·출력 binding27개를 사용한다. CPU5개 검사는 수치 본문 문자열, 모든 입력·출력 인덱스, 요청 순서와 독립 출력, 모든8192 offset의 메타데이터 API, invalid input/close를 확인했다. CPU offset 검사는 GPU 수치 검증이 아니다.
+
+첫 GPU 실행27645/PID70584는 모델328302600bytes 준비 뒤 첫 Metal 컴파일에서 **exit134**로 종료했다. MLX가 작은 offset 배열을 `constant` 주소 공간으로 전달했는데 새 wrapper가 `device int*`로 강제한 오류다. 수치 비교0, 완료 model load1이며 stderr·preparation·원본 코드를 보존했다. PID부재는 확인했지만 native abort가 Python finally를 건너뛰었으므로 **V178 최종8bytes/RNG 정리는 검증되지 않았다**.
+
+V179는 offset 포인터의 주소 공간을 `auto`로 추론하는 새 버전이다. 원래 연산 본문과 비교 범위를 바꾸지 않았으며 CPU6개 검사에서 변경이 그 선언 하나뿐임을 추가 확인했다. Actual36265/PID75058 exit0/PID부재에서 **모든28 norm owner × UID 수1~8 × 28개 fixture wave =6272회 호출,28224개 전체 요청 결과 비교**가 통과했다.12개 stress를 offset0에서 모두 검사한 패널과16개 경계 offset을 서로 다른 요청에 배치한 패널이며, 두 축의 전체 Cartesian product는 아니다. 각 출력 슬롯은 모든12stress와16offset을 받는다. Q 및 packed KV 전체가 SDK와 기존 fused kernel 양쪽에 대해 finite·dtype·shape·byte 일치했다. 매 층 뒤328302600bytes, 원래 weight identity, MLX·NumPy RNG/assets, 최종8bytes를 확인했다.
+
+V180의 `GroupedQkRuntime`은 검증된 grouped-rank8 owner를 확장한다. 모든28층에서 각 요청의 원래 입력 정규화와 QKV를 계산하고 새 QK 호출을 한 번 수행한다. 이후 각 요청의 원래 KV update/SDPA를 따로 실행한다.12개 base layer와16개 trained layer의 원래 projection/MLP 수치는 유지한다. 모델 module이나 weight를 복사·치환하지 않는다. 기존 cohort의 prefill512, UID 유지·순서 변경과 해제 동작을 재사용하고, cache alias/offset/geometry/model mutation을 첫 쓰기 전에 거부한다.
+
+CPU6개 검사 후 actual87592/PID83094 exit0/PID부재에서 **전체12096 MLP, 기존98 model geometry,197 UID의 full logits·28층 KV·capacity 비교**가 통과했다. Batch2 fallback, 전체8192 window, 현재5103/5791 입력, 모든1~8UID와 unequal offsets, retain/reorder를 보존했다.99회 모델 forward에서2772개의 QK 그룹이 실제 호출됐다. 원래2개 MLP graph와 새8개 signature는 각각 한 번만 trace됐고, model328302600/최종8bytes/weight/RNG/assets를 보존했다.
+
+V181 CPU5개 검사와 actual28564/PID89635 exit0/PID부재에서 **전체15개 stream/14 complete+1 cancel,217 전환의 raw·normalized logits/token/key/native/count/initial·terminal·cancel KV가 일치**했다. 원래 reference/observer/sampler/generation 함수와 비교 loop를 유지하고 후보 owner만 V180으로 선택했다. 준비를 포함한91 forward/2548 QK 그룹이 실행됐고 원래2+새8 graph, model328302600/최종8bytes/RNG/assets를 확인했다. 이 합성 입력은 소스 설명 요청이 아니다.
+
+V182 CPU3개 검사 후 관측 wrapper 없이 원래15+긴출력8의 **전체23개 stream/6조건**을 한 쌍씩 측정했다. 원래 전체 generation/native grammar/sampler/disposal이 timer 안에 있고 factory 전환은 밖이다. 고정 교대 순서, 긴 출력2064 tokens/2072 draws, 전체 raw/value/count/cancel과 immutable V155 baseline 일치를 유지했다. Actual48607/PID95247 exit0/PID부재,350 forward/9800 QK 그룹, 원래2+새8 graph, model328302600/최종8bytes/weight/RNG/assets를 확인했다. 측정 중 다른 분석·빌드·GPU 작업은 실행하지 않고 해당 live handle과 작은 상태 기록만 확인했다. 다른 앱 부하는 측정하지 않았다.
+
+| 전체 합성 조건 | 기존 ms | QK 묶음 후보 ms | 변화 |
+|---|---:|---:|---:|
+| 단일 UID | 403.980875 | 298.770875 | −26.04% |
+| 길이가 다른2 UID | 513.429542 | 489.214791 | −4.72% |
+| 길이가 다른8 UID | 3498.765000 | 2619.128791 | −25.14% |
+| 명시적 취소 | 810.078083 | 580.199625 | −28.38% |
+| 전체5791 input | 2232.723291 | 2051.536291 | −8.12% |
+| 전체8 long input/output | 58984.611000 | 40871.765458 | −30.71% |
+
+여섯 조건 모두 이번 한 쌍에서는 짧아졌다. **반복 가능한 속도 개선과 실제 소스 설명의 전체 Host3000ms는 입증하지 않았다.** 비교 대상은 이번 실행의 원래 runtime이며 이전 V177과의 시간 차이를 QK 변경의 독립 효과로 해석하지 않는다. 닫힌 측정을 반복하거나 빠른 일부 행만 선택하지 않는다. 제품 채택·설치와 UI 변경은 없고 제품0.0.1145/V151 public 작업본/oldout을 유지했다.
+
+다음 독립 경계 후보로 post-attention residual addition+RMSNorm의 UID 호출 묶기를 CPU에서 검토할 수 있다. 기존 public `fused_residual_norm.py`는 원래1024wide/256threads/8SIMD/4reads와 BF16 반올림을 보존하는 단일 요청 kernel이다. 그 과거 수치 감사와 소스 pilot은 종료됐으며 재실행하지 않는다. 당시 다른 weights의 수치 증거는 현재 final trained 모델의 증거가 아니다. 현재 V180의 모든28층/1~8UID로 새 dispatch 경계를 만들 때만 별도 후보이며, 입력·출력 소유권·buffer 한도·signed-zero/cancellation/tiny/large와 원래 전체 검증 범위를 먼저 보장해야 한다. 새 residual-UID 구현이나 GPU 실행은 아직 없다. 이미 거부된 Q4 multiowner/stock row packing도 반복하지 않는다.
+
+이번 소스 설명 요청은0회다. V148의81.609초·parser 실패와140 prose 검토의 의미 오류를 고친 증거는 없다. 원래84 미노출 요청/20 root 조합, 전체source/context/parent/callee/fields/confidence/unknown, LLM의 값·문장 작성 책임과 일곱 whole-family neural 금지를 보존한다. 실제 전체 정확성·Host3000ms·제품통합/기능·시각QA/version/release/install까지 목표는 active미달이다.
+
+증거 SHA-256:
+
+- V178 첫 컴파일 실패 terminal: `be9376963d5893665f21969593a2ef6db32e9d0e353f03667c5beb6014771b7b`
+- V179 전체28224 결과: `162e5c3b5cc82cc7a0d765bf99d1e34633b351538fc9b823431e075771f13156`
+- V179 actual terminal: `a4b8bb362e5f1a51a62ce266cf82092e8756fc20119b11e355d4b02324048c64`
+- V180 전체12096/98/197 결과: `01b21b87226a1a06a9c864b8bb094514b5d1d1e655eca6d70f95d266d5ccbc78`
+- V180 actual terminal: `079ac84ea6a2c39a05f13e082b8bc2fda8d60ecc117d4826883db461a60e2e26`
+- V181 전체15/217 결과: `4d69cd745ac76d32144e0a3194d0b50162f32100a4afeb491c0babdef2ef9b3f`
+- V181 actual terminal: `33720cb6058cf64e2cb9a349807ef4602d719e6a193e718f4da464e0127f7101`
+- V182 전체23 paired 결과: `dc9e86588ef8cd54e8e4bdcc2dac0375f116afd3dfcaef45450a4fc9ecc69b38`
+- V182 actual terminal: `b6e9454fb615583dfe35d49a05726a3a46bc2ee4c2b2f054d0420757b557e705`
+
 ## 남은 완료 기준
 
 모델 변경, decoder 최적화 또는 입력 구조 변경을 채택하려면 다음을 함께 확인해야 한다.
