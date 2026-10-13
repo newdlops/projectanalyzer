@@ -1,6 +1,6 @@
 {
-  "purpose": "V220 full12096/98/197 numeric and V221 full15/217 joint passed. V222 first runtime-owner/timer name collision closed/exit1; no cleanup or whole timing proof. V223 new explicit owner scope CPU6 and actual60708/PID39540 exit0/absent whole23/six pairs completed. Full outputs/counts/cancel/owners/RNG/assets exact, but5/6 candidates slower; long output19803.818125→23394.366792ms(+18.13%). Independent attention rejected/not adopted. Peak allocator3848864176, closed model328302600, final8; single model/8GiB memory/256MiB cache and system headroom/swap observed, after71%/26873MiB. No actual source NN; last real86.317s/59incorrect prose and8 whole-family bans remain. Product0.0.1145/source worktree/frozenout preserved; correct complete3000ms/integration/QA/release/install goal active/unmet.",
-  "savedAtUtc": "2026-10-13T17:03:42.681154+00:00",
+  "purpose": "V224 new untrained0..11 QKV/output Metal boundary implemented with separate UID buffers and unchanged complete pinned MLX0.32.3 load_vector/qdot/qmv_fast_impl functions as MIT-licensed dependencies. Original64-thread(32,2,1) reduction geometry and28-layer same-UID dependencies preserved in12 CPU tests: kernel5/math3/forward1/borrowed identity-close guards3. Model/GPU load/source NN0; GPU compilation/numeric/resource/joint/speed unverified. Current memory snapshot free64%,swap25789MiB; one-model/8GiB/256MiB constraint maintained. V216/V223 speed rejected5/6 slower, no replay/adoption; last actual source86.317s/59incorrect prose and8 bans remain. Product0.0.1145/frozenout/source worktree unchanged; complete correct3000ms/integration/QA/release/install goal active/unmet.",
+  "savedAtUtc": "2026-10-13T17:45:52.304787+00:00",
   "workspace": "/Users/lky/project/projectanalyzer",
   "resumeInstruction": "이 파일을 먼저 읽고 checkpoint.json에서 필요한 항목만 확인한다. 긴 대화나 실험 문서 전체를 다시 읽지 않는다. 이전의 반복적·추측성 분석은 구현 결정으로 취급하지 않는다.",
   "userIntent": {
@@ -30,18 +30,18 @@
   "executionState": {
     "activeToolHandles": [],
     "activeModelProcesses": false,
-    "lastTurn": "V220 full12096/98/197 numeric and V221 full15/217 joint passed. V222 first runtime-owner/timer name collision closed/exit1; no cleanup or whole timing proof. V223 new explicit owner scope CPU6 and actual60708/PID39540 exit0/absent whole23/six pairs completed. Full outputs/counts/cancel/owners/RNG/assets exact, but5/6 candidates slower; long output19803.818125→23394.366792ms(+18.13%). Independent attention rejected/not adopted. Peak allocator3848864176, closed model328302600, final8; single model/8GiB memory/256MiB cache and system headroom/swap observed, after71%/26873MiB. No actual source NN; last real86.317s/59incorrect prose and8 whole-family bans remain. Product0.0.1145/source worktree/frozenout preserved; correct complete3000ms/integration/QA/release/install goal active/unmet.",
+    "lastTurn": "V224 new untrained0..11 QKV/output Metal boundary implemented with separate UID buffers and unchanged complete pinned MLX0.32.3 load_vector/qdot/qmv_fast_impl functions as MIT-licensed dependencies. Original64-thread(32,2,1) reduction geometry and28-layer same-UID dependencies preserved in12 CPU tests: kernel5/math3/forward1/borrowed identity-close guards3. Model/GPU load/source NN0; GPU compilation/numeric/resource/joint/speed unverified. Current memory snapshot free64%,swap25789MiB; one-model/8GiB/256MiB constraint maintained. V216/V223 speed rejected5/6 slower, no replay/adoption; last actual source86.317s/59incorrect prose and8 bans remain. Product0.0.1145/frozenout/source worktree unchanged; complete correct3000ms/integration/QA/release/install goal active/unmet.",
     "noProgressConsecutiveTurns": 0,
     "terminalRule": "V13755468/PID99592 실제exit0/부재; V14019108/PID78530, V14679681/PID80723, V14119638/PID82365 실제exit0/부재. V148sourcefree84120/root94340/child94474 actualexit0/부재. V148실제source49497/root95535 exit1/부재, child95621 exit0/부재. 모두 종료됐으므로 재poll/실행/수정하지 않는다. V149CPU검토 exit0/최초결과보존. 이전 모든 종료 독점job도 그대로 재실행 금지. 현재livehandle없음; 실제상태를검증하고새독립CPU진단부터 진행하며 artifact/관측timeout으로완료나live를추측하지않는다. V152joint43575/PID16552 actualexit0/PID부재; V154timing25713/PID24293 actualexit0/PID부재. 모두닫힘. V152seal.py 첫import실패actualexit1도닫혀재실행/수정금지; V153seal은별도준비builder actualexit0. V152GPU와V154timing을재poll/재실행하지않는다. V15589451/PID39514, V15769394/PID54696, V15812178/PID61718 actualexit0/PID부재/최종8 확인. 모두닫힌exclusive GPU/profiler/timing이므로재poll/수정/replay금지. V156은CPU초안만이고model/GPU0이며sealed아님. V15979546/PID81282,V16023111/PID93177,V16130401/PID1709,V1626406/PID5381 모두actualexit0/PID부재/최종8로닫힘. V161 첫prepare.py는import오류exit1/model0이며닫힘; 별도prepare_explicit.py가actualexit0. 닫힌 모든driver/builder는재실행·수정·재poll하지않는다. V16355731/PID19877 import종료1/model0,V16451237/PID22391 Metalcompile종료1/비교0,V16546741/PID25145 12쌍일치후residency종료1,V16614920/PID28269 RNG진단종료0,V16747955/PID34711 전체1344종료0,V16836764/PID43144 전체336/98종료0,V16947749/PID49513 준비graph종료1/생성0,V17113461/PID54568 전체15/217종료0,V17034350/PID58193 전체23시간종료0;모두PID부재. 종료driver/builder/수치/시간검사재실행·수정·재poll금지. 검증된순수kernel/runtime공개helper는새scope의새구현에서재사용가능. V1726895/PID90943 exit1은root가model-ready전에active상태를기록해immutableloader의idlegate실패;SDK model0/kernel0. V17377921/PID99483 전체48384 exit0, V17571105/PID21799 전체12096/98/197 exit0, V17667141/PID30182 전체15/217 exit0, V17716135/PID38173 전체23시간 exit0; 모두PID부재. V174prepare exit0후CPU import사전검사에서STRESS_CASES누락발견,모델/GPU0이며그sealed준비본은보존. 새GPU의global activeModelProcesses/activeToolHandles등록은새model-ready.json에서현재PID/실제완료확인후에만한다;loader는입장검사를다시하므로launch파일만으로너무일찍등록하지않는다. 준비전live tool handle은별도로추적하고timeout을종료로해석하지않는다. V17827645/PID70584 exit134는첫Metal주소공간컴파일abort/완료model1/비교0/PID부재이며Python최종정리검증은없음. V17936265/PID75058 전체28224 exit0, V18087592/PID83094 전체12096/98/197 exit0, V18128564/PID89635 전체15/217 exit0, V18248607/PID95247 전체23시간 exit0; 모두PID부재. 각실제terminal·최초오류·sealedsource보존,재poll/수정/재실행금지. V18359621/PID12294 전체12096 operation exit0, V18438791/PID19321 전체12096MLP/98model/197UID exit0, V18582721/PID24239 전체15/217 exit0, V18692667/PID25640 전체23시간 exit0;모두PID부재/최종8bytes. preparation·actualtool·PID부재receipt보존,닫힌실행재poll·재실행·수정금지. V187 session56849/PID47521 exit0, V188 session50644/PID55198 exit0, V189 session69270/PID69711 exit0, V190 session73365/PID73307 exit0, V191 CPU session98558/PID92430 exit0; 모두 실제 terminal/PID부재 확인. V187~190 최종8bytes 확인. V188은 앞 turn에 완료됐으며 이번 turn에 실제 handle의 terminal을 회수했다. 모두 닫혔으므로 재poll·수정·재실행하지 않는다. V192 CPU84357/PID37784 exit1, V193 CPU27192/PID55961 exit0, V194 CPU86617/PID61208 exit1, V195 CPU97425/PID68792 exit0, V196 CPU16980/PID71537 exit0; 모두 실제 terminal/PID부재. V192 맥락16건 및 V194 8token초과 실패를 보존한다. 닫힌 builder/audit/prepare 재poll·수정·재실행 금지. V197 CPU87836/PID9604 exit0/PID부재, CPUbinding11895 exit0/MLXimport0. V198 prepare88572/PID22724 exit0, 실제root76772/PID31539 exit0 및child31674 exit0/PID부재. model-ready는실제load1/328302600 뒤 생성됐다. root가확인했을때child는이미정상종료되어global active를등록하지않았다. 모든현재handle닫힘, 재poll/수정/재실행금지. V199 prepare63098 exit0,실제36428/root76990 exit0. Child77007/77008은계획된SIGTERM close,79442는정상EOFexit0. 모든PID부재. 실제Bmodelready/현재PID확인뒤root가registration36428을제공했고,controller가close+OSPID부재를검사한뒤globalidle을기록하여C새load를허용했다. 현재livehandle없음;V199닫힌builder/run/검사재poll·수정·재실행금지. V201 CPU99633/PID2113 exit0/부재, V202 CPU40603/PID14299 exit0/부재, V203 CPU32104/PID50513 exit0/부재, V204 CPU96961/PID62606 exit1/부재(native8거부), V205 CPU32066/PID72335 exit0/부재, V206 CPU82766/PID78569 exit0/부재. 모든 종료 exclusive builder/audit/preparation과 최초 실패·code seal을 보존하며 재poll·수정·재실행 금지. 공개 pure factory/schema/normalizer/reference-order/helper는 실질적으로 새 scope의 새 구현에서 재사용 가능. 이번 model/sourceNN0이며 현재 livehandle 없음. V207 CPUaudit62225/PID52979 exit0/PID부재(36action100owner52packet),prepare59182actualexit0; V208 CPUaudit64124/PID4613 exit0/PID부재(100stage300node40call92page8fullprior),prepare38152actualexit0. V208 첫outerCPUtest91217exit1/8comparisonfixture실패와수정후82842exit0를보존한다. 닫힌exclusive audit/prepare·code·최초결과는재poll·수정·재실행하지않는다. 현재livehandle없음,model/sourceNN0. V209builder91254/PID20593 actualexit0/PID부재; V210native34682/PID23332 actualexit0/PID부재; V211prepare74965actualexit0/sourceactual34734/root43809 exit1/child44319exit0/둘PID부재/원래closed328302600확인. 모델SDK load/현재PID/준비완료후에만registration34734를제공했고정리후globalidle을확인했다. V212review95491/PID66834actualexit0/PID부재. 모든closedexclusive builder/prepare/audit/evaluate/review와최초결과·code수정/재poll/재실행금지. V211전체100계획은폐기되었고남은35action96source요청은실행하지않는다. 현재livehandle/loadedmodel없음. V21792917/PID71955 exit1, V21823975/PID97874 exit1/model0, V21926317/PID15671 exit1, V22059293/PID36224 exit0; all actual terminal/PID absent and closed. V22138449/PID93258 actualexit0/PIDabsent/full15-217/final8; closed and never repoll/replay/edit. V22246627/PID23626 actualexit1/PIDabsent/first variable collision with no final8 proof; V22360708/PID39540 actualexit0/PIDabsent/full23-sixpairs/final8. Both closed; never repoll/replay/edit.",
-    "previousGoalTurnClassification": "progress: full timing/memory evidence; candidate rejected and goal unmet"
+    "previousGoalTurnClassification": "progress: new q4 boundary/runtime and12 CPU checks, GPU qualification pending"
   },
   "evidence": {
     "root": ".local-models/experiments/three-second/",
     "authoritativeState": "checkpoint.json",
     "latestRecord": {
-      "path": "independent-attention-timing-v223/result.json",
-      "sha256": "a48850fcee184c060a9b88ac61ea3249a61a4f302cbcabdadd8d9488f0e33145",
-      "status": "V220 full12096/98/197 numeric and V221 full15/217 joint passed. V222 first runtime-owner/timer name collision closed/exit1; no cleanup or whole timing proof. V223 new explicit owner scope CPU6 and actual60708/PID39540 exit0/absent whole23/six pairs completed. Full outputs/counts/cancel/owners/RNG/assets exact, but5/6 candidates slower; long output19803.818125→23394.366792ms(+18.13%). Independent attention rejected/not adopted. Peak allocator3848864176, closed model328302600, final8; single model/8GiB memory/256MiB cache and system headroom/swap observed, after71%/26873MiB. No actual source NN; last real86.317s/59incorrect prose and8 whole-family bans remain. Product0.0.1145/source worktree/frozenout preserved; correct complete3000ms/integration/QA/release/install goal active/unmet."
+      "path": "untrained-uid-projection-v224/cpu-proof.json",
+      "sha256": "f562fd7b5de63bba6f0e2e7e500b89fcd7d51b357a84006967dc351d5dd05a93",
+      "status": "V224 new untrained0..11 QKV/output Metal boundary implemented with separate UID buffers and unchanged complete pinned MLX0.32.3 load_vector/qdot/qmv_fast_impl functions as MIT-licensed dependencies. Original64-thread(32,2,1) reduction geometry and28-layer same-UID dependencies preserved in12 CPU tests: kernel5/math3/forward1/borrowed identity-close guards3. Model/GPU load/source NN0; GPU compilation/numeric/resource/joint/speed unverified. Current memory snapshot free64%,swap25789MiB; one-model/8GiB/256MiB constraint maintained. V216/V223 speed rejected5/6 slower, no replay/adoption; last actual source86.317s/59incorrect prose and8 bans remain. Product0.0.1145/frozenout/source worktree unchanged; complete correct3000ms/integration/QA/release/install goal active/unmet."
     },
     "v87ActualSource": {
       "directory": "tuple-source-runtime-v87/",
@@ -2679,6 +2679,115 @@
         "file": "independent-attention-timing-v223/terminal.json",
         "sha256": "9e9eba09d5e4edf79ac34731db857e43c4892090893dbec0b31a33b13c69967e"
       }
+    },
+    "untrainedUidProjectionV224": {
+      "savedAtUtc": "2026-10-13T17:45:52.304787+00:00",
+      "status": "cpu-only-draft12-passed-gpu-unqualified",
+      "cpuTests": 12,
+      "codeSha256": {
+        "runtime_guard-before-discovery-isolation.py": "aa156b6d74d9dbfc20b56cc0248e52574e3e9749b0f84672861ab1f5dc1d69fc",
+        "sdk_math.py": "925e4f5a498b49e7332d278422080445d8aa78c25dca8ee73fd754c3e183c379",
+        "createRuntime.py": "53c7c63dc675134fb6adf735cdc7d7b6e8d67526e712a314b60ef879399fe646",
+        "projection_source.py": "432b24bfcaeb0552b3ec3dad76c46cae9243d28d69a6a9f4424b94d193e9acbc",
+        "forward_test.py": "480c1dbcb2f9036d3f8184b2d5d93786429c1015e110e03b86ac4d7c7482d4c5",
+        "runtime_guard_test.py": "0c193a02f1107e99b4d46eedfa732241e306253971e9f208d83953c6f27e382b",
+        "projection_kernel.py": "6f0949b3aca2fef6f48d83e45d512458819cbc5a690081ffe221333b2ba1b2df",
+        "kernel_test.py": "7a6fc876fdcf45e43decc1079cdaae81ce4a5e594483b1265a985ea1121ac37a",
+        "math_test.py": "73b3b8981cc778d02254ec1fe56bc252db450b32c6b5179278353b36f0a5d80c",
+        "model_runtime.py": "a0191dc2239133a52d8f908c934e38f777c7429419122d1d824f0b0f5d7ef329",
+        "recordCpu.py": "4fd79d064c7fea563932ac3f74a476bad3caba710a70fc49ed93fb777db5c318"
+      },
+      "sdkReferenceSha256": {
+        "stock_quantized.h": "8e2ca65d8d8dafe67b97120d1127d54ce57032f621bdba161e54a0bc4a948b8c",
+        "stock_quantized.cpp": "36b79607ee01bc213511dcdad590b2dc3b96099300551cbc3e7e6c7e13ba5982",
+        "MLX_LICENSE": "ccfab7ccb2ea306f71531c8ca77bb55507606cd90768b1e32b8b52ab5b48cf01"
+      },
+      "cpuEvidence": {
+        "file": "untrained-uid-projection-v224/cpu-results.json",
+        "sha256": "ae5e6c7804ce4f34c025f6699a64fd62e318536505163b7004f6d0861176f92d"
+      },
+      "priorRejectedTiming": {
+        "file": "independent-attention-timing-v223/result.json",
+        "sha256": "a48850fcee184c060a9b88ac61ea3249a61a4f302cbcabdadd8d9488f0e33145"
+      },
+      "uidCounts": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8
+      ],
+      "changedLayers": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11
+      ],
+      "projectionShapes": {
+        "qkv": [
+          1024,
+          4096
+        ],
+        "output": [
+          2048,
+          1024
+        ]
+      },
+      "originalThreadgroup": [
+        32,
+        2,
+        1
+      ],
+      "kernelsRequired": 16,
+      "completeFutureQualification": {
+        "newUntrainedQ4Pairs": 10368,
+        "originalMlpPairs": 12096,
+        "modelPairs": 98,
+        "uidPairs": 197,
+        "jointStreams": 15,
+        "drawTransitions": 217,
+        "timingStreamsPerVariant": 23,
+        "timingPairs": 6,
+        "sourceRootCells": 20,
+        "originalUnexposedSourceRequests": 84,
+        "exactBytesAndAll28KvCapacityRequired": true,
+        "original64Plus1And2Plus8GraphsRequired": true,
+        "modelActiveBytes": 328302600,
+        "finalActiveBytes": 8,
+        "rngAndWeightIdentityRequired": true
+      },
+      "memorySettings": {
+        "maxConcurrentModels": 1,
+        "memoryLimitBytes": 8589934592,
+        "cacheLimitBytes": 268435456,
+        "pressureAndSwapRequired": true,
+        "allocatorPeakRequired": true
+      },
+      "modelLoads": 0,
+      "sourceNeuralRequests": 0,
+      "gpuNumericVerified": false,
+      "gpuCompilationVerified": false,
+      "traceResidencyVerified": false,
+      "jointVerified": false,
+      "timingMeasured": false,
+      "adopted": false,
+      "installed": false,
+      "goalComplete": false,
+      "proof": {
+        "file": "untrained-uid-projection-v224/cpu-proof.json",
+        "sha256": "f562fd7b5de63bba6f0e2e7e500b89fcd7d51b357a84006967dc351d5dd05a93"
+      }
     }
   },
   "preparedAssets": {
@@ -3053,6 +3162,115 @@
       "qualification": "whole-numeric-and-joint-passed-speed-rejected",
       "timingMeasured": true,
       "performanceRejected": true
+    },
+    "untrainedUidProjectionV224": {
+      "savedAtUtc": "2026-10-13T17:45:52.304787+00:00",
+      "status": "cpu-only-draft12-passed-gpu-unqualified",
+      "cpuTests": 12,
+      "codeSha256": {
+        "runtime_guard-before-discovery-isolation.py": "aa156b6d74d9dbfc20b56cc0248e52574e3e9749b0f84672861ab1f5dc1d69fc",
+        "sdk_math.py": "925e4f5a498b49e7332d278422080445d8aa78c25dca8ee73fd754c3e183c379",
+        "createRuntime.py": "53c7c63dc675134fb6adf735cdc7d7b6e8d67526e712a314b60ef879399fe646",
+        "projection_source.py": "432b24bfcaeb0552b3ec3dad76c46cae9243d28d69a6a9f4424b94d193e9acbc",
+        "forward_test.py": "480c1dbcb2f9036d3f8184b2d5d93786429c1015e110e03b86ac4d7c7482d4c5",
+        "runtime_guard_test.py": "0c193a02f1107e99b4d46eedfa732241e306253971e9f208d83953c6f27e382b",
+        "projection_kernel.py": "6f0949b3aca2fef6f48d83e45d512458819cbc5a690081ffe221333b2ba1b2df",
+        "kernel_test.py": "7a6fc876fdcf45e43decc1079cdaae81ce4a5e594483b1265a985ea1121ac37a",
+        "math_test.py": "73b3b8981cc778d02254ec1fe56bc252db450b32c6b5179278353b36f0a5d80c",
+        "model_runtime.py": "a0191dc2239133a52d8f908c934e38f777c7429419122d1d824f0b0f5d7ef329",
+        "recordCpu.py": "4fd79d064c7fea563932ac3f74a476bad3caba710a70fc49ed93fb777db5c318"
+      },
+      "sdkReferenceSha256": {
+        "stock_quantized.h": "8e2ca65d8d8dafe67b97120d1127d54ce57032f621bdba161e54a0bc4a948b8c",
+        "stock_quantized.cpp": "36b79607ee01bc213511dcdad590b2dc3b96099300551cbc3e7e6c7e13ba5982",
+        "MLX_LICENSE": "ccfab7ccb2ea306f71531c8ca77bb55507606cd90768b1e32b8b52ab5b48cf01"
+      },
+      "cpuEvidence": {
+        "file": "untrained-uid-projection-v224/cpu-results.json",
+        "sha256": "ae5e6c7804ce4f34c025f6699a64fd62e318536505163b7004f6d0861176f92d"
+      },
+      "priorRejectedTiming": {
+        "file": "independent-attention-timing-v223/result.json",
+        "sha256": "a48850fcee184c060a9b88ac61ea3249a61a4f302cbcabdadd8d9488f0e33145"
+      },
+      "uidCounts": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8
+      ],
+      "changedLayers": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11
+      ],
+      "projectionShapes": {
+        "qkv": [
+          1024,
+          4096
+        ],
+        "output": [
+          2048,
+          1024
+        ]
+      },
+      "originalThreadgroup": [
+        32,
+        2,
+        1
+      ],
+      "kernelsRequired": 16,
+      "completeFutureQualification": {
+        "newUntrainedQ4Pairs": 10368,
+        "originalMlpPairs": 12096,
+        "modelPairs": 98,
+        "uidPairs": 197,
+        "jointStreams": 15,
+        "drawTransitions": 217,
+        "timingStreamsPerVariant": 23,
+        "timingPairs": 6,
+        "sourceRootCells": 20,
+        "originalUnexposedSourceRequests": 84,
+        "exactBytesAndAll28KvCapacityRequired": true,
+        "original64Plus1And2Plus8GraphsRequired": true,
+        "modelActiveBytes": 328302600,
+        "finalActiveBytes": 8,
+        "rngAndWeightIdentityRequired": true
+      },
+      "memorySettings": {
+        "maxConcurrentModels": 1,
+        "memoryLimitBytes": 8589934592,
+        "cacheLimitBytes": 268435456,
+        "pressureAndSwapRequired": true,
+        "allocatorPeakRequired": true
+      },
+      "modelLoads": 0,
+      "sourceNeuralRequests": 0,
+      "gpuNumericVerified": false,
+      "gpuCompilationVerified": false,
+      "traceResidencyVerified": false,
+      "jointVerified": false,
+      "timingMeasured": false,
+      "adopted": false,
+      "installed": false,
+      "goalComplete": false,
+      "proof": {
+        "file": "untrained-uid-projection-v224/cpu-proof.json",
+        "sha256": "f562fd7b5de63bba6f0e2e7e500b89fcd7d51b357a84006967dc351d5dd05a93"
+      }
     }
   },
   "constraints": [
@@ -3073,10 +3291,10 @@
     "ownership": "준비 모델 하나 공유, 요청 UID별 fresh KV·grammar·sampler·detokenizer. 답변·소스 KV 재사용 금지."
   },
   "nextSession": {
-    "first": "Read V220/V221/V223 immutable actual terminals and current git/checkpoint; no live model at this saved snapshot; V216 speed rejected.",
-    "nextIndependentWork": "All V217–V223 exclusive preparations/drivers/first results are closed; no replay, edits or repoll. V216 attention submission is rejected for overall speed; do not use it on source, install it or repeat favourable rows. Next inspect the verified V188 forward and original full-profile/call inventory on CPU for a genuinely new boundary: the12 untrained layers still submit per-UID QKV/output projections while16 trained layers use grouped projection; actual350 forwards have5600 QKV/output groups versus9800 QK/residual sites. Define a new array-free untrained-projection contract with unchanged q4/BF16/layout/scale/full logits and independent UID/source/KV ownership, then meaningful CPU dependency/fallback/lifetime gates before any new GPU; preserve full original numeric/joint/timing and resource scope. Single model,8GiB memory/256MiB cache, pressure/swap and allocator peak observed; prefer CPU work when headroom worsens. Eight whole-family bans/all parents/helpers and original84/20root remain; no retired source plan reuse. Actual allowed whole source meaning/3000ms and product integration/functional and visual QA/release/install still required.",
-    "notImplemented": "A faster qualified runtime, correct whole20root actual source3000ms, product integration/functional and visual QA/release/install.",
+    "first": "Read V224 CPU proof/current git/checkpoint; no live model at this saved snapshot. V224 GPU unqualified; V216 speed rejected.",
+    "nextIndependentWork": "Next construct a NEW V225 whole numeric qualification for the V224 untrained-projection boundary; V224 CPU snapshot is evidence, and any later real code change requires fresh CPU evidence. Bind fixed V137224F32 arrays/base/adapter/current8 bans and all successful original numeric/joint/SDK hashes, the complete pinned SDK source/license and V224 code/CPU digest tables. Retain exact original12096MLP/98model/197UID scope and add ALL10368 untrained q4 comparisons (12layers×2roles×12stress×sum1..8members), complete shapes/dtypes/finite/uint8 equality and first full mismatch capture. Run original MLP fixtures before added q4 fixtures; save/restore the unchanged advanced fixture RNG key around the extension so no original fixture/draw sequence is displaced. No source text or sampling. Keep source-free64+1/all1..8 readiness, original2+8 graphs and16 new Metal constructor signatures; do not label wrapper constructor counts as observed internal compiler traces. Use early atomic tool-control before model allocation and ready/current-PID self-registration after real preparation. One model only;8GiB memory/256MiB cache, memory-pressure/swap/allocator peak and absolute328302600/final8/RNG/assets/owner gates. Only after complete numeric success may a NEW full15/217 joint and full23/six-pair unobserved timing occur. Preserve all8 whole-family bans/all parent/helper variants/original84/20root; never replay closed V217–V223, clip source/output/scope, sweep settings, share UID source/KV, or install an unqualified/slower candidate. Actual whole source meaning/3000ms/product integration/functional and visual QA/release/install remain required.",
+    "notImplemented": "V224 whole GPU numeric/resource/joint/timing and correct whole20root actual source3000ms; integration/QA/release/install.",
     "completionStillMissing": "원래전체source/context/parent/callee/fields/confidence/unknown및모델의값·문장책임을유지한새전체허용범위에서의미·정확성과전체설명≤3초를실제검증한후,다운로드/integrity/custom model/FIFO/cancel/dispose와제품QA를확인해release/install한다.",
-    "publication": "This docs-only publication receipt is independent-attention-timing-v223/publication.json; product0.0.1145/source candidates remain uninstalled."
+    "publication": "This docs-only publication receipt is untrained-uid-projection-v224/publication.json; product0.0.1145/source candidates remain uninstalled."
   }
 }

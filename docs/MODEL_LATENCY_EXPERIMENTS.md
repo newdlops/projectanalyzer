@@ -5784,6 +5784,42 @@ grouped1..8을 준비했다. candidate의 attention1..8 signature도 준비하�
 - V223 complete whole23 timing proof: `a48850fcee184c060a9b88ac61ea3249a61a4f302cbcabdadd8d9488f0e33145`
 - V223 actual terminal record: `9e9eba09d5e4edf79ac34731db857e43c4892090893dbec0b31a33b13c69967e`
 
+## V224: 미학습12층의 독립 M1 q4 projection 후보·CPU12 검사
+
+검증된 V188의 layer0..11은 QKV/output projection을 UID마다 따로 제출한다. 새 V224는
+그 두 경계만 바꾸고, trained16층 LoRA/MLP와 원래 SDPA/QK/residual/norm·전체 logits·28층
+same-UID cache 갱신을 유지하는 private 후보를 구현했다. UID 입력을 stack/tile하지 않고
+각 입력·출력 포인터와 원래 packed weight를 사용한다. weights/source/KV 상태를 operator에
+저장하지 않으며 모델·설정·dtype·샘플러를 바꾸지 않는다.
+
+[MLX v0.32.3 q4 Metal 구현](https://github.com/ml-explore/mlx/blob/v0.32.3/mlx/backend/metal/kernels/quantized.h)과
+[dispatch](https://github.com/ml-explore/mlx/blob/v0.32.3/mlx/backend/metal/quantized.cpp), MIT license를
+고정 private SDK dependency로 저장했다. 전체 `load_vector`, `qdot`, `qmv_fast_impl` 본문을
+변경 없이 추출하며 완전한 함수 bytes와 SHA를 확인한다. 새 wrapper는 UID와 row-group 포인터를
+분리하고 원래64-thread `(32,2,1)` reduction 함수를 호출한다. 고정 M1/affine4/group128/BF16
+QKV1024→4096과 output2048→1024만 사용하며 unsupported geometry/bias/dtype/prefill은 원래
+whole projector를 호출한다. wrapper 변경이 실제 binary byte 일치를 보장한다고 주장하지 않는다.
+
+**CPU12개**: kernel routing/geometry/fallback/close5, SDK 전체 함수/brace scanner/dispatch3,
+1..8UID·28layer의 모든 원래 dependency/cache-write/output 비교1, borrowed identity/configuration/
+array guard와 close 순서3이 통과했다. Runtime guard의 첫 test discovery가 가져온 kernel5개를
+중복 실행한 사실도 보존하고 fixture import를 격리한 최종 guard3 결과를 기록했다.
+
+**모델 load/GPU/sourceNN0**이다. 실제 Metal compilation·full numeric/trace/residency/joint/speed는
+미검증이며 unqualified draft다. 원래12096 MLP/98model/197UID 외에 **10368개 새 untrained q4
+비교**(12층×2role×12stress×sum1..8)를 다음 새 gate에 요구한다. 원래 fixture RNG sequence를
+바꾸지 않도록 original MLP를 먼저 실행하고 추가 q4 fixture 주변의 advanced key를 저장·복원한다.
+원래2+8 graph/64+1, 모든16 새 kernel signature, strict328302600/final8/RNG/assets, 이후 전체15/217
+joint 및23/6쌍 시간 검증을 유지한다. wrapper constructor count를 내부 compiler trace 관측으로
+오인하지 않는다.
+
+이번 CPU 관측은 시스템 여유64%/swap25789 MiB다. 단일모델·8 GiB/256 MiB cache와 시스템
+여유/swap·allocator peak 검증을 유지한다. 기존 V216/V223 속도 거부와 여덟 family/parent/helper
+금지, 원래84/20root, 마지막 actual86.317초/59incorrect prose는 그대로다. 제품0.0.1145와
+frozenout을 유지하고 문서만 공개하며, 전체 정확한 설명3000ms·제품통합/QA/release/install은 미완료다.
+
+- V224 CPU draft proof: `f562fd7b5de63bba6f0e2e7e500b89fcd7d51b357a84006967dc351d5dd05a93`
+
 ## 남은 완료 기준
 
 모델 변경, decoder 최적화 또는 입력 구조 변경을 채택하려면 다음을 함께 확인해야 한다.
