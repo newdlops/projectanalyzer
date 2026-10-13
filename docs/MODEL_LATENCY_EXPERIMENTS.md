@@ -5059,6 +5059,43 @@ V151 source/SPEC 작업본과 기존 out, 일곱 neural 금지 family, 원래84/
 - V154 전체5조건 paired result: `2e51ac7eb645deb179e0a28000219af66e68743574267c757385a42874738f81`
 - V154 actual terminal: `889e8710abfd3aa48eff131903911d5573f985466912296b4c19d88128316102`
 
+## V155~V158: 긴 출력의 주비용 확인과 UID 조기 제출의 성능 거부
+
+V155는 기존15 synthetic streams를 모두 유지하고, full input512/1024/1536/2048/3072/4096/5120/5791과 whole128-element integer array 출력을 가진8개 UID를 추가했다. 전체23 streams를 control/관측 각각1회씩6조건에서 실행했다. CPU4개 검사와 실제 session89451/PID39514 exit0/PID부재를 확인했다. 모든 complete raw/native/value/draw/cancel, 모델328302600bytes/두 graph/weight identity/outside MLX·NumPy RNG/최종8bytes를 보존했다. 함수 source나 설명 prose는 입력하지 않았다.
+
+세 outer phase는 prefill, forward+eval, mask/normalize/sample+eval이며 서로 겹치지 않는다. Native-mask와 lazy-sampler CPU 호출은 sampling 안의 nested cost이므로 다시 더하지 않는다. 추가 evaluation barrier 없이 원래 함수를 호출하는 boundary clocks만 사용했다. Device timestamp가 아니며 CPU·GPU 대기·관측 overhead를 포함한다.
+
+긴8 UID의 **2,064 output tokens/2,072 draws**는 plain control66921.606833ms, observed77962.051292ms였다. 관측 시간 중 prefill5941.161167ms, forward+eval67874.014465ms(**87.06%**), mask/normalize/sample+eval3850.85525ms였다. Nested native-mask171.423799ms/lazy-sampler99.454778ms와 기타296.02041ms도 보존했다. 최대5791의 단일 관측 prefill은2463.610333ms였다. 이 수치는 실제 source explanation Host의 속도나 특정 GPU kernel 시간으로 해석하지 않는다.
+
+V156은 원래512-token chunks/eval/cursor를 그대로 두고 free allocator-cache flush를 각 round에서 whole-prefill exit로 옮기는 초안이다. CPU3개로 mixed5791 geometry/calls/eval/token/cursor/실패정리/single-token을 검증했다. **GPU/model/seal0**이며 성능·수치 채택 증거가 없다. V155에서 더 큰 forward 비용이 확인돼 decoder 후보를 우선했다.
+
+V157은 UID별 exact M1 forward graph를 만든 즉시 mx.async_eval로 제출해 다음 UID의 CPU construction과 실행을 겹친다. 원래 final all-output/KV eval과 cursor commit, prefill/weights/dtype/sampler/native/complete generation/caps는 유지한다. 일부 UID 실패 시 이미 제출한 outputs/KV를 처리한 뒤 owners를 해제하고 first error를 보존한다. CPU6개 통과 후 새 whole15/217 numerical GPU audit에서 모든 raw/normalized logits/token/key/initial-terminal KV/capacity/native/output/count/cancel이 바이트 일치했다. Actual session69394/PID54696 exit0/PID부재, 모델 allocation328302600/두 graph/outside RNG/최종8bytes도 통과했다. Reference229와 candidate217의 차이는 explicit cancelled tail12다. 이 observer 검사로 속도 향상을 주장하지 않는다.
+
+V158은 관측 없는 새6조건/전체23 paired timing이다. 원래와 candidate 각각1회씩 고정된 교대 순서로 실행했고 새 grammar/KV/sampler/detokenizer 생성부터 whole generation/disposal까지 측정했다. CPU2개 통과, 모든 complete raw/value/count/cancel이 서로 및 immutable V155 control과 일치했다. Actual session12178/PID61718 exit0/PID부재와 모든 owner/RNG/최종8bytes를 확인했다.
+
+| 전체 합성 조건 | 기존 ms | 조기 제출 ms | 변화 |
+|---|---:|---:|---:|
+| 단일 UID | 489.151042 | 368.091000 | −24.75% |
+| 길이가 다른2 UID | 658.064208 | 678.740750 | +3.14% |
+| 길이가 다른8 UID | 6216.206333 | 3727.403250 | −40.04% |
+| 명시적 취소 | 906.546750 | 723.388000 | −20.20% |
+| 전체5791 input | 2802.125000 | 3868.997042 | +38.07% |
+| 전체8 long input/output | 60827.509583 | 62886.509708 | +3.38% |
+
+주요 long-output과 maximum-input 조건이 더 느렸다. **전반적 개선·long-output 개선은 미입증이며 candidate를 채택하지 않는다.** 한 번씩의 측정이며 빠른 조건만 고르거나 닫힌 timing을 재실행해 결론을 바꾸지 않는다. Source 이해·전체 설명 Host3000ms는 검증하지 않았다. Public source/SPEC의 V151작업본과 제품0.0.1145 설치는 그대로다.
+
+다음 진단은 forward 안의 CPU graph construction과 evaluation wait를 같은 whole23범위에서 분리해야 한다. 과거 Metal command-buffer receipts의1024ops/1024MiB 설정은 이미 사용됐으므로 이를 새 최적화로 재제안하지 않는다. 원래84/20cells/전체source-context-parent-callee-fields/type/confidence/unknown/LLM값·문장책임, 일곱 whole-family neural금지와 종료 job 재실행금지를 유지한다. 실제 정확성·Host3000ms·제품통합/기능·시각QA/release/install까지 전체목표는 active미달이다.
+
+증거 SHA-256:
+
+- V155 whole23 phase result: `ca733adf9315105adbb1cc62507ea046dc93ae0fa81988a1851d6da5038b1f60`
+- V155 actual terminal: `34b81bb47f5abd1e83ffe8f94487a51f20241a26e6152ae1e064a0bff2a12451`
+- V157 preparation: `ac68a78131d131d0295c001ac2c7106fa79e7c6ffec09a6bd29fc48f8744b5f0`
+- V157 whole15/217 numeric result: `3817ebc7e013971b057dd8d1b1b339a3a4eda2a5bdb71c887e19561ddec2fd82`
+- V157 actual terminal: `e6c9555346332527db0a57af434d9ad01a4029fa168ff29a5d6ef97f551aee4a`
+- V158 whole23 paired result: `4a4d348317b3c32f520b8fa90b83c84a4f5ad31e384126b0eb78f1f959bb6723`
+- V158 actual terminal: `e5bd5a54baf3571aef08ffff193fdada355f7e85d228f56939ddf35529033ac4`
+
 ## 남은 완료 기준
 
 모델 변경, decoder 최적화 또는 입력 구조 변경을 채택하려면 다음을 함께 확인해야 한다.
