@@ -5461,6 +5461,33 @@ V206 새독립전체 CPU82766/PID78569 exit0/PID부재에서 **100개 tokenizer/
 - canonicalNativeAdmissionV206 결과: `abb11a4b2bee8c866adebf6fe197d9c4f6f40aa84294e2e1d39a7e0b0db9c6a5`
 - canonicalNativeAdmissionV206 actual terminal: `bcf07d6b2e2f114047f42eee7e006dcc3f47dc95e1eab7c914ec4fa29893535c`
 
+## V207: 모델작성 실제 provider의 전체 CPU 연결
+
+V201의모델작성schema/normalizer/full-rich factory/cohort를 V197 public provider/orderedworker·V195 recipe·고정V188/V197worker·V199 fullpacket journal/취소child-close barrier와명시적으로연결했다. 원래ordered constructor가model/worker path만전달하므로journal/callback은factory closure에소유한다. 실제provider의의존성에teacher/fixture/reference모듈이없음을별도CPUpreparation에서확인했다. Private I/O fixture는CPU검사에서만별도로주입한다.
+
+CPU5검사는전체100owner/36action의입력·native raw·expanded wire·최종Host전체값/문장/UID역순과원래FIFO/resource정리를검증했다. 잘못된UID는raw를보존하고거부하며불완전한call summary는기존parser가자르기전에거부했다. 취소응답과childclose/callback가다음queued packet보다앞에서완료됐고foreign/closedjournal은worker생성전에거부됐다.
+
+첫sealed실제CPU62225/PID52979 exit0/PID부재에서**100owner/36action/52packet/36전체journal**의입력·응답과100개fullHostnarrative를보존했다. 모든20root/300구문/40call/92page를포함한원래scope는유지됐다. 이단계의native응답은독립참조를돌려주는CPUfake I/O이며실제GPU/source추론·meaning·3000ms증거가아니다.
+
+## V208: 이전 모델 문장100자 절단 제거와 실제 outer Host CPU
+
+`src/webview/functionCalls/narrativesHostDelivery.ts:130`의실제Host가 이전모델의inputs/output/effects를각각100자로잘라summary입력에넣는경로를확인했다. V148의공개입력audit도이절단을반영하고있었다. 새free180char출력의완료/효과미확인문구가100자뒤에있으면후속summary가이를못읽게되어전체모델설명보존목표에맞지않았다.
+
+새privateadapter는같은outeraction에서파싱된실제provider응답의전문만소유한다. Host가넘긴100charprefix/callId가같은action의그전문과일치하는지확인하고,**모델호출전**기존earlierModelReadings필드에전문을전달한다. 실제응답/문장을복구·수정하지않고다른source/action의문장이나다음lease의과거자료를빌리지않는다. Prefix slice는비교copy에서만사용하며실제로보유·전달하는문장을자르지않는다. Unit3검사에서100자뒤unknown문구,원문/응답동일성,foreignprefix거부,새lease소유권격리를확인했다.
+
+원래public outerHost/helper를사용한전체CPU검사에서소스분석/모든원래validator/시나리오및호출scope/실제diskpage읽기/원래cacheonly읽기/분석기·store·모델resource정리를실행했다. 첫test91217exit1은8callaction의비교fixture가다른schema의첫details request를summary로정규화하려던오류다. 최초출력/원인/실패를보존하고비교대상schema를먼저검사했다. 동일unsealed helper의그실질적수정뒤전체test82842exit0,1검사가통과했다.
+
+새sealed전체CPU64124/PID4613 exit0/PID부재에서 **36action/100모델단계/20root/300소스구문/40call/92diskpage**와**8개전체prior-prose summary입력**을확인하고모든실제CPU입력packet/모델참조응답/최종Hostpage/result를보존했다. 원래84입력의모든static source/field/schema는유지되며dynamicprior문장만그같은action의전문으로전달한다. Static원본과100char offline labels를비교copy에서만사용하며실제생성문장을대입하지않는다. 이번privateCPU9검사통과,model load/sourceNN0회다.
+
+다음필수작업은그100개실제CPU dynamic native입력에대한새전체token/grammar/EOS/원래한도검사와전체runtime/source-exposuregate를묶은actual계획이다. 실제모델의모든값·문장·정확한전체Host≤3000ms와제품통합/기능·시각QA/release/install은미완료다. 제품0.0.1145/V151작업본/frozenout/일곱wholefamily금지/retired계획을유지하고목표는active다.
+
+증거 SHA-256:
+
+- modelAuthoredProviderV207 결과: `9473dd9382f4989ce58da1eb80747e17478723bdacb7cdc4c4940c8851e9e866`
+- modelAuthoredProviderV207 actual terminal: `f86027343ff637e4d5b1bdbc4641fa7d7fe51a4fe8f79613167d441a241ff3e2`
+- fullPriorCallProseV208 결과: `24cfdfcf3fa9ec3525d60c038a2d3a9b2dea6d5b986b7ca1150a9ec95109b475`
+- fullPriorCallProseV208 actual terminal: `8eb292a661d136b6a9f3fe62f1dcacaa18895646447de226c3bc2db2f805c3cc`
+
 ## 남은 완료 기준
 
 모델 변경, decoder 최적화 또는 입력 구조 변경을 채택하려면 다음을 함께 확인해야 한다.
