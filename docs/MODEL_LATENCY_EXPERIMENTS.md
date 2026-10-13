@@ -5820,6 +5820,76 @@ frozenout을 유지하고 문서만 공개하며, 전체 정확한 설명3000ms�
 
 - V224 CPU draft proof: `f562fd7b5de63bba6f0e2e7e500b89fcd7d51b357a84006967dc351d5dd05a93`
 
+## V225–V229: 실제 wrapper·Metal ABI 실패 보존과 전체 q4 수치 통과
+
+V225의 첫 실제 실행은 모든 층에 붙는 `TrainedPackedLinear`에서 직접 `weight`를 읽어
+실패했다. **session4401/PID20979 exit1/PID 부재**, 비교0쌍·최종8bytes/RNG/assets를 기록했다.
+SDK 공유 구현을 다시 확인하고, 별도 V226에서 first12층의 세 원래 멤버가 모두 실제
+QuantizedLinear일 때만 `.base`를 빌리도록 연결했다. LoRA/변경된 구성·bias/size는 원래 wrapper를
+유지한다. 원래 SDK wrapper의 실제 `__call__` AST를 쓰는 검사와 12층 constructor/identity
+회귀를 포함한 CPU16개가 통과했다. V224/V225는 수정·재실행하지 않았다.
+
+V227은 wrapper constructor가 통과했으나 새 `apply` 함수의 지역 static 상수를 Metal이
+거부했다. **session42736/PID39139 exit1/PID 부재**, 비교0쌍·최종8bytes/RNG/assets를 보존했다.
+준비 중 기록된 Python forward/call count를 실제 kernel 수행이나 수치 성공으로 해석하지 않는다.
+별도 V228은 고정 K/N 상수를 namespace로 옮겨 CPU17개를 통과했다. 전체 원래 `load_vector`,
+`qdot`, `qmv_fast_impl` bytes/hash, q4/group128/BF16·threadgroup32×2·가중치·샘플러는 동일하다.
+첫 CPU 검사가 function 뒤 `#undef`까지 검사한 fixture 오류도 보존하고 함수 경계만 수정했다.
+
+새 V229 **session22184/PID56247 actualexit0/PID 부재**에서 **새 q4 10368쌍과 기존 MLP12096쌍,
+model98쌍·UID197쌍 전부** finite/shape/dtype/전체 uint8 bytes가 일치했다. 전체 logits·28층
+KV/capacity·8192 window·heterogeneous 길이·retention을 유지했다. original MLP fixture를 먼저
+실행하고 추가 q4 fixture 주변 advanced RNG key를 복원하여 원래 sequence를 보존했다.
+원래2+grouped8 graph trace1회, 모든16 kernel constructor signature를 유지했으며 내부 compiler
+trace는 관측했다고 주장하지 않는다. 모든 닫힌 단계 모델328302600bytes·최종8bytes와 가중치
+owner/MLX·NumPy RNG/assets가 일치했다. allocator peak는 **3859071300bytes(약3.59 GiB)**다.
+
+- V229 preparation: `4a6055e3f7d7c0256e6360a5b5a852bdbc95c6b95087c9b9eed331e559618b37`
+- V229 whole numeric proof: `b118b4106b0b4dc6e15d86a70dbe5e66db0305e24f41b52a9c8bd9cc5460cb44`
+- V229 actual terminal: `1d1867f972c6ea94bb2cd88564e6bda6cc9638646fa031133f5e5af993a7d5eb`
+
+## V230–V231: 전체 joint 통과·23개 stream 시간 비교에서 후보 거부
+
+V230 CPU5개와 **session6515/PID68175 actualexit0/PID 부재**로 전체 **15개 stream/217개 전환**을
+통과했다. Reference229/candidate217 draws, 원래 취소 prefix, 모든 raw/normalized logits,
+token/advanced key/초기·최종·취소 KV, raw/native/EOS/count/UID retention과 owner 정리를
+보존했다. peak1852375416bytes(약1.73 GiB), 모델328302600·최종8bytes/RNG/assets가 같다.
+
+V231은 CPU6개 후 **session6109/PID79683 actualexit0/PID 부재**, 원래 **23개 stream·6쌍**을
+관측 없는 fresh generation/disposal 경계에서 비교했다. 같은 모델1개를 빌린 V188 baseline과
+V228 candidate의 전체 raw/native/count/cancel 결과가 참조 및 서로 동일하다. case별 variant1회,
+고정 alternating 순서, full128-element long output과 원래 sampler/weights/geometry를 유지했다.
+
+| 전체 case | control(ms) | candidate(ms) | 변화 |
+| --- | ---: | ---: | ---: |
+| one | 272.027 | 115.122 | −57.68% |
+| two-unequal | 158.195 | 161.983 | +2.39% |
+| eight-unequal | 968.309 | 1107.080 | +14.33% |
+| explicit-cancel | 291.251 | 301.635 | +3.57% |
+| complete5791 | 1521.921 | 1158.686 | −23.87% |
+| eight-long-output-full-inputs | 19547.821 | 20740.044 | +6.10% |
+
+**6쌍 중4쌍이 느려 V228 후보를 거부한다.** 일부 fast case나 이전 실행의 절대 시간을 선택해
+개선을 주장하지 않고 닫힌 측정을 반복하지 않는다. 반복 가능한 전반적 개선·실제 Host3000ms를
+증명하지 않았다. timing peak3848864176bytes(약3.58 GiB), 최종8bytes와 모든 owner/RNG/assets를
+확인했다. 모델1개·8 GiB 설정·256 MiB cache를 유지하고 시작/중간/종료 시스템 여유와 swap을
+관측했다. 종료 snapshot은 여유61%/swap24979 MiB이며 연속 최소 여유 관측을 뜻하지 않는다.
+
+다음 CPU 검토는 독립 UID threadgroup 제출과 다른 shared-weight 경계다. 같은 threadgroup에서
+별도 UID 입력의 immutable weight load를 재사용할 수 있는지 살펴보되, 원래 per-UID 누산/SIMD
+reduction/BF16 변환과 독립 버퍼·전체 검증 범위를 유지한다. static/source 일치를 실제 GPU 숫자나
+속도로 대체하지 않는다. GPU 준비/수치/joint/시간을 통과하기 전 새 source에 사용하지 않는다.
+
+실제 source 설명0, 채택/설치0이다. 여덟 영구 family 및 parent/helper 금지, 원래84/20root,
+마지막 actual86.317초/59incorrect prose·제품0.0.1145/frozenout/source 작업본을 보존한다.
+전체 올바른 model-authored 설명3000ms·제품통합/기능·시각QA/release/install은 active/미달이다.
+모든 이번 model/tool handle은 실제 종료·PID 부재로 닫혔고 public 변경은 문서만이다.
+
+- V230 full joint proof: `19c89c557a6f591fb277aab082c3ca37aab37b5260067618af17820dbbd77a3b`
+- V230 actual terminal: `ae407923b4ff1077ca242e6ce049e84d60dbefe1dea59e8c9405b014b0de7674`
+- V231 whole23 timing proof: `6bfbf294c101fc1f5d415c5b2816e9421796ff1da5117e618a96986f7d7d2213`
+- V231 actual terminal: `c80e7263aa04d2ed99752b87775eeffb4698f46b446302202a4177b8cf5a662b`
+
 ## 남은 완료 기준
 
 모델 변경, decoder 최적화 또는 입력 구조 변경을 채택하려면 다음을 함께 확인해야 한다.
