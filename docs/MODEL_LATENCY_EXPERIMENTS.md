@@ -5652,6 +5652,138 @@ active/미달이다. 이번 공개 기록은 문서만 commit/push한다.
 - V214 전체 token 배열: `82d087b3295524a45bae4fe7034faeea296c5ab764ae317af430b125ec726cf2`
 - V215 completed CPU proof: `f3e10fc4052478d07d68d09b72a9c9723c5edcf5125c28f486d229eba04c3d43`
 
+## V217–V220: 독립 attention의 전체 수치·캐시 검증
+
+V217은 실제 준비 뒤 등록 제한 시간 초과, V218은 닫힌 stdin 제어 채널,
+V219는 원래 12개 stress 이름 대신 정수를 전달한 계약 오류로 각각 첫 실패했다.
+모든 실제 종료와 PID 부재를 확인하고 최초 결과와 준비본을 보존했다. 완료한
+수치 비교는 세 실행 모두 0쌍이다. V218은 모델을 로드하기 전에 종료했다.
+V219의 실제 준비·자체 PID 등록은 성공했지만 수치 검증 성공으로 해석하지 않는다.
+
+별도 V220은 원래 stress 이름 12개와 전체 범위를 유지하고 제어 파일을 모델
+할당 전에 받는다. 실제 준비가 끝난 승인된 프로세스가 자신의 PID와 tool handle을
+등록한다. CPU 계약 3개가 통과한 뒤 **session59293/PID36224 actual exit0 및 PID 부재**를
+확인했다. **MLP 12,096쌍, 전체 모델 98쌍, UID 197쌍**의 원래 전체 bytes가 일치했다.
+전체 logits와 28층 K/V·capacity, 길이가 다른 UID·retention·전체 8192 window를 유지했다.
+
+원래 base/trained graph 각 1개, grouped MLP와 새 attention의 UID1..8 signature 각
+1개를 유지했고 추가 추적이 없었다. 모든 닫힌 단계의 모델 allocation은 **328302600 bytes**,
+최종 allocation은 **8 bytes**다. 가중치 owner, 외부 MLX/NumPy RNG와 고정 assets도 유지됐다.
+이는 수치·캐시·준비·정리 증거다. 실제 샘플러/취소 joint 및 속도·소스 설명은 아직
+검증하지 않았으며 후보를 채택하거나 설치하지 않았다. V220 준비본·driver·첫 결과는 닫혔다.
+
+사용자는 메모리 여유를 고려하라고 지시했다. 한 번에 모델 하나만 로드하고 MLX 메모리
+설정 **8 GiB**, allocator cache **256 MiB**를 유지한다. V220 종료 후 시스템이 보고한 여유는
+56%, swap 사용은 27749.06 MiB였다. 후속 CPU 준비 중 swap 증가와 여유 변동을 관측해
+GPU 시작을 보류했다. CPU 준비 종료 후 여유 회복과 swap 감소를 확인했다. 단일 시점의
+여유나 종료 후 allocation을 실행 중 최대 사용량으로 해석하지 않으며, 후속 GPU 검증에는
+allocator 최대 사용량과 시스템 메모리·swap 관측을 포함한다. 다른 프로세스의 메모리 원인을
+추측하거나 종료하지 않는다.
+
+V220 metadata 기록에서 V218 PID 부재의 로컬 receipt 누락을 발견해 첫 오류를 보존했다.
+실제 PID 부재를 기록하고 별도 metadata script로 기존 terminal bytes를 확인한 뒤 상태를
+정리했다. GPU 검증이나 닫힌 준비·driver를 다시 실행하지 않았다. V219가 쓴 V218 상태
+별칭도 실제 V218/V219 각각의 종료 receipt로 바로잡았다.
+
+- V220 preparation: `411bd4986b5b5daad7d813e1830af91db08027047fb9b381da1cda65eb73d17b`
+- V220 complete numeric proof: `6c60360dd4b7716d1617830cc28e2478630a26fb75888da9fb9c0be9f54b1f6b`
+- V220 actual terminal record: `ffd4f18139f8e5b07bc29c4a648cb5dadeaa085693b909a87cfe1065fcbace57`
+
+다음은 동일 범위의 새 **15개 스트림·217개 draw 전환** joint 증명과 원래 전체 시간 검증이다.
+여덟 whole-family 및 parent/helper 금지, 원래84와20root, 모델이 작성하는 전체 문장·값의
+책임을 유지한다. 마지막 실제 설명의 86.317초와 의미 실패를 이번 수치 성공으로 대체하지 않는다.
+전체 올바른 설명 3000ms·제품 통합/기능·시각 QA/release/install 목표는 여전히 active/미달이다.
+
+## V221: 전체 샘플러·취소·UID joint 검증과 메모리 관측
+
+V220의 실제 전체 수치 증거를 admission으로 사용한 새 V221을 구성했다. 원래 observer와
+샘플러 함수·전체 비교 loop를 AST로 대조하고 CPU 검사5개를 통과했다. 첫 제어 파일은
+MLX import 전에 받았고, 모델 로드1회와 원래64+1·모든1..8 signature 준비 후 승인된
+프로세스가 실제 준비와 자신의 PID를 확인해 등록했다.
+
+**session38449/PID93258 actualexit0 및 PID 부재**, 전체 **15개 스트림·217개 draw 전환**이
+통과했다. 전체 raw/normalized logits·token/advanced key, 초기/종료/취소 KV, 완전한 native
+값·raw text·EOS/lookahead count, UID retention과 sampler/compiled owner 정리를 유지했다.
+14개 complete stream과1개 실제 취소를 포함한다. Reference229 draws 중 취소된 UID의
+원래 첫 draw만 비교하여 candidate217 draws와 대조하며 나머지를 생성 완료로 주장하지 않는다.
+
+원래2개·grouped8개·attention8개 graph 각각의 추적 횟수는1이다. 모든 닫힌 단계 모델
+allocation328302600 bytes, 종료 후8 bytes, 외부 MLX/NumPy RNG·가중치 owner·assets가 동일하다.
+프로세스의 **allocator 최대 active 사용량1852408212 bytes(약1.73 GiB)**를 기록했다.
+이는 시스템 전체 메모리 사용량이 아니다. CPU 준비 종료 직후 swap28376.44 MiB에서 실행
+종료 후27847.81 MiB로 줄었고, 종료 후 시스템이 보고한 여유는73%였다. 다른 모델을 동시에
+로드하지 않았다. 시스템 관측은 제한된 시점의 snapshot이며 실행 전체의 연속 관측을 뜻하지 않는다.
+
+실제 소스 설명 요청0, 설명 시간 측정0이며 후보 채택/설치0이다. 관측과 hash가 들어간
+joint 검증 시간을 성능 결과로 사용하지 않는다. 새 V222는 원래 전체 **23개 스트림·6쌍**을
+유지한 채 검증된 V188 실행과 V216 attention을 같은 한 모델에서 순차 비교하도록 준비했다.
+실제 전체 소스 의미·3000ms·제품 통합/기능·시각QA/release/install은 미완료다.
+
+- V221 preparation: `389849b26331cbcb850e2a29f06a600aaf37d3e7ef11c94897609666690f4d0a`
+- V221 complete joint proof: `03d5a08ff621afdefa167f6a09ae404ad41ea7e2c18add39f24d58ed81e2e7d6`
+- V221 actual terminal record: `37ee1c462a5e3b9c21db118b29d85bef3106b3f615f66a5eb311ff8ac3ad6957`
+
+## V222: 첫 시간 비교의 runtime owner 변수 충돌
+
+첫 V222는 전체23/6쌍 범위와 원래 타이머·샘플러를 유지하고 CPU5개를 통과했지만,
+추가한 runtime owner 이름 `baseline`이 기존 pair 시간값 변수와 겹쳤다. 첫 pair 뒤
+float 시간값이 실행 객체를 덮어썼고, 마지막 정리에서도 float의 `trace_counts`를 읽으려다
+실패했다. **session46627/PID23626 actualexit1 및 PID 부재**를 확인했다.
+
+이 실행은 전체 시간을 완료하지 않았으며 `result.json`, allocator 최대값과 최종8bytes
+assert도 기록하지 못했다. 일부 콘솔 시간값을 채택 근거나 전체 결과로 사용하지 않는다.
+실제 stdout·최초 오류·준비본·driver는 닫힌 상태로 보존한다. 종료 후 시스템 관측은
+여유72%/swap26967.75 MiB이며 이 코드 오류를 메모리 부족 탓으로 돌리지 않는다.
+
+새 V223은 실행 객체 이름만 `baseline_owner`로 분리하고 기존 float 타이머와 원래
+전체 범위·수학·설정·측정 경계를 보존한다. 새 borrowing 경계를 실제 CPU에서 실행해
+타이머 값이 여러 번 바뀐 뒤에도 같은 owner를 쓰는지 확인하는 회귀 검사를 추가했고,
+**사전 CPU6개가 통과**했다. V222를 수정하거나 재실행하지 않는다.
+
+## V223: 전체23 시간 비교 완료·성능 후보 거부
+
+별도 V223은 owner 이름 충돌의 CPU 회귀 검사까지6개를 통과하고 새 준비본을 봉인했다.
+원래6개 case/23개 stream, 전체128-element long 결과, fixed alternating order와 case별
+variant1회, fresh request 생성부터 완전한 native generation·disposal까지의 측정 경계를 유지했다.
+샘플러·가중치·원문 제외·UID/취소·graph math를 바꾸거나 유리한 행을 고르지 않았다.
+검증된 V188 baseline과 V216 attention candidate는 같은 모델1개를 빌리며 각각 원래64+1과
+grouped1..8을 준비했다. candidate의 attention1..8 signature도 준비하고 실제 PID를 등록했다.
+
+**session60708/PID39540 actualexit0 및 PID 부재**다. 전체6쌍의 raw/native/count/cancel 결과가
+원래 전체 참조 및 서로 동일했고, 모든 case 종료 allocation328302600 bytes·최종8 bytes,
+고정 가중치 owner/MLX·NumPy RNG/assets와 모든 graph trace1회를 유지했다.
+
+| 원래 전체 case | V188 control(ms) | V216 candidate(ms) | candidate 변화 |
+| --- | ---: | ---: | ---: |
+| one | 145.287 | 111.643 | −23.16% |
+| two-unequal | 189.542 | 203.986 | +7.62% |
+| eight-unequal | 973.725 | 1001.517 | +2.85% |
+| explicit-cancel | 247.954 | 255.911 | +3.21% |
+| complete5791 | 930.921 | 1269.968 | +36.42% |
+| eight-long-output-full-inputs | 19803.818 | 23394.367 | +18.13% |
+
+**6쌍 중5쌍이 느려 V216 후보를 거부한다.** 반복 가능한 전반적 개선·실제 Host3000ms를
+증명하지 않았으며, 한 fast case만 선택하거나 닫힌 비교를 재측정하지 않는다. 이전 V190과
+이번 절대 시간의 차이를 V216 개선으로 주장하지 않고 같은 실행의 control/candidate만 비교한다.
+소스 설명 요청0, 실제 source/prose 의미 검증0, 제품 채택/설치0이다.
+
+한 모델에서 두 실행 객체를 빌린 이 전체 비교의 allocator 최대 active 사용량은
+**3848864176 bytes(약3.58 GiB)**였다. 메모리 설정8 GiB·allocator cache256 MiB를 유지했다.
+실행 시작 관측의 시스템 여유63%와 종료 후71%, swap26897→26873 MiB를 기록했다.
+이는 제한된 시점의 시스템 snapshot이며 실행 중 모든 시점의 최소 여유를 뜻하지 않는다.
+모든 실제 handle과 모델 프로세스는 종료됐고 global registry를 실제 terminal/PID 부재 뒤 정리했다.
+
+다음은 CPU에서 검증된 V188의 미학습12층 QKV/output 제출을 살펴보는 새 경계의 계약 설계다.
+실제350 forward에서 trained16층 QKV/output groups는5600, 전체28층 QK sites는9800이다.
+독립 UID/source/KV·원래 q4/BF16/layout/scale/전체 logits와 전체 검증 범위를 보존하며,
+메모리 여유가 나빠지면 모델 로드보다 CPU 준비를 우선한다. 여덟 whole-family/parent/helper
+금지와 원래84/20root provenance는 그대로다. 마지막 actual86.317초와59incorrect prose를
+이번 synthetic 결과로 대체하지 않으며, 목표는 active/미달이다. 공개 변경은 문서만이다.
+
+- V223 preparation: `f875c7832fe35ba9b4d81c7b918177d08ebf9c9017687b37de8e93357dfeeee8`
+- V223 complete whole23 timing proof: `a48850fcee184c060a9b88ac61ea3249a61a4f302cbcabdadd8d9488f0e33145`
+- V223 actual terminal record: `9e9eba09d5e4edf79ac34731db857e43c4892090893dbec0b31a33b13c69967e`
+
 ## 남은 완료 기준
 
 모델 변경, decoder 최적화 또는 입력 구조 변경을 채택하려면 다음을 함께 확인해야 한다.
