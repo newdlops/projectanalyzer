@@ -5488,6 +5488,40 @@ CPU5검사는전체100owner/36action의입력·native raw·expanded wire·최종
 - fullPriorCallProseV208 결과: `24cfdfcf3fa9ec3525d60c038a2d3a9b2dea6d5b986b7ca1150a9ec95109b475`
 - fullPriorCallProseV208 actual terminal: `8eb292a661d136b6a9f3fe62f1dcacaa18895646447de226c3bc2db2f805c3cc`
 
+## V209~V210: 전문 prior 입력의 전체100 native admission
+
+V208기록의각action.actualPackets와36journal에서같은packet/UID의응답을묶어100개전체dynamic입력을복원했다. 원래84source/context와모든static source/schema/message bytes·100native참조응답을그대로보존했다. 변경은8call-summary의그같은action에서파싱된inputs/output/effects전문이다. 실제입력과모델문장은변경하지않고옛offline labels는비교copy에서만사용했다. CPU2검사와V209actual91254/PID20593 exit0/PID부재를확인했다.
+
+V210actual34682/PID23332 exit0/PID부재에서**전체100dynamic tokenizer/native grammar/EOS/원래한도**를통과했다. prompt301537/max5381,target+EOS43249/max999,전체sequence최대6177이다. 원래window8192에2400outputreserve를통째로포함하고output2400tokens/stdio196608bytes/output24000chars,원래tokenizer/Jinja/package와EOS단독stop mask를유지했다. 소스/출력/필드를자르거나목표한도를완화하지않았다.
+
+## V211: 첫 실제 전체model-authored source 실패
+
+새실제계획은V201모델작성schema/normalizer/rich/cohort와V208fullprior를V197현재provider/orderedworker·V195recipe·고정V137model/V188runtime·V199journal/취소childclose와연결한다. 실제provider에teacher/CPUfake의존성은없다. 전체100/36action/20root/원래84미노출·모든parent/callee/fields/confidence/unknowns,학습·검증source985hash,원래12096MLP/98model/197UID numeric와15stream217transition joint/SDK/asset의현재identity를CPU에서확인했다. 모델/weight/dtype/LR/epoch/sampler를바꾸지않았다. CPU2inputaudit검사와prepare74965exit0를보존했다. model-ready필드의실제형태(pid/modelLoadsCompleted/activeBytes)는GPU전코드검토에서확인하여반영했다.
+
+원래첫action의Kotlin/한국어 **4path/18source구문 전체**를실제outerHost에서읽었다. 실제root34734/PID43809와child44319에서SDKmodel1load/328302600bytes,sourcefree64+1·원래2+새8graph/추가weight0/KV재사용0/readiness완료를확인했고현재OSPID확인뒤rootregistration34734를제공했다. 그후에만globalmodel-active를기록했다. 준비12초는타이머밖이며소스분석/모든모델응답/원래validator/page읽기/모델·source/store정리는안에있다.
+
+**전체Host86316.839833ms**로3000ms목표를거부했다. Native tokenization/generation81624.930583ms,원래prompt총15858/output2350/sample2354이며4개native응답은완전한EOS로반환됐다. 모델이배열형태를썼지만**3개Host parser가거부되고1개accepted에도emptyarray로loop진입/equalitytrue를주장하고localindex=false를써서meaning을실패**했다. 전체Host는ready가되지않았고cachedpage완료는실패했다. 초기disabled경로의exampleResult=1,empty경로의exampleResult=0 등4개최종예시결과가전부독립데이터oracle의-1과다르다. 원문소스는실행하지않았다.
+
+모든native/raw/expanded/context/peer-response/metrics/error와12행actualpacket journal을보존했다. Actualrootexit1/child정상EOFexit0/두PID부재,closed328302600/noRequestStateRetained와sealedworker최종정리assert를확인했다. 모델code/SDK/asset910file을다시검사했다. 이번actualsource NN4요청/model1load다. 실패응답을복구하거나다시추론하지않는다.
+
+## V212: 전체100문장·18구문·모든예시검토와 전체계획폐기
+
+별도의CPU읽기에서**실제4native/expanded응답·18source구문·100model prose필드와모든scalar leaf/예시·즉시값**을원래소스에대조했다. Syntax/text/reason/effect72개,summary/title/explanation/analysis/limitations28개를모두개별status/reason으로주석했다. **59incorrect/20incomplete/21correct**,4exampleResult전부incorrect,route에맞는example은2/4뿐이다. 기존parseraccepted UID1도빈array에index접근/true일치를주장하며Initializer0를Booleanfalse로표현했다. Literal결과하나·grammar통과하나를전체meaning성공으로대체하지않는다. CPUreview95491/PID66834 exit0/PID부재와최초result/code를보존했다.
+
+첫wholeaction이실패하여 **V211전체100계획을폐기**했다. 남은35action/96요청은실행하지않고원래84미노출은유지한다. 새`enabled-integer-array-first-equal-position-sentinel-search`의모든weight/이름/연산자/언어/locale/scope변형을영구neural금지하여현재**8wholefamily**다. Parent/helper금지도그대로유지한다. 실제goalactive/미달이며제품0.0.1145/V151작업본/frozenout은유지된다. 다음은이immutable실패에서일반source-derived local-value/condition/route검증을CPU로개선하고성능의실질적새경계를찾는일이다. 재시도/sweep/정적prose대입/유리한부분scope/threshold완화는하지않는다. 전체meaning·3초·20root·제품통합/기능·시각QA/release/install은미완료다.
+
+증거 SHA-256:
+
+- dynamicNativeScopeV209 결과: `15ba8ba5c972f790cdb094c6d01efe74af00ab51bbc4549db1586704f5d5ef85`
+- dynamicNativeScopeV209 actual terminal: `4e43e87fafc03968b9026e464781e0e8bcf3cc46ef244c9f5e471a0d91231d2f`
+- dynamicNativeAdmissionV210 결과: `1274e35b954a29636f8fef50232bf84f97a60953560e33747edf7536db1fa44d`
+- dynamicNativeAdmissionV210 actual terminal: `ac4439784a345be351580239eddb639158e0eaa5209132f2f09862bedd6fa145`
+- modelAuthoredSourceActualV211 결과: `ce4078de53b669418dcc07597e6a6f6b0101170b95da6e3a62e483c217d7ac49`
+- modelAuthoredSourceActualV211 actual terminal: `fc71a71fac10c23270617e08232ab51e1533c04135addb83016fa580a9e5c497`
+- modelAuthoredSourceReviewV212 결과: `8524d32019b346b42b02d84c32840e9b907dd235892078d65550119f1db39bb7`
+- modelAuthoredSourceReviewV212 actual terminal: `6b48c9a6bc7c36aa1daa2f012da5f2d7a45f1418701f741b0476ca711ef8506b`
+- V211 전체100계획 폐기: `a5bd650dd2c156e1091ccd3bbb2d89c3e4e5d5f3713cd5ee22b0c1e16e951d77`
+
 ## 남은 완료 기준
 
 모델 변경, decoder 최적화 또는 입력 구조 변경을 채택하려면 다음을 함께 확인해야 한다.
