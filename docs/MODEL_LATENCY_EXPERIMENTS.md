@@ -5947,6 +5947,51 @@ release/install 목표active/미달을 보존하며 public 기록은 문서만�
 
 - V236 CPU proof: `de03c708cd4aec77435961da4b1e2a65d4fd933b63b05f79bd024037deb3d2d5`
 
+## V237–V239: 동일한 수치 실패와 CPU SDK 인자 생성 확인
+
+V236의 UID별 임시 배열을 **새 V237 전체 scope**에 바인딩했다. CPU 계약5개와
+고정 자산/코드/CPU17/SDK/license·10368+12096/98/197 준비를 고정했으며,
+**session98220/PID58705 actualexit1/PID 부재**로 닫혔다. 실제64+1 준비,
+원래2+8 graph·16 constructor signatures·모델328302600bytes 후 MLP12096쌍은 통과했다.
+q4는88쌍 뒤 원래와 같은 layer0/QKV/count4/negative-zero 혼합/slot0에서 실패했다.
+해당 UID의 실제 입력은 large-positive다. 전체 원본과 후보8192bytes tensor가 각각
+V233/V235와 동일하고 완전한 mismatch NPZ SHA도 동일하다. UID별 임시 배열만으로는
+해결되지 않았다. 이 세 shared-threadgroup 구현은 채택하지 않으며, 원인을 증명하지 않는다.
+
+model/UID 비교0, sourceNN/sampling/joint/timing0이다. peak689474056bytes(약658 MiB),
+최종8bytes/MLX·NumPy RNG/assets가 복원됐고, weight-owner equality assertion은 미도달이다.
+한 모델·8 GiB 설정·256 MiB cache를 유지했다. 시스템 snapshot은 시작62%, 실제 종료 뒤52%,
+CPU 작업 뒤64%, 마지막56%; swap23564→23516 MiB다. **살아 있는 모델 프로세스 중의 시스템
+snapshot은 확보하지 못했으며 연속 최소 여유를 뜻하지 않는다.** 닫힌 실행을 반복하지 않고,
+다음 GPU에서는 actual readiness 직후 즉시 외부 pressure/swap를 확인하도록 기록한다.
+
+V238 CPU 감사 첫 실행은 함수 기본 인수 주석의 `{}`를 body 시작으로 보는 extractor
+오류로 C++/모델 실행 전에 종료됐다. 최초 코드/실패를 보존했다. 별도 V239는 bounded 반복
+scanner의 회귀3개를 통과하고, **핀된 SDK의 실제 write_signature 함수를 CPU C++로 실행**해
+1..8 UID×QKV/output **16개 전체 선언**을 검사했다. dtype/device buffer/index 순서·출력·자동
+shape/stride 인자에 오류를 찾지 못했다. 별도의 완전한 load_vector/qdot/qmv 함수와 bit4
+branch 비교도 원래 bytes/고정SHA가 동일하다. 주석-default extractor 결함은 이 shader
+복사본에 영향을 주지 않았으므로 수치 실패 원인으로 취급하지 않는다.
+
+CPU metadata stub은 실제 입력 stride/layout, Metal shader compilation/register allocation,
+GPU 수치/속도 증거가 아니다. SDK의 contiguous-copy 정책만 읽고 확인했다.
+공식 핀된 소스는 [인자 생성](https://github.com/ml-explore/mlx/blob/v0.32.3/mlx/backend/common/metal_kernel.cpp),
+[GPU 인자 처리](https://github.com/ml-explore/mlx/blob/v0.32.3/mlx/backend/metal/custom_kernel.cpp)다.
+
+다음은 고정 q4 배열을 한 layer/array set씩 읽는 CPU-only 연산·dtype oracle 검토다.
+원래 전체 stress/혼합UID/역할·수학을 보존하며, 실제 구현 차이를 확인하기 전 추가 GPU
+pointer/register 변형을 만들지 않는다. 새 후보에도 전체 numeric·15/217 joint·23/6쌍 시간과
+실제 올바른 전체 source 설명3000ms를 요구한다. 부분 통과·임계값 완화·좋은 case 선택은 없다.
+
+모든 owned 모델은 종료됐고 제품0.0.1145/frozenout/source 작업본이 동일하다. 여덟 영구
+family/parent/helper 금지와 원래84/20root, 마지막 actual86.317초/59incorrect prose를
+보존한다. public 변경은 문서만이며 전체 목표·통합/기능·시각QA/release/install은 active/미달이다.
+
+- V237 preparation: `a3ff364d26a89b4f3d8b18da316d1e9fd0ed1d4dbc507a5e74766de3bf57fd0b`
+- V237 first full result: `65a10c35ec5b4f56dfdfdf7c4358c532e6a82fa9ff0201f1ab3306073aa6255a`
+- 세 실행의 동일한 complete mismatch: `c0db7460fc31ee3701ff2e58a7fde3efe1c5a6ee462b9d097c0851302f6cde52`
+- V239 CPU SDK-signature proof: `1a1842f46528b30b3935d423abe63329edf41a68f716e1944f7f6505ee7f9403`
+
 ## 남은 완료 기준
 
 모델 변경, decoder 최적화 또는 입력 구조 변경을 채택하려면 다음을 함께 확인해야 한다.
