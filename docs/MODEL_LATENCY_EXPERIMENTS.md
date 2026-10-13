@@ -6112,6 +6112,75 @@ vocab/topK 축소·scope/output clipping·모델의 값/문장을 정적으로 �
 - V246 whole23/six-pair timing: `6ab68141d4071e140528b0e7b827ec1705e521599f6094e58faa2b963608af32`
 - V248 full-head CPU inspection: `c5b9e706cf0275486aa01b442ad76e554e1c0d92ba70803033d48ca789dfc6d9`
 
+## V249–V252: 전체 어휘 head의 CPU·GPU 정확성 및 4쌍 속도 거부
+
+V249는 V188의 전체 core forward AST와28-layer KV/LoRA/QKV/O/MLP/QK/residual/norm을
+보존하고, 마지막 tied QuantizedEmbedding head만 원래 SDK qmv full call로 묶었다.
+지원하지 않는 dtype/shape/layout은 전체 원래 as_linear fallback이다. head guard는
+parent allocation 전에 적용하고 scalar identities·array-free kernel owner·close 순서를 검증했다.
+거부된 untrained-projection runtime은 채택하지 않았다. 원래10368 q4 gate의 public
+서비스는 stateless 원래 SDK 호출 adapter로 보존했다. 전체151936 logits·별도UID buffers,
+원래 단위/ dtype/scale/normalization/sampler가 같다. hardware cache benefit을 가정하지 않는다.
+
+source/stock M1 dispatch/all rows·buffers/guard/fallback/close/full core AST/28KV dependency/
+bounded IO/core adapter의 **CPU19개**가 통과했다. 전체151936행의 weight/scales/biases
+**82653184bytes**를149개 블록으로 읽었으며, 한 combined block 최대557056bytes(544 KiB)다.
+독립적인 전체 field SHA와 같고 BF16 affine fields는 모두 finite다. base/NumPy RNG unchanged,
+Python peakRSS42582016bytes(약40.6 MiB), CPU 단계 model/MLX load0이다.
+
+V250 CPU7 뒤 **session49632/PID1136 actualexit0/PID 부재**, 새 **432 full-head pairs**와
+ALL 원래10368 q4+12096 MLP/98 model/197 UID가 모두 complete bytes로 일치했다.
+original fixture order/advanced key·full vocab·all28 KV/capacity/window8192/retention 및
+borrowed weights/RNG/assets를 유지했다. Real64+1/2+8 graphs/8 actual head constructors,
+BF16 dispatch guard·absolute328302600/final8, peak3859071300bytes(약3.59 GiB)다.
+constructor 수를 내부 Metal compiler trace 수로 쓰지 않는다.
+
+V251 CPU5 뒤 **session67804/PID13266 actualexit0/PID 부재**, 원래15 streams/217
+전환에서 raw/normalized logits·token/key·native/EOS/count·initial/final/cancel KV·UID
+retention/owners가 일치했다. reference229/candidate217 draws, actualready external PID/
+pressure/swap handshake를 확인했다. peak1852408212bytes(약1.73 GiB), 최종8/RNG/assets다.
+
+V252 CPU9 뒤 **session99105/PID22045 actualexit0/PID 부재**, 원래23 streams/6쌍,
+variant1회·fixed alternating order·full128-element long outputs를 유지했다. 실제 준비 후
+live memory 확인은 원래 unobserved timer 밖에 있다. 모든 raw/native/count/cancel results가
+기존 참조 및 서로 동일하며, source 설명이나 내부 logit/key/KV observer는 없다.
+
+| 전체 case | control(ms) | candidate(ms) | 변화 |
+| --- | ---: | ---: | ---: |
+| one | 202.609 | 107.688 | −46.85% |
+| two-unequal | 144.592 | 186.912 | +29.27% |
+| eight-unequal | 723.382 | 1136.289 | +57.08% |
+| explicit-cancel | 189.024 | 532.088 | +181.49% |
+| complete5791 | 808.897 | 810.421 | +0.19% |
+| eight-long-output-full-inputs | 13360.732 | 13303.610 | −0.43% |
+
+**6쌍 중4쌍이 느려 V249를 거부한다.** 작은 long 차이나 빠른 one만 선택하여 채택하지
+않고, repeatable 전체 gain/실제 Host3000ms를 입증했다고 쓰지 않는다. 다른 실행의 절대
+시간을 가져오거나 닫힌 측정을 반복하지 않는다. Long2064output/2072draw를 보존했다.
+timing peak3848864176bytes(약3.58 GiB), 최종8bytes 및 모든 owners/RNG/assets를 확인했다.
+
+모든 GPU는 한 모델·8 GiB setting·256 MiB cache다. V250 시작64%/live ready70%/
+종료70%, swap24598.62→24248 MiB다. V251 시작67%/live68%/종료69%, swap24216 MiB
+유지다. V252 시작64%/live ready70%/종료62%, swap24184→24160 MiB다. 마지막 snapshot은
+72%/24128 MiB, 모든 모델은 종료됐다. 이는 연속 최소 여유나 host physical peak 측정이 아니다.
+
+다음은 **현재 V188 optimized baseline**의 전체23 control/probe 단계 비용을 확인하는
+별도 작업이다. 오래된 V155는 SingleRowCohort를 측정했고 current grouped rank8/QK/
+residual/chained norm 이전이므로 그87% forward ratio를 그대로 재사용하지 않는다.
+pure PhaseCollector만 재사용하며 original prefill/forward+eval/mask-normalize-sample+eval/
+grammar/lazy construction/close와 전체 outputs/inputs를 보존한다. Nested 비용을 중복 합산하지
+않고 관측 overhead를 unobserved latency로 대체하지 않는다. 새 kernel이나 pointer/settings
+변형의 효과를 byte 수나 L1 reuse 추측에서 결정하지 않는다.
+
+sourceNN0, 채택·설치0, product0.0.1145/frozenout/source 작업본이 같다. 8 family/parent/helper
+금지·original84/20root와 마지막 actual86.317초/59incorrect prose를 유지하며 전체correct
+3000ms/제품통합/기능·시각QA/release/install 목표active/미달이다.
+
+- V249 bounded whole rows/CPU19: `470ef6a53b623964fa1b8bbdf169fe994f5fa6c69672de095dc68fbbffbcad74`
+- V250 full432+10368/12096/98/197: `4f9776cfae752e8af35c0054fb890f3684526789b864b8fff5c058f9b33dbc2e`
+- V251 full15/217 joint: `e5fff7d0fdb286c1485f6eb4cc22a2b373279cb81e49bf7de705be7e4fa53c36`
+- V252 whole23/six-pair timing: `fbf809ded8583e8d441530743378967c4b55e94766c7142bbb4e1704fa8b6232`
+
 ## 남은 완료 기준
 
 모델 변경, decoder 최적화 또는 입력 구조 변경을 채택하려면 다음을 함께 확인해야 한다.

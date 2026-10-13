@@ -1,6 +1,6 @@
 {
-  "purpose": "V244 new V243 whole-SDK UID numeric: CPU5/prep7c13f7...; actual11097/PID18978 exit0/absent, ALL10368q4+12096MLP/98model/197UID exactfullbytes/KV/capacity/RNG/assets/owners pass; real64+1/2+8/16 constructors,328302600/final8,peak3859071300(~3.59GiB). Live ready PID/pressure/swap observed57%before/45%ready/56%during, swap23388 unchanged during; after51%/23380. V245 CPU5/prep7e0daa... actual72502/PID26346 exit0/absent: full15/217 histories/raw-normalized logits/keys/KV/native/cancel/UID owners pass, reference229/candidate217 draws,peak1852408212(~1.73GiB)/final8/RNG/assets. External live system snapshot missed between loaded and terminal; before/after51%/23522.12MiB only, no closed replay. V246 new preparation-only atomic live-ready memory handshake plus CPU9/prep3b16ff...; actual7014/PID37835 exit0/absent, whole23/six pairs complete, full output/native/count/cancel/RNG/owners equal, no internal observers. 3/6 slower(eight+10.63%,complete5791+43.56%,long+6.96%16734.397→17898.671ms) so V243 candidate REJECTED despite full numerical/joint equality. No selected-count/input favourites or closed retiming. Peak3848864176(~3.58GiB)/final8; ready livePID66%/swap24927.44 verified before timers; timingbefore58%/24935.44,after67%/24927.44,final64%/24854.62, no continuousminimum or causal attribution for between-stage swap growth. All models idle, one-model8GiB/cache256MiB; sourceNN0/adoption/install0/product0.0.1145/source/frozenout preserved. V247 CPU dotted-attribute assumption failure preserved; new V248 complete AST/header/SDK0.32.3 check identifies tied QuantizedEmbedding full-vocab head151936x1024 affine4/group128, 82653184bytes(78.8MiB) arrays, nominal8 uses661225472bytes. No arrays/MLX/model loads; physical traffic/bottleneck/cache reuse or speed unproved. Original8 bans/84/20root/context/model-authored values-prose and actual86.317s/59incorrect prose remain; correctwhole3000ms/productintegration/QA/release/install goal active/unmet.",
-  "savedAtUtc": "2026-10-13T20:56:05.399930+00:00",
+  "purpose": "V249 new head-only V188 integration/whole original SDK qmv, full151936 logits/independent UID buffers, no rejected untrained projection runtime. CPU19 passed (full source/real stockM1 geometry/guard/fallback/close/core AST/all28KV dependencies/row IO/core adapter); initial constructor draft preserved and head guard moved before parent allocation before seal. Bounded full151936 head rows149blocks, combinedmax557056bytes/total82653184, independent full field hashes/allBF16 affinefinite/base/NumPy preserved, Pythonpeak42582016(~40.6MiB), no MLX/model loads inCPU. V250 CPU7/prep4a432c... actual49632/PID1136 exit0/absent: ALL432head+10368q4+12096MLP/98model/197UID fullbytes/KV/capacity/8192/retention, advanced key/RNG/assets/owners pass. Real64+1/2+8/8 head constructors and BF16 guard verified, absolute328302600/final8,peak3859071300(~3.59GiB), live ready memory64→70%/swap24598.62 before+ready; after70%/24248. V251 CPU5/prep2135b0... actual67804/PID13266 exit0/absent full15/217 raw-normalized logits/token-key/native/cancel/UID/KV and owners pass, reference229/candidate217,peak1852408212(~1.73GiB)/final8; externalready memory handshake67→68→69%/swap24216 stable. V252 CPU9/prepf030da... actual99105/PID22045 exit0/absent whole23/six-pair unobserved outputs/native/count/cancel match all original references and each other. 4/6 slower(two+29.27%,eight+57.08%,cancel+181.49%,complete5791+0.19%); one-46.85%,long-0.43%(13360.732→13303.610ms) do NOT prove repeatable overall gain. V249 head candidate REJECTED, no favourite counts/inputs or retiming. Peak3848864176/final8, every owner/RNG/assets released; before64%/swap24184, actualready70%/24184,after62%/24160,final72%/24128; no continuousminimum/causalclaim. All models idle; one-model8GiB/cache256MiB policy maintained; sourceNN0/adoption/install0/product0.0.1145/source/frozenout unchanged. Old V155 phase data uses SingleRowCohort, predates current V188 grouped QK/residual/norm/rank8 baseline. Next independent complete current-baseline cost attribution, not another head/pointer/settings variant. Original8 bans/84/20root/fullcontext/model values-prose and lastactual86.317s/59incorrect prose remain; correctwhole3000ms/integration/functional-visualQA/release/install active/unmet.",
+  "savedAtUtc": "2026-10-13T21:42:22.682050+00:00",
   "workspace": "/Users/lky/project/projectanalyzer",
   "resumeInstruction": "이 파일을 먼저 읽고 checkpoint.json에서 필요한 항목만 확인한다. 긴 대화나 실험 문서 전체를 다시 읽지 않는다. 이전의 반복적·추측성 분석은 구현 결정으로 취급하지 않는다.",
   "userIntent": {
@@ -30,18 +30,18 @@
   "executionState": {
     "activeToolHandles": [],
     "activeModelProcesses": false,
-    "lastTurn": "V244 new V243 whole-SDK UID numeric: CPU5/prep7c13f7...; actual11097/PID18978 exit0/absent, ALL10368q4+12096MLP/98model/197UID exactfullbytes/KV/capacity/RNG/assets/owners pass; real64+1/2+8/16 constructors,328302600/final8,peak3859071300(~3.59GiB). Live ready PID/pressure/swap observed57%before/45%ready/56%during, swap23388 unchanged during; after51%/23380. V245 CPU5/prep7e0daa... actual72502/PID26346 exit0/absent: full15/217 histories/raw-normalized logits/keys/KV/native/cancel/UID owners pass, reference229/candidate217 draws,peak1852408212(~1.73GiB)/final8/RNG/assets. External live system snapshot missed between loaded and terminal; before/after51%/23522.12MiB only, no closed replay. V246 new preparation-only atomic live-ready memory handshake plus CPU9/prep3b16ff...; actual7014/PID37835 exit0/absent, whole23/six pairs complete, full output/native/count/cancel/RNG/owners equal, no internal observers. 3/6 slower(eight+10.63%,complete5791+43.56%,long+6.96%16734.397→17898.671ms) so V243 candidate REJECTED despite full numerical/joint equality. No selected-count/input favourites or closed retiming. Peak3848864176(~3.58GiB)/final8; ready livePID66%/swap24927.44 verified before timers; timingbefore58%/24935.44,after67%/24927.44,final64%/24854.62, no continuousminimum or causal attribution for between-stage swap growth. All models idle, one-model8GiB/cache256MiB; sourceNN0/adoption/install0/product0.0.1145/source/frozenout preserved. V247 CPU dotted-attribute assumption failure preserved; new V248 complete AST/header/SDK0.32.3 check identifies tied QuantizedEmbedding full-vocab head151936x1024 affine4/group128, 82653184bytes(78.8MiB) arrays, nominal8 uses661225472bytes. No arrays/MLX/model loads; physical traffic/bottleneck/cache reuse or speed unproved. Original8 bans/84/20root/context/model-authored values-prose and actual86.317s/59incorrect prose remain; correctwhole3000ms/productintegration/QA/release/install goal active/unmet.",
+    "lastTurn": "V249 new head-only V188 integration/whole original SDK qmv, full151936 logits/independent UID buffers, no rejected untrained projection runtime. CPU19 passed (full source/real stockM1 geometry/guard/fallback/close/core AST/all28KV dependencies/row IO/core adapter); initial constructor draft preserved and head guard moved before parent allocation before seal. Bounded full151936 head rows149blocks, combinedmax557056bytes/total82653184, independent full field hashes/allBF16 affinefinite/base/NumPy preserved, Pythonpeak42582016(~40.6MiB), no MLX/model loads inCPU. V250 CPU7/prep4a432c... actual49632/PID1136 exit0/absent: ALL432head+10368q4+12096MLP/98model/197UID fullbytes/KV/capacity/8192/retention, advanced key/RNG/assets/owners pass. Real64+1/2+8/8 head constructors and BF16 guard verified, absolute328302600/final8,peak3859071300(~3.59GiB), live ready memory64→70%/swap24598.62 before+ready; after70%/24248. V251 CPU5/prep2135b0... actual67804/PID13266 exit0/absent full15/217 raw-normalized logits/token-key/native/cancel/UID/KV and owners pass, reference229/candidate217,peak1852408212(~1.73GiB)/final8; externalready memory handshake67→68→69%/swap24216 stable. V252 CPU9/prepf030da... actual99105/PID22045 exit0/absent whole23/six-pair unobserved outputs/native/count/cancel match all original references and each other. 4/6 slower(two+29.27%,eight+57.08%,cancel+181.49%,complete5791+0.19%); one-46.85%,long-0.43%(13360.732→13303.610ms) do NOT prove repeatable overall gain. V249 head candidate REJECTED, no favourite counts/inputs or retiming. Peak3848864176/final8, every owner/RNG/assets released; before64%/swap24184, actualready70%/24184,after62%/24160,final72%/24128; no continuousminimum/causalclaim. All models idle; one-model8GiB/cache256MiB policy maintained; sourceNN0/adoption/install0/product0.0.1145/source/frozenout unchanged. Old V155 phase data uses SingleRowCohort, predates current V188 grouped QK/residual/norm/rank8 baseline. Next independent complete current-baseline cost attribution, not another head/pointer/settings variant. Original8 bans/84/20root/fullcontext/model values-prose and lastactual86.317s/59incorrect prose remain; correctwhole3000ms/integration/functional-visualQA/release/install active/unmet.",
     "noProgressConsecutiveTurns": 0,
     "terminalRule": "V13755468/PID99592 실제exit0/부재; V14019108/PID78530, V14679681/PID80723, V14119638/PID82365 실제exit0/부재. V148sourcefree84120/root94340/child94474 actualexit0/부재. V148실제source49497/root95535 exit1/부재, child95621 exit0/부재. 모두 종료됐으므로 재poll/실행/수정하지 않는다. V149CPU검토 exit0/최초결과보존. 이전 모든 종료 독점job도 그대로 재실행 금지. 현재livehandle없음; 실제상태를검증하고새독립CPU진단부터 진행하며 artifact/관측timeout으로완료나live를추측하지않는다. V152joint43575/PID16552 actualexit0/PID부재; V154timing25713/PID24293 actualexit0/PID부재. 모두닫힘. V152seal.py 첫import실패actualexit1도닫혀재실행/수정금지; V153seal은별도준비builder actualexit0. V152GPU와V154timing을재poll/재실행하지않는다. V15589451/PID39514, V15769394/PID54696, V15812178/PID61718 actualexit0/PID부재/최종8 확인. 모두닫힌exclusive GPU/profiler/timing이므로재poll/수정/replay금지. V156은CPU초안만이고model/GPU0이며sealed아님. V15979546/PID81282,V16023111/PID93177,V16130401/PID1709,V1626406/PID5381 모두actualexit0/PID부재/최종8로닫힘. V161 첫prepare.py는import오류exit1/model0이며닫힘; 별도prepare_explicit.py가actualexit0. 닫힌 모든driver/builder는재실행·수정·재poll하지않는다. V16355731/PID19877 import종료1/model0,V16451237/PID22391 Metalcompile종료1/비교0,V16546741/PID25145 12쌍일치후residency종료1,V16614920/PID28269 RNG진단종료0,V16747955/PID34711 전체1344종료0,V16836764/PID43144 전체336/98종료0,V16947749/PID49513 준비graph종료1/생성0,V17113461/PID54568 전체15/217종료0,V17034350/PID58193 전체23시간종료0;모두PID부재. 종료driver/builder/수치/시간검사재실행·수정·재poll금지. 검증된순수kernel/runtime공개helper는새scope의새구현에서재사용가능. V1726895/PID90943 exit1은root가model-ready전에active상태를기록해immutableloader의idlegate실패;SDK model0/kernel0. V17377921/PID99483 전체48384 exit0, V17571105/PID21799 전체12096/98/197 exit0, V17667141/PID30182 전체15/217 exit0, V17716135/PID38173 전체23시간 exit0; 모두PID부재. V174prepare exit0후CPU import사전검사에서STRESS_CASES누락발견,모델/GPU0이며그sealed준비본은보존. 새GPU의global activeModelProcesses/activeToolHandles등록은새model-ready.json에서현재PID/실제완료확인후에만한다;loader는입장검사를다시하므로launch파일만으로너무일찍등록하지않는다. 준비전live tool handle은별도로추적하고timeout을종료로해석하지않는다. V17827645/PID70584 exit134는첫Metal주소공간컴파일abort/완료model1/비교0/PID부재이며Python최종정리검증은없음. V17936265/PID75058 전체28224 exit0, V18087592/PID83094 전체12096/98/197 exit0, V18128564/PID89635 전체15/217 exit0, V18248607/PID95247 전체23시간 exit0; 모두PID부재. 각실제terminal·최초오류·sealedsource보존,재poll/수정/재실행금지. V18359621/PID12294 전체12096 operation exit0, V18438791/PID19321 전체12096MLP/98model/197UID exit0, V18582721/PID24239 전체15/217 exit0, V18692667/PID25640 전체23시간 exit0;모두PID부재/최종8bytes. preparation·actualtool·PID부재receipt보존,닫힌실행재poll·재실행·수정금지. V187 session56849/PID47521 exit0, V188 session50644/PID55198 exit0, V189 session69270/PID69711 exit0, V190 session73365/PID73307 exit0, V191 CPU session98558/PID92430 exit0; 모두 실제 terminal/PID부재 확인. V187~190 최종8bytes 확인. V188은 앞 turn에 완료됐으며 이번 turn에 실제 handle의 terminal을 회수했다. 모두 닫혔으므로 재poll·수정·재실행하지 않는다. V192 CPU84357/PID37784 exit1, V193 CPU27192/PID55961 exit0, V194 CPU86617/PID61208 exit1, V195 CPU97425/PID68792 exit0, V196 CPU16980/PID71537 exit0; 모두 실제 terminal/PID부재. V192 맥락16건 및 V194 8token초과 실패를 보존한다. 닫힌 builder/audit/prepare 재poll·수정·재실행 금지. V197 CPU87836/PID9604 exit0/PID부재, CPUbinding11895 exit0/MLXimport0. V198 prepare88572/PID22724 exit0, 실제root76772/PID31539 exit0 및child31674 exit0/PID부재. model-ready는실제load1/328302600 뒤 생성됐다. root가확인했을때child는이미정상종료되어global active를등록하지않았다. 모든현재handle닫힘, 재poll/수정/재실행금지. V199 prepare63098 exit0,실제36428/root76990 exit0. Child77007/77008은계획된SIGTERM close,79442는정상EOFexit0. 모든PID부재. 실제Bmodelready/현재PID확인뒤root가registration36428을제공했고,controller가close+OSPID부재를검사한뒤globalidle을기록하여C새load를허용했다. 현재livehandle없음;V199닫힌builder/run/검사재poll·수정·재실행금지. V201 CPU99633/PID2113 exit0/부재, V202 CPU40603/PID14299 exit0/부재, V203 CPU32104/PID50513 exit0/부재, V204 CPU96961/PID62606 exit1/부재(native8거부), V205 CPU32066/PID72335 exit0/부재, V206 CPU82766/PID78569 exit0/부재. 모든 종료 exclusive builder/audit/preparation과 최초 실패·code seal을 보존하며 재poll·수정·재실행 금지. 공개 pure factory/schema/normalizer/reference-order/helper는 실질적으로 새 scope의 새 구현에서 재사용 가능. 이번 model/sourceNN0이며 현재 livehandle 없음. V207 CPUaudit62225/PID52979 exit0/PID부재(36action100owner52packet),prepare59182actualexit0; V208 CPUaudit64124/PID4613 exit0/PID부재(100stage300node40call92page8fullprior),prepare38152actualexit0. V208 첫outerCPUtest91217exit1/8comparisonfixture실패와수정후82842exit0를보존한다. 닫힌exclusive audit/prepare·code·최초결과는재poll·수정·재실행하지않는다. 현재livehandle없음,model/sourceNN0. V209builder91254/PID20593 actualexit0/PID부재; V210native34682/PID23332 actualexit0/PID부재; V211prepare74965actualexit0/sourceactual34734/root43809 exit1/child44319exit0/둘PID부재/원래closed328302600확인. 모델SDK load/현재PID/준비완료후에만registration34734를제공했고정리후globalidle을확인했다. V212review95491/PID66834actualexit0/PID부재. 모든closedexclusive builder/prepare/audit/evaluate/review와최초결과·code수정/재poll/재실행금지. V211전체100계획은폐기되었고남은35action96source요청은실행하지않는다. 현재livehandle/loadedmodel없음. V21792917/PID71955 exit1, V21823975/PID97874 exit1/model0, V21926317/PID15671 exit1, V22059293/PID36224 exit0; all actual terminal/PID absent and closed. V22138449/PID93258 actualexit0/PIDabsent/full15-217/final8; closed and never repoll/replay/edit. V22246627/PID23626 actualexit1/PIDabsent/first variable collision with no final8 proof; V22360708/PID39540 actualexit0/PIDabsent/full23-sixpairs/final8. Both closed; never repoll/replay/edit. V2254401/PID20979 exit1, V22742736/PID39139 exit1, V22922184/PID56247 exit0, V2306515/PID68175 exit0, V2316109/PID79683 exit0; all actual terminal/PID absent/final8. Closed, never edit/replay/repoll. V23370557/PID7960 and V23585612/PID30017 actualexit1/PIDabsent/final8; closed first errors/complete raw tensors preserved, never replay/edit/repoll. V23798220/PID58705 actualexit1/PIDabsent/final8; no replay/edit/repoll.",
-    "previousGoalTurnClassification": "progress: actual whole numeric/joint equality and full six-pair timing reject candidate; live memory handshake implemented; distinct head boundary inspectedCPU; objective unmet"
+    "previousGoalTurnClassification": "progress: new full-head CPU19/bounded whole rows and real complete numeric/joint/timing prove equality but reject slower candidate; next current-baseline attribution; full objective unmet"
   },
   "evidence": {
     "root": ".local-models/experiments/three-second/",
     "authoritativeState": "checkpoint.json",
     "latestRecord": {
-      "path": "output-head-ast-inspection-v248/result.json",
-      "sha256": "c5b9e706cf0275486aa01b442ad76e554e1c0d92ba70803033d48ca789dfc6d9",
-      "status": "V244 new V243 whole-SDK UID numeric: CPU5/prep7c13f7...; actual11097/PID18978 exit0/absent, ALL10368q4+12096MLP/98model/197UID exactfullbytes/KV/capacity/RNG/assets/owners pass; real64+1/2+8/16 constructors,328302600/final8,peak3859071300(~3.59GiB). Live ready PID/pressure/swap observed57%before/45%ready/56%during, swap23388 unchanged during; after51%/23380. V245 CPU5/prep7e0daa... actual72502/PID26346 exit0/absent: full15/217 histories/raw-normalized logits/keys/KV/native/cancel/UID owners pass, reference229/candidate217 draws,peak1852408212(~1.73GiB)/final8/RNG/assets. External live system snapshot missed between loaded and terminal; before/after51%/23522.12MiB only, no closed replay. V246 new preparation-only atomic live-ready memory handshake plus CPU9/prep3b16ff...; actual7014/PID37835 exit0/absent, whole23/six pairs complete, full output/native/count/cancel/RNG/owners equal, no internal observers. 3/6 slower(eight+10.63%,complete5791+43.56%,long+6.96%16734.397→17898.671ms) so V243 candidate REJECTED despite full numerical/joint equality. No selected-count/input favourites or closed retiming. Peak3848864176(~3.58GiB)/final8; ready livePID66%/swap24927.44 verified before timers; timingbefore58%/24935.44,after67%/24927.44,final64%/24854.62, no continuousminimum or causal attribution for between-stage swap growth. All models idle, one-model8GiB/cache256MiB; sourceNN0/adoption/install0/product0.0.1145/source/frozenout preserved. V247 CPU dotted-attribute assumption failure preserved; new V248 complete AST/header/SDK0.32.3 check identifies tied QuantizedEmbedding full-vocab head151936x1024 affine4/group128, 82653184bytes(78.8MiB) arrays, nominal8 uses661225472bytes. No arrays/MLX/model loads; physical traffic/bottleneck/cache reuse or speed unproved. Original8 bans/84/20root/context/model-authored values-prose and actual86.317s/59incorrect prose remain; correctwhole3000ms/productintegration/QA/release/install goal active/unmet."
+      "path": "vocab-head-timing-v252/result.json",
+      "sha256": "fbf809ded8583e8d441530743378967c4b55e94766c7142bbb4e1704fa8b6232",
+      "status": "V249 new head-only V188 integration/whole original SDK qmv, full151936 logits/independent UID buffers, no rejected untrained projection runtime. CPU19 passed (full source/real stockM1 geometry/guard/fallback/close/core AST/all28KV dependencies/row IO/core adapter); initial constructor draft preserved and head guard moved before parent allocation before seal. Bounded full151936 head rows149blocks, combinedmax557056bytes/total82653184, independent full field hashes/allBF16 affinefinite/base/NumPy preserved, Pythonpeak42582016(~40.6MiB), no MLX/model loads inCPU. V250 CPU7/prep4a432c... actual49632/PID1136 exit0/absent: ALL432head+10368q4+12096MLP/98model/197UID fullbytes/KV/capacity/8192/retention, advanced key/RNG/assets/owners pass. Real64+1/2+8/8 head constructors and BF16 guard verified, absolute328302600/final8,peak3859071300(~3.59GiB), live ready memory64→70%/swap24598.62 before+ready; after70%/24248. V251 CPU5/prep2135b0... actual67804/PID13266 exit0/absent full15/217 raw-normalized logits/token-key/native/cancel/UID/KV and owners pass, reference229/candidate217,peak1852408212(~1.73GiB)/final8; externalready memory handshake67→68→69%/swap24216 stable. V252 CPU9/prepf030da... actual99105/PID22045 exit0/absent whole23/six-pair unobserved outputs/native/count/cancel match all original references and each other. 4/6 slower(two+29.27%,eight+57.08%,cancel+181.49%,complete5791+0.19%); one-46.85%,long-0.43%(13360.732→13303.610ms) do NOT prove repeatable overall gain. V249 head candidate REJECTED, no favourite counts/inputs or retiming. Peak3848864176/final8, every owner/RNG/assets released; before64%/swap24184, actualready70%/24184,after62%/24160,final72%/24128; no continuousminimum/causalclaim. All models idle; one-model8GiB/cache256MiB policy maintained; sourceNN0/adoption/install0/product0.0.1145/source/frozenout unchanged. Old V155 phase data uses SingleRowCohort, predates current V188 grouped QK/residual/norm/rank8 baseline. Next independent complete current-baseline cost attribution, not another head/pointer/settings variant. Original8 bans/84/20root/fullcontext/model values-prose and lastactual86.317s/59incorrect prose remain; correctwhole3000ms/integration/functional-visualQA/release/install active/unmet."
     },
     "v87ActualSource": {
       "directory": "tuple-source-runtime-v87/",
@@ -3733,6 +3733,292 @@
         "file": "output-head-ast-inspection-v248/actual-tool-terminal.json",
         "sha256": "72c6afd17e1e0ce5bdb2844e087cce3a278b2966a273674ddb82c98ff7e0d425"
       }
+    },
+    "vocabHeadNumericV250": {
+      "savedAtUtc": "2026-10-13T21:21:42.293180+00:00",
+      "status": "closed-full-vocabulary-head-numeric-success",
+      "actualOwnedTerminal": {
+        "sessionId": 49632,
+        "pid": 1136,
+        "exitCode": 0,
+        "chunk": "8d81d6",
+        "processMissingObserved": true
+      },
+      "proof": {
+        "file": "vocab-head-numeric-v250/result.json",
+        "sha256": "4f9776cfae752e8af35c0054fb890f3684526789b864b8fff5c058f9b33dbc2e"
+      },
+      "preparation": {
+        "file": "vocab-head-numeric-v250/preparation.json",
+        "sha256": "4a432c039ba4e5169e0ad1a97af0167a1dfef5bd8da783d6dd932fcde70df16f"
+      },
+      "fullHeadPairsCompared": 432,
+      "untrainedQ4PairsCompared": 10368,
+      "mlpPairsCompared": 12096,
+      "modelPairsCompared": 98,
+      "cohortMemberPairsCompared": 197,
+      "modelActiveBytes": 328302600,
+      "peakActiveBytes": 3859071300,
+      "finalActiveBytes": 8,
+      "headConstructorSignatures": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8
+      ],
+      "actualInputOutputDtypeVerifiedByFullDispatchGuard": true,
+      "internalCompilerTracesObserved": false,
+      "modelLoads": 1,
+      "sourceNeuralRequests": 0,
+      "externalLiveReadyPressureSwapHandshakeVerified": true,
+      "originalWeightOwnersUnchanged": true,
+      "jointVerified": false,
+      "timingMeasured": false,
+      "adopted": false,
+      "installed": false,
+      "goalComplete": false,
+      "terminal": {
+        "file": "vocab-head-numeric-v250/terminal.json",
+        "sha256": "91252815e03280e1e3bccd04ab8af5fa9ecbf7a812877fba2c93dfe262f138dd"
+      }
+    },
+    "vocabHeadJointV251": {
+      "savedAtUtc": "2026-10-13T21:29:09.415935+00:00",
+      "status": "closed-full-vocabulary-head-joint-success",
+      "actualOwnedTerminal": {
+        "sessionId": 67804,
+        "pid": 13266,
+        "exitCode": 0,
+        "chunk": "047879",
+        "processMissingObserved": true
+      },
+      "proof": {
+        "file": "vocab-head-joint-v251/joint-proof.json",
+        "sha256": "e5fff7d0fdb286c1485f6eb4cc22a2b373279cb81e49bf7de705be7e4fa53c36"
+      },
+      "preparation": {
+        "file": "vocab-head-joint-v251/preparation.json",
+        "sha256": "2135b038b5654cdc4c602a1ac732c841463f56cd6b781161dd279b519965e666"
+      },
+      "streamsCompared": 15,
+      "comparedDrawTransitions": 217,
+      "numericProofSha256": "4f9776cfae752e8af35c0054fb890f3684526789b864b8fff5c058f9b33dbc2e",
+      "headConstructorSignatures": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8
+      ],
+      "modelActiveBytes": 328302600,
+      "peakActiveBytes": 1852408212,
+      "finalActiveBytes": 8,
+      "modelLoads": 1,
+      "sourceNeuralRequests": 0,
+      "externalLiveReadyPressureSwapHandshakeVerified": true,
+      "internalCompilerTracesObserved": false,
+      "timingMeasured": false,
+      "adopted": false,
+      "installed": false,
+      "goalComplete": false,
+      "terminal": {
+        "file": "vocab-head-joint-v251/terminal.json",
+        "sha256": "315cc3369afefd304168341e41a917273ee0d8b7155f147a0a3afac6f68a77a1"
+      }
+    },
+    "vocabHeadTimingV252": {
+      "savedAtUtc": "2026-10-13T21:37:54.509209+00:00",
+      "status": "closed-full-head-six-pair-four-slower-candidate-rejected",
+      "actualOwnedTerminal": {
+        "sessionId": 99105,
+        "pid": 22045,
+        "exitCode": 0,
+        "chunk": "670ed9",
+        "processMissingObserved": true
+      },
+      "proof": {
+        "file": "vocab-head-timing-v252/result.json",
+        "sha256": "fbf809ded8583e8d441530743378967c4b55e94766c7142bbb4e1704fa8b6232"
+      },
+      "preparation": {
+        "file": "vocab-head-timing-v252/preparation.json",
+        "sha256": "f030da51d68744d0d377616d1cced8e7a640c200dc006018a04270872c0c8b34"
+      },
+      "pairsCompleted": 6,
+      "streamsPerVariant": 23,
+      "runsPerVariantPerCase": 1,
+      "slowerCases": [
+        "two-unequal",
+        "eight-unequal",
+        "explicit-cancel",
+        "complete5791"
+      ],
+      "comparisons": [
+        {
+          "case": "one",
+          "controlMs": 202.608542,
+          "candidateMs": 107.688167,
+          "changePercent": -46.849147653409396
+        },
+        {
+          "case": "two-unequal",
+          "controlMs": 144.591959,
+          "candidateMs": 186.912375,
+          "changePercent": 29.268858581548084
+        },
+        {
+          "case": "eight-unequal",
+          "controlMs": 723.382042,
+          "candidateMs": 1136.28875,
+          "changePercent": 57.08003295995563
+        },
+        {
+          "case": "explicit-cancel",
+          "controlMs": 189.023792,
+          "candidateMs": 532.087666,
+          "changePercent": 181.49243032855887
+        },
+        {
+          "case": "complete5791",
+          "controlMs": 808.897333,
+          "candidateMs": 810.420792,
+          "changePercent": 0.18833774545279347
+        },
+        {
+          "case": "eight-long-output-full-inputs",
+          "controlMs": 13360.731584,
+          "candidateMs": 13303.609917,
+          "changePercent": -0.4275339762712216
+        }
+      ],
+      "modelActiveBytes": 328302600,
+      "peakActiveBytes": 3848864176,
+      "finalActiveBytes": 8,
+      "modelLoads": 1,
+      "sourceNeuralRequests": 0,
+      "externalLiveReadyPressureSwapHandshakeVerified": true,
+      "noObserversInsideMeasurement": true,
+      "wholeRawNativeCountsCancelResultsEqual": true,
+      "repeatableSpeedImprovementProven": false,
+      "actualHostLatencyMeasured": false,
+      "adopted": false,
+      "installed": false,
+      "goalComplete": false,
+      "terminal": {
+        "file": "vocab-head-timing-v252/terminal.json",
+        "sha256": "653f8fcea762318369736f95ad143e8f43eb87c34ed0ce874c608e23f72049e9"
+      }
+    },
+    "vocabHeadUidV249": {
+      "savedAtUtc": "2026-10-13T21:09:08.263057+00:00",
+      "status": "complete-full-vocabulary-row-blocks-and-cpu19-passed",
+      "headRows": 151936,
+      "headColumns": 1024,
+      "arrayBytesCovered": 82653184,
+      "fullFieldByteSha256": {
+        "weight": "907731947dcef40b568ed3c760b2b293da1ecdc53159f8bfed0d7a4dd330b209",
+        "scales": "27e016c46baf0143ed7ec67ba7f57a12a96f4c270c4aa67b0662020b6185ff7a",
+        "biases": "ac221cf30855a01189b12e2591f5d4d3a102cd3301a64d4b1e4885d99ea63396"
+      },
+      "independentWholeFieldHashesEqual": true,
+      "bf16AffineFieldsAllFinite": true,
+      "affineMinimum": {
+        "scales": -0.02783203125,
+        "biases": -0.318359375
+      },
+      "affineMaximum": {
+        "scales": 0.035400390625,
+        "biases": 0.2255859375
+      },
+      "rowBlockStats": {
+        "blocks": 149,
+        "maxCombinedBlockBytes": 557056,
+        "totalBytes": 82653184
+      },
+      "hostPythonPeakRssBytes": 42582016,
+      "cpuTests": 19,
+      "originalCoreForwardAstPreserved": true,
+      "all1through8UidFullOutputsAnd28KvDependenciesPreservedOnCpu": true,
+      "fullSdkFunctionSha256": {
+        "load_vector": "9e419394c3c0ca8d3c1ad76cd06c5bf3fb95c19d4e1b00bcb77afecb2e80de4b",
+        "qdot": "5ec19df50996dce9dd78dcf4bfb69d168b531e33ab21959e3ef684e0e441af25",
+        "qmv_fast_impl": "625cabf104ca4c4bb4107d1169c021d60d017b9001eab98757aaa94eabe5bcf6"
+      },
+      "pinnedBaseSha256": "36162e7f72fe3eca308471e55161269e4605ab87d2666ae1f33ef800749c97dd",
+      "inspectionProofSha256": "c5b9e706cf0275486aa01b442ad76e554e1c0d92ba70803033d48ca789dfc6d9",
+      "codeSha256": {
+        "core_projection_test.py": "3c7aeeddf45c49bc98697ff67300c4e7bdd9bf2646ce960ca1f376a1f5e18cc1",
+        "core_projection.py": "3f9441813b3cc806545fce07b278f2e1d569e0a833b2877abf908f10b0467cd7",
+        "head_kernel.py": "e22c047c354a1b7ade335c6b49bb1e523f339f6aa44d7e8b84299571811e33c2",
+        "createRuntime.py": "05bde8ab2ad223cfaede2a1ea6f4b25078640a474c1709a93d463993b24abbd3",
+        "createReferences.py": "156226c6abe17778fcb5db8156f0407851602a131cee11bcfae06b375985ac36",
+        "source_test.py": "e84d202d848c5923cee3a93839be6508ef13565fcc9f1047a95b315d15419dcc",
+        "forward_test.py": "2d1321fdcc220ead119fc770d32c4c538a1c54bc846927a648d70adbcd92f953",
+        "kernel_test.py": "b16eb019dea8f73042b596863f796a884887dc4b4ddde091abc8379596d70002",
+        "row_blocks_test.py": "6f26c73597c17ccf5377d09b2e6c28f559df2681550fc6c1364479b93d55f353",
+        "auditHeadRows.py": "62a8e64fd6fbd93fd40afb76625caf78846909b6e34e1469c7d7e96885eefbe8",
+        "model_runtime.py": "0fd405f6ebfb2407d0dfcecca0faff2f02bf00d51237120bb529cc01c26a9af9",
+        "runtime_test.py": "2a8e810c7cb36ca2d6a2adc514305e038a535db0070180c58b221b4f6748b278",
+        "row_blocks.py": "c3d43d3d575af2324628d01671819d32c28be3bbfcf1d05a9c1fcca4332278ee",
+        "head_source.py": "3b60179badf6e454a5fd8649da1e0c04a3801f52598d958c3b49bb9b88d237c3",
+        "source_functions.py": "d861ef9f9786fd38ab8ea516e812a726338598931a2e27885155334e9c0c6acd"
+      },
+      "sdkReferenceSha256": {
+        "stock_quantized.h": "8e2ca65d8d8dafe67b97120d1127d54ce57032f621bdba161e54a0bc4a948b8c",
+        "stock_quantized.cpp": "36b79607ee01bc213511dcdad590b2dc3b96099300551cbc3e7e6c7e13ba5982",
+        "MLX_LICENSE": "ccfab7ccb2ea306f71531c8ca77bb55507606cd90768b1e32b8b52ab5b48cf01"
+      },
+      "cpuEvidence": {
+        "file": "vocab-head-uid-v249/cpu-results.json",
+        "sha256": "45e4f332496dfcc7e0711a7ece202ce65109a52f4262e1f729b36b1b1f4d4abf"
+      },
+      "maxConcurrentGpuModels": 1,
+      "memoryLimitBytes": 8589934592,
+      "cacheLimitBytes": 268435456,
+      "wholeQualificationRequired": {
+        "headPairs": 432,
+        "untrainedQ4Pairs": 10368,
+        "mlpPairs": 12096,
+        "modelPairs": 98,
+        "uidPairs": 197,
+        "jointStreams": 15,
+        "drawTransitions": 217,
+        "timingStreamsPerVariant": 23,
+        "timingPairs": 6,
+        "originalSourceRequests": 84,
+        "fullRootCells": 20,
+        "modelActiveBytes": 328302600,
+        "finalActiveBytes": 8
+      },
+      "modelLoads": 0,
+      "mlxRuntimeLoads": 0,
+      "sourceNeuralRequests": 0,
+      "originalInputOutputDtypeObservedOnGpu": false,
+      "projectionConstructorSignaturesRequired": 8,
+      "actualInternalCompilerTracesObserved": false,
+      "physicalMemoryTrafficMeasured": false,
+      "headBottleneckProven": false,
+      "hardwareCacheReuseObserved": false,
+      "gpuNumericVerified": false,
+      "jointVerified": false,
+      "timingMeasured": false,
+      "adopted": false,
+      "installed": false,
+      "goalComplete": false,
+      "proof": {
+        "file": "vocab-head-uid-v249/row-proof.json",
+        "sha256": "470ef6a53b623964fa1b8bbdf169fe994f5fa6c69672de095dc68fbbffbcad74"
+      },
+      "currentGpuNumericPassed": true,
+      "currentJointPassed": true,
+      "currentTimingCandidateRejected": true
     }
   },
   "preparedAssets": {
@@ -4520,6 +4806,110 @@
         "file": "output-head-ast-inspection-v248/actual-tool-terminal.json",
         "sha256": "72c6afd17e1e0ce5bdb2844e087cce3a278b2966a273674ddb82c98ff7e0d425"
       }
+    },
+    "vocabHeadUidV249": {
+      "savedAtUtc": "2026-10-13T21:09:08.263057+00:00",
+      "status": "complete-full-vocabulary-row-blocks-and-cpu19-passed",
+      "headRows": 151936,
+      "headColumns": 1024,
+      "arrayBytesCovered": 82653184,
+      "fullFieldByteSha256": {
+        "weight": "907731947dcef40b568ed3c760b2b293da1ecdc53159f8bfed0d7a4dd330b209",
+        "scales": "27e016c46baf0143ed7ec67ba7f57a12a96f4c270c4aa67b0662020b6185ff7a",
+        "biases": "ac221cf30855a01189b12e2591f5d4d3a102cd3301a64d4b1e4885d99ea63396"
+      },
+      "independentWholeFieldHashesEqual": true,
+      "bf16AffineFieldsAllFinite": true,
+      "affineMinimum": {
+        "scales": -0.02783203125,
+        "biases": -0.318359375
+      },
+      "affineMaximum": {
+        "scales": 0.035400390625,
+        "biases": 0.2255859375
+      },
+      "rowBlockStats": {
+        "blocks": 149,
+        "maxCombinedBlockBytes": 557056,
+        "totalBytes": 82653184
+      },
+      "hostPythonPeakRssBytes": 42582016,
+      "cpuTests": 19,
+      "originalCoreForwardAstPreserved": true,
+      "all1through8UidFullOutputsAnd28KvDependenciesPreservedOnCpu": true,
+      "fullSdkFunctionSha256": {
+        "load_vector": "9e419394c3c0ca8d3c1ad76cd06c5bf3fb95c19d4e1b00bcb77afecb2e80de4b",
+        "qdot": "5ec19df50996dce9dd78dcf4bfb69d168b531e33ab21959e3ef684e0e441af25",
+        "qmv_fast_impl": "625cabf104ca4c4bb4107d1169c021d60d017b9001eab98757aaa94eabe5bcf6"
+      },
+      "pinnedBaseSha256": "36162e7f72fe3eca308471e55161269e4605ab87d2666ae1f33ef800749c97dd",
+      "inspectionProofSha256": "c5b9e706cf0275486aa01b442ad76e554e1c0d92ba70803033d48ca789dfc6d9",
+      "codeSha256": {
+        "core_projection_test.py": "3c7aeeddf45c49bc98697ff67300c4e7bdd9bf2646ce960ca1f376a1f5e18cc1",
+        "core_projection.py": "3f9441813b3cc806545fce07b278f2e1d569e0a833b2877abf908f10b0467cd7",
+        "head_kernel.py": "e22c047c354a1b7ade335c6b49bb1e523f339f6aa44d7e8b84299571811e33c2",
+        "createRuntime.py": "05bde8ab2ad223cfaede2a1ea6f4b25078640a474c1709a93d463993b24abbd3",
+        "createReferences.py": "156226c6abe17778fcb5db8156f0407851602a131cee11bcfae06b375985ac36",
+        "source_test.py": "e84d202d848c5923cee3a93839be6508ef13565fcc9f1047a95b315d15419dcc",
+        "forward_test.py": "2d1321fdcc220ead119fc770d32c4c538a1c54bc846927a648d70adbcd92f953",
+        "kernel_test.py": "b16eb019dea8f73042b596863f796a884887dc4b4ddde091abc8379596d70002",
+        "row_blocks_test.py": "6f26c73597c17ccf5377d09b2e6c28f559df2681550fc6c1364479b93d55f353",
+        "auditHeadRows.py": "62a8e64fd6fbd93fd40afb76625caf78846909b6e34e1469c7d7e96885eefbe8",
+        "model_runtime.py": "0fd405f6ebfb2407d0dfcecca0faff2f02bf00d51237120bb529cc01c26a9af9",
+        "runtime_test.py": "2a8e810c7cb36ca2d6a2adc514305e038a535db0070180c58b221b4f6748b278",
+        "row_blocks.py": "c3d43d3d575af2324628d01671819d32c28be3bbfcf1d05a9c1fcca4332278ee",
+        "head_source.py": "3b60179badf6e454a5fd8649da1e0c04a3801f52598d958c3b49bb9b88d237c3",
+        "source_functions.py": "d861ef9f9786fd38ab8ea516e812a726338598931a2e27885155334e9c0c6acd"
+      },
+      "sdkReferenceSha256": {
+        "stock_quantized.h": "8e2ca65d8d8dafe67b97120d1127d54ce57032f621bdba161e54a0bc4a948b8c",
+        "stock_quantized.cpp": "36b79607ee01bc213511dcdad590b2dc3b96099300551cbc3e7e6c7e13ba5982",
+        "MLX_LICENSE": "ccfab7ccb2ea306f71531c8ca77bb55507606cd90768b1e32b8b52ab5b48cf01"
+      },
+      "cpuEvidence": {
+        "file": "vocab-head-uid-v249/cpu-results.json",
+        "sha256": "45e4f332496dfcc7e0711a7ece202ce65109a52f4262e1f729b36b1b1f4d4abf"
+      },
+      "maxConcurrentGpuModels": 1,
+      "memoryLimitBytes": 8589934592,
+      "cacheLimitBytes": 268435456,
+      "wholeQualificationRequired": {
+        "headPairs": 432,
+        "untrainedQ4Pairs": 10368,
+        "mlpPairs": 12096,
+        "modelPairs": 98,
+        "uidPairs": 197,
+        "jointStreams": 15,
+        "drawTransitions": 217,
+        "timingStreamsPerVariant": 23,
+        "timingPairs": 6,
+        "originalSourceRequests": 84,
+        "fullRootCells": 20,
+        "modelActiveBytes": 328302600,
+        "finalActiveBytes": 8
+      },
+      "modelLoads": 0,
+      "mlxRuntimeLoads": 0,
+      "sourceNeuralRequests": 0,
+      "originalInputOutputDtypeObservedOnGpu": false,
+      "projectionConstructorSignaturesRequired": 8,
+      "actualInternalCompilerTracesObserved": false,
+      "physicalMemoryTrafficMeasured": false,
+      "headBottleneckProven": false,
+      "hardwareCacheReuseObserved": false,
+      "gpuNumericVerified": false,
+      "jointVerified": false,
+      "timingMeasured": false,
+      "adopted": false,
+      "installed": false,
+      "goalComplete": false,
+      "proof": {
+        "file": "vocab-head-uid-v249/row-proof.json",
+        "sha256": "470ef6a53b623964fa1b8bbdf169fe994f5fa6c69672de095dc68fbbffbcad74"
+      },
+      "currentGpuNumericPassed": true,
+      "currentJointPassed": true,
+      "currentTimingCandidateRejected": true
     }
   },
   "constraints": [
@@ -4540,10 +4930,10 @@
     "ownership": "준비 모델 하나 공유, 요청 UID별 fresh KV·grammar·sampler·detokenizer. 답변·소스 KV 재사용 금지."
   },
   "nextSession": {
-    "first": "Read V244/V245 complete proof and V246 full three-slower rejection, V248 CPU head AST/header evidence, actualgit/registry; all models idle.",
-    "nextIndependentWork": "Read actual closed V244/V245/V246 terminals/full rejection and V248 head inspection, currentcode/git/registry first; no live owned model. Never replay/edit/repoll exclusive numeric/joint/timing/CPU inspections/builders, never adopt V243 or choose its favourite count/input ranges. A genuinely independent next CPU boundary is full-vocabulary output-head projection, based on actual tied QuantizedEmbedding.as_linear returned AST and fixed head151936x1024/group128/bits4 U32/BF16 arrays. Preserve ALL151936 logits/full sampler rank, original head math/dtypes/normalization/UID buffers; no topK/vocab pruning, response/source clipping, static prose/value replacement, model/settings/dtype/sampler sweep, extra weights or source/KV reuse. Use V188 baseline core (do not carry rejected untrained-projection runtime). Reuse only pure SDK helper bodies, not closed exclusive drivers. Consider whole original SDK M1 qmv calls perUID within original64-thread row group for this much larger head; scheduling/cache benefit and cause are UNPROVED. First implement bounded CPU row-block header/array validation and whole-source/address/runtime guards with one<=1MiB row block at a time; never load the whole83MB head just for inspection. Establish actual input/output dtype, exact as_linear arguments and real stock quantized dispatch geometry, preserving all counts1..8/full151936outputs/12 original stresses and advanced GPU RNG. CPU prototype alone does not qualify GPU. A new head GPU gate adds full432 head projection pairs(12*sum1..8) and retains ALL original10368/12096/98/197 full tensors/KV8192/heterogeneous/retention, fixed V137224F32/base/adapter eight bans, model328302600/final8/RNG/assets/owners; extend existing service/public contract without weakening a gate. Full numerical success precedes NEW15/217 joint and whole23/six-pair unobserved timing. One model8GiB/cache256MiB, atomic tool token beforeallocation, actualready/currentPID registration, reuse pure V246 live-ready memory confirmation BEFORE measurements and archive real peak/pressure/swap/terminal/PIDabsence. Preserve original84/20root fullsource/context/parent/callee/fields/confidence/unknown and model values-prose responsibility; no retired plans or8 family/parent/helper neural retries. Actual allowed-source complete correctness/3000ms, download-integrity-custommodel/FIFO/cancel/dispose and productintegration/functional-visualQA/release/install remain required.",
-    "notImplemented": "New full-vocab head operator/numeric/resource/joint/timing; actual correctfull20root3000ms and productintegration/functional-visualQA/release/install.",
+    "first": "Read V249 CPU19/whole row proof, actual V250/V251 complete proof and V252 four-slower rejection; all models idle.",
+    "nextIndependentWork": "Read closed V249 CPU/row proof, V250 ALL432+10368/12096/98/197, V25115/217 and V252 full four-slower rejection and actualgit/registry first. No live model. Never replay/edit/repoll exclusive audits/builders/preparations/numeric/joint/timing; never adopt V249/V243 or select favourite count/input ranges. Next genuinely independent V253 work: current V188 optimized baseline cost attribution for ALL original23 streams/six control-probe pairs, full inputs/128-element long outputs and source-free reference results. Old V155 run.py uses SingleRowCohort and predates grouped rank8/QK/residual/chained norm; do not replay it or use its87% forward ratio as current. Reuse only public pure PhaseCollector/case/request/validation helpers. Build a new CPU-verified owner adapter around actual GroupedRank8Cohort and ChainedResidualRuntime, preserve complete original prefill/forward/mask-normalize-sample/eval/cancel/retention/close semantics and original timed function boundaries. Separate outer phases from nested grammar/lazy sampler construction; do not sum nested twice. If adding per-core stages, verify all tensor dependency/rounding and report any forced-eval observer overhead rather than treating it as unobserved latency. New paired control/probe requires entire raw/native/count/cancel equality and exact weights/global/private sampler RNG/owners/328302600-final8; retain full prior numerical432/10368/12096/98/197 and15/217 evidence, and all original fixture/cardinality gates for any changed math boundary. No kernel design based only on nominal head bytes/cache assumptions. One model8GiB/cache256MiB, CPU<=1MiB data blocks, atomic actual tool token beforeallocation, actualready/currentPID registration and external live memory confirmation before running, realpeak/pressure/swap/actualterminal/PIDabsence. Do not substitute profiling time for correct actual Host3000ms. Preserve original 84/20root/allsource/context/parent/callee/fields/confidence/unknown and model values-prose responsibility; no old8 family/parent/helper neural retry, retired source plan, source/KV reuse, response/vocab/topK clipping, UIDstacktile, extra weights or dtype/model/sampler/settings sweeps. Actual allowed-source complete correctness/3000ms plus download-integrity-custommodels/FIFO/cancel/dispose and productintegration/functional-visualQA/release/install remain required.",
+    "notImplemented": "Current optimized-baseline full23 cost attribution; actual allowed-source full20root correct3000ms/productintegration/functional-visualQA/release/install.",
     "completionStillMissing": "원래전체source/context/parent/callee/fields/confidence/unknown및모델의값·문장책임을유지한새전체허용범위에서의미·정확성과전체설명≤3초를실제검증한후,다운로드/integrity/custom model/FIFO/cancel/dispose와제품QA를확인해release/install한다.",
-    "publication": "Docs-only publication receipt output-head-ast-inspection-v248/publication.json; product0.0.1145/source candidates remain uninstalled."
+    "publication": "Docs-only publication receipt vocab-head-timing-v252/publication.json; product0.0.1145/source candidates uninstalled."
   }
 }
