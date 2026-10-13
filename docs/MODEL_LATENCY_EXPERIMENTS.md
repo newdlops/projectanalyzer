@@ -5177,6 +5177,52 @@ V170은 미실행 timing 초안의 선행 조건을 실제 V171 성공으로 연
 - V170 전체23 paired 결과: `442db4d2a69173af3476fcc276afa8650bedc5b378fc26db0da545d0887db8bb`
 - V170 actual terminal: `27c3df7820fae7dd226b5705df7ff5226a0a20f3224cded47b26acdfd220531d`
 
+## V172~V177: 독립 요청의 rank-8 GPU 호출 묶기와 전체 검증
+
+V172는 검증된 V165의 rank8 F32 누적·scale·BF16 반올림·base addition 연산을 그대로 두고, GPU grid의 y축으로 UID1~8의 호출을 묶는 새 kernel을 구현했다. 각 UID의 low-rank 입력, Q4 base와 BF16 결과는 별도 buffer다. F32 진단 delta만 하나의 출력 buffer에서 겹치지 않는 전체 폭 구간을 사용하고, UID별 원래 shape의 view로 비교한다. [Metal의 buffer 인자 한도31](https://developer.apple.com/metal/capabilities/)에 맞춰8UID에서27개 binding을 사용한다. 이 변경은 미봉인 초안에서 처리했고 모델 입력을 쌓거나 M1 행렬 연산을 변경하지 않는다. CPU4개 테스트는 모든 UID의 원래 연산 문자열 복원, 출력 슬롯과 전체48384 범위, invalid count/lifecycle을 검사했다.
+
+첫 실패·사전 거부를 보존했다.
+
+- V172 actual6895/PID90943 exit1: root가 launch 직후 global active 상태를 기록한 것이 원래 loader의 두 번째 idle-state 검사와 충돌했다. SDK model load와 kernel 실행·비교는0이다. 원래 result의 `modelLoads:1`은 attempt counter였으므로 terminal에서 완료 load0임을 명시했다. 최종8bytes/RNG/assets는 보존됐고 PID부재를 확인했다.
+- V173은 `model-ready.json`을 원래 loader·전체 model materialization·328302600bytes 검사 뒤에 기록한다. 실제 준비 신호 뒤에만 global active 상태를 등록한다. 원래 kernel/비교 함수와 전체 범위는 바꾸지 않았다. CPU3개 테스트가 준비 순서와 완료 model-load counter를 검사했다.
+- V174는 모델 연결 코드의 CPU6개 테스트와 preparation seal을 완료했다. GPU 시작 전 독립 CPU import 검사에서 공용 fixture가 요구하는 `STRESS_CASES` export 누락을 찾아 실행하지 않았다. GPU/model0, preparation과 첫 거부를 보존했다. V175는 그 상수와 명시적인 public module 경로만 연결했으며 CPU2개 추가 검사로 실제 모든 contract import와 driver의 나머지 바이트 동일성을 확인했다.
+
+V173은 전체112 trained projector ×12 stress ×각 UID 수1~8을 모두 실행했다. **10752번의 grouped 호출,48384개의 전체 F32 delta/BF16 결과 비교가 모두 일치**했다. 각 출력 슬롯은12개 stress를 모두 받으며 역순·회전된 슬롯 대응을 검사한다. 모든 projection 뒤328302600bytes, 원래 weight identity/MLX·NumPy RNG/assets, 최종8bytes를 확인했다. Actual77921/PID99483 exit0/PID부재다.
+
+V174의 `GroupedRank8Runtime`은 준비 모델을 빌리고 module을 치환하지 않는다.12개 base layer, 원래 UID별 M1 Q4·첫 F32 LoRA matmul·normalization·QK/RoPE·SDPA·KV·잔차와 logits는 유지한다.16개 trained layer의 rank8 finish만 묶는다. 원래2개 MLP graph에 새1..8UID signature8개를 별도로 소유하고 모든 weight를 explicit input으로 전달한다. `GroupedRank8Cohort`는 원래512-chunk prefill과 retain을 상속하며 fresh UID별28-layer KV를 소유한다. UID 순서 변경·잘못된 token·cache alias·offset/window/model identity와 예외 시 전체 cohort 해제를 검사한다.
+
+V175 actual71105/PID21799 exit0/PID부재에서 **전체12096 MLP 비교(28×12×36), 원래51+19+13+15=98개 전체 model geometry,13개 cohort 조건의197개 UID model/logits/모든28층 KV/capacity 비교**가 통과했다. V61의 원래4개 수치 조건은 데이터로 보존하고 모든1..8UID 수와 현재5103/5791 입력 조건을 추가했다. 이전 V61 구현이나 시간 측정은 실행하지 않았다.8192 전체 window, batch2 fallback, unequal offsets,8→3 UID 순서 변경도 포함한다. 모든8개 새 signature는 한 번씩만 trace됐고 원래2개 graph,model328302600/최종8bytes/weight identity/RNG/assets를 보존했다.
+
+V176 CPU5개 검사와 actual67141/PID30182 exit0/PID부재에서 **원래 전체15개 stream/14 complete+1 cancellation/217 전환의 raw·normalized logits/token/key/native/count/initial·terminal·cancel KV가 일치**했다. 원래 SDK reference/grammar/sampler/generation과 비교 loop는 보존하고 candidate cohort만 새 owner를 빌린다. 양쪽 원래64+1 준비 및 새 모든1..8 signature 준비,36개 원래 lifecycle와44개 sampler 수치 증거를 유지했다. Model/RNG/assets/최종8bytes도 통과했다. 모델 설명 요청은 없다.
+
+V177은 CPU3개 검사 후 관측 wrapper 없이 원래15+긴출력8의 **전체23개 stream/6조건**을 고정 교대 순서로 한 쌍씩 측정했다. Cohort factory 전환은 timer 밖이며 원래 generation/native grammar/sampler/전체 출력/disposal은 timer 안이다. 모든 raw/value/count/cancel은 서로 및 immutable V155 control과 같았다. Actual16135/PID38173 exit0/PID부재, model328302600/최종8bytes/weight/RNG/assets, 원래2+새8 graph를 확인했다. 측정 중에는 별도 분석·빌드·GPU 작업을 하지 않고 해당 live handle과 작은 상태 기록만 확인했다. 다른 앱의 부하는 측정하지 않았다.
+
+| 전체 합성 조건 | 기존 ms | UID 묶음 후보 ms | 변화 |
+|---|---:|---:|---:|
+| 단일 UID | 659.101625 | 359.228458 | −45.50% |
+| 길이가 다른2 UID | 559.341416 | 541.976333 | −3.10% |
+| 길이가 다른8 UID | 3783.526667 | 2824.549208 | −25.35% |
+| 명시적 취소 | 857.197917 | 624.477250 | −27.15% |
+| 전체5791 input | 1941.961250 | 2193.890125 | +12.97% |
+| 전체8 long input/output | 51421.016916 | 44658.277167 | −13.15% |
+
+긴 출력은 이번 한 쌍에서13.15% 짧았지만 최대 입력 조건은12.97% 느렸다. 이전 실행 사이 baseline 변동도 크며 원인은 측정하지 않았다. **반복 가능한 전반적 속도 개선, 실제 설명 의미·Host3000ms, 제품 채택은 미입증**이다. 빠른5개 행만 선택하거나 닫힌 측정을 반복해 결론을 바꾸지 않는다. 공개 제품·설치0.0.1145와 V151 작업본/oldout은 유지했다.
+
+다음 새 경계를 검토한다면 각 UID의 QKV가 함께 준비되는 현재 구조에서 원래 QK-normalization/RoPE+packed-KV 출력 kernel의 UID 호출 묶기 가능성부터 CPU에서 확인할 수 있다. 각 SIMD/반올림/offset/출력 buffer와 원래 KV/SDPA를 유지해야 하며 아직 구현·검증하지 않았다. 기존 Q4 multiowner projection의 V64/66/67/68/69 고정 성능 거부와 V94 stock row-packing 수치 실패를 확인했으므로 같은 후보를 되풀이하지 않는다.
+
+원래84 미노출 요청/20 root 조합, 전체source/context/parent/callee/fields/confidence/unknown, LLM의 값·문장 작성 책임, 일곱 whole-family neural 금지는 유지한다. V148 실제 설명의81.609초와140 prose 검토에서 남은 오류는 해결되지 않았다. 실제 전체 정확성·Host3000ms, 제품 통합/기능·시각QA/version/release/install까지 목표는 active미달이다.
+
+증거 SHA-256:
+
+- V173 전체48384 결과: `da63e2b53cb9d6acc45841c936f10a9d9b16d48df1335be2d618d188c5ee8363`
+- rank8-uid-readiness-v173 actual terminal: `6fc471fccdcea0568311d9c6412d82fcf4443361ebf2907ca3ba85ad862e5280`
+- V175 전체12096/98/197 결과: `de3dd40bb043a55eb177b19e1e59bcaf0cad9fd1460568e7d8424c151f371c2e`
+- rank8-uid-model-audit-v175 actual terminal: `73ae2b839d32fb27141f6615a77c57673c1e1d632ce468ba43b13a5e9078fdd3`
+- V176 전체15/217 결과: `13578b8534e9b1c7a1e9506d71ab641f6e2c3cfbe6ac57cfb9fa7aa99fb423fe`
+- rank8-uid-joint-v176 actual terminal: `80c08950a8b3e4131ce1c04fc4912033cf3fbaa68836203cacdfa211629826e4`
+- V177 전체23 paired 결과: `a99c54e2ccfdcbd7125d876e4480122a69254ccacf4b0a993e011dfb81bb257f`
+- rank8-uid-timing-v177 actual terminal: `d4ab1cc436396e0f0b1fde25fe173e3f81ab20af1ed6cdfb6804e018212810c7`
+
 ## 남은 완료 기준
 
 모델 변경, decoder 최적화 또는 입력 구조 변경을 채택하려면 다음을 함께 확인해야 한다.
