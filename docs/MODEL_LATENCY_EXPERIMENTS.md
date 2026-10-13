@@ -5579,6 +5579,79 @@ grammar/EOS/한도 검사, 조건·반복 값 슬롯 및 배열 예시와 경로
 - V213 전체100 CPU 검사 출력: `1cdc56aaaa46744c29a518da8e49484d01826683ceef7bd1f6ed1efffd3a74b1`
 - V213 관련80 회귀 출력: `60629cc151d9e30c63efef70ac1ad247da76f7685527f242d94878ac9b4add73`
 
+## V214: 새 초기값 계약의 전체 native 검사
+
+V213의 새 source-owned initializer 규칙을 원래 native compiler recipe에 연결했다.
+전체100/36action/원래84/20root/300구문/40call의 최종 값·소스·문장은 동일하며,
+24개 source 데이터 규칙과 같은 값의 offline JSON 인코딩만 변경됐다. 첫 CPU 비교에서
+이미 named-native인 참조를 ordered-only decoder에 전달한 오류를 확인했다. 최초 실패와
+code를 보존하고 올바른 native decoder에 연결한 뒤 전체100 CPU 검사가 통과했다.
+
+새 exclusive builder session66563/PID27689 actualexit0/PID부재와 native audit
+**session3520/PID50633 actualexit0/PID부재**를 확인했다. **100개 tokenizer/native
+grammar/완전한 EOS/원래 한도 전부 통과**다. prompt합계301273/max5381,
+target+EOS43081/max999, 최대전체sequence6177이다. 원래window8192와2400output reserve,
+2400output tokens/196608stdio bytes/24000output chars를 유지하고 token 배열 전체를
+보존했다. 모델·MLX를 불러오지 않았고 원래84 provenance, 여덟 family 및parent/helper 금지와
+폐기된100계획은 그대로다. 이 자료는 CPU-only이며 neural/training 허용을 만들지 않는다.
+
+## V215: 예시와 선택 경로·판단 값의 source 모순 거부
+
+새 순수 `operationValues.checkSourceExample`는 concrete JSON 예시와 같은 owner의 exact
+source prefix를 비교한다. 명시적 primitive/array 타입, 단순 대입·증감, 배열/문자열 길이와
+primitive 배열 읽기를 제한된 범위에서 확인한다. 판단이나 확인된 최종 primitive 결과가
+모순이면 응답을 수리하지 않고 거부한다. source의 known decision에는 모델이 작성한
+`condition` 행을 요구하고, 선택적인 다른 값 행·모든 문장·localized before 문구를 유지한다.
+고정 display 행의 name/after도 source 데이터와 대조한다. 실제 binding 이름 condition은
+synthetic 값과 혼동하지 않는다.
+
+alias·opaque 호출/연산·inferred/잘린 source·finally continuation·지원하지 않는 숫자
+반올림/overflow는 unknown이다. source step bound와 visited occurrence set을 사용하며,
+node preparation의 null 결과를 완료 결과로 판정하지 않는다. Kotlin Float 변수 복사의
+domain과 배열 원소의 명시적 domain을 유지하여 잘못된 Double/Int 계산으로 source 모순을
+만들지 않는다. source 언어 코드를 실행하거나 model value/prose를 대입하지 않는다.
+
+최종 **공개 unit/관련 회귀104개·private2개**가 통과했다. 실제 unit session28497 exit0,
+whole contract session91982 exit0, regression session38392/root38509/child38512 exit0 및 두
+PID부재를 확인했다. 전체100 native schema/input bytes와 모든 source/값/Host 모델문장은
+V214와 동일하다. 따라서 V214의 whole native admission을 보존한다. 보관된 V211 실제
+4개 예시는 **result/predicate/predicate/result** 모순으로 독립 확인됐으며 실제 raw/report
+bytes는 그대로다. 기존59incorrect/20incomplete prose를 바꾸거나 정확한 문장으로 재분류하지
+않았다. 이 검증은 실제 생성의 모든 meaning/3000ms 성공 증거가 아니다.
+
+## V216: 독립 attention 제출 경계의 미검증 성능 후보
+
+고정 V188 forward의 UID별 원래 SDPA 호출을 하나의 compiled 함수 경계로 제출하는
+실험 코드를 추가했다. 각 UID의 M1 Q/K/V와 원래 scale/primitive/cache layout·업데이트 순서,
+Q4/LoRA/MLP/QK/residual/norm/전체 logits/sampler는 유지한다. UID tensor를 stack/tile하지 않고,
+추가 weight나 source/KV 상태를 bridge에 저장하지 않는다. unsupported mask는 원래 SDK
+호출을 사용한다.
+
+[MLX 0.32.3 compile 문서](https://ml-explore.github.io/mlx/build/html/usage/compile.html)의
+shapeless API와 shape-dependent Python graph 주의사항을 확인했다. 새 graph는 tuple arity만
+사용하고 KV 길이를 Python shape 계산에 넣지 않는다. 이 SDPA graph가 실제 shapeless 실행에
+성공하거나 빨라지는지는 아직 검증하지 않았다.
+
+CPU geometry/버퍼 순서/1..8UID/length/fallback/close 4개와 원래 public forward body에 대한
+**1..8UID·28layer의 모든 dependency/cache-write/output 순서 비교 1개**가 통과했다.
+Forward fixture의 normalizer weight 누락과 fake output callable binding 오류 두 건은
+최초 실패로 보존하고 fixture를 수정했다. 이 검사는 digest 객체를 쓰며 실제 float 수치나
+GPU trace/residency/시간을 증명하지 않는다. 후보는 **unqualified draft**, model load/sourceNN0이다.
+다음은 고정 model/SDK/모든 원래 numeric·joint·긴heterogeneous KV/resource/trace gate를 묶은
+새 실제 GPU 검증을 준비하는 일이다. 기존 closed probe를 수정·재실행하지 않는다.
+
+현재제품 **0.0.1145**와 frozenout은 동일하며 source 후보는 작업본으로 남긴다.
+마지막실제Host **86316.839833ms**, 잘못된 문장59개와 여덟 영구family 금지를 유지한다.
+전체 올바른 model-authored 설명3000ms·whole20root·제품통합/기능·시각QA/release/install 목표는
+active/미달이다. 이번 공개 기록은 문서만 commit/push한다.
+
+증거 SHA-256:
+
+- V214 construction: `a354d87aa5ff14895164bbc2d60a9b058c7cc20d9ae9b976a587b4afb7b6fee0`
+- V214 native whole100: `7596612a31f12f96258a9834d27eb63a70664ec8331643d01b15eda7c375406e`
+- V214 전체 token 배열: `82d087b3295524a45bae4fe7034faeea296c5ab764ae317af430b125ec726cf2`
+- V215 completed CPU proof: `f3e10fc4052478d07d68d09b72a9c9723c5edcf5125c28f486d229eba04c3d43`
+
 ## 남은 완료 기준
 
 모델 변경, decoder 최적화 또는 입력 구조 변경을 채택하려면 다음을 함께 확인해야 한다.
