@@ -5354,6 +5354,37 @@ Actual98558/PID92430 exit0/PID부재. Call3556/rich-primary380/node136/summary64
 - typedSchemaCohortV191 결과: `ab956ec1d4d9b50d85b1983f8859c6330b909170a57406ed144f6a0b09d48597`
 - typedSchemaCohortV191 actual terminal: `7c9d56971c3294e0b941a03d6fa0b8da453521a9915cc3217664ccc49544c42e`
 
+## V192~V193: typed rich 계약과 원본 맥락 소유권 연결
+
+V192는 V151의 schema/normalizer를 명시적으로 주입하는 새 full-rich factory를 만들었다. 원래 source facts/wire/roles와 primary/node/final decoder 함수 본문, cohort의 UID/순서/취소 처리는 보존했다. Frozen out이나 require cache는 바꾸지 않았다. CPU8개와 archive2개를 통과했다. Archive 초안의 sequential graph ID 불일치 실패는 별도 보존하고 원래 공개 생성기를 사용했다. 저장 row에 없던 actual3+4맥락은 hash로 확인한 원래 report에서 회수했다.
+
+최초 전체 V192 audit는4143건을 모두 방문했지만 historical source-only16맥락에 새 worksheet/valueFacts가 추가돼 거부됐다. 실제84357/PID37784 exit1/PID부재, 실제 준비4127건/재구성371rich로 전체 통과를 주장하지 않는다. 닫힌 audit/준비본/최초오류를 그대로 보존했다.
+
+V193은 원래 grounding capability와 sequential graph ID로 source-only/grounded 재구성을 명시적으로 구분한다. Source-only는 전체 소스를 다시 parse하여 parameter/return type을 독립 확인하고 원래 그래프의 모든 route를 구성한다. Grounded owner에서는 V192의 새 live worksheet와 owns 검사를 유지한다. 일치시키기 위해 필드를 삭제하거나 graph ID를 바꾸지 않는다. CPU4개 후 실제27192/PID55961 exit0/PID부재에서 **전체4143 입력·응답,387rich맥락,176live worksheet,누락7actual맥락**을 검증했다. Graph profile은 historical source-only44/grounded20/typed323이다. 기존·새 계약에서 **배열 입력16곳만 바뀌고 모든 원래 응답/target 문자열은 동일**했다. 전체 source/schema/messages/primary/node/final 결과를 검증했으며 과거 잘못된 모델 설명의 의미를 정답으로 재분류하지 않았다.
+
+## V194~V196: 전체 native 한도 초과와 가역 컴파일러 메타데이터
+
+V194 실제86617/PID61208 exit1/PID부재에서 전체4143 native grammar/EOS를 통과했으나 한 입력이 최대prompt5800+원래output allowance2400으로8192 window를8token 초과했다. 해당 행은 CPU 보관 자료 `positive-run-frozen:0`이며 금지 family를 재추론하지 않았다. 실패를 보존하고 출력 allowance나 window를 완화하지 않았다.
+
+V195는 source schema나 설명 지침을 줄이지 않고 **컴파일러의9개 stage flag 이름만9bit정수**로 표현한다. Version2에서 원래 flag와 순서를 복원하며 sourceSchema/schemaForm/footerVariant, native schema, 모든 source/semantic message와 응답 bytes를 유지한다. CPU4개는512조합의 역변환, 독립 payload, unknown/중복/순서 오류와 모호한 입력의 전체 fallback을 확인했다. 실제97425/PID68792 exit0/PID부재에서 전체4143 입력과 응답의 독립 inverse 및 실제 새 통합 codec을 확인했다. 기존4103 projected/40 whole fallback과 모든16 typed input을 보존했다.
+
+V196 실제16980/PID71537 exit0/PID부재에서 **전체4143 tokenizer/native grammar/EOS/원래한도**가 통과했다. 전체 prompt9613482tokens로 V194보다19226 줄었으며 증가한 행은0개다. 최대prompt는5800→5774여서 원래2400 allowance를 포함해8174로 window8192 안에 든다. 원래 **1075176 target/EOS의 각 전체벡터가 byte일치**했고 fullsequence 최대7087이다. 입력196608bytes/출력24000chars/출력2400tokens 제한, tokenizer/Jinja와 package identity를 유지했다. 첫 V194 초과 입력과 실패를 그대로 보존했고 같은 audit를 고쳐 재실행하지 않았다.
+
+모든 단계는 CPU이며 새 model load/source neural 요청0회다. V188 runtime을 새 provider/worker에 연결하는 작업, 새로운 허용 전체84/20root 범위의 실제 의미·정확성·Host3000ms, 제품통합/기능·시각QA/version/release/install은 아직 미완료다. 43.026초 합성 결과와81.609초 실제source/140prose 오류가 해결된 것으로 주장하지 않는다. 제품0.0.1145/V151 작업본/frozen out을 유지한다. 일곱 whole-family 금지와 폐기된 전체100평가 계획을 유지하며 목표는active다.
+
+증거 SHA-256:
+
+- typedRichContractV192 결과: `4f700333af6cfa596f93d665fd51cf0db3fc4a38aa5cb657fc1748b42474230c`
+- typedRichContractV192 actual terminal: `d5a0c60a1b1145222e77d0e968fa23151bb6ec3615ede1d13db5884dcf7f354b`
+- typedOwnerProfileV193 결과: `cd7cf2aed9856cd6cb04b4806c0e4ccfac7543a620c02b5f8ef100bc212d604a`
+- typedOwnerProfileV193 actual terminal: `3e0e75c540cf7de1efc5d52722624d75fd99b39fcd9696368cd52d35e4dfe920`
+- typedNativeContractV194 결과: `6c7d0262d808bb76800a8705d7ffb31cfdc2ed6b45fd0045059a4bd862d3c701`
+- typedNativeContractV194 actual terminal: `31fb5cabc36ec714e69f975290c546e77ca99fd95ef503765e64976a3b15657f`
+- compactCompilerRecipeV195 결과: `3f5d07618b992d2df8bfe794f11eb1bfb71db5b50d4366cf8aac5adcde23457e`
+- compactCompilerRecipeV195 actual terminal: `4cdc2d5f5e9ced2a3174f7a534a41ce74f97d1ab4fd55dceed79e72c5c7d7d77`
+- compilerRecipeNativeV196 결과: `d16fd9017b6f3e5c9ebf4c287651100d8448a5dba6a48a6c6155b552cbcaee09`
+- compilerRecipeNativeV196 actual terminal: `3d78b960149b2c8bdf56c346c4083f27643cb066b57e7e0b3005c1bde206b084`
+
 ## 남은 완료 기준
 
 모델 변경, decoder 최적화 또는 입력 구조 변경을 채택하려면 다음을 함께 확인해야 한다.
