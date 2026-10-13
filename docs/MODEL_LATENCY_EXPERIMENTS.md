@@ -5992,6 +5992,58 @@ family/parent/helper 금지와 원래84/20root, 마지막 actual86.317초/59inco
 - 세 실행의 동일한 complete mismatch: `c0db7460fc31ee3701ff2e58a7fde3efe1c5a6ee462b9d097c0851302f6cde52`
 - V239 CPU SDK-signature proof: `1a1842f46528b30b3935d423abe63329edf41a68f716e1944f7f6505ee7f9403`
 
+## V240–V243: 고정 q4의 전체 CPU 연산 비교와 원래 SDK 호출 경계
+
+GPU 모델 없이 고정 base safetensors를 bounded positional read로 읽었다. Native Metal BF16
+표현과 nearest-even 변환·연산 타입 규칙은 [Apple Metal 언어 명세](https://developer.apple.com/metal/Metal-Shading-Language-Specification.pdf)
+및 핀된 SDK BF16 정의를 참고했다. `metal` CLI는 설치되어 있지 않아 native shader compilation을
+실행하지 않았다. Swift/PDFKit는 공식 PDF383쪽 중 BF16 관련17쪽을 텍스트로 읽는 데만 썼다.
+
+V240 첫 CPU 감사는8개 전체 연산 비교 뒤 모든 후보 오류가 상한을 넘는다는 잘못된 가정으로
+실패했다. 실제 전체4096 출력은 모두 byte 다르지만, **4094개만 고정 가중치/입력의 보수적
+수치 상한을 넘고2개는 잘못된0**이다. 두 행1914/3662의 원래 값은 −10880/3888이다.
+byte 오류와 상한 위반은 다른 분류이며 기존 GPU의 exact 기준을 완화하지 않는다.
+V241은 별도 분류기3개를 통과하고288/10368 전체 진행을 보고했으나 마지막 serialization의
+undefined `OLD` 때문에 terminal1, finalmanifest 미작성이다. 두 실패 코드/최초terminal을 보존했다.
+
+새 V242는 final report expression을 실제 경로로 실행하는 preflight1개와 매 행을 즉시 쓰는
+durable ledger를 추가했다. **session15485 actualexit0**, 고정 첫12계층×QKV/output×12 edge의
+**288개 완전한 CPU projection**에서 모든 output-row×32lane F32 bytes가 같았다.
+원래 byte-pointer/offset 경로와 cached uint16/affine 경로를 독립적으로 계산했다.
+원래1..8 reversed/rotated UID 구성의 **10368개 pure member 관계**를 전체 기록했다.
+이는288개 CPU 결과에서 유도한 구성이지10368 GPU 실행이 아니다. CPU random은seed240이며
+종료된 GPU fixture/key stream을 재구성한 것이 아니다. 실제 SIMD tree·compiler contraction·
+입력 stride/layout과 GPU 원인은 미검증이다. 원래 GPU 실패를 CPU 일치로 대체하지 않는다.
+
+한 번에 읽은 parameter 최대1048576bytes(1 MiB), role array set 최대2228224bytes(약2.13 MiB),
+Python 프로세스 peakRSS70434816bytes(약67 MiB)다. 전체 누적40,108,032bytes를 읽었으며
+base SHA/NumPy global RNG가 같다. MLX/model/source load0, 모든 모델idle이다.
+시스템 snapshot61%→62%→60%, swap23508→23404 MiB이며 연속 최소 여유를 뜻하지 않는다.
+
+V243은 **한 UID의 완전한 원래 SDK qmv/K-loop/SIMD/BF16 저장 뒤 다음 UID를 처리**하는
+새 schedule이다. 동일한 원래64-thread row group에서 UID calls를 순서대로 배치하고,
+adapted dot·명시적인 thread weight cache·UID별 K-loop 누산의 interleave를 없앴다.
+원래 device weight reads는 그대로이며 hardware cache 재사용이나 실제 register allocation을
+증명하지 않는다. 기존 V228은 UID별 threadgroup이었고, 이 후보는 같은 group의 whole calls다.
+CPU oracle은 math 관계를 확인한 근거이며 원래 GPU 오류의 원인을 밝혔다는 뜻이 아니다.
+
+whole SDK function bytes·1..8 호출/별도 buffer/고정 tile·wrapper·identity/whole fallback/close·
+원래28층 forward dependency의 **CPU15개**가 통과했다. 최초 unsealed injected-fixture namespace
+draft는 보존하고 검사 전 수정했다. closed creator는 수정·재실행하지 않았다. GPU/model/source0,
+full numeric/resource/joint/speed/actual source는 미검증이며 candidate 미채택이다.
+
+다음 새 V244에도 ALL10368+12096/98/197, 원래 advanced RNG/64+1/2+8/16 constructors,
+full tensors/KV8192/heterogeneous/retention·model328302600/final8/RNG/assets/owners를 유지한다.
+actual readiness 직후 현재PID·pressure/swap를 즉시 확인하여 짧은 GPU 실행의 관측을 확보한다.
+한 모델·8 GiB 설정·256 MiB cache·실제 allocator peak/terminal/PID 부재, 이후 새15/217 joint와
+23/6쌍 시간 전체를 요구한다. 실패한 독점 실행 재사용·단순 pointer/register 변형·수치 기준
+완화·선택적 성공은 없다. 제품0.0.1145/frozenout/source 작업본·8 bans/84/20root와 마지막
+actual86.317초/59incorrect prose를 보존하며 전체correct3000ms·통합/QA/release/install은 미달이다.
+
+- V240 first bound failure: `e2694f8bf08c66b57d426993b9cd0e542396670791f643f8cca21fbd8fba9fe7`
+- V242 complete CPU oracle: `8eca6b101628de2a219187265a4fa907654e487c58042483f98596712105075e`
+- V243 CPU15 prototype: `2b5745a7f5af14e384d0e2b4fb6708e8d55aba58f8106ac58bd8920afd1fa97e`
+
 ## 남은 완료 기준
 
 모델 변경, decoder 최적화 또는 입력 구조 변경을 채택하려면 다음을 함께 확인해야 한다.
