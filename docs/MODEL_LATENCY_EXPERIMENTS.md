@@ -5408,6 +5408,22 @@ CPU 준비에서 숫자전용10사례/45stream 전체tokenizer/native grammar/EO
 - typedStdioSourcefreeV198 결과: `f0e6ce33a97cfa19654431207ed81ca104c07ecbfe70ed84313737b4578ddbee`
 - typedStdioSourcefreeV198 actual terminal: `8c89f1c5fe259c11dc8d15cbec68c1a861d7aceca79b64a09fd4c21e0b3cb1f0`
 
+## V199: 실제 취소 종료 대기와 전체 returned raw 기록
+
+V198의추가복구raw미보존은닫힌결과에그대로남긴다. 새scope에서는기존45계획을반복하지않고전용journal로모든request/reply/error와stdout/stderr의정확bytes를기록한다. UTF-8분할chunk도base64와hash로보존한다. 코드검토에서원래raw client의abort가childclose전에거부해같은worker의다음FIFO요청이종료대기없이진행할수있는경로를확인했다. 새adapter는준비/inflight취소의release/reset완료뒤에만거부를settle한다. 원래V197/V198파일과model/generator수학은바꾸지않았다.
+
+CPU5개에서fullpacket/복구/오류/UTF-8bytes와준비·실행취소closebarrier를통과했다. 새actualscope는준비중취소,대기요청취소(native미실행),8UIDpendingnative요청취소,oldPID종료뒤fresh model의invalidpacket/validrecovery/EOF를모두포함한다. 실제36428/root76990 exit0. 준비child77007과inflightchild77008은계획된SIGTERMclose,복구child79442는정상EOFexit0이다. 모든PID부재를확인했다. 실제load/materialization/ready뒤root가확인된toolhandle을등록했고,controller는close+OSPID부재확인뒤globalidle을기록해새load를허용했다. 모델2load이며actualsource설명NN은0회다.
+
+Native요청3개/완전반환packet2개/취소거부1개,대기요청native미실행과복구/오류raw가54행journal에보존됐다. 독립CPU읽기로sequence/시각순서/각chunkbytes·hash,실제reply와result의전체객체동일성,rawWirehash를검사했다. EOF의sealedworker최종8byteassert도통과했다. **취소중프로세스메모리에있었으나stdio로반환하지않은token의보존은주장하지않는다.** 모든반환된bytes를보존한다는경계다. 준비/진행중취소가다음modelslot을너무일찍풀지않음을실제로확인했다.
+
+다음새sourceadmission을위해V103의immutablecorpus를CPU로읽었다. 원래frozenValidation[8:]84개는call32/rich52개이고String/Boolean/nullableString/nullableNumeric의16root언어·localecell이다. Numeric4cell은새banned-family와겹치지않는전체numeric source family로추가해야한다. 모든원래84/parent/callee/fields/confidence/unknown을보존하고일곱neuralfamily금지·retired100계획을유지한다. 실제새source의모든meaning/값/전체Host3000ms와제품통합/기능·시각QA/release/install은아직미완료다. 제품0.0.1145/V151작업본/frozenout유지,전체goalactive미달.
+
+증거 SHA-256:
+
+- V199 actual 결과: `6411a8ad4c4286b3237bf989672f0166948ace8d81328bf8a842547042f1feee`
+- V199 actual terminal: `a62f3e82d8cf9d02db2b01495abb0fb03cdb13d046cc5ceba63b2c3c9300e66d`
+- V199 전체 returned-byte journal: `69f340ac6a9a9631e090e703ee0e8ac5efe2e0db4a17f67dabc7769933ff8ab9`
+
 ## 남은 완료 기준
 
 모델 변경, decoder 최적화 또는 입력 구조 변경을 채택하려면 다음을 함께 확인해야 한다.
