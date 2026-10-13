@@ -5385,6 +5385,29 @@ V196 실제16980/PID71537 exit0/PID부재에서 **전체4143 tokenizer/native gr
 - compilerRecipeNativeV196 결과: `d16fd9017b6f3e5c9ebf4c287651100d8448a5dba6a48a6c6155b552cbcaee09`
 - compilerRecipeNativeV196 actual terminal: `3d78b960149b2c8bdf56c346c4083f27643cb066b57e7e0b3005c1bde206b084`
 
+## V197: 실제 provider 연결과 전체 legacy/current 처리 비교
+
+새 explicit provider factory는 V151 schema/normalizer, V192 full-rich contract/cohort, V195 compiler recipe와 V188 chained runtime을 연결한다. 원래 provider의 generate/FIFO/resource/deadline 함수와 packet expansion, 원래 full-vocab sampling/lookahead/generation 함수는 유지했다. 닫힌 V148 파일과 require cache를 바꾸지 않았다. Call/node/summary에도 같은 현재 schema/normalizer를 적용했다. Partial preparation은 model/fusion/runtime owner를 즉시 등록하고 첫 close가 실패해도 나머지를 닫는다.
+
+CPU6+4개를 통과했다. 최초 tests에서 문서 문자열의 factory indentation과 authored fixture object의 property order를 원래 codec의 표준 복원 order와 동일하다고 가정해 실패했다. 두 최초 실패는 별도 보존했고 실행 로직을 바꾸지 않고 원래 decoder의 실제 복원 bytes와 전체객체를 비교했다. 실제 CPU87836/PID9604 exit0/PID부재에서 **전체4143맥락 × legacy/current=8286 provider 처리**를 확인했다. Call3556/rich387/node136/summary64 전체의 실제native payload,raw답변,expanded답변,최종provider값·문장/UID/resource lifecycle이 같았다. Rich의 live owner는 원본에서 다시 만들었다. CPUbinding11895 exit0에서 고정final model·원래12096MLP/98model/197UID·15stream217transition·전체4143native gates를 확인했고 MLX/model은import/load하지 않았다.
+
+## V198: 새 stdio worker의 실제 숫자 전용 검증
+
+CPU 준비에서 숫자전용10사례/45stream 전체tokenizer/native grammar/EOS/원래한도를 검사했다. 최대prompt5270이며 함수소스·parent/callee·설명은 보내지 않는다. 실제root76772/PID31539와child31674에서 준비모델1개를load/materialize했다. model-ready는328302600bytes 확인 뒤 생성됐다. 원래64+1 EOS/filter preparation과 all1~8 grouped signature를 준비했고 원래2+새8 MLPgraph,추가activeweight0,sourceKV공유0을 확인했다.
+
+실제 **45개 숫자stream**(모든cohort수1~8,큰입력1,긴출력8)의 fullraw/value/UID/schema/lookahead counts와 packet 뒤328302600bytes를 확인했다. 원래output2654/sample2699를 기록했고 각forward의QK28/residual56/chained28그룹 및재추적없음을검사했다. 잘못된packet을명시적ValueError로반환한뒤정상요청이복구됐다. 실제EOF/root·childexit0/PID부재,원래모델idle allocation과sealed worker의최종8bytes assertion을통과했다. 데이터/SDK/모델identity도다시검사했다.
+
+**45사례의raw는보존했지만추가복구요청의raw응답은result에저장하지않았다.** 복구성공은실제decoder실행과exit0으로확인했지만모든raw증거를보존했다고주장하지않는다. 최초V198결과와closed실행을그대로유지하며새independent lifecycle scope에서packet/recovery/error전체journal과실제child cancellation을확인해야한다. 동일45계획을재실행해빈증거를메우지않는다.
+
+이번실제source설명NN은0회다. 숫자stdio검증은소스설명의미나정확성·3초완료증거가아니다. 원래84미노출/20root전체허용source admission·의미/Host3000ms·제품통합/기능·시각QA/version/release/install은미완료다. 일곱whole-family neural금지와retired계획,제품0.0.1145/V151작업본/frozenout을유지하며전체goal은active다.
+
+증거 SHA-256:
+
+- typedProviderWorkerV197 결과: `1dc748a1c1d792344202290c04297de70e240f6b192c06b336169ab2fabdb010`
+- typedProviderWorkerV197 actual terminal: `683197aadb1cc375dbbc8e528378f4ad6b8d30659716ead1d86994076b7fac09`
+- typedStdioSourcefreeV198 결과: `f0e6ce33a97cfa19654431207ed81ca104c07ecbfe70ed84313737b4578ddbee`
+- typedStdioSourcefreeV198 actual terminal: `8c89f1c5fe259c11dc8d15cbec68c1a861d7aceca79b64a09fd4c21e0b3cb1f0`
+
 ## 남은 완료 기준
 
 모델 변경, decoder 최적화 또는 입력 구조 변경을 채택하려면 다음을 함께 확인해야 한다.
