@@ -1,6 +1,6 @@
 {
-  "purpose": "V265–V276 CPU42pass/model0/sourceNN0: all3840 original2944train/896valid full teachers recovered; all8460 newly freed prose slots undefined historically, including prior272 opaque. New source-grounded training prose bank8460 plus64 additional reached-node sentences,40 Korean role prefixes and2 literal-preserving declaration labels. V268 first current-schema admission16pass/3824reject preserved; V269 restores8024 exact source constants and losslessly joins3412 original flow arrays. V270 first current-native3818pass/22 live-rich-schema mismatches preserved. V271 reconstructs76 callable worksheets from exact same source,22 actual pre-generation schemas change; all3840 full teacher values/characters/prose rules retained and current-native/full Host inverses pass,25084 model prose slots. V272 first whole3840 token budget admission passes all limits but16 final-call targets reject native grammar due reverse object key order; unused incorrect control PID21664 preserved and corrected by actual selfPID16186/externalACK before numeric work. V273 all16 final actions restore55 exact same-action prior fields in8 inputs; offline16 JSON native targets ordered by schema, all values/prose unchanged, actual V208 prefix/input test and all3840 actual provider/native/Host CPU decodes pass. V274 all3840 whole token/native grammar/one targetEOS/full151936-vocab terminal masks and original8192window/2400output/196608member/24000JSchar limits pass:8835728 prompt,1296313 target+EOS(982043train/314270valid),max4427prompt/817target/5071seq/24087bytes; streamed40528164-byte int32 archive, one tokenizer+one matcher, finalOSRSS484491264(~462.0MiB), no MLX/GPU/weights. V275 first wrong V103 decision/construction SHA preflight exit1 before launch or data loop; immutable. V276 new remaining previously-unvisited full3840 source/data objective passes correct registry decision→construction chain,985 distinct bodies/91 original components, all8 semantic family/parent/helper bans and original84 reserved source exclusion, every token/targetEOS byte and all2944 original rational equal-completion weights recomputed unchanged, monitor896 no optimizer weights,6144 sequence allocation preserved. Actual SDK stream/full-completion-loss numeric proof, full semantic/stability/resource training admission remain; allowedForTraining false/newtraining0. Every owned job terminal; product0.0.1145/source5/frozenout unchanged; last actual source86.317s/59incorrect/20incomplete/21correct prose unresolved. Complete correct≤3000ms and product QA/release/install goal active/unmet.",
-  "savedAtUtc": "2026-10-14T04:18:04.938757+00:00",
+  "purpose": "V277–V286: 27 new CPU tests passed. All3840 current full SDK rows and original rational weights passed; all151936-vocabulary compiled loss/gradient controls passed51. Independent whole-source review completed all8524 new prose labels. V280 actual ready-ACK timeout occurred before any data rows and is preserved. V281 also bound the unchanged72 training-only stability owners to current23010 complete targets;42 owners have changed targets, so old20275-target numerical vectors cannot be reused. V282 one fresh base/zero-LoRA model passed all144 full-target forwards and both original initial guards; allocator peak3262336192bytes and final8bytes. V283 was rejected in static prelaunch ownership review with zero model/gradient work. V284 failed on BF16 NumPy buffer conversion before any gradient, preserved with final8bytes. V285 two CPU raw-bit ABI tests and both previously unexecuted maximum-size full gradients passed at all151936 classes/all224F32 gradients, actual initialized Adam state, original complete SDK padding5089, all parameter bytes unchanged, optimizer updates0, allocator peak5364117518bytes(~5.00GiB), final8bytes/RNG restored. All owned jobs terminal and PID absent. V286 one fresh-base full authored-data pass sealed, not started:2944 updates/982043 train targets,896 monitor/314270 targets, same rank8/scale20/dropout0/layers12–27/epoch1/LR1e-5/batch1/accum1/seed42/6144allocation/final-only; single model8GiB/cache256MiB, actual peak/report and real before-ready-during-after pressure/swap required. Product0.0.1145/source5/frozenout unchanged. Last actual source remains86316.839833ms and incorrect examples/prose; correct complete<=3000ms and product QA/release/install goal active/unmet.",
+  "savedAtUtc": "2026-10-14T06:00:40.487349+00:00",
   "workspace": "/Users/lky/project/projectanalyzer",
   "resumeInstruction": "이 파일을 먼저 읽고 checkpoint.json에서 필요한 항목만 확인한다. 긴 대화나 실험 문서 전체를 다시 읽지 않는다. 이전의 반복적·추측성 분석은 구현 결정으로 취급하지 않는다.",
   "userIntent": {
@@ -23,25 +23,29 @@
     "branch": "main",
     "productVersion": "0.0.1145",
     "handover": "docs/MODEL_LATENCY_HANDOVER.json. 다음 시작에서 실제 git 상태와 checkpoint의 현재상태를 확인한다.",
-    "checks": "V265–V276 CPU42pass; complete3840 current provider/native/Host and token/grammar/EOS/budgets/source-objective proof. Prior first rejections retained, model/sourceNN/training0. Last actual V211 source86.317s/59incorrect/20incomplete/21correct prose still fails. Product0.0.1145/source5/frozenout unchanged.",
+    "checks": "V277–V286: 27 new CPU tests passed. All3840 current full SDK rows and original rational weights passed; all151936-vocabulary compiled loss/gradient controls passed51. Independent whole-source review completed all8524 new prose labels. V280 actual ready-ACK timeout occurred before any data rows and is preserved. V281 also bound the unchanged72 training-only stability owners to current23010 complete targets;42 owners have changed targets, so old20275-target numerical vectors cannot be reused. V282 one fresh base/zero-LoRA model passed all144 full-target forwards and both original initial guards; allocator peak3262336192bytes and final8bytes. V283 was rejected in static prelaunch ownership review with zero model/gradient work. V284 failed on BF16 NumPy buffer conversion before any gradient, preserved with final8bytes. V285 two CPU raw-bit ABI tests and both previously unexecuted maximum-size full gradients passed at all151936 classes/all224F32 gradients, actual initialized Adam state, original complete SDK padding5089, all parameter bytes unchanged, optimizer updates0, allocator peak5364117518bytes(~5.00GiB), final8bytes/RNG restored. All owned jobs terminal and PID absent. V286 one fresh-base full authored-data pass sealed, not started:2944 updates/982043 train targets,896 monitor/314270 targets, same rank8/scale20/dropout0/layers12–27/epoch1/LR1e-5/batch1/accum1/seed42/6144allocation/final-only; single model8GiB/cache256MiB, actual peak/report and real before-ready-during-after pressure/swap required. Product0.0.1145/source5/frozenout unchanged. Last actual source remains86316.839833ms and incorrect examples/prose; correct complete<=3000ms and product QA/release/install goal active/unmet.",
     "productImplementationBaselineCommit": "1827aa4cd4ccb7c96b33d320d23d73a715904ad3",
     "documentationContent": "V209~V212 full100dynamic admission·첫actualwhole4source86.3초/parser·meaning실패·100계획폐기/8family금지와미달목표를문서만publication."
   },
   "executionState": {
     "activeToolHandles": [],
     "activeModelProcesses": false,
-    "lastTurn": "V265–V276 CPU42pass/model0/sourceNN0: all3840 original2944train/896valid full teachers recovered; all8460 newly freed prose slots undefined historically, including prior272 opaque. New source-grounded training prose bank8460 plus64 additional reached-node sentences,40 Korean role prefixes and2 literal-preserving declaration labels. V268 first current-schema admission16pass/3824reject preserved; V269 restores8024 exact source constants and losslessly joins3412 original flow arrays. V270 first current-native3818pass/22 live-rich-schema mismatches preserved. V271 reconstructs76 callable worksheets from exact same source,22 actual pre-generation schemas change; all3840 full teacher values/characters/prose rules retained and current-native/full Host inverses pass,25084 model prose slots. V272 first whole3840 token budget admission passes all limits but16 final-call targets reject native grammar due reverse object key order; unused incorrect control PID21664 preserved and corrected by actual selfPID16186/externalACK before numeric work. V273 all16 final actions restore55 exact same-action prior fields in8 inputs; offline16 JSON native targets ordered by schema, all values/prose unchanged, actual V208 prefix/input test and all3840 actual provider/native/Host CPU decodes pass. V274 all3840 whole token/native grammar/one targetEOS/full151936-vocab terminal masks and original8192window/2400output/196608member/24000JSchar limits pass:8835728 prompt,1296313 target+EOS(982043train/314270valid),max4427prompt/817target/5071seq/24087bytes; streamed40528164-byte int32 archive, one tokenizer+one matcher, finalOSRSS484491264(~462.0MiB), no MLX/GPU/weights. V275 first wrong V103 decision/construction SHA preflight exit1 before launch or data loop; immutable. V276 new remaining previously-unvisited full3840 source/data objective passes correct registry decision→construction chain,985 distinct bodies/91 original components, all8 semantic family/parent/helper bans and original84 reserved source exclusion, every token/targetEOS byte and all2944 original rational equal-completion weights recomputed unchanged, monitor896 no optimizer weights,6144 sequence allocation preserved. Actual SDK stream/full-completion-loss numeric proof, full semantic/stability/resource training admission remain; allowedForTraining false/newtraining0. Every owned job terminal; product0.0.1145/source5/frozenout unchanged; last actual source86.317s/59incorrect/20incomplete/21correct prose unresolved. Complete correct≤3000ms and product QA/release/install goal active/unmet.",
+    "lastTurn": "V277–V286: 27 new CPU tests passed. All3840 current full SDK rows and original rational weights passed; all151936-vocabulary compiled loss/gradient controls passed51. Independent whole-source review completed all8524 new prose labels. V280 actual ready-ACK timeout occurred before any data rows and is preserved. V281 also bound the unchanged72 training-only stability owners to current23010 complete targets;42 owners have changed targets, so old20275-target numerical vectors cannot be reused. V282 one fresh base/zero-LoRA model passed all144 full-target forwards and both original initial guards; allocator peak3262336192bytes and final8bytes. V283 was rejected in static prelaunch ownership review with zero model/gradient work. V284 failed on BF16 NumPy buffer conversion before any gradient, preserved with final8bytes. V285 two CPU raw-bit ABI tests and both previously unexecuted maximum-size full gradients passed at all151936 classes/all224F32 gradients, actual initialized Adam state, original complete SDK padding5089, all parameter bytes unchanged, optimizer updates0, allocator peak5364117518bytes(~5.00GiB), final8bytes/RNG restored. All owned jobs terminal and PID absent. V286 one fresh-base full authored-data pass sealed, not started:2944 updates/982043 train targets,896 monitor/314270 targets, same rank8/scale20/dropout0/layers12–27/epoch1/LR1e-5/batch1/accum1/seed42/6144allocation/final-only; single model8GiB/cache256MiB, actual peak/report and real before-ready-during-after pressure/swap required. Product0.0.1145/source5/frozenout unchanged. Last actual source remains86316.839833ms and incorrect examples/prose; correct complete<=3000ms and product QA/release/install goal active/unmet.",
     "noProgressConsecutiveTurns": 0,
-    "terminalRule": "V13755468/PID99592 실제exit0/부재; V14019108/PID78530, V14679681/PID80723, V14119638/PID82365 실제exit0/부재. V148sourcefree84120/root94340/child94474 actualexit0/부재. V148실제source49497/root95535 exit1/부재, child95621 exit0/부재. 모두 종료됐으므로 재poll/실행/수정하지 않는다. V149CPU검토 exit0/최초결과보존. 이전 모든 종료 독점job도 그대로 재실행 금지. 현재livehandle없음; 실제상태를검증하고새독립CPU진단부터 진행하며 artifact/관측timeout으로완료나live를추측하지않는다. V152joint43575/PID16552 actualexit0/PID부재; V154timing25713/PID24293 actualexit0/PID부재. 모두닫힘. V152seal.py 첫import실패actualexit1도닫혀재실행/수정금지; V153seal은별도준비builder actualexit0. V152GPU와V154timing을재poll/재실행하지않는다. V15589451/PID39514, V15769394/PID54696, V15812178/PID61718 actualexit0/PID부재/최종8 확인. 모두닫힌exclusive GPU/profiler/timing이므로재poll/수정/replay금지. V156은CPU초안만이고model/GPU0이며sealed아님. V15979546/PID81282,V16023111/PID93177,V16130401/PID1709,V1626406/PID5381 모두actualexit0/PID부재/최종8로닫힘. V161 첫prepare.py는import오류exit1/model0이며닫힘; 별도prepare_explicit.py가actualexit0. 닫힌 모든driver/builder는재실행·수정·재poll하지않는다. V16355731/PID19877 import종료1/model0,V16451237/PID22391 Metalcompile종료1/비교0,V16546741/PID25145 12쌍일치후residency종료1,V16614920/PID28269 RNG진단종료0,V16747955/PID34711 전체1344종료0,V16836764/PID43144 전체336/98종료0,V16947749/PID49513 준비graph종료1/생성0,V17113461/PID54568 전체15/217종료0,V17034350/PID58193 전체23시간종료0;모두PID부재. 종료driver/builder/수치/시간검사재실행·수정·재poll금지. 검증된순수kernel/runtime공개helper는새scope의새구현에서재사용가능. V1726895/PID90943 exit1은root가model-ready전에active상태를기록해immutableloader의idlegate실패;SDK model0/kernel0. V17377921/PID99483 전체48384 exit0, V17571105/PID21799 전체12096/98/197 exit0, V17667141/PID30182 전체15/217 exit0, V17716135/PID38173 전체23시간 exit0; 모두PID부재. V174prepare exit0후CPU import사전검사에서STRESS_CASES누락발견,모델/GPU0이며그sealed준비본은보존. 새GPU의global activeModelProcesses/activeToolHandles등록은새model-ready.json에서현재PID/실제완료확인후에만한다;loader는입장검사를다시하므로launch파일만으로너무일찍등록하지않는다. 준비전live tool handle은별도로추적하고timeout을종료로해석하지않는다. V17827645/PID70584 exit134는첫Metal주소공간컴파일abort/완료model1/비교0/PID부재이며Python최종정리검증은없음. V17936265/PID75058 전체28224 exit0, V18087592/PID83094 전체12096/98/197 exit0, V18128564/PID89635 전체15/217 exit0, V18248607/PID95247 전체23시간 exit0; 모두PID부재. 각실제terminal·최초오류·sealedsource보존,재poll/수정/재실행금지. V18359621/PID12294 전체12096 operation exit0, V18438791/PID19321 전체12096MLP/98model/197UID exit0, V18582721/PID24239 전체15/217 exit0, V18692667/PID25640 전체23시간 exit0;모두PID부재/최종8bytes. preparation·actualtool·PID부재receipt보존,닫힌실행재poll·재실행·수정금지. V187 session56849/PID47521 exit0, V188 session50644/PID55198 exit0, V189 session69270/PID69711 exit0, V190 session73365/PID73307 exit0, V191 CPU session98558/PID92430 exit0; 모두 실제 terminal/PID부재 확인. V187~190 최종8bytes 확인. V188은 앞 turn에 완료됐으며 이번 turn에 실제 handle의 terminal을 회수했다. 모두 닫혔으므로 재poll·수정·재실행하지 않는다. V192 CPU84357/PID37784 exit1, V193 CPU27192/PID55961 exit0, V194 CPU86617/PID61208 exit1, V195 CPU97425/PID68792 exit0, V196 CPU16980/PID71537 exit0; 모두 실제 terminal/PID부재. V192 맥락16건 및 V194 8token초과 실패를 보존한다. 닫힌 builder/audit/prepare 재poll·수정·재실행 금지. V197 CPU87836/PID9604 exit0/PID부재, CPUbinding11895 exit0/MLXimport0. V198 prepare88572/PID22724 exit0, 실제root76772/PID31539 exit0 및child31674 exit0/PID부재. model-ready는실제load1/328302600 뒤 생성됐다. root가확인했을때child는이미정상종료되어global active를등록하지않았다. 모든현재handle닫힘, 재poll/수정/재실행금지. V199 prepare63098 exit0,실제36428/root76990 exit0. Child77007/77008은계획된SIGTERM close,79442는정상EOFexit0. 모든PID부재. 실제Bmodelready/현재PID확인뒤root가registration36428을제공했고,controller가close+OSPID부재를검사한뒤globalidle을기록하여C새load를허용했다. 현재livehandle없음;V199닫힌builder/run/검사재poll·수정·재실행금지. V201 CPU99633/PID2113 exit0/부재, V202 CPU40603/PID14299 exit0/부재, V203 CPU32104/PID50513 exit0/부재, V204 CPU96961/PID62606 exit1/부재(native8거부), V205 CPU32066/PID72335 exit0/부재, V206 CPU82766/PID78569 exit0/부재. 모든 종료 exclusive builder/audit/preparation과 최초 실패·code seal을 보존하며 재poll·수정·재실행 금지. 공개 pure factory/schema/normalizer/reference-order/helper는 실질적으로 새 scope의 새 구현에서 재사용 가능. 이번 model/sourceNN0이며 현재 livehandle 없음. V207 CPUaudit62225/PID52979 exit0/PID부재(36action100owner52packet),prepare59182actualexit0; V208 CPUaudit64124/PID4613 exit0/PID부재(100stage300node40call92page8fullprior),prepare38152actualexit0. V208 첫outerCPUtest91217exit1/8comparisonfixture실패와수정후82842exit0를보존한다. 닫힌exclusive audit/prepare·code·최초결과는재poll·수정·재실행하지않는다. 현재livehandle없음,model/sourceNN0. V209builder91254/PID20593 actualexit0/PID부재; V210native34682/PID23332 actualexit0/PID부재; V211prepare74965actualexit0/sourceactual34734/root43809 exit1/child44319exit0/둘PID부재/원래closed328302600확인. 모델SDK load/현재PID/준비완료후에만registration34734를제공했고정리후globalidle을확인했다. V212review95491/PID66834actualexit0/PID부재. 모든closedexclusive builder/prepare/audit/evaluate/review와최초결과·code수정/재poll/재실행금지. V211전체100계획은폐기되었고남은35action96source요청은실행하지않는다. 현재livehandle/loadedmodel없음. V21792917/PID71955 exit1, V21823975/PID97874 exit1/model0, V21926317/PID15671 exit1, V22059293/PID36224 exit0; all actual terminal/PID absent and closed. V22138449/PID93258 actualexit0/PIDabsent/full15-217/final8; closed and never repoll/replay/edit. V22246627/PID23626 actualexit1/PIDabsent/first variable collision with no final8 proof; V22360708/PID39540 actualexit0/PIDabsent/full23-sixpairs/final8. Both closed; never repoll/replay/edit. V2254401/PID20979 exit1, V22742736/PID39139 exit1, V22922184/PID56247 exit0, V2306515/PID68175 exit0, V2316109/PID79683 exit0; all actual terminal/PID absent/final8. Closed, never edit/replay/repoll. V23370557/PID7960 and V23585612/PID30017 actualexit1/PIDabsent/final8; closed first errors/complete raw tensors preserved, never replay/edit/repoll. V23798220/PID58705 actualexit1/PIDabsent/final8; no replay/edit/repoll.",
-    "previousGoalTurnClassification": "progress: full current teacher/prose/native/input/Host/token-EOS/source/weight objective aligned; complete actual neural goal unmet"
+    "terminalRule": "V13755468/PID99592 실제exit0/부재; V14019108/PID78530, V14679681/PID80723, V14119638/PID82365 실제exit0/부재. V148sourcefree84120/root94340/child94474 actualexit0/부재. V148실제source49497/root95535 exit1/부재, child95621 exit0/부재. 모두 종료됐으므로 재poll/실행/수정하지 않는다. V149CPU검토 exit0/최초결과보존. 이전 모든 종료 독점job도 그대로 재실행 금지. 현재livehandle없음; 실제상태를검증하고새독립CPU진단부터 진행하며 artifact/관측timeout으로완료나live를추측하지않는다. V152joint43575/PID16552 actualexit0/PID부재; V154timing25713/PID24293 actualexit0/PID부재. 모두닫힘. V152seal.py 첫import실패actualexit1도닫혀재실행/수정금지; V153seal은별도준비builder actualexit0. V152GPU와V154timing을재poll/재실행하지않는다. V15589451/PID39514, V15769394/PID54696, V15812178/PID61718 actualexit0/PID부재/최종8 확인. 모두닫힌exclusive GPU/profiler/timing이므로재poll/수정/replay금지. V156은CPU초안만이고model/GPU0이며sealed아님. V15979546/PID81282,V16023111/PID93177,V16130401/PID1709,V1626406/PID5381 모두actualexit0/PID부재/최종8로닫힘. V161 첫prepare.py는import오류exit1/model0이며닫힘; 별도prepare_explicit.py가actualexit0. 닫힌 모든driver/builder는재실행·수정·재poll하지않는다. V16355731/PID19877 import종료1/model0,V16451237/PID22391 Metalcompile종료1/비교0,V16546741/PID25145 12쌍일치후residency종료1,V16614920/PID28269 RNG진단종료0,V16747955/PID34711 전체1344종료0,V16836764/PID43144 전체336/98종료0,V16947749/PID49513 준비graph종료1/생성0,V17113461/PID54568 전체15/217종료0,V17034350/PID58193 전체23시간종료0;모두PID부재. 종료driver/builder/수치/시간검사재실행·수정·재poll금지. 검증된순수kernel/runtime공개helper는새scope의새구현에서재사용가능. V1726895/PID90943 exit1은root가model-ready전에active상태를기록해immutableloader의idlegate실패;SDK model0/kernel0. V17377921/PID99483 전체48384 exit0, V17571105/PID21799 전체12096/98/197 exit0, V17667141/PID30182 전체15/217 exit0, V17716135/PID38173 전체23시간 exit0; 모두PID부재. V174prepare exit0후CPU import사전검사에서STRESS_CASES누락발견,모델/GPU0이며그sealed준비본은보존. 새GPU의global activeModelProcesses/activeToolHandles등록은새model-ready.json에서현재PID/실제완료확인후에만한다;loader는입장검사를다시하므로launch파일만으로너무일찍등록하지않는다. 준비전live tool handle은별도로추적하고timeout을종료로해석하지않는다. V17827645/PID70584 exit134는첫Metal주소공간컴파일abort/완료model1/비교0/PID부재이며Python최종정리검증은없음. V17936265/PID75058 전체28224 exit0, V18087592/PID83094 전체12096/98/197 exit0, V18128564/PID89635 전체15/217 exit0, V18248607/PID95247 전체23시간 exit0; 모두PID부재. 각실제terminal·최초오류·sealedsource보존,재poll/수정/재실행금지. V18359621/PID12294 전체12096 operation exit0, V18438791/PID19321 전체12096MLP/98model/197UID exit0, V18582721/PID24239 전체15/217 exit0, V18692667/PID25640 전체23시간 exit0;모두PID부재/최종8bytes. preparation·actualtool·PID부재receipt보존,닫힌실행재poll·재실행·수정금지. V187 session56849/PID47521 exit0, V188 session50644/PID55198 exit0, V189 session69270/PID69711 exit0, V190 session73365/PID73307 exit0, V191 CPU session98558/PID92430 exit0; 모두 실제 terminal/PID부재 확인. V187~190 최종8bytes 확인. V188은 앞 turn에 완료됐으며 이번 turn에 실제 handle의 terminal을 회수했다. 모두 닫혔으므로 재poll·수정·재실행하지 않는다. V192 CPU84357/PID37784 exit1, V193 CPU27192/PID55961 exit0, V194 CPU86617/PID61208 exit1, V195 CPU97425/PID68792 exit0, V196 CPU16980/PID71537 exit0; 모두 실제 terminal/PID부재. V192 맥락16건 및 V194 8token초과 실패를 보존한다. 닫힌 builder/audit/prepare 재poll·수정·재실행 금지. V197 CPU87836/PID9604 exit0/PID부재, CPUbinding11895 exit0/MLXimport0. V198 prepare88572/PID22724 exit0, 실제root76772/PID31539 exit0 및child31674 exit0/PID부재. model-ready는실제load1/328302600 뒤 생성됐다. root가확인했을때child는이미정상종료되어global active를등록하지않았다. 모든현재handle닫힘, 재poll/수정/재실행금지. V199 prepare63098 exit0,실제36428/root76990 exit0. Child77007/77008은계획된SIGTERM close,79442는정상EOFexit0. 모든PID부재. 실제Bmodelready/현재PID확인뒤root가registration36428을제공했고,controller가close+OSPID부재를검사한뒤globalidle을기록하여C새load를허용했다. 현재livehandle없음;V199닫힌builder/run/검사재poll·수정·재실행금지. V201 CPU99633/PID2113 exit0/부재, V202 CPU40603/PID14299 exit0/부재, V203 CPU32104/PID50513 exit0/부재, V204 CPU96961/PID62606 exit1/부재(native8거부), V205 CPU32066/PID72335 exit0/부재, V206 CPU82766/PID78569 exit0/부재. 모든 종료 exclusive builder/audit/preparation과 최초 실패·code seal을 보존하며 재poll·수정·재실행 금지. 공개 pure factory/schema/normalizer/reference-order/helper는 실질적으로 새 scope의 새 구현에서 재사용 가능. 이번 model/sourceNN0이며 현재 livehandle 없음. V207 CPUaudit62225/PID52979 exit0/PID부재(36action100owner52packet),prepare59182actualexit0; V208 CPUaudit64124/PID4613 exit0/PID부재(100stage300node40call92page8fullprior),prepare38152actualexit0. V208 첫outerCPUtest91217exit1/8comparisonfixture실패와수정후82842exit0를보존한다. 닫힌exclusive audit/prepare·code·최초결과는재poll·수정·재실행하지않는다. 현재livehandle없음,model/sourceNN0. V209builder91254/PID20593 actualexit0/PID부재; V210native34682/PID23332 actualexit0/PID부재; V211prepare74965actualexit0/sourceactual34734/root43809 exit1/child44319exit0/둘PID부재/원래closed328302600확인. 모델SDK load/현재PID/준비완료후에만registration34734를제공했고정리후globalidle을확인했다. V212review95491/PID66834actualexit0/PID부재. 모든closedexclusive builder/prepare/audit/evaluate/review와최초결과·code수정/재poll/재실행금지. V211전체100계획은폐기되었고남은35action96source요청은실행하지않는다. 현재livehandle/loadedmodel없음. V21792917/PID71955 exit1, V21823975/PID97874 exit1/model0, V21926317/PID15671 exit1, V22059293/PID36224 exit0; all actual terminal/PID absent and closed. V22138449/PID93258 actualexit0/PIDabsent/full15-217/final8; closed and never repoll/replay/edit. V22246627/PID23626 actualexit1/PIDabsent/first variable collision with no final8 proof; V22360708/PID39540 actualexit0/PIDabsent/full23-sixpairs/final8. Both closed; never repoll/replay/edit. V2254401/PID20979 exit1, V22742736/PID39139 exit1, V22922184/PID56247 exit0, V2306515/PID68175 exit0, V2316109/PID79683 exit0; all actual terminal/PID absent/final8. Closed, never edit/replay/repoll. V23370557/PID7960 and V23585612/PID30017 actualexit1/PIDabsent/final8; closed first errors/complete raw tensors preserved, never replay/edit/repoll. V23798220/PID58705 actualexit1/PIDabsent/final8; no replay/edit/repoll. V27767022/PID46948, V27877293/PID67610, V27969062/PID16608 actualexit0/PID absent. V28011276/PID81167 actualexit1 readyACK timeout before rows/PID absent. V28172407/PID97543 and V28286061/PID6779 actualexit0/PID absent/final8 forV282. V283 prepared but static prelaunch rejected, actualcontroller/model0. V28492123/PID22233 actualexit1 before gradients/final8/PID absent; V28529048/PID28795 actualexit0/all2 whole gradients/final8/PID absent. All closed drivers/builders/preparations/tests/first failures immutable; never rerun/edit/repoll. V286 training is sealed-not-started, check actual checkpoint before any launch.",
+    "previousGoalTurnClassification": {
+      "classification": "progress",
+      "reason": "actual complete SDK/numeric/semantic review, fresh whole-target baseline and largest full-gradient resource admission completed; training sealed only",
+      "goalStatus": "active-unmet"
+    }
   },
   "evidence": {
     "root": ".local-models/experiments/three-second/",
     "authoritativeState": "checkpoint.json",
     "latestRecord": {
-      "path": "prose-supervision-coverage-v264/result.json",
-      "sha256": "ae3b366e06a8e4014e16ac6ed25f7e3701cd0fcbbbe18ed9c0862a3c0ef50e38",
-      "status": "V262 CPU17/source-only31-method scope(17 reached prefix+14 previously unreached suffix) binds actual V179QK import precedence and whole official-installed fast_primitives.h SHA8ce8bd49...; originalV18828-layer offsets/packedKV/counters/validation/close/compiledMLP/weights/host eval→commit boundaries remain. First unsealed property-accessor helper/test failure retained and fixed beforeseal; first actual audit77860 exit1/absent on wrong V178 manifestname retained/neveredited-rerun; NEWremaining84611 exit0/absent binds correctactual V179 and completes SDK/state suffix. Literal obsolete34 count neverused; actualscope31. CustomKernel directly inherits Primitive with no output_shapes override; shapeless compile_replace requires inference for every single/multioutput, defaultthrows. Pythonoffset int ignored in capture lists, inside-forward cache/counters cannot be blindly captured; all8192 activeKV shapes differ and count1..8 traces do not preprepare whole ragged shape signatures. Blind/shapeless wrapper and repeatingV61 layerwise not justified; no GPUattempt. V263 CPU5/all4 exactarchived V211 payloads/schemas/modelwrittenwires/15858 promptcounts retained; CPUactual 42988/PID3764 exit0/absent, guideprepared502.426583ms outside measurement plus realPID/RSS/pressure/swap ACKbeforetasks. All4 originalprompt tokenization29.82775ms, whole grammarconstruction8.883125ms; full canonicalraw tokens2344/2EOSmaskseach give2352 maskcalls107.958912ms and consume2.303208ms, allfullvocab masks/bytes/nativeEOS/legalcanonicaltokens passed. Original2354draw tokenIDsnotarchived: UID0/1 each1 fewer, UID2/3 countsequal doesnotprove originalIDs; no original81.625s runtimeattribution/speed/quality claim. OneCPUtokenizer/nativeparser, model0/MLX0/GPU0/weightsopenedfalse; finalOSRSS512016384(~488.3MiB), before 68/ready69/after68percent,swap21939.75→21915.75→21915.75MiB; no active-mask snapshotcaught. V264 CPU5 NEWactual3840-target-supervision census consumes closedV201ownership changesasdata, not rerunning oldschemaaudit. ALL2944train+896valid originalV137 outputs/contexts/targets/splits preserved; streaming71,466,725 bytes with65,536char reads/max98,867charbuffer, no wholecorpusretention. Actual19115 exit0/absent, OSmaxRSS 45,514,752(~43.4MiB); resultpre-final-write45,334,528 distinguished. Of8460 newlymodel-owned prose slots inactualcorpus,8188 ABSENT fromold native-schema andtarget (6398train/1790valid,8124call/64summary), 272opaque/no-target-instance (224train/48valid,allrich) NOTcalleddefinite omissions; no direct-string-present slots inthischanged-slotcensus. This provesdirectoutput-field coverage gap, not lack of text exposure or causalityfor59wrongsourceprose; fullteacher expansion/opaque resolution/newalignedinput-target/nativeEOS/familyeligibility/lossbudget remain before any new training. Laterread-onlyrichmetadata:124train+56valid richcontexts have nodePreparation absent, so do not claimoldrichdatawas only UIplaceholders. CPU27pass/model0/sourceNN0/adoption-install0, allactualownedtoolsclosed. Latestafter snapshotpressure38percent/swap 21172.88MiB is afterallownedprocesses ended, no continuousminimum/hostphysicalpeak/causalclaim. Product 0.0.1145/source5/frozenoutunchanged; original84/20root/fullsource-context-parent-callee-fields-confidence-unknown/modelvalues-prose and8wholefamilybans retained. Lastactualsource86.317s/59incorrect/20incomplete/21correctprose unresolved. Correctcomplete3000ms/download-integrity-custommodels/FIFO-cancel-dispose/productintegration-functional-visualQA/version-release-install goalactive/unmet."
+      "path": "current-full-training-v286/training-seal.json",
+      "sha256": "ce63f03a1aa634bddf608797b309004164fb5e9492f91bcca2c8e54174629f49",
+      "status": "V277–V286: 27 new CPU tests passed. All3840 current full SDK rows and original rational weights passed; all151936-vocabulary compiled loss/gradient controls passed51. Independent whole-source review completed all8524 new prose labels. V280 actual ready-ACK timeout occurred before any data rows and is preserved. V281 also bound the unchanged72 training-only stability owners to current23010 complete targets;42 owners have changed targets, so old20275-target numerical vectors cannot be reused. V282 one fresh base/zero-LoRA model passed all144 full-target forwards and both original initial guards; allocator peak3262336192bytes and final8bytes. V283 was rejected in static prelaunch ownership review with zero model/gradient work. V284 failed on BF16 NumPy buffer conversion before any gradient, preserved with final8bytes. V285 two CPU raw-bit ABI tests and both previously unexecuted maximum-size full gradients passed at all151936 classes/all224F32 gradients, actual initialized Adam state, original complete SDK padding5089, all parameter bytes unchanged, optimizer updates0, allocator peak5364117518bytes(~5.00GiB), final8bytes/RNG restored. All owned jobs terminal and PID absent. V286 one fresh-base full authored-data pass sealed, not started:2944 updates/982043 train targets,896 monitor/314270 targets, same rank8/scale20/dropout0/layers12–27/epoch1/LR1e-5/batch1/accum1/seed42/6144allocation/final-only; single model8GiB/cache256MiB, actual peak/report and real before-ready-during-after pressure/swap required. Product0.0.1145/source5/frozenout unchanged. Last actual source remains86316.839833ms and incorrect examples/prose; correct complete<=3000ms and product QA/release/install goal active/unmet."
     },
     "v87ActualSource": {
       "directory": "tuple-source-runtime-v87/",
@@ -11541,6 +11545,359 @@
         "sha256": "fbded69e258eff5f791c0aa25653715ca288cad2296e4ad824473d46cf9fa692"
       },
       "privateEvidenceOnly": true
+    },
+    "currentSdkAdmissionV277": {
+      "savedAtUtc": "2026-10-14T04:34:03.480156+00:00",
+      "status": "closed-all3840-current-actual-sdk-cpu-stream-pass",
+      "actualOwnedTerminal": {
+        "sessionId": 67022,
+        "pid": 46948,
+        "chunk": "54d3da",
+        "exitCode": 0,
+        "processMissingObserved": true
+      },
+      "proof": {
+        "file": "current-sdk-admission-v277/result.json",
+        "sha256": "de8c205bcfeb45e6da48f5f85b9f9d79e8d8d7b031eb8bdc85c51e0d34fc2f40"
+      },
+      "preparation": {
+        "file": "current-sdk-admission-v277/preparation.json",
+        "sha256": "93a3c527fe751a34630685bf7bab8ed82049a9a50817ebb38451cb3c7e13dc72"
+      },
+      "completeRows": 3840,
+      "trainingRows": 2944,
+      "validationRows": 896,
+      "cpuTests": 4,
+      "completeTrainingTargets": 982043,
+      "completeValidationTargets": 314270,
+      "distinctRationalWeights": 47,
+      "actualSdkStableLengthSeed42OrderMatched": true,
+      "everyWholeCurrentSequenceTargetEosAndDynamicWeightChecked": true,
+      "originalExclusiveCompletionEosMaskPreserved": true,
+      "monitoringAlwaysUnweighted": true,
+      "optimizerReportsNotSimulated": true,
+      "actualOptimizerUpdates": 0,
+      "numpyRngRestoredExactly": true,
+      "readOnlyTokenMemmapReleased": true,
+      "finalOsMaximumResidentSetBytes": 194150400,
+      "beforeReadyAfterRealMemoryObserved": true,
+      "activeNumericMemorySnapshotCaught": false,
+      "hostContinuousMinimumAndPhysicalPeakMeasured": false,
+      "mlxImported": true,
+      "device": "Device(cpu, 0)",
+      "gpuCompute": false,
+      "modelLoads": 0,
+      "sourceNeuralRequests": 0,
+      "modelWeightsOpened": false,
+      "numericCompiledLossSemanticStabilityAndResourceAdmissionPending": true,
+      "newTrainingStarted": false,
+      "allowedForTraining": false,
+      "adopted": false,
+      "installed": false,
+      "goalComplete": false,
+      "terminal": {
+        "file": "current-sdk-admission-v277/terminal.json",
+        "sha256": "e6db4744161ab66ac908b1997b75ae85489f6d713858fff4fd125f0dc4ae6dbf"
+      }
+    },
+    "currentLossNumericV278": {
+      "savedAtUtc": "2026-10-14T04:44:49.099941+00:00",
+      "status": "closed-full151936-vocabulary-current-compiled-loss-gradient-controls-pass",
+      "actualOwnedTerminal": {
+        "sessionId": 77293,
+        "pid": 67610,
+        "chunk": "360847",
+        "exitCode": 0,
+        "processMissingObserved": true
+      },
+      "proof": {
+        "file": "current-loss-numeric-v278/result.json",
+        "sha256": "4565fde7f2b9bcebb498f301f84a1c28e6d729011c01a7b42e8d77ea988c70de"
+      },
+      "preparation": {
+        "file": "current-loss-numeric-v278/preparation.json",
+        "sha256": "3b1e368e580d09dc371bc778f5bcfa205eef374a4e97d93cfac2a5ba82b4e465"
+      },
+      "cpuTests": 3,
+      "sourceFreeSyntheticControls": 51,
+      "actualCurrentRationalWeightsPassed": 47,
+      "fullVocabulary": 151936,
+      "eos": 151645,
+      "independentF64WholeVocabularyMeanNllAndGradientPassed": true,
+      "promptAndPaddingExcludedAndRealEosIncluded": true,
+      "validationOriginalLossIdentical": true,
+      "currentTensorDynamicWeightsVaryUnderSameCompiledFunction": true,
+      "originalCodeAndNumericComparisonsUnchanged": true,
+      "numpyAndMlxRngUnchanged": true,
+      "finalOsMaximumResidentSetBytes": 105234432,
+      "resultPreFinalWriteProcessPeakRssBytes": 103530496,
+      "beforeReadyAfterRealMemoryObserved": true,
+      "activeNumericMemorySnapshotCaught": false,
+      "continuousHostMinimumAndPhysicalPeakMeasured": false,
+      "mlxImported": true,
+      "device": "Device(cpu, 0)",
+      "neuralGpuCompute": false,
+      "modelLoads": 0,
+      "sourceNeuralRequests": 0,
+      "modelWeightsOpened": false,
+      "optimizerUpdates": 0,
+      "newTrainingStarted": false,
+      "allowedForTraining": false,
+      "semanticStabilityAndResourceAdmissionPending": true,
+      "adopted": false,
+      "installed": false,
+      "goalComplete": false,
+      "terminal": {
+        "file": "current-loss-numeric-v278/terminal.json",
+        "sha256": "be943bc9d34b8e2bf5171027f111944a847a6b55c7f23c62247594a0487f86c8"
+      }
+    },
+    "currentCallProseReviewV279": {
+      "savedAtUtc": "2026-10-14T05:04:35.149589+00:00",
+      "status": "closed-all8124-new-call-prose-independent-source-review-pass",
+      "actualOwnedTerminal": {
+        "sessionId": 69062,
+        "pid": 16608,
+        "chunk": "f41e3b",
+        "exitCode": 0,
+        "processMissingObserved": true
+      },
+      "proof": {
+        "file": "current-call-prose-review-v279/result.json",
+        "sha256": "93a0ba81ca2db73e5475fa30b07e9e8231c7e391e70ccacb40cf57e074eb5cd5"
+      },
+      "reviewFile": {
+        "file": "current-call-prose-review-v279/review.jsonl",
+        "sha256": "b669cde001390cc8fd92013f500de8227aaa0560396009a5909cb0199cd7b816"
+      },
+      "completeRows": 3840,
+      "newCallProseLabelsReviewed": 8124,
+      "fieldCounts": {
+        "output": 1912,
+        "effects": 2744,
+        "reason": 3468
+      },
+      "remainingRichAndSummarySemanticLabels": 400,
+      "independentWholeSourceTokensInventoriesRegionsGuardsCallerUseAndUncertaintyChecked": true,
+      "firstUnsealedCatchRepresentationTestFailureRetained": true,
+      "fullSemanticReviewComplete": false,
+      "cpuTests": 5,
+      "finalOsMaximumResidentSetBytes": 149651456,
+      "resultPreFinalWriteProcessMaximumResidentSetKiB": 121504,
+      "beforeReadyAfterRealMemoryObserved": true,
+      "activeDataMemorySnapshotCaught": false,
+      "hostContinuousMinimumAndPhysicalPeakMeasured": false,
+      "modelLoads": 0,
+      "sourceNeuralRequests": 0,
+      "modelWeightsOpened": false,
+      "newTrainingStarted": false,
+      "allowedForTraining": false,
+      "adopted": false,
+      "installed": false,
+      "goalComplete": false,
+      "terminal": {
+        "file": "current-call-prose-review-v279/terminal.json",
+        "sha256": "f80c04295f8795c66539ed3f51adfd81b4d9bb154a8a722e60a1540d74a7ccfc"
+      }
+    },
+    "currentRichProseReviewV280": {
+      "status": "closed-ready-ack-timeout-before-data-zero-row-review",
+      "actualOwnedTerminal": {
+        "sessionId": 11276,
+        "pid": 81167,
+        "chunk": "4b12de",
+        "exitCode": 1,
+        "processMissingObserved": true
+      },
+      "terminal": {
+        "file": "current-rich-prose-review-v280/terminal.json",
+        "sha256": "9ea66337cf862ce723797d4a39f0b5d4e9120e9f63b76878a911aeec33a86009"
+      },
+      "cpuTests": 6,
+      "exclusiveDataRowsReviewed": 0,
+      "remainingNewProseLabels": 400,
+      "modelLoads": 0,
+      "sourceNeuralRequests": 0,
+      "newTrainingStarted": false,
+      "allowedForTraining": false,
+      "goalComplete": false,
+      "closedControllerNeverRerun": true
+    },
+    "currentSemanticStabilityAdmissionV281": {
+      "savedAtUtc": "2026-10-14T05:36:12.696190+00:00",
+      "status": "complete-remaining400-prose-and-all72-current-full-stability-panel-admitted",
+      "actualOwnedTerminal": {
+        "sessionId": 72407,
+        "pid": 97543,
+        "chunk": "3f34a1",
+        "exitCode": 0,
+        "processMissingObserved": true
+      },
+      "proof": {
+        "file": "current-semantic-stability-admission-v281/result.json",
+        "sha256": "06b79f9579344959156f1d23529898a4971c9728bcc9f2280b4048c87dbace3a"
+      },
+      "terminal": {
+        "file": "current-semantic-stability-admission-v281/terminal.json",
+        "sha256": "1c1caf96bad0f2981fdfed2936e3de6dc0265ce163b718b9db64cc5a907b1187"
+      },
+      "wholeRows": 3840,
+      "remaining400SemanticLabelsPassed": 400,
+      "all8524NewSemanticLabelsIndependentlyReviewed": true,
+      "stabilityPanelOwners": 72,
+      "stabilityPanelTargets": 23010,
+      "changedTargetOwners": 42,
+      "oldNumericBaselineReusable": false,
+      "cpuNewTests": 3,
+      "cpuReusedActualTests": 6,
+      "finalOsMaximumResidentSetBytes": 183255040,
+      "activeDataMemorySnapshotCaught": false,
+      "freshNumericBaselineAndResourceAdmissionPending": true,
+      "modelLoads": 0,
+      "sourceNeuralRequests": 0,
+      "newTrainingStarted": false,
+      "allowedForTraining": false,
+      "goalComplete": false
+    },
+    "currentFullStabilityV282": {
+      "savedAtUtc": "2026-10-14T05:42:01.645392+00:00",
+      "status": "all72-full-training-only-fresh-base-and-zero-lora-stability-proven",
+      "actualOwnedTerminal": {
+        "sessionId": 86061,
+        "pid": 6779,
+        "chunk": "0ae2a6",
+        "exitCode": 0,
+        "processMissingObserved": true
+      },
+      "proof": {
+        "file": "current-full-stability-v282/result.json",
+        "sha256": "5a1b44519673c2571b5cfcd552a2a61a2e3e91c1f22e830ed9aa2e26ac1d0ad9"
+      },
+      "plan": {
+        "file": "current-full-stability-v282/plan.json",
+        "sha256": "a6084d82de00817b02ca0ec458da79c85fbeb592a97fa16e6c074bd99da30564"
+      },
+      "terminal": {
+        "file": "current-full-stability-v282/terminal.json",
+        "sha256": "6095194561d1eb54e3c3d09fd70137aaf8772edddd4df4a76c45edcc5d895c95"
+      },
+      "completeVectors": {
+        "file": "current-full-stability-v282/baseline-vectors.npz",
+        "sha256": "5b0d291dc7822cddc6bad02da2400625c14078da26ad7550cf4710e778c65813"
+      },
+      "fullOwners": 72,
+      "fullTargetsPerVariant": 23010,
+      "actualFullTeacherForcedForwards": 144,
+      "modelLoads": 1,
+      "sourceExplanationRequests": 0,
+      "optimizerUpdates": 0,
+      "newTrainingStarted": false,
+      "actualAllocatorPeakBytes": 3262336192,
+      "finalActiveBytes": 8,
+      "outsideRngRestored": true,
+      "allBeforeReadyDuringAfterMemoryObserved": true,
+      "activeDataMemorySnapshotCaught": true,
+      "continuousHostMinimumAndPhysicalPeakMeasured": false,
+      "fullGradientResourceAdmissionPending": true,
+      "allowedForTraining": false,
+      "adopted": false,
+      "installed": false,
+      "goalComplete": false
+    },
+    "currentGradientResourceV283": {
+      "savedAtUtc": "2026-10-14T05:47:41.241376+00:00",
+      "status": "prelaunch-ownership-review-rejected-no-model-loaded",
+      "sealedPlanSha256": "5de0627ff5ddd9940b2262110d43be21c2fde2473e0aa4e6be349c7bee27d3a7",
+      "reason": "raw tuple keeps the original SDK batch and two-column lengths alive through finally even after batch/lengths are cleared; final8-byte allocator proof would be compromised",
+      "actualControllerStarted": false,
+      "modelLoads": 0,
+      "fullGradientProbes": 0,
+      "optimizerUpdates": 0,
+      "closedPreparedCodeUnchanged": true
+    },
+    "currentGradientLifecycleV284": {
+      "status": "first-full-gradient-resource-failure-preserved-no-rerun",
+      "actualOwnedTerminal": {
+        "sessionId": 92123,
+        "pid": 22233,
+        "chunk": "6f19d1",
+        "exitCode": 1,
+        "processMissingObserved": true
+      },
+      "proof": {
+        "file": "current-gradient-lifecycle-v284/result.json",
+        "sha256": "3ac23ecc9c242ad8ad165f7eb08b12e5356c2eb66d4a94bbf2e0b1d14ee70ab7"
+      },
+      "terminal": {
+        "file": "current-gradient-lifecycle-v284/terminal.json",
+        "sha256": "d940a4e23373856d6d30e1bcd3b1578e5f591baa69a8813cbbdd97a524ced2d2"
+      },
+      "failureBeforeAnyGradient": true,
+      "failure": "NumPy cannot read BF16 PEP3118 buffers directly",
+      "modelLoads": 1,
+      "completedGradientProbes": 0,
+      "optimizerUpdates": 0,
+      "finalActiveBytes": 8,
+      "outsideRngRestored": true,
+      "fullGradientResourceAdmissionPending": true,
+      "allowedForTraining": false,
+      "goalComplete": false
+    },
+    "currentBf16GradientAdmissionV285": {
+      "status": "both-full-current-worst-size-gradients-under8GiB-original-weights-unchanged",
+      "actualOwnedTerminal": {
+        "sessionId": 29048,
+        "pid": 28795,
+        "chunk": "c80a49",
+        "exitCode": 0,
+        "processMissingObserved": true
+      },
+      "proof": {
+        "file": "current-bf16-gradient-admission-v285/result.json",
+        "sha256": "1aa561cbde8716444e2331eb6890d5e2d097883836441e0a7caa480fbe0f3f9b"
+      },
+      "terminal": {
+        "file": "current-bf16-gradient-admission-v285/terminal.json",
+        "sha256": "37668d704be0d2a11a55b552fd2bdacdb8224c457cf55f8329210ee05c41be9c"
+      },
+      "modelLoads": 1,
+      "fullGradientProbes": 2,
+      "all224F32GradientArraysFinitePerProbe": true,
+      "fullSequenceAndTargetTokens": [
+        [
+          5071,
+          646
+        ],
+        [
+          5066,
+          817
+        ]
+      ],
+      "actualPaddedBatchTokens": 5089,
+      "all151936VocabularyPreserved": true,
+      "allModelParameterBytesUnchanged": true,
+      "adamStateInitializedButOptimizerUpdates": 0,
+      "actualAllocatorPeakBytes": 5364117518,
+      "actualAllocatorPeakWithin8GiB": true,
+      "finalActiveBytes": 8,
+      "outsideRngRestored": true,
+      "externalActiveGradientSnapshotCaught": false,
+      "internalActiveGradientMemorySnapshotsCaught": true,
+      "continuousHostMinimumOrPhysicalPeakMeasured": false,
+      "newTrainingStarted": false,
+      "allowedForTraining": false,
+      "goalComplete": false
+    },
+    "currentFullTrainingV286": {
+      "status": "sealed-not-started",
+      "sealSha256": "ce63f03a1aa634bddf608797b309004164fb5e9492f91bcca2c8e54174629f49",
+      "distinctUpdatesPlanned": 2944,
+      "completeTrainingTargets": 982043,
+      "allowedForTraining": true,
+      "allowedForNeuralEvaluation": false,
+      "modelLoads": 0,
+      "sourceExplanationRequests": 0,
+      "goalComplete": false
     }
   },
   "preparedAssets": {
@@ -12529,10 +12886,10 @@
     "ownership": "준비 모델 하나 공유, 요청 UID별 fresh KV·grammar·sampler·detokenizer. 답변·소스 KV 재사용 금지."
   },
   "nextSession": {
-    "first": "Read V273/V274/V276 complete current CPU receipts and currentgit/checkpoint idle. Do not rerun closed jobs.",
-    "nextIndependentWork": "Read current V273/V274/V276 proofs and objective-draft only after currentgit/idle check. Continue genuinely new whole3840 actual SDK stream and complete-response-plus-oneEOS mean-loss admission with recomputed original2944 rational weights/unweighted896 monitor, stable length sorting+seed42 order, streamed/memmap int32 tokens and no row/source/prose/target clipping. All current full native teacher inputs are now aligned with V201/V208, including all reached rich nodes, original model values,8524 newly required training prose fields and55 full same-action prior fields; no need to re-expand/relabel/reorder or rerun closed V265–V276 jobs. Current policy/classify/balance/codec/schema/normalizer pure helpers can be reused in new scopes. Preserve first V268/V270/V272/V275 rejections and V272 unused-control-PID correction. Do not import or execute closed controllers. Before learning, finish independent full semantic review of new source-grounded labels, unchanged SDK/numeric completion loss proof, original complete72-owner stability guard scope/current20275 vectors and scheduled whole checks, fresh original-base final-only fixed rank8/scale20/dropout0/layers12–27/one epoch/LR1e-5/batch1/accum1/seed42 plan, and one-model8GiB/cache256MiB resource admission. Old V13710GiB setting and existing adapter resume/partial checkpoint selection are not allowed. GPU: actual tool token before MLX load, source-free actual ready/selfPID and external real PID/RSS/pressure/swap ACK before work, true allocator peak and real before/during/after snapshots, actual terminal/PID absence/final8 cleanup. No kernel/settings/model/dtype/LR/epoch/sampler sweeps, blind shapeless wrapper, static inference prose/value repairs, source/KV cross-owner reuse or favourable subsets. Original84/20 full-root cells/all source-context-parent-callee-fields-confidence-unknowns/model values+prose/eight whole-family bans retained. Last V21186.317s and incorrect values/prose remain; future complete correct≤3000ms on a genuinely new permitted full evaluation scope plus download/integrity/custommodels/FIFO/cancel/dispose/functional and visual product QA/version/commit/push/install are still required.",
-    "notImplemented": "Actual SDK stream/whole completion-loss numeric proof, independent complete new-label semantic review and unchanged full stability/resource admission before new learning; correct whole20root≤3000ms and product QA/release/install.",
+    "first": "Read V277/V278/V279/V281/V282/V285 receipts and V286 seal, then actual checkpoint/gitso status; do not rerun closed jobs.",
+    "nextIndependentWork": "Launch only the sealed V286 single fresh-base complete pass if actual checkpoint remains idle, after verifying actual canonical prelaunch-base-integrity receipt. Require actual tool session and observed selfPID external RAM/pressure/swap ACK before MLX/load, then real loaded-ready external ACK before all neural work. Keep every2944 original training owner and982043 targets/EOS, same full SDK seed42 order/dynamic47 rational weights/unweighted896 monitor; no clipping/settings sweep/adapter resume/partial checkpoint. Use fresh V28272-owner23010-target vectors and all original seven scheduled guards0,200,600,1200,2000,2920,2944 with unchanged thresholds. Record true allocator peak<=8GiB and real before/ready/during/after PID/RSS/pressure/swap, final8/RNG restoration, actual terminal then external PID absence before clearing the exact handle. After complete pass perform independent full trace/final adapter/guard-vector audit; no source explanation or product installation is yet authorized by evidence. On a genuinely new permitted complete evaluation scope, preserve original84 reserved exclusion,20 root cells, all full source/context/parents/callees/fields/values/prose/confidence/unknowns and eight entire semantic-family bans. Correct complete Host<=3000ms and download/integrity/custommodel/FIFO/cancel/dispose/product functional+visual QA/version/commit/push/install still required.",
+    "notImplemented": "V286 actual whole training, independent final audit/current-weight runtime qualification, correct whole20-root<=3000ms and product QA/release/install.",
     "completionStillMissing": "원래전체source/context/parent/callee/fields/confidence/unknown및모델의값·문장책임을유지한새전체허용범위에서의미·정확성과전체설명≤3초를실제검증한후,다운로드/integrity/custom model/FIFO/cancel/dispose와제품QA를확인해release/install한다.",
-    "publication": "Docs-only receipt remaining-objective-admission-v276/publication.json; product0.0.1145/source5/frozenout unchanged, no candidate installed. Actual commit/push/remote HEAD are recorded in that private receipt."
+    "publication": "Docs-only receipt current-full-training-v286/publication.json; product0.0.1145/source5/frozenout unchanged, no candidate installed."
   }
 }
