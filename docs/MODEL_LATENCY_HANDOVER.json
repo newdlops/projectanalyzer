@@ -1,6 +1,6 @@
 {
-  "purpose": "V301 supported dedicated-worker lifecycle implemented and passed4 CPU tests plus actual tiny MLX normal/initial-error control: session21089/PID79550 actualexit0/externalPIDabsence, firstfailure preserved, actualpeak4144bytes/final8/outsideMLXRNGrestored/NumPyunchanged. Does not retroactively prove failed V299 cleanup. V3023 new CPU tests and actual session23686/PID14853 exit0/PIDabsent qualify complete archived two-member canonical CPU cost: full prompts64.234209ms, grammar14.153626ms, full151936 masks79.529580ms, consume2.546954ms, no model/MLX/GPU/source neural request. Counts506/534 raw+EOS equal actual output507/535, +lookahead508/536; original sampled IDs unavailable, so this is not original runtime attribution or token-sequence equality. V303 standalone C++ shape delegates built against unchanged installed MLX0.32.3 and unchanged official source64ea011cb65f14d9ce2737e60db9a4ae91ed7441; preserve first unsealed header-build error and original sealed unrun BF16 comparator. V304 fixes only byte observation through a new sealed controller: actual session84791/PID79187 exit0/PIDabsent. All8193 prefixes0..8192, all32 KV capacities256..8192/128 boundary pairs,12 originalCustomKernel pairs,12 composite cases,5 invalid ownership/geometry rejections passed; shape/dtype/fullrawbytes equal, four compiled traces each exactlyonce. Actualpeak100663442bytes(~96MiB),final8,outsideMLXRNGrestored/NumPyunchanged; originalSDK/Metalmath/weights/sampling unchanged. No whole-model graph or full-model speed proof. 85 distinct current CPU tests passed; native control cases counted separately. All owned jobs closed/model0 this work. Last real full-source V299 still fails: fullHost34031.232625ms/packet32491.689834ms; V300 all46 prose fields26correct/15incorrect/5incomplete; V299 worker exit1 after invalid RNG assignment, no final8 proof. All nine whole-family/parent/helper bans and original84 exclusion remain, entire80-stage plan retired, remaining35 actions/78 requests never execute. Product0.0.1145/source5/frozenout unchanged, no candidate adopted/installed. Goal active/unmet: correct complete model-authored Host explanation<=3000ms then product integration/QA/release/install.",
-  "savedAtUtc": "2026-10-14T13:43:50.860979+00:00",
+  "purpose": "V305 new standalone original Split/Slice and packed KV component-prefix delegates built; all8193 prefix lengths/both components fully compared before first unsupported Python reference slice_update(list,list) API error. Actual60427/PID19564 exit1/PIDabsent, peak3158036bytes/final8/outsideRNG restored; first sealed driver unchanged. Stale numeric ACK fields preserved and corrected by actual external40%/20138.19MiB snapshot; real PID/RAM admission was performed. V306 new whole remaining scope uses exact original cache slice assignment reference, never replays8193 prefix pass: actual19099/PID26034 exit0/PIDabsent, all32 capacities/128 full dynamic-write+state+component pairs,20 complete fixed QKV/MLP/residual/diagnostic views,7 owner/shape rejects pass, five compile traces exactlyonce; shape/dtype/allbytes exact, peak167776407bytes/final8/outsideRNG unchanged. V307 implements the pure whole M1 decoder with explicit original weights/GPU offsets/physical KV/zero-byte logical prefix witnesses, unchanged stock active-prefix SDPA/full151936 output/Q4/group128/BF16/rank8 scale20 and all28 independent layer states;7 new CPU ownership/atomicity tests pass. V308 new strict nine-family single-model gate retains all original final training/audit/asset/runtime checks and all parent/helper bans;6 CPU tests pass, first unsealed fixture incorrectly expecting5 instead of actual6 joint cases preserved/corrected before seal. Actual V30842071/PID47087 one current V286 SDK load; real tool/selfPID/external RAM ACK beforeMLX/load, actual328302600 loaded-ready external RAM ACK before any neuralforward. Full new implementation numerical scope all12096 MLP/all111 model/all213 cohort pairs plus16 native/sampler/text/KV joint streams(15 complete,1 cancellation) passes whole shape/dtype/bytes, including full8192 window/current5071 and1..8 separateUID signatures. All current224 adapter arrays/base/settings/dtypes/sampling remain unchanged. Reference240/candidate228draws/228compared transitions, eight whole graph count signatures each exactlyonce. Actual allocatorpeak4952188066bytes(~4.61GiB), final8/allmodel+graphowners released/outsideMLXRNGrestored/NumPyunchanged; actualexit0 then externalPIDabsence. External before/loaded/during/after free44/43/39/47%, swap19211.19/19211.19/19736.38/19736.38MiB; snapshots are not continuous minimum/physical peak/hardcap proof. ProcesspeakRSS1270857728bytes. All98 distinct current CPU tests pass; native/model cases counted separately. All owned jobs closed, sourceNeuralRequests0 this work. Last actual source remains V29934.03s/full46 prose26correct15incorrect5incomplete/missingV299final8. Nine whole families remain banned, retired80-stage remainder35actions78requests never run, original84 excluded/unexposed. Actual full-source meaning/wholeHost3000ms and product integration/QA/release/install goal active/unmet. Product0.0.1145/source5/frozenout unchanged/no candidate adopted or installed.",
+  "savedAtUtc": "2026-10-14T14:12:32.635241+00:00",
   "workspace": "/Users/lky/project/projectanalyzer",
   "resumeInstruction": "이 파일을 먼저 읽고 checkpoint.json에서 필요한 항목만 확인한다. 긴 대화나 실험 문서 전체를 다시 읽지 않는다. 이전의 반복적·추측성 분석은 구현 결정으로 취급하지 않는다.",
   "userIntent": {
@@ -23,23 +23,23 @@
     "branch": "main",
     "productVersion": "0.0.1145",
     "handover": "docs/MODEL_LATENCY_HANDOVER.json. 다음 시작에서 실제 git 상태와 checkpoint의 현재상태를 확인한다.",
-    "checks": "V301 supported dedicated-worker lifecycle implemented and passed4 CPU tests plus actual tiny MLX normal/initial-error control: session21089/PID79550 actualexit0/externalPIDabsence, firstfailure preserved, actualpeak4144bytes/final8/outsideMLXRNGrestored/NumPyunchanged. Does not retroactively prove failed V299 cleanup. V3023 new CPU tests and actual session23686/PID14853 exit0/PIDabsent qualify complete archived two-member canonical CPU cost: full prompts64.234209ms, grammar14.153626ms, full151936 masks79.529580ms, consume2.546954ms, no model/MLX/GPU/source neural request. Counts506/534 raw+EOS equal actual output507/535, +lookahead508/536; original sampled IDs unavailable, so this is not original runtime attribution or token-sequence equality. V303 standalone C++ shape delegates built against unchanged installed MLX0.32.3 and unchanged official source64ea011cb65f14d9ce2737e60db9a4ae91ed7441; preserve first unsealed header-build error and original sealed unrun BF16 comparator. V304 fixes only byte observation through a new sealed controller: actual session84791/PID79187 exit0/PIDabsent. All8193 prefixes0..8192, all32 KV capacities256..8192/128 boundary pairs,12 originalCustomKernel pairs,12 composite cases,5 invalid ownership/geometry rejections passed; shape/dtype/fullrawbytes equal, four compiled traces each exactlyonce. Actualpeak100663442bytes(~96MiB),final8,outsideMLXRNGrestored/NumPyunchanged; originalSDK/Metalmath/weights/sampling unchanged. No whole-model graph or full-model speed proof. 85 distinct current CPU tests passed; native control cases counted separately. All owned jobs closed/model0 this work. Last real full-source V299 still fails: fullHost34031.232625ms/packet32491.689834ms; V300 all46 prose fields26correct/15incorrect/5incomplete; V299 worker exit1 after invalid RNG assignment, no final8 proof. All nine whole-family/parent/helper bans and original84 exclusion remain, entire80-stage plan retired, remaining35 actions/78 requests never execute. Product0.0.1145/source5/frozenout unchanged, no candidate adopted/installed. Goal active/unmet: correct complete model-authored Host explanation<=3000ms then product integration/QA/release/install.",
+    "checks": "V305 new standalone original Split/Slice and packed KV component-prefix delegates built; all8193 prefix lengths/both components fully compared before first unsupported Python reference slice_update(list,list) API error. Actual60427/PID19564 exit1/PIDabsent, peak3158036bytes/final8/outsideRNG restored; first sealed driver unchanged. Stale numeric ACK fields preserved and corrected by actual external40%/20138.19MiB snapshot; real PID/RAM admission was performed. V306 new whole remaining scope uses exact original cache slice assignment reference, never replays8193 prefix pass: actual19099/PID26034 exit0/PIDabsent, all32 capacities/128 full dynamic-write+state+component pairs,20 complete fixed QKV/MLP/residual/diagnostic views,7 owner/shape rejects pass, five compile traces exactlyonce; shape/dtype/allbytes exact, peak167776407bytes/final8/outsideRNG unchanged. V307 implements the pure whole M1 decoder with explicit original weights/GPU offsets/physical KV/zero-byte logical prefix witnesses, unchanged stock active-prefix SDPA/full151936 output/Q4/group128/BF16/rank8 scale20 and all28 independent layer states;7 new CPU ownership/atomicity tests pass. V308 new strict nine-family single-model gate retains all original final training/audit/asset/runtime checks and all parent/helper bans;6 CPU tests pass, first unsealed fixture incorrectly expecting5 instead of actual6 joint cases preserved/corrected before seal. Actual V30842071/PID47087 one current V286 SDK load; real tool/selfPID/external RAM ACK beforeMLX/load, actual328302600 loaded-ready external RAM ACK before any neuralforward. Full new implementation numerical scope all12096 MLP/all111 model/all213 cohort pairs plus16 native/sampler/text/KV joint streams(15 complete,1 cancellation) passes whole shape/dtype/bytes, including full8192 window/current5071 and1..8 separateUID signatures. All current224 adapter arrays/base/settings/dtypes/sampling remain unchanged. Reference240/candidate228draws/228compared transitions, eight whole graph count signatures each exactlyonce. Actual allocatorpeak4952188066bytes(~4.61GiB), final8/allmodel+graphowners released/outsideMLXRNGrestored/NumPyunchanged; actualexit0 then externalPIDabsence. External before/loaded/during/after free44/43/39/47%, swap19211.19/19211.19/19736.38/19736.38MiB; snapshots are not continuous minimum/physical peak/hardcap proof. ProcesspeakRSS1270857728bytes. All98 distinct current CPU tests pass; native/model cases counted separately. All owned jobs closed, sourceNeuralRequests0 this work. Last actual source remains V29934.03s/full46 prose26correct15incorrect5incomplete/missingV299final8. Nine whole families remain banned, retired80-stage remainder35actions78requests never run, original84 excluded/unexposed. Actual full-source meaning/wholeHost3000ms and product integration/QA/release/install goal active/unmet. Product0.0.1145/source5/frozenout unchanged/no candidate adopted or installed.",
     "productImplementationBaselineCommit": "1827aa4cd4ccb7c96b33d320d23d73a715904ad3",
-    "documentationContent": "V301~V304 supported lifecycle, canonical full CPU cost/EOS accounting and exact standalone native shape-delegate qualification; documentation only, whole-model integration and actual correct3s goal remain pending."
+    "documentationContent": "V305~V308 exact original decoder state views, pure whole decoder and full current-model numerical/native/sampler/cancellation qualification; documentation only, source meaning/fullHost3s and product integration remain pending."
   },
   "executionState": {
     "activeToolHandles": [],
     "activeModelProcesses": false,
-    "lastTurn": "V301 supported dedicated-worker lifecycle implemented and passed4 CPU tests plus actual tiny MLX normal/initial-error control: session21089/PID79550 actualexit0/externalPIDabsence, firstfailure preserved, actualpeak4144bytes/final8/outsideMLXRNGrestored/NumPyunchanged. Does not retroactively prove failed V299 cleanup. V3023 new CPU tests and actual session23686/PID14853 exit0/PIDabsent qualify complete archived two-member canonical CPU cost: full prompts64.234209ms, grammar14.153626ms, full151936 masks79.529580ms, consume2.546954ms, no model/MLX/GPU/source neural request. Counts506/534 raw+EOS equal actual output507/535, +lookahead508/536; original sampled IDs unavailable, so this is not original runtime attribution or token-sequence equality. V303 standalone C++ shape delegates built against unchanged installed MLX0.32.3 and unchanged official source64ea011cb65f14d9ce2737e60db9a4ae91ed7441; preserve first unsealed header-build error and original sealed unrun BF16 comparator. V304 fixes only byte observation through a new sealed controller: actual session84791/PID79187 exit0/PIDabsent. All8193 prefixes0..8192, all32 KV capacities256..8192/128 boundary pairs,12 originalCustomKernel pairs,12 composite cases,5 invalid ownership/geometry rejections passed; shape/dtype/fullrawbytes equal, four compiled traces each exactlyonce. Actualpeak100663442bytes(~96MiB),final8,outsideMLXRNGrestored/NumPyunchanged; originalSDK/Metalmath/weights/sampling unchanged. No whole-model graph or full-model speed proof. 85 distinct current CPU tests passed; native control cases counted separately. All owned jobs closed/model0 this work. Last real full-source V299 still fails: fullHost34031.232625ms/packet32491.689834ms; V300 all46 prose fields26correct/15incorrect/5incomplete; V299 worker exit1 after invalid RNG assignment, no final8 proof. All nine whole-family/parent/helper bans and original84 exclusion remain, entire80-stage plan retired, remaining35 actions/78 requests never execute. Product0.0.1145/source5/frozenout unchanged, no candidate adopted/installed. Goal active/unmet: correct complete model-authored Host explanation<=3000ms then product integration/QA/release/install.",
+    "lastTurn": "V305 new standalone original Split/Slice and packed KV component-prefix delegates built; all8193 prefix lengths/both components fully compared before first unsupported Python reference slice_update(list,list) API error. Actual60427/PID19564 exit1/PIDabsent, peak3158036bytes/final8/outsideRNG restored; first sealed driver unchanged. Stale numeric ACK fields preserved and corrected by actual external40%/20138.19MiB snapshot; real PID/RAM admission was performed. V306 new whole remaining scope uses exact original cache slice assignment reference, never replays8193 prefix pass: actual19099/PID26034 exit0/PIDabsent, all32 capacities/128 full dynamic-write+state+component pairs,20 complete fixed QKV/MLP/residual/diagnostic views,7 owner/shape rejects pass, five compile traces exactlyonce; shape/dtype/allbytes exact, peak167776407bytes/final8/outsideRNG unchanged. V307 implements the pure whole M1 decoder with explicit original weights/GPU offsets/physical KV/zero-byte logical prefix witnesses, unchanged stock active-prefix SDPA/full151936 output/Q4/group128/BF16/rank8 scale20 and all28 independent layer states;7 new CPU ownership/atomicity tests pass. V308 new strict nine-family single-model gate retains all original final training/audit/asset/runtime checks and all parent/helper bans;6 CPU tests pass, first unsealed fixture incorrectly expecting5 instead of actual6 joint cases preserved/corrected before seal. Actual V30842071/PID47087 one current V286 SDK load; real tool/selfPID/external RAM ACK beforeMLX/load, actual328302600 loaded-ready external RAM ACK before any neuralforward. Full new implementation numerical scope all12096 MLP/all111 model/all213 cohort pairs plus16 native/sampler/text/KV joint streams(15 complete,1 cancellation) passes whole shape/dtype/bytes, including full8192 window/current5071 and1..8 separateUID signatures. All current224 adapter arrays/base/settings/dtypes/sampling remain unchanged. Reference240/candidate228draws/228compared transitions, eight whole graph count signatures each exactlyonce. Actual allocatorpeak4952188066bytes(~4.61GiB), final8/allmodel+graphowners released/outsideMLXRNGrestored/NumPyunchanged; actualexit0 then externalPIDabsence. External before/loaded/during/after free44/43/39/47%, swap19211.19/19211.19/19736.38/19736.38MiB; snapshots are not continuous minimum/physical peak/hardcap proof. ProcesspeakRSS1270857728bytes. All98 distinct current CPU tests pass; native/model cases counted separately. All owned jobs closed, sourceNeuralRequests0 this work. Last actual source remains V29934.03s/full46 prose26correct15incorrect5incomplete/missingV299final8. Nine whole families remain banned, retired80-stage remainder35actions78requests never run, original84 excluded/unexposed. Actual full-source meaning/wholeHost3000ms and product integration/QA/release/install goal active/unmet. Product0.0.1145/source5/frozenout unchanged/no candidate adopted or installed.",
     "noProgressConsecutiveTurns": 0,
-    "terminalRule": "V13755468/PID99592 실제exit0/부재; V14019108/PID78530, V14679681/PID80723, V14119638/PID82365 실제exit0/부재. V148sourcefree84120/root94340/child94474 actualexit0/부재. V148실제source49497/root95535 exit1/부재, child95621 exit0/부재. 모두 종료됐으므로 재poll/실행/수정하지 않는다. V149CPU검토 exit0/최초결과보존. 이전 모든 종료 독점job도 그대로 재실행 금지. 현재livehandle없음; 실제상태를검증하고새독립CPU진단부터 진행하며 artifact/관측timeout으로완료나live를추측하지않는다. V152joint43575/PID16552 actualexit0/PID부재; V154timing25713/PID24293 actualexit0/PID부재. 모두닫힘. V152seal.py 첫import실패actualexit1도닫혀재실행/수정금지; V153seal은별도준비builder actualexit0. V152GPU와V154timing을재poll/재실행하지않는다. V15589451/PID39514, V15769394/PID54696, V15812178/PID61718 actualexit0/PID부재/최종8 확인. 모두닫힌exclusive GPU/profiler/timing이므로재poll/수정/replay금지. V156은CPU초안만이고model/GPU0이며sealed아님. V15979546/PID81282,V16023111/PID93177,V16130401/PID1709,V1626406/PID5381 모두actualexit0/PID부재/최종8로닫힘. V161 첫prepare.py는import오류exit1/model0이며닫힘; 별도prepare_explicit.py가actualexit0. 닫힌 모든driver/builder는재실행·수정·재poll하지않는다. V16355731/PID19877 import종료1/model0,V16451237/PID22391 Metalcompile종료1/비교0,V16546741/PID25145 12쌍일치후residency종료1,V16614920/PID28269 RNG진단종료0,V16747955/PID34711 전체1344종료0,V16836764/PID43144 전체336/98종료0,V16947749/PID49513 준비graph종료1/생성0,V17113461/PID54568 전체15/217종료0,V17034350/PID58193 전체23시간종료0;모두PID부재. 종료driver/builder/수치/시간검사재실행·수정·재poll금지. 검증된순수kernel/runtime공개helper는새scope의새구현에서재사용가능. V1726895/PID90943 exit1은root가model-ready전에active상태를기록해immutableloader의idlegate실패;SDK model0/kernel0. V17377921/PID99483 전체48384 exit0, V17571105/PID21799 전체12096/98/197 exit0, V17667141/PID30182 전체15/217 exit0, V17716135/PID38173 전체23시간 exit0; 모두PID부재. V174prepare exit0후CPU import사전검사에서STRESS_CASES누락발견,모델/GPU0이며그sealed준비본은보존. 새GPU의global activeModelProcesses/activeToolHandles등록은새model-ready.json에서현재PID/실제완료확인후에만한다;loader는입장검사를다시하므로launch파일만으로너무일찍등록하지않는다. 준비전live tool handle은별도로추적하고timeout을종료로해석하지않는다. V17827645/PID70584 exit134는첫Metal주소공간컴파일abort/완료model1/비교0/PID부재이며Python최종정리검증은없음. V17936265/PID75058 전체28224 exit0, V18087592/PID83094 전체12096/98/197 exit0, V18128564/PID89635 전체15/217 exit0, V18248607/PID95247 전체23시간 exit0; 모두PID부재. 각실제terminal·최초오류·sealedsource보존,재poll/수정/재실행금지. V18359621/PID12294 전체12096 operation exit0, V18438791/PID19321 전체12096MLP/98model/197UID exit0, V18582721/PID24239 전체15/217 exit0, V18692667/PID25640 전체23시간 exit0;모두PID부재/최종8bytes. preparation·actualtool·PID부재receipt보존,닫힌실행재poll·재실행·수정금지. V187 session56849/PID47521 exit0, V188 session50644/PID55198 exit0, V189 session69270/PID69711 exit0, V190 session73365/PID73307 exit0, V191 CPU session98558/PID92430 exit0; 모두 실제 terminal/PID부재 확인. V187~190 최종8bytes 확인. V188은 앞 turn에 완료됐으며 이번 turn에 실제 handle의 terminal을 회수했다. 모두 닫혔으므로 재poll·수정·재실행하지 않는다. V192 CPU84357/PID37784 exit1, V193 CPU27192/PID55961 exit0, V194 CPU86617/PID61208 exit1, V195 CPU97425/PID68792 exit0, V196 CPU16980/PID71537 exit0; 모두 실제 terminal/PID부재. V192 맥락16건 및 V194 8token초과 실패를 보존한다. 닫힌 builder/audit/prepare 재poll·수정·재실행 금지. V197 CPU87836/PID9604 exit0/PID부재, CPUbinding11895 exit0/MLXimport0. V198 prepare88572/PID22724 exit0, 실제root76772/PID31539 exit0 및child31674 exit0/PID부재. model-ready는실제load1/328302600 뒤 생성됐다. root가확인했을때child는이미정상종료되어global active를등록하지않았다. 모든현재handle닫힘, 재poll/수정/재실행금지. V199 prepare63098 exit0,실제36428/root76990 exit0. Child77007/77008은계획된SIGTERM close,79442는정상EOFexit0. 모든PID부재. 실제Bmodelready/현재PID확인뒤root가registration36428을제공했고,controller가close+OSPID부재를검사한뒤globalidle을기록하여C새load를허용했다. 현재livehandle없음;V199닫힌builder/run/검사재poll·수정·재실행금지. V201 CPU99633/PID2113 exit0/부재, V202 CPU40603/PID14299 exit0/부재, V203 CPU32104/PID50513 exit0/부재, V204 CPU96961/PID62606 exit1/부재(native8거부), V205 CPU32066/PID72335 exit0/부재, V206 CPU82766/PID78569 exit0/부재. 모든 종료 exclusive builder/audit/preparation과 최초 실패·code seal을 보존하며 재poll·수정·재실행 금지. 공개 pure factory/schema/normalizer/reference-order/helper는 실질적으로 새 scope의 새 구현에서 재사용 가능. 이번 model/sourceNN0이며 현재 livehandle 없음. V207 CPUaudit62225/PID52979 exit0/PID부재(36action100owner52packet),prepare59182actualexit0; V208 CPUaudit64124/PID4613 exit0/PID부재(100stage300node40call92page8fullprior),prepare38152actualexit0. V208 첫outerCPUtest91217exit1/8comparisonfixture실패와수정후82842exit0를보존한다. 닫힌exclusive audit/prepare·code·최초결과는재poll·수정·재실행하지않는다. 현재livehandle없음,model/sourceNN0. V209builder91254/PID20593 actualexit0/PID부재; V210native34682/PID23332 actualexit0/PID부재; V211prepare74965actualexit0/sourceactual34734/root43809 exit1/child44319exit0/둘PID부재/원래closed328302600확인. 모델SDK load/현재PID/준비완료후에만registration34734를제공했고정리후globalidle을확인했다. V212review95491/PID66834actualexit0/PID부재. 모든closedexclusive builder/prepare/audit/evaluate/review와최초결과·code수정/재poll/재실행금지. V211전체100계획은폐기되었고남은35action96source요청은실행하지않는다. 현재livehandle/loadedmodel없음. V21792917/PID71955 exit1, V21823975/PID97874 exit1/model0, V21926317/PID15671 exit1, V22059293/PID36224 exit0; all actual terminal/PID absent and closed. V22138449/PID93258 actualexit0/PIDabsent/full15-217/final8; closed and never repoll/replay/edit. V22246627/PID23626 actualexit1/PIDabsent/first variable collision with no final8 proof; V22360708/PID39540 actualexit0/PIDabsent/full23-sixpairs/final8. Both closed; never repoll/replay/edit. V2254401/PID20979 exit1, V22742736/PID39139 exit1, V22922184/PID56247 exit0, V2306515/PID68175 exit0, V2316109/PID79683 exit0; all actual terminal/PID absent/final8. Closed, never edit/replay/repoll. V23370557/PID7960 and V23585612/PID30017 actualexit1/PIDabsent/final8; closed first errors/complete raw tensors preserved, never replay/edit/repoll. V23798220/PID58705 actualexit1/PIDabsent/final8; no replay/edit/repoll. V27767022/PID46948, V27877293/PID67610, V27969062/PID16608 actualexit0/PID absent. V28011276/PID81167 actualexit1 readyACK timeout before rows/PID absent. V28172407/PID97543 and V28286061/PID6779 actualexit0/PID absent/final8 forV282. V283 prepared but static prelaunch rejected, actualcontroller/model0. V28492123/PID22233 actualexit1 before gradients/final8/PID absent; V28529048/PID28795 actualexit0/all2 whole gradients/final8/PID absent. All closed drivers/builders/preparations/tests/first failures immutable; never rerun/edit/repoll. V286 training is sealed-not-started, check actual checkpoint before any launch. V28676202/PID50254 actually live, not terminal. Keep polling this exacthandle; observationtimeout or a result artifact is not an exit. Do not launch a second model or edit/restart this controller. V287 prepare actualexit0, five CPU tests pass; independent200 call actual66dc2a exit1 only after numeric proof write/return path formatting, preserved. Future new guard review calls need an absolute destination. Final V287 verify must wait actual trainingexit0/externalPIDabsence/8byte cleanup; do not run while V286 is live. V288 prepare64db59 actualexit0/CPU6 pass/model0/sourceExplanation0; current live binding is false. Original six numeric bodies/all166 pairs/all336 MLPs retained, current5071 added26; no new-weight numeric job or model load. V287 independent1200 actual652f41 exit0/all72/23010 vectors pass. Every closed V288 helper/test/preparation and V287 completed review proof remains immutable; no rerun. V28676202/PID50254 remains live, no terminal/final-model qualification. V289 scope preparef12fda actualexit0/7 CPU tests/model0/MLX0; immutable, no actual runtime drivers yet. V287 independent2000 da6f7d actualexit0/all72/23010 guards. V28676202/PID50254 remains live, no terminal inferred. Do not edit/replay closed CPU proofs or load a second model. V28676202/PID50254 actual124ef2 exit0/PID absent/all2944/982043/final8. V287 finalCPUf1240e/PID451 exit0/PID absent/entire trace/all7 guards/224F32 adapter. V28960583/PID6071 actual3a946b exit1/PID absent/final8 after complete192stock/336MLP pass; readinessextra8 failure preserved. V29051614/PID24222 actual6fc632 exit0/PID absent/final8, sourcefree logicalkey/nextfixture unchanged16to8 storage proof. V29176779/PID37601 actualdb4109 exit1/PID absent/final8, duplicateattach before comparisons preserved. V292 lifecycle2CPU pass; V29394645/PID51664 actual9c594a exit0/PID absent/all12096/111/213/16/final8. All closed controllers/builders/preparations/proofs immutable; never edit/rerun/repoll. No live model/tool owner. V29433296/PID91422 andV29531869/PID13970 actualexit0/absent. V294 firstsandbox f4e85a exit1 before data/ready; unchanged command escalated retry required by developer permissions instruction, first denial preserved. V29661188/PID36331 actual0354e3 exit0/absent. V297prepare54556 actual313e8a exit0/model0; V299prepare08f741 exit0/model0. V299source49713/root10045/child10106 actuald3a32f rootexit1/childexit1, both absentafterterminal786aa6. Final8/RNG proof missing due invalid _RandomState item assignment; preserve first full stderr/raw bytes. V300review39898 actual68fb0b exit0/model0; afterassets52265 actual2a0822 exit0/model0. All closed scopes/controllers/builders/probes/evals immutable; never repoll/edit/replay. Entire80 source plan retired and9 family bans apply. V30121089/PID79550,V30223686/PID14853,V30484791/PID79187 actualexit0 and externalPIDabsence; all closed. V303 configure first sandbox denial and first unsealed header build error preserved; original sealed V303 control never executed, V304 is sole byte-safe control. Never edit/rerun/repoll closed controllers/builders/probes; pure public APIs may be reused for genuinely new scopes.",
+    "terminalRule": "V13755468/PID99592 실제exit0/부재; V14019108/PID78530, V14679681/PID80723, V14119638/PID82365 실제exit0/부재. V148sourcefree84120/root94340/child94474 actualexit0/부재. V148실제source49497/root95535 exit1/부재, child95621 exit0/부재. 모두 종료됐으므로 재poll/실행/수정하지 않는다. V149CPU검토 exit0/최초결과보존. 이전 모든 종료 독점job도 그대로 재실행 금지. 현재livehandle없음; 실제상태를검증하고새독립CPU진단부터 진행하며 artifact/관측timeout으로완료나live를추측하지않는다. V152joint43575/PID16552 actualexit0/PID부재; V154timing25713/PID24293 actualexit0/PID부재. 모두닫힘. V152seal.py 첫import실패actualexit1도닫혀재실행/수정금지; V153seal은별도준비builder actualexit0. V152GPU와V154timing을재poll/재실행하지않는다. V15589451/PID39514, V15769394/PID54696, V15812178/PID61718 actualexit0/PID부재/최종8 확인. 모두닫힌exclusive GPU/profiler/timing이므로재poll/수정/replay금지. V156은CPU초안만이고model/GPU0이며sealed아님. V15979546/PID81282,V16023111/PID93177,V16130401/PID1709,V1626406/PID5381 모두actualexit0/PID부재/최종8로닫힘. V161 첫prepare.py는import오류exit1/model0이며닫힘; 별도prepare_explicit.py가actualexit0. 닫힌 모든driver/builder는재실행·수정·재poll하지않는다. V16355731/PID19877 import종료1/model0,V16451237/PID22391 Metalcompile종료1/비교0,V16546741/PID25145 12쌍일치후residency종료1,V16614920/PID28269 RNG진단종료0,V16747955/PID34711 전체1344종료0,V16836764/PID43144 전체336/98종료0,V16947749/PID49513 준비graph종료1/생성0,V17113461/PID54568 전체15/217종료0,V17034350/PID58193 전체23시간종료0;모두PID부재. 종료driver/builder/수치/시간검사재실행·수정·재poll금지. 검증된순수kernel/runtime공개helper는새scope의새구현에서재사용가능. V1726895/PID90943 exit1은root가model-ready전에active상태를기록해immutableloader의idlegate실패;SDK model0/kernel0. V17377921/PID99483 전체48384 exit0, V17571105/PID21799 전체12096/98/197 exit0, V17667141/PID30182 전체15/217 exit0, V17716135/PID38173 전체23시간 exit0; 모두PID부재. V174prepare exit0후CPU import사전검사에서STRESS_CASES누락발견,모델/GPU0이며그sealed준비본은보존. 새GPU의global activeModelProcesses/activeToolHandles등록은새model-ready.json에서현재PID/실제완료확인후에만한다;loader는입장검사를다시하므로launch파일만으로너무일찍등록하지않는다. 준비전live tool handle은별도로추적하고timeout을종료로해석하지않는다. V17827645/PID70584 exit134는첫Metal주소공간컴파일abort/완료model1/비교0/PID부재이며Python최종정리검증은없음. V17936265/PID75058 전체28224 exit0, V18087592/PID83094 전체12096/98/197 exit0, V18128564/PID89635 전체15/217 exit0, V18248607/PID95247 전체23시간 exit0; 모두PID부재. 각실제terminal·최초오류·sealedsource보존,재poll/수정/재실행금지. V18359621/PID12294 전체12096 operation exit0, V18438791/PID19321 전체12096MLP/98model/197UID exit0, V18582721/PID24239 전체15/217 exit0, V18692667/PID25640 전체23시간 exit0;모두PID부재/최종8bytes. preparation·actualtool·PID부재receipt보존,닫힌실행재poll·재실행·수정금지. V187 session56849/PID47521 exit0, V188 session50644/PID55198 exit0, V189 session69270/PID69711 exit0, V190 session73365/PID73307 exit0, V191 CPU session98558/PID92430 exit0; 모두 실제 terminal/PID부재 확인. V187~190 최종8bytes 확인. V188은 앞 turn에 완료됐으며 이번 turn에 실제 handle의 terminal을 회수했다. 모두 닫혔으므로 재poll·수정·재실행하지 않는다. V192 CPU84357/PID37784 exit1, V193 CPU27192/PID55961 exit0, V194 CPU86617/PID61208 exit1, V195 CPU97425/PID68792 exit0, V196 CPU16980/PID71537 exit0; 모두 실제 terminal/PID부재. V192 맥락16건 및 V194 8token초과 실패를 보존한다. 닫힌 builder/audit/prepare 재poll·수정·재실행 금지. V197 CPU87836/PID9604 exit0/PID부재, CPUbinding11895 exit0/MLXimport0. V198 prepare88572/PID22724 exit0, 실제root76772/PID31539 exit0 및child31674 exit0/PID부재. model-ready는실제load1/328302600 뒤 생성됐다. root가확인했을때child는이미정상종료되어global active를등록하지않았다. 모든현재handle닫힘, 재poll/수정/재실행금지. V199 prepare63098 exit0,실제36428/root76990 exit0. Child77007/77008은계획된SIGTERM close,79442는정상EOFexit0. 모든PID부재. 실제Bmodelready/현재PID확인뒤root가registration36428을제공했고,controller가close+OSPID부재를검사한뒤globalidle을기록하여C새load를허용했다. 현재livehandle없음;V199닫힌builder/run/검사재poll·수정·재실행금지. V201 CPU99633/PID2113 exit0/부재, V202 CPU40603/PID14299 exit0/부재, V203 CPU32104/PID50513 exit0/부재, V204 CPU96961/PID62606 exit1/부재(native8거부), V205 CPU32066/PID72335 exit0/부재, V206 CPU82766/PID78569 exit0/부재. 모든 종료 exclusive builder/audit/preparation과 최초 실패·code seal을 보존하며 재poll·수정·재실행 금지. 공개 pure factory/schema/normalizer/reference-order/helper는 실질적으로 새 scope의 새 구현에서 재사용 가능. 이번 model/sourceNN0이며 현재 livehandle 없음. V207 CPUaudit62225/PID52979 exit0/PID부재(36action100owner52packet),prepare59182actualexit0; V208 CPUaudit64124/PID4613 exit0/PID부재(100stage300node40call92page8fullprior),prepare38152actualexit0. V208 첫outerCPUtest91217exit1/8comparisonfixture실패와수정후82842exit0를보존한다. 닫힌exclusive audit/prepare·code·최초결과는재poll·수정·재실행하지않는다. 현재livehandle없음,model/sourceNN0. V209builder91254/PID20593 actualexit0/PID부재; V210native34682/PID23332 actualexit0/PID부재; V211prepare74965actualexit0/sourceactual34734/root43809 exit1/child44319exit0/둘PID부재/원래closed328302600확인. 모델SDK load/현재PID/준비완료후에만registration34734를제공했고정리후globalidle을확인했다. V212review95491/PID66834actualexit0/PID부재. 모든closedexclusive builder/prepare/audit/evaluate/review와최초결과·code수정/재poll/재실행금지. V211전체100계획은폐기되었고남은35action96source요청은실행하지않는다. 현재livehandle/loadedmodel없음. V21792917/PID71955 exit1, V21823975/PID97874 exit1/model0, V21926317/PID15671 exit1, V22059293/PID36224 exit0; all actual terminal/PID absent and closed. V22138449/PID93258 actualexit0/PIDabsent/full15-217/final8; closed and never repoll/replay/edit. V22246627/PID23626 actualexit1/PIDabsent/first variable collision with no final8 proof; V22360708/PID39540 actualexit0/PIDabsent/full23-sixpairs/final8. Both closed; never repoll/replay/edit. V2254401/PID20979 exit1, V22742736/PID39139 exit1, V22922184/PID56247 exit0, V2306515/PID68175 exit0, V2316109/PID79683 exit0; all actual terminal/PID absent/final8. Closed, never edit/replay/repoll. V23370557/PID7960 and V23585612/PID30017 actualexit1/PIDabsent/final8; closed first errors/complete raw tensors preserved, never replay/edit/repoll. V23798220/PID58705 actualexit1/PIDabsent/final8; no replay/edit/repoll. V27767022/PID46948, V27877293/PID67610, V27969062/PID16608 actualexit0/PID absent. V28011276/PID81167 actualexit1 readyACK timeout before rows/PID absent. V28172407/PID97543 and V28286061/PID6779 actualexit0/PID absent/final8 forV282. V283 prepared but static prelaunch rejected, actualcontroller/model0. V28492123/PID22233 actualexit1 before gradients/final8/PID absent; V28529048/PID28795 actualexit0/all2 whole gradients/final8/PID absent. All closed drivers/builders/preparations/tests/first failures immutable; never rerun/edit/repoll. V286 training is sealed-not-started, check actual checkpoint before any launch. V28676202/PID50254 actually live, not terminal. Keep polling this exacthandle; observationtimeout or a result artifact is not an exit. Do not launch a second model or edit/restart this controller. V287 prepare actualexit0, five CPU tests pass; independent200 call actual66dc2a exit1 only after numeric proof write/return path formatting, preserved. Future new guard review calls need an absolute destination. Final V287 verify must wait actual trainingexit0/externalPIDabsence/8byte cleanup; do not run while V286 is live. V288 prepare64db59 actualexit0/CPU6 pass/model0/sourceExplanation0; current live binding is false. Original six numeric bodies/all166 pairs/all336 MLPs retained, current5071 added26; no new-weight numeric job or model load. V287 independent1200 actual652f41 exit0/all72/23010 vectors pass. Every closed V288 helper/test/preparation and V287 completed review proof remains immutable; no rerun. V28676202/PID50254 remains live, no terminal/final-model qualification. V289 scope preparef12fda actualexit0/7 CPU tests/model0/MLX0; immutable, no actual runtime drivers yet. V287 independent2000 da6f7d actualexit0/all72/23010 guards. V28676202/PID50254 remains live, no terminal inferred. Do not edit/replay closed CPU proofs or load a second model. V28676202/PID50254 actual124ef2 exit0/PID absent/all2944/982043/final8. V287 finalCPUf1240e/PID451 exit0/PID absent/entire trace/all7 guards/224F32 adapter. V28960583/PID6071 actual3a946b exit1/PID absent/final8 after complete192stock/336MLP pass; readinessextra8 failure preserved. V29051614/PID24222 actual6fc632 exit0/PID absent/final8, sourcefree logicalkey/nextfixture unchanged16to8 storage proof. V29176779/PID37601 actualdb4109 exit1/PID absent/final8, duplicateattach before comparisons preserved. V292 lifecycle2CPU pass; V29394645/PID51664 actual9c594a exit0/PID absent/all12096/111/213/16/final8. All closed controllers/builders/preparations/proofs immutable; never edit/rerun/repoll. No live model/tool owner. V29433296/PID91422 andV29531869/PID13970 actualexit0/absent. V294 firstsandbox f4e85a exit1 before data/ready; unchanged command escalated retry required by developer permissions instruction, first denial preserved. V29661188/PID36331 actual0354e3 exit0/absent. V297prepare54556 actual313e8a exit0/model0; V299prepare08f741 exit0/model0. V299source49713/root10045/child10106 actuald3a32f rootexit1/childexit1, both absentafterterminal786aa6. Final8/RNG proof missing due invalid _RandomState item assignment; preserve first full stderr/raw bytes. V300review39898 actual68fb0b exit0/model0; afterassets52265 actual2a0822 exit0/model0. All closed scopes/controllers/builders/probes/evals immutable; never repoll/edit/replay. Entire80 source plan retired and9 family bans apply. V30121089/PID79550,V30223686/PID14853,V30484791/PID79187 actualexit0 and externalPIDabsence; all closed. V303 configure first sandbox denial and first unsealed header build error preserved; original sealed V303 control never executed, V304 is sole byte-safe control. Never edit/rerun/repoll closed controllers/builders/probes; pure public APIs may be reused for genuinely new scopes. V30560427/PID19564 actualexit1/PIDabsent/final8 after all8193 prefixes; first Python reference API failure and numeric ACK correction preserved. V30619099/PID26034 exit0/PIDabsent/final8; V30842071/PID47087 exit0/PIDabsent/final8/allnumeric+16joint. All sealed code/drivers/builders immutable and no repoll/replay. Pure public qualified APIs may be reused in a genuinely new remaining scope.",
     "previousGoalTurnClassification": "progress-full-current-fresh-source-admission-and-first-actual-current-model-full-root-evaluation-with-independent-whole-prose-review"
   },
   "evidence": {
     "root": ".local-models/experiments/three-second/",
     "authoritativeState": "checkpoint.json",
     "latestRecord": {
-      "summary": "V301 supported dedicated-worker lifecycle implemented and passed4 CPU tests plus actual tiny MLX normal/initial-error control: session21089/PID79550 actualexit0/externalPIDabsence, firstfailure preserved, actualpeak4144bytes/final8/outsideMLXRNGrestored/NumPyunchanged. Does not retroactively prove failed V299 cleanup. V3023 new CPU tests and actual session23686/PID14853 exit0/PIDabsent qualify complete archived two-member canonical CPU cost: full prompts64.234209ms, grammar14.153626ms, full151936 masks79.529580ms, consume2.546954ms, no model/MLX/GPU/source neural request. Counts506/534 raw+EOS equal actual output507/535, +lookahead508/536; original sampled IDs unavailable, so this is not original runtime attribution or token-sequence equality. V303 standalone C++ shape delegates built against unchanged installed MLX0.32.3 and unchanged official source64ea011cb65f14d9ce2737e60db9a4ae91ed7441; preserve first unsealed header-build error and original sealed unrun BF16 comparator. V304 fixes only byte observation through a new sealed controller: actual session84791/PID79187 exit0/PIDabsent. All8193 prefixes0..8192, all32 KV capacities256..8192/128 boundary pairs,12 originalCustomKernel pairs,12 composite cases,5 invalid ownership/geometry rejections passed; shape/dtype/fullrawbytes equal, four compiled traces each exactlyonce. Actualpeak100663442bytes(~96MiB),final8,outsideMLXRNGrestored/NumPyunchanged; originalSDK/Metalmath/weights/sampling unchanged. No whole-model graph or full-model speed proof. 85 distinct current CPU tests passed; native control cases counted separately. All owned jobs closed/model0 this work. Last real full-source V299 still fails: fullHost34031.232625ms/packet32491.689834ms; V300 all46 prose fields26correct/15incorrect/5incomplete; V299 worker exit1 after invalid RNG assignment, no final8 proof. All nine whole-family/parent/helper bans and original84 exclusion remain, entire80-stage plan retired, remaining35 actions/78 requests never execute. Product0.0.1145/source5/frozenout unchanged, no candidate adopted/installed. Goal active/unmet: correct complete model-authored Host explanation<=3000ms then product integration/QA/release/install.",
+      "summary": "V305 new standalone original Split/Slice and packed KV component-prefix delegates built; all8193 prefix lengths/both components fully compared before first unsupported Python reference slice_update(list,list) API error. Actual60427/PID19564 exit1/PIDabsent, peak3158036bytes/final8/outsideRNG restored; first sealed driver unchanged. Stale numeric ACK fields preserved and corrected by actual external40%/20138.19MiB snapshot; real PID/RAM admission was performed. V306 new whole remaining scope uses exact original cache slice assignment reference, never replays8193 prefix pass: actual19099/PID26034 exit0/PIDabsent, all32 capacities/128 full dynamic-write+state+component pairs,20 complete fixed QKV/MLP/residual/diagnostic views,7 owner/shape rejects pass, five compile traces exactlyonce; shape/dtype/allbytes exact, peak167776407bytes/final8/outsideRNG unchanged. V307 implements the pure whole M1 decoder with explicit original weights/GPU offsets/physical KV/zero-byte logical prefix witnesses, unchanged stock active-prefix SDPA/full151936 output/Q4/group128/BF16/rank8 scale20 and all28 independent layer states;7 new CPU ownership/atomicity tests pass. V308 new strict nine-family single-model gate retains all original final training/audit/asset/runtime checks and all parent/helper bans;6 CPU tests pass, first unsealed fixture incorrectly expecting5 instead of actual6 joint cases preserved/corrected before seal. Actual V30842071/PID47087 one current V286 SDK load; real tool/selfPID/external RAM ACK beforeMLX/load, actual328302600 loaded-ready external RAM ACK before any neuralforward. Full new implementation numerical scope all12096 MLP/all111 model/all213 cohort pairs plus16 native/sampler/text/KV joint streams(15 complete,1 cancellation) passes whole shape/dtype/bytes, including full8192 window/current5071 and1..8 separateUID signatures. All current224 adapter arrays/base/settings/dtypes/sampling remain unchanged. Reference240/candidate228draws/228compared transitions, eight whole graph count signatures each exactlyonce. Actual allocatorpeak4952188066bytes(~4.61GiB), final8/allmodel+graphowners released/outsideMLXRNGrestored/NumPyunchanged; actualexit0 then externalPIDabsence. External before/loaded/during/after free44/43/39/47%, swap19211.19/19211.19/19736.38/19736.38MiB; snapshots are not continuous minimum/physical peak/hardcap proof. ProcesspeakRSS1270857728bytes. All98 distinct current CPU tests pass; native/model cases counted separately. All owned jobs closed, sourceNeuralRequests0 this work. Last actual source remains V29934.03s/full46 prose26correct15incorrect5incomplete/missingV299final8. Nine whole families remain banned, retired80-stage remainder35actions78requests never run, original84 excluded/unexposed. Actual full-source meaning/wholeHost3000ms and product integration/QA/release/install goal active/unmet. Product0.0.1145/source5/frozenout unchanged/no candidate adopted or installed.",
       "sourceReport": {
         "file": "fresh-current-source-evaluation-v298/action-00/report.json",
         "sha256": "79c1c2d09196a063ec26b3e50ba6068cd1216b8bdb5a55b13e49294cafcdce52"
@@ -77,6 +77,14 @@
       "actualNativeTerminal": {
         "file": "dtype-safe-shape-control-v304/terminal.json",
         "sha256": "a0cf5766873d9846be1cbe53aa3b9406d043cc4d2af6f3576e5421580880cf89"
+      },
+      "wholePureDecoderQualification": {
+        "file": "pure-decoder-qualification-v308/result.json",
+        "sha256": "053c6fdfb70ecb0ed2e9ce1372e28c16453fa9eddc5b17192fc486715f428875"
+      },
+      "actualPureDecoderTerminal": {
+        "file": "pure-decoder-qualification-v308/terminal.json",
+        "sha256": "fcc796b074cb0fd2eb02ee3a0ce0e929749e08cc2a7f3e0f43e442c8bcfe7505"
       }
     },
     "v87ActualSource": {
@@ -12764,6 +12772,214 @@
         "file": "dtype-safe-shape-control-v304/preparation.json",
         "sha256": "c3b81a64d5aee5a2ed0619ae827c0699239c3b23d07c8adafeec69d9f6a5f24c"
       }
+    },
+    "decoderStateShapesV305": {
+      "status": "first-decoder-view-reference-api-failure-after-all8193-prefix-comparisons",
+      "actualOwnedTool": {
+        "sessionId": 60427,
+        "pid": 19564
+      },
+      "modelLoads": 0,
+      "sourceNeuralRequests": 0,
+      "goalComplete": false,
+      "actualOwnedTerminal": {
+        "sessionId": 60427,
+        "pid": 19564,
+        "exitCode": 1,
+        "pidMissingObserved": true
+      },
+      "all8193PackedPrefixesBothComponentsComparedBeforeFailure": true,
+      "remainingDynamicWriteAndFixedViewScopeNotYetQualified": true,
+      "actualAllocatorPeakBytes": 3158036,
+      "finalActiveBytes": 8,
+      "outsideMlxRngRestored": true,
+      "outsideNumpyRngUnchanged": true,
+      "firstFailure": {
+        "type": "TypeError",
+        "message": "slice_update(): incompatible function arguments. The following argument types are supported:\n    1. slice_update(a: array, update: array, start_indices: array, axes: Sequence[int], *, stream: StreamOrDevice = None) -> array\n\nInvoked with types: mlx.core.array, mlx.core.array, list, list",
+        "stack": "Traceback (most recent call last):\n  File \"/Users/lky/project/projectanalyzer/.local-models/experiments/three-second/decoder-state-shapes-v305/control.py\", line 156, in main\n    evidence = exercise(mx, np, extension, owned)\n               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/lky/project/projectanalyzer/.local-models/experiments/three-second/decoder-state-shapes-v305/control.py\", line 69, in exercise\n    expected = mx.slice_update(buffer, packed, [0, 0, 0, offset, 0], [2, 1, 8, offset + 1, 128])\n               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nTypeError: slice_update(): incompatible function arguments. The following argument types are supported:\n    1. slice_update(a: array, update: array, start_indices: array, axes: Sequence[int], *, stream: StreamOrDevice = None) -> array\n\nInvoked with types: mlx.core.array, mlx.core.array, list, list\n"
+      },
+      "proof": {
+        "file": "decoder-state-shapes-v305/result.json",
+        "sha256": "283b7db5a28fdd45314ab98140717bfa3a9854ae6ab3949feda16abe13325ec9"
+      },
+      "terminal": {
+        "file": "decoder-state-shapes-v305/terminal.json",
+        "sha256": "e63941ef8cc354b8420e9334bfac190001ab63c7d12ee773f436245517d07d38"
+      },
+      "preparation": {
+        "file": "decoder-state-shapes-v305/preparation.json",
+        "sha256": "cb0fc5cb3c41dadcb7c7a07516cab1b2b577f39b81b8a65778fd02ede6989fe1"
+      },
+      "memoryAckNumericCorrection": {
+        "file": "decoder-state-shapes-v305/memory-ack-number-correction.json",
+        "sha256": "e648f0c14e63f1c3368ce2f1ab0cae9f1fc6fc68db7bdeb19e189ef0495354a3"
+      }
+    },
+    "decoderViewRemainderV306": {
+      "status": "whole-decoder-view-and-explicit-offset-control-pass",
+      "actualOwnedTool": {
+        "sessionId": 19099,
+        "pid": 26034
+      },
+      "modelLoads": 0,
+      "sourceNeuralRequests": 0,
+      "goalComplete": false,
+      "actualOwnedTerminal": {
+        "sessionId": 19099,
+        "pid": 26034,
+        "exitCode": 0,
+        "pidMissingObserved": true
+      },
+      "evidence": {
+        "priorAll8193PrefixCompletionPreservedWithoutReplay": true,
+        "all32OriginalKvCapacitiesAnd128DynamicWriteStatePairsPassed": true,
+        "exactOriginalFixedDecoderViewPairs": 20,
+        "invalidShapeAndOwnerRejections": 7,
+        "traceCounts": {
+          "write": 1,
+          "qkv": 1,
+          "mlp": 1,
+          "residual": 1,
+          "diagnostic": 1
+        },
+        "allShapeDtypeAndFullRawBytesEqual": true,
+        "originalEvaluationAndActivePrefixAliasingPreserved": true,
+        "newMetalMathWeightsOrSamplingUsed": false
+      },
+      "cleanup": {
+        "status": "canonical-worker-cleanup-pass",
+        "initialActiveBytes": 8,
+        "finalActiveBytes": 8,
+        "actualAllocatorPeakBytes": 167776407,
+        "outsideMlxRngRestored": true,
+        "outsideNumpyRngUnchanged": true,
+        "allModelAndCompilationOwnersReleased": true,
+        "firstFailure": null,
+        "cleanupErrors": [],
+        "canonicalSeed": 42,
+        "initialRngSha256": "25ab3aa91671294c49291cefc5dd69e1d0069686ccbfc2c7e3e38a4499dad1bf",
+        "noRngItemAssignment": true,
+        "noResetInsideLivePacket": true
+      },
+      "wholeModelGraphImplemented": false,
+      "wholeModelNumericalOr3000msProven": false,
+      "proof": {
+        "file": "decoder-view-remainder-v306/result.json",
+        "sha256": "7c468ee357d8b1c4af81211a98ac76a5e4db06665d9867097ebcc5175f4d4d73"
+      },
+      "terminal": {
+        "file": "decoder-view-remainder-v306/terminal.json",
+        "sha256": "a59638fb7cc64b620cc219af51a71d803ac55012879428d72ad356fd30a6512b"
+      },
+      "preparation": {
+        "file": "decoder-view-remainder-v306/preparation.json",
+        "sha256": "6d32f811c76563f8dfe8e9fd9cf131388f0b370eee7a2a8e45549844d2b1a831"
+      }
+    },
+    "pureDecoderStateV307": {
+      "status": "whole-pure-explicit-state-decoder-numeric-and-joint-qualified-v308",
+      "codeSha256": {
+        "pure-decoder-state-v307/cache_contract.py": "5a86ab6ad34c4e9393648b478b5afe040fa6e4aa5e5b2bef43702a4e2fded492",
+        "pure-decoder-state-v307/cache_contract_test.py": "aa88ab9b19ac8942a472cfc2d346e681589ac2d0e5e925fdece90971d19bcfff",
+        "pure-decoder-state-v307/program.py": "45877f43c4e651bb3b3263d4fbdf0b123f3c474b2d856709cf69c1c4dcc3c397",
+        "pure-decoder-state-v307/runtime.py": "32426539ea1b56ffef0cff95d414d284a6a8ee9852ecfeadf945575eb6fb41e9",
+        "pure-decoder-state-v307/shape_kernels.py": "6f7c40ca3a9bd6680a131050d07aa05bcb2515865bf9fad23b60cba61860affd",
+        "pure-decoder-state-v307/weights.py": "f9531fe3d6d4f059624242c33407e1185a0263d11d5ff016cb138be062d41960"
+      },
+      "distinctCpuTests": 7,
+      "totalDistinctCurrentCpuTests": 92,
+      "cpuTests": {
+        "file": "pure-decoder-state-v307/cpu-tests.json",
+        "sha256": "6c46f4b5620fdd3c2211d31396d88b0a9250f56ca8909337ddfcdc9d65c4cc67"
+      },
+      "explicitWeightsGpuOffsetsPhysicalKvLogicalPrefixWitnesses": true,
+      "all28LayerAtomicHostState": true,
+      "full151936OutputVocabulary": true,
+      "wholeModelNumericalOr3000msProven": false,
+      "modelLoads": 0,
+      "sourceNeuralRequests": 0,
+      "goalComplete": false,
+      "wholeModelNumericalAndJointQualified": true,
+      "qualification": {
+        "file": "pure-decoder-qualification-v308/result.json",
+        "sha256": "053c6fdfb70ecb0ed2e9ce1372e28c16453fa9eddc5b17192fc486715f428875"
+      }
+    },
+    "pureDecoderQualificationV308": {
+      "status": "whole-pure-explicit-state-current-decoder-source-free-qualification-pass",
+      "distinctCpuTests": 6,
+      "totalDistinctCurrentCpuTests": 98,
+      "wholeNumericScope": [
+        12096,
+        111,
+        213
+      ],
+      "jointStreams": 16,
+      "wholeFamilyBanCount": 9,
+      "supportedCanonicalLifecycle": true,
+      "modelLoads": 1,
+      "sourceNeuralRequests": 0,
+      "goalComplete": false,
+      "preparation": {
+        "file": "pure-decoder-qualification-v308/runtime-binding.json",
+        "sha256": "7d576dcf3ef97dbc9780088fdb1cab52da1e259a66a94fe41b140ef9a61e2000"
+      },
+      "cpuTests": {
+        "file": "pure-decoder-qualification-v308/cpu-tests.json",
+        "sha256": "c6d894cad59dfc30b704e6aa5ea9bb851e8cf50544174dae3045c8f9f2d30387"
+      },
+      "firstCpuFixtureFailure": {
+        "file": "pure-decoder-qualification-v308/cpu-tests-first.json",
+        "sha256": "8c2794781b6f0555130f9817fcf5cc6e091d1828e53c44e8df2dc1bc97a22d21"
+      },
+      "actualOwnedTool": {
+        "sessionId": 42071,
+        "pid": 47087,
+        "type": "explicit-state-current-decoder-qualification",
+        "directory": "pure-decoder-qualification-v308"
+      },
+      "actualLoadedReadyActiveBytes": 328302600,
+      "actualLoadedReadyExternalMemoryObserved": true,
+      "actualOwnedTerminal": {
+        "sessionId": 42071,
+        "pid": 47087,
+        "exitCode": 0,
+        "pidMissingObserved": true
+      },
+      "all12096Mlp111Model213CohortAnd16JointPassed": true,
+      "completeJointStreams": 15,
+      "explicitCancellation": 1,
+      "actualAllocatorPeakBytes": 4952188066,
+      "finalActiveBytes": 8,
+      "outsideMlxRngRestored": true,
+      "outsideNumpyRngUnchanged": true,
+      "fixedAllModelAssetBytesUnchanged": true,
+      "allBeforeLoadedDuringAfterActualMemoryObserved": true,
+      "actualJointDrawCounts": {
+        "reference": 240,
+        "candidate": 228
+      },
+      "actualComparedDrawTransitions": 228,
+      "wholeModelNumericalAndJointQualified": true,
+      "sourceMeaningAndWhole3000msProven": false,
+      "savedAtUtc": "2026-10-14T14:09:43.192469+00:00",
+      "proof": {
+        "file": "pure-decoder-qualification-v308/result.json",
+        "sha256": "053c6fdfb70ecb0ed2e9ce1372e28c16453fa9eddc5b17192fc486715f428875"
+      },
+      "terminal": {
+        "file": "pure-decoder-qualification-v308/terminal.json",
+        "sha256": "fcc796b074cb0fd2eb02ee3a0ce0e929749e08cc2a7f3e0f43e442c8bcfe7505"
+      },
+      "fullNumericalProof": {
+        "file": "pure-decoder-qualification-v308/grouped-numeric.json",
+        "sha256": "7cf5323c275c69ef83cb4bb426dd79520c7e70ef588f62abdeb09953600647a2"
+      },
+      "fullJointProof": {
+        "file": "pure-decoder-qualification-v308/joint.json",
+        "sha256": "fc01ed1eda5a5bcfca1f225a42450c6e2e6cbcaf10c595bf7f7233f5ccad6765"
+      }
     }
   },
   "preparedAssets": {
@@ -13783,6 +13999,23 @@
       "originalSdkUnmodified": true,
       "wholeModelGraphImplemented": false,
       "productAdopted": false
+    },
+    "wholePureExplicitStateDecoderV307V308": {
+      "publicApi": "pure-decoder-state-v307/runtime.py:PureDecoderRuntime",
+      "qualification": {
+        "file": "pure-decoder-qualification-v308/result.json",
+        "sha256": "053c6fdfb70ecb0ed2e9ce1372e28c16453fa9eddc5b17192fc486715f428875"
+      },
+      "fullNumericScope": [
+        12096,
+        111,
+        213
+      ],
+      "fullJointStreams": 16,
+      "wholeModelNumericalAndJointQualified": true,
+      "sourceSemanticQualityAnd3000msProven": false,
+      "modelAdapterChanged": false,
+      "productAdopted": false
     }
   },
   "constraints": [
@@ -13804,10 +14037,10 @@
     "ownership": "준비 모델 하나 공유, 요청 UID별 fresh KV·grammar·sampler·detokenizer. 답변·소스 KV 재사용 금지."
   },
   "nextSession": {
-    "first": "Read V301 supported lifecycle result, V302 complete current canonical CPU cost and EOS interpretation, V303 immutable extension and V304 all-prefix/full-byte qualification. Confirm git/checkpoint idle; no closed controller/builder/probe replay. Last true source V299/V300 remains rejected, fullHost34.03s and15incorrect/5incomplete prose fields, missing V299 final8 proof, nine family bans, entire80 plan retired.",
-    "nextIndependentWork": "Implement a genuinely new pure whole-decoder state boundary using explicit GPU offset arrays, physical KV buffers and logical prefix shape witnesses. Reuse qualified native original-evaluation delegates, preserve original stock active-prefix SDPA math, full original MLP/LoRA/Q4/BF16, all28 independent per-UID caches, UID/FIFO/cancel/limits and full vocabulary. Inspect remaining Split/Slice shape inference and provide strict explicit native shape contracts where needed through a new module, keeping V303/V304 sealed artifacts unchanged. Prove complete full-model shape/dtype/raw byte/state/ownership and joint correctness with one exact SDK load before any new source neural work; standalone primitive equality is not model equality or speed. Use V301 supported canonical lifecycle and genuine new gate preserving all9 family bans plus immutable current training/final-audit/numeric/joint proofs. Keep single actual tool/selfPID zero-model reservation and external memoryACK beforeMLX/load, actual loaded-ready ACK before any neural forward, model8GiB/cache256MiB and actual before/during/after RAM plus true allocatorpeak. Model limits and sampled RAM are not continuous physical host cap proofs. Then address incorrect source operation/predicate/mutability/immediate-state prose through actual model responsibility; no static inference repairs, clipping, sweeps, favourable subsets or cross-owner source/KV reuse. A future fresh permitted source scope must preserve all20 KT/TS x KO/EN x5 full-root cells/allsource/context/parents/callees/fields/confidence/unknowns and original84 exclusion; never replay any retired80 remainder or any banned family variant. Product integration/download/integrity/custommodels/FIFO/cancel/dispose/functional+visualQA/version/commit/push/install remain required after real all-field correctness and wholeHost3000ms.",
-    "notImplemented": "Whole-model pure compiled graph with explicit offset/KV/prefix state; whole-model and joint numerical qualification; actual correct full20-source3s scope; product integration/QA/release/install. V301 lifecycle and V303/V304 native primitives are implemented/qualified model-free, but are not yet integrated into a full model worker.",
+    "first": "Read V305 first reference API failure/all8193 prefix completion, V306 full remaining native state views, V307 pure whole decoder and actual V308 complete numerical/native/sampler/cancellation pass. Verify actual idle checkpoint/git; all owned jobs closed. Do not edit/replay/repoll sealed jobs or original unrun V303 controller. Last actual source V299/V300 remains rejected; nine family bans and retired80 remainder/original84 exclusion remain.",
+    "nextIndependentWork": "Measure the genuinely new qualified pure whole decoder against the complete current original runtime with one unobserved paired synthetic timing per case. Preserve all original23 streams/six cases,128-element long outputs/full maximum inputs and add the current full5071 stream as the seventh case(24 streams/variant). Keep all native/UID/KV/sampler/cancellation/disposal and full vocabulary invariants; every complete current control/candidate raw result must agree, and relevant currentV308 joint raw/count proofs remain mandatory. Synthetic timing cannot prove actual source meaning or wholeHost3000ms. After complete actual timing, make a concrete latency/semantic implementation decision and prepare a genuinely fresh permitted full20 KT/TS x KO/EN x5 whole-root source scope with all context/parent/callee/fields/confidence/unknowns, nine full-family/parent/helper bans and original84 exclusion. No static inference/value/prose repair, source/output clipping, settings/model/dtype/LR/epoch/sampler sweep, favourable subset or cross-owner source/KV reuse. Keep sole actual zero-model tool/selfPID/external RAM ACK beforeMLX/load, actual loaded-ready external ACK before any neuralforward, model8GiB/cache256MiB, before/during/after host+true allocatorpeak and actualterminal then externalPIDabsence/cleanup before new ownership. Complete product download/integrity/custommodels/FIFO/cancel/dispose/integration/functional+visualQA/version/commit/push/install after all actual model-authored meaning and fullHost3000ms gates.",
+    "notImplemented": "Unobserved whole-current pure-decoder paired timing; source semantic improvements and fresh permitted complete20-source correctness/fullHost3000ms qualification; product integration/QA/release/install. Whole pure decoder and supported lifecycle are implemented and actual whole-model numerical/joint qualified byV308.",
     "completionStillMissing": "원래전체source/context/parent/callee/fields/confidence/unknown및모델의값·문장책임을유지한새전체허용범위에서의미·정확성과전체설명≤3초를실제검증한후,다운로드/integrity/custom model/FIFO/cancel/dispose와제품QA를확인해release/install한다.",
-    "publication": "Docs-only dtype-safe-shape-control-v304/publication.json; all owned jobs closed, product/source/frozenout unchanged, no candidate installed."
+    "publication": "Docs-only pure-decoder-qualification-v308/publication.json; all owned jobs closed, product/source/frozenout unchanged, no candidate installed."
   }
 }
