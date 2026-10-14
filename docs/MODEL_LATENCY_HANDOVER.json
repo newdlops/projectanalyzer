@@ -1,6 +1,6 @@
 {
-  "purpose": "V3146 new CPU tests establish lossless complete message/scalar/token spans and full schema/model-field ownership. First actual52914/PID36206 exits1 before tokenizer due sandbox child/bin/ps denial; first readiness/ACK bytes and terminal preserved, exact same command retried with developer-required escalation. Actual15075/PID39381 loads tokenizer only then exits1 before any full member attribution because I compared Transformers5.19.0 default return_dict=True container to a token list. Both actual PIDs absent; original sealed code unchanged. V315 genuinely new explicit tokenize=True/return_dict=False boundary keeps every original archive character/field/token, real CPU-owner/PID/RAM ACK and tokenizer-ready external RAM ACK. Actual40143/PID44871 exit0 then PIDabsent, model/MLX/sourceNeural0, CPUpeakRSS240386048bytes(~229MiB). Both complete prompts4247/4243=8490tokens and raw native outputs506/534=1040tokens attributed exactly once; +EOS gives507/535 original outputs. Original sampled IDs unavailable; this is canonical text token attribution, not original runtime time attribution. Each prompt has system83+maininstruction1414+footer143+roleinstruction125=1765 instruction tokens; named schema1480/1481; fullsourceData627/629; operation footer90; roledata267/260; chatcontrol18. All message bytes, original source/schema/native wires and all46 prose verdicts preserved. Each original schema has12 source identity/route constants,2 supplied inputs,3unknown markers,5source-computed step values and1source-computed result,24possible free-prose slots. Actual raw model outputs contain23 prose strings each and ZERO computed value fields; all12 computed values across both members were Host-restored. Their correct values cannot establish model arithmetic/full-value authorship. All46 prose verdicts still26correct/15incorrect/5incomplete. V316 implements explicit complete model-value contract and native codec: release every known computed slot to a supplied original declared/display domain, reject partial domain sets/forced answers/clipped known values, preserve source identities/supplied inputs/unknown markers/prose/route cardinalities and shared-reference bounds. The existing native codec must receive every calculated field in raw model JSON before any restoration. Wrong/missing fields reject without value or prose repair. Seven meaningful CPU tests cover integer/boolean/string/array/object result kinds,nullable known-vs-unknown provenance,shared constants and exact native field presence. Actual15791/PID95151 CPU qualification exit0/PIDabsent: both full archived members/all12 computed values/all46 prose fields roundtrip through new unfixed native schema, all original reconstructed field values/prose characters identical; alternate typed wrong result allowed by grammar but rejected without repair, missing model result rejected without restoration. CPUpeakRSS183500800bytes(~175MiB),model/sourceNeural0. Archived incorrect prose is retained only for codec preservation and is NOT a new training label. Whole current corpus objective and actual source-worker/product integration not yet updated; no actual model value/prose correctness or fullHost3000ms claim. All119 distinct current CPU tests pass; all owned jobs closed, all9 whole-family/parent/helper bans and original84 exclusion remain, retired80 remainder35actions/78requests neverrun. Last real source V299 fullHost34031.232625ms/V30015incorrect5incomplete remains rejected. Qualified exclusive KV runtime V312/V313 is retained: complete111/213/16 numerics/joint, full7 paired24-stream synthetic timing, actualpeak3.58GiB and long8-19.109% with mixed other effects; synthetic proof cannot establish source accuracy/3s. Product0.0.1145/source5/frozenout unchanged/no candidate adopted or installed. Full correct model-authored all-value+prose explanation<=3000ms across fresh permitted complete20 KT/TS x KO/EN x5 roots plus integration/download/integrity/custommodels/FIFO/cancel/dispose/functional+visualQA/release/install goal active/unmet.",
-  "savedAtUtc": "2026-10-14T15:56:20.863261+00:00",
+  "purpose": "로컬 모델의 전체 계산값·설명 완료 3초 목표를 이어가기 위한 핸드오버. 최신 실제 증거와 소유 프로세스 상태를 먼저 확인한다.",
+  "savedAtUtc": "2026-10-14T16:54:10.833920+00:00",
   "workspace": "/Users/lky/project/projectanalyzer",
   "resumeInstruction": "이 파일을 먼저 읽고 checkpoint.json에서 필요한 항목만 확인한다. 긴 대화나 실험 문서 전체를 다시 읽지 않는다. 이전의 반복적·추측성 분석은 구현 결정으로 취급하지 않는다.",
   "userIntent": {
@@ -23,93 +23,24 @@
     "branch": "main",
     "productVersion": "0.0.1145",
     "handover": "docs/MODEL_LATENCY_HANDOVER.json. 다음 시작에서 실제 git 상태와 checkpoint의 현재상태를 확인한다.",
-    "checks": "V3146 new CPU tests establish lossless complete message/scalar/token spans and full schema/model-field ownership. First actual52914/PID36206 exits1 before tokenizer due sandbox child/bin/ps denial; first readiness/ACK bytes and terminal preserved, exact same command retried with developer-required escalation. Actual15075/PID39381 loads tokenizer only then exits1 before any full member attribution because I compared Transformers5.19.0 default return_dict=True container to a token list. Both actual PIDs absent; original sealed code unchanged. V315 genuinely new explicit tokenize=True/return_dict=False boundary keeps every original archive character/field/token, real CPU-owner/PID/RAM ACK and tokenizer-ready external RAM ACK. Actual40143/PID44871 exit0 then PIDabsent, model/MLX/sourceNeural0, CPUpeakRSS240386048bytes(~229MiB). Both complete prompts4247/4243=8490tokens and raw native outputs506/534=1040tokens attributed exactly once; +EOS gives507/535 original outputs. Original sampled IDs unavailable; this is canonical text token attribution, not original runtime time attribution. Each prompt has system83+maininstruction1414+footer143+roleinstruction125=1765 instruction tokens; named schema1480/1481; fullsourceData627/629; operation footer90; roledata267/260; chatcontrol18. All message bytes, original source/schema/native wires and all46 prose verdicts preserved. Each original schema has12 source identity/route constants,2 supplied inputs,3unknown markers,5source-computed step values and1source-computed result,24possible free-prose slots. Actual raw model outputs contain23 prose strings each and ZERO computed value fields; all12 computed values across both members were Host-restored. Their correct values cannot establish model arithmetic/full-value authorship. All46 prose verdicts still26correct/15incorrect/5incomplete. V316 implements explicit complete model-value contract and native codec: release every known computed slot to a supplied original declared/display domain, reject partial domain sets/forced answers/clipped known values, preserve source identities/supplied inputs/unknown markers/prose/route cardinalities and shared-reference bounds. The existing native codec must receive every calculated field in raw model JSON before any restoration. Wrong/missing fields reject without value or prose repair. Seven meaningful CPU tests cover integer/boolean/string/array/object result kinds,nullable known-vs-unknown provenance,shared constants and exact native field presence. Actual15791/PID95151 CPU qualification exit0/PIDabsent: both full archived members/all12 computed values/all46 prose fields roundtrip through new unfixed native schema, all original reconstructed field values/prose characters identical; alternate typed wrong result allowed by grammar but rejected without repair, missing model result rejected without restoration. CPUpeakRSS183500800bytes(~175MiB),model/sourceNeural0. Archived incorrect prose is retained only for codec preservation and is NOT a new training label. Whole current corpus objective and actual source-worker/product integration not yet updated; no actual model value/prose correctness or fullHost3000ms claim. All119 distinct current CPU tests pass; all owned jobs closed, all9 whole-family/parent/helper bans and original84 exclusion remain, retired80 remainder35actions/78requests neverrun. Last real source V299 fullHost34031.232625ms/V30015incorrect5incomplete remains rejected. Qualified exclusive KV runtime V312/V313 is retained: complete111/213/16 numerics/joint, full7 paired24-stream synthetic timing, actualpeak3.58GiB and long8-19.109% with mixed other effects; synthetic proof cannot establish source accuracy/3s. Product0.0.1145/source5/frozenout unchanged/no candidate adopted or installed. Full correct model-authored all-value+prose explanation<=3000ms across fresh permitted complete20 KT/TS x KO/EN x5 roots plus integration/download/integrity/custommodels/FIFO/cancel/dispose/functional+visualQA/release/install goal active/unmet.",
+    "checks": "V317–V324: 모델 계산값 출력 경계를 전체3840행에 적용했다. 최초V317은3760통과/80실패를 그대로 보존했고, V318은 남은80행을 모두 검증해 기존3760행을 재실행 없이 byte그대로 합쳤다. 원래2944train/896valid 및 모든 원문/context/teacher 값·설명을 보존한다. 새로 모델 출력에 필요한772계산값, 이미 모델 작성474값, 명시적 known-null20; 입력변경230행. V319 전체3840 native grammar/정확히1EOS/151936vocab/8192window+2400reserve/196608member/24000JSchar 통과. 그대로인3610행 전체token bytes동일. 985517train/315946valid targets+EOS; max4496prompt/862target/5184sequence. V320 91sourcecomponents/985bodies, 기존rational equal-completion weights,9family/parent/helper금지 및original84제외 검증. V321 실제SDK MLX CPU 전체3840행/47rationalweights/완전target+EOS mask/seed42 order/unweightedmonitor/RNG 복원 통과. V322 원래72안정성owner/그룹/원문/가중치 유지; 54target변경/24283전체targets. V323 한freshbase+zeroLoRA 전체144teacherforcedforward/원래기준 통과; 실제peak3333737832bytes(~3.10GiB),final8. V324 전체train에서 미리 정한 maxsequence5184와maxtarget862 두fullgradient224F32/probe 통과; 실제peak5475119310bytes(~5.10GiB),모든parameter bytes/RNG동일/final8. 실제terminal과PID부재 확인/전부idle. CPUunit합계133. 새학습/소스설명 요청0; 교사강제·CPU증거는 모델의 실제 계산/설명 품질 또는fullHost3000ms 증명이 아니다. 마지막 실제sourceV29934031.232625ms/46prose26correct15incorrect5incomplete 실패는 그대로다. 제품0.0.1145/source5/frozenout 그대로이며 채택·설치 없음. 전체정확모델값+설명<=3000ms/20fullroot cells/제품통합·QA·출시·설치 목표는 active/unmet.",
     "productImplementationBaselineCommit": "1827aa4cd4ccb7c96b33d320d23d73a715904ad3",
-    "documentationContent": "V314~V315 complete canonical token/field authorship audit proves prior computed values Host-owned; V316 explicit raw model-value contract and complete two-member codec proof without inference repair. Docs only; whole corpus objective/source-worker integration and actual all-field3s goal remain pending."
+    "documentationContent": "V317–V324 complete model-owned-value objective/native/Host/token/SDK/source-policy/stability/resource evidence; product changes not adopted."
   },
   "executionState": {
     "activeToolHandles": [],
     "activeModelProcesses": false,
-    "lastTurn": "V3146 new CPU tests establish lossless complete message/scalar/token spans and full schema/model-field ownership. First actual52914/PID36206 exits1 before tokenizer due sandbox child/bin/ps denial; first readiness/ACK bytes and terminal preserved, exact same command retried with developer-required escalation. Actual15075/PID39381 loads tokenizer only then exits1 before any full member attribution because I compared Transformers5.19.0 default return_dict=True container to a token list. Both actual PIDs absent; original sealed code unchanged. V315 genuinely new explicit tokenize=True/return_dict=False boundary keeps every original archive character/field/token, real CPU-owner/PID/RAM ACK and tokenizer-ready external RAM ACK. Actual40143/PID44871 exit0 then PIDabsent, model/MLX/sourceNeural0, CPUpeakRSS240386048bytes(~229MiB). Both complete prompts4247/4243=8490tokens and raw native outputs506/534=1040tokens attributed exactly once; +EOS gives507/535 original outputs. Original sampled IDs unavailable; this is canonical text token attribution, not original runtime time attribution. Each prompt has system83+maininstruction1414+footer143+roleinstruction125=1765 instruction tokens; named schema1480/1481; fullsourceData627/629; operation footer90; roledata267/260; chatcontrol18. All message bytes, original source/schema/native wires and all46 prose verdicts preserved. Each original schema has12 source identity/route constants,2 supplied inputs,3unknown markers,5source-computed step values and1source-computed result,24possible free-prose slots. Actual raw model outputs contain23 prose strings each and ZERO computed value fields; all12 computed values across both members were Host-restored. Their correct values cannot establish model arithmetic/full-value authorship. All46 prose verdicts still26correct/15incorrect/5incomplete. V316 implements explicit complete model-value contract and native codec: release every known computed slot to a supplied original declared/display domain, reject partial domain sets/forced answers/clipped known values, preserve source identities/supplied inputs/unknown markers/prose/route cardinalities and shared-reference bounds. The existing native codec must receive every calculated field in raw model JSON before any restoration. Wrong/missing fields reject without value or prose repair. Seven meaningful CPU tests cover integer/boolean/string/array/object result kinds,nullable known-vs-unknown provenance,shared constants and exact native field presence. Actual15791/PID95151 CPU qualification exit0/PIDabsent: both full archived members/all12 computed values/all46 prose fields roundtrip through new unfixed native schema, all original reconstructed field values/prose characters identical; alternate typed wrong result allowed by grammar but rejected without repair, missing model result rejected without restoration. CPUpeakRSS183500800bytes(~175MiB),model/sourceNeural0. Archived incorrect prose is retained only for codec preservation and is NOT a new training label. Whole current corpus objective and actual source-worker/product integration not yet updated; no actual model value/prose correctness or fullHost3000ms claim. All119 distinct current CPU tests pass; all owned jobs closed, all9 whole-family/parent/helper bans and original84 exclusion remain, retired80 remainder35actions/78requests neverrun. Last real source V299 fullHost34031.232625ms/V30015incorrect5incomplete remains rejected. Qualified exclusive KV runtime V312/V313 is retained: complete111/213/16 numerics/joint, full7 paired24-stream synthetic timing, actualpeak3.58GiB and long8-19.109% with mixed other effects; synthetic proof cannot establish source accuracy/3s. Product0.0.1145/source5/frozenout unchanged/no candidate adopted or installed. Full correct model-authored all-value+prose explanation<=3000ms across fresh permitted complete20 KT/TS x KO/EN x5 roots plus integration/download/integrity/custommodels/FIFO/cancel/dispose/functional+visualQA/release/install goal active/unmet.",
+    "lastTurn": "V317–V324 complete new model-value objective and actual memory prerequisites passed; full goal active/unmet",
     "noProgressConsecutiveTurns": 0,
     "terminalRule": "V13755468/PID99592 실제exit0/부재; V14019108/PID78530, V14679681/PID80723, V14119638/PID82365 실제exit0/부재. V148sourcefree84120/root94340/child94474 actualexit0/부재. V148실제source49497/root95535 exit1/부재, child95621 exit0/부재. 모두 종료됐으므로 재poll/실행/수정하지 않는다. V149CPU검토 exit0/최초결과보존. 이전 모든 종료 독점job도 그대로 재실행 금지. 현재livehandle없음; 실제상태를검증하고새독립CPU진단부터 진행하며 artifact/관측timeout으로완료나live를추측하지않는다. V152joint43575/PID16552 actualexit0/PID부재; V154timing25713/PID24293 actualexit0/PID부재. 모두닫힘. V152seal.py 첫import실패actualexit1도닫혀재실행/수정금지; V153seal은별도준비builder actualexit0. V152GPU와V154timing을재poll/재실행하지않는다. V15589451/PID39514, V15769394/PID54696, V15812178/PID61718 actualexit0/PID부재/최종8 확인. 모두닫힌exclusive GPU/profiler/timing이므로재poll/수정/replay금지. V156은CPU초안만이고model/GPU0이며sealed아님. V15979546/PID81282,V16023111/PID93177,V16130401/PID1709,V1626406/PID5381 모두actualexit0/PID부재/최종8로닫힘. V161 첫prepare.py는import오류exit1/model0이며닫힘; 별도prepare_explicit.py가actualexit0. 닫힌 모든driver/builder는재실행·수정·재poll하지않는다. V16355731/PID19877 import종료1/model0,V16451237/PID22391 Metalcompile종료1/비교0,V16546741/PID25145 12쌍일치후residency종료1,V16614920/PID28269 RNG진단종료0,V16747955/PID34711 전체1344종료0,V16836764/PID43144 전체336/98종료0,V16947749/PID49513 준비graph종료1/생성0,V17113461/PID54568 전체15/217종료0,V17034350/PID58193 전체23시간종료0;모두PID부재. 종료driver/builder/수치/시간검사재실행·수정·재poll금지. 검증된순수kernel/runtime공개helper는새scope의새구현에서재사용가능. V1726895/PID90943 exit1은root가model-ready전에active상태를기록해immutableloader의idlegate실패;SDK model0/kernel0. V17377921/PID99483 전체48384 exit0, V17571105/PID21799 전체12096/98/197 exit0, V17667141/PID30182 전체15/217 exit0, V17716135/PID38173 전체23시간 exit0; 모두PID부재. V174prepare exit0후CPU import사전검사에서STRESS_CASES누락발견,모델/GPU0이며그sealed준비본은보존. 새GPU의global activeModelProcesses/activeToolHandles등록은새model-ready.json에서현재PID/실제완료확인후에만한다;loader는입장검사를다시하므로launch파일만으로너무일찍등록하지않는다. 준비전live tool handle은별도로추적하고timeout을종료로해석하지않는다. V17827645/PID70584 exit134는첫Metal주소공간컴파일abort/완료model1/비교0/PID부재이며Python최종정리검증은없음. V17936265/PID75058 전체28224 exit0, V18087592/PID83094 전체12096/98/197 exit0, V18128564/PID89635 전체15/217 exit0, V18248607/PID95247 전체23시간 exit0; 모두PID부재. 각실제terminal·최초오류·sealedsource보존,재poll/수정/재실행금지. V18359621/PID12294 전체12096 operation exit0, V18438791/PID19321 전체12096MLP/98model/197UID exit0, V18582721/PID24239 전체15/217 exit0, V18692667/PID25640 전체23시간 exit0;모두PID부재/최종8bytes. preparation·actualtool·PID부재receipt보존,닫힌실행재poll·재실행·수정금지. V187 session56849/PID47521 exit0, V188 session50644/PID55198 exit0, V189 session69270/PID69711 exit0, V190 session73365/PID73307 exit0, V191 CPU session98558/PID92430 exit0; 모두 실제 terminal/PID부재 확인. V187~190 최종8bytes 확인. V188은 앞 turn에 완료됐으며 이번 turn에 실제 handle의 terminal을 회수했다. 모두 닫혔으므로 재poll·수정·재실행하지 않는다. V192 CPU84357/PID37784 exit1, V193 CPU27192/PID55961 exit0, V194 CPU86617/PID61208 exit1, V195 CPU97425/PID68792 exit0, V196 CPU16980/PID71537 exit0; 모두 실제 terminal/PID부재. V192 맥락16건 및 V194 8token초과 실패를 보존한다. 닫힌 builder/audit/prepare 재poll·수정·재실행 금지. V197 CPU87836/PID9604 exit0/PID부재, CPUbinding11895 exit0/MLXimport0. V198 prepare88572/PID22724 exit0, 실제root76772/PID31539 exit0 및child31674 exit0/PID부재. model-ready는실제load1/328302600 뒤 생성됐다. root가확인했을때child는이미정상종료되어global active를등록하지않았다. 모든현재handle닫힘, 재poll/수정/재실행금지. V199 prepare63098 exit0,실제36428/root76990 exit0. Child77007/77008은계획된SIGTERM close,79442는정상EOFexit0. 모든PID부재. 실제Bmodelready/현재PID확인뒤root가registration36428을제공했고,controller가close+OSPID부재를검사한뒤globalidle을기록하여C새load를허용했다. 현재livehandle없음;V199닫힌builder/run/검사재poll·수정·재실행금지. V201 CPU99633/PID2113 exit0/부재, V202 CPU40603/PID14299 exit0/부재, V203 CPU32104/PID50513 exit0/부재, V204 CPU96961/PID62606 exit1/부재(native8거부), V205 CPU32066/PID72335 exit0/부재, V206 CPU82766/PID78569 exit0/부재. 모든 종료 exclusive builder/audit/preparation과 최초 실패·code seal을 보존하며 재poll·수정·재실행 금지. 공개 pure factory/schema/normalizer/reference-order/helper는 실질적으로 새 scope의 새 구현에서 재사용 가능. 이번 model/sourceNN0이며 현재 livehandle 없음. V207 CPUaudit62225/PID52979 exit0/PID부재(36action100owner52packet),prepare59182actualexit0; V208 CPUaudit64124/PID4613 exit0/PID부재(100stage300node40call92page8fullprior),prepare38152actualexit0. V208 첫outerCPUtest91217exit1/8comparisonfixture실패와수정후82842exit0를보존한다. 닫힌exclusive audit/prepare·code·최초결과는재poll·수정·재실행하지않는다. 현재livehandle없음,model/sourceNN0. V209builder91254/PID20593 actualexit0/PID부재; V210native34682/PID23332 actualexit0/PID부재; V211prepare74965actualexit0/sourceactual34734/root43809 exit1/child44319exit0/둘PID부재/원래closed328302600확인. 모델SDK load/현재PID/준비완료후에만registration34734를제공했고정리후globalidle을확인했다. V212review95491/PID66834actualexit0/PID부재. 모든closedexclusive builder/prepare/audit/evaluate/review와최초결과·code수정/재poll/재실행금지. V211전체100계획은폐기되었고남은35action96source요청은실행하지않는다. 현재livehandle/loadedmodel없음. V21792917/PID71955 exit1, V21823975/PID97874 exit1/model0, V21926317/PID15671 exit1, V22059293/PID36224 exit0; all actual terminal/PID absent and closed. V22138449/PID93258 actualexit0/PIDabsent/full15-217/final8; closed and never repoll/replay/edit. V22246627/PID23626 actualexit1/PIDabsent/first variable collision with no final8 proof; V22360708/PID39540 actualexit0/PIDabsent/full23-sixpairs/final8. Both closed; never repoll/replay/edit. V2254401/PID20979 exit1, V22742736/PID39139 exit1, V22922184/PID56247 exit0, V2306515/PID68175 exit0, V2316109/PID79683 exit0; all actual terminal/PID absent/final8. Closed, never edit/replay/repoll. V23370557/PID7960 and V23585612/PID30017 actualexit1/PIDabsent/final8; closed first errors/complete raw tensors preserved, never replay/edit/repoll. V23798220/PID58705 actualexit1/PIDabsent/final8; no replay/edit/repoll. V27767022/PID46948, V27877293/PID67610, V27969062/PID16608 actualexit0/PID absent. V28011276/PID81167 actualexit1 readyACK timeout before rows/PID absent. V28172407/PID97543 and V28286061/PID6779 actualexit0/PID absent/final8 forV282. V283 prepared but static prelaunch rejected, actualcontroller/model0. V28492123/PID22233 actualexit1 before gradients/final8/PID absent; V28529048/PID28795 actualexit0/all2 whole gradients/final8/PID absent. All closed drivers/builders/preparations/tests/first failures immutable; never rerun/edit/repoll. V286 training is sealed-not-started, check actual checkpoint before any launch. V28676202/PID50254 actually live, not terminal. Keep polling this exacthandle; observationtimeout or a result artifact is not an exit. Do not launch a second model or edit/restart this controller. V287 prepare actualexit0, five CPU tests pass; independent200 call actual66dc2a exit1 only after numeric proof write/return path formatting, preserved. Future new guard review calls need an absolute destination. Final V287 verify must wait actual trainingexit0/externalPIDabsence/8byte cleanup; do not run while V286 is live. V288 prepare64db59 actualexit0/CPU6 pass/model0/sourceExplanation0; current live binding is false. Original six numeric bodies/all166 pairs/all336 MLPs retained, current5071 added26; no new-weight numeric job or model load. V287 independent1200 actual652f41 exit0/all72/23010 vectors pass. Every closed V288 helper/test/preparation and V287 completed review proof remains immutable; no rerun. V28676202/PID50254 remains live, no terminal/final-model qualification. V289 scope preparef12fda actualexit0/7 CPU tests/model0/MLX0; immutable, no actual runtime drivers yet. V287 independent2000 da6f7d actualexit0/all72/23010 guards. V28676202/PID50254 remains live, no terminal inferred. Do not edit/replay closed CPU proofs or load a second model. V28676202/PID50254 actual124ef2 exit0/PID absent/all2944/982043/final8. V287 finalCPUf1240e/PID451 exit0/PID absent/entire trace/all7 guards/224F32 adapter. V28960583/PID6071 actual3a946b exit1/PID absent/final8 after complete192stock/336MLP pass; readinessextra8 failure preserved. V29051614/PID24222 actual6fc632 exit0/PID absent/final8, sourcefree logicalkey/nextfixture unchanged16to8 storage proof. V29176779/PID37601 actualdb4109 exit1/PID absent/final8, duplicateattach before comparisons preserved. V292 lifecycle2CPU pass; V29394645/PID51664 actual9c594a exit0/PID absent/all12096/111/213/16/final8. All closed controllers/builders/preparations/proofs immutable; never edit/rerun/repoll. No live model/tool owner. V29433296/PID91422 andV29531869/PID13970 actualexit0/absent. V294 firstsandbox f4e85a exit1 before data/ready; unchanged command escalated retry required by developer permissions instruction, first denial preserved. V29661188/PID36331 actual0354e3 exit0/absent. V297prepare54556 actual313e8a exit0/model0; V299prepare08f741 exit0/model0. V299source49713/root10045/child10106 actuald3a32f rootexit1/childexit1, both absentafterterminal786aa6. Final8/RNG proof missing due invalid _RandomState item assignment; preserve first full stderr/raw bytes. V300review39898 actual68fb0b exit0/model0; afterassets52265 actual2a0822 exit0/model0. All closed scopes/controllers/builders/probes/evals immutable; never repoll/edit/replay. Entire80 source plan retired and9 family bans apply. V30121089/PID79550,V30223686/PID14853,V30484791/PID79187 actualexit0 and externalPIDabsence; all closed. V303 configure first sandbox denial and first unsealed header build error preserved; original sealed V303 control never executed, V304 is sole byte-safe control. Never edit/rerun/repoll closed controllers/builders/probes; pure public APIs may be reused for genuinely new scopes. V30560427/PID19564 actualexit1/PIDabsent/final8 after all8193 prefixes; first Python reference API failure and numeric ACK correction preserved. V30619099/PID26034 exit0/PIDabsent/final8; V30842071/PID47087 exit0/PIDabsent/final8/allnumeric+16joint. All sealed code/drivers/builders immutable and no repoll/replay. Pure public qualified APIs may be reused in a genuinely new remaining scope. V30910735/PID63417 actualexit1/PIDabsent/final8 after all7timingpairs/8GiB limit assertion. V31061270/PID83038 exit1/PIDabsent/final8 after count2 active difference16bytes; V31166875/PID85997 exit0/PIDabsent/final8/allremaining255nativepairs. V31272670/PID93414 exit0/PIDabsent/final8/all111-213-16; V31372958/PID1365 exit0/PIDabsent/final8/all7paired24streams/peak3.58GiB. All closed immutable scripts/builders/results; no rerun/edit/repoll. Pure public APIs remain reusable for genuinely new implementation/scope. V31452914/PID36206 sandbox-only denial before tokenizer, exact-command escalated15075/PID39381 exits1 before complete attribution due return_dict container; both actual terminal/PIDabsent, first artifacts preserved. V31540143/PID44871 andV31615791/PID95151 actualexit0/PIDabsent/model0. All sealed drivers/builders/tests/results immutable, no rerun/edit/repoll. First sandbox denial exact-command escalation is the developer-required exception, not permission to replay other closed jobs.",
-    "previousGoalTurnClassification": "progress-full-current-fresh-source-admission-and-first-actual-current-model-full-root-evaluation-with-independent-whole-prose-review"
+    "previousGoalTurnClassification": "meaningful implementation and complete qualification progress"
   },
   "evidence": {
     "root": ".local-models/experiments/three-second/",
     "authoritativeState": "checkpoint.json",
     "latestRecord": {
-      "summary": "V3146 new CPU tests establish lossless complete message/scalar/token spans and full schema/model-field ownership. First actual52914/PID36206 exits1 before tokenizer due sandbox child/bin/ps denial; first readiness/ACK bytes and terminal preserved, exact same command retried with developer-required escalation. Actual15075/PID39381 loads tokenizer only then exits1 before any full member attribution because I compared Transformers5.19.0 default return_dict=True container to a token list. Both actual PIDs absent; original sealed code unchanged. V315 genuinely new explicit tokenize=True/return_dict=False boundary keeps every original archive character/field/token, real CPU-owner/PID/RAM ACK and tokenizer-ready external RAM ACK. Actual40143/PID44871 exit0 then PIDabsent, model/MLX/sourceNeural0, CPUpeakRSS240386048bytes(~229MiB). Both complete prompts4247/4243=8490tokens and raw native outputs506/534=1040tokens attributed exactly once; +EOS gives507/535 original outputs. Original sampled IDs unavailable; this is canonical text token attribution, not original runtime time attribution. Each prompt has system83+maininstruction1414+footer143+roleinstruction125=1765 instruction tokens; named schema1480/1481; fullsourceData627/629; operation footer90; roledata267/260; chatcontrol18. All message bytes, original source/schema/native wires and all46 prose verdicts preserved. Each original schema has12 source identity/route constants,2 supplied inputs,3unknown markers,5source-computed step values and1source-computed result,24possible free-prose slots. Actual raw model outputs contain23 prose strings each and ZERO computed value fields; all12 computed values across both members were Host-restored. Their correct values cannot establish model arithmetic/full-value authorship. All46 prose verdicts still26correct/15incorrect/5incomplete. V316 implements explicit complete model-value contract and native codec: release every known computed slot to a supplied original declared/display domain, reject partial domain sets/forced answers/clipped known values, preserve source identities/supplied inputs/unknown markers/prose/route cardinalities and shared-reference bounds. The existing native codec must receive every calculated field in raw model JSON before any restoration. Wrong/missing fields reject without value or prose repair. Seven meaningful CPU tests cover integer/boolean/string/array/object result kinds,nullable known-vs-unknown provenance,shared constants and exact native field presence. Actual15791/PID95151 CPU qualification exit0/PIDabsent: both full archived members/all12 computed values/all46 prose fields roundtrip through new unfixed native schema, all original reconstructed field values/prose characters identical; alternate typed wrong result allowed by grammar but rejected without repair, missing model result rejected without restoration. CPUpeakRSS183500800bytes(~175MiB),model/sourceNeural0. Archived incorrect prose is retained only for codec preservation and is NOT a new training label. Whole current corpus objective and actual source-worker/product integration not yet updated; no actual model value/prose correctness or fullHost3000ms claim. All119 distinct current CPU tests pass; all owned jobs closed, all9 whole-family/parent/helper bans and original84 exclusion remain, retired80 remainder35actions/78requests neverrun. Last real source V299 fullHost34031.232625ms/V30015incorrect5incomplete remains rejected. Qualified exclusive KV runtime V312/V313 is retained: complete111/213/16 numerics/joint, full7 paired24-stream synthetic timing, actualpeak3.58GiB and long8-19.109% with mixed other effects; synthetic proof cannot establish source accuracy/3s. Product0.0.1145/source5/frozenout unchanged/no candidate adopted or installed. Full correct model-authored all-value+prose explanation<=3000ms across fresh permitted complete20 KT/TS x KO/EN x5 roots plus integration/download/integrity/custommodels/FIFO/cancel/dispose/functional+visualQA/release/install goal active/unmet.",
-      "sourceReport": {
-        "file": "fresh-current-source-evaluation-v298/action-00/report.json",
-        "sha256": "79c1c2d09196a063ec26b3e50ba6068cd1216b8bdb5a55b13e49294cafcdce52"
-      },
-      "actualTerminal": {
-        "file": "fresh-current-source-evaluation-v298/action-00/terminal.json",
-        "sha256": "7d03d8fff7c9895df505d07dd64829af38e45419fb691c262fea91efade86e3e"
-      },
-      "meaningReview": {
-        "file": "current-source-meaning-review-v300/result.json",
-        "sha256": "22510e379e7fda2a77e6f58c65e7d9d2ee7625b2cc459c708325964adb636440"
-      },
-      "retirement": {
-        "file": "fresh-current-source-evaluation-v298/retirement.json",
-        "sha256": "5f1e64b8a5a05682ee23e4797784f0428ba3aa9c1d62569f9c5fc27518251c21"
-      },
-      "currentWholeFamilyBanCount": 9,
-      "goalComplete": false,
-      "lifecycle": {
-        "file": "canonical-worker-lifecycle-v301/result.json",
-        "sha256": "c5d4c8f0a5e52406698557883a128ed27b03547c6a00f062cef4db9d516f1329"
-      },
-      "canonicalCpuCost": {
-        "file": "current-native-cpu-cost-v302/result.json",
-        "sha256": "eeae86d28b3bec3f12c4b188d23e4be9e540e4c73c420badfc37c9e5263bc0fd"
-      },
-      "eosAccounting": {
-        "file": "current-native-cpu-cost-v302/eos-accounting-interpretation.json",
-        "sha256": "fc0d6e64f2739906ec3cc94a258af65459146252b34de2205d72e43951bb2698"
-      },
-      "nativeShapeQualification": {
-        "file": "dtype-safe-shape-control-v304/result.json",
-        "sha256": "b77037eadd10b5df61a56d70d5e5af345f563d4bb31b13bb265e15ea782e5e7f"
-      },
-      "actualNativeTerminal": {
-        "file": "dtype-safe-shape-control-v304/terminal.json",
-        "sha256": "a0cf5766873d9846be1cbe53aa3b9406d043cc4d2af6f3576e5421580880cf89"
-      },
-      "wholePureDecoderQualification": {
-        "file": "pure-decoder-qualification-v308/result.json",
-        "sha256": "053c6fdfb70ecb0ed2e9ce1372e28c16453fa9eddc5b17192fc486715f428875"
-      },
-      "actualPureDecoderTerminal": {
-        "file": "pure-decoder-qualification-v308/terminal.json",
-        "sha256": "fcc796b074cb0fd2eb02ee3a0ce0e929749e08cc2a7f3e0f43e442c8bcfe7505"
-      },
-      "ownedKvHandoffQualification": {
-        "file": "owned-handoff-qualification-v312/result.json",
-        "sha256": "368da72d73d31b506a7cf1583663816905aac0c6eade590462844551c153ce11"
-      },
-      "wholeCurrentHandoffTiming": {
-        "file": "owned-handoff-timing-v313/result.json",
-        "sha256": "3457ef1d426159bbb005f1e31e987136f6e4cad1820fd69454598f01e31b273f"
-      },
-      "actualCurrentHandoffTerminal": {
-        "file": "owned-handoff-timing-v313/terminal.json",
-        "sha256": "7c066ff897117d8e7140c0247f37db7dfe1f4bb42d0fe9bbe1aa93ee65a30817"
-      },
-      "completeInputOutputAuthorshipAtlas": {
-        "file": "explicit-token-atlas-v315/result.json",
-        "sha256": "63aab6d543062c3639c11eda577866e86bc4bf281cd0b3cf100ab151ae1d9f5f"
-      },
-      "modelValueWireContract": {
-        "file": "model-owned-values-v316/result.json",
-        "sha256": "4ffaa20727c515d9f16dd0d2d47b317325ca1f44a3a24eafc4cb2772c4178e16"
-      },
-      "actualModelValueWireTerminal": {
-        "file": "model-owned-values-v316/terminal.json",
-        "sha256": "de1ac20ef1865c14422ffdf8f02f49766bb2f6abd3b958ea2cccef53874ab785"
-      }
+      "file": "model-value-gradient-admission-v324/result.json",
+      "sha256": "c1365cf7649e5e04c3a6e54d63a7e87f2271899c40980f716d8de7b1b7b63f92"
     },
     "v87ActualSource": {
       "directory": "tuple-source-runtime-v87/",
@@ -13560,6 +13491,294 @@
         "file": "model-owned-values-v316/terminal.json",
         "sha256": "de1ac20ef1865c14422ffdf8f02f49766bb2f6abd3b958ea2cccef53874ab785"
       }
+    },
+    "latestModelValueObjectiveV317ToV324": {
+      "fullModelValueObjectiveV317": {
+        "status": "closed-first-complete-corpus-objective-rejection",
+        "proof": {
+          "file": "full-model-value-objective-v317/result.json",
+          "sha256": "5afdb1f6761f6907ff2228a2e9a4d0be07bf5a592372f08bc9468b0a7ae52b3e"
+        },
+        "terminal": {
+          "file": "full-model-value-objective-v317/terminal.json",
+          "sha256": "600697c4f5ceb719a9b5391311f34ba0848731799a025bb8db0b5de60bec24dd"
+        },
+        "actualOwnedTerminal": {
+          "sessionId": 57717,
+          "pid": 38004,
+          "actualExitCode": 1,
+          "actualTerminalChunk": "2fa7b2",
+          "actualTerminalObserved": true,
+          "pidMissingObserved": true,
+          "pidAbsenceChunk": "efb8f9",
+          "modelLoads": 0,
+          "sourceNeuralRequests": 0,
+          "peakRssBytes": 349192192,
+          "externalMemoryFreeBeforePercent": 53,
+          "externalMemoryFreeAfterPercent": 53,
+          "externalSwapUsedBeforeMiB": 23868.69,
+          "externalSwapUsedAfterMiB": 23868.69,
+          "closedAtUtc": "2026-10-14T16:26:48.994400+00:00",
+          "closedControllerMustNeverReplay": true
+        },
+        "completeRows": 3840,
+        "passedRows": 3760,
+        "rejectedRows": 80,
+        "allOriginalRowsRetained": true,
+        "goalComplete": false,
+        "allowedForTraining": false
+      },
+      "constantContainerValuesV318": {
+        "status": "closed-all80-and-full-composed3840-cpu-native-host-inverse-pass",
+        "proof": {
+          "file": "constant-container-values-v318/result.json",
+          "sha256": "adecb06a9a2bcdbd91e928b7cf98fabe0e489de843e6466255b543dc6ccc3823"
+        },
+        "terminal": {
+          "file": "constant-container-values-v318/terminal.json",
+          "sha256": "b483bb42470463095d8960e744a27babb7e9d24f2177c28fcb58adc03a29c660"
+        },
+        "actualOwnedTerminal": {
+          "sessionId": 85944,
+          "pid": 45366,
+          "actualExitCode": 0,
+          "actualTerminalObserved": true,
+          "actualTerminalChunk": "de73ca",
+          "pidMissingObserved": true,
+          "closedAtUtc": "2026-10-14T16:31:54.289947+00:00",
+          "modelLoads": 0,
+          "sourceNeuralRequests": 0,
+          "processPeakRssBytes": 477790208,
+          "closedControllerMustNeverReplay": true
+        },
+        "completeRows": 3840,
+        "newlyModelOwnedComputedFields": 772,
+        "alreadyModelOwnedComputedFields": 474,
+        "knownNullFields": 20,
+        "currentDistinctCpuTestsPassed": 127,
+        "modelLoads": 0,
+        "sourceNeuralRequests": 0,
+        "allowedForTraining": false,
+        "goalComplete": false
+      },
+      "modelValueTokenAdmissionV319": {
+        "status": "closed-all3840-full-native-token-grammar-eos-window-pass",
+        "proof": {
+          "file": "model-value-token-admission-v319/result.json",
+          "sha256": "c0ccd33c315e0b773bf6765c5f81e8840d3c1b5b6cc4aada903f132d4f8ddf01"
+        },
+        "terminal": {
+          "file": "model-value-token-admission-v319/terminal.json",
+          "sha256": "a9d7a8aa742cf111b88bf556ebeb79bc8a49a1e3feb022fee8840ed805437554"
+        },
+        "actualOwnedTerminal": {
+          "sessionId": 12174,
+          "pid": 50212,
+          "actualExitCode": 0,
+          "actualTerminalObserved": true,
+          "actualTerminalChunk": "51cdec",
+          "pidMissingObserved": true,
+          "closedAtUtc": "2026-10-14T16:36:20.325680+00:00",
+          "modelLoads": 0,
+          "sourceNeuralRequests": 0,
+          "processPeakRssBytes": 521109504,
+          "closedControllerMustNeverReplay": true
+        },
+        "completeRows": 3840,
+        "trainingTargetAndEosTokens": 985517,
+        "validationTargetAndEosTokens": 315946,
+        "unchangedWholeSequenceRows": 3610,
+        "changedObjectiveRows": 230,
+        "maximumFullSequenceTokens": 5184,
+        "currentDistinctCpuTestsPassed": 129,
+        "allowedForTraining": false,
+        "newTrainingStarted": false,
+        "goalComplete": false
+      },
+      "modelValueObjectiveAdmissionV320": {
+        "status": "all3840-model-value-objective-original-policy-and-nine-ban-admission-pass",
+        "proof": {
+          "file": "model-value-objective-admission-v320/result.json",
+          "sha256": "9144922bc2d81c3c492589352d5a1ca14f21c9299a7d9bab15d73a191104b578"
+        },
+        "terminal": {
+          "file": "model-value-objective-admission-v320/terminal.json",
+          "sha256": "1193af028eb8a8d823a3a9ae4e0bb8f1068482af82edea14c4cd82fb224b852b"
+        },
+        "objectiveDraft": {
+          "file": "model-value-objective-admission-v320/objective-draft.json",
+          "sha256": "04e87a119592167ed43dce44914e3ba8b48836b628ce05323b055e046731e033"
+        },
+        "actualOwnedTerminal": {
+          "sessionId": 38865,
+          "pid": 55468,
+          "actualExitCode": 0,
+          "actualTerminalObserved": true,
+          "actualTerminalChunk": "327998",
+          "pidMissingObserved": true,
+          "closedAtUtc": "2026-10-14T16:40:03.101586+00:00",
+          "modelLoads": 0,
+          "sourceNeuralRequests": 0,
+          "processPeakRssBytes": 220512256,
+          "closedControllerMustNeverReplay": true
+        },
+        "completeRows": 3840,
+        "sourceComponents": 91,
+        "distinctSourceBodies": 985,
+        "fullComputedFields": 1246,
+        "allNineBansAndOriginal84Checked": true,
+        "allOriginalRationalWeightsUnchanged": true,
+        "allowedForTraining": false,
+        "newTrainingStarted": false,
+        "goalComplete": false
+      },
+      "modelValueSdkAdmissionV321": {
+        "status": "closed-all3840-model-value-actual-sdk-cpu-stream-pass",
+        "proof": {
+          "file": "model-value-sdk-admission-v321/result.json",
+          "sha256": "eadc598f8aadb9ffe32875c6d0067eb4fb26d67990d79eed59ea6c832e087595"
+        },
+        "terminal": {
+          "file": "model-value-sdk-admission-v321/terminal.json",
+          "sha256": "302141a4932f75e5c650d93f7eccce02099a5028ec2cd568885feadb7929dc7d"
+        },
+        "actualOwnedTerminal": {
+          "sessionId": 80609,
+          "pid": 60401,
+          "actualExitCode": 0,
+          "actualTerminalObserved": true,
+          "actualTerminalChunk": "e16cee",
+          "pidMissingObserved": true,
+          "closedAtUtc": "2026-10-14T16:44:14.289463+00:00",
+          "modelLoads": 0,
+          "sourceNeuralRequests": 0,
+          "processPeakRssBytes": 180371456,
+          "device": "CPU",
+          "gpuCompute": false,
+          "closedControllerMustNeverReplay": true
+        },
+        "completeRows": 3840,
+        "distinctRationalWeights": 47,
+        "completeTrainingTargets": 985517,
+        "completeValidationTargets": 315946,
+        "originalCompleteResponseAndOneEosMasksPassed": true,
+        "currentDistinctCpuTestsPassed": 131,
+        "modelLoads": 0,
+        "sourceNeuralRequests": 0,
+        "newTrainingStarted": false,
+        "allowedForTraining": false,
+        "goalComplete": false
+      },
+      "modelValueStabilityPanelV322": {
+        "status": "all72-original-guard-owners-new-full-model-value-packets-bound",
+        "proof": {
+          "file": "model-value-stability-panel-v322/result.json",
+          "sha256": "598abc91bc76f476b31f5bee3abe6a3db28d20cfa85d723766acc1a36b758667"
+        },
+        "terminal": {
+          "file": "model-value-stability-panel-v322/terminal.json",
+          "sha256": "14321b76b3afe0b7cdc553949b68ec8a2649eed79999b2f941a1aff031bcb732"
+        },
+        "baselinePanel": {
+          "file": "model-value-stability-panel-v322/baseline-panel.json",
+          "sha256": "ba563ae5383aff1f21bd531bad866541348852fc6af3bee20626644d1b947a8b"
+        },
+        "actualOwnedTerminal": {
+          "pid": 63852,
+          "actualExitCode": 0,
+          "actualTerminalObserved": true,
+          "actualTerminalChunk": "2490e1",
+          "pidMissingObserved": true,
+          "closedAtUtc": "2026-10-14T16:46:55.818270+00:00",
+          "modelLoads": 0,
+          "sourceNeuralRequests": 0,
+          "closedControllerMustNeverReplay": true
+        },
+        "originalOwners": 72,
+        "fullCurrentTargets": 24283,
+        "targetBytesChangedOwners": 54,
+        "currentDistinctCpuTestsPassed": 133,
+        "allowedForTraining": false,
+        "goalComplete": false
+      },
+      "modelValueFullStabilityV323": {
+        "status": "closed-all72-new-model-value-fresh-base-zero-lora-stability-pass",
+        "proof": {
+          "file": "model-value-full-stability-v323/result.json",
+          "sha256": "7ecd925acff6a07e5322684b5e7d10f2d26129168d8fe1f9eae7e936c37e991b"
+        },
+        "terminal": {
+          "file": "model-value-full-stability-v323/terminal.json",
+          "sha256": "ad9f9966979031818324e058fabd0e6ae24a951f0f74fb48618829dc8a2ac1e6"
+        },
+        "actualOwnedTerminal": {
+          "sessionId": 16090,
+          "pid": 66703,
+          "actualExitCode": 0,
+          "actualTerminalObserved": true,
+          "actualTerminalChunk": "73e0e2",
+          "pidMissingObserved": true,
+          "closedAtUtc": "2026-10-14T16:51:00.497121+00:00",
+          "modelLoads": 1,
+          "sourceExplanationRequests": 0,
+          "finalActiveBytes": 8,
+          "outsideRngRestored": true,
+          "closedControllerMustNeverReplay": true
+        },
+        "fullOwners": 72,
+        "targetsPerVariant": 24283,
+        "teacherForcedForwards": 144,
+        "actualAllocatorPeakBytes": 3333737832,
+        "finalActiveBytes": 8,
+        "modelLoads": 1,
+        "sourceExplanationRequests": 0,
+        "allowedForTraining": false,
+        "goalComplete": false
+      },
+      "modelValueGradientAdmissionV324": {
+        "status": "closed-both-full-model-value-worst-size-gradients-under8GiB",
+        "proof": {
+          "file": "model-value-gradient-admission-v324/result.json",
+          "sha256": "c1365cf7649e5e04c3a6e54d63a7e87f2271899c40980f716d8de7b1b7b63f92"
+        },
+        "terminal": {
+          "file": "model-value-gradient-admission-v324/terminal.json",
+          "sha256": "9b0f6677fd68a8a17d6bd6a11f80ca465ca887fdc601b9dfcde2a3dbe92302bc"
+        },
+        "actualOwnedTerminal": {
+          "sessionId": 68890,
+          "pid": 70460,
+          "actualExitCode": 0,
+          "actualTerminalObserved": true,
+          "actualTerminalChunk": "069fd3",
+          "pidMissingObserved": true,
+          "closedAtUtc": "2026-10-14T16:53:06.148014+00:00",
+          "modelLoads": 1,
+          "optimizerUpdates": 0,
+          "sourceExplanationRequests": 0,
+          "finalActiveBytes": 8,
+          "outsideRngRestored": true,
+          "closedControllerMustNeverReplay": true
+        },
+        "probeOwners": [
+          "training:2696",
+          "training:2680"
+        ],
+        "fullSequenceTokens": [
+          5184,
+          5161
+        ],
+        "completeTargets": [
+          690,
+          862
+        ],
+        "actualAllocatorPeakBytes": 5475119310,
+        "finalActiveBytes": 8,
+        "allModelParameterBytesUnchanged": true,
+        "optimizerUpdates": 0,
+        "modelLoads": 1,
+        "goalComplete": false
+      }
     }
   },
   "preparedAssets": {
@@ -14629,6 +14848,31 @@
       "wholeCurrentCorpusObjectiveUpdated": false,
       "sourceWorkerOrProductIntegrated": false,
       "actualModelValueAccuracyAnd3000msProven": false
+    },
+    "modelValueCompleteObjective": {
+      "objective": {
+        "file": "model-value-objective-admission-v320/objective-draft.json",
+        "sha256": "04e87a119592167ed43dce44914e3ba8b48836b628ce05323b055e046731e033"
+      },
+      "corpus": "constant-container-values-v318/native-records.jsonl",
+      "nativeTokens": {
+        "file": "model-value-token-admission-v319/result.json",
+        "sha256": "c0ccd33c315e0b773bf6765c5f81e8840d3c1b5b6cc4aada903f132d4f8ddf01"
+      },
+      "actualSdk": {
+        "file": "model-value-sdk-admission-v321/result.json",
+        "sha256": "eadc598f8aadb9ffe32875c6d0067eb4fb26d67990d79eed59ea6c832e087595"
+      },
+      "fresh72Baseline": {
+        "file": "model-value-full-stability-v323/result.json",
+        "sha256": "7ecd925acff6a07e5322684b5e7d10f2d26129168d8fe1f9eae7e936c37e991b"
+      },
+      "worstSizeGradients": {
+        "file": "model-value-gradient-admission-v324/result.json",
+        "sha256": "c1365cf7649e5e04c3a6e54d63a7e87f2271899c40980f716d8de7b1b7b63f92"
+      },
+      "allowedForTraining": false,
+      "actualModelAccuracyAnd3000msProven": false
     }
   },
   "constraints": [
@@ -14651,9 +14895,9 @@
   },
   "nextSession": {
     "first": "Read actual V315 whole8490-input/1040-raw-output canonical atlas and ZERO computed model-written value finding; V316 all12 raw required value fields/native codec/full46 prose preservation. Verify actual idle/git. Preserve V314 first sandbox denial and token-return-container failure, V315/V316 actual terminals and all closed immutable jobs. Current product/source/frozenout unchanged and all9 bans/original84/retired80 remainder remain enforced.",
-    "nextIndependentWork": "Apply the explicit model-owned computed-value contract to the entire current full teacher objective through a genuinely new streamed CPU scope. The existing full-current-teacher-packets-v273/native-records.jsonl contains3840 rows; training source seal selects2944 training owners/982043 old fullresponse+EOS targets, and all existing guard/validation ownership must be retained, not shrunk. Inspect actual split/field/provenance before use. Derive original declared/display domains at real public schema seams, preserve every source/context/parent/callee/field/confidence/unknown/prose character and source-owned input/identity, and require all known computed values in native raw labels. Known-null versus unknown needs explicit provenance. Do not use incorrect V299/V300 generated prose as teacher labels; its V316 fixture was codec-only. Validate all full new labels through existing native/Host boundaries and typed/source-consistency guards before any new neural objective. Add concrete whole semantic checks addressing source operator/predicate/binding-mutability/immediate-state prose and value/prose coherence. Audit full token budgets with model8GiB/cache256MiB/window8192/output2400/member196608bytes/output24000chars unchanged; no source/output/prose/field/vocab clipping, static inference repairs, favourable subset, settings/model/dtype/LR/epoch/sampler sweep or cross-owner source/KV reuse. Keep canonical lifecycle and qualified exclusive KV handoff; real full-source accuracy/wholeHost3000ms is still unproven. No new source neural work may use any of the9 banned full families/parent/helper variants or retired80 remainder; original84 reserved/excluded. After whole objective/semantic/runtime qualification, prepare a genuinely fresh permitted full20 KT/TS x KO/EN x5 whole-root actual all-field correctness/fullHost3000ms scope. Finish product integration/download/integrity/custommodels/FIFO/cancel/dispose/functional+visualQA/version/commit/push/install only after full actual model-authored correctness and3s gates. Single actual selfPID/tool/external RAM ACK beforeMLX/load and actual loaded-ready external ACK before allneuralforward, actual during data RAM and true allocatorpeak, realterminal then PIDabsence/cleanup before new ownership remain mandatory.",
+    "nextIndependentWork": "실제 git 상태와 idle 상태, 최신 V318–V324 증거부터 확인한다. 전체3840 새 모델값 objective를 바탕으로 원래 base에서 한 번만 수행할 전체2944행 학습 계획을 구체적으로 작성하고 봉인한다. 기존 1epoch/LR1e-5/batch1/accum1/seed42/rank8-scale20-dropout0/layers12–27 설정과 rational 가중치를 유지한다. 원래72개 안정성 owner의 전체24283targets 및 scheduled checks/thresholds를 V323의 새 baseline에 연결한다. V321의 실제 SDK 전체 token/EOS/47rational weights와 V324의 max5184sequence/862target/실제5.10GiB 결과를 연결한다. 최종 adapter만 저장·검토하며, 기존 adapter 재개나 모델·커널·설정·학습률·epoch·sampler 탐색을 하지 않는다. 실제 selfPID/tool/외부RAM 관찰을 MLX 전에 확인하고 loaded-ready 외부RAM 관찰을 첫 forward 전에 확인한다. 모델1개/8GiB/cache256MiB, 실제 before/during/after pressure와 swap 및 allocator peak를 관찰한다. 학습 후 전체owner/224adapter배열/모든guards/원래자산/실제terminal-PID부재-final8을 독립 검증해야 한다. 금지된9family/parent/helper와 original84 제외를 유지한다. V317 최초80개 실패와 종료된 모든 controller를 보존하며 수정·재실행하지 않는다. 원래 source/context/teacher prose/values는 바꾸거나 추론 시 보정하지 않는다. 실제 모델의 전체값·설명이 정확하고 Host3000ms를 달성하는 새 전체20root 평가 범위가 필요하다. 그 후에 제품 통합과 download/integrity/custommodels/FIFO/cancel/dispose/기능·시각QA/버전·커밋·푸시·설치를 진행한다.",
     "notImplemented": "Whole current full teacher objective with actual raw model-owned values and independent semantic/coherence guards; source-worker/product integration of the new value contract and qualified exclusive KV runtime; fresh permitted full20-root actual all-field model accuracy/wholeHost3000ms; product download/integrity/custommodels/FIFO/cancel/dispose/functional+visualQA/release/install.",
     "completionStillMissing": "원래전체source/context/parent/callee/fields/confidence/unknown및모델의값·문장책임을유지한새전체허용범위에서의미·정확성과전체설명≤3초를실제검증한후,다운로드/integrity/custom model/FIFO/cancel/dispose와제품QA를확인해release/install한다.",
-    "publication": "Docs-only model-owned-values-v316/publication.json. All owned jobs closed; current turnmodel/sourceNeural0; product0.0.1145/source5/frozenout unchanged/no candidate installed."
+    "publication": "이번 문서 변경만 커밋·푸시한다. 제품 버전과 설치는 그대로이며 이전 출시·설치 권한은 목표 달성 후에 유지된다."
   }
 }
