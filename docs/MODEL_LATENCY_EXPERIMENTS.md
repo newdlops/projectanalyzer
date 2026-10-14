@@ -6485,6 +6485,102 @@ Correct complete≤3000ms/다운로드-integrity-custommodels/FIFO-cancel-dispos
 - V263 full canonical4: `2d716ec2cf658c7cd515e8bcedb8a7bc2cc5ba4c060a8ba3a2935f9abf8a7eb4`
 - V264 actual3840 supervision: `ae3b366e06a8e4014e16ac6ed25f7e3701cd0fcbbbe18ed9c0862a3c0ef50e38`
 
+## V265–V276: 전체 model-authored teacher와 현재 입력·출력 학습 범위 정렬
+
+원래 **학습2944/검증896, 전체3840행**을 보존한 새 CPU 데이터 입장 검사다. 모델·MLX·
+GPU·가중치 로드, optimizer, 새 source neural 요청, 채택·설치는 모두0이다. 제품0.0.1145와
+기존 source5/frozenout SHA도 그대로 확인했다. 이 절의 teacher 문장은 **새 학습 정답**이며
+실제 모델 응답을 고치는 데 사용하지 않는다. 올바른 실제 전체 설명≤3000ms 목표는 미달이다.
+
+V265는 public pure named/ordered codec으로3840행의 원래 native 값과 전체 reference를
+복원했다.3824행은 named,16행은 whole-original이다. 원래 메시지·completion은 별도로
+보존했고 모든 native 값의 encode/decode 역변환이 통과했다. V264에서 새로 model-owned로
+바뀐8460개 문장은 **역변환 후의 이전 source schema와 teacher에도 정의돼 있지 않았다**.
+272개 opaque도 같은 상태임을 확인했다. 이는 이전 출력 학습 범위와 현재 요구의 차이를
+입증하며, 입력에 문장이 전혀 없었다거나 실제59개 의미 오류의 원인이었다고 입증하지 않는다.
+
+V266/V267은 기존 현재 source-owned reference에서8460개 학습 문장을 준비했다. 같은 원문
+규칙의 SHA를 모든 슬롯에서 확인했다. 한국어40개에는 원래 단어를 모두 유지하는 역할 접두사를
+붙였다. 최초2개 String 선언 effect의 따옴표 pattern 실패를 보존하고, 원문 literal·identifier·
+순서·재대입 금지를 유지한 일반 선언 설명을 새로 작성했다. 추론 출력의 수정을 허용하지 않는다.
+V269는 전체 도달 노드의 추가64개 문장도 포함했다. 새로 요구되는 학습 prose는총8524개다.
+
+| 최초 CPU 입장 결과 | 원인 | 후속 새 범위의 결과 |
+| --- | --- | --- |
+| V268 전체3840 중16통과/3824거부 | intermediate flow 배열3412, 필수 source metadata8024와 추가 prose64 | V269 정확한 const/single-enum source 정보만 복원하고 flow의 원래 문장 글자·순서를 유지해 전체3840 full schema 통과 |
+| V270 전체3840 중3818통과/22거부 | JSON worksheet에 없는 callable 동작을 원문에서 복원하면 실제 rich schema가 달라짐 | V271 원래 source constructor로76개 live worksheet를 재구성,22개 실제 schema를 binding한 뒤 값·문장 변경 없이 전체3840 통과 |
+| V272 전체 runtime 한도통과/native3824통과/16거부 | 최종 call-summary 정답의 JSON 필드 순서가 schema 순서의 역순 | V273 offline16개 JSON 객체를 schema 순서로 직렬화, V274 전체3840 native grammar/EOS 통과 |
+| V275 preflight exit1/데이터0행 | V103 decision SHA를 construction 파일과 비교함 | 최초 실패·controller 보존, V276 실제 decision→construction 연결로 아직 처리하지 않은 전체3840 source/objective 검사 통과 |
+
+V269의 source metadata8024개는 원래 현재 schema의 정확한 고정값이다. 기존 모델 값이나
+문장을 덮어쓰지 않았다.3412개 flow는 원래 sourceId/text 배열의 각 text를 공백으로 연결했으며
+trim·중복 제거·축약·문장 생성이 없다. 추가한 필드를 제거하고 원래 flow 표현을 복원하면
+기존 전체 값과 문장 글자가 정확히 돌아온다. V271의 full provider schema와 native 역변환은
+실제 original Host 경계를 통과했고,25084개 model prose 슬롯의 책임·한도를 유지했다.
+
+V273은16개 최종 call 행동에서 같은 행동의 이전 teacher 호출을 모두 확인했다.8개 입력에서
+잘린 **55개 prior field**를 원래 전체 문장으로 복원했다. 기존100자 접두사가 같은 callId/
+순서/source/scope/locale 안의 전체 원문과 일치해야 하며 training/validation 경계도 분리한다.
+원래 접두사 증거는 남긴다. 실제 V208 provider의 입력 처리와 일치하는 CPU 테스트가 통과했다.
+이후 전체3840의 현재 provider/native 요청과 Host decode를 CPU I/O 경계로 다시 검사했다.
+16개 native 정답의 필드 순서 변경은 JSON 값과 문장 글자를 바꾸지 않았고 추론 후 처리가 아니다.
+
+V274는 **모든3840개의 전체 입력·정답**을 같은 tokenizer/template로 처리했다. full native
+grammar, 정답당 하나의 EOS, full151936 vocabulary의 terminal EOS-only mask와 original
+8192 window/2400 output reserve/196608 member bytes/24000 JavaScript characters가 통과했다.
+
+| 전체 token/EOS·입력 한도 증거 | 결과 |
+| --- | ---: |
+| 전체 prompt tokens | 8835728 |
+| 학습 target+EOS | 982043 |
+| 검증 target+EOS | 314270 |
+| 전체 target+EOS | 1296313 |
+| 최대 prompt/target+EOS/full sequence | 4427 / 817 / 5071 |
+| 최대 member input bytes | 24087 |
+| 전체 int32 sequence 파일 bytes | 40528164 |
+
+Token 배열은 한 행씩 파일로 저장했다. 전체 corpus를 Python 정수 list로 들고 있지 않는다.
+한 tokenizer와 한 요청 matcher만 동시에 사용한다. V274 **session17317/PID65398 actual
+exit0/PID 부재**, OS maximum RSS484491264bytes(약462.0MiB)를 기록했다. 결과·준비 SHA:
+`1bead9d98ea6aa694b1d59c75fb8b77add5eb57531532af638edb2a7d6493d70` /
+`5ec07b6b834616b111149b15983381e85936b09ed6ef19b92aa8839f2921e9b7`.
+
+V276 **session6965/PID7698 actual exit0/PID 부재**는985개 distinct source body를 실제
+기존 whole-source classifier로 확인했다. 모든8개 semantic family와 parent/helper 금지,
+원래84개 reserved source 제외, training/monitoring 분리와 기존91개 connected component가
+통과했다. 원래2944개 rational equal-completion weight를 모두 재계산했고 변경0이다.
+검증896개에 optimizer weight는 없다. 모든 새 sequence/target+EOS bytes를 디스크에서
+전수 확인했으며 original6144 training sequence allocation도 유지한다. 결과 SHA:
+`770d26025474b87a544a6f69ca9a313a207eddf874a1b51a641dd288289b3ff5`, objective draft SHA:
+`cd004b4d04c82189c04f90baf677037194c33fdde2bede6a11171e17b1f9e4a0`.
+
+CPU42개 통과. 모든 exclusive builder/audit/prepare의 실제 terminal과 최초 실패를 보존하며
+닫힌 controller는 재실행·수정·재poll·import하지 않는다. 공개 pure helper만 새 범위에서
+재사용한다. V272의 사용하지 않는 control PID를 잘못 적은 최초 기록도 보존했다. 실제 selfPID
+16186과 외부 PID/RSS/pressure/swap ACK로 정정 기록을 남긴 뒤에만 numeric 작업을 시작했다.
+
+V274 host snapshot은 시작50%/ready44%/after47%, swap21318.94→21302.94→21062.88MiB다.
+active-mask 실행 중 메모리 snapshot은 잡지 못했다. V276 종료 후 마지막 snapshot53%/
+swap20814.88MiB도 기록했다. 다른 host 작업의 영향을 구분하지 못하므로 원인·연속 최소 여유·
+host physical peak로 해석하지 않는다. V272 OS 최대 RSS501628928bytes(약478.4MiB),
+V273369803264bytes(약352.7MiB), V276172326912bytes(약164.3MiB)도 각각 별도 관측이다.
+
+다음은 **새 범위의 전체 actual SDK stream와 whole-completion-loss 수치 검사**, 새8524개
+source-grounded 문장의 독립 semantic review, 원래72-owner/current20275-vector stability,
+one-model8GiB/cache256MiB resource admission이다. 아직 allowedForTraining=false이고 학습은
+시작하지 않았다. 기존 모델·dtype·LR·epoch·sampler sweep, adapter 재개/partial checkpoint
+선택, 정적 inference prose/value 수정, source/output/vocab clipping·좋은 행 선택은 허용하지
+않는다. V137의 과거10GiB 설정은 현재 승인으로 사용하지 않는다. GPU에서는 실제 tool token을
+MLX load보다 먼저 기록하고, source-free ready/selfPID 뒤 실제 PID/RSS/pressure/swap ACK와
+true allocator peak·terminal·PID 부재·최종8 정리를 확인해야 한다.
+
+이 결과는 전체 supervision/현재 provider 표현의 입장 증거다. 새 모델의 정확도·의미·속도
+증거가 아니다. Last actual V211 전체86.317초와59 incorrect/20 incomplete/21 correct prose,
+잘못된 예시 값은 해결되지 않았다. Original84/20 full-root 조합과 모든 source/context/parent/
+callee/fields/confidence/unknown·모델 값과 문장·8개 영구 family 금지는 유지한다. 실제 올바른
+전체≤3000ms와 다운로드/integrity/custom models/FIFO/cancel/dispose/제품 통합·기능·시각 QA/
+버전·커밋·푸시·설치 목표는 active·미달이다.
+
 ## 남은 완료 기준
 
 모델 변경, decoder 최적화 또는 입력 구조 변경을 채택하려면 다음을 함께 확인해야 한다.
