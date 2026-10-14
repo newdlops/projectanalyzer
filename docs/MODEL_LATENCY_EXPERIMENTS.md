@@ -6335,6 +6335,73 @@ FIFO-cancel-dispose/통합·기능-시각QA/version-release-install 목표active
 - V257 full98/197/15/217/23/all28: `cfffe9bbe6f8869a64157d4613e8b016d6c671e15c380fbb570edd6cffa658a8`
 - V258 whole SDK/source audit: `6a62102349f7d24fe0c17ff5753b5e53a93ff1f40c75659376049ec8ae73e89d`
 
+## V259–V261: 원래 순서를 보존한 GQA2 구현·전체 검증과 속도 거부
+
+V259는 같은 UID의 두 query head에서만 K/V를 한 번 읽고 각 head의 계산을 독립적으로
+수행한다. 원래 strided token 순서/scaled query/dot/simd sum/online softmax/o update,
+BF16 partial·F32 sum/max 및 전체 원래 second-pass reduction을 보존했다. CPU14개가 통과했다.
+초기 생성 이름 충돌은 첫 실패와 draft를 보관한 뒤 아직 봉인되지 않은 pure helper에서 고쳤다.
+닫힌 creator는 변경하거나 반복하지 않았다. 원래 지원 범위 밖에서는 전체 SDK fallback이며,
+callable은 배열을 보유하지 않고 close 시 해제된다. MIT licence와 설치된 전체 header SHA를 유지했다.
+
+실제 model-free device **session48858/PID73082 exit0/PID 부재**에서 M5 Pro/`applegpu_g17s`,
+기존 override 없음·원래 default64 blocks를 확인했다. 할당0/model0/sourceNN0이다.
+V260 CPU4 및 **session77806/PID10614 exit0/PID 부재**에서 전체18길이×12원래 stress=
+**216개 full partial/sum/max/reduction**의 모든 byte가 같았다. 원래 SDK2pass가 선택되는
+96개 전체 output도 같았다. SDK1pass 입력을 다른 reduction과 동일하다고 주장하지 않는다.
+기존 KV leading axis와 같은 UID의 실제 packed stride/capacity view, 전체 token/lane/head를
+검증했다. peak71959060bytes(약68.6 MiB)/최종8, model0·원래 advanced RNG를 보존했다.
+
+V261 CPU6 및 **session57199/PID22997 exit0/PID 부재**에서 원래 V188 forward의 동일 code
+object·defaults·closure를 유지하고 attention collaborator만 별도 globals로 연결했다. 새 full98
+model/197UID의 전체 raw logits·28층 active KV·capacity allocation, 새15 streams/217
+raw-normalized logits/token/private key/native/initial-terminal-cancelKV가 일치했다.
+SDK reference229/candidate217 draws, 원래2+grouped8 traces와 가중치·RNG·asset identity다.
+실제 candidate52949/reference1/reduction52950/fallback23604회로 새 경로가 실행됐다.
+
+전체23 streams/6쌍의 모든 input·128원소 긴 output/raw/native/count/cancel을 보존하고
+원래 alternating order·whole generation/disposal timer로 각 variant/case를 한 번 측정했다.
+시간 측정 안의 observer·추가 평가 경계는 없다.
+
+| 전체 case | control(ms) | candidate(ms) | 변화(%) |
+| --- | ---: | ---: | ---: |
+| one | 101.764 | 91.425 | -10.159 |
+| two-unequal | 156.491 | 137.171 | -12.346 |
+| eight-unequal | 667.754 | 679.723 | +1.792 |
+| explicit-cancel | 189.791 | 249.601 | +31.514 |
+| complete5791 | 792.892 | 792.300 | -0.075 |
+| eight-long-output-full-inputs | 11463.768 | 11576.904 | +0.987 |
+
+**6건 중3건이 느려졌고 긴 출력도11463.768416→11576.904ms로0.987% 늘었다. 전체 개선을
+입증하지 못했으므로 후보를 거부한다.** 짧은 one/two/cancel은 원래 native1pass fallback을
+쓰므로 작은 favourable 차이를 새 shader의 효과로 세지 않는다. 선택 사례 재측정이나 wrapper/
+block/geometry/settings 변형으로 실패를 교체하지 않는다. 물리 traffic/cache counter나 지연
+원인을 측정한 결과가 아니며, byte 일치는 실제 설명의 의미 정확성이나3초 성공도 입증하지 않는다.
+
+CPU24개 통과, sourceNN0/채택·설치0. 하나의 모델8GiB setting/cache256MiB, 준비328302600,
+peak3859071300bytes(약3.59 GiB), 최종8bytes와 모든 model/compilation owners 해제를 확인했다.
+V260 pressure 시작69%/ready68%/after69%,swap22611.81→22603.81 MiB.
+V261 시작69%/실제ready69%/during67%/after66%, swap22579.81/22571.81/22571.81/22459.81 MiB.
+실제 PID·외부 pressure/swap ACK를 측정 전에 확인했고 현재 모든 소유 프로세스가 종료됐다.
+이들은 snapshot이며 연속 최소 여유·host physical peak나 swap 변화의 원인 증명은 아니다.
+
+다음 독립 작업은 CPU에서 원래28-layer 전체 forward를 pure graph로 표현할 수 있는지
+borrowed weight/KV/offset/counter/callable의 소유·상태 계약을 확인하는 것이다. 과거 V61
+layerwise 실패와 설치된 compile 계약을 대조하고, 모든 UID별 KV/offset의 명시적 입출력·
+원래 commit 순서·변하는 shape를 검토한다. mutable Python cache를 그대로 compile하여
+offset을 잘못 고정하거나 compile flag만 바꾸는 안은 진행하지 않는다. 아직 전체 graph
+구현·GPU 정확성·속도는 검증하지 않았다. 실질적으로 새 exact 구현이 가능할 때만 CPU
+admission 뒤 full98/197/15-217/23 unobserved 검증을 새로 요구한다.
+
+제품0.0.1145/source5/frozenout 동일. 마지막 actual source86.317초/59incorrect prose는 미해결이다.
+Original84/20root·전체 source/context/parent/callee/fields/confidence/unknown·모델 값과 prose 및
+8 whole-family bans를 유지한다. Correct complete≤3000ms/다운로드-integrity-custommodels/
+FIFO-cancel-dispose/제품 통합·기능/시각QA/version/commit/push/install 목표active·미달이다.
+
+- V259 CPU14: `06aba294a3c43ffb8448a7623948faf7ce730270599407cdca51dc4f557a7894`
+- V260 full216/native96: `d389795f2f0ae77d8025f9c0a60b5bab12a4ee772769963126ffd129bdd3acb9`
+- V261 full98/197/15/217/23: `3f55bb9450a7c56a5bd85c6a24261bf3a6f7e4c5ed5d2fbc280bfcc11cf4e0c9`
+
 ## 남은 완료 기준
 
 모델 변경, decoder 최적화 또는 입력 구조 변경을 채택하려면 다음을 함께 확인해야 한다.
