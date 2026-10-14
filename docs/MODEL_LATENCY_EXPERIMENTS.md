@@ -6402,6 +6402,89 @@ FIFO-cancel-dispose/제품 통합·기능/시각QA/version/commit/push/install �
 - V260 full216/native96: `d389795f2f0ae77d8025f9c0a60b5bab12a4ee772769963126ffd129bdd3acb9`
 - V261 full98/197/15/217/23: `3f55bb9450a7c56a5bd85c6a24261bf3a6f7e4c5ed5d2fbc280bfcc11cf4e0c9`
 
+## V262–V264: 전체 컴파일 입장 검사·native CPU 비용·실제 학습 출력의 문장 책임
+
+V262 CPU17개와 source-only31-method 범위(기존에 도달한17+미실행 suffix14)를 검사했다.
+첫 property getter/setter 구별 오류는 unsealed helper에서 고친 뒤 첫 실패를 보관했다.
+첫 실제 audit는 V178 경로를 manifest에서 찾지 못해 PID77860 exit1/PID 부재로 닫혔다.
+이 driver는 수정·반복하지 않았다. 실제 import 순서를 별도로 검증해 V179 QK 경로를
+연결한 remaining-only audit PID84611 exit0/PID 부재로 나머지를 완료했다. 원래 초안의
+34라는 잘못된 상수는 통과 기준에 쓰지 않고 실제 method 목록31을 기록했다.
+
+공식0.32.3 `fast_primitives.h` 전체가 설치된 파일과8ce8bd4933452246e81702f16798d9d816f162e9f75e905e562acedc7c95f112
+로 같다. CustomKernel은 Primitive를 직접 상속하며 출력 크기 추론 override가 없다.
+shapeless compile_replace는 single/multioutput 모두 추론을 요구하고 기본 구현은 예외를 낸다.
+단순 shapeless wrapper는 지원되지 않는다. Python offset은 capture list에서 배열로 취급되지
+않으며 KV 쓰기·카운터·매 호출 검증을 명시적으로 분리해야 한다. 원래8192 active extents의
+크기가 모두 다르므로 기존1..8 count traces로 전체 ragged graph 준비를 보장하지 않는다.
+ordinary recompile 비용은 측정하지 않았다. 고정 capacity/masked attention을 원래 수학과
+같다고 가정하거나 과거 V61 layerwise 실패를 반복하지 않는다. GPU 시도는 하지 않았다.
+[MLX0.32.3 compiler](https://raw.githubusercontent.com/ml-explore/mlx/v0.32.3/mlx/compile.cpp),
+[동일 버전 primitive header](https://raw.githubusercontent.com/ml-explore/mlx/v0.32.3/mlx/fast_primitives.h),
+[기본 shape inference](https://raw.githubusercontent.com/ml-explore/mlx/v0.32.3/mlx/primitives.cpp).
+
+V263 CPU5개와 **session42988/PID3764 exit0/PID 부재**로 이전 actual V211의 전체4개
+요청/schema/원래 model-written wire를 CPU 데이터로 처리했다. 같은 tokenizer/template로
+원래15858 prompt counts가 일치했다. Guide 준비502.426583ms는 측정 전에 끝났고 실제
+CPU-ready PID/RSS·외부 pressure/swap ACK 뒤 작업했다. 전체 prompt 처리29.82775ms,
+grammar 생성8.883125ms, canonical 전체 mask107.958912ms, consume2.303208ms다.
+
+| UID | canonical raw tokens | canonical mask calls | 원래 sampled tokens |
+| --- | ---: | ---: | ---: |
+| 0 | 414 | 416 | 417 |
+| 1 | 552 | 554 | 555 |
+| 2 | 813 | 815 | 815 |
+| 3 | 565 | 567 | 567 |
+
+원래 emitted EOS와 추가 EOS lookahead의 두 mask를 보존했다. 전체 vocabulary mask/SHA,
+모든 canonical token의 허용, native 종료·EOS 미소비가 통과했다. **원래 sampled token ID가
+저장되지 않아2352회 재인코딩과 실제2354 draws는 다른 자료다.** counts가 같은 두 UID도
+원래 token ID 일치의 증거가 아니다. 이 비용을 실제81.625초 생성의 단계 비용이나 병목
+원인으로 환산하지 않고, 기존59 incorrect prose·잘못된 값/전체86.317초 실패를 유지한다.
+현재 native schema는 예시의 선언된 타입을 이미 제한한다. prose 안의 잘못된 Boolean 언급을
+실제 예시 입력의 타입 제약 누락으로 오해해 같은 타입 필터를 추가하지 않는다.
+
+V264 CPU5개와 **PID19115 exit0/PID 부재**는 닫힌 V201 audit의 ownership 변경 기록을
+데이터로만 읽고, 실제 V137 학습2944/검증896개의 원래 출력과 native schema를 전수 조사했다.
+전체3840행/분할/값/문장/원문을 보존했다.71,466,725bytes 파일을65536char씩 읽었으며
+최대 buffer98867char, 최종 OS maximum RSS45514752bytes(약43.4 MiB)다. result에 쓴
+pre-final-write RSS45334528bytes와 구분했다. 모델·MLX·GPU·가중치 로드는0이다.
+
+| 현재 새로 model-owned인 문장 슬롯의 이전 출력 상태 | 학습 | 검증 | 합계 |
+| --- | ---: | ---: | ---: |
+| 기존 native schema와 실제 model target 모두에 없음 | 6398 | 1790 | 8188 |
+| opaque rule/target instance 없음, 확정 누락으로 분류하지 않음 | 224 | 48 | 272 |
+
+8188개는 call8124/summary64, opaque272개는 rich다. 이는 **현재 요구되는 필드의 직접
+출력 학습 범위가 이전 모델과 다르다는 증거**다. 입력에 해당 문장이 노출됐는지는 조사하지
+않았고,59개 의미 오류의 원인이라고 입증하지 않았다. 이후 read-only metadata 확인에서
+rich124학습/56검증은 nodePreparation이 없었으므로 단순 UI 준비 placeholder였다고 주장하지
+않는다.272개 opaque를 확정 누락으로 더하거나 call만 학습해 전체 설명을 대체하지 않는다.
+
+다음 우선 작업은 public pure schema/codec inverse로 모든 기존 teacher reference를 복원하고
+272개 rich의 표현 구조를 해소한 뒤, 현재 모든 model-authored 값·문장 책임에 맞는 전체
+입력/target을 준비하는 것이다. 원래3840행과 splits/semantic references/full source/맥락을
+유지하고,8 family·parent/helper 금지와 모든 native grammar/token/EOS/output2400/window8192/
+동등 completion loss/stability/resource 입장을 통과하기 전에는 학습하지 않는다. 모델·LR·
+epoch·dtype·sampler sweep, 기존 adapter 재개/부분 checkpoint, 정적 prose/value로 모델 대체,
+출력/소스/vocab clipping이나 좋은 행 선택은 없다. 새 aligned targets·학습·추론은 아직 없다.
+
+CPU27개 통과. V263 tokenizer/native CPU 최종maximum RSS512016384bytes(약488.3 MiB),
+시작68%/ready69%/after68%, swap21939.75→21915.75→21915.75 MiB다. 실제 mask 실행 중
+snapshot은 잡지 못했다. 모든 소유 프로세스 종료 뒤의 마지막 snapshot38%/swap21172.88 MiB도
+기록했으며 원인·연속 최소 여유·host physical peak로 해석하지 않는다. 후속 모델 작업은 현재의
+one-model8GiB setting/cache256MiB와 실제 ready/pressure/swap/allocator peak/종료/최종8을
+검증해야 한다. 과거 V137의10GiB 설정을 현재 메모리 지침으로 사용하지 않는다.
+
+제품0.0.1145/source5/frozenout 동일, sourceNN0/채택·설치0. Original84/20root·모든 source/
+context/parent/callee/fields/confidence/unknown·모델 값과 prose/8 family bans를 유지한다.
+Correct complete≤3000ms/다운로드-integrity-custommodels/FIFO-cancel-dispose/제품 통합·기능/
+시각QA/version/commit/push/install 목표active·미달이다.
+
+- V262 source admission: `0a88e1d6d10fb080f83aa6aa93efd210f185cf0c804582fb57307b9a54cbd8e2`
+- V263 full canonical4: `2d716ec2cf658c7cd515e8bcedb8a7bc2cc5ba4c060a8ba3a2935f9abf8a7eb4`
+- V264 actual3840 supervision: `ae3b366e06a8e4014e16ac6ed25f7e3701cd0fcbbbe18ed9c0862a3c0ef50e38`
+
 ## 남은 완료 기준
 
 모델 변경, decoder 최적화 또는 입력 구조 변경을 채택하려면 다음을 함께 확인해야 한다.
