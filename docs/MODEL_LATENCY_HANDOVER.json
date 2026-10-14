@@ -1,6 +1,6 @@
 {
   "purpose": "로컬 모델의 전체 계산값·설명 완료 3초 목표를 이어가기 위한 핸드오버. 최신 실제 증거와 소유 프로세스 상태를 먼저 확인한다.",
-  "savedAtUtc": "2026-10-14T18:40:13.208198+00:00",
+  "savedAtUtc": "2026-10-14T18:57:29.336959+00:00",
   "workspace": "/Users/lky/project/projectanalyzer",
   "resumeInstruction": "이 파일을 먼저 읽고 checkpoint.json에서 필요한 항목만 확인한다. 긴 대화나 실험 문서 전체를 다시 읽지 않는다. 이전의 반복적·추측성 분석은 구현 결정으로 취급하지 않는다.",
   "userIntent": {
@@ -32,7 +32,7 @@
       25270
     ],
     "activeModelProcesses": true,
-    "lastTurn": "V332 unsealed final-only new-adapter gate implemented;3CPU tests pass and actual live V325 owner rejected before model file I/O. First sandbox os.kill(pid,0) denial retained, same read-only command escalated per developer rule and succeeds. This gate has not admitted a final adapter or performed any model load. Guard2000 full72/24283 independently reviewed and passes, original criteria unchanged. Actual V325 session25270/PID79457 stillruns:2020updates/677999targets observed, actualpeak4.78GiB, lastsystemfree48%,swap26166.75MiB(+2410.06 since start), cause not attributed. All147 CPUunit tests plus prior4 actualCPUchild cases, whole3840/180 provider scopes retained. Product0.0.1145/source5/frozenout unchanged/no adoption/install. Full goal active/unmet.",
+    "lastTurn": "V333 complete new-model source-free numeric scope prepared from all3840 current token rows, keeping every old scope:12096MLP/142model/229cohort/17joint incl4496prompt/862target/5184sequence, no actual comparisons/model loads. TwoCPU geometry/count tests pass. Actual prior joint catalog is6cases/16streams, not7timingpairs; checked before preparation, corrected unsealed assertion. All149 currentCPU unit tests plus4 actualCPUchild cases retained. V325 session25270/PID79457 stillruns:2400updates/803317targets observed, actualpeak4.78GiB, lastsystemfree49%,swap26006.75MiB(+2250.06 since start), cause not attributed. Product0.0.1145/source5/frozenout/no adoption/install. Full correct model values+prose<=3000ms goal active/unmet.",
     "noProgressConsecutiveTurns": 0,
     "terminalRule": "V13755468/PID99592 실제exit0/부재; V14019108/PID78530, V14679681/PID80723, V14119638/PID82365 실제exit0/부재. V148sourcefree84120/root94340/child94474 actualexit0/부재. V148실제source49497/root95535 exit1/부재, child95621 exit0/부재. 모두 종료됐으므로 재poll/실행/수정하지 않는다. V149CPU검토 exit0/최초결과보존. 이전 모든 종료 독점job도 그대로 재실행 금지. 현재livehandle없음; 실제상태를검증하고새독립CPU진단부터 진행하며 artifact/관측timeout으로완료나live를추측하지않는다. V152joint43575/PID16552 actualexit0/PID부재; V154timing25713/PID24293 actualexit0/PID부재. 모두닫힘. V152seal.py 첫import실패actualexit1도닫혀재실행/수정금지; V153seal은별도준비builder actualexit0. V152GPU와V154timing을재poll/재실행하지않는다. V15589451/PID39514, V15769394/PID54696, V15812178/PID61718 actualexit0/PID부재/최종8 확인. 모두닫힌exclusive GPU/profiler/timing이므로재poll/수정/replay금지. V156은CPU초안만이고model/GPU0이며sealed아님. V15979546/PID81282,V16023111/PID93177,V16130401/PID1709,V1626406/PID5381 모두actualexit0/PID부재/최종8로닫힘. V161 첫prepare.py는import오류exit1/model0이며닫힘; 별도prepare_explicit.py가actualexit0. 닫힌 모든driver/builder는재실행·수정·재poll하지않는다. V16355731/PID19877 import종료1/model0,V16451237/PID22391 Metalcompile종료1/비교0,V16546741/PID25145 12쌍일치후residency종료1,V16614920/PID28269 RNG진단종료0,V16747955/PID34711 전체1344종료0,V16836764/PID43144 전체336/98종료0,V16947749/PID49513 준비graph종료1/생성0,V17113461/PID54568 전체15/217종료0,V17034350/PID58193 전체23시간종료0;모두PID부재. 종료driver/builder/수치/시간검사재실행·수정·재poll금지. 검증된순수kernel/runtime공개helper는새scope의새구현에서재사용가능. V1726895/PID90943 exit1은root가model-ready전에active상태를기록해immutableloader의idlegate실패;SDK model0/kernel0. V17377921/PID99483 전체48384 exit0, V17571105/PID21799 전체12096/98/197 exit0, V17667141/PID30182 전체15/217 exit0, V17716135/PID38173 전체23시간 exit0; 모두PID부재. V174prepare exit0후CPU import사전검사에서STRESS_CASES누락발견,모델/GPU0이며그sealed준비본은보존. 새GPU의global activeModelProcesses/activeToolHandles등록은새model-ready.json에서현재PID/실제완료확인후에만한다;loader는입장검사를다시하므로launch파일만으로너무일찍등록하지않는다. 준비전live tool handle은별도로추적하고timeout을종료로해석하지않는다. V17827645/PID70584 exit134는첫Metal주소공간컴파일abort/완료model1/비교0/PID부재이며Python최종정리검증은없음. V17936265/PID75058 전체28224 exit0, V18087592/PID83094 전체12096/98/197 exit0, V18128564/PID89635 전체15/217 exit0, V18248607/PID95247 전체23시간 exit0; 모두PID부재. 각실제terminal·최초오류·sealedsource보존,재poll/수정/재실행금지. V18359621/PID12294 전체12096 operation exit0, V18438791/PID19321 전체12096MLP/98model/197UID exit0, V18582721/PID24239 전체15/217 exit0, V18692667/PID25640 전체23시간 exit0;모두PID부재/최종8bytes. preparation·actualtool·PID부재receipt보존,닫힌실행재poll·재실행·수정금지. V187 session56849/PID47521 exit0, V188 session50644/PID55198 exit0, V189 session69270/PID69711 exit0, V190 session73365/PID73307 exit0, V191 CPU session98558/PID92430 exit0; 모두 실제 terminal/PID부재 확인. V187~190 최종8bytes 확인. V188은 앞 turn에 완료됐으며 이번 turn에 실제 handle의 terminal을 회수했다. 모두 닫혔으므로 재poll·수정·재실행하지 않는다. V192 CPU84357/PID37784 exit1, V193 CPU27192/PID55961 exit0, V194 CPU86617/PID61208 exit1, V195 CPU97425/PID68792 exit0, V196 CPU16980/PID71537 exit0; 모두 실제 terminal/PID부재. V192 맥락16건 및 V194 8token초과 실패를 보존한다. 닫힌 builder/audit/prepare 재poll·수정·재실행 금지. V197 CPU87836/PID9604 exit0/PID부재, CPUbinding11895 exit0/MLXimport0. V198 prepare88572/PID22724 exit0, 실제root76772/PID31539 exit0 및child31674 exit0/PID부재. model-ready는실제load1/328302600 뒤 생성됐다. root가확인했을때child는이미정상종료되어global active를등록하지않았다. 모든현재handle닫힘, 재poll/수정/재실행금지. V199 prepare63098 exit0,실제36428/root76990 exit0. Child77007/77008은계획된SIGTERM close,79442는정상EOFexit0. 모든PID부재. 실제Bmodelready/현재PID확인뒤root가registration36428을제공했고,controller가close+OSPID부재를검사한뒤globalidle을기록하여C새load를허용했다. 현재livehandle없음;V199닫힌builder/run/검사재poll·수정·재실행금지. V201 CPU99633/PID2113 exit0/부재, V202 CPU40603/PID14299 exit0/부재, V203 CPU32104/PID50513 exit0/부재, V204 CPU96961/PID62606 exit1/부재(native8거부), V205 CPU32066/PID72335 exit0/부재, V206 CPU82766/PID78569 exit0/부재. 모든 종료 exclusive builder/audit/preparation과 최초 실패·code seal을 보존하며 재poll·수정·재실행 금지. 공개 pure factory/schema/normalizer/reference-order/helper는 실질적으로 새 scope의 새 구현에서 재사용 가능. 이번 model/sourceNN0이며 현재 livehandle 없음. V207 CPUaudit62225/PID52979 exit0/PID부재(36action100owner52packet),prepare59182actualexit0; V208 CPUaudit64124/PID4613 exit0/PID부재(100stage300node40call92page8fullprior),prepare38152actualexit0. V208 첫outerCPUtest91217exit1/8comparisonfixture실패와수정후82842exit0를보존한다. 닫힌exclusive audit/prepare·code·최초결과는재poll·수정·재실행하지않는다. 현재livehandle없음,model/sourceNN0. V209builder91254/PID20593 actualexit0/PID부재; V210native34682/PID23332 actualexit0/PID부재; V211prepare74965actualexit0/sourceactual34734/root43809 exit1/child44319exit0/둘PID부재/원래closed328302600확인. 모델SDK load/현재PID/준비완료후에만registration34734를제공했고정리후globalidle을확인했다. V212review95491/PID66834actualexit0/PID부재. 모든closedexclusive builder/prepare/audit/evaluate/review와최초결과·code수정/재poll/재실행금지. V211전체100계획은폐기되었고남은35action96source요청은실행하지않는다. 현재livehandle/loadedmodel없음. V21792917/PID71955 exit1, V21823975/PID97874 exit1/model0, V21926317/PID15671 exit1, V22059293/PID36224 exit0; all actual terminal/PID absent and closed. V22138449/PID93258 actualexit0/PIDabsent/full15-217/final8; closed and never repoll/replay/edit. V22246627/PID23626 actualexit1/PIDabsent/first variable collision with no final8 proof; V22360708/PID39540 actualexit0/PIDabsent/full23-sixpairs/final8. Both closed; never repoll/replay/edit. V2254401/PID20979 exit1, V22742736/PID39139 exit1, V22922184/PID56247 exit0, V2306515/PID68175 exit0, V2316109/PID79683 exit0; all actual terminal/PID absent/final8. Closed, never edit/replay/repoll. V23370557/PID7960 and V23585612/PID30017 actualexit1/PIDabsent/final8; closed first errors/complete raw tensors preserved, never replay/edit/repoll. V23798220/PID58705 actualexit1/PIDabsent/final8; no replay/edit/repoll. V27767022/PID46948, V27877293/PID67610, V27969062/PID16608 actualexit0/PID absent. V28011276/PID81167 actualexit1 readyACK timeout before rows/PID absent. V28172407/PID97543 and V28286061/PID6779 actualexit0/PID absent/final8 forV282. V283 prepared but static prelaunch rejected, actualcontroller/model0. V28492123/PID22233 actualexit1 before gradients/final8/PID absent; V28529048/PID28795 actualexit0/all2 whole gradients/final8/PID absent. All closed drivers/builders/preparations/tests/first failures immutable; never rerun/edit/repoll. V286 training is sealed-not-started, check actual checkpoint before any launch. V28676202/PID50254 actually live, not terminal. Keep polling this exacthandle; observationtimeout or a result artifact is not an exit. Do not launch a second model or edit/restart this controller. V287 prepare actualexit0, five CPU tests pass; independent200 call actual66dc2a exit1 only after numeric proof write/return path formatting, preserved. Future new guard review calls need an absolute destination. Final V287 verify must wait actual trainingexit0/externalPIDabsence/8byte cleanup; do not run while V286 is live. V288 prepare64db59 actualexit0/CPU6 pass/model0/sourceExplanation0; current live binding is false. Original six numeric bodies/all166 pairs/all336 MLPs retained, current5071 added26; no new-weight numeric job or model load. V287 independent1200 actual652f41 exit0/all72/23010 vectors pass. Every closed V288 helper/test/preparation and V287 completed review proof remains immutable; no rerun. V28676202/PID50254 remains live, no terminal/final-model qualification. V289 scope preparef12fda actualexit0/7 CPU tests/model0/MLX0; immutable, no actual runtime drivers yet. V287 independent2000 da6f7d actualexit0/all72/23010 guards. V28676202/PID50254 remains live, no terminal inferred. Do not edit/replay closed CPU proofs or load a second model. V28676202/PID50254 actual124ef2 exit0/PID absent/all2944/982043/final8. V287 finalCPUf1240e/PID451 exit0/PID absent/entire trace/all7 guards/224F32 adapter. V28960583/PID6071 actual3a946b exit1/PID absent/final8 after complete192stock/336MLP pass; readinessextra8 failure preserved. V29051614/PID24222 actual6fc632 exit0/PID absent/final8, sourcefree logicalkey/nextfixture unchanged16to8 storage proof. V29176779/PID37601 actualdb4109 exit1/PID absent/final8, duplicateattach before comparisons preserved. V292 lifecycle2CPU pass; V29394645/PID51664 actual9c594a exit0/PID absent/all12096/111/213/16/final8. All closed controllers/builders/preparations/proofs immutable; never edit/rerun/repoll. No live model/tool owner. V29433296/PID91422 andV29531869/PID13970 actualexit0/absent. V294 firstsandbox f4e85a exit1 before data/ready; unchanged command escalated retry required by developer permissions instruction, first denial preserved. V29661188/PID36331 actual0354e3 exit0/absent. V297prepare54556 actual313e8a exit0/model0; V299prepare08f741 exit0/model0. V299source49713/root10045/child10106 actuald3a32f rootexit1/childexit1, both absentafterterminal786aa6. Final8/RNG proof missing due invalid _RandomState item assignment; preserve first full stderr/raw bytes. V300review39898 actual68fb0b exit0/model0; afterassets52265 actual2a0822 exit0/model0. All closed scopes/controllers/builders/probes/evals immutable; never repoll/edit/replay. Entire80 source plan retired and9 family bans apply. V30121089/PID79550,V30223686/PID14853,V30484791/PID79187 actualexit0 and externalPIDabsence; all closed. V303 configure first sandbox denial and first unsealed header build error preserved; original sealed V303 control never executed, V304 is sole byte-safe control. Never edit/rerun/repoll closed controllers/builders/probes; pure public APIs may be reused for genuinely new scopes. V30560427/PID19564 actualexit1/PIDabsent/final8 after all8193 prefixes; first Python reference API failure and numeric ACK correction preserved. V30619099/PID26034 exit0/PIDabsent/final8; V30842071/PID47087 exit0/PIDabsent/final8/allnumeric+16joint. All sealed code/drivers/builders immutable and no repoll/replay. Pure public qualified APIs may be reused in a genuinely new remaining scope. V30910735/PID63417 actualexit1/PIDabsent/final8 after all7timingpairs/8GiB limit assertion. V31061270/PID83038 exit1/PIDabsent/final8 after count2 active difference16bytes; V31166875/PID85997 exit0/PIDabsent/final8/allremaining255nativepairs. V31272670/PID93414 exit0/PIDabsent/final8/all111-213-16; V31372958/PID1365 exit0/PIDabsent/final8/all7paired24streams/peak3.58GiB. All closed immutable scripts/builders/results; no rerun/edit/repoll. Pure public APIs remain reusable for genuinely new implementation/scope. V31452914/PID36206 sandbox-only denial before tokenizer, exact-command escalated15075/PID39381 exits1 before complete attribution due return_dict container; both actual terminal/PIDabsent, first artifacts preserved. V31540143/PID44871 andV31615791/PID95151 actualexit0/PIDabsent/model0. All sealed drivers/builders/tests/results immutable, no rerun/edit/repoll. First sandbox denial exact-command escalation is the developer-required exception, not permission to replay other closed jobs.",
     "previousGoalTurnClassification": "meaningful implementation and complete qualification progress"
@@ -13794,12 +13794,12 @@
       "sourceExplanationRequests": 0,
       "allowedForNeuralEvaluation": false,
       "goalComplete": false,
-      "lastObservedCompletedUpdate": 2020,
-      "lastObservedCompletedTargets": 677999,
+      "lastObservedCompletedUpdate": 2400,
+      "lastObservedCompletedTargets": 803317,
       "lastObservedAllocatorPeakBytes": 5134465622,
       "initialFull72StabilityPassed": true,
-      "lastObservedMemoryFreePercent": 48,
-      "lastObservedSwapUsedMiB": 26166.75,
+      "lastObservedMemoryFreePercent": 49,
+      "lastObservedSwapUsedMiB": 26006.75,
       "actualTerminalObserved": false,
       "fullStabilityIterationsPassed": [
         0,
@@ -13808,7 +13808,7 @@
         1200,
         2000
       ],
-      "swapUsedIncreaseSinceStartMiB": 2410.06,
+      "swapUsedIncreaseSinceStartMiB": 2250.06,
       "actualModelLoads": 1,
       "directory": "model-value-full-training-v325",
       "trainingSeal": "model-value-full-training-v325/training-seal.json",
@@ -14004,6 +14004,32 @@
       },
       "currentDistinctCpuTestsPassed": 147,
       "codeSha256": "8fa9f9ae4af79eede394f8b7c6bbfdf80b06262f7d061d55cd8528b8737b394e"
+    },
+    "newModelValueRuntimeScopeV333": {
+      "status": "complete-current-model-value-geometry-scope-CPU-prepared-numerics-not-run",
+      "proof": {
+        "file": "model-value-runtime-scope-v333/scope-preparation.json",
+        "sha256": "1d56319000c8f3914b10bd093b0844e411a3c500670115df0f4f1185c305da68"
+      },
+      "actualPreparationTerminalChunk": "2df7df",
+      "actualPreparationExitCode": 0,
+      "old111Model213Cohort16JointPreserved": true,
+      "newTotalScope": {
+        "mlpPairs": 12096,
+        "modelPairs": 142,
+        "cohortPairs": 229,
+        "jointStreams": 17
+      },
+      "actualMaxima": {
+        "prompt": 4496,
+        "targetAndEos": 862,
+        "sequence": 5184
+      },
+      "newModelNumericalComparisons": 0,
+      "modelLoads": 0,
+      "sourceNeuralRequests": 0,
+      "currentDistinctCpuTestsPassed": 149,
+      "goalComplete": false
     }
   },
   "preparedAssets": {
@@ -15125,6 +15151,22 @@
       "actualCpuStdioChildCases": 4,
       "actualCpuStdioChildren": 5,
       "realModelChildLifecyclePending": true
+    },
+    "newModelRuntimeNumericScope": {
+      "file": "model-value-runtime-scope-v333/scope-preparation.json",
+      "proof": {
+        "file": "model-value-runtime-scope-v333/scope-preparation.json",
+        "sha256": "1d56319000c8f3914b10bd093b0844e411a3c500670115df0f4f1185c305da68"
+      },
+      "expectedTotals": {
+        "mlpPairs": 12096,
+        "modelPairs": 142,
+        "cohortPairs": 229,
+        "jointStreams": 17
+      },
+      "actualNumericalComparisons": 0,
+      "modelLoads": 0,
+      "newAdapterStillTraining": true
     }
   },
   "constraints": [
@@ -15147,7 +15189,7 @@
   },
   "nextSession": {
     "first": "Read actual V315 whole8490-input/1040-raw-output canonical atlas and ZERO computed model-written value finding; V316 all12 raw required value fields/native codec/full46 prose preservation. Verify actual idle/git. Preserve V314 first sandbox denial and token-return-container failure, V315/V316 actual terminals and all closed immutable jobs. Current product/source/frozenout unchanged and all9 bans/original84/retired80 remainder remain enforced.",
-    "nextIndependentWork": "우선 실제session25270/PID79457의 V325 학습을 확인하고 같은 handle만 poll한다. 마지막2020/2944updates·677999/985517targets+EOS, 실제peak약4.78GiB. 끝나지 않은 학습을 재시작·재개하거나 두 번째 모델을 로드하지 않는다. 72owner/24283targets guard0/200/600/1200/2000은 완료 후 독립CPU검토까지 통과했고 재실행하지 않는다. 이후2920/2944 새guard 완료 이벤트와 immutable 파일이 있을 때만 V326 공개review_guard로 새scope를 검토한다. 실제RSS/pressure/swap/allocatorpeak 관찰과model1/8GiB/cache256MiB 유지; 마지막systemfree48%,swap26166.75MiB로 시작23756.69보다2410.06MiB 증가했고 원인을 모델로 단정하지 않는다. 실제training toolterminal 후 PID부재/final8/RNG/원래자산을 확인·기록한 뒤 V326 verify로 전체2944owner/148reports/985517targets/7guards/224F32최종adapter를 독립검증한다. V332 binding.py는 새최종model gate초안이며3CPU tests/실제liveowner 거부만 검증했다. 최종adapter를 아직승인하지 않았고 모델을 로드하지 않았다. sandbox os.kill(pid,0) PermissionError는 첫결과를 보존한 뒤 개발자규칙대로 동일read-only command를 escalate하여 실제liveowner 거부를 확인했다. 학습·최종감사 실제exit0와PID부재, 전체새targets/7guards/원래baseSHA/전체224F32 dense finite/file-byte/config/single-zero-load reservation/RAMACK 조건을 사용한다. V332 candidate_evidence 전체성공경로는 실제학습·V326최종감사 종료후 authoritative artifact로 검증해야 한다. 새adapter allMLP/wholemodel/cohort/joint/full128long 및새4496prompt/862target/5184sequence 구조범위 검증이 필요하며 V312/V313 이전V286 adapter 증거로 대신하지 않는다. V327 packet/V328공개provider/V329전체3840입력·Host+180rich/24cohorts/V330 실제FIFO·CPUresource2tests/V331실제Node CPUchild4cases·5PIDclose/부재는 보존·재실행금지. 실제model worker는 V301 지원seed42/final8 cleanup을 사용하며 V297 종료실패sliceassignment와 V298/V299·retired80plan을 재실행하지 않는다. 금지9family/parent/helper·original84 제외를 지킨 새전체20root 실제평가에서 정확한 모델값+전체설명 및Host3000ms가 필요하다. 그후 제품통합/download/integrity/custommodels/FIFO/cancel/dispose/기능·시각QA/버전·커밋·푸시·설치를 진행한다. 현재제품0.0.1145/source5/frozenout 그대로, 새sourceNN0/후보채택·설치0, 목표active/unmet.",
+    "nextIndependentWork": "먼저 실제session25270/PID79457의 V325 학습을 확인하고 동일handle만 poll한다. 마지막2400/2944updates·803317/985517targets+EOS, 실제peak약4.78GiB. 실행중 학습 재시작·재개/두번째모델 로드 금지. 72owner/24283targets guard0/200/600/1200/2000 완료 후 독립CPU검토통과, 재실행금지. 이후2920/2944 새guard 완료 이벤트와 immutable파일이 있을 때만 V326 공개review_guard로 새scope검토. 실제RSS/pressure/swap/allocatorpeak 관찰 및model1/8GiB/cache256MiB; 마지막systemfree49%,swap26006.75MiB로 시작23756.69보다2250.06MiB 증가하며 원인을 모델로 단정하지 않는다. 실제training toolterminal/PID부재/final8/RNG/원래자산 확인·기록 후 V326 verify로 전체2944owner/148reports/985517targets/7guards/224F32최종adapter 독립검증. V332 binding.py는3CPU tests·liveowner거부만 검증된진입검사초안; 전체candidate_evidence는 실제학습·최종감사 종료후 authoritative artifacts로 검증한다. V333 source-free scope는 전체3840tokenrows로부터 생성되어 모든old111model/213cohort/16joint를 보존하고 새4496prompt/862target/5184sequence를 추가했다. 새범위12096MLP/142model/229cohort/17joint이며 아직GPU비교0/model0; 이를새adapter로 검증해야한다. joint 원래6cases/16streams와 timing7pairs/24streams는 서로다른 범위다. 기존 numeric_helpers.py hardcoded111와 scopedcontract경로를 그대로새catalog에 적용하지 않는다. public math/comparison APIs는 그대로, 실제scope cardinality와현재model-binding만 명시적으로 새controller에서 바인딩한다. 이전V289192stock/336standalone, V308MLP12096, V312/V313numeric/joint/timing은 이전V286 adapter에서만 증명되어 새adapter의증거가아니다. 모델없이끝난 V327packet/V328공개provider/V329전체3840입력·Host+180rich/24cohorts/V330실제FIFO·CPUresource/V331실제Node CPUchild4cases·5PIDclose부재는 보존·재실행금지. 실제모델worker는 V301 지원seed42/final8 cleanup 사용하며 V297 sliceassignment종료실패·V298/V299·retired80plan 재실행금지. 금지9family/parent/helper·original84 제외를 지킨 새전체20root 실제평가에서 정확한 모델값+전체설명 및Host3000ms가 필요하며 그후 제품통합/download/integrity/custommodels/FIFO/cancel/dispose/기능·시각QA/버전·커밋·푸시·설치를 진행한다. 제품0.0.1145/source5/frozenout/새sourceNN0/후보채택·설치0, 목표active/unmet.",
     "notImplemented": "Whole current full teacher objective with actual raw model-owned values and independent semantic/coherence guards; source-worker/product integration of the new value contract and qualified exclusive KV runtime; fresh permitted full20-root actual all-field model accuracy/wholeHost3000ms; product download/integrity/custommodels/FIFO/cancel/dispose/functional+visualQA/release/install.",
     "completionStillMissing": "원래전체source/context/parent/callee/fields/confidence/unknown및모델의값·문장책임을유지한새전체허용범위에서의미·정확성과전체설명≤3초를실제검증한후,다운로드/integrity/custom model/FIFO/cancel/dispose와제품QA를확인해release/install한다.",
     "publication": "핸드오버 문서만 커밋·푸시한다. V325 실제 학습은 진행 중이며 완료 또는 모델 정확도·3000ms 달성을 주장하지 않는다."
