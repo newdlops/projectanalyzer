@@ -1,6 +1,6 @@
 {
   "purpose": "로컬 모델의 전체 계산값·설명 완료 3초 목표를 이어가기 위한 핸드오버. 최신 실제 증거와 소유 프로세스 상태를 먼저 확인한다.",
-  "savedAtUtc": "2026-10-15T16:03:10.140762+00:00",
+  "savedAtUtc": "2026-10-15T17:08:55.328034+00:00",
   "workspace": "/Users/lky/project/projectanalyzer",
   "resumeInstruction": "이 파일을 먼저 읽고 checkpoint.json에서 필요한 항목만 확인한다. 긴 대화나 실험 문서 전체를 다시 읽지 않는다. 이전의 반복적·추측성 분석은 구현 결정으로 취급하지 않는다.",
   "userIntent": {
@@ -72,8 +72,8 @@
         32,
         51
       ],
-      "latestSystemFreePercent": 51,
-      "latestSystemSwapUsedMiB": 38238.06,
+      "latestSystemFreePercent": 34,
+      "latestSystemSwapUsedMiB": 35614.94,
       "latestActualCurrentSourceEvidence": {
         "file": "current-source-result-v478/closure.json",
         "sha256": "1a05541292ebb7b02020ab5254c3a933bee6b1e24d8f18c8ef4bb6897207dc4f"
@@ -83,8 +83,8 @@
         "sha256": "2b2ca5a198393f0c697413bb9737557c14da266dfa81806de09e373e289a9b7a"
       },
       "latestGlobalSemanticCpuPeakRssBytes": 503627776,
-      "latestTurnModelLoads": 0,
-      "latestTurnOptimizerUpdates": 2054,
+      "latestTurnModelLoads": 1,
+      "latestTurnOptimizerUpdates": 29,
       "latestGlobal4008CpuAdmissionEvidence": {
         "file": "global-admission-closure-v497/closure.json",
         "sha256": "f92f89701892ef64667d58271e1a1203d6186519333c48dbbe3c66245425d3ee"
@@ -95,14 +95,14 @@
         "file": "global-numerical-progress-v506/closure.json",
         "sha256": "819400d6bfcdb011a15f18aef7ec845d4acedad7d7cdcc509060c5d62360d7c4"
       },
-      "latestTurnCompletedModelJobs": 0,
+      "latestTurnCompletedModelJobs": 1,
       "currentActiveModelJobs": 1,
-      "currentActiveTrainingSessionId": 44243,
-      "currentActiveTrainingPid": 49241,
+      "currentActiveTrainingSessionId": 91988,
+      "currentActiveTrainingPid": 79428,
       "currentV505LastReportedAllocatorPeakBytes": 5852727736,
-      "currentV505LastReportedIteration": 2040,
-      "latestTurnObservedCompletedOptimizerUpdates": 2054,
-      "currentV505Final8NotYetApplicable": true,
+      "currentV505LastReportedIteration": 2820,
+      "latestTurnObservedCompletedOptimizerUpdates": 29,
+      "currentV505Final8NotYetApplicable": false,
       "latestTurnOptimizerUpdatesAreObservedNotFinal": true,
       "latestGroupedFirstAndActiveTrainingEvidence": {
         "file": "grouped-first-progress-v509/closure.json",
@@ -119,7 +119,14 @@
       "latestGuard2000AndMemorySupervisionEvidence": {
         "file": "guard2000-progress-v518/closure.json",
         "sha256": "1e4f96c9ad51a70b237f95e4f2aa9d399f1d2f9c76d5f86f9f207e115b7d8a72"
-      }
+      },
+      "currentV522Final8NotYetApplicable": true,
+      "latestTimeoutAuditAndFreshTrainingEvidence": {
+        "file": "time-corrected-progress-v521/closure.json",
+        "sha256": "afb9efddfaef9c12c67657cb2fd7092ec9ce6d3b27f5bd26054eaecca326b82a"
+      },
+      "currentV522LastReportedIteration": 20,
+      "currentV522LastReportedAllocatorPeakBytes": 3845220724
     }
   },
   "repository": {
@@ -128,24 +135,25 @@
     "handover": "docs/MODEL_LATENCY_HANDOVER.json. 다음 시작에서 실제 git 상태와 checkpoint의 현재상태를 확인한다.",
     "checks": "V325 새 모델 계산값·전체설명 목적 학습 실제session25270/PID79457 exit0 및 외부PID부재. 원래2944train/896valid,2944전체updates/985517target+EOS/1epoch/1e-5/seed42/rank8scale20dropout0 고정,중간adapter없음/final-only,모든7회72owner/24283target guard통과·독립CPU검토. 실제peak5134465622bytes(~4.78GiB),final8/RNG복원/원래자산동일. V326 전체2944owner/148update reports/985517targets/7fullguards/224F32·2883584parameter 최종파일 독립감사 actualcb57ab exit0/PID58871부재/CPUpeak150421504/model0. 새adapterSHA d3bc4d5dc4b9ccbdcadddf35ac759c092a1773c955a7dfc9df4da51c23106ed3. V332 새최종모델 진입검사 실제완료artifact로 통과. V333 전체3840행 유래4496prompt/862target/5184sequence 최대경계 포함하고 기존모든scope보존. V334 새모델1 actualsession61416/PID60667 exit0/외부부재; stock192+standalone336/MLP12096/model142/cohort229/joint17 전체shape/dtype/finite/rawbyte/KVcapacity/UID/PRNG/nativeEOS/fulltext/명시취소1 일치. 과거V286 가중치 수치결과를 새모델증거로 대체하지 않았다. 지원CanonicalWorkerLifecycle 사용;peak3850682844bytes(~3.59GiB),final8/MLXrng복원/Numpyrng동일/원래전체modelasset동일. 새CPUscope검사2개 추가로 현재151distinctCPUunit plus4 actualCPUchild integrationcases. 실제sourceNN0,새모델 의미·정확도/fullHost3000ms 미검증. 마지막실제source V29934031.232625ms/46prose26correct15incorrect5incomplete 실패유지. 제품0.0.1145/source5/frozenout/후보채택·설치0,전체목표active/unmet. V335 실제새source-worker 코드/3Python+2JS CPU검사 통과; V301 지원canonical lifecycle·V310 OwnedHandoffRuntime·원래5public fullprotocol함수 의미동일(진단이름만변경)·V327source-only modelvalue/V328provider를 바인딩. V336 첫sealedNode controller는 absolute SDK checksum경로를path.join으로 잘못결합해실행전exit1/child0/model0; 처음전체stderr/코드/prepare불변보존·재실행금지. V337 명시경로resolver와2CPU tests 후 동일3packets11members(1/2/8UID)를 그대로actualmodel1 stdio로검증. actual63784/root87072/child87084 exit0/외부모두부재/native전체UID/rawJSON/EOF/final8,peak689474056bytes(~658MiB). V338 남은3cases/4children/3모델순차실행: actual58811/root98711 exit0, 자식99625준비취소model0·MLX미import(allocatorcounter미조작),99638activecancel/99931freshFIFOrecovery/508activeModelTaskManagerdispose 모두실제exit0·SIGKILL없음·외부PID부재. 이전actualchildclose가다음spawn보다먼저이며취소packet답안미발행,3loadedmodel 모두final8/MLXrng복원/Numpyrng동일/peak689474056. 전체새모델4integrationcases/5실제child(실제SDKload4순차),기존V331CPUchild4cases와분리. 현재158distinctCPUunit. 마지막actualsystemfree53%,swap22151.94MiB(이scope 시작과동일),root/child/model 모두종료. 제품source5/frozenout/0.0.1145 실제hash 재확인/defaultcompile0/채택·설치0. 새sourceNN0/실제sourcemeaning/fullHost3000ms는여전히미검증. V339 새5반환class×Kotlin/TS×KO/EN 전체20roots/40routes/116sourceoccurrences/156raw모델계산값을독립CPU참조+실제V328provider/Host/page/disposal로전체검증.4CPUtests통과(최초JSONpath·nullable test-helper오류그대로보존),actual26223/PID51342 exit0/외부부재. V340 새비선형square/double+formatter+emptyUnit기록helper부모프로토콜16actions/40stages,전체36actions/80stages/44calls/68pages/40finalcallee bodies 및모든source/confidence/unknown/fullsameactionprior통과.2CPUtests,actual3218/PID66971 exit0/외부부재; plaincallfallback 최초unsealed reference오류보존후named/plain public경계구분. V3413CPUtests+전체80 native grammar/token/EOS1/151936vocab/8192window+2400reserve/196608member/24000JSchar 모두통과.167현재distinctCPUunit. 최대prompt4379/target+EOS514/전체seq4893/request23816bytes,모델0/actual42146/PID78672exit0·외부부재. V342 actual 첫전체Kotlin/KO squareWithinCeiling2paths sourceNN 실행:session75339/root88404/child88484 actualrootexit1/childexit0/외부둘부재. 정확한전체Host12021.105625ms,wholepacket11015.535875ms,tokenization+generation10962.215458ms,452forwardwaves/895출력+2EOSlookahead/7820prompttokens; batch시간을member별로분할하지않음.8raw계산값중7exact,한return.after가잘못된문자열「:-1}],」이어beforeHostrestoration에서거부;0/2path전달,부분답안채택0. V343 모든38원문prose 수동검토24correct/7incorrect/7incomplete(제곱을입력대입으로설명,strict>를>=로변경,분기없다고설명등). actualCPU3eff77exit0/model0. 지원canonical cleanup final8/MLXrng복원/Numpyrng동일/실제allocatorpeak1974960608bytes(~1.84GiB)/processpeak709853184bytes/원래7assets동일. 최초전체rawJSON/토큰수/stdio bytes/errors/workerfinal/실제terminal보존. computed-square-over-ceiling-sentinel가10번째영구전체family금지로추가(양언어parentSHA·모든weights/rename/operator/locale/scope variants 포함). 해당전체80plan은퇴역,남은35actions78source requests실행금지. 기존Source335/332 등sealed진입검사는9bans전제여서앞으로모델을로드하려면모든10bans를보존하는새explicitgate필요하며기존증거를위조/약화/수정/재실행하지않음. 현재ownedmodel/process없음/제품0.0.1145/source5/frozenout/채택·설치0/정확fullHost3000ms목표active/unmet. V344 source-typed calculated-display grammar 일반계약구현: 실제sourceFacts의code/name/knownScalarKind와원래schema표시가일치할때만 숫자·Boolean JSON 표시문자열에genericpattern을추가. numeric-looking실제String·unknown·null·sourceinputs/prose/원래bounds/전체필드는유지;expectedsourcevalueconst/singleton forcing·응답repair없음.5CPUtests통과(첫internal fieldAt 미export오류보존후독립bounded helper),현재172distinctCPUunit. 원래전체3840행의source-proven display260(number128/Boolean132)+새80CPUarchive66(number10/Boolean56)=326fields. 최초unsealed inventory는3840완료뒤freshSchema의worksheet 없는bound실패,원래count보존·남은80만liveconstructor로복원;모델0. 새packetall3920 전체roundtrip에서원래계산값·모든prose/nativecompletionbytes·Hostinverse동일(actual64915 b2ab5fexit0). CPU archive actualV342raw2 records에서형식오류「:-1}],」는새grammar-schema Ajv에서거부하고valid다른row는문자변경없이통과(2d398dexit0),neuralretry0. V344result는CPU-schema/packet증거이며실제LLguidance tokenizer/native grammar 전체admission은아직안함;새provider전략에바인딩·모델source정확도·3초 미검증. 이전V342prose7오류/7불완전·12.021초는그대로이며모든10ban/퇴역78요청유지. 현재모델/process없음/최종observedsystemfree53%/swap21787.62MiB. 제품0.0.1145/Source5/frozenout/defaultcompile0/채택·설치0/목표active-unmet. V345 actual51438/PID59713/e6a6e2 exit0/c3ce17 PID부재:전체3840+80=3920/326display/모든원래target+정확1EOSbytes동일,151936vocab/8192window/2400reserve/196608member/24000JSchar유지,maxprompt4632/target862/fullsequence5320/request26098,archived bad display native거부·validraw보존,peak499810304bytes. V34676230/PID74679/a532e5 exit1/936d9a 부재는CPUfixture request메서드누락/완료row0; V34770457/PID79060/e145c7 exit1/4f2c79 부재는전체3840+180rich/24cohort+20root40path116occurrence/40pages통과후첫call observer에서live함수structuredClone오류. V34851084/PID85383/133e48 exit0/540268부재는JSON데이터경계snapshot으로남은16wholeactions40stages44calls28pages/fullprior·helper/validator/disposal모두통과. combined36actions80stages68pages/3920wholepackets qualified. 새11CPUunits/current183. 이번모델/NN0; source5+frozenout2 pins불변(1f0b3c),제품0.0.1145 미채택미설치. CPUactualpeak native476.66MiB/provider433.19MiB/call273.27MiB; 각controller관측swap증가없음,최종systemfree48%/swap21683.62MiB. 기존V333최대prompt4496/seq5184보다새prompt/seq136tokens증가;전체새geometry의기존수치증거포함여부CPU대조와필요한새명시all10gate/qualification은아직안함. V349 전체3920 geometry 대조: 새 exact length4632/5320, added27model/16cohort/1joint, old scopes 그대로. CPU2/62845b 및prepare80cd74 exit0. V350 prepare d8d48f exit1은두retirement JSON필드명차이 KeyError이며모델0;최초code/결과보존. V351 exactversion metadata reader2tests/489a3a, prepare7972/458853 exit0: 10family fingerprints/두retired35action78req/최종adapter 전체check와oldruntime immutable 근거를묶은 sourcefree-only gate 통과. V35238501/PID25362/314e6f exit1/e511ee부재는fixture STRESS_CASES import누락/SDKload0이며최종8증거없음. V35385880/PID34052/c42711 exit0/8d0f86부재: 같은adapter d3bc4d5d... 추가27model logits+all28KV/capacity57whole tensors,16independentUIDs,1complete5320 nativejoint/fullraw·normalizedlogits/RNG/EOS/text/KV 통과. SDKload1/source0, peak3615834436bytes(3.368GiB)/processpeak1322221568bytes(1.231GiB),final8/MLX·NumPyRNG복원/모든ownersclosed/7assets불변. Oldstock192/standalone336/MLP12096/model142/cohort229/joint17와같은math·weights·SDK근거를상속해combined169model/245cohort/18joint. 모델출력의미·3초검증은아니다. 실제internalRAM all exit0/minobservedfree41%,swap21411.56→22376.62MiB(+965.06);원인귀속미확인. V35487855/PID58048/de1179exit0/5d3d5f부재: 전체3920 prompt/native/source/context/response inverse exact,224changed/16130saved bytes of47326215(0.0341%),CPUpeak253.95MiB,current197CPUunits. 실제token비용·latency미측정/미채택. 마지막systemfree59%/swap22264.62MiB,loadedmodel없음,제품0.0.1145 미채택미설치. V355 CPU4095/PID78559/423330 actualexit0/405cdc부재:전체3920 prompt의모든token bytes와V345 int32 fullsequences prefix exact,9064430tokens/oldtargets·native동일. V354 changed224 전부측정/unchanged3696 동일byte상속; new9060909/−3521(0.0388%),increased36/decreased174/equal3710,maxnew4553. 분리fragment token합산없고actual fulltoken offsets로모든토큰한번씩배분. originalcategories compiler1891894/source1557101/roles34692/timing25350/othermessage5479315/chat71420/boundary4658. othermessage에는unclassified source/task data가있다. 실제SOURCE OWNERS/CONTROL JSON은3412rows,TASK DATA는200rows에서확인됐다. CPUpeak262733824bytes(250.56MiB),모델·MLX·GPU·sourceNN0; current200CPUunits. 첫unsealedAST SyntaxError a5a743는감사실행전오류로보존하고수정후prepare13d3a3exit0;exclusiveaudit닫힘/재실행없음. 마지막free52%/swap22264.62MiB,현재모델handle없음. V394/395 새source-entry+worker9CPU검사와V397 실제guided-provider 경계1CPU검사 통과,현재282distinct. V396 첫sandbox PID거부/120초ACK timeout은model0/source0에서종료됐고최초실패·동일명령escalated retry의FileExists도보존했다. V398 actualsession43887/controller72822/Node72823/worker72830:rootexit1/childexit0/전체외부PID부재. 새첫KT/KO determinant 두전체경로 Host7234.683333ms,raw값8개중7정확,prose38개21correct7incorrect10incomplete,delivery0/2. peak2060606520bytes/final8/RNG복원/모든owner해제,systemfree47–52%/swap25782.75MiB동일. determinant전체family를제11ban으로추가하고36actions72stages전체계획폐기(남은35actions70요청실행·재포장금지). 제품0.0.1145/source5/frozenout2/modelassets불변,목표active-unmet. V400 전체3840/1246knowncomputed field CPU분류와V401 전체1301463target+EOS token의원래ID/정확한rational loss계수 대조를완료했다. 원래985517train targets 중computed값2668tokens,weighted coefficient mass약2.8584%이며gradient/원인증명은아니다. 처음의숫자·표시문자열차이는언어/표현별이므로실패한Kotlin자리의타입결함으로확정하지않았다. 실제필요했던Kotlinrich숫자mutation의negative/zero사례는각0개였고새선언coverage24cells 중기존16개가빠져있었다. V402일반검사와V403새전체24source/24paths/96occurrences/120rawvalues를현재11bans·세퇴역계획·original84제외후독립BigInt/원래guidedprovider·Host·모든validator·page·dispose로CPU검증했다. V404전체24nativegrammar/151936vocab/EOS1/2400reserve/8192window/원래worker bounds통과,최대4478prompt/592targetEOS/5067seq. V405 snippets10620개/985unique를새정책에비교하고V406exact6건은기존buildInvoice학습source의freshretiming배제출처임을구분했다. 현재family/reserved/retired exactmatch는0이며helper구조76개/1group은의미검토가남았다. V407 earliercalleeEvidence56개도빠짐없이검사했고새source body/추가exactmatch0이다. 모든실행종료/현재300distinctCPUtests/model·sourceNN·새training0. CPUpeak502022144bytes(~479MiB),관측free37–53%/마지막49%;swap첫25662.75→마지막25986.62MiB(+323.87),원인귀속미입증. 새숫자component는전체five-class objective가아니며학습/NN허가없음. 제품0.0.1145/source5/frozenout2/모델7asset/기존코퍼스·token·loss·weight byte불변. 최신실제model은V3987.235초/value7/8/prose21correct7incorrect10incomplete/delivery0으로목표active-unmet유지. V409~420: 원래 필드 domain 복원으로 빈 raw String 반환 오류를 수정했다. 일반 values 배열과 영어의 quoted Unicode literal 참조 작성도 보완했다. 전체80개 새 함수136경로와 기존3840행을 유지한3976행 five-stage draft 및 모든 native tokens/grammar/EOS/bounds를 완료했다.3080train/896valid,train target1046595/valid315946,각stage616/원래relative77/92/평균계수1. 현재316distinctCPUtests/CPUpeak511049728bytes(~487MiB),모델·NN·새학습0/모든owned job 종료. 제품0.0.1145/source5/frozenout2/model7/original corpus·tokens 불변. 새 SDK/의미/stability/gradient/resource 미완료이며 학습허가없다. latest actual V398의7.235초·값7/8·prose21correct7incorrect10incomplete·delivery0은 그대로이고 전체목표active-unmet다. V421~434: 전체136teaching paths/504source operations/2968prose 의미검토에서영어summary64필드와TS strict comparison reason24필드를수정했다.32+24전체teacher를새로작성해28wholefunctions actualCPUHost통과,모든values/source/나머지문장/전체범위유지. V4303976행/V431완전native/V426meaning-bound3976행을V432실제SDKCPU로모두검증했다.3080train/896valid/1046979train-targetEOS/315946valid,47rational/seed42/wholebytes/원래exclusiveEOSmask/readonlycleanup통과. V433현재47종coefficient full151936 loss와모든gradient를독립F64oracle·원래tolerance로통과했다.328distinctCPUunit/모델로드·sourceNN·새학습0/모든ownedjobs종료. SDKpeak223543296bytes(~213MiB),전체controlledCPUpeak566591488bytes(~540MiB),마지막free67%/swap18525.06MiB;원인귀속·연속최소증명아님. 제품0.0.1145/source5/frozenout2/model7/original corpus·tokens불변. V427sandboxMetal import실패와필수exactescalatedretry의exclusiveguard실패를보존했고새V432outsideCPU검사를실행했다. 현재208owner stability/새gradient-resource/새training 및정확fullHost<=3000ms는미완료; latest actualV3987.235초/value7/8/prose오류/delivery0유지.",
     "productImplementationBaselineCommit": "1827aa4cd4ccb7c96b33d320d23d73a715904ad3",
-    "documentationContent": "최신 V518은 같은 실제505 학습의2000guard 및 전체vector 감사와47회 livehandle/외부메모리 관측을 기록한다. 동일44243/PID49241과 메모리부터 확인한다.",
-    "currentVerification": "같은 actual session44243/PID49241을 계속 poll하고 외부 메모리를 관측하면서2000회 전체240owner/104675target 가드 통과를 확인했다. V517은 이번2000 guard의 모든 NLL/sdkNLL/top-token/starts, source/target identity, owner별 통계와 원래 독립208/32정책 판정을 저장 bytes로 재계산해 전부 일치했다. 이전0/200/600/1200 감사 재실행0이며 누적5guard/523375 target-vector positions를 감사했다. CPU audit peak48726016B. 이번 새 unit test0/현재433 distinct unit, 추가 모델/MLX/GPU/sourceNN0. 실제 livehandle 및 RAM/swap 관측47회를 원본 tool receipt와 함께 보존했다. 이 관측의 free범위34~59%는 연속최소나 physical hardcap 증거가 아니다. 현재 별도 snapshot은2054/3112 updates/702648/1065909 targets, SDK2040, allocator peak5852727736B, 외부 free51%/swap38238.06MiB이다. 학습은 실제 계속 실행 중이고 다음 가드는2920/2944/3080/3112다. 최종 adapter/terminal/canonical final8·양 RNG·wired 및 전체 trace/tensor감사는 아직 없다. 새507후보의 실제 GPU 산술/ownership/wholegenerator와 새 최종가중치 전체runtime/fullsource 정확도·전체 Host<=3000ms, 제품통합/기능·시각QA/release/install도 미완료다. 원래 보호project/model/corpus/token 전체bytes불변/제품0.0.1145 유지/채택·설치0. V47616.36초·prose 오류 실패는 새 증거로 대체되지 않았다."
+    "documentationContent": "최신521은실제505시간초과·2824완료prefix감사와CPU6자원수정검사/새19000초전체fresh522학습실제로드를기록한다.91988/PID79428부터확인한다.",
+    "currentVerification": "실제505 session44243/PID49241은12000초 고정한도로 TimeoutError/actual8cca6e exit1,외부68f3ee PID부재로 닫혔다. 기록된 완료2824updates/966436targets,입장2825rows/966775targets,마지막339targets는 완료 미입증이다. 전체3112 완주와 최종adapter는 없다. canonical final8/양RNG/wired 복원·cleanup오류0,actualpeak5852727736B. 새519 CPU감사는 모든 완료source/context/token/EOS/weight/SDKorder와141reports를 대조했고 이전5개240owner guard감사를 hash로 상속해 재실행하지 않았다. worker관측free33~60%,auditCPUpeak221184000B. 실제완료prefix와전체workload ratios/남은4guard의보수적시간bracket/고정25%여유를 적용한 새시간한도19000초를 도출했다. 미래속도보장은 아니다. 새520자원계약6CPU검사 통과/현재439unit이며 변경settings는새destination과wall-time뿐이다. 새522의4worker module은 private진단명·timeout문구를 역변환하면 원래전체바이트와 일치하며 SDK math/데이터/1epoch·1e-5·seed42/모든9guard/API8GiB/wired8GiB/cache256MiB가 같다. 새session91988/PID79428은 실제원본base에서로드됐고 oldadapterresume/partialcheckpoint0,이전PID부재뒤순차한모델만실행중이다. 실제preimportfree53%/loaded46%가확인됐다. 새초기240guard통과=False,snapshot완료update=0. 새실행최종adapter/전체학습·가드·terminal/cleanup와실제source전체정확설명<=3초/507GPU수치·ownership·wholegenerator/제품통합·QA·release/install은미완료다. 최신실제522초기guard0은126111에서전체240/104675통과했고,새523CPU감사에서모든vector·통계·원래정책이일치했으며전체104675NLL은official base와정확히같다. 추가모델/NN0,CPUpeak49709056B. 현재snapshot은29updates/SDK20/peak3845220724B/free34%이며초기guard진행중이던이전closure snapshot과구분한다."
   },
   "executionState": {
     "activeToolHandles": [
       {
-        "sessionId": 44243,
-        "pid": 49241,
-        "scope": "global-full-training-v505",
-        "kind": "one-fixed-fresh-base-full3112-training",
+        "sessionId": 91988,
+        "pid": 79428,
+        "scope": "global-time-corrected-training-v522",
+        "kind": "one-fixed-fresh-base-full3112-time-corrected-training",
         "beforeImportAcknowledged": true
       }
     ],
     "activeModelProcesses": true,
-    "lastTurn": "같은 actual session44243/PID49241을 계속 poll하고 외부 메모리를 관측하면서2000회 전체240owner/104675target 가드 통과를 확인했다. V517은 이번2000 guard의 모든 NLL/sdkNLL/top-token/starts, source/target identity, owner별 통계와 원래 독립208/32정책 판정을 저장 bytes로 재계산해 전부 일치했다. 이전0/200/600/1200 감사 재실행0이며 누적5guard/523375 target-vector positions를 감사했다. CPU audit peak48726016B. 이번 새 unit test0/현재433 distinct unit, 추가 모델/MLX/GPU/sourceNN0. 실제 livehandle 및 RAM/swap 관측47회를 원본 tool receipt와 함께 보존했다. 이 관측의 free범위34~59%는 연속최소나 physical hardcap 증거가 아니다. 현재 별도 snapshot은2054/3112 updates/702648/1065909 targets, SDK2040, allocator peak5852727736B, 외부 free51%/swap38238.06MiB이다. 학습은 실제 계속 실행 중이고 다음 가드는2920/2944/3080/3112다. 최종 adapter/terminal/canonical final8·양 RNG·wired 및 전체 trace/tensor감사는 아직 없다. 새507후보의 실제 GPU 산술/ownership/wholegenerator와 새 최종가중치 전체runtime/fullsource 정확도·전체 Host<=3000ms, 제품통합/기능·시각QA/release/install도 미완료다. 원래 보호project/model/corpus/token 전체bytes불변/제품0.0.1145 유지/채택·설치0. V47616.36초·prose 오류 실패는 새 증거로 대체되지 않았다.",
+    "lastTurn": "실제505 session44243/PID49241은12000초 고정한도로 TimeoutError/actual8cca6e exit1,외부68f3ee PID부재로 닫혔다. 기록된 완료2824updates/966436targets,입장2825rows/966775targets,마지막339targets는 완료 미입증이다. 전체3112 완주와 최종adapter는 없다. canonical final8/양RNG/wired 복원·cleanup오류0,actualpeak5852727736B. 새519 CPU감사는 모든 완료source/context/token/EOS/weight/SDKorder와141reports를 대조했고 이전5개240owner guard감사를 hash로 상속해 재실행하지 않았다. worker관측free33~60%,auditCPUpeak221184000B. 실제완료prefix와전체workload ratios/남은4guard의보수적시간bracket/고정25%여유를 적용한 새시간한도19000초를 도출했다. 미래속도보장은 아니다. 새520자원계약6CPU검사 통과/현재439unit이며 변경settings는새destination과wall-time뿐이다. 새522의4worker module은 private진단명·timeout문구를 역변환하면 원래전체바이트와 일치하며 SDK math/데이터/1epoch·1e-5·seed42/모든9guard/API8GiB/wired8GiB/cache256MiB가 같다. 새session91988/PID79428은 실제원본base에서로드됐고 oldadapterresume/partialcheckpoint0,이전PID부재뒤순차한모델만실행중이다. 실제preimportfree53%/loaded46%가확인됐다. 새초기240guard통과=False,snapshot완료update=0. 새실행최종adapter/전체학습·가드·terminal/cleanup와실제source전체정확설명<=3초/507GPU수치·ownership·wholegenerator/제품통합·QA·release/install은미완료다. 최신실제522초기guard0은126111에서전체240/104675통과했고,새523CPU감사에서모든vector·통계·원래정책이일치했으며전체104675NLL은official base와정확히같다. 추가모델/NN0,CPUpeak49709056B. 현재snapshot은29updates/SDK20/peak3845220724B/free34%이며초기guard진행중이던이전closure snapshot과구분한다.",
     "noProgressConsecutiveTurns": 0,
     "terminalRule": "V13755468/PID99592 실제exit0/부재; V14019108/PID78530, V14679681/PID80723, V14119638/PID82365 실제exit0/부재. V148sourcefree84120/root94340/child94474 actualexit0/부재. V148실제source49497/root95535 exit1/부재, child95621 exit0/부재. 모두 종료됐으므로 재poll/실행/수정하지 않는다. V149CPU검토 exit0/최초결과보존. 이전 모든 종료 독점job도 그대로 재실행 금지. 현재livehandle없음; 실제상태를검증하고새독립CPU진단부터 진행하며 artifact/관측timeout으로완료나live를추측하지않는다. V152joint43575/PID16552 actualexit0/PID부재; V154timing25713/PID24293 actualexit0/PID부재. 모두닫힘. V152seal.py 첫import실패actualexit1도닫혀재실행/수정금지; V153seal은별도준비builder actualexit0. V152GPU와V154timing을재poll/재실행하지않는다. V15589451/PID39514, V15769394/PID54696, V15812178/PID61718 actualexit0/PID부재/최종8 확인. 모두닫힌exclusive GPU/profiler/timing이므로재poll/수정/replay금지. V156은CPU초안만이고model/GPU0이며sealed아님. V15979546/PID81282,V16023111/PID93177,V16130401/PID1709,V1626406/PID5381 모두actualexit0/PID부재/최종8로닫힘. V161 첫prepare.py는import오류exit1/model0이며닫힘; 별도prepare_explicit.py가actualexit0. 닫힌 모든driver/builder는재실행·수정·재poll하지않는다. V16355731/PID19877 import종료1/model0,V16451237/PID22391 Metalcompile종료1/비교0,V16546741/PID25145 12쌍일치후residency종료1,V16614920/PID28269 RNG진단종료0,V16747955/PID34711 전체1344종료0,V16836764/PID43144 전체336/98종료0,V16947749/PID49513 준비graph종료1/생성0,V17113461/PID54568 전체15/217종료0,V17034350/PID58193 전체23시간종료0;모두PID부재. 종료driver/builder/수치/시간검사재실행·수정·재poll금지. 검증된순수kernel/runtime공개helper는새scope의새구현에서재사용가능. V1726895/PID90943 exit1은root가model-ready전에active상태를기록해immutableloader의idlegate실패;SDK model0/kernel0. V17377921/PID99483 전체48384 exit0, V17571105/PID21799 전체12096/98/197 exit0, V17667141/PID30182 전체15/217 exit0, V17716135/PID38173 전체23시간 exit0; 모두PID부재. V174prepare exit0후CPU import사전검사에서STRESS_CASES누락발견,모델/GPU0이며그sealed준비본은보존. 새GPU의global activeModelProcesses/activeToolHandles등록은새model-ready.json에서현재PID/실제완료확인후에만한다;loader는입장검사를다시하므로launch파일만으로너무일찍등록하지않는다. 준비전live tool handle은별도로추적하고timeout을종료로해석하지않는다. V17827645/PID70584 exit134는첫Metal주소공간컴파일abort/완료model1/비교0/PID부재이며Python최종정리검증은없음. V17936265/PID75058 전체28224 exit0, V18087592/PID83094 전체12096/98/197 exit0, V18128564/PID89635 전체15/217 exit0, V18248607/PID95247 전체23시간 exit0; 모두PID부재. 각실제terminal·최초오류·sealedsource보존,재poll/수정/재실행금지. V18359621/PID12294 전체12096 operation exit0, V18438791/PID19321 전체12096MLP/98model/197UID exit0, V18582721/PID24239 전체15/217 exit0, V18692667/PID25640 전체23시간 exit0;모두PID부재/최종8bytes. preparation·actualtool·PID부재receipt보존,닫힌실행재poll·재실행·수정금지. V187 session56849/PID47521 exit0, V188 session50644/PID55198 exit0, V189 session69270/PID69711 exit0, V190 session73365/PID73307 exit0, V191 CPU session98558/PID92430 exit0; 모두 실제 terminal/PID부재 확인. V187~190 최종8bytes 확인. V188은 앞 turn에 완료됐으며 이번 turn에 실제 handle의 terminal을 회수했다. 모두 닫혔으므로 재poll·수정·재실행하지 않는다. V192 CPU84357/PID37784 exit1, V193 CPU27192/PID55961 exit0, V194 CPU86617/PID61208 exit1, V195 CPU97425/PID68792 exit0, V196 CPU16980/PID71537 exit0; 모두 실제 terminal/PID부재. V192 맥락16건 및 V194 8token초과 실패를 보존한다. 닫힌 builder/audit/prepare 재poll·수정·재실행 금지. V197 CPU87836/PID9604 exit0/PID부재, CPUbinding11895 exit0/MLXimport0. V198 prepare88572/PID22724 exit0, 실제root76772/PID31539 exit0 및child31674 exit0/PID부재. model-ready는실제load1/328302600 뒤 생성됐다. root가확인했을때child는이미정상종료되어global active를등록하지않았다. 모든현재handle닫힘, 재poll/수정/재실행금지. V199 prepare63098 exit0,실제36428/root76990 exit0. Child77007/77008은계획된SIGTERM close,79442는정상EOFexit0. 모든PID부재. 실제Bmodelready/현재PID확인뒤root가registration36428을제공했고,controller가close+OSPID부재를검사한뒤globalidle을기록하여C새load를허용했다. 현재livehandle없음;V199닫힌builder/run/검사재poll·수정·재실행금지. V201 CPU99633/PID2113 exit0/부재, V202 CPU40603/PID14299 exit0/부재, V203 CPU32104/PID50513 exit0/부재, V204 CPU96961/PID62606 exit1/부재(native8거부), V205 CPU32066/PID72335 exit0/부재, V206 CPU82766/PID78569 exit0/부재. 모든 종료 exclusive builder/audit/preparation과 최초 실패·code seal을 보존하며 재poll·수정·재실행 금지. 공개 pure factory/schema/normalizer/reference-order/helper는 실질적으로 새 scope의 새 구현에서 재사용 가능. 이번 model/sourceNN0이며 현재 livehandle 없음. V207 CPUaudit62225/PID52979 exit0/PID부재(36action100owner52packet),prepare59182actualexit0; V208 CPUaudit64124/PID4613 exit0/PID부재(100stage300node40call92page8fullprior),prepare38152actualexit0. V208 첫outerCPUtest91217exit1/8comparisonfixture실패와수정후82842exit0를보존한다. 닫힌exclusive audit/prepare·code·최초결과는재poll·수정·재실행하지않는다. 현재livehandle없음,model/sourceNN0. V209builder91254/PID20593 actualexit0/PID부재; V210native34682/PID23332 actualexit0/PID부재; V211prepare74965actualexit0/sourceactual34734/root43809 exit1/child44319exit0/둘PID부재/원래closed328302600확인. 모델SDK load/현재PID/준비완료후에만registration34734를제공했고정리후globalidle을확인했다. V212review95491/PID66834actualexit0/PID부재. 모든closedexclusive builder/prepare/audit/evaluate/review와최초결과·code수정/재poll/재실행금지. V211전체100계획은폐기되었고남은35action96source요청은실행하지않는다. 현재livehandle/loadedmodel없음. V21792917/PID71955 exit1, V21823975/PID97874 exit1/model0, V21926317/PID15671 exit1, V22059293/PID36224 exit0; all actual terminal/PID absent and closed. V22138449/PID93258 actualexit0/PIDabsent/full15-217/final8; closed and never repoll/replay/edit. V22246627/PID23626 actualexit1/PIDabsent/first variable collision with no final8 proof; V22360708/PID39540 actualexit0/PIDabsent/full23-sixpairs/final8. Both closed; never repoll/replay/edit. V2254401/PID20979 exit1, V22742736/PID39139 exit1, V22922184/PID56247 exit0, V2306515/PID68175 exit0, V2316109/PID79683 exit0; all actual terminal/PID absent/final8. Closed, never edit/replay/repoll. V23370557/PID7960 and V23585612/PID30017 actualexit1/PIDabsent/final8; closed first errors/complete raw tensors preserved, never replay/edit/repoll. V23798220/PID58705 actualexit1/PIDabsent/final8; no replay/edit/repoll. V27767022/PID46948, V27877293/PID67610, V27969062/PID16608 actualexit0/PID absent. V28011276/PID81167 actualexit1 readyACK timeout before rows/PID absent. V28172407/PID97543 and V28286061/PID6779 actualexit0/PID absent/final8 forV282. V283 prepared but static prelaunch rejected, actualcontroller/model0. V28492123/PID22233 actualexit1 before gradients/final8/PID absent; V28529048/PID28795 actualexit0/all2 whole gradients/final8/PID absent. All closed drivers/builders/preparations/tests/first failures immutable; never rerun/edit/repoll. V286 training is sealed-not-started, check actual checkpoint before any launch. V28676202/PID50254 actually live, not terminal. Keep polling this exacthandle; observationtimeout or a result artifact is not an exit. Do not launch a second model or edit/restart this controller. V287 prepare actualexit0, five CPU tests pass; independent200 call actual66dc2a exit1 only after numeric proof write/return path formatting, preserved. Future new guard review calls need an absolute destination. Final V287 verify must wait actual trainingexit0/externalPIDabsence/8byte cleanup; do not run while V286 is live. V288 prepare64db59 actualexit0/CPU6 pass/model0/sourceExplanation0; current live binding is false. Original six numeric bodies/all166 pairs/all336 MLPs retained, current5071 added26; no new-weight numeric job or model load. V287 independent1200 actual652f41 exit0/all72/23010 vectors pass. Every closed V288 helper/test/preparation and V287 completed review proof remains immutable; no rerun. V28676202/PID50254 remains live, no terminal/final-model qualification. V289 scope preparef12fda actualexit0/7 CPU tests/model0/MLX0; immutable, no actual runtime drivers yet. V287 independent2000 da6f7d actualexit0/all72/23010 guards. V28676202/PID50254 remains live, no terminal inferred. Do not edit/replay closed CPU proofs or load a second model. V28676202/PID50254 actual124ef2 exit0/PID absent/all2944/982043/final8. V287 finalCPUf1240e/PID451 exit0/PID absent/entire trace/all7 guards/224F32 adapter. V28960583/PID6071 actual3a946b exit1/PID absent/final8 after complete192stock/336MLP pass; readinessextra8 failure preserved. V29051614/PID24222 actual6fc632 exit0/PID absent/final8, sourcefree logicalkey/nextfixture unchanged16to8 storage proof. V29176779/PID37601 actualdb4109 exit1/PID absent/final8, duplicateattach before comparisons preserved. V292 lifecycle2CPU pass; V29394645/PID51664 actual9c594a exit0/PID absent/all12096/111/213/16/final8. All closed controllers/builders/preparations/proofs immutable; never edit/rerun/repoll. No live model/tool owner. V29433296/PID91422 andV29531869/PID13970 actualexit0/absent. V294 firstsandbox f4e85a exit1 before data/ready; unchanged command escalated retry required by developer permissions instruction, first denial preserved. V29661188/PID36331 actual0354e3 exit0/absent. V297prepare54556 actual313e8a exit0/model0; V299prepare08f741 exit0/model0. V299source49713/root10045/child10106 actuald3a32f rootexit1/childexit1, both absentafterterminal786aa6. Final8/RNG proof missing due invalid _RandomState item assignment; preserve first full stderr/raw bytes. V300review39898 actual68fb0b exit0/model0; afterassets52265 actual2a0822 exit0/model0. All closed scopes/controllers/builders/probes/evals immutable; never repoll/edit/replay. Entire80 source plan retired and9 family bans apply. V30121089/PID79550,V30223686/PID14853,V30484791/PID79187 actualexit0 and externalPIDabsence; all closed. V303 configure first sandbox denial and first unsealed header build error preserved; original sealed V303 control never executed, V304 is sole byte-safe control. Never edit/rerun/repoll closed controllers/builders/probes; pure public APIs may be reused for genuinely new scopes. V30560427/PID19564 actualexit1/PIDabsent/final8 after all8193 prefixes; first Python reference API failure and numeric ACK correction preserved. V30619099/PID26034 exit0/PIDabsent/final8; V30842071/PID47087 exit0/PIDabsent/final8/allnumeric+16joint. All sealed code/drivers/builders immutable and no repoll/replay. Pure public qualified APIs may be reused in a genuinely new remaining scope. V30910735/PID63417 actualexit1/PIDabsent/final8 after all7timingpairs/8GiB limit assertion. V31061270/PID83038 exit1/PIDabsent/final8 after count2 active difference16bytes; V31166875/PID85997 exit0/PIDabsent/final8/allremaining255nativepairs. V31272670/PID93414 exit0/PIDabsent/final8/all111-213-16; V31372958/PID1365 exit0/PIDabsent/final8/all7paired24streams/peak3.58GiB. All closed immutable scripts/builders/results; no rerun/edit/repoll. Pure public APIs remain reusable for genuinely new implementation/scope. V31452914/PID36206 sandbox-only denial before tokenizer, exact-command escalated15075/PID39381 exits1 before complete attribution due return_dict container; both actual terminal/PIDabsent, first artifacts preserved. V31540143/PID44871 andV31615791/PID95151 actualexit0/PIDabsent/model0. All sealed drivers/builders/tests/results immutable, no rerun/edit/repoll. First sandbox denial exact-command escalation is the developer-required exception, not permission to replay other closed jobs. V32525270/PID79457 actuale37456 exit0/after54b0b0 externalPIDabsence/full2944-985517/7guards/final8. V326 finalCPU cb57ab/PID58871 actualexit0/after7723b2 absence; independent2920 f9d48f and2944 4e85eb exit0. V33461416/PID60667 actual662e2e exit0/afterf5696d externalabsence/full192-336-12096-142-229-17/final8. Allclosedimmutable controllers/builders/proofs noedit/replay/repoll. Noactiveowner. Public pure APIs reusable in genuine new remaining scope; actualnewmodel sourcemeaning/fullHost3000ms stillunproven. V335 sourceworkerprepare c42b49 exit0(model0), V336Nodefirst7288e0 actualexit1 beforeanychild/model0(absolute-pathjoinfailure), V337prepare21400 actual2d0369 exit0 thenactualroot63784 f80633 exit0/root87072-child87084 outside6ae154 absent/final8. V338prepare1336c0exit0 thenactual58811 47723c exit0/root98711-child99625,99638,99931,508 outside952ae2 absent; before-load cancellationmodel0/otherthreefinal8. Allclosedimmutable code/controllers/preparers/proofs/errors neveredit/replay/repoll. Noactiveowner. V33926223/PID51342 actualc2a302exit0/22f101outsideabsent; V3403218/PID66971 actual45fc03exit0/dc8eeaoutsideabsent; V34142146/PID78672actual744466exit0/196ff1outsideabsent; V34275339/root88404/worker88484actual208c76rootexit1,workerexit0/fullworkerfinal/final8/outside49a5be bothabsent. V343review3eff77actualexit0/CPU-only. 全closedexclusive code/builders/audits/firstfailures immutable;noedit/replay/repoll. Noactiveowner. V345 CPUaudit51438/PID59713 actuale6a6e2 exit0/외부c3ce17부재;builder35415/PID56185 actual141229exit0/067edb부재. builder첫sysctl sandbox거부0a5596 및prepare첫ps sandbox거부1de215를보존하고상위개발지침에따라같은명령만승인재시도했다. V34676230/PID74679 a532e5exit1/936d9a부재;V34770457/PID79060 e145c7exit1/4f2c79부재;V34851084/PID85383 133e48exit0/540268부재. 모든closedexclusive builder/prepare/audit/test/controller·최초실패·code seal은수정·재실행·재poll금지. V347의3840/24cohort/20root성공은V348에상속해재검사하지않았다. 이제livehandle/모델없음. V349 prepare80cd74 실제exit0/모델0. V350 첫prepare d8d48f 실제exit1/모델0/retirement KeyError이며code seal 보존. V351 CPUprepare7972/458853 실제exit0/모델0,닫힘. V35238501/PID25362 314e6fexit1/e511ee부재/SDKload0/STRESS_CASES import첫오류/최종8증거없음;닫힘. V35385880/PID34052 c42711exit0/8d0f86부재/model1/final8/외부MLX·NumPyRNG복원/peak3615834436 확인;닫힘. V35487855/PID58048 de1179exit0/5d3d5f부재/모델0,닫힘. 모든exclusive controller/prepare/builder/test·처음실패·code seal을재poll·수정·재실행하지않는다. 현재livehandle/모델없음. V355 CPU4095/PID78559 actual423330exit0/외부405cdc부재. sourcefree/토크나이저준비후 실제PID·RAM ACK,전체byte token대조와224변경비용 완료. 모두닫혔으므로독점audit/prepare/tests·code seal/처음AST오류를수정·재실행·재poll하지않는다. 현재모델·livehandle없음. V359 CPU34576 exit1 sandbox조회거부와필수exactretry39751 exit1 immutablecatalog를모두보존. V36075407/PID30173 exit0/외부부재, V36122273/PID32467 exit0/외부부재, V36273179/PID48317 exit0/외부부재, V36424695/PID60386 exit0/외부부재/final8, V36663089/PID69625 exit0/외부부재/final8로모두닫힘. 닫힌exclusive builder/audit/prepare/profiler와그code seal은재poll·수정·재실행하지않는다. 새로운실질적범위의publichelper재사용만가능하다. V367 configure25472/build26856 exit0. V36824264/PID87424 exit1/model0/final8/외부부재, V369configure36395/build35850 exit0. V37022595/PID93394 exit0/final8/외부부재. V37312029/PID9508 exit0/final8/외부부재. 종료exclusive builder/prepare/관측/NN검증과최초오류/code seal을재poll·수정·재실행하지않는다. V374는CPU검사완료후joint/adoption미실행상태다. V37678036/PID37164 actualfa6502exit0/80c7d7부재/final8, V37848109/PID77867 actual5f632cexit1/1831fd부재/final8(0pairs), V37955669/root92234/child92235 actual83da3eexit0/cd75c5둘부재/final8. V375~379 closedexclusive tests/preparers/controllers/NNjoint/timing/처음실패/code seal은수정·재실행·재poll금지. V379완료후전체async후보미채택;재측정·유리한case선택금지. V38225659/root39186-child39187 a32af7exit1/8ff55e부재/final8; V38494481/root53196-child53198 849847exit1/1843e9부재/final8; V38623479/root63791-child63792 a78568exit0/cd80ea부재/final8; V3884379/root81006-child81024 770871exit0/b72d89부재/final8; V3903325/root87702-child87704 ef81edexit0/e8657a부재/final8. V381~390 closedexclusive CPUtests/preparers/controllers/NNnumeric/joint/timing과처음실패·code seal은모두수정·재실행·재poll금지. 새실질적scope에서publichelper재사용가능. 현재ownedmodel/handle없음. V391newCPUtests7b65f4exit0/root-reference456f08exit0/call-referencec55db6exit0,unsealedfirsterrors185f69/d85252및해당code보존. V392actual58423/PID14066 ae8a34exit0/e05089외부부재, V393actual72251/PID26490 bebaa1exit0/135bbc외부부재. 닫힌391tests/392prepare·controller·Hostqualifier/393tests·prepare·nativeaudit와code seal·처음오류는수정·재실행·재poll금지. 새로운실질적scope에서publichelper재사용가능. 현재CPU/model/livehandle없음. V394CPU5/V395CPU4/V397CPU1실제통과,총282distinct. V396첫입력감사CPU실패648b77→d1a6d4와V397새실제provider경계검사1857fa통과를분리보존한다. V396actual14578/controller67239/Node67243/worker67317 ed69b9exit1/ab833e전체PID부재,model0/source0/ACK timeout이다. /bin/ps sandbox거부3159b8,동일읽기전용escalationc08f58통과,동일controller escalatedretryf2b150은기존exclusive파일로FileExists를보존하고모델을추가실행하지않았다. 새V398actual43887/controller72822/Node72823/worker72830 abaef7rootexit1/childexit0/29fec1전체PID부재/final8/RNG복원/모든owner해제다. V399전체raw8/prose38의미검토1a685fexit0,retirement/11banfinalization287da1exit0. 닫힌394~399creator/prepare/test/controller/review를재실행·수정·재poll하지않는다. 첫패밀리실패뒤남은35actions70source요청을실행·재포장하지않는다. 10ban전제gate394/worker395는현재11ban에서재사용불가다. V400actual17136/PID92041 a6d3d2exit0/2b25a0外部PID부재;V40166860/PID5491 ced758exit0/a4280b부재;V4035688/PID31845 7ccc00exit0/b45646부재;V40424044/PID38875 5ea8edexit0/bf67a5부재;V40585978/PID50039 e73d78exit0/4c0918부재;V406provenance daf2b4exit0/PID59717및V40748900/PID64962 3c8c68exit0/9e3226둘부재. 모두CPUonly/model0이며closed400~408creator/test/audit/prepare/controller/builder는성공·실패모두수정/재실행/재poll금지. V403전체24/96/120와V404모든token/grammar/EOS증거는그대로상속하고재생성하지않는다. V40942668/PID7679 actual792a30exit0/5b7c1f부재;V41015720/PID32515 actual90068eexit1/1fb664부재;V41177821actual068af7exit1(7중4pass3fail);V41264860actual51e77cexit0(3pass);V41310930/PID56386 actual9a78fbexit1/ad1383부재;V41438113/PID59400 actual9a6a3eexit1/38c308부재;V41563249actual02adffexit0(2pass);V41657003/PID64367 actualfa4571exit0/870e56부재;V41722718/PID66687 actuala9119fexit0/b63d32부재;V418policy395c59exit0(2pass),builder58479/PID80009 actuale69381exit0/a30bcd부재;V41992346/PID86795 actual0e6f5cexit0/8035eb부재. 모두닫힘/모델0. 닫힌code/tests/builders/audits/controller/첫실패는수정·재실행·재poll금지;public pure helpers만새실질적scope에서재사용한다. V421tests f76b7cexit0(4),V422tests99e565exit0(4);V422review27831/PID14389 actual8e839aexit0/0c8b2f부재;V423tests60310 actual5aac2dexit0(2),builder85031/PID20065 actual538f3cexit0/a1085e부재;V42415949/PID23969 actualabfc16exit0/817069부재;V42524702/PID28344 actual024392exit0/9f234b부재;V42865856fexit0/PID35571;V429tests43854 actual6de3f4exit0(2),builder36802/PID37404 actualaf2ed9exit0/500f73부재;V43093404/PID39333 actualf16bdfexit0/545834부재;V43178052/PID41948 actual8d2a15exit0/5ba396부재;V426finish5c44d0exit0;V42724726/PID45718 actual6ba92bexit1(MLX sandbox Metal unavailable)/64811a부재,상위개발지침필수exactescalatedretry5846c3exit1 exclusiveguard·MLX재import0보존;V43286973/PID48889 actualb6b1b5exit0/96e34a부재/actualSDKCPU3976;V43359289/PID54081 actual9f7c1aexit0/e90caf부재/47현재계수loss-gradient통과. 모든closed code/tests/builders/준비/audits/controllers·최초실패·code seals은수정·재실행·재poll금지. public pure helpers만새실질적scope에서재사용가능. 이번모델로드·GPU neural·sourceNN·optimizer update0. V437 baseline session69120/PID92488/316c7c exit0/부재; V438 session66141/PID30619/624ee7 exit1(loaded ACK 지연;gradient0)/부재/final8; V441 session50289/PID54227/4b42c8 exit0/부재/final8; V443 syntheticCPU session8043/PID80886/eacaa3 exit0/부재/final8; V447 sourceCPU session60670/PID90641/1ed014 exit0/부재. V448 training session8503/PID12092/407e0f exit0/379f99부재/final8; parentfunctions cell3915도완료됐다. V449 첫audit28c73b exit1의완료prefix와dtype오류를보존;남은V450 auditc10f67 exit0/model0. 모든닫힌builder/controller/test/audit/NN를수정·재실행·재poll하지않는다. 공개순수helper만실질적으로새scope에재사용한다. V452 CPU finite-entry session57162/PID92907/722dc6 exit0/3ce250부재. V453 full-current scope6ff6d8/PID1634 exit0/90dc23부재; unsealed tuple-append test error d25e32 retained then corrected tests c0f6aa exit0. V454 session78763/PID13559 first-owner-phase mismatch/model0/exit1/61890e부재, parentcell3951완료. V455 session36361/PID20223/aecdfe exit0/92fa86부재/final8;parentcell3955완료. V456 session67004/PID54659/eb427e exit1(STRESS기록NameError,첫exact1쌍이후)/ba0ae1부재/final8;parentcell3964완료. V457 session4178/PID66374/139237 exit0/fcff7f부재/final8;parentcell3969완료. V458 audit session91986/81d350 exit0/model0. 모두닫혀재poll·수정·재실행금지. 첫projection1쌍과그RNG순서/전체scope를V457 receipt로보존하며성공쌍도반복하지않는다. V460~467모두닫힘: V46226997/root28444 및children28679/29898/29966/30839/31538 actualexit0·외부모두부재(parentcell3996완료). V461prepare98636exit0,V464CPU94065exit1,V465CPU39531exit0 모두종료. V460첫import namespace test실패와V463남은import통과는별도증거로보존한다. 이닫힌scope는재poll/수정/실행하지않는다. V468~478모두종료. V468diagnosis15725exit0;V469novelty88231exit1,V4707850exit0;V469construct82454exit1,V47143971exit1,V47245011exit0;V473native3064/PID97561exit0·외부부재(parentcell4040완료);V475prepare75303exit0;V476actual74691/controller7441/Node7460/worker7800 rootexit1/workerexit0·외부모두부재(parentcell4045완료),V477CPUreviewexit0. 재poll/수정/재실행하지않는다. V479~490모두닫힘:479span3tests통과,479audit29209/PID48255exit0·외부부재(parentcell4064완료),480coverageexit0;48119112exit0;483policy3tests통과;484oracle첫2pass/1signedzero실패보존,485remainingJSONboundary1test통과;484build13140exit0후semanticdefect보존,486corrected34453exit0;487native53462/PID97470exit0·외부부재(parentcell4088완료);488weights3tests·build49402exit0;489audit90209exit0;490closure14058exit0. 재poll/수정/재실행하지않는다. V491~497는 모두 actual terminal 완료·모델0/학습0/sourceNN0이다. V494 actual42767/PID62627 및V495 actual80190/PID69942 exit0/외부부재 후owner 해제. 닫힌 controller/tests/감사 재실행·재poll·수정 금지. 새4008 source/SDK/48loss와240owner/9guard 준비 증거는 새 모델baseline/gradient-resource/학습 또는 실제source정확도·3초를 허용하지 않는다. V498~506의source/CPUtests/baseline/gradient/audit/prepare/progresswriter는모두실제종료. 현재V505 train.py actualsession44243/PID49241만실행중이다. 실제terminal·외부PID부재·final8/RNG/wired복원전에owner해제·별도모델로드·재시작금지. 관측timeout은종료가아니다. 새1epoch전체3112학습과9회240owner guard를관측한다. V506closure는살아있는학습의스냅샷이며최종adapter/quality/3초/제품완료증거가아니다. V507의7CPUtests/16signaturebuilder·V508의guard0/200전체vectoraudit·V509progresswriter는종료됐고수정/재실행/재poll금지다. source/kernel/program은새CPU준비후보로native/GPU/성능은미검증이며현재학습이살아있는동안모델을띄우거나컴파일하지않는다. 실제session44243/PID49241이현재유일한소유모델이며원래1epoch3112행을유지한다. 단순dispatch수감소나guardNLL을source의미정확도·3초증거로쓰지않는다.",
-    "previousGoalTurnClassification": "progress: new grouped-first decoder CPU kit prepared, both completed full240 guards independently audited, same full3112 training actually continues."
+    "previousGoalTurnClassification": "progress: new grouped-first decoder CPU kit prepared, both completed full240 guards independently audited, same full3112 training actually continues.",
+    "latestOwnerRule": "505 session44243은actualexit1/PID49241부재/final8로닫힘. 현재실제단일모델은522 session91988/PID79428이며이handle만poll한다."
   },
   "evidence": {
     "root": ".local-models/experiments/three-second/",
@@ -17187,6 +17195,93 @@
       "summary": "같은 actual session44243/PID49241을 계속 poll하고 외부 메모리를 관측하면서2000회 전체240owner/104675target 가드 통과를 확인했다. V517은 이번2000 guard의 모든 NLL/sdkNLL/top-token/starts, source/target identity, owner별 통계와 원래 독립208/32정책 판정을 저장 bytes로 재계산해 전부 일치했다. 이전0/200/600/1200 감사 재실행0이며 누적5guard/523375 target-vector positions를 감사했다. CPU audit peak48726016B. 이번 새 unit test0/현재433 distinct unit, 추가 모델/MLX/GPU/sourceNN0. 실제 livehandle 및 RAM/swap 관측47회를 원본 tool receipt와 함께 보존했다. 이 관측의 free범위34~59%는 연속최소나 physical hardcap 증거가 아니다. 현재 별도 snapshot은2054/3112 updates/702648/1065909 targets, SDK2040, allocator peak5852727736B, 외부 free51%/swap38238.06MiB이다. 학습은 실제 계속 실행 중이고 다음 가드는2920/2944/3080/3112다. 최종 adapter/terminal/canonical final8·양 RNG·wired 및 전체 trace/tensor감사는 아직 없다. 새507후보의 실제 GPU 산술/ownership/wholegenerator와 새 최종가중치 전체runtime/fullsource 정확도·전체 Host<=3000ms, 제품통합/기능·시각QA/release/install도 미완료다. 원래 보호project/model/corpus/token 전체bytes불변/제품0.0.1145 유지/채택·설치0. V47616.36초·prose 오류 실패는 새 증거로 대체되지 않았다.",
       "currentDistinctCpuUnitChecks": 433,
       "goalComplete": false
+    },
+    "actualTimeoutAuditAndFreshTimeCorrectedTrainingV519ToV522": {
+      "closure": {
+        "file": "time-corrected-progress-v521/closure.json",
+        "sha256": "afb9efddfaef9c12c67657cb2fd7092ec9ce6d3b27f5bd26054eaecca326b82a"
+      },
+      "publicationStage": {
+        "file": "time-corrected-progress-v521/after-initial-progress.json",
+        "sha256": "6153515dce01f4970e52e9e0fd1712d9ba0ad03b8c72754cf24f3f59cebed18d"
+      },
+      "actualEvidence": {
+        "actual505Failure": {
+          "file": "global-full-training-v505/training-result.json",
+          "sha256": "c5ea722a598fb6f6ac4437979e517fce13d0dfdc845cfc657a91950d5e9cf63e"
+        },
+        "actual505Terminal": {
+          "file": "global-full-training-v505/parent-terminal.json",
+          "sha256": "8128c21ab74b8384525c3144b1ca7b17d74f1e225f92da80562deea97feeac99"
+        },
+        "wholeFailedPrefixAudit": {
+          "file": "timed-training-failure-v519/result.json",
+          "sha256": "6f43f7ae3c560ccaf879918dc0d8d370a4dbc9a13530cff57f246feb5d020800"
+        },
+        "failedPrefixAuditTerminal": {
+          "file": "timed-training-failure-v519/terminal.json",
+          "sha256": "6c9cf420d82398f94f9717d267f41752401d9c86eaa5afef0f1a8ea5369ee61b"
+        },
+        "actualClosedModelObservationLog": {
+          "file": "timed-training-failure-v519/actual-observation-log.json",
+          "sha256": "c59f8e171239be8c164454365565d101f525eac9cd9f3150e1567732b029aa71"
+        },
+        "timeResourceProposal": {
+          "file": "timed-training-failure-v519/resource-bound-proposal.json",
+          "sha256": "784ea66c981f11744ea57d21775bf67157a28af943bd42d481085c9518588ecf"
+        },
+        "resourceContract": {
+          "file": "fixed-training-resource-v520/preparation.json",
+          "sha256": "b6baabad49b1fdcd74b19837437ac3d1896a15a762f848da2a32838b33afab90"
+        },
+        "sixCpuChecks": {
+          "file": "fixed-training-resource-v520/cpu-tests.json",
+          "sha256": "0a76a5fbf1a6e540c238153dbe4a0adc23262b763da4d289b2751e493939cadc"
+        },
+        "new522Seal": {
+          "file": "global-time-corrected-training-v522/training-seal.json",
+          "sha256": "21f5421bd59ea7bfcce1928d8d6397e0cc8fde34524f04f31feb5aafb3286b2e"
+        },
+        "newWorkerDerivation": {
+          "file": "global-time-corrected-training-v522/derivation.json",
+          "sha256": "f9f157b5f04bc128c82196146a528b7fed6c32ea948ad965367331e339d4e4d1"
+        },
+        "new522BeforeImportAck": {
+          "file": "global-time-corrected-training-v522/memory-ack.json",
+          "sha256": "135a74e2f1ac029972f495e2c74a6526a9ae4d047e3ae5320099753f700d9acf"
+        },
+        "new522LoadedAck": {
+          "file": "global-time-corrected-training-v522/loaded-memory-ack.json",
+          "sha256": "474118be196ba647e2e625b98570bc839bfd0e482d66956c234aed8a4a1ea0f7"
+        },
+        "actualNewLiveOwner": {
+          "file": "time-corrected-progress-v521/actual-live-owner.json",
+          "sha256": "2956d8ccebdfa4c7cd5d0acde1795b23075898a985186e116c31c305d7117562"
+        },
+        "newPublicationStage": {
+          "file": "time-corrected-progress-v521/publication-stage.json",
+          "sha256": "8a281432c4fe6a3c8f8c2f30be685de38621d2bf50991e71336e99a3238dbe8e"
+        },
+        "protectedBytes": {
+          "file": "time-corrected-progress-v521/post-byte-verification.json",
+          "sha256": "049ce5dc9b67a53ac70df9bfa0b4143c2c20358b213cd66d9f502cf3826c9c29"
+        },
+        "new522InitialWholeVectorAudit": {
+          "file": "corrected-initial-vectors-v523/result.json",
+          "sha256": "921d8ca42b7b72292ff8b54259ddc98d52977b28bd0bd53667845a9d9d328759"
+        },
+        "new522InitialAuditTerminal": {
+          "file": "corrected-initial-vectors-v523/terminal.json",
+          "sha256": "bcd482679bf4c51a97b8c32eb3941c53efec358a10b0e3fdb9db137156c8a9ab"
+        },
+        "latestAfterInitialProgress": {
+          "file": "time-corrected-progress-v521/after-initial-progress.json",
+          "sha256": "6153515dce01f4970e52e9e0fd1712d9ba0ad03b8c72754cf24f3f59cebed18d"
+        }
+      },
+      "summary": "실제505 session44243/PID49241은12000초 고정한도로 TimeoutError/actual8cca6e exit1,외부68f3ee PID부재로 닫혔다. 기록된 완료2824updates/966436targets,입장2825rows/966775targets,마지막339targets는 완료 미입증이다. 전체3112 완주와 최종adapter는 없다. canonical final8/양RNG/wired 복원·cleanup오류0,actualpeak5852727736B. 새519 CPU감사는 모든 완료source/context/token/EOS/weight/SDKorder와141reports를 대조했고 이전5개240owner guard감사를 hash로 상속해 재실행하지 않았다. worker관측free33~60%,auditCPUpeak221184000B. 실제완료prefix와전체workload ratios/남은4guard의보수적시간bracket/고정25%여유를 적용한 새시간한도19000초를 도출했다. 미래속도보장은 아니다. 새520자원계약6CPU검사 통과/현재439unit이며 변경settings는새destination과wall-time뿐이다. 새522의4worker module은 private진단명·timeout문구를 역변환하면 원래전체바이트와 일치하며 SDK math/데이터/1epoch·1e-5·seed42/모든9guard/API8GiB/wired8GiB/cache256MiB가 같다. 새session91988/PID79428은 실제원본base에서로드됐고 oldadapterresume/partialcheckpoint0,이전PID부재뒤순차한모델만실행중이다. 실제preimportfree53%/loaded46%가확인됐다. 새초기240guard통과=False,snapshot완료update=0. 새실행최종adapter/전체학습·가드·terminal/cleanup와실제source전체정확설명<=3초/507GPU수치·ownership·wholegenerator/제품통합·QA·release/install은미완료다. 최신실제522초기guard0은126111에서전체240/104675통과했고,새523CPU감사에서모든vector·통계·원래정책이일치했으며전체104675NLL은official base와정확히같다. 추가모델/NN0,CPUpeak49709056B. 현재snapshot은29updates/SDK20/peak3845220724B/free34%이며초기guard진행중이던이전closure snapshot과구분한다.",
+      "currentDistinctCpuUnitChecks": 439,
+      "goalComplete": false
     }
   },
   "preparedAssets": {
@@ -18627,7 +18722,7 @@
       },
       "actualSessionId": 44243,
       "actualPid": 49241,
-      "actuallyRunningAtPublicationSnapshot": true,
+      "actuallyRunningAtPublicationSnapshot": false,
       "initial240OwnerGuardPassed": true,
       "trainingRows": 3112,
       "validationRows": 896,
@@ -18646,10 +18741,9 @@
         3080,
         3112
       ],
-      "latestObservedCompletedUpdate": 2054,
-      "latestSdkReport": 2040,
+      "latestObservedCompletedUpdate": 2824,
+      "latestSdkReport": 2820,
       "latestSdkReportedPeakBytes": 5852727736,
-      "finalAdapterAndTrainingCleanupNotYetProven": true,
       "allowedForNeuralEvaluation": false,
       "adopted": false,
       "installed": false,
@@ -18662,8 +18756,8 @@
         2000
       ],
       "latestProgress": {
-        "file": "guard2000-progress-v518/publication-stage.json",
-        "sha256": "74acd6b1f79fd56d81c84518d1ba29fc53e4f2e0a96c8628c03146b4651cc978"
+        "file": "timed-training-failure-v519/result.json",
+        "sha256": "6f43f7ae3c560ccaf879918dc0d8d370a4dbc9a13530cff57f246feb5d020800"
       },
       "completedGuardsIndependentlyVectorAudited": [
         0,
@@ -18671,7 +18765,15 @@
         600,
         1200,
         2000
-      ]
+      ],
+      "actualTerminalExitCode": 1,
+      "outsidePidAbsent": true,
+      "recordedCompletedUpdates": 2824,
+      "recordedCompletedTargets": 966436,
+      "trainingCompleted": false,
+      "finalAdapterAbsent": true,
+      "canonicalFinal8BothRngAndWiredRestored": true,
+      "disposition": "Rejected fixed12000-second incomplete pass; preserved and never resumed."
     },
     "sameUidGroupedFirstLoraCandidateV507": {
       "preparation": {
@@ -18747,6 +18849,48 @@
       "actualFinalTrainingCompletionProven": false,
       "actualFinalWeightAdmission": false,
       "allowedForNeuralEvaluation": false
+    },
+    "currentTimeCorrectedFullTrainingV522": {
+      "trainingSeal": {
+        "file": "global-time-corrected-training-v522/training-seal.json",
+        "sha256": "21f5421bd59ea7bfcce1928d8d6397e0cc8fde34524f04f31feb5aafb3286b2e"
+      },
+      "actualSessionId": 91988,
+      "actualPid": 79428,
+      "actuallyRunningAtPublicationSnapshot": true,
+      "freshBase": true,
+      "resumed": false,
+      "epochs": 1,
+      "timeBoundSeconds": 19000,
+      "trainingRows": 3112,
+      "trainingTargets": 1065909,
+      "guardPoints": [
+        0,
+        200,
+        600,
+        1200,
+        2000,
+        2920,
+        2944,
+        3080,
+        3112
+      ],
+      "initial240OwnerGuardPassed": true,
+      "latestObservedCompletedUpdate": 29,
+      "finalAdapterAndTrainingCleanupNotYetProven": true,
+      "latestProgress": {
+        "file": "time-corrected-progress-v521/after-initial-progress.json",
+        "sha256": "6153515dce01f4970e52e9e0fd1712d9ba0ad03b8c72754cf24f3f59cebed18d"
+      },
+      "allowedForNeuralEvaluation": false,
+      "goalComplete": false,
+      "initialGuardIndependentlyVectorAudited": true,
+      "initialWholeVectorAudit": {
+        "file": "corrected-initial-vectors-v523/result.json",
+        "sha256": "921d8ca42b7b72292ff8b54259ddc98d52977b28bd0bd53667845a9d9d328759"
+      },
+      "latestSdkReport": 20,
+      "latestSdkReportedPeakBytes": 3845220724
     }
   },
   "constraints": [
@@ -18773,10 +18917,10 @@
     "ownership": "준비 모델 하나 공유, 요청 UID별 fresh KV·grammar·sampler·detokenizer. 답변·소스 KV 재사용 금지."
   },
   "nextSession": {
-    "first": "실제 학습 session44243/PID49241과 메모리부터 확인한다. CPU433, guard0/200/600/1200/2000 전체240 및 vector 감사 통과. 다음2920/2944/3080/3112guard이며 실제 종료/최종adapter admission 전 추가모델 금지.",
-    "nextIndependentWork": "먼저 실제 session44243/global-full-training-v505/train.py/PID49241과 외부 RAM/swap을 확인하고 동일 handle을 poll한다. 이전 turn은 progress이며 CPU433 unit. 전체3112행/1065909target/1epoch fresh-base 학습은 실제 실행 중이다. guard0/200/600/1200/2000은 전체240 owner/104675target 및 독립 vector 감사까지 통과했다. 다음2920/2944/3080/3112를 원래 임계값 그대로 확인한다. 관측 timeout/lock으로 종료·재시작을 추정하지 않는다. actual terminal+외부 PID부재+canonical final8/RNG/wired 복원 전에는 owner해제·새모델·학습 재시작 금지. V510 failed CPU import와 V511의8tests/prepare, V512 guard600 audit, V513 progresswriter는 모두 닫힌 artifact이므로 수정·재실행·재poll 금지다. V507 새 grouping 후보 역시 CPU-only/native 미검증 그대로다. V511 catalog.py/projections.py는 주입형 순수 public API로 새 scope에서 재사용 가능하며 preparation.json에 전체4008-derived geometry와 기존 모든 확대검사 범위를 고정했다. 새 final-weight qualification은 새 current12-family gate에 명시한 실제505 최종SHA/224F32/전체 형상을 먼저 binding해야 한다. V511 expectedTotals의 모든 기존+추가 stock286/standalone336/MLP12096/model205/cohort261/joint19/112single-adapter48384/205first-model/44native streams를 새 가중치에서 전부 검증하고, V507 16native signature72packed/180members 및80affected adapter3072launches/34560members/13824packed 전체 F32/Split sibling/stride를 비교한다. 모든28 physicalKV/logits151936/UID·capacity·offset·mask·PRNG·extraEOS·전체text/value/cancel/dispose·정상폐기후 fresh recovery를 유지한다. V511 compare_group은 kernel/mx/fix_outputs/fix_views/exact를 주입받고 adapter_controls는 원래12stress vectors/compact/observe/expected_bytes도 받는다. CPU harness 통과를 Metal/current-weight 산술·속도 증거로 쓰지 않는다. 전체 수치/ownership 통과 뒤에만 실질적으로 새 fixed whole-generator comparison을 수행한다. 원래 같은 Q4/head243/249 전체타이밍 퇴역 및 closed overlap 결과는 replay·재포장 금지. MLX전 외부free>=35%,loaded/관측중>=30%, 단일모델/API8GiB/wired8GiB/cache256MiB/실제 PID·RAMswap/final8·RNG를 지킨다. epoch/LR/model/dtype/sampler/계수 sweep·oldadapter resume·중간 checkpoint 선택 금지. 새 전체 independent source 범위는 원래20cell(KT/TS KO/EN 5returnclass)와 전체 source/context/parents/callees/actualprior/allfields/values/prose/confidence/unknowns를 보존하고 학습/원래84/4퇴역NN전체계획/12가족/closedV464를 제외한다. V47616.36초·전역prose 오류를 재실행하지 않는다. 올바른 전체 Host<=3000ms의 실제 증명 뒤 전체 제품통합/자동download·integrity/custommodel/FIFOcancel-dispose/기능·시각QA/version·commit·push·install까지 완료한다. 구문상 모순 경로와 구체 exampleInputs 계약 충돌도 미해결이다. 전체 goalactive/unmet 유지. V514 contract.py/8tests/prepare와 V5151200-only audit/V516progresswriter도 닫혔으며 수정·재실행·재poll 금지다. 새 V514의 public validate_closed_owner/validate_final_report/validate_trace는 미래 실제 종료 후 새 독립 audit scope에서 사용할 수 있다. 합성 positive unit receipt를 실제 종료·모델 admission으로 사용하지 않는다. 실제 최종 report·모든3112 source/token/weight·156reports·각9guard의 모든 vector 및224F32/2883584 전체 tensor inventory를 실제 저장 bytes와 원래 SDK order로 검증해야 한다. 초기0/200/600/1200/2000의 완료 감사는 immutable hash로 상속하고 남은 새 guard 결과를 감사한다. 현재 2000까지 통과했다는 이유로 partial checkpoint 저장·채택·학습 재시작을 하지 않는다. V5172000-only audit와 V518 progresswriter는 닫혔고 재실행·수정·재poll 금지다. 이번 raw actual-observation-log.json의47개 livehandle/RAM/swap 기록을 미래 최종 memory 감사에서 보존한다. source-free/real-source 설명 모델을 새로 로드하지 않았으며 current505 trained adapter를 아직 사용할 수 없다.",
-    "notImplemented": "남은2920/2944/3080/3112guard, actual final adapter/terminal/final8·RNG·wired/전체trace·tensor감사가 미완료다. 새 최종가중치 전체runtime/507GPU수치·ownership/정확전체Host3초·제품통합/QA/release/install·모순경로 계약도 미완료다.",
+    "first": "먼저현재522실제session91988/PID79428과메모리부터확인한다. old505/44243은12000초시간초과actualexit1/부재/final8로닫혔다. 새522는19000초한도외정책동일한전체fresh3112학습이며이전adapter resume0/439CPUunit이다. 새522초기240guard0과독립523전체vector감사도통과했고다음가드는200이다.",
+    "nextIndependentWork": "먼저 실제 새 학습 session91988/global-time-corrected-training-v522/train.py/PID79428과 외부 RAM/swap을 확인하고 같은 handle을 poll한다. 이전turn은 actual505실패감사/고정resource수정6CPU검사와 새전체학습입장·로드의 progress다. 현재439unit. 닫힌505 session44243/PID49241은actualexit1/부재/final8·양RNG·wired복원/최종adapter없음이며 절대재poll·재실행·수정·resume하지 않는다. 519audit/520tests/522prepare/521progresswriter도닫힌exclusive artifact다. 새522는fresh original base·전체3112행/1065909targets/896valid·1epoch/1e-5/seed42/last16rank8scale20dropout0이며 새destination과19000초 한도외 원래SDK math·48정확rational·데이터·모든소스/값/문장·메모리정책은같다. 이전505의5guard 통과를 새522의완료증거로 쓰지 않는다. 새0/200/600/1200/2000/2920/2944/3080/3112의각240owner/104675target guard를 원래독립208/32정책 그대로 전부 확인한다. 관측timeout/lock으로 종료나재시작을판단하지않고 actualterminal+외부PID부재+canonicalfinal8/양RNG/wired복원전에는 owner해제·다른모델로드·새학습시작을하지않는다. MLX전외부free>=35%,loaded/관측중>=30%,한모델/API8GiB/wired8GiB/cache256MiB/실제RAMswapPID를지킨다. 새최종adapter의전체3112source·token·weight·156reports/모든9guard vector/224F32·2883584tensor·basebyte불변을독립감사하고 실제522최종SHA/전체형상과 현재12family·original84·4퇴역NN전체계획·closedV464를명시한새source-free gate를준비한다. old505전용V514계약·old11/10가족gate나V448수치proof를새모델입장증거로쓰지않는다. V511전체4008-derived scope를보존해 stock286/standalone336/MLP12096/model205/cohort261/joint19/기존112single-first48384/205first-model/44native streams를새가중치에서검사한다. V507새same-UID first-LoRA후보는여전히CPU-only이며16native signature72packed/180members와80affected adapter3072launches/34560members/13824packed의 전체F32·Split siblings·stride/원래second-finish diagnostics와모든28physicalKV/full151936logits/UID·capacity·offset·mask·PRNG·extraEOS·fulltext/value·cancel/dispose·fresh recovery를검증한다. V511의주입형public comparator/catalog API만재사용하고닫힌builder·NN·CPU audit·timing을재실행하지않는다. Q4/head243/249·closedoverlap의퇴역타이밍도재포장·재timing금지다. 모든수치·ownership이후 실질적으로새 fixedwhole-generator comparison을수행한다. 새independent fullsource범위는학습·original84·4퇴역계획·12가족·closed464를제외하고 원래20cell(Kotlin/TS×KO/EN×5returnclass)와전체source/context/parents/callees/actualprior/모든fields·values·prose·confidence/unknowns를보존한다. V47616.36초·전역prose오류를재시도하지않는다. 실제정확한전체Host<=3000ms이후전체제품통합/자동download·integrity/custommodel/FIFOcancel-dispose/기능·시각QA/version·commit·push·install을완료한다. 구문상모순경로와구체exampleInputs계약충돌도미해결이다. 전체goalactive/unmet유지. 새523은actual522초기0의전체vector만감사해officialbase NLL전체와정확동일함을확인하고닫혔다. 재실행·수정·재poll하지않는다. 다음필수200guard부터같은새522를계속관측한다.",
+    "notImplemented": "새522전체학습·모든9guard·최종adapter·actualterminal/final8·RNG·wired/전체trace·tensor감사는미완료다. 실제source전체정확설명<=3000ms/507GPU수치·ownership·wholegenerator/제품통합·기능·시각QA·release/install·모순경로계약도미완료다.",
     "completionStillMissing": "원래전체source/context/parent/callee/fields/confidence/unknown과모델의값·문장책임을보존한새전체허용범위에서정확한전체Host설명<=3초를실제검증한후제품통합·기능/시각QA·release/install한다.",
-    "publication": "docs/MODEL_LATENCY_HANDOVER.json만 commit/push한다. 실제 결과는 guard2000-progress-v518/publication.json과 checkpoint.documentationPublicationV518을 확인한다. 학습44243/PID49241은 계속 active다."
+    "publication": "docs/MODEL_LATENCY_HANDOVER.json만commit/push한다.실제결과는time-corrected-progress-v521/publication.json과checkpoint.documentationPublicationV521을확인한다.현재단일모델91988/PID79428은active다."
   }
 }
