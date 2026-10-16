@@ -3,6 +3,7 @@ import { readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import ts from 'typescript';
+import { bundleNativeNarrativeCodec } from './bundle-native-narrative-codec.mjs';
 
 /** Closed same-directory modules preserve Node require/dirname semantics; external literal dependencies remain visible to closure checks. */
 export async function bundleLocalNarrativeRuntime(entryPath) {
@@ -56,4 +57,6 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
   // adapters. Packing them together preserves the existing package file cap.
   const syntax = await bundleLocalNarrativeRuntime(path.join(projectRoot, 'out/analyzer/functionCalls/index.js'));
   console.log(`Bundled ${syntax.modules} call syntax modules (${syntax.bytes} bytes).`);
+  const codec = await bundleNativeNarrativeCodec(path.join(projectRoot, 'out/llm/nativeNarrativeCodec/index.js'));
+  console.log(`Bundled ${codec.modules} native codec/validator modules (${codec.bytes} bytes).`);
 }

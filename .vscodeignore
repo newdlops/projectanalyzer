@@ -130,3 +130,12 @@ node_modules/antlr4/src/**
 node_modules/antlr4/dist/*.map
 node_modules/antlr4/dist/*.mjs
 node_modules/antlr4/dist/antlr4.web.cjs
+
+# Native schema codecs and their locked validator closure are bundled into one public facade.
+out/llm/nativeNarrativeCodec/*.js
+!out/llm/nativeNarrativeCodec/index.js
+node_modules/ajv/**
+node_modules/fast-deep-equal/**
+node_modules/fast-uri/**
+node_modules/json-schema-traverse/**
+node_modules/require-from-string/**

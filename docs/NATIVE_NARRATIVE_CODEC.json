@@ -1,0 +1,112 @@
+{
+  "purpose": "전체 root/call 모델 응답을 원래 source-owned schema에 맞춰 엄격히 변환하는 공개 TypeScript 계층. source metadata만 복원하고 실제 모델 계산값과 완전한 문장은 보존한다.",
+  "status": "출력 codec의 공개 구현과 CPU 호환성 검사 완료. qualified 입력 prompt/schema 생성, native numerical/token/EOS admission과 실제 production Host 연결은 아직 필요하다.",
+  "publicApi": "src/llm/nativeNarrativeCodec/index.ts",
+  "exports": {
+    "createNativeNamedWire": "원래 schema가 단일 값으로 증명한 source metadata만 생략/복원한다. optional object·union·local ref·추가 constraint는 opaque domain으로 보존하고 원래 schema와 wire schema를 양쪽 모두 검증한다. modelValuePaths에 지정한 계산 subtree는 비어 있거나 singleton이어도 raw 모델 필드로 남긴다.",
+    "createNativeObjectTupleWire": "closed mandatory object를 schema의 원래 필드 순서대로 완전한 배열로 바꾼다. 모든 필드·순서·array cardinality·domain을 보존한다. 빈 객체의 wire는 draft-07에서 유효한 const []이다.",
+    "createNativeProseWire": "원래 prose slot은 직접 작성한 완전한 문자열 또는 같은 raw response의 optional prose[N] 참조를 받는다. 외부/이전 응답 table은 없으며 복원한 문자열은 목적지의 원래 길이·언어 조건을 다시 통과해야 한다.",
+    "factorNativeSchema / expandNativeSchema": "schema 위치만 deterministic $defs/dN으로 공유하고 전체 원본을 정확히 복원한다. const/enum/source data는 해석하지 않으며 순환·외부/누락 ref와 예산 초과를 거부한다.",
+    "releaseNativeModelValues": "caller가 제공한 source schema의 모든 알려진 계산 const를 정확히 하나씩 지정한 원래 declared/display domain으로 해제한다. missing/extra domain·const/singleton enum answer forcing을 거부한다. 소스 실행·worksheet·teacher 조회는 하지 않는다.",
+    "requireNativeModelValues": "source 복원 전 실제 raw reading에 audit의 모든 계산 필드가 있어야 하며 contract의 원래 값과 정확히 같아야 한다. audit의 값은 제공된 schema에서만 온다. 실제 inference에서 CPU 계산/teacher로 schema나 audit를 채울 권한을 주지 않는다.",
+    "createNativeApplicabilitySchema": "원래 computed·source-bound loop-visit·source-infeasible·unverified 모드를 보존한다. 실행 가능성이나 prose 의미를 판정하지 않는다. unavailable 모드의 전체 고정 values tuple을 확장하여 not-evaluated/reason을 모델이 작성하게 한다.",
+    "createNativeRootCodec": "applicability·raw 계산값 guard·named source metadata·response-local prose·complete object tuple·schema factoring을 합성한다. decode는 전체 원문을 검증하고 raw 계산값을 확인한 뒤 source metadata를 복원한다.",
+    "createNativeCallCodec": "각 호출의 callId/role/inputs/output/effects/reason 여섯 필드가 모두 필수인 closed source row를 요구한다. 모델이 작성해야 할 summary/flow/role/output/effects/reason의 source const/enum을 거부한다. 원래 source-bound call identity/inputs 조건을 보존한다. 마지막 요약에서 새 호출이 정확히 0건인 원래 형식도 유지한다."
+  },
+  "ownership": {
+    "encode": "authoring/test inverse 전용이다. supplied 계산값·완전한 문장이 이미 있어야 하며 inference 응답 생성기로 사용하지 않는다.",
+    "decode": "원문 JSON을 자르거나 고치지 않는다. 빠진 값·문장·field를 보충하거나 의미를 합성하지 않는다. 실패는 controlled invalid-response다.",
+    "modelFields": "계산 aggregate 내부를 source metadata로 복원하지 않는다. 기존 free 계산값도 raw domain 그대로 보존한다.",
+    "knownNull": "knownNullPaths가 명시한 null만 known calculation으로 해제한다. 실제 source constructor가 그 null의 provenance를 따로 증명해야 한다.",
+    "validation": "pinned Ajv 8.20.0, strict=false/allErrors=true/allowUnionTypes=true, coercion/default/removal=false. 동기 codec에서 Promise를 성공으로 오인하지 않도록 $async schema를 거부한다.",
+    "input": "bounded ordinary finite JSON만 허용한다. getter·symbol·숨은 필드·sparse array·cycle·alias·nonfinite/-0을 거부한다.",
+    "publicSchemas": "root/call이 노출한 schema/audit snapshot을 변경해도 내부 decoder의 원래 계약을 바꾸지 못한다. 모든 하위 codec의 임의 public schema mutation에 대한 일반 계약은 제공하지 않는다."
+  },
+  "limits": {
+    "schemaUtf16CodeUnits": 196608,
+    "rawAndRestoredOutputUtf16CodeUnits": 24000,
+    "namedNodes": 20000,
+    "namedDepth": 64,
+    "namedArrayItems": 900,
+    "tupleAndProseNodes": 100000,
+    "tupleAndProseDepth": 128,
+    "factoringNodes": 100000,
+    "factoringDepth": 256,
+    "completeInputOverflowBehavior": "전체 입력/응답을 거부한다. clipping이나 부분 성공은 없다."
+  },
+  "canonicalCompatibility": {
+    "originalCorpusRows": 4176,
+    "corpusSha256": "bc270e14481636f701aa0f7edbc8bc9f530ba7b7e1d5eeacc32fb4a042eaad2a",
+    "allModesBothLocalesBothProseChoices": 16,
+    "namedCompilerWireRows": 3992,
+    "wholeRootRows": 112,
+    "wholeCallRows": 56,
+    "legacyCurrentCallRows": 16,
+    "scope": "3992행은 실제 named wire와 원래 schema 복원/encode의 일치를 확인한다. 이전 전체 provider transport의 모든 변환 역함수를 공개 구현으로 옮겼다는 뜻은 아니다. whole root/call은 보존된 complete source schema/context로 native schema·raw response·전체 teacher fixture의 동등성을 검사한다. 16개의 legacy current call은 currentFullSchema와 완전한 fixture의 encode/decode 동등성만 확인하며 별도 provider fallback 전체 역함수를 입증하지 않는다.",
+    "offlineReferencesAreActualModelOutputs": false,
+    "sourceProgramsExecuted": 0,
+    "corpusTargetsWeightsAndSourceChanged": false,
+    "nativeTokenMaskEosWindowAdmissionProven": false
+  },
+  "packaging": {
+    "lockedValidator": "기존 lockfile의 Ajv 8.20.0과 4개 transitive package를 runtime dependency로 승격했다. 버전/integrity는 그대로이며 모든 5개 license를 THIRD_PARTY_NOTICES.md에 포함했다.",
+    "runtimeFacade": "scripts/bundle-native-narrative-codec.mjs가 codec과 필요한 JS/JSON vendor closure만 out/llm/nativeNarrativeCodec/index.js로 묶는다. 다른 내부 JS와 물리 vendor tree는 VSIX에서 제외한다.",
+    "facadeBytes": 322062,
+    "facadeModules": 79,
+    "vendorModules": 68,
+    "commonJsRecursion": "동기 CommonJS factory 의존성은 cache-before-load로 cycle을 종료하고 depth 128에서 거부한다. 실제 cycle/초과 depth/외부 vendor 없는 relocated facade를 검사했다.",
+    "existingPackageBudgetsChanged": false,
+    "fullVsixBuiltOrInstalled": false,
+    "networkInstallLimitation": "npm offline metadata 조회는 ENOTCACHED, authorized network 재시도는 issuer certificate 오류로 실패했다. TLS 설정은 바꾸지 않았다. 이미 설치된 locked package와 metadata를 사용했으며 npm ci offline dry-run은 통과했다. 실제 clean npm ci는 실행하지 않았다."
+  },
+  "cpuVerification": {
+    "newDistinctTypeScriptCases": 37,
+    "existingRegressionCases": 183,
+    "finalRegressionCases": 220,
+    "relocatedFinalFacadeCases": 37,
+    "packagingRegressionCases": 18,
+    "newBundlerCasesWithinPackaging": 3,
+    "currentDistinctPassingTypeScriptChecks": 927,
+    "candidateTypes": {
+      "roots": 850,
+      "programFiles": 1127,
+      "diagnostics": 0,
+      "twoProtectedUserFilesReadOnlyHeadOverlay": true
+    },
+    "architecture": {
+      "productionFiles": 12,
+      "runtimeEdges": 31,
+      "cycles": 0,
+      "privateOrFrozenImports": 0
+    },
+    "largestObservedNodeProcessPeakRssBytes": 713375744,
+    "finalRegressionWorkerPeakRssBytes": 237273088,
+    "finalFacadeWorkerPeakRssBytes": 154402816,
+    "modelLoads": 0,
+    "mlxImports": 0,
+    "optimizerUpdates": 0,
+    "sourceProgramsExecuted": 0,
+    "independentNeuralHeldoutClaimed": false,
+    "browserVisualQaPerformed": false,
+    "fullNeuralAccuracyOrLatencyProven": false
+  },
+  "remaining": [
+    "741/742/728의 입력 prompt·schema notation·macro·source constructor를 CPU answer/source-example facts에 의존하지 않는 complete capture context/provenance와 연결하기. 공개 codec은 주어진 source schema의 조건을 검증하며 source/의미 권한 자체를 증명하지 않는다.",
+    "unavailable의 individual before:null은 canonical 608/629의 source-marker 규칙을 보존한다. known null·mode/applicability·loop visit의 의미와 계산의 정확성은 별도 source/neural qualification이 필요하다.",
+    "실제 native token/byte/mask/EOS/window·수치·all6 gradient/resource admission·고정3280 training/4176rows/52 rational weights/408 guards와 새 source 의미 검사",
+    "runNativeNarrativeAction 안에서 capture→qualified whole packet→actual model reply→strict decode→transactional store/allpages→actual child close→outer manager settlement를 production root/call surfaces와 연결하기",
+    "same-action 실제 neural prior6필드 provenance·worker ready→Host수신 지연·실패 전체시간·다운로드/integrity/custom model/FIFO 취소·dispose·실제 기능/시각 QA·version/release/install"
+  ],
+  "release": {
+    "productVersion": "0.0.1145",
+    "defaultOutChanged": false,
+    "newModelAdopted": false,
+    "allowedForTraining": false,
+    "allowedForNeuralEvaluation": false,
+    "actualWholeHostThreeSecondsProven": false,
+    "lastActualWholeHostMs": 36742.311041999994,
+    "lastActualFullyCorrectPaths": 0,
+    "lastActualPaths": 2,
+    "goalComplete": false
+  }
+}
