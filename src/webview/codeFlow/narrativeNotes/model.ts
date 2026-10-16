@@ -1,5 +1,5 @@
 /** Pure scenario-to-note projection and non-overlapping placement; source graph positions remain immutable. */
-import type { FunctionNarrativeNodeDetail, FunctionNarrativeScenario } from "../../../shared/functionNarratives";
+import type { FunctionNarrativeNodeDetail, FunctionNarrativeScenario, FunctionNarrativeValue } from "../../../shared/functionNarratives";
 
 /** The renderer supplies only current, visible graph geometry and its verified identity adapter. */
 export type NarrativeNoteNode = { blockId: string; x: number; y: number; width: number; height: number };
@@ -7,13 +7,13 @@ export type NarrativeGraphNote = {
   blockId: string;
   node: NarrativeNoteNode;
   /** Original indices retain source-navigation authority and separate repeated visits. */
-  visits: Array<{ detail: FunctionNarrativeNodeDetail; nodeIndex: number }>;
+  visits: Array<{ detail: FunctionNarrativeNodeDetail<FunctionNarrativeValue>; nodeIndex: number }>;
 };
 export type NarrativeGraphNotePlacement = NarrativeGraphNote & { x: number; y: number; width: number; height: number };
 
 /** Joins only this scenario's reached nodes; unknown or other-scenario descriptions never become graph notes. */
 export function projectNarrativeGraphNotes(
-  scenario: FunctionNarrativeScenario | undefined,
+  scenario: FunctionNarrativeScenario<FunctionNarrativeValue> | undefined,
   nodes: readonly NarrativeNoteNode[],
   resolveBlockId: (id: string) => string | undefined = id => id
 ): NarrativeGraphNote[] {

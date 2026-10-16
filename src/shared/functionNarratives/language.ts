@@ -1,8 +1,8 @@
 /** Script checks for model-authored prose; source expressions and quoted code retain their original language. */
-import type { FunctionNarrative } from "./types";
+import type { FunctionNarrativePage, FunctionNarrativeValue } from "./types";
 
 /** Rejects an English-only Korean response before it can be labeled or cached as Korean. This is not a semantic evaluator. */
-export function isFunctionNarrativeLanguage(narrative: FunctionNarrative, language: "ko" | "en", sourceLiterals?: readonly string[]): boolean {
+export function isFunctionNarrativeLanguage(narrative: FunctionNarrativePage, language: "ko" | "en", sourceLiterals?: readonly string[]): boolean {
   const prose = (text: string) => {
     // Quoted return strings and inline code may intentionally use another script.
     const words = text.replace(/`[^`]*`|"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'/gu, " ");
@@ -10,13 +10,19 @@ export function isFunctionNarrativeLanguage(narrative: FunctionNarrative, langua
       : /[A-Za-z]/u.test(words) && !/[가-힣]/u.test(words);
   };
   const descriptions = [narrative.summary, ...narrative.limitations];
+  const unavailableReason = (value: FunctionNarrativeValue) => { if (typeof value !== "string") descriptions.push(value.reason); };
   for (const scenario of narrative.scenarios) {
     descriptions.push(scenario.explanation ?? scenario.steps.map((step) => step.text).join(" "), ...scenario.assumptions);
     if (scenario.analysis) descriptions.push(scenario.analysis.pathReason, scenario.analysis.stateChange, scenario.analysis.alternative);
+    if (scenario.evaluation) {
+      descriptions.push(scenario.evaluation.justification, ...(scenario.evaluation.loopVisits ?? []).map(visit => visit.meaning));
+      if (scenario.example) { unavailableReason(scenario.example.result); for (const input of scenario.example.inputs) unavailableReason(input.json); }
+    }
     for (const step of [...scenario.steps, ...(scenario.nodeDetails ?? [])]) {
       if (step.syntax !== undefined) descriptions.push(step.syntax);
       if (step.reason !== undefined) descriptions.push(step.reason);
       if (step.effect !== undefined) descriptions.push(step.effect);
+      for (const value of step.values ?? []) { unavailableReason(value.before); unavailableReason(value.after); }
     }
   }
   if (!descriptions.every(prose)) return false;

@@ -1,0 +1,53 @@
+{
+  "purpose": "완전한 source-only native root 응답을 실제 Host의 저장·페이지·소스·화면 경로에 연결한다.",
+  "status": "Host 응답 adapter와 native page 저장·화면 경로를 구현하고 CPU 회귀 및 실제 Chrome widget 검증을 완료했다. 실제 neural 정확도·3000ms·resource qualification 또는 production 모델 채택은 미완료다.",
+  "contract": {
+    "provider": "generateCompleteRoot는 schema/messages만 받고 raw text를 반환한다. Host가 보유한 동일 action의 decoder와 source bindings로 독립 검증한다.",
+    "source": "새 native withRun 경계는 source-free ready 뒤의 실제 source capture와 모든 page 저장·읽기를 포함한다. source lease 검증과 기존 취소·stale rollback을 유지한다.",
+    "reading": "네 가지 mode, justification, 모든 loopVisits와 전체 summary/scenario/step 문장을 보존한다. 기존 단계별 preparation/node/summary·CPU worksheet/prose pipeline을 호출하지 않는다.",
+    "values": "기존 JSON text 계약을 유지하고 미평가 cell은 kind=not-evaluated/reason 객체로 명시한다. 실제 typed string은 JSON 문자열로, 기존 display/phase string은 그대로 저장한다. 값을 계산·보충·자르거나 실패를 성공으로 바꾸지 않는다.",
+    "storage": "기존 bounded primary steps와 별도로 모든 source occurrence의 완전한 문장·값을 nodeDetails에 저장한다. Legacy concrete-only parser와 native page validator를 구분한다.",
+    "protectedUserFiles": "SPEC.MD/localResponse.ts/responseSchema.ts와 사용자 untracked 파일은 변경·stage하지 않는다. TypeScript 검증은 tracked roots와 두 파일의 read-only HEAD overlay를 사용한다."
+  },
+  "publicApi": {
+    "module": "src/application/functionNarratives/completeRoot/index.ts; application/functionNarratives public facade에서도 export한다.",
+    "constructor": "createCompleteFunctionNarrativeRoot(context: FunctionNarrativeContext, locale: ko | en): { request: FunctionNarrativeRootRequest; decode(raw: string): FunctionNarrativePage }",
+    "requirements": "rich source context, parameters 및 정확히 한 source route가 필요하다. provider에 넘기는 request는 schema/messages 데이터뿐이다.",
+    "decode": "동일 source packet에 묶인 strict decoder가 모든 필드와 원래 문장·값을 검증한 뒤 Host graph/source identity를 연결한다. 실패는 FunctionNarrativeError(invalid-response)이며 legacy fallback이나 부분 페이지를 발행하지 않는다.",
+    "ownership": "decoder, source bindings, exact-raw 캐시 및 page는 Host 소유다. 반환 page는 clone이며 request의 사후 변경은 restore 검증에서 거부한다.",
+    "providerHook": "FunctionNarrativeProvider.generateCompleteRoot?는 raw transport capability다. requestFunctionNarrativeRoot는 취소 시 실제 transport settlement까지 기다리고 provider 자체 검사와 별도로 Host decoder를 호출한다.",
+    "storageType": "FunctionNarrativePage = FunctionNarrative<FunctionNarrativeValue>. 기존 parser/evaluator의 generic 기본값은 string을 유지한다. 완전 native page의 runtime admission은 isFunctionNarrativePage로 구분한다.",
+    "adoption": "기본 provider, model, dtype, version, installed extension은 바꾸지 않는다. 실제 same-action neural call priors와 qualified native provider 연결 및 전체 outer manager 시간 검증은 별도 미완료 작업이다."
+  },
+  "visiblePlan": {
+    "lane": "기존 developer tool UI의 상태 확장. ui-design-workflow 적용; 기존 VS Code token·definition list·버튼·간격을 재사용한다.",
+    "priority": ["전체 설명", "mode 및 모델의 justification", "예시 또는 미평가 이유", "선택 노드의 완전한 구문·근거·효과·값", "source 및 graph navigation"],
+    "flow": "명시적 Analyze → 검증된 저장 page → scenario/graph/node/source 선택 → cache-only 페이지 이동",
+    "unavailable": "미평가 예제와 각 before/after 사유를 표시한다. scenario 및 graph/source 탐색은 유지하고 Apply example values는 disable한다. 자동 input 적용도 하지 않는다.",
+    "loop": "선택한 방문·이전 반복 횟수·모델 의미 문장을 모두 표시한다. 여러 방문은 native details 안에 보존하고 기존 16개 disclosure 상태·포커스 registry를 사용한다. 실제 실행 증명으로 표현하지 않는다.",
+    "states": "기존 pending/error/cancel/stale/cache/selected/focus 상태를 유지하고 native computed/loop/source-infeasible/unverified 및 긴 사유를 확인한다.",
+    "responsive": "390x844/768x1024/1440x900에서 기존 1열 전환·긴 source와 prose의 wrapping을 확인한다. 실제 browser 도구의 가용 범위와 미검증 항목을 구분하여 기록한다.",
+    "acceptance": ["미평가 객체가 입력에 적용되거나 object Object로 표시되지 않음", "모든 원문 모델 문장과 unavailable 이유가 저장 왕복 후 동일", "actual Host source lease·allpages·provider cleanup·cache reads·stale rollback", "functional QA와 visual QA를 별도로 보고"]
+  },
+  "memory": {
+    "initialFreePercent": 39,
+    "latestObservedFreePercent": 41,
+    "latestObservedSwapUsedMiB": 42379.44,
+    "modelLoads": 0,
+    "neuralGateSatisfied": false,
+    "cpuWorkers": "컴파일·테스트는 순차 실행, Node old-space 512MiB. 전체 단일 프로세스 타입 검사가 힙 한도로 종료되어 9개 묶음으로 분할했고 891개 root를 모두 검사했다. 실제 RSS와 종료 여부를 기록하며 물리 hardcap이나 연속 최소 여유·스왑 원인을 주장하지 않는다."
+  },
+  "verification": {
+    "regression": "complete-root-final-v914/result.json: 335/335, 신규 24개를 포함한다. 모델·subject source 프로그램 실행 0.",
+    "types": "complete-root-types-partition-v913/result.json: tracked 885 + 새 명시 root 6 = 891개를 9개 순차 묶음으로 검사, 오류 0. 두 사용자 TS 파일은 read-only HEAD overlay를 사용했다. 단일 프로세스 전체 검사는 힙 한도로 실패한 결과를 보존한다.",
+    "facade": "complete-root-bundle-v915/result.json: 112/112. 모든 codec 구현 descendant를 제거한 relocated 단일 파일과 실제 Host 응답 adapter를 사용하며 5개 validator package의 물리 fallback을 금지했다.",
+    "architecture": "complete-root-architecture-v916/result.json: 44개 production 모듈, 116개 runtime edge, cycle 0. 기존 codec 41개 source hash는 이전 검증과 동일하다.",
+    "packaging": "complete-root-package-v918/result.json: 18/18. 실제 VSIX build/install은 수행하지 않았다.",
+    "browser": "complete-root-ui-render-v908/manual-qa.json: 실제 Chrome에서 shipped baseline과 emitted widget를 비교하고 390x844/768x1024/1440x900 CSS iframe viewport를 확인했다. 네 mode, 미평가 이유·disabled Apply·graph/source callback·구체 예제 적용·한국어 UI·24개 방문의 keyboard disclosure/선택 후 상태 유지를 확인했다. QA 탭과 서버는 종료했다.",
+    "browserLimits": "설치된 VS Code 전체 route, 실제 editor/graph 이동, light/high-contrast theme, contrast 계측, screen reader, DevTools console/network는 검증하지 않았다. Shell error/unhandledrejection 관측은 0이며 model prose는 명시 CPU fixture다.",
+    "independentUiReview": "두 독립 read-only 검토의 선택 노드/graph note 적용 상태·24개 방문 밀도·영문 모델 주체·미평가 값 label·disabled 이유 연결 지적을 반영했다. Detector는 1회 []를 반환했으나 생성 DOM/CSS의 분석 범위는 미입증이며 시각 검증으로 계산하지 않았다.",
+    "firstFailures": "v900 controller import, v901/v903 type errors, v904 fixture alias, v909/v912 fake DOM focus 비교 및 v910/v911 512MiB heap-limit 종료의 최초 결과를 보존했다.",
+    "provenance": "모든 새 fixture/예제/화면 자료는 알려진 CPU 노출이며 학습 또는 독립 neural heldout으로 사용하지 않는다. 마지막 실제 AA522 whole Host 36742.311041999994ms·완전정확 0/2 실패를 유지한다."
+  },
+  "goalComplete": false
+}

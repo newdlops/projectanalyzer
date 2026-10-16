@@ -1,4 +1,5 @@
 /** Node/example regressions verify complete scenario coverage, source binding, loop visits and resumable model work. */
+import type { FunctionNarrativePage } from "../../shared/functionNarratives";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { analyzeFunctionLogic } from "../../analyzer/functionLogic";
@@ -45,7 +46,7 @@ function reply(context: FunctionNarrativeContext): { modelName: string; text: st
 function fixture(provider: FunctionNarrativeProvider, context = contextFor()) {
   const messages: FunctionNarrativesResponse[] = [];
   const delivery = new FunctionNarrativesHostDelivery({ provider, getLanguage: () => "en", isActive: () => true,
-    createPageStore() { const pages = new Map<number, FunctionNarrative>(); return { async write(index, narrative) { assert.equal(isFunctionNarrative(narrative), true); pages.set(index, narrative); }, async read(index) { return pages.get(index); }, async dispose() { pages.clear(); } }; },
+    createPageStore() { const pages = new Map<number, FunctionNarrativePage>(); return { async write(index, narrative) { assert.equal(isFunctionNarrative(narrative), true); pages.set(index, narrative); }, async read(index) { return pages.get(index); }, async dispose() { pages.clear(); } }; },
     createEvidence: () => `code-evidence:${"b".repeat(64)}`, async postMessage(message) { if (message.type === "codeFlow/functionNarrativesLoaded") messages.push(message.payload); } });
   const contextId = delivery.register(request.flowId, request.graphVersion, context, "/private/Inspect.kt")!;
   return { delivery, messages, contextId };
@@ -81,7 +82,8 @@ test("all Kotlin scenarios receive populated model inputs and every reached grap
     for (let pageIndex = 0; pageIndex < f.messages.at(-1)!.page!.count; pageIndex++) {
       await f.delivery.request({ ...request, requestId: pageIndex + 2, pageIndex, pageLanguage: "en" });
       for (const scenario of f.messages.at(-1)!.narrative!.scenarios) {
-        examples.push(scenario.example!.inputs[0].json);
+        const input = scenario.example!.inputs[0].json; assert.equal(typeof input, "string");
+        if (typeof input === "string") examples.push(input);
         assert.deepEqual(scenario.nodeDetails!.map((detail) => detail.nodeId), scenario.graph!.nodeIds);
         assert.ok(scenario.nodeDetails!.every((detail) => detail.text && detail.reason && detail.effect));
       }

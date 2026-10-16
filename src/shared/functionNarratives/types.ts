@@ -2,7 +2,16 @@
 
 /** Model references are relative to supplied snippets and use one-based source line numbers. */
 export type FunctionNarrativeSource = { snippetId: string; startLine: number; endLine: number };
-export type FunctionNarrativeStep = {
+/** Unavailable model calculations retain their complete reason, rather than a fabricated JSON value. */
+export type FunctionNarrativeUnavailable = { kind: "not-evaluated"; reason: string };
+export type FunctionNarrativeValue = string | FunctionNarrativeUnavailable;
+/** Applicability is model-authored reasoning, never an assertion that the program was executed. */
+export type FunctionNarrativeEvaluation = {
+  mode: "computed" | "loop-visit" | "source-infeasible" | "unverified";
+  justification: string;
+  loopVisits?: Array<{ sourceOperationOrdinal: number; visit: number; earlierIterations: number; meaning: string }>;
+};
+export type FunctionNarrativeStep<Value extends FunctionNarrativeValue = string> = {
   text: string;
   /** Explains the actual language expression/operator, separately from this input's result. */
   syntax?: string;
@@ -13,32 +22,36 @@ export type FunctionNarrativeStep = {
   effect?: string;
   source: FunctionNarrativeSource;
   /** Hypothetical JSON values from a model or closed source substitution, never runtime observations. */
-  values?: Array<{ name: string; before: string; after: string }>;
+  values?: Array<{ name: string; before: Value; after: Value }>;
 };
 /** JSON text keeps model inputs portable without evaluating expressions or constructing user objects. */
-export type FunctionNarrativeExample = { inputs: Array<{ name: string; json: string }>; result: string };
+export type FunctionNarrativeExample<Value extends FunctionNarrativeValue = string> = { inputs: Array<{ name: string; json: Value }>; result: Value };
 /** The Host binds the model's ordered descriptions to snapshot-owned opaque graph nodes. */
-export type FunctionNarrativeNodeDetail = FunctionNarrativeStep & { nodeId: string; occurrence?: number };
-export type FunctionNarrativeScenario = {
+export type FunctionNarrativeNodeDetail<Value extends FunctionNarrativeValue = string> = FunctionNarrativeStep<Value> & { nodeId: string; occurrence?: number };
+export type FunctionNarrativeScenario<Value extends FunctionNarrativeValue = string> = {
   title: string;
   when: string[];
   /** Connected reading paragraph, up to 1800 characters; optional for older cached responses. */
   explanation?: string;
   /** Source/model causal reading; this never asserts observed execution. */
   analysis?: { pathReason: string; stateChange: string; alternative: string };
-  steps: FunctionNarrativeStep[];
+  steps: FunctionNarrativeStep<Value>[];
   outcome: string;
   assumptions: string[];
-  example?: FunctionNarrativeExample;
+  example?: FunctionNarrativeExample<Value>;
+  /** Complete native responses retain all four applicability modes and every loop-visit explanation. */
+  evaluation?: FunctionNarrativeEvaluation;
   /** Complete node explanations are retained in page storage; only the selected detail is expanded in UI. */
-  nodeDetails?: FunctionNarrativeNodeDetail[];
+  nodeDetails?: FunctionNarrativeNodeDetail<Value>[];
   graph?: { nodeIds: string[]; edgeIds: string[] };
 };
-export type FunctionNarrative = {
+export type FunctionNarrative<Value extends FunctionNarrativeValue = string> = {
   summary: string;
-  scenarios: FunctionNarrativeScenario[];
+  scenarios: FunctionNarrativeScenario<Value>[];
   limitations: string[];
 };
+/** Storage/protocol/UI accept complete native pages as well as older concrete-only pages. */
+export type FunctionNarrativePage = FunctionNarrative<FunctionNarrativeValue>;
 
 /** Source excerpts and syntax routes omit workspace paths and analyzer identities. */
 export type FunctionNarrativeSnippet = {

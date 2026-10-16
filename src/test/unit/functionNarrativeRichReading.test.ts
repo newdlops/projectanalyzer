@@ -1,4 +1,5 @@
 /** Rich readings preserve source contracts, inherited model state and bounded resumable node work. */
+import type { FunctionNarrativePage } from "../../shared/functionNarratives";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { analyzeFunctionLogic } from "../../analyzer/functionLogic";
@@ -237,7 +238,7 @@ test("rich terminal readings use preceding node state and replace early primary 
 });
 
 test("final synthesis follows completed node values, rejects rewritten inputs/evidence and resumes only the unfinished synthesis", async () => {
-  const pages = new Map<number, FunctionNarrative>(), context = contextFor();
+  const pages = new Map<number, FunctionNarrativePage>(), context = contextFor();
   let writes = 0, nodeCalls = 0, summaries = 0;
   const session = new FunctionNarrativeScenarioSession(context, { async write(index, value) { writes++; pages.set(index, value); },
     async read(index) { return pages.get(index); }, async dispose() { pages.clear(); } });
@@ -298,7 +299,7 @@ test("source bindings named result and condition survive node carry state withou
 });
 
 test("an interrupted rich page reuses primary prose and saved pages/nodes never generate again", async () => {
-  const pages = new Map<number, FunctionNarrative>(), context = contextFor();
+  const pages = new Map<number, FunctionNarrativePage>(), context = contextFor();
   const session = new FunctionNarrativeScenarioSession(context, { async write(index, value) { pages.set(index, value); }, async read(index) { return pages.get(index); }, async dispose() { pages.clear(); } });
   let primaries = 0, nodes = 0, fail = true;
   const provider = { async generate(context: FunctionNarrativeContext) {

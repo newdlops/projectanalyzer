@@ -1,4 +1,5 @@
 /** Real Kotlin analysis, Host projection and production Webview integration; only the external LLM reply is a fixture. */
+import type { FunctionNarrativePage } from "../../shared/functionNarratives";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { CodeFlowInsightCache } from "../../application/codeFlow";
@@ -16,7 +17,6 @@ import type { SymbolNode } from "../../shared/types";
 import { createGraph } from "./helpers/projectReadingGuideFixtures";
 import { installSidebarWebviewRuntime } from "./helpers/sidebarWebviewRuntime";
 import { buildFunctionNarrativeScenarioFrames } from "../../application/functionNarratives";
-import type { FunctionNarrative } from "../../shared/functionNarratives";
 
 test("production Kotlin Guide offers actual LLM requests without changing static paths, graph or input state", async () => {
   const source = 'const val LIMIT = 3\n/** Displays the result. */\nfun describe() {\n  if (LIMIT > 0) println("ready")\n  else println("empty")\n}\n';
@@ -106,7 +106,7 @@ test("production Kotlin scenario interpretation populates editable values and co
   const delivery = new CodeFlowHostDelivery({ graphDelivery, sourceNodeTokens, evidenceTokens, insightCache: new CodeFlowInsightCache(),
     getUiLanguage: () => "en", readSourceText: async () => source, openEvidenceLocation: async (location) => { opened.push(location); },
     logger: { debug() {}, info() {}, warn() {}, error() {} }, async postMessage(message) { messages.push(message); },
-    createFunctionNarrativePageStore() { const pages = new Map<number, FunctionNarrative>(); return { async write(index, value) { pages.set(index, value); }, async read(index) { return pages.get(index); }, async dispose() { pages.clear(); } }; },
+    createFunctionNarrativePageStore() { const pages = new Map<number, FunctionNarrativePage>(); return { async write(index, value) { pages.set(index, value); }, async read(index) { return pages.get(index); }, async dispose() { pages.clear(); } }; },
     functionNarrativeProvider: { async generate(context) {
       calls++; assert.deepEqual(context.parameters?.map((parameter) => parameter.name), ["value"]);
       assert.equal(context.detailLevel, "rich");

@@ -1,16 +1,19 @@
 /** Real root Host fixtures with model replies and page I/O exposed only as explicit test ports. */
+import type { FunctionNarrativePage } from "../../shared/functionNarratives";
 import assert from "node:assert/strict";
 import { CodeFlowInsightCache } from "../../application/codeFlow";
 import { CodeFlowHostDelivery } from "../../webview/codeFlow/codeFlowHostDelivery";
-import type { FunctionNarrativeContext, FunctionNarrative } from "../../shared/functionNarratives";
+import type { FunctionNarrativeContext } from "../../shared/functionNarratives";
 import type { ExtensionResponse } from "../../protocol/messages";
-import type { FunctionNarrativeProvider } from "../../application/functionNarratives";
+import type { FunctionNarrativeProvider, FunctionNarrativeRootRequest, FunctionNarrativeModelResponse, FunctionNarrativeGenerationOptions } from "../../application/functionNarratives";
 import { wholeNarrativeHostFixture, wholeRootReply } from "./wholeNarrativeHost";
 
 /** Exercise published function registration and page generation rather than constructing a model context in the test. */
-export async function createWholeNarrativeRootHost(options: { callCount?: number; inspectContext?(context: FunctionNarrativeContext): void | Promise<void>; mutateDuringWrite?: boolean; release?: (signal: AbortSignal) => Promise<void>; read?(index: number): Promise<void>; dispose?(hasPages: boolean): Promise<void> } = {}) {
+export async function createWholeNarrativeRootHost(options: { callCount?: number; inspectContext?(context: FunctionNarrativeContext): void | Promise<void>;
+  completeRoot?(request: FunctionNarrativeRootRequest, signal: AbortSignal, options?: FunctionNarrativeGenerationOptions): Promise<FunctionNarrativeModelResponse>;
+  mutateDuringWrite?: boolean; release?: (signal: AbortSignal) => Promise<void>; read?(index: number): Promise<void>; dispose?(hasPages: boolean): Promise<void> } = {}) {
   const f = await wholeNarrativeHostFixture(options.callCount ?? 0), messages: ExtensionResponse[] = [], contexts: FunctionNarrativeContext[] = [];
-  let writes = 0, stores = 0; const allPages: Array<Map<number, FunctionNarrative>> = [], opened: unknown[] = [];
+  let writes = 0, stores = 0; const allPages: Array<Map<number, FunctionNarrativePage>> = [], opened: unknown[] = [];
   const provider: FunctionNarrativeProvider = {
     async prepare() { f.events.push('prepare'); },
     async generate(context) {
@@ -24,15 +27,19 @@ export async function createWholeNarrativeRootHost(options: { callCount?: number
       return wholeRootReply(context);
     },
     async withRun<T>(_language: 'ko' | 'en', signal: AbortSignal, operation: () => Promise<T>) {
+      f.events.push('provider-ready');
       try { return await operation(); } finally { await options.release?.(signal); f.events.push('provider-released'); }
-    }
+    },
+    ...(options.completeRoot ? { async generateCompleteRoot(request: FunctionNarrativeRootRequest, _language: 'ko' | 'en', signal: AbortSignal, generationOptions?: FunctionNarrativeGenerationOptions) {
+      f.events.push('generate-complete-root'); return options.completeRoot!(request, signal, generationOptions);
+    } } : {})
   };
   const delivery = new CodeFlowHostDelivery({ ...f, narrativeSources: f.access, functionNarrativeProvider: provider,
     insightCache: new CodeFlowInsightCache(), getUiLanguage: () => 'en',
     async readSourceText(filePath) { return f.files.find(file => file.path === filePath)?.content; },
     async openEvidenceLocation(location) { opened.push(location); }, logger: { debug() {}, info() {}, warn() {}, error() {} },
     createFunctionNarrativePageStore() {
-      stores++; const pages = new Map<number, FunctionNarrative>(); allPages.push(pages);
+      stores++; const pages = new Map<number, FunctionNarrativePage>(); allPages.push(pages);
       return { async write(index, narrative) {
         writes++; pages.set(index, structuredClone(narrative));
         if (options.mutateDuringWrite) { f.files[0].content += '// changed during storage'; f.state.revision++; }

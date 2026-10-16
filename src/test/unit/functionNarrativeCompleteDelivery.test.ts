@@ -1,4 +1,5 @@
 /** Complete-run regressions cover all paths, bounded pages, cancellation/resume, language and source ownership. */
+import type { FunctionNarrativePage } from "../../shared/functionNarratives";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { analyzeFunctionLogic } from "../../analyzer/functionLogic";
@@ -32,7 +33,7 @@ function fixture(provider: FunctionNarrativeProvider, onMessage?: (response: Fun
   const presentations: Array<{ scenarioOffset?: number }> = [];
   const state = { language: "en" as "en" | "ko", active: true, disposed: 0, readPageGate: undefined as ((index: number) => Promise<void>) | undefined };
   const delivery = new FunctionNarrativesHostDelivery({ provider, getLanguage: () => state.language, isActive: () => state.active,
-    createPageStore() { const pages = new Map<number, FunctionNarrative>(); return { async write(index, narrative) { pages.set(index, narrative); },
+    createPageStore() { const pages = new Map<number, FunctionNarrativePage>(); return { async write(index, narrative) { pages.set(index, narrative); },
       async read(index) { await state.readPageGate?.(index); return pages.get(index); }, async dispose() { pages.clear(); state.disposed++; } }; },
     sourcePresenter: { show(value) { presentations.push(value); }, clear() {} }, createEvidence: () => `code-evidence:${"b".repeat(64)}`,
     async postMessage(message) { if (message.type === "codeFlow/functionNarrativesLoaded") { messages.push(message.payload); onMessage?.(message.payload); } } });

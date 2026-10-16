@@ -1,6 +1,6 @@
 /** Portable source-presentation contract and bounded grouping for already validated model explanations. */
-import type { FunctionNarrative, FunctionNarrativeScenario, FunctionNarrativeSnippet, FunctionNarrativeStep } from "./types";
-import { isFunctionNarrative } from "./validation";
+import type { FunctionNarrativePage, FunctionNarrativeScenario, FunctionNarrativeSnippet, FunctionNarrativeStep, FunctionNarrativeValue } from "./types";
+import { isFunctionNarrativePage } from "./validation";
 
 /** Host-only identity binds prose to one immutable whole-file snapshot; no raw path reaches the model. */
 export type FunctionNarrativeSourcePresentation = {
@@ -10,7 +10,7 @@ export type FunctionNarrativeSourcePresentation = {
   functionName: string;
   language: "ko" | "en";
   modelName: string;
-  narrative: FunctionNarrative;
+  narrative: FunctionNarrativePage;
   snippets: readonly FunctionNarrativeSnippet[];
   /** Stable global numbering when this presentation is a bounded page from a complete run. */
   scenarioOffset?: number;
@@ -25,14 +25,14 @@ export type FunctionNarrativeSourcePresenter = {
 export type FunctionNarrativeSourceReference = {
   label: string;
   scenarioIndex: number;
-  scenario: FunctionNarrativeScenario;
-  step: FunctionNarrativeStep;
+  scenario: FunctionNarrativeScenario<FunctionNarrativeValue>;
+  step: FunctionNarrativeStep<FunctionNarrativeValue>;
 };
 export type FunctionNarrativeSourceAnnotation = { line: number; hint: string; references: FunctionNarrativeSourceReference[] };
 
 /** Groups shared source lines, retains all twenty possible references, and abbreviates only inline text. */
-export function buildFunctionNarrativeSourceAnnotations(narrative: FunctionNarrative, snippets: readonly FunctionNarrativeSnippet[], scenarioOffset = 0): FunctionNarrativeSourceAnnotation[] {
-  if (!isFunctionNarrative(narrative, snippets) || !Number.isSafeInteger(scenarioOffset) || scenarioOffset < 0) return [];
+export function buildFunctionNarrativeSourceAnnotations(narrative: FunctionNarrativePage, snippets: readonly FunctionNarrativeSnippet[], scenarioOffset = 0): FunctionNarrativeSourceAnnotation[] {
+  if (!isFunctionNarrativePage(narrative, snippets) || !Number.isSafeInteger(scenarioOffset) || scenarioOffset < 0) return [];
   const lines = new Map<number, FunctionNarrativeSourceAnnotation>();
   for (let scenarioIndex = 0; scenarioIndex < narrative.scenarios.length; scenarioIndex += 1) {
     const scenario = narrative.scenarios[scenarioIndex];

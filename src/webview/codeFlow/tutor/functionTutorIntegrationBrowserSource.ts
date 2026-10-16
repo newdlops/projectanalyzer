@@ -19,7 +19,7 @@ export function getFunctionTutorIntegrationBrowserSource(): string {
         subscribeNarrativeNode(listener) { return comprehension.subscribe(listener); },
         onNarrativeScenario(scenario, options) {
           if (scenario.graph) applyGuideFocus({ primaryBlockId: scenario.graph.nodeIds[0], attentionBlockIds: scenario.graph.nodeIds, attentionEdgeIds: scenario.graph.edgeIds });
-          if (scenario.example && options.apply !== "none") {
+          if (scenario.example && options.apply !== "none" && typeof scenario.example.result === "string" && scenario.example.inputs.every(input => typeof input.json === "string")) {
             valueFlowRendering?.loadKnownInputs(new Map(scenario.example.inputs.map((input) => [input.name, input.json])), { onlyEmpty: options.apply === "empty" });
             valueFlowRendering?.refresh();
           }

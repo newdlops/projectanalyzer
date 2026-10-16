@@ -1,4 +1,5 @@
 /** Whole-function source synthesis tests preserve causal detail, correct alternatives and one on-demand model purpose. */
+import type { FunctionNarrativePage, FunctionNarrativeValue } from "../../shared/functionNarratives";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdtemp, writeFile, readFile, rm } from "node:fs/promises";
@@ -15,8 +16,15 @@ import { FunctionNarrativeScenarioSession } from "../../webview/codeFlow/functio
 import { ModelTaskManager } from "../../shared/modelTasks";
 import { hasSimplePrimitiveScopes } from "../../application/functionNarratives/primitiveWorksheet/scope";
 import { tracePrimitiveRoute } from "../../application/functionNarratives/primitiveWorksheet/trace";
-import type { FunctionNarrative, FunctionNarrativeContext } from "../../shared/functionNarratives";
+import type { FunctionNarrativeContext } from "../../shared/functionNarratives";
 import type { SymbolNode } from "../../shared/types";
+
+/** Legacy synthesis cases require concrete JSON; unavailable native cells must fail these expectations explicitly. */
+function concreteJson(value: FunctionNarrativeValue) {
+  assert.equal(typeof value, "string");
+  if (typeof value !== "string") throw new Error("Expected a legacy concrete example");
+  return JSON.parse(value);
+}
 
 /** Production graph/iterator ownership is retained; the independent formulas below check results rather than invoking user source. */
 function fixture(source: string, language: "kotlin" | "typescript", parameters: NonNullable<FunctionNarrativeContext["parameters"]>) {
@@ -273,7 +281,7 @@ test("the real local provider requests only one purpose for conditional-call sce
   const original = fixture('function inspect(enabled: boolean, amount: number): number {\n if (!enabled) return 0;\n let adjusted = amount + 5;\n audit(adjusted);\n return adjusted;\n}',
     "typescript", [{ name: "enabled", type: "boolean" }, { name: "amount", type: "number" }]);
   const directory = await mkdtemp(join(tmpdir(), "call-purpose-")), modelPath = join(directory, "fixture.gguf"), binaryPath = join(directory, "runner");
-  const manager = new ModelTaskManager(), pages = new Map<number, FunctionNarrative>();
+  const manager = new ModelTaskManager(), pages = new Map<number, FunctionNarrativePage>();
   const session = new FunctionNarrativeScenarioSession(original, { async write(index, narrative) { pages.set(index, narrative); },
     async read(index) { return pages.get(index); }, async dispose() { pages.clear(); } });
   await writeFile(modelPath, "GGUF fixture");
@@ -302,7 +310,7 @@ test("the real local provider requests only one purpose for conditional-call sce
 test("a whole straight-line call recipe completes with no model installation while keeping every external uncertainty", async () => {
   const original = fixture('fun inspect(amount: Int): Int {\n var adjusted = amount + 5\n adjusted -= 2\n adjusted *= 3\n adjusted += 4\n audit(adjusted)\n return adjusted\n}',
     "kotlin", [{ name: "amount", type: "Int" }]);
-  const manager = new ModelTaskManager(), pages = new Map<number, FunctionNarrative>();
+  const manager = new ModelTaskManager(), pages = new Map<number, FunctionNarrativePage>();
   const session = new FunctionNarrativeScenarioSession(original, { async write(index, narrative) { pages.set(index, narrative); },
     async read(index) { return pages.get(index); }, async dispose() { pages.clear(); } });
   let inference = 0;
@@ -379,7 +387,7 @@ test("whole-loop purposes refuse extra branches and post-loop calculations inste
 test("a complete loop recipe publishes both detailed pages without model files, runners or inference", async () => {
   const original = fixture('function inspect(amount: number): number {\n let adjusted = amount;\n do { adjusted += 1; } while (adjusted < 3);\n return adjusted;\n}',
     "typescript", [{ name: "amount", type: "number" }]);
-  const pages = new Map<number, FunctionNarrative>(), manager = new ModelTaskManager();
+  const pages = new Map<number, FunctionNarrativePage>(), manager = new ModelTaskManager();
   let modelRequests = 0;
   const provider = createLocalFunctionNarrativeProvider({ binaryPath: "/missing-loop-runner", modelPath: "/missing-loop-model.gguf",
     taskManager: manager, onMetrics() { modelRequests++; } });
@@ -416,7 +424,7 @@ test("closed literal conditions omit impossible branches, while names and extern
 test("all eight detailed paths preserve shared control and cache navigation without a model or runner", async () => {
   const original = fixture('function inspect(a: boolean, b: boolean, c: boolean): number {\n let adjusted = 0;\n if (a) adjusted += 1;\n if (b) adjusted += 2;\n if (c) adjusted += 4;\n return adjusted;\n}',
     "typescript", ["a", "b", "c"].map(name => ({ name, type: "boolean" })));
-  const manager = new ModelTaskManager(), pages = new Map<number, FunctionNarrative>();
+  const manager = new ModelTaskManager(), pages = new Map<number, FunctionNarrativePage>();
   const session = new FunctionNarrativeScenarioSession(original, { async write(index, narrative) { pages.set(index, narrative); },
     async read(index) { return pages.get(index); }, async dispose() { pages.clear(); } });
   let requests = 0;
@@ -427,9 +435,9 @@ test("all eight detailed paths preserve shared control and cache navigation with
     assert.equal(session.pageCount, 8); assert.equal(requests, 0);
     let nodes = 0;
     for (const page of pages.values()) for (const scenario of page.scenarios) {
-      const inputs = Object.fromEntries(scenario.example!.inputs.map(input => [input.name, JSON.parse(input.json)]));
+      const inputs = Object.fromEntries(scenario.example!.inputs.map(input => [input.name, concreteJson(input.json)]));
       const expected = (inputs.a ? 1 : 0) + (inputs.b ? 2 : 0) + (inputs.c ? 4 : 0);
-      assert.equal(JSON.parse(scenario.example!.result), expected);
+      assert.equal(concreteJson(scenario.example!.result), expected);
       assert.match(scenario.explanation!, /입력은/u); assert.match(scenario.explanation!, /return adjusted/u);
       assert.match(scenario.analysis!.alternative, /다른 예시/u);
       for (const name of ["a", "b", "c"]) for (const choice of ["true", "false"]) assert.ok(page.summary.includes(`${name}=${choice}`));
@@ -445,7 +453,7 @@ test("unproved default setup still receives one whole-source model purpose with 
   const original = fixture('function inspect(a: boolean = unknown(), b: boolean, c: boolean): number {\n let adjusted = 0;\n if (a) adjusted += 1;\n if (b) adjusted += 2;\n if (c) adjusted += 4;\n return adjusted;\n}',
     "typescript", ["a", "b", "c"].map(name => ({ name, type: "boolean" })));
   const directory = await mkdtemp(join(tmpdir(), "source-default-purpose-")), modelPath = join(directory, "fixture.gguf"), binaryPath = join(directory, "runner");
-  const manager = new ModelTaskManager(), pages = new Map<number, FunctionNarrative>();
+  const manager = new ModelTaskManager(), pages = new Map<number, FunctionNarrativePage>();
   const session = new FunctionNarrativeScenarioSession(original, { async write(index, narrative) { pages.set(index, narrative); },
     async read(index) { return pages.get(index); }, async dispose() { pages.clear(); } });
   await writeFile(modelPath, "GGUF fixture");
@@ -461,8 +469,8 @@ test("unproved default setup still receives one whole-source model purpose with 
     while (!session.complete) await session.analyzeNext(provider, "ko", new AbortController().signal, { reselectModel: false });
     assert.equal(session.pageCount, 8); assert.equal(await readFile(join(directory, "requests"), "utf8"), "1");
     for (const page of pages.values()) for (const scenario of page.scenarios) {
-      const inputs = Object.fromEntries(scenario.example!.inputs.map(input => [input.name, JSON.parse(input.json)]));
-      assert.equal(JSON.parse(scenario.example!.result), (inputs.a ? 1 : 0) + (inputs.b ? 2 : 0) + (inputs.c ? 4 : 0));
+      const inputs = Object.fromEntries(scenario.example!.inputs.map(input => [input.name, concreteJson(input.json)]));
+      assert.equal(concreteJson(scenario.example!.result), (inputs.a ? 1 : 0) + (inputs.b ? 2 : 0) + (inputs.c ? 4 : 0));
       assert.match(page.summary, /기본값.*미확인/u);
     }
     assert.match((await session.readPage(7))!.modelName, /^Local/u); await session.readPage(0);

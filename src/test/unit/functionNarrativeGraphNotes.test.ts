@@ -3,8 +3,9 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { getBrowserLocalizationSource } from "../../localization/browserCatalog";
 import { getNarrativeGraphNotesBrowserSource, projectNarrativeGraphNotes, layoutNarrativeGraphNotes, type NarrativeNoteNode } from "../../webview/codeFlow/narrativeNotes";
-import type { FunctionNarrativeScenario } from "../../shared/functionNarratives";
+import type { FunctionNarrativeScenario, FunctionNarrativeValue } from "../../shared/functionNarratives";
 import { installSidebarWebviewRuntime } from "./helpers/sidebarWebviewRuntime";
+import { completeNativePageFixture } from "../helpers/completeNativeNarrativeRoot";
 
 const id = (index: number) => "function-logic-block:" + index.toString(16).padStart(32, "0");
 const nodes: NarrativeNoteNode[] = Array.from({ length: 60 }, (_, index) => ({ blockId: id(index), x: 20, y: index * 100, width: 220, height: 70 }));
@@ -49,7 +50,7 @@ function browserFixture() {
     comprehension: { getState: () => ({ selectedBlockId: selected }), subscribe(listener: () => void) { listeners.add(listener); return () => listeners.delete(listener); },
       activateBlock(value: string) { selected = value; for (const listener of listeners) listener(); } }, resolveBlockId: (value: string) => value });
   document.getElementById("notes-root")!.append(controller.toggle, controller.layer);
-  const reading = (value = scenario(), ordinal = 1) => ({ scenario: value, ordinal, language: "en", modelName: "Model", openSource(index: number) { opened.push(index); } });
+  const reading = (value: FunctionNarrativeScenario<FunctionNarrativeValue> = scenario(), ordinal = 1) => ({ scenario: value, ordinal, language: "en", modelName: "Model", openSource(index: number) { opened.push(index); } });
   return { runtime, browser, controller, bounds, reveals, opened, listeners, reading,
     dispose() { controller.dispose(); runtime.restore(); } };
 }
@@ -102,5 +103,15 @@ test("touch scrolling stays inside the note and keyboard markers use one roving 
     f.runtime.dispatchRenderedEventByClass("notes-root", "logic-narrative-note-body", "pointermove", { pointerType: "touch", pointerId: 1, clientY: 20, preventDefault() {} });
     assert.equal(f.runtime.getRenderedScrollByClass("notes-root", "logic-narrative-note-body").top, 80);
     assert.equal(f.reveals.length, 0, "text scrolling cannot pan the graph");
+  } finally { f.dispose(); }
+});
+
+test("standalone graph notes retain native applicability and separate every full unavailable before/after reason", () => {
+  const f = browserFixture(), native = completeNativePageFixture("unverified");
+  try {
+    f.controller.setScenario(f.reading(native.page.scenarios[0])); const texts = f.runtime.getRenderedText("notes-root").join("\n");
+    assert.ok(texts.includes("Applicability unverified")); assert.ok(texts.includes("Before:")); assert.ok(texts.includes("After: Not evaluated"));
+    assert.ok(texts.includes("<script>literal text</script>")); assert.ok(!texts.includes("[object Object]"));
+    f.runtime.clickRenderedByClassNth("notes-root", "logic-narrative-note-source", 0); assert.deepEqual(f.opened, [0]);
   } finally { f.dispose(); }
 });

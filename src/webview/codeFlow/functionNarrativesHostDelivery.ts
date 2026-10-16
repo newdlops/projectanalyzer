@@ -1,5 +1,5 @@
 /** Host-owned, snapshot-scoped LLM lifecycle and evidence projection, shared by both function surfaces. */
-import { FunctionNarrativeError, parseFunctionNarrative, requestFunctionNarrative, type FunctionNarrativeProvider } from "../../application/functionNarratives";
+import { FunctionNarrativeError, parseFunctionNarrative, requestFunctionNarrative, requestFunctionNarrativeRoot, type FunctionNarrativeProvider } from "../../application/functionNarratives";
 import type { FunctionNarrativeContext, FunctionNarrativeSourcePresenter, FunctionNarrativePageStoreFactory } from "../../shared/functionNarratives";
 import { FunctionNarrativeScenarioSession, type FunctionNarrativeStoredPage } from "./functionNarrativeScenarioSession";
 import type { FunctionNarrativesRequest, FunctionNarrativesResponse, FunctionNarrativeSourceRequest } from "../../protocol/functionNarratives";
@@ -248,15 +248,20 @@ export class FunctionNarrativesHostDelivery {
       if (!session.complete && provider.prepare) await this.prepareProvider(provider, language, controller.signal,
         { ...operation, sourceReading: !entry.loadSources && entry.context.detailLevel === "rich" }, Boolean(entry.loadSources));
       if (!current()) return;
-      if (entry.loadSources) sourceLease = await this.acquireSources(entry, controller.signal);
-      if (controller.signal.aborted || !current()) return;
-      if (createdSession && sourceLease) {
-        if (entry.sessions.get(language) === session) entry.sessions.delete(language);
-        await session.dispose();
-        if (controller.signal.aborted || !current()) return;
-        session = new FunctionNarrativeScenarioSession(entry.context, this.dependencies.createPageStore!()); entry.sessions.set(language, session);
-      }
-      const actionSession = session;
+      let actionSession = session;
+      const capture = async () => {
+        if (entry.loadSources) sourceLease = await this.acquireSources(entry, controller.signal);
+        if (controller.signal.aborted || !current()) throw new FunctionNarrativeError("cancelled");
+        if (createdSession && sourceLease) {
+          if (entry.sessions.get(language) === session) entry.sessions.delete(language);
+          await actionSession.dispose();
+          if (controller.signal.aborted || !current()) throw new FunctionNarrativeError("cancelled");
+          session = new FunctionNarrativeScenarioSession(entry.context, this.dependencies.createPageStore!()); entry.sessions.set(language, session);
+          actionSession = session;
+        }
+      };
+      // A complete native provider's source-free ready/cleanup scope encloses capture, every page, and storage reads.
+      if (!provider.generateCompleteRoot) await capture();
       // Keep weights loaded only for this explicit whole-function request.
       // Each inference still queues independently; cancellation overrides retention.
       const boundedProvider: FunctionNarrativeProvider = {
@@ -265,9 +270,15 @@ export class FunctionNarrativesHostDelivery {
           await sourceLease?.assertCurrent(signal);
           const response = await requestFunctionNarrative(provider, context, locale, signal, SCENARIO_BATCH_DEADLINE_MS, { ...options, ...operation });
           await sourceLease?.assertCurrent(signal); return response;
-        }
+        },
+        ...(provider.generateCompleteRoot ? { generateCompleteRoot: async (request, locale, signal, options) => {
+          await sourceLease?.assertCurrent(signal);
+          const response = await requestFunctionNarrativeRoot(provider, request, locale, signal, SCENARIO_BATCH_DEADLINE_MS, { ...options, ...operation });
+          await sourceLease?.assertCurrent(signal); return response;
+        } } : {})
       };
       const analyze = async () => {
+        if (provider.generateCompleteRoot) await capture();
         while (!actionSession.complete) {
           let onAbort = () => {};
           const cancelled = new Promise<never>((_resolve, reject) => {

@@ -5,6 +5,7 @@ import { getBrowserLocalizationSource } from "../../localization/browserCatalog"
 import { getFunctionNarrativesBrowserSource } from "../../webview/functionNarratives";
 import { validateWebviewRequest } from "../../protocol/webviewRequestValidation";
 import { installSidebarWebviewRuntime } from "./helpers/sidebarWebviewRuntime";
+import { completeNativePageFixture } from "../helpers/completeNativeNarrativeRoot";
 
 const flowId = "code-flow:" + "a".repeat(32), contextId = "narrative-context:" + "c".repeat(32);
 const nodeId = (index: number) => "function-logic-block:" + index.toString(16).padStart(32, "0");
@@ -125,4 +126,76 @@ test("cache-only node and node-source protocols reject raw identities, conflicti
   assert.equal(validateWebviewRequest({ type: "codeFlow/openFunctionNarrativeSource", payload: source }).ok, true);
   for (const nodeIndex of [-1, 0.5, 900, Number.MAX_SAFE_INTEGER])
     assert.equal(validateWebviewRequest({ type: "codeFlow/openFunctionNarrativeSource", payload: { ...source, nodeIndex } }).ok, false);
+});
+
+for (const mode of ["source-infeasible", "unverified"] as const) test(mode + " renders full unavailable reasons while disabling auto/manual example application and preserving graph/source actions", () => {
+  const f = fixture(), native = completeNativePageFixture(mode);
+  try {
+    f.click("request"); f.selectNode(native.page.scenarios[0].graph!.nodeIds[0]);
+    const response: any = f.response(); response.narrative = native.page; response.snippets = native.context.snippets.map(({ id, startLine, endLine }) => ({ id, startLine, endLine }));
+    response.evidenceTokens = [native.page.scenarios[0].steps.map(() => "code-evidence:" + "b".repeat(64))]; f.browser.accept(response);
+    assert.equal(f.runtime.countRenderedByClass("narrative-root", "logic-narrative-evaluation"), 1);
+    const texts = f.runtime.getRenderedText("narrative-root").join("\n");
+    assert.ok(texts.includes("Not evaluated")); assert.ok(texts.includes("<script>literal text</script>")); assert.ok(!texts.includes("[object Object]"));
+    assert.equal(f.values.size, 0); const applyId = f.runtime.getRenderedAttributeByClass("narrative-root", "logic-narrative-apply", "id");
+    assert.ok(applyId); assert.equal(f.runtime.isDisabled(applyId), true); f.click("apply"); assert.equal(f.opened.length, 0); assert.equal(f.values.size, 0);
+    assert.ok(f.runtime.getRenderedAttributeByClass("narrative-root", "logic-narrative-apply", "aria-describedby")?.endsWith("-example-basis"));
+    f.click("select"); assert.equal(f.values.size, 0); f.click("graph"); assert.equal(f.selections.at(-1), native.page.scenarios[0].graph!.nodeIds[0]);
+    f.click("node-source"); assert.equal(validateWebviewRequest(f.posts.at(-1)).ok, true);
+    assert.equal(f.posts.filter(post => post.type === "codeFlow/requestFunctionNarratives" && post.payload.pageIndex === undefined && post.payload.nodeId === undefined).length, 1);
+  } finally { f.dispose(); }
+});
+
+test("a complete computed page applies only its concrete JSON strings and preserves the typed result display", () => {
+  const f = fixture(), native = completeNativePageFixture("computed");
+  try {
+    f.click("request"); f.selectNode(native.page.scenarios[0].graph!.nodeIds[0]);
+    const response: any = f.response(); response.narrative = native.page; response.snippets = native.context.snippets.map(({ id, startLine, endLine }) => ({ id, startLine, endLine }));
+    response.evidenceTokens = [native.page.scenarios[0].steps.map(() => "code-evidence:" + "b".repeat(64))]; f.browser.accept(response);
+    assert.equal(f.values.get("input"), "3"); assert.ok(f.runtime.getRenderedText("narrative-root").includes("Concrete example · execution unverified"));
+    f.values.set("input", "99"); f.click("apply"); assert.equal(f.values.get("input"), "3"); assert.deepEqual(f.opened, ["values"]);
+  } finally { f.dispose(); }
+});
+
+test("complete loop visit metadata renders its full meaning and localized counters across UI locale changes", () => {
+  const f = fixture(), native = completeNativePageFixture("loop-visit");
+  try {
+    f.click("request"); f.selectNode(native.page.scenarios[0].graph!.nodeIds[0]);
+    const response: any = f.response(); response.narrative = native.page; response.snippets = native.context.snippets.map(({ id, startLine, endLine }) => ({ id, startLine, endLine }));
+    response.evidenceTokens = [native.page.scenarios[0].steps.map(() => "code-evidence:" + "b".repeat(64))]; f.browser.accept(response);
+    let texts = f.runtime.getRenderedText("narrative-root").join("\n"); assert.ok(texts.includes("Operation 1 · visit 3 · 2 earlier iterations"));
+    assert.ok(texts.includes(native.page.scenarios[0].evaluation!.loopVisits![0].meaning));
+    f.state.uiLanguage = "ko"; f.browser.locale("ko"); f.widget.refreshLanguage(); texts = f.runtime.getRenderedText("narrative-root").join("\n");
+    assert.ok(texts.includes("구문 1 · 방문 3회째 · 이전 반복 2회")); assert.ok(texts.includes(native.page.scenarios[0].evaluation!.loopVisits![0].meaning));
+  } finally { f.dispose(); }
+});
+
+test("a cache-only node from a native unavailable page retains its own applicability while the visible legacy page stays selected", () => {
+  const f = fixture(), native = completeNativePageFixture("unverified", true);
+  try {
+    f.click("request"); f.browser.accept(f.response()); f.selectNode(nodeId(3)); assert.equal(f.posts.at(-1)!.payload.nodeId, nodeId(3));
+    const response: any = f.response(1); response.narrative = native.page; response.snippets = native.context.snippets.map(({ id, startLine, endLine }) => ({ id, startLine, endLine }));
+    response.evidenceTokens = [native.page.scenarios[0].steps.map(() => "code-evidence:" + "b".repeat(64))]; f.browser.accept(response);
+    const texts = f.runtime.getRenderedText("narrative-root").join("\n"); assert.ok(texts.includes("Applicability unverified")); assert.ok(texts.includes("Not evaluated"));
+    assert.equal(f.runtime.countRenderedByClass("narrative-root", "logic-narrative-evaluation"), 0, "quiet lookup retains the visible legacy scenario");
+    f.click("node-source"); assert.equal(f.posts.at(-1)!.payload.pageIndex, 1); assert.equal(validateWebviewRequest(f.posts.at(-1)).ok, true);
+  } finally { f.dispose(); }
+});
+
+test("twenty-four complete loop meanings use a native disclosure and retain its open state and keyboard focus across selection", () => {
+  const f = fixture(), native = completeNativePageFixture("loop-visit");
+  native.page.scenarios[0].evaluation!.loopVisits = Array.from({ length: 24 }, (_, index) => ({ sourceOperationOrdinal: 1, visit: index + 1,
+    earlierIterations: index, meaning: "The complete model description for selected visit " + (index + 1) + " remains readable." }));
+  try {
+    f.click("request"); f.selectNode(native.page.scenarios[0].graph!.nodeIds[0]);
+    const response: any = f.response(); response.narrative = native.page; response.snippets = native.context.snippets.map(({ id, startLine, endLine }) => ({ id, startLine, endLine }));
+    response.evidenceTokens = [native.page.scenarios[0].steps.map(() => "code-evidence:" + "b".repeat(64))]; f.browser.accept(response);
+    assert.equal(f.runtime.getRenderedOpenByClassNth("narrative-root", "logic-narrative-loop-visits", 0), false);
+    assert.ok(f.runtime.getRenderedText("narrative-root").includes("Loop visits · 24 model descriptions"));
+    f.runtime.setRenderedOpenByClassNth("narrative-root", "logic-narrative-loop-visits", 0, true);
+    f.runtime.focusRenderedByClassNth("narrative-root", "logic-narrative-loop-summary", 0);
+    f.click("select"); assert.equal(f.runtime.getRenderedOpenByClassNth("narrative-root", "logic-narrative-loop-visits", 0), true);
+    assert.equal(document.activeElement?.id, f.runtime.getRenderedIdentityByClassNth("narrative-root", "logic-narrative-loop-summary", 0));
+    assert.ok(f.runtime.getRenderedText("narrative-root").includes(native.page.scenarios[0].evaluation!.loopVisits![23].meaning));
+  } finally { f.dispose(); }
 });

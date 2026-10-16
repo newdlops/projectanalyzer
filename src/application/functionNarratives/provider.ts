@@ -4,6 +4,8 @@ import type { ModelTaskProgress, ModelTaskResource } from "../../shared/modelTas
 
 export { FunctionNarrativeError, type FunctionNarrativeFailure } from "../../shared/functionNarratives";
 export type FunctionNarrativeModelResponse = { modelName: string; text: string };
+/** A complete native request has only model-readable schema/messages; the decoder and captured source authority remain in the Host. */
+export type FunctionNarrativeRootRequest = { schema: Record<string, unknown>; messages: Array<{ role: "system" | "user"; content: string }> };
 export type FunctionNarrativeOperationOptions = { label?: string; onProgress?(progress: ModelTaskProgress): void;
   /** Host-owned node-reading pipeline may defer local weights until its first model-dependent stage; contains no source. */
   sourceReading?: boolean };
@@ -26,4 +28,6 @@ export interface FunctionNarrativeProvider {
   prepare?(language: "ko" | "en", signal: AbortSignal, options?: FunctionNarrativeOperationOptions): Promise<void>;
   /** Invoked only by an explicit user action; text still needs independent structured validation. */
   generate(context: FunctionNarrativeContext, language: "ko" | "en", signal: AbortSignal, options?: FunctionNarrativeGenerationOptions): Promise<FunctionNarrativeModelResponse>;
+  /** Explicit capability for a complete source-only root reply. No legacy preparation/node/synthesis passes are added to it. */
+  generateCompleteRoot?(request: FunctionNarrativeRootRequest, language: "ko" | "en", signal: AbortSignal, options?: FunctionNarrativeGenerationOptions): Promise<FunctionNarrativeModelResponse>;
 }

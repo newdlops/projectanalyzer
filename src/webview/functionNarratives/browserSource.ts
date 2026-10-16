@@ -8,7 +8,7 @@ export function getFunctionNarrativesBrowserSource(): string {
     ${isModelTaskProgress.toString()}
     ${isFunctionNarrativeExample.toString()}
     ${createFunctionNarrativeValidator.toString()}
-    const isFunctionNarrative = createFunctionNarrativeValidator(isFunctionNarrativeExample);
+    const isFunctionNarrative = createFunctionNarrativeValidator(isFunctionNarrativeExample, true);
     ${isFunctionNarrativeLanguage.toString()}
     ${getFunctionNarrativeInterpretationBrowserSource()}
     const functionNarrativeRequests = new Map();
@@ -28,9 +28,10 @@ export function getFunctionNarrativesBrowserSource(): string {
     /** A response's snippet bounds and source token matrix must match every narrative step. */
     function validFunctionNarrativesResponse(payload) {
       const snippets = payload?.snippets;
-      if (!Array.isArray(snippets) || !snippets.length || snippets.length > 5 || snippets.some((snippet) => !snippet
-        || typeof snippet.id !== "string" || snippet.id.length > 80 || !Number.isSafeInteger(snippet.startLine)
-        || !Number.isSafeInteger(snippet.endLine) || snippet.startLine < 1 || snippet.endLine < snippet.startLine || snippet.endLine - snippet.startLine > 159)) return false;
+      const completeRoot=Array.isArray(payload?.narrative?.scenarios)&&payload.narrative.scenarios.every(scenario=>scenario?.evaluation);
+      if (!Array.isArray(snippets) || !snippets.length || snippets.length > (completeRoot ? 100000 : 5) || snippets.some((snippet) => !snippet
+        || typeof snippet.id !== "string" || snippet.id.length > (completeRoot ? 24000 : 80) || !Number.isSafeInteger(snippet.startLine)
+        || !Number.isSafeInteger(snippet.endLine) || snippet.startLine < 1 || snippet.endLine < snippet.startLine || !completeRoot && snippet.endLine - snippet.startLine > 159)) return false;
       if (!isFunctionNarrative(payload.narrative, snippets) || !["ko", "en"].includes(payload.language)
         || typeof payload.modelName !== "string" || payload.modelName.length > 100 || typeof payload.limited !== "boolean" || typeof payload.cacheHit !== "boolean") return false;
       if (payload.coverage !== undefined || payload.page !== undefined) {
@@ -137,9 +138,11 @@ export function getFunctionNarrativesBrowserSource(): string {
               .filter(Boolean).map((value) => /[.!?。！？]$/.test(value.trim()) ? value.trim() : value.trim() + ".").join(" ");
             article.append(paragraph);
             appendFunctionNarrativeAnalysis(article,scenario);
+            const loopDisclosure=appendFunctionNarrativeEvaluation(article,scenario);
+            if(loopDisclosure){const loopKey=result.language+":"+globalIndex+":loops";loopDisclosure.summary.id=widgetId+"-evidence-loops-"+globalIndex;loopDisclosure.details.open=evidenceOpenByKey.has(loopKey);evidenceElements.set(loopKey,loopDisclosure.details);}
             appendFunctionNarrativeExample(article,scenario,index===selectedScenarioIndex,{id:widgetId+"-scenario-"+globalIndex,canApply:Boolean(callbacks?.onNarrativeScenario),canShowGraph:Boolean(callbacks?.onShowGraph),
               select(){selectScenario(index,"replace");render();},graph(){selectScenario(index,"none");callbacks?.onShowGraph?.({preferredLens:"flow",primaryBlockId:scenario.graph?.nodeIds[0],attentionBlockIds:scenario.graph?.nodeIds||[],attentionEdgeIds:scenario.graph?.edgeIds||[]});nodeReader.refresh();},
-              apply(){selectScenario(index,"replace");callbacks?.onOpenNarrativeValues?.(scenario.example);render();}});
+              apply(){if(!canApplyFunctionNarrativeExample(scenario))return;selectScenario(index,"replace");callbacks?.onOpenNarrativeValues?.(scenario.example);render();}});
             const evidence = document.createElement("details"); const evidenceSummary = document.createElement("summary"); const evidenceBody = document.createElement("div");
             evidence.className = "logic-narrative-evidence"; evidenceBody.className = "logic-narrative-evidence-body";
             evidenceSummary.id = widgetId + "-evidence-" + globalIndex;
@@ -179,7 +182,7 @@ export function getFunctionNarrativesBrowserSource(): string {
         if (focusedId?.startsWith(widgetId + "-source-") || focusedId?.startsWith(widgetId + "-evidence-") || focusedId?.startsWith(widgetId + "-scenario-")) document.getElementById(focusedId)?.focus();
       }
       /** A scenario selection changes graph examples; cached navigation and progress preserve edited inputs. */
-      function selectScenario(index,apply){selectedScenarioIndex=index;const scenario=result?.narrative.scenarios[index];if(scenario)callbacks?.onNarrativeScenario?.(scenario,{apply});nodeLookupKey=undefined;publishNotes();}
+      function selectScenario(index,apply){selectedScenarioIndex=index;const scenario=result?.narrative.scenarios[index];if(scenario)callbacks?.onNarrativeScenario?.(scenario,{apply:canApplyFunctionNarrativeExample(scenario)?apply:"none"});nodeLookupKey=undefined;publishNotes();}
       /** Graph annotations reuse the selected saved page and the same source-navigation owner. */
       function publishNotes(){const saved=result,index=selectedScenarioIndex,scenario=phase!=="stale"&&saved?.narrative.scenarios[index];callbacks?.onNarrativeNotes?.(scenario?{scenario,ordinal:(saved.page?.offset||0)+index+1,language:saved.language,modelName:saved.modelName,
         openSource(nodeIndex){if(disposed||phase==="stale"||state.graph?.version!==graphVersion||result!==saved||selectedScenarioIndex!==index)return;vscode.postMessage({type:"codeFlow/openFunctionNarrativeSource",payload:{graphVersion,flowId:tutor.functionId,contextId:tutor.narratives.contextId,language:saved.language,scenarioIndex:index,stepIndex:0,nodeIndex,...(saved.page?{pageIndex:saved.page.index}:{})}});}}:undefined);}

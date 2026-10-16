@@ -1,9 +1,10 @@
 /** Public portable narrative contracts and runtime validation; callers do not depend on internal files. */
 export type { FunctionNarrative, FunctionNarrativeScenario, FunctionNarrativeStep, FunctionNarrativeSource, FunctionNarrativeContext, FunctionNarrativeSnippet, FunctionNarrativeSourceFlow, FunctionNarrativeFlowPath, FunctionNarrativeFlowStep, FunctionNarrativeValueFact, FunctionNarrativeCheckedExample, FunctionNarrativeScenarioGraph } from "./types";
-export { isFunctionNarrative, createFunctionNarrativeValidator } from "./validation";
+export { isFunctionNarrative, isFunctionNarrativePage, createFunctionNarrativeValidator } from "./validation";
 export { isFunctionNarrativeExample } from "./exampleValidation";
 export type { FunctionNarrativeExample, FunctionNarrativeNodeDetail, FunctionNarrativeSourceTrace } from "./types";
 export type { FunctionCallSourceProofHandle } from "./types";
+export type { FunctionNarrativePage, FunctionNarrativeValue, FunctionNarrativeUnavailable, FunctionNarrativeEvaluation } from "./types";
 export { isFunctionNarrativeLanguage } from "./language";
 export { FunctionNarrativeError, type FunctionNarrativeFailure } from "./errors";
 export type { FunctionNarrativePageStore, FunctionNarrativePageStoreFactory } from "./pageStore";

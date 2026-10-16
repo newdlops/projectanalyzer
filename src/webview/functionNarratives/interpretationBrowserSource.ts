@@ -1,6 +1,23 @@
 /** Scenario example facts and a selected-node reader; all graph/source mutations are explicit adapter callbacks. */
 export function getFunctionNarrativeInterpretationBrowserSource(): string {
   return /* js */ `
+    /** Unavailable reasons remain explicit text and can never be passed to input controls as JSON examples. */
+    function functionNarrativeValueText(value) { return typeof value==="string"?value:projectAnalyzerText("narrative-not-evaluated")+" · "+value.reason; }
+    function canApplyFunctionNarrativeExample(scenario) { return Boolean(scenario.example)&&!["source-infeasible","unverified"].includes(scenario.evaluation?.mode)
+      &&typeof scenario.example.result==="string"&&scenario.example.inputs.every(input=>typeof input.json==="string"); }
+    /** Model applicability and loop metadata use the existing definition-list reading layout. */
+    function appendFunctionNarrativeEvaluation(parent, scenario) {
+      const evaluation=scenario.evaluation;if(!evaluation)return;
+      const region=document.createElement("dl");region.className="logic-narrative-analysis logic-narrative-evaluation";
+      for(const [key,value]of [["narrative-applicability",projectAnalyzerText("narrative-mode-"+evaluation.mode)],["narrative-justification",evaluation.justification]]){
+        const term=document.createElement("dt"),description=document.createElement("dd");term.textContent=projectAnalyzerText(key);description.textContent=value;region.append(term,description);
+      }
+      parent.append(region);
+      const visits=evaluation.loopVisits||[];let list=region,disclosure;
+      if(visits.length>1){const details=document.createElement("details"),summary=document.createElement("summary");details.className="logic-narrative-evidence logic-narrative-loop-visits";summary.className="logic-narrative-loop-summary";summary.textContent=projectAnalyzerText("narrative-loop-visits",{count:visits.length});list=document.createElement("dl");list.className="logic-narrative-analysis";details.append(summary,list);parent.append(details);disclosure={details,summary};}
+      for(const visit of visits){const term=document.createElement("dt"),description=document.createElement("dd");term.textContent=projectAnalyzerText("narrative-loop-visit",{ordinal:visit.sourceOperationOrdinal,visit:visit.visit,count:visit.earlierIterations});description.textContent=visit.meaning;list.append(term,description);}
+      return disclosure;
+    }
     /** Causal explanations use the existing reading rhythm and definition-list semantics. */
     function appendFunctionNarrativeAnalysis(parent, scenario) {
       if (!scenario.analysis) return;
@@ -14,16 +31,18 @@ export function getFunctionNarrativeInterpretationBrowserSource(): string {
     function appendFunctionNarrativeExample(parent, scenario, selected, actions) {
       if (!scenario.example) return;
       const region=document.createElement("section");region.className="logic-narrative-example";
-      const note=document.createElement("p");note.className="logic-summary-basis";note.textContent=projectAnalyzerText("narrative-example-basis");
+      const note=document.createElement("p");note.className="logic-summary-basis";note.textContent=projectAnalyzerText(canApplyFunctionNarrativeExample(scenario)?"narrative-example-basis":"narrative-unavailable-basis");
+      note.id=actions.id+"-example-basis";
       region.append(note);
       const facts=document.createElement("dl");facts.className="logic-narrative-example-values";
-      for(const input of scenario.example.inputs){const name=document.createElement("dt"),value=document.createElement("dd");name.textContent=input.name;value.textContent=input.json;value.setAttribute("translate","no");facts.append(name,value);}
+      for(const input of scenario.example.inputs){const name=document.createElement("dt"),value=document.createElement("dd");name.textContent=input.name;value.textContent=functionNarrativeValueText(input.json);if(typeof input.json!=="string")value.className="logic-narrative-unavailable";value.setAttribute("translate","no");facts.append(name,value);}
       if(!scenario.example.inputs.length){const empty=document.createElement("p");empty.textContent=projectAnalyzerText("narrative-no-inputs");region.append(empty);}
-      const resultName=document.createElement("dt"),resultValue=document.createElement("dd");resultName.textContent=projectAnalyzerText("narrative-example-result");resultValue.textContent=scenario.example.result;resultValue.setAttribute("translate","no");facts.append(resultName,resultValue);
+      const resultName=document.createElement("dt"),resultValue=document.createElement("dd");resultName.textContent=projectAnalyzerText("narrative-example-result");resultValue.textContent=functionNarrativeValueText(scenario.example.result);if(typeof scenario.example.result!=="string")resultValue.className="logic-narrative-unavailable";resultValue.setAttribute("translate","no");facts.append(resultName,resultValue);
       const controls=document.createElement("div");controls.className="logic-guide-actions";
-      for(const [key,className,handler,disabled] of [["narrative-select","logic-narrative-select",actions.select,false],["narrative-show-graph","logic-narrative-graph",actions.graph,!scenario.graph?.nodeIds.length||!actions.canShowGraph],["narrative-apply-example","logic-narrative-apply",actions.apply,!scenario.example.inputs.length||!actions.canApply]]){
+      for(const [key,className,handler,disabled] of [["narrative-select","logic-narrative-select",actions.select,false],["narrative-show-graph","logic-narrative-graph",actions.graph,!scenario.graph?.nodeIds.length||!actions.canShowGraph],["narrative-apply-example","logic-narrative-apply",actions.apply,!scenario.example.inputs.length||!actions.canApply||!canApplyFunctionNarrativeExample(scenario)]]){
         const button=document.createElement("button");button.type="button";button.className="logic-guide-action "+className;button.textContent=projectAnalyzerText(key);button.disabled=disabled;
         button.id=actions.id+"-"+className;
+        if(className==="logic-narrative-apply"&&!canApplyFunctionNarrativeExample(scenario))button.setAttribute("aria-describedby",note.id);
         if(className==="logic-narrative-select")button.setAttribute("aria-pressed",selected?"true":"false");
         button.addEventListener("click",()=>{if(!button.disabled)handler?.();});controls.append(button);
       }
@@ -43,7 +62,7 @@ export function getFunctionNarrativeInterpretationBrowserSource(): string {
         for(let scenarioIndex=0;scenarioIndex<payload.narrative.scenarios.length;scenarioIndex++){
           const scenario=payload.narrative.scenarios[scenarioIndex];const details=[];
           for(let nodeIndex=0;nodeIndex<(scenario.nodeDetails?.length||0);nodeIndex++)if(scenario.nodeDetails[nodeIndex].nodeId===nodeId)details.push({detail:scenario.nodeDetails[nodeIndex],nodeIndex});
-          if(details.length)return {details,example:scenario.example,title:scenario.title,language:payload.language,pageIndex:payload.page?.index,scenarioIndex,ordinal:(payload.page?.offset||0)+scenarioIndex+1};
+          if(details.length)return {details,example:scenario.example,evaluation:scenario.evaluation,title:scenario.title,language:payload.language,pageIndex:payload.page?.index,scenarioIndex,ordinal:(payload.page?.offset||0)+scenarioIndex+1};
         }
       }
       function remember(payload,nodeId){const value=extract(payload,nodeId);if(value){cache.set(payload.language+":"+nodeId,value);while(cache.size>8)cache.delete(cache.keys().next().value);}refresh(false);}
@@ -65,17 +84,18 @@ export function getFunctionNarrativeInterpretationBrowserSource(): string {
         select.value=nodeId||"";select.disabled=!unique.size;
         const reached=scenario.graph?.nodeIds.includes(nodeId);
         const selectedDetails=(scenario.nodeDetails||[]).map((detail,nodeIndex)=>({detail,nodeIndex})).filter((item)=>item.detail.nodeId===nodeId);
-        const data=selectedDetails.length?{details:selectedDetails,example:scenario.example,language:payload.language,pageIndex:payload.page?.index,scenarioIndex:owner.index(),ordinal:(payload.page?.offset||0)+owner.index()+1}
+        const data=selectedDetails.length?{details:selectedDetails,example:scenario.example,evaluation:scenario.evaluation,language:payload.language,pageIndex:payload.page?.index,scenarioIndex:owner.index(),ordinal:(payload.page?.offset||0)+owner.index()+1}
           :cached||extract(payload,nodeId);
-        status.textContent=projectAnalyzerText(!reached?"narrative-node-skipped":data?"narrative-example-basis":payload.coverage?.complete?"narrative-node-unavailable":"narrative-node-pending");body.replaceChildren();
+        status.textContent=projectAnalyzerText(!reached?"narrative-node-skipped":data?data.evaluation?"narrative-mode-"+data.evaluation.mode:"narrative-example-basis":payload.coverage?.complete?"narrative-node-unavailable":"narrative-node-pending");body.replaceChildren();
         if(!data){if(nodeId&&allowQuery)owner.loadNode(nodeId);return;}
-        if(!reached){const examples=document.createElement("p");examples.className="logic-summary-note";examples.textContent=projectAnalyzerText("narrative-node-other-example",{scenario:data.ordinal,inputs:data.example?.inputs.map((input)=>input.name+" = "+input.json).join(" · ")||projectAnalyzerText("narrative-no-inputs")});body.append(examples);}
+        if(!reached&&data.evaluation){const basis=document.createElement("p");basis.className="logic-summary-basis";basis.textContent=projectAnalyzerText("narrative-mode-"+data.evaluation.mode);body.append(basis);}
+        if(!reached){const examples=document.createElement("p");examples.className="logic-summary-note";examples.textContent=projectAnalyzerText("narrative-node-other-example",{scenario:data.ordinal,inputs:data.example?.inputs.map((input)=>input.name+" = "+functionNarrativeValueText(input.json)).join(" · ")||projectAnalyzerText("narrative-no-inputs")});body.append(examples);}
         for(let visit=0;visit<data.details.length;visit++){
           const {detail,nodeIndex}=data.details[visit];const section=document.createElement("section");section.className="logic-narrative-node-detail";
           if(detail.code){const sourceCode=document.createElement("pre"),code=document.createElement("code");sourceCode.className="logic-narrative-node-code";code.textContent=detail.code;code.setAttribute("translate","no");sourceCode.append(code);section.append(sourceCode);}
           if(data.details.length>1){const visitLabel=document.createElement("strong");visitLabel.textContent=projectAnalyzerText("narrative-node-visit",{visit:visit+1});section.append(visitLabel);}
           for(const [key,text]of [[undefined,detail.text],["narrative-syntax",detail.syntax],["narrative-reason",detail.reason],["narrative-effect",detail.effect]])if(text){const paragraph=document.createElement("p");if(key){const term=document.createElement("strong");term.textContent=projectAnalyzerText(key)+": ";paragraph.append(term);}paragraph.append(document.createTextNode(text));section.append(paragraph);}
-          if(detail.values?.length){const table=document.createElement("table");table.className="logic-narrative-node-values";const caption=document.createElement("caption");caption.textContent=projectAnalyzerText("narrative-node-values");table.append(caption);const head=document.createElement("thead"),row=document.createElement("tr");for(const key of ["name","narrative-before","narrative-after"]){const cell=document.createElement("th");cell.scope="col";cell.textContent=projectAnalyzerText(key);row.append(cell);}head.append(row);table.append(head);const tbody=document.createElement("tbody");for(const value of detail.values){const item=document.createElement("tr");for(const [index,text]of [value.name,value.before,value.after].entries()){const cell=document.createElement(index===0?"th":"td");if(index===0)cell.scope="row";cell.textContent=text;cell.setAttribute("translate","no");item.append(cell);}tbody.append(item);}table.append(tbody);section.append(table);}
+          if(detail.values?.length){const table=document.createElement("table");table.className="logic-narrative-node-values";const caption=document.createElement("caption");caption.textContent=projectAnalyzerText("narrative-node-values");table.append(caption);const head=document.createElement("thead"),row=document.createElement("tr");for(const key of ["name","narrative-before","narrative-after"]){const cell=document.createElement("th");cell.scope="col";cell.textContent=projectAnalyzerText(key);row.append(cell);}head.append(row);table.append(head);const tbody=document.createElement("tbody");for(const value of detail.values){const item=document.createElement("tr");for(const [index,text]of [value.name,value.before,value.after].entries()){const cell=document.createElement(index===0?"th":"td");if(index===0)cell.scope="row";cell.textContent=functionNarrativeValueText(text);if(typeof text!=="string")cell.className="logic-narrative-unavailable";cell.setAttribute("translate","no");item.append(cell);}tbody.append(item);}table.append(tbody);section.append(table);}
           const source=document.createElement("button");source.type="button";source.className="logic-guide-action logic-narrative-node-source";source.textContent=projectAnalyzerText("narrative-node-source",{line:detail.source.startLine});source.addEventListener("click",()=>owner.openNodeSource(data,nodeIndex));section.append(source);body.append(section);
         }
       }

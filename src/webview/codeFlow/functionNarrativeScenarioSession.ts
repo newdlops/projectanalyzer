@@ -1,10 +1,10 @@
 /** Host run lifecycle: validated batches are paged to storage and resumed without reanalyzing completed paths. */
 import { FunctionNarrativeError, FunctionNarrativeScenarioRun, parseFunctionNarrative, initializeFunctionNarrativeNodes,
   createFunctionNarrativeNodeTask, createFunctionNarrativeSummaryTask, appendFunctionNarrativeNodes, finalizeFunctionNarrativeNodes,
-  selectPrimitiveNarrativeAlternative, buildFunctionNarrativeSourcePurpose, hasCompleteSourceWorksheet, type FunctionNarrativeProvider } from "../../application/functionNarratives";
-import type { FunctionNarrative, FunctionNarrativeContext, FunctionNarrativePageStore } from "../../shared/functionNarratives";
+  selectPrimitiveNarrativeAlternative, buildFunctionNarrativeSourcePurpose, hasCompleteSourceWorksheet, createCompleteFunctionNarrativeRoot, type FunctionNarrativeProvider } from "../../application/functionNarratives";
+import type { FunctionNarrative, FunctionNarrativePage, FunctionNarrativeContext, FunctionNarrativePageStore } from "../../shared/functionNarratives";
 
-export type FunctionNarrativeStoredPage = { narrative: FunctionNarrative; modelName: string; offset: number; index: number };
+export type FunctionNarrativeStoredPage = { narrative: FunctionNarrativePage; modelName: string; offset: number; index: number };
 
 /** One session owns one locale and snapshot; RAM retains small page metadata, never all model prose. */
 export class FunctionNarrativeScenarioSession {
@@ -17,6 +17,8 @@ export class FunctionNarrativeScenarioSession {
   /** One bounded unfinished page retains validated primary/node work across cancellation or failure. */
   private pending?: { batch: FunctionNarrativeContext; narrative: FunctionNarrative; modelName: string; scenarioIndex: number;
     finalSummary: boolean; summarized: Set<number> };
+  /** One independently decoded complete page may retry storage without regenerating any model field. */
+  private completePending?: { narrative: FunctionNarrativePage; modelName: string };
   public constructor(private readonly context: FunctionNarrativeContext, private readonly store: FunctionNarrativePageStore) {
     this.run = new FunctionNarrativeScenarioRun(context);
   }
@@ -40,6 +42,18 @@ export class FunctionNarrativeScenarioSession {
     options: { reselectModel: boolean; assertSourceCurrent?(): Promise<void> }): Promise<FunctionNarrativeStoredPage | undefined> {
     const batch = this.run.nextBatch();
     if (!batch) return undefined;
+    if (provider.generateCompleteRoot) {
+      if (this.pending) throw new FunctionNarrativeError("invalid-response");
+      if (!this.completePending) {
+        const task = createCompleteFunctionNarrativeRoot(batch, language);
+        const response = await provider.generateCompleteRoot(task.request, language, signal,
+          { reselectModel: options.reselectModel, validate: response => { task.decode(response.text); } });
+        if (signal.aborted) throw new FunctionNarrativeError("cancelled");
+        this.completePending = { narrative: task.decode(response.text), modelName: response.modelName };
+      }
+      return this.writePage(this.completePending.narrative, this.completePending.modelName, signal, options);
+    }
+    if (this.completePending) throw new FunctionNarrativeError("invalid-response");
     if (!this.pending) {
       const finalSummary = batch.detailLevel === "rich" && provider.supportsFinalSummary?.(signal) === true;
       const preparation = finalSummary ? { ...batch, nodePreparation: true } : batch;
@@ -92,14 +106,19 @@ export class FunctionNarrativeScenarioSession {
       if (path) finalizeFunctionNarrativeNodes(batch, path, scenario, pending.narrative.summary);
       pending.scenarioIndex++;
     }
-    const narrative = pending.narrative;
+    return this.writePage(pending.narrative, pending.modelName, signal, options);
+  }
+
+  /** Both response formats publish through the same snapshot check, transactional page write and graph index. */
+  private async writePage(narrative: FunctionNarrativePage, modelName: string, signal: AbortSignal,
+    options: { assertSourceCurrent?(): Promise<void> }): Promise<FunctionNarrativeStoredPage> {
     const index = this.pages.length;
-    const page = { modelName: pending.modelName.slice(0, 100), offset: this.run.completed };
+    const page = { modelName: modelName.slice(0, 100), offset: this.run.completed };
     await options.assertSourceCurrent?.();
     await this.store.write(index, narrative);
     await options.assertSourceCurrent?.();
     if (signal.aborted) throw new FunctionNarrativeError("cancelled");
-    this.pages.push(page); this.run.commitBatch(); this.pending = undefined;
+    this.pages.push(page); this.run.commitBatch(); this.pending = undefined; this.completePending = undefined;
     for (const scenario of narrative.scenarios) for (const detail of scenario.nodeDetails ?? []) {
       if (!this.nodePages.has(detail.nodeId)) this.nodePages.set(detail.nodeId, index);
     }
@@ -118,5 +137,5 @@ export class FunctionNarrativeScenarioSession {
     const index = this.nodePages.get(nodeId);
     return index === undefined ? Promise.resolve(undefined) : this.readPage(index);
   }
-  public dispose(): Promise<void> { this.pending = undefined; this.purpose = undefined; this.nodePages.clear(); return this.store.dispose(); }
+  public dispose(): Promise<void> { this.pending = undefined; this.completePending = undefined; this.purpose = undefined; this.nodePages.clear(); return this.store.dispose(); }
 }

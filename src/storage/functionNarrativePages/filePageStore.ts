@@ -2,7 +2,7 @@
 import { mkdtemp, writeFile, readFile, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { isFunctionNarrative, type FunctionNarrativePageStore } from "../../shared/functionNarratives";
+import { isFunctionNarrativePage, type FunctionNarrativePageStore } from "../../shared/functionNarratives";
 
 /** Construction is inert. First write creates a private directory; disposal revokes and removes every page. */
 export function createFunctionNarrativePageStore(options: { temporaryRoot?: string } = {}): FunctionNarrativePageStore {
@@ -15,7 +15,7 @@ export function createFunctionNarrativePageStore(options: { temporaryRoot?: stri
   };
   return {
     async write(index, narrative) {
-      if (closed || !isFunctionNarrative(narrative)) throw new Error("Narrative page store is unavailable");
+      if (closed || !isFunctionNarrativePage(narrative)) throw new Error("Narrative page store is unavailable");
       const name = pageName(index);
       directory ??= mkdtemp(join(options.temporaryRoot ?? tmpdir(), "function-scenario-pages-"));
       const current = writes.then(async () => {
@@ -34,7 +34,7 @@ export function createFunctionNarrativePageStore(options: { temporaryRoot?: stri
       if (closed) return undefined;
       try {
         const value: unknown = JSON.parse(await readFile(join(folder, name), "utf8"));
-        return !closed && isFunctionNarrative(value) ? value : undefined;
+        return !closed && isFunctionNarrativePage(value) ? value : undefined;
       } catch { return undefined; }
     },
     async dispose() {

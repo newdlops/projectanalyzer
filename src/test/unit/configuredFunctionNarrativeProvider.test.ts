@@ -1,4 +1,5 @@
 /** Native setup regressions exercise machine settings, download cancellation and a source-free preparation boundary. */
+import type { FunctionNarrativePage } from "../../shared/functionNarratives";
 import assert from "node:assert/strict";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -13,7 +14,7 @@ import { FunctionNarrativeScenarioSession } from "../../webview/codeFlow/functio
 import { FunctionNarrativesHostDelivery } from "../../webview/codeFlow/functionNarrativesHostDelivery";
 import { ModelTaskManager } from "../../shared/modelTasks";
 import { LocalModelError, type ManagedLocalModelCache } from "../../shared/localModels";
-import type { FunctionNarrative, FunctionNarrativeContext } from "../../shared/functionNarratives";
+import type { FunctionNarrativeContext } from "../../shared/functionNarratives";
 import type { FunctionNarrativesResponse } from "../../protocol/functionNarratives";
 import type { SymbolNode } from "../../shared/types";
 
@@ -141,7 +142,7 @@ test("the real complete Host reads source-proved loop and guard pages without a 
     const manager = new ModelTaskManager(), f = fixture({ binary: "/missing/llama-completion", modelPath: "/missing/weights.gguf", fail: "integrity", manager });
     const messages: FunctionNarrativesResponse[] = [], request = { flowId: `code-flow:${"d".repeat(32)}` as const, graphVersion: "source-fixture", requestId: 1 };
     const delivery = new FunctionNarrativesHostDelivery({ provider: f.provider, getLanguage: () => "ko", isActive: () => true,
-      createPageStore() { const pages = new Map<number, FunctionNarrative>(); return { async write(index, narrative) { pages.set(index, narrative); },
+      createPageStore() { const pages = new Map<number, FunctionNarrativePage>(); return { async write(index, narrative) { pages.set(index, narrative); },
         async read(index) { return pages.get(index); }, async dispose() { pages.clear(); } }; },
       createEvidence: () => `code-evidence:${"e".repeat(64)}`, async postMessage(message) {
         if (message.type === "codeFlow/functionNarrativesLoaded") messages.push(message.payload);
@@ -229,7 +230,7 @@ test("source pages resume with the original model purpose producer without repea
     const { buildPrimitiveNarrativeSynthesis } = await import("../../application/functionNarratives");
     const synthesis = buildPrimitiveNarrativeSynthesis(task, language); assert.ok(synthesis);
     return { modelName: "Original model", text: JSON.stringify({ ...synthesis, summary: "활성 여부에 따라 0을 조기 반환하거나 amount에 5를 더해 반환합니다." }) };
-  } }, f = fixture({ localProvider: local, manager }), pages = new Map<number, FunctionNarrative>();
+  } }, f = fixture({ localProvider: local, manager }), pages = new Map<number, FunctionNarrativePage>();
   // Defaults remain outside the body-only purpose contract; this fixture still
   // requires a real model purpose and verifies its cached producer lifecycle.
   const session = new FunctionNarrativeScenarioSession(sourceContext(false, true), { async write(index, value) { pages.set(index, value); },

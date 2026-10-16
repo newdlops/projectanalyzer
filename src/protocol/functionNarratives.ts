@@ -1,7 +1,7 @@
 /** Correlated source-reading LLM requests; browser input contains no source, model prompt or filesystem path. */
 import type { CodeFlowId } from "./codeFlow";
 import type { CodeFlowEvidenceToken } from "./functionLogic";
-import type { FunctionNarrative, FunctionNarrativeSnippet } from "../shared/functionNarratives";
+import type { FunctionNarrativePage, FunctionNarrativeSnippet } from "../shared/functionNarratives";
 import type { ModelTaskProgress } from "../shared/modelTasks";
 
 export type FunctionNarrativesRequest = { graphVersion: string; flowId: CodeFlowId; requestId: number;
@@ -30,7 +30,7 @@ export type FunctionNarrativesResponse = FunctionNarrativesRequest & {
   language?: "ko" | "en";
   cacheHit?: boolean;
   limited?: boolean;
-  narrative?: FunctionNarrative;
+  narrative?: FunctionNarrativePage;
   /** Only snippet identities and bounds cross the response boundary; raw source stays in the Host. */
   snippets?: Array<Pick<FunctionNarrativeSnippet, "id" | "startLine" | "endLine">>;
   /** Each entry maps directly to one scenario's ordered steps, using Host-issued source tokens. */
