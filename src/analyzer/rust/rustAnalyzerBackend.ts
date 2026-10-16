@@ -14,6 +14,8 @@ import { normalizeProjectGraphMetadata } from "../../graph/graphMetadata";
 import type { ProjectAnalyzerLogger } from "../../observability/logger";
 import type { ProjectGraph, SourceFile } from "../../shared/types";
 import { createWorkspaceSourceManifestInput } from "./workspaceSourceManifest";
+import { createAnalyzedSourceSnapshot } from "../../shared/sourceSnapshots";
+import { bindAnalyzedSourceFiles } from "../../graph/sourceBindings";
 import {
   type CollectedProcessOutput,
   ProcessOutputCollector
@@ -83,7 +85,9 @@ export class RustAnalyzerBackend implements AnalysisBackend {
     try {
       // The VS Code adapter is the source of truth for configured globs and dirty
       // documents; Rust deliberately does not attempt to reproduce VS Code glob semantics.
-      const sourceFiles = await this.options.workspaceFileSystem.findSourceFiles();
+      const { files: sourceFiles, bindings: sourceBindings } = createAnalyzedSourceSnapshot(
+        await this.options.workspaceFileSystem.findSourceFiles()
+      );
       const manifest = createWorkspaceSourceManifestInput(sourceFiles);
       this.options.logger.info("rust.workspace.start", {
         manifestBytes: manifest.byteLength,
@@ -100,7 +104,7 @@ export class RustAnalyzerBackend implements AnalysisBackend {
         String(this.options.maxFileSizeKb)
       ], { content: manifest.chunks, byteLength: manifest.byteLength });
 
-      const enrichedGraph = await this.addSupplementalLanguages(graph, sourceFiles);
+      const enrichedGraph = bindAnalyzedSourceFiles(await this.addSupplementalLanguages(graph, sourceFiles), sourceBindings);
       this.options.logger.info("rust.workspace.complete", summarizeGraph(enrichedGraph));
       return { graph: enrichedGraph };
     } catch (error) {
@@ -116,6 +120,9 @@ export class RustAnalyzerBackend implements AnalysisBackend {
    * are included.
    */
   public async analyzeFile(file: SourceFile): Promise<AnalyzeResult> {
+    const snapshot = createAnalyzedSourceSnapshot([file]);
+    file = snapshot.files[0];
+    const sourceBindings = snapshot.bindings;
     const workspaceRoot =
       this.options.workspaceFileSystem.getWorkspaceRoot() ?? path.dirname(file.path);
 
@@ -138,7 +145,7 @@ export class RustAnalyzerBackend implements AnalysisBackend {
         { content: file.content, byteLength: file.sizeBytes }
       );
 
-      const enrichedGraph = await this.addSupplementalLanguages(graph, [file]);
+      const enrichedGraph = bindAnalyzedSourceFiles(await this.addSupplementalLanguages(graph, [file]), sourceBindings);
       this.options.logger.info("rust.file.complete", summarizeGraph(enrichedGraph));
       return { graph: enrichedGraph };
     } catch (error) {

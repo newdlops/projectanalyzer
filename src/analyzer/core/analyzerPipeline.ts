@@ -13,6 +13,7 @@ import { WorkspaceScanner } from "./workspaceScanner";
 import type { WorkspaceFileSystem } from "./workspaceScanner";
 import type { AnalysisBackend } from "./analysisBackend";
 import { createSourceFilePathIndex } from "./sourceFileIndex";
+import { snapshotSourceFiles } from "../../shared/sourceSnapshots";
 
 /** Result returned by workspace and current-file analysis requests. */
 export type AnalyzeResult = {
@@ -73,6 +74,8 @@ export class AnalyzerPipeline implements AnalysisBackend {
    * Runs language analyzers over source files and merges their nodes and edges.
    */
   private async buildGraph(workspaceRoot: string, files: readonly SourceFile[]): Promise<ProjectGraph> {
+    // Parser awaits must not observe later mutations of a caller-owned record.
+    files = snapshotSourceFiles(files);
     const graph = createEmptyProjectGraph(workspaceRoot);
     const store = new InMemoryGraphStore(graph);
 

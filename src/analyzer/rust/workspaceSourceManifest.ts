@@ -32,7 +32,9 @@ export function createWorkspaceSourceManifest(files: readonly SourceFile[]): Buf
 export function createWorkspaceSourceManifestInput(
   files: readonly SourceFile[]
 ): WorkspaceSourceManifestInput {
-  const sortedFiles = [...files].sort((left, right) => {
+  // Own the scalar records now: later caller mutations must not alter a lazy
+  // stream after its byte count or graph content identities were computed.
+  const sortedFiles = files.map((file) => ({ ...file })).sort((left, right) => {
     if (left.path === right.path) {
       return 0;
     }
