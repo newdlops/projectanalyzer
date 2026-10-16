@@ -8,8 +8,8 @@ import type { FunctionNarrativeProvider } from "../../application/functionNarrat
 import { wholeNarrativeHostFixture, wholeRootReply } from "./wholeNarrativeHost";
 
 /** Exercise published function registration and page generation rather than constructing a model context in the test. */
-export async function createWholeNarrativeRootHost(options: { mutateDuringWrite?: boolean; release?: (signal: AbortSignal) => Promise<void>; read?(index: number): Promise<void>; dispose?(hasPages: boolean): Promise<void> } = {}) {
-  const f = await wholeNarrativeHostFixture(0), messages: ExtensionResponse[] = [], contexts: FunctionNarrativeContext[] = [];
+export async function createWholeNarrativeRootHost(options: { callCount?: number; inspectContext?(context: FunctionNarrativeContext): void | Promise<void>; mutateDuringWrite?: boolean; release?: (signal: AbortSignal) => Promise<void>; read?(index: number): Promise<void>; dispose?(hasPages: boolean): Promise<void> } = {}) {
+  const f = await wholeNarrativeHostFixture(options.callCount ?? 0), messages: ExtensionResponse[] = [], contexts: FunctionNarrativeContext[] = [];
   let writes = 0, stores = 0; const allPages: Array<Map<number, FunctionNarrative>> = [], opened: unknown[] = [];
   const provider: FunctionNarrativeProvider = {
     async prepare() { f.events.push('prepare'); },
@@ -19,6 +19,8 @@ export async function createWholeNarrativeRootHost(options: { mutateDuringWrite?
       assert.equal(context.snippets.find(snippet => snippet.role === 'function')?.text, f.rootText);
       assert.ok(context.snippets.some(snippet => snippet.text === f.callerText));
       assert.ok(context.snippets.every(snippet => !snippet.truncated));
+      // A source-only constructor may inspect the actual captured request before the explicit external-model fixture responds.
+      await options.inspectContext?.(context);
       return wholeRootReply(context);
     },
     async withRun<T>(_language: 'ko' | 'en', signal: AbortSignal, operation: () => Promise<T>) {

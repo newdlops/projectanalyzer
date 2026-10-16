@@ -17,6 +17,9 @@ export { packNativeInputMessages, unpackNativeInputMessages } from "./input/mess
 export { numberNativeSourceLines } from "./input/numbering";
 export { createNativeRootInput, restoreNativeRootInput, createNativeRootPacket } from "./input/root";
 export { createNativeCallPacket } from "./input/call";
+export { createNativeRootSource, createNativeSourceRootPacket } from "./source/root";
+export type { NativeRootSourceOptions } from "./source/root";
+export type { NativeRootSourceContext, NativeRootSourceBindings, NativeRootSource, NativeRootSourcePacket } from "./source/types";
 export type { NativeInputFormat, NativeInputJson, NativeSchemaNotation, NativeInputMessage, NativeRootInputSource, NativeRootInput, NativeRootPacketInput } from "./input/types";
 export type { NativeCallSourceContext, NativeCallPacketInput, NativeCallPacket } from "./input/types";
 export type { NativeNarrativeSchema, NativeNarrativeMode, NativeValueAudit, NativeNamedWire, NativeNamedWireOptions, NativeObjectTupleWire,

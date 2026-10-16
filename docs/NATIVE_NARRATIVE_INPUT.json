@@ -1,6 +1,6 @@
 {
   "purpose": "완전한 root/call native 입력의 무손실 직렬화와 source-only call packet 생성. 기존 output codec을 합성하되 계산값·완전한 prose는 모델 책임으로 유지한다.",
-  "status": "공개 입력 codec과 source-only call constructor의 CPU 검증 완료. root capture→source/schema constructor, 실제 neural prior provenance, token/numerical admission 및 production native provider 연결은 남아 있다.",
+  "status": "V883 입력 codec·source-only call constructor의 검증 기록. 추가된 source-only root constructor와 최신 결합 검증은 docs/NATIVE_NARRATIVE_ROOT_SOURCE.json을 참조한다. 실제 neural/production wholeHost3초 qualification은 미완료다.",
   "publicApi": "src/llm/nativeNarrativeCodec/index.ts",
   "outputApi": "docs/NATIVE_NARRATIVE_CODEC.json",
   "exports": {
@@ -18,7 +18,7 @@
   },
   "ownership": {
     "sourceDto": "실제 capture 및 같은 action의 실제 neural 이전 설명이라는 권한은 Host가 별도로 증명해야 한다. sourceEvidence라는 이름이나 SHA만으로 의미·출처를 보증하지 않는다.",
-    "inputOnly": "교사 답안·완성문·CPU worksheet/source-example facts/source-prose/source-call-readings/valueFacts 포트를 입력 생성에 사용하지 않는다. 금지된 key는 중첩 위치에서도 거부하고 소스 문자열 속 단어는 원문으로 보존한다.",
+    "inputOnly": "source-only call constructor는 CPU worksheet/source-example facts/source-prose/source-call-readings/valueFacts 포트를 받지 않는다. root constructor가 보존하는 source-bound valueFacts는 구문 IR이며 계산 답안이 아니다. rootSourceApi의 source authority/타입 의미 제한을 함께 읽는다.",
     "strictData": "JSON codec은 getter/symbol/숨은 필드/sparse array/cycle/alias/nonfinite/-0을 거부한다. 실제 Host callTask/target의 선언된 optional undefined만 원래 JSON 부재로 옮긴다. 정의된 필드와 문자열은 생략·축약하지 않으며 unknown/required undefined와 accessor는 거부한다.",
     "mutation": "반환된 payload의 모든 field/key order/message/schema를 전송 직전과 decode 전 복원 경계에서 비교한다. 나중에 삽입된 getter도 호출 없이 거부한다.",
     "response": "전체 raw response는 기존 strict output codec이 검증한다. repair/trim/clipping/누락 값·문장 보충이나 source 프로그램 실행은 하지 않는다."
@@ -113,5 +113,7 @@
     "lastActualFullyCorrectPaths": 0,
     "lastActualPaths": 2,
     "goalComplete": false
-  }
+  },
+  "verificationScope": "V883 공개 입력 구현 시점의 수치이며 최신 root source port의 수치는 rootSourceApi에 있다.",
+  "rootSourceApi": "docs/NATIVE_NARRATIVE_ROOT_SOURCE.json"
 }
