@@ -1,0 +1,117 @@
+{
+  "purpose": "root/call의 전체 모델 작업이 하나의 전역 FIFO와 실제 stdio child를 소유하도록 하는 공개 TypeScript 경계. 전체 원문·모델 원문을 운반하며 값을 계산하거나 해설을 작성하지 않는다.",
+  "status": "공개 transport/action 구현. 실제 extension root/call의 qualified packet/strict decoder 연결과 실제 neural 검증은 아직 필요하다. 기본 provider나 설치 모델을 교체하지 않는다.",
+  "publicApi": "src/llm/nativeNarratives/index.ts",
+  "exports": {
+    "NativeNarrativeWorker": "생성은 inert하다. prepare(signal)는 source-free admission 뒤 실제 child ready를 검증한다. generate는 한 UID의 전체 payload와 실제 raw text를 전달한다. release는 실제 child close와 close-proof 검증까지 기다리며 이전 protocol 실패도 성공으로 바꾸지 않는다.",
+    "runNativeNarrativeAction": "기존 getGlobalModelTaskManager 또는 주입한 같은 manager의 단일 inference job 안에서 worker 생성/admission/prepare, execute callback의 전체 source I/O·요청·decode·저장·모든 page, 실제 child 정리를 수행한다. 결과 promise는 outer manager.run이 정리·settle한 뒤 반환된다.",
+    "NativeNarrativeActionOptions.execute": "source-free ready 뒤에만 호출한다. callback은 전달받은 owned signal/transport를 사용하고 전체 capture·qualified source/schema packet·strict raw decode·cache 권한·원문 보존·모든 결과 저장과 page·실패 rollback을 책임진다. 필요하면 transport.release()를 명시적으로 기다린 뒤 page를 게시하며 같은 FIFO owner 안에 남는다."
+  },
+  "ownership": {
+    "queuedWorkConstructsOrPreloadsWorker": false,
+    "oneActionOneWorker": true,
+    "overlappingRequestsAllowed": false,
+    "failureOrCancellationSettlesAcceptedRequestOnlyAfterClose": true,
+    "closeReceiptAloneReleasesOwner": false,
+    "releaseDuringAdmissionAllowsLateSpawn": false,
+    "sourceKvAcrossActionsAllowed": false,
+    "sourceFreePreparationReceivesSource": false,
+    "primaryAndCleanupErrorsRetained": true,
+    "boundedDiagnosticMetadataExcludesSourceAndResponse": true
+  },
+  "transportContract": {
+    "memberUtf8Bytes": 196608,
+    "envelopeUtf8Bytes": 200704,
+    "lineUtf8Bytes": 262144,
+    "rawOutputUtf16CodeUnits": 24000,
+    "maximumRequestTimeoutMs": 180000,
+    "defaultKillGraceMs": 2000,
+    "neuralKillGraceMs": 2000,
+    "fixtureMayUseShorterKillGrace": true,
+    "inputDataDepthLimit": 1024,
+    "inputObjectLimit": 100000,
+    "oversizedInputBehavior": "전체 request를 context-too-large로 거부한다. prefix 전송·원문/row/field/prose clipping을 하지 않는다.",
+    "invalidOutputBehavior": "invalid UTF-8·JSON·ready·UID·중복·초과·불완전 line을 거부한다. 응답을 복구·정규화하지 않는다.",
+    "capabilities": "plain JSON만 허용한다. 함수·getter·숨은 필드·symbol·순환/alias object·비유한 수·-0은 직렬화 전에 거부한다.",
+    "typedNarrativeAndCalculatedValueValidation": "이 계층은 worker envelope와 raw transport를 검증한다. 실제 source-owned narrative schema·모든 모델 값/문장·raw calculated guards는 callback의 qualified packet/decoder가 검증해야 한다."
+  },
+  "timing": {
+    "start": "Host가 완전한 source-free ready line을 수신한 monotonic 시각. UTF-8/JSON decode·ready proof·journal/observer callback보다 먼저 기록한다.",
+    "end": "실제 child close·callback·resource 정리 뒤 outer manager.run promise가 settle하여 호출자가 결과를 받는 시각",
+    "includes": [
+      "ready proof/observer",
+      "source capture",
+      "all packet construction/tokenization performed by callback",
+      "all sequential model replies",
+      "strict decoding performed by callback",
+      "all callback storage/pages",
+      "actual child close/proof",
+      "outer manager settlement"
+    ],
+    "queueAndSourceFreePreparationExcluded": true,
+    "workerSideReadyToHostReceiptDelayMeasured": false,
+    "failedActionCompleteTimingReceiptProvided": false,
+    "actualNeuralWholeHostThreeSecondsProven": false
+  },
+  "neuralAdmission": {
+    "requiredCallbacks": [
+      "admit(signal)",
+      "validateReady",
+      "validateReply",
+      "validateClosed"
+    ],
+    "admitRunsBeforeSpawnAndReceivesNoSource": true,
+    "callerMustVerify": "실제 자산 integrity·고정 model/dtype/sampler·수치/학습/whole token/EOS/capacity·원래 메모리/새 handoff gate·ready/reply/close provenance를 authoritative evidence로 검증한다. callback의 존재나 kind 문자열은 그 증거가 아니다.",
+    "neuralAuthorshipProvenByLabelOrFixture": false,
+    "modelLoadsDuringCpuVerification": 0,
+    "allowedForTraining": false,
+    "allowedForNeuralEvaluation": false
+  },
+  "remaining": [
+    "741/742/728의 qualified source-only full root/call packet과 모든 실제 same-action neural prior6필드를 공개 구현으로 옮겨 실제 extension Host에 연결하기. 기존73개 transitive dependency와 고정 out/build 의존성을 확인했으며 아직 제거하지 못했다.",
+    "callback의 전체 결과 transactional storage/rollback·권한 취소·outer completion 이후 UI success를 실제 production root/call과 연결하기",
+    "실제 worker-side source-free ready부터 Host 수신까지 포함한 qualification 관측과 실패 action의 전체 시간·원문 보존·실제 allocator/RNG/wired/child cleanup 증거를 연결하기",
+    "전체6 gradient/resource gate·고정3280 training·fresh-source 의미·정확도·whole outerHost3000ms·다운로드/모델integrity/custom model·실제 기능/시각QA·version/release/install"
+  ],
+  "release": {
+    "productVersion": "0.0.1145",
+    "newModelAdopted": false,
+    "installed": false,
+    "goalComplete": false
+  },
+  "cpuVerification": {
+    "newDistinctTests": 27,
+    "existingRegressionCases": 156,
+    "totalCases": 183,
+    "currentDistinctPassingCpuChecks": 890,
+    "cancelled": 0,
+    "skipped": 0,
+    "modelLoads": 0,
+    "mlxImports": 0,
+    "optimizerUpdates": 0,
+    "sourceProgramsExecuted": 0,
+    "actualRustGraphAndClosedFileCapture": true,
+    "actualFixturePriorCalls": 12,
+    "actualFixtureRequests": 7,
+    "allSixFieldsRetained": true,
+    "allSevenPagesDelivered": true,
+    "fixtureRepliesAreNotNeuralOutputs": true,
+    "actualChildCloseReports": 98,
+    "noPidSpawnFailureReports": 1,
+    "forcedTerminationsHaveNoInventedPeakRss": true,
+    "candidateTypes": {
+      "roots": 835,
+      "programFiles": 1067,
+      "diagnostics": 0,
+      "twoProtectedUserFilesReadOnlyHeadOverlay": true
+    },
+    "runtimeArchitecture": {
+      "productionFiles": 6,
+      "newEdges": 12,
+      "newCycles": 0,
+      "privateOrFrozenDependencies": 0
+    },
+    "actualNeuralWholeHost3000msProven": false,
+    "browserVisualQaPerformed": false
+  }
+}
