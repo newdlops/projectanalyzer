@@ -1,0 +1,117 @@
+{
+  "purpose": "완전한 root/call native 입력의 무손실 직렬화와 source-only call packet 생성. 기존 output codec을 합성하되 계산값·완전한 prose는 모델 책임으로 유지한다.",
+  "status": "공개 입력 codec과 source-only call constructor의 CPU 검증 완료. root capture→source/schema constructor, 실제 neural prior provenance, token/numerical admission 및 production native provider 연결은 남아 있다.",
+  "publicApi": "src/llm/nativeNarrativeCodec/index.ts",
+  "outputApi": "docs/NATIVE_NARRATIVE_CODEC.json",
+  "exports": {
+    "packNativeInputShapes / unpackNativeInputShapes": "원래 key 순서와 모든 문자열을 보존하는 local shape/text table. 실제 배열·빈 객체·null과 tag를 구분하고 foreign/누락 ref와 arity 오류를 거부한다.",
+    "packNativeInputTemplates / unpackNativeInputTemplates": "서로 겹치지 않는 값 위치만 원래 literal template과 인수로 표현한다. 정의 내부 template ref를 금지하며 전체 원본을 정확히 복원한다.",
+    "packNativeInputDag / unpackNativeInputDag": "같은 입력의 이전 정의만 참조한다. self/forward/foreign ref와 확장 예산 초과를 거부하고 반복 복원 객체를 독립적으로 소유한다.",
+    "packNativeSourceJson / unpackNativeSourceJson": "완전한 소스 데이터와 정확한 형식별 legend를 포함한 source-only 문자 비용으로 canonical shape/template/DAG 형식을 고른다. 응답·teacher·계산값을 선택에 사용하지 않는다.",
+    "encodeNativeSchemaNotation / decodeNativeSchemaNotation": "원래 모든 schema 조건·원래 field 순서·opaque literal을 보존한다. owned $defs/dN만 허용하며 외부/누락/순환 참조를 거부한다.",
+    "encodeNativeSourceSchema / decodeNativeSourceSchema": "원래 617/677/686/687의 source-bound annotation, P/T/S/hint/sequence 표현을 보존한다. literal source JSON은 schema로 해석하지 않으며 완전한 source SHA와 원래 operation에 결속한다.",
+    "packNativeInputMessages / unpackNativeInputMessages": "전체 원래 instruction prefix와 2~3개의 named JSON block을 보존한다. 전체 메시지+legend가 더 짧을 때만 canonical DAG를 선택하며 optional block 부재를 유지한다.",
+    "numberNativeSourceLines": "CR-only/LF/CRLF, UTF16 문자와 마지막 빈 줄을 모두 유지하며 원래 시작 행부터 label을 붙인다. 한 member가 전체 예산에 들어갈 수 없으면 prefix를 반환하지 않고 거부한다.",
+    "createNativeRootInput / restoreNativeRootInput": "이미 준비된 native source schema와 완전한 sourceData/optional sourceReadingRoles로 canonical root payload를 만든다. 원래 9문단/48claim 방향과 5개 protocol legend를 보존한다. 실제 capture로부터 root schema/domain/audit를 생성하는 기능은 아직 아니다.",
+    "createNativeRootPacket": "caller가 공급한 NativeRootCodecInput과 완전한 sourceData를 root output codec에 합성한다. decode 전에 전체 실제 전송 payload identity와 source 결속을 다시 검증한다.",
+    "createNativeCallPacket": "functionName/language/limited/snippets/callTask/optional sourceEvidence만 받는다. 모든 주어진 snippet과 call task, 이전 설명의 callId/role/output/effects/reason/inputs 전체를 canonical 순서로 유지한다. shared syntax argument-transfer schema만 사용하며 role/output/effects/reason/summary/flow를 CPU로 만들거나 고정하지 않는다."
+  },
+  "ownership": {
+    "sourceDto": "실제 capture 및 같은 action의 실제 neural 이전 설명이라는 권한은 Host가 별도로 증명해야 한다. sourceEvidence라는 이름이나 SHA만으로 의미·출처를 보증하지 않는다.",
+    "inputOnly": "교사 답안·완성문·CPU worksheet/source-example facts/source-prose/source-call-readings/valueFacts 포트를 입력 생성에 사용하지 않는다. 금지된 key는 중첩 위치에서도 거부하고 소스 문자열 속 단어는 원문으로 보존한다.",
+    "strictData": "JSON codec은 getter/symbol/숨은 필드/sparse array/cycle/alias/nonfinite/-0을 거부한다. 실제 Host callTask/target의 선언된 optional undefined만 원래 JSON 부재로 옮긴다. 정의된 필드와 문자열은 생략·축약하지 않으며 unknown/required undefined와 accessor는 거부한다.",
+    "mutation": "반환된 payload의 모든 field/key order/message/schema를 전송 직전과 decode 전 복원 경계에서 비교한다. 나중에 삽입된 getter도 호출 없이 거부한다.",
+    "response": "전체 raw response는 기존 strict output codec이 검증한다. repair/trim/clipping/누락 값·문장 보충이나 source 프로그램 실행은 하지 않는다."
+  },
+  "limits": {
+    "inputUtf16CodeUnits": 196608,
+    "completeSerializedRequestUtf8BytesIncludingNewline": 196608,
+    "inputNodes": 100000,
+    "inputDepth": 128,
+    "rawOutputUtf16CodeUnits": 24000,
+    "overflow": "전체 입력을 거부한다. 일부 field/문장/source만 남기는 fallback은 없다."
+  },
+  "canonicalCompatibility": {
+    "originalCorpusRows": 4176,
+    "corpusBytes": 211873088,
+    "corpusSha256": "bc270e14481636f701aa0f7edbc8bc9f530ba7b7e1d5eeacc32fb4a042eaad2a",
+    "wholeRootInputs": 112,
+    "wholeCallInputs": 56,
+    "entirePayloadBytesAndKeyOrderIdentical": true,
+    "allInputCodecPureParityScope": "native-input-corpus-parity-v867",
+    "finalPayloadBytesScope": "native-input-final-bytes-v878",
+    "allOriginalSourceTargetsAnd52WeightsUnchanged": true,
+    "teachersOrCompletionsPassedToConstructor": false,
+    "actualNeuralOutputs": false
+  },
+  "actualHostCpuFixture": {
+    "productionRustParserAndCapture": true,
+    "calls": 12,
+    "requests": 7,
+    "fullParentAndTransitiveHelperAndCallerSource": true,
+    "allSixActualFixturePriorFieldsKept": true,
+    "sourceLeaseDisposed": true,
+    "externalModelRepliesAreExplicitCpuFixtures": true,
+    "neuralPriorProvenanceProven": false,
+    "neuralAccuracyOrLatencyProven": false
+  },
+  "cpuVerification": {
+    "newDistinctTypeScriptCases": 40,
+    "existingRegressionCases": 220,
+    "finalRegressionCases": 260,
+    "currentDistinctPassingCpuChecks": 967,
+    "relocatedFacadeCases": 76,
+    "packagingRegressionCases": 18,
+    "candidateTypes": {
+      "roots": 872,
+      "programFiles": 1149,
+      "diagnostics": 0,
+      "twoProtectedUserFilesReadOnlyHeadOverlay": true
+    },
+    "architecture": {
+      "productionFiles": 31,
+      "runtimeEdges": 90,
+      "cycles": 0,
+      "privateOrFrozenRuntimeImports": 0
+    },
+    "largestObservedNodeProcessPeakRssBytes": 649347072,
+    "finalRegressionWorkerPeakRssBytes": 235552768,
+    "finalFacadeWorkerPeakRssBytes": 158810112,
+    "modelLoads": 0,
+    "mlxImports": 0,
+    "optimizerUpdates": 0,
+    "sourceProgramsExecuted": 0,
+    "browserVisualQaPerformed": false
+  },
+  "packaging": {
+    "runtimeFacade": "out/llm/nativeNarrativeCodec/index.js",
+    "modules": 97,
+    "vendorModules": 68,
+    "bytes": 434516,
+    "allNestedImplementationFilesExcluded": true,
+    "physicalVendorFallbackForbiddenInRelocatedTest": true,
+    "existingVsixBudgetsChanged": false,
+    "fullVsixBuiltOrInstalled": false
+  },
+  "remaining": [
+    "완전한 actual capture에서 root source/schema/domain/audit/knownNull/alias/source positions를 source-only로 구성하고 원래 mode/loop visit/개별 before:null 의미를 qualification하기",
+    "원래 native byte/token/mask/EOS/window 및 수치·all6 gradient/resource admission, fixed3280 training/4176rows/52 rational weights/408 guards와 기존 제외 집합 보존",
+    "runNativeNarrativeAction ready 뒤 capture→whole packet/tokenization→actual model→strict raw decode→transactional store/allpages→actual child close→outer manager.run settlement를 실제 root/call/custom-model 경로에 연결하기",
+    "같은 action의 실제 neural prior6필드 provenance·worker-ready부터 Host수신 지연·실패 whole-time·allocator/final8/양RNG/wired/child proof, 다운로드/integrity/FIFO cancel/dispose와 실제 기능/시각 QA·release/install"
+  ],
+  "release": {
+    "productVersion": "0.0.1145",
+    "defaultOutChanged": false,
+    "newModelAdopted": false,
+    "allowedForTraining": false,
+    "allowedForNeuralEvaluation": false,
+    "additionalModelEntryHeadroomPercent": 60,
+    "freshOwnerFree60PercentSamplesRequired": 3,
+    "freshOwnerFree60PercentGateSatisfied": false,
+    "actualWholeHostThreeSecondsProven": false,
+    "lastActualWholeHostMs": 36742.311041999994,
+    "lastActualFullyCorrectPaths": 0,
+    "lastActualPaths": 2,
+    "goalComplete": false
+  }
+}
