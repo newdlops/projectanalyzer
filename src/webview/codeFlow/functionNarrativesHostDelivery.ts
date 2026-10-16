@@ -7,12 +7,17 @@ import type { ExtensionResponse } from "../../protocol/messages";
 import type { CodeFlowEvidenceToken } from "../../protocol/functionLogic";
 import type { SourceRange } from "../../shared/types";
 import { createContentHash } from "../../shared/hash";
+import type { NarrativeSourceLease } from "../../shared/narrativeSources";
+import { getNarrativeSourceFailureStatus } from "../../application/narrativeSources";
 
 // Unmanaged adapters retain a fallback deadline. Production adapters measure
 // their three-minute execution bound after the global queue grants ownership.
 const SCENARIO_BATCH_DEADLINE_MS = 90000;
 type ReadyResult = Pick<FunctionNarrativesResponse, "narrative" | "snippets" | "evidenceTokens" | "modelName" | "limited" | "language" | "page" | "coverage">;
-type ContextEntry = { graphVersion: string; contextId: string; context: FunctionNarrativeContext; filePath: string; sourceHash?: string; lastRequestId: number; reselectModel: boolean; cached: Map<string, ReadyResult>; sessions: Map<string, FunctionNarrativeScenarioSession> };
+type ActionSources = { context: FunctionNarrativeContext; lease: NarrativeSourceLease };
+type ContextEntry = { graphVersion: string; contextId: string; context: FunctionNarrativeContext; filePath: string; sourceHash?: string;
+  loadSources?(signal: AbortSignal): Promise<ActionSources>; sourceCaptureSha256?: string;
+  lastRequestId: number; reselectModel: boolean; cached: Map<string, ReadyResult>; sessions: Map<string, FunctionNarrativeScenarioSession> };
 export type FunctionNarrativesHostDependencies = {
   provider?: FunctionNarrativeProvider;
   sourcePresenter?: FunctionNarrativeSourcePresenter;
@@ -31,7 +36,8 @@ export class FunctionNarrativesHostDelivery {
   public constructor(private readonly dependencies: FunctionNarrativesHostDependencies) {}
 
   /** Registers only Host-published source; browser requests can never choose another file or prompt. */
-  public register(flowId: string, graphVersion: string, context: FunctionNarrativeContext, filePath: string, sourceHash?: string): string | undefined {
+  public register(flowId: string, graphVersion: string, context: FunctionNarrativeContext, filePath: string, sourceHash?: string,
+    loadSources?: ContextEntry["loadSources"]): string | undefined {
     if (!this.dependencies.isActive(graphVersion) || !this.dependencies.provider || !context.snippets.some((snippet) => snippet.role === "function")) return undefined;
     for (const [id, entry] of this.contexts) if (entry.graphVersion !== graphVersion) { this.disposeEntry(entry); this.contexts.delete(id); }
     const prior = this.contexts.get(flowId);
@@ -41,7 +47,7 @@ export class FunctionNarrativesHostDelivery {
     if (this.pending?.request.flowId === flowId) this.pending.controller.abort();
     if (this.presentedFlowId === flowId) { this.dependencies.sourcePresenter?.clear(); this.presentedFlowId = undefined; }
     if (prior) this.disposeEntry(prior);
-    this.contexts.set(flowId, { graphVersion, contextId, context, filePath, sourceHash, lastRequestId: -1, reselectModel: false, cached: new Map(), sessions: new Map() });
+    this.contexts.set(flowId, { graphVersion, contextId, context, filePath, sourceHash, loadSources, lastRequestId: -1, reselectModel: false, cached: new Map(), sessions: new Map() });
     while (this.contexts.size > 8) {
       const oldest = this.contexts.keys().next().value!;
       if (this.pending?.request.flowId === oldest) this.pending.controller.abort();
@@ -153,19 +159,28 @@ export class FunctionNarrativesHostDelivery {
     let onAbort: () => void = () => {};
     const cancelled = new Promise<never>((_resolve, reject) => {
       onAbort = () => reject(new FunctionNarrativeError("cancelled"));
-      controller.signal.addEventListener("abort", onAbort, { once: true });
+      if (!entry.loadSources) controller.signal.addEventListener("abort", onAbort, { once: true });
     });
     const stillCurrent = () => this.contexts.get(request.flowId) === entry && this.dependencies.isActive(request.graphVersion);
     const operation = { label: entry.context.functionName, onProgress: (task: NonNullable<FunctionNarrativesResponse["task"]>) => {
       if (this.pending === pending && stillCurrent()) void send({ status: "working", task }).catch(() => {});
     } };
+    let sourceLease: NarrativeSourceLease | undefined;
     try {
       if (provider.prepare) await Promise.race([provider.prepare(language, controller.signal, operation), cancelled]);
       if (controller.signal.aborted || this.pending !== pending || !stillCurrent()) return;
-      const response = await Promise.race([requestFunctionNarrative(provider, entry.context, language, controller.signal, 45000,
-        { ...operation, reselectModel: entry.reselectModel }), cancelled]);
+      if (entry.loadSources) {
+        sourceLease = await this.acquireSources(entry, controller.signal);
+        await sourceLease?.assertCurrent(controller.signal);
+      }
+      if (controller.signal.aborted || this.pending !== pending || !stillCurrent()) return;
+      const generation = requestFunctionNarrative(provider, entry.context, language, controller.signal, 45000,
+        { ...operation, reselectModel: entry.reselectModel });
+      const response = sourceLease ? await generation : await Promise.race([generation, cancelled]);
       if (controller.signal.aborted || this.pending !== pending || !stillCurrent()) return;
       const narrative = parseFunctionNarrative(response.text, entry.context, language);
+      if (sourceLease) await sourceLease.assertCurrent(controller.signal);
+      if (controller.signal.aborted || this.pending !== pending || !stillCurrent()) return;
       const evidenceTokens = narrative.scenarios.map((scenario) => scenario.steps.map((step) => {
         const token = this.dependencies.createEvidence(entry.filePath, {
           startLine: step.source.startLine - 1, startCharacter: 0, endLine: step.source.endLine, endCharacter: 0
@@ -181,11 +196,12 @@ export class FunctionNarrativesHostDelivery {
       await send({ status: "ready", ...result, cacheHit: false });
     } catch (error) {
       if (stillCurrent()) {
-        const status = error instanceof FunctionNarrativeError ? error.code : "failed";
+        const status = getNarrativeSourceFailureStatus(error) ?? (error instanceof FunctionNarrativeError ? error.code : "failed");
         if (status !== "cancelled") entry.reselectModel = true;
         await send({ status });
       }
     } finally {
+      sourceLease?.dispose();
       controller.signal.removeEventListener("abort", onAbort);
       if (this.pending === pending) this.pending = undefined;
     }
@@ -198,6 +214,7 @@ export class FunctionNarrativesHostDelivery {
       this.dependencies.postMessage({ type: "codeFlow/functionNarrativesLoaded", payload: { ...request, ...result } });
     if (!provider) { await send({ status: "unavailable" }); return; }
     let session = entry.sessions.get(language);
+    const createdSession = !session;
     if (!session) { session = new FunctionNarrativeScenarioSession(entry.context, this.dependencies.createPageStore!()); entry.sessions.set(language, session); }
     const controller = new AbortController(); const pending = { request, controller }; this.pending = pending;
     let generated = false;
@@ -205,53 +222,69 @@ export class FunctionNarrativesHostDelivery {
     const operation = { label: entry.context.functionName, onProgress: (task: NonNullable<FunctionNarrativesResponse["task"]>) => {
       if (current()) void send({ status: "working", task }).catch(() => {});
     } };
+    let sourceLease: NarrativeSourceLease | undefined;
     try {
       if (!session.complete && provider.prepare) await this.prepareProvider(provider, language, controller.signal,
-        { ...operation, sourceReading: entry.context.detailLevel === "rich" });
+        { ...operation, sourceReading: !entry.loadSources && entry.context.detailLevel === "rich" }, Boolean(entry.loadSources));
       if (!current()) return;
+      if (entry.loadSources) sourceLease = await this.acquireSources(entry, controller.signal);
+      if (controller.signal.aborted || !current()) return;
+      if (createdSession && sourceLease) {
+        if (entry.sessions.get(language) === session) entry.sessions.delete(language);
+        await session.dispose();
+        if (controller.signal.aborted || !current()) return;
+        session = new FunctionNarrativeScenarioSession(entry.context, this.dependencies.createPageStore!()); entry.sessions.set(language, session);
+      }
+      const actionSession = session;
       // Keep weights loaded only for this explicit whole-function request.
       // Each inference still queues independently; cancellation overrides retention.
       const boundedProvider: FunctionNarrativeProvider = {
         supportsFinalSummary: signal => provider.supportsFinalSummary?.(signal) === true,
-        generate(context, locale, signal, options) {
-          return requestFunctionNarrative(provider, context, locale, signal, SCENARIO_BATCH_DEADLINE_MS, { ...options, ...operation });
+        async generate(context, locale, signal, options) {
+          await sourceLease?.assertCurrent(signal);
+          const response = await requestFunctionNarrative(provider, context, locale, signal, SCENARIO_BATCH_DEADLINE_MS, { ...options, ...operation });
+          await sourceLease?.assertCurrent(signal); return response;
         }
       };
       const analyze = async () => {
-        while (!session.complete) {
+        while (!actionSession.complete) {
           let onAbort = () => {};
           const cancelled = new Promise<never>((_resolve, reject) => {
             onAbort = () => reject(new FunctionNarrativeError("cancelled"));
-            controller.signal.addEventListener("abort", onAbort, { once: true });
+            if (!entry.context.sourceEvidence) controller.signal.addEventListener("abort", onAbort, { once: true });
           });
           try {
             if (controller.signal.aborted) throw new FunctionNarrativeError("cancelled");
-            await Promise.race([session.analyzeNext(boundedProvider, language, controller.signal, { reselectModel: entry.reselectModel }), cancelled]);
+            const page = actionSession.analyzeNext(boundedProvider, language, controller.signal, { reselectModel: entry.reselectModel,
+              assertSourceCurrent: () => sourceLease?.assertCurrent(controller.signal) ?? Promise.resolve() });
+            if (sourceLease) await page; else await Promise.race([page, cancelled]);
           } finally { controller.signal.removeEventListener("abort", onAbort); }
           if (!current() || controller.signal.aborted) return;
           generated = true;
           entry.reselectModel = false;
-          const first = await session.readPage(0).catch(() => undefined);
+          const first = await actionSession.readPage(0).catch(() => undefined);
           if (!current() || controller.signal.aborted) return;
           if (!first) throw new FunctionNarrativeError("invalid-response");
-          const result = this.projectPage(entry, session, first, language);
-          entry.cached.set(language, result);
-          this.presentSource(request.flowId, entry, result);
-          await send({ status: session.complete ? "ready" : "progress", ...result, cacheHit: false });
-        }
-        // A complete session serves its first page on repeated generation without another provider call.
-        const first = await session.readPage(0);
-        if (!generated && current() && first) {
-          const result = this.projectPage(entry, session, first, language);
-          entry.cached.set(language, result); this.presentSource(request.flowId, entry, result);
-          await send({ status: "ready", ...result, cacheHit: true });
+          if (!actionSession.complete) {
+            const result = this.projectPage(entry, actionSession, first, language);
+            entry.cached.set(language, result); this.presentSource(request.flowId, entry, result);
+            await send({ status: "progress", ...result, cacheHit: false });
+          }
         }
       };
       if (provider.withRun) await provider.withRun(language, controller.signal, analyze);
       else await analyze();
+      await sourceLease?.assertCurrent(controller.signal);
+      if (controller.signal.aborted || !current()) return;
+      const first = await session.readPage(0);
+      if (first && current() && !controller.signal.aborted) {
+        const result = this.projectPage(entry, session, first, language);
+        entry.cached.set(language, result); this.presentSource(request.flowId, entry, result);
+        await send({ status: "ready", ...result, cacheHit: !generated });
+      }
     } catch (error) {
       if (current()) {
-        const status = error instanceof FunctionNarrativeError ? error.code : "failed";
+        const status = getNarrativeSourceFailureStatus(error) ?? (error instanceof FunctionNarrativeError ? error.code : "failed");
         if (status !== "cancelled") entry.reselectModel = true;
         const first = await session.readPage(0).catch(() => undefined);
         if (!current()) return;
@@ -259,13 +292,26 @@ export class FunctionNarrativesHostDelivery {
         if (first) entry.cached.set(language, result);
         await send({ status, ...result, cacheHit: false });
       }
-    } finally { if (this.pending === pending) this.pending = undefined; }
+    } finally { sourceLease?.dispose(); if (this.pending === pending) this.pending = undefined; }
+  }
+
+  /** Fresh acquisition follows source-free preparation; a resumed action must retain its exact original capture. */
+  private async acquireSources(entry: ContextEntry, signal: AbortSignal): Promise<NarrativeSourceLease | undefined> {
+    if (!entry.loadSources) return undefined;
+    const loaded = await entry.loadSources(signal);
+    try {
+      if (signal.aborted || entry.sourceCaptureSha256 && entry.sourceCaptureSha256 !== loaded.lease.captureSha256) throw new FunctionNarrativeError("cancelled");
+      await loaded.lease.assertCurrent(signal);
+      entry.context = loaded.context; entry.sourceCaptureSha256 = loaded.lease.captureSha256;
+      return loaded.lease;
+    } catch (error) { loaded.lease.dispose(); throw error; }
   }
 
   /** Cancellation wins even if a setup adapter fails to observe its signal; cached pages never call this. */
   private async prepareProvider(provider: FunctionNarrativeProvider, language: "ko" | "en", signal: AbortSignal,
-    options?: Parameters<NonNullable<FunctionNarrativeProvider["prepare"]>>[2]): Promise<void> {
+    options?: Parameters<NonNullable<FunctionNarrativeProvider["prepare"]>>[2], awaitCleanup = false): Promise<void> {
     if (signal.aborted) throw new FunctionNarrativeError("cancelled");
+    if (awaitCleanup) return provider.prepare!(language, signal, options);
     let abort = () => {};
     const cancelled = new Promise<never>((_resolve, reject) => {
       abort = () => reject(new FunctionNarrativeError("cancelled"));

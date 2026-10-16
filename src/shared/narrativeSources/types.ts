@@ -1,5 +1,5 @@
 /** Host-independent contracts for complete, action-owned source acquisition. */
-import type { GraphEdge, SourceRange, SymbolNode } from "../types";
+import type { GraphEdge, ProjectGraph, SourceRange, SymbolNode } from "../types";
 
 /** Whole text from one editor version or one stable disk-file version. */
 export type SourceDocumentSnapshot = { filePath: string; text: string; revision: string };
@@ -61,3 +61,21 @@ export interface NarrativeSourceLease {
   assertCurrent(signal: AbortSignal): Promise<void>;
   dispose(): void;
 }
+
+/** Composition-root ports; graph identity is checked again after asynchronous work. */
+export interface NarrativeSourceAccess {
+  readonly maxDepth: number;
+  capture(input: { graph: ProjectGraph; getCurrentGraph(): ProjectGraph | undefined;
+    rootIds: readonly string[]; signal: AbortSignal }): Promise<NarrativeSourceLease>;
+  readFileText(filePath: string, signal: AbortSignal): Promise<string | undefined>;
+}
+
+/** Model-readable aliases retain source positions/confidence without workspace identities. */
+export type NarrativeSourceEvidence = {
+  complete: boolean;
+  declarations: Array<{ snippetId: string; name: string; kind: SymbolNode["kind"]; language: string;
+    range: SourceRange; graphRange: SourceRange; selectionRange: SourceRange; depth: number; parent?: string }>;
+  relations: Array<{ from: string; to: string; kind: GraphEdge["kind"]; confidence: GraphEdge["confidence"]; range?: SourceRange }>;
+  gaps: Array<{ from?: string; target: string; reason: SourceCaptureGap["reason"]; relation?: number }>;
+  analysisCaveats: Array<{ declaration: string; code: string; message: string }>;
+};

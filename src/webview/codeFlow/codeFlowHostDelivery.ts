@@ -15,7 +15,10 @@ import {
   buildFunctionTutorModel
 } from "../../application/codeFlow";
 import { analyzeFunctionLogic } from "../../analyzer/functionLogic";
-import { buildFunctionNarrativeContext, addFunctionNarrativeValueGrounding, bindFunctionNarrativeGraph, type FunctionNarrativeProvider } from "../../application/functionNarratives";
+import { buildFunctionNarrativeContext, buildCapturedFunctionNarrativeContext, addFunctionNarrativeValueGrounding, bindFunctionNarrativeGraph, type FunctionNarrativeProvider } from "../../application/functionNarratives";
+import { getNarrativeSourceRoots } from "../../application/narrativeSources";
+import type { NarrativeSourceAccess } from "../../shared/narrativeSources";
+import type { FunctionNarrativeContext } from "../../shared/functionNarratives";
 import type { FunctionNarrativesRequest, FunctionNarrativeSourceRequest } from "../../protocol/functionNarratives";
 import { FunctionNarrativesHostDelivery } from "./functionNarrativesHostDelivery";
 import { parseScenarioInputSuggestions, ScenarioInputError, type ScenarioInputProvider } from "../../application/scenarioInputs";
@@ -56,6 +59,7 @@ export type CodeFlowHostDeliveryDependencies = {
   projectionOptions?: SymbolCodeFlowProjectionOptions;
   scenarioInputProvider?: ScenarioInputProvider;
   functionNarrativeProvider?: FunctionNarrativeProvider;
+  narrativeSources?: NarrativeSourceAccess;
   functionNarrativeSourcePresenter?: import("../../shared/functionNarratives").FunctionNarrativeSourcePresenter;
   createFunctionNarrativePageStore?: import("../../shared/functionNarratives").FunctionNarrativePageStoreFactory;
   readSourceText(filePath: string): Promise<string | undefined>;
@@ -332,14 +336,24 @@ export class CodeFlowHostDelivery {
       tutorModel
     );
     if (payload.logic?.tutor && sourceText && this.dependencies.functionNarrativeProvider) {
+      const logic = payload.logic, tutor = payload.logic.tutor;
       const helperIds = new Set(tutorModel.context.callees.filter((callee) => callee.kind === "local").map((callee) => callee.nodeId));
       const grounded = addFunctionNarrativeValueGrounding(buildFunctionNarrativeContext(node, sourceText,
         active.graph.nodes.filter((candidate) => helperIds.has(candidate.id)), analysis), tutorModel);
-      const context = bindFunctionNarrativeGraph({ ...grounded,
-        detailLevel: "rich", parameters: payload.logic.tutor.parameters.map((parameter) => ({ name: parameter.name, type: parameter.typeText })),
-        valueNames: [...new Set([...(analysis.valueBindings ?? []).map((binding) => binding.name), "result", "condition"])].slice(0, 120)
-      }, payload.logic.blocks.map((block) => block.id), payload.logic.edges);
-      const contextId = this.narratives.register(payload.id, active.version, context, node.filePath, createContentHash(sourceText));
+      const bindContext = (grounded: FunctionNarrativeContext) => bindFunctionNarrativeGraph({ ...grounded,
+        detailLevel: "rich", parameters: tutor.parameters.map((parameter) => ({ name: parameter.name, type: parameter.typeText })),
+        valueNames: [...new Set([...(analysis.valueBindings ?? []).map((binding) => binding.name), "result", "condition"])]
+      }, logic.blocks.map((block) => block.id), logic.edges);
+      const context = bindContext(grounded), access = this.dependencies.narrativeSources;
+      const loadSources = access ? async (signal: AbortSignal) => {
+        const lease = await access.capture({ graph: active.graph, rootIds: getNarrativeSourceRoots(active.graph, node.id, access.maxDepth), signal,
+          getCurrentGraph: () => this.dependencies.graphDelivery.current()?.graph });
+        try {
+          const whole = buildCapturedFunctionNarrativeContext(node, sourceText, lease, analysis);
+          return { context: bindContext({ ...whole, returnTypeText: tutorModel.declaration.returnTypeText }), lease };
+        } catch (error) { lease.dispose(); throw error; }
+      } : undefined;
+      const contextId = this.narratives.register(payload.id, active.version, context, node.filePath, createContentHash(sourceText), loadSources);
       payload.logic.tutor.narratives = { available: Boolean(contextId), ...(contextId ? { contextId,
         sourceToken: this.dependencies.sourceNodeTokens.createToken(node.id) } : {}) };
     }

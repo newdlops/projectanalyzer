@@ -13,10 +13,13 @@ import type { CodeFlowEvidenceToken } from "../../protocol/functionLogic";
 import type { WebviewGraphDelivery } from "../sidebarGraphDelivery";
 import type { SourceNodeTokenRegistry } from "../sourceNavigation";
 import type { CodeFlowEvidenceTokenRegistry } from "../codeFlow";
+import { getNarrativeSourceRoots, getNarrativeSourceFailureStatus } from "../../application/narrativeSources";
+import type { NarrativeSourceAccess, NarrativeSourceLease } from "../../shared/narrativeSources";
 
 type Dependencies = {
   graphDelivery: WebviewGraphDelivery; sourceNodeTokens: SourceNodeTokenRegistry; evidenceTokens: CodeFlowEvidenceTokenRegistry;
   provider?: FunctionNarrativeProvider; getLanguage(): "ko" | "en";
+  narrativeSources?: NarrativeSourceAccess;
   readSourceText(path: string): Promise<string | undefined>;
   postMessage(payload: FunctionCallNarrativesResponse): Promise<void>;
 };
@@ -24,6 +27,7 @@ type Entry = { contextId: string; node: SymbolNode; source: string; slice: Funct
 type Reading = { plan: FunctionCallNarrativePlan; calls: FunctionCallReadingEntry[]; summary?: string; flow?: string;
   limitations: string[]; modelName?: string; language: "ko" | "en"; sourceLimited: boolean; hasSummary: boolean; allSourceDetails: boolean;
   proofBatches: FunctionCallSourceProofHandle[];
+  sourceCaptureSha256?: string;
   calleeEvidence: NonNullable<import("../../shared/functionCallNarratives").FunctionCallNarrativeTask["calleeEvidence"]> };
 
 /** Recent contexts authorize source reads; recent routes retain prose, never a resident model. */
@@ -96,13 +100,29 @@ export class FunctionCallNarrativesHostDelivery {
       if (this.pending === pending && this.active(request, entry)) void this.dependencies.postMessage({ ...request, status: "working", task }).catch(() => {});
     } };
     const ensureActive = () => { if (signal.aborted || this.pending !== pending || !this.active(request, entry)) throw new FunctionNarrativeError("cancelled"); };
+    let sourceLease: NarrativeSourceLease | undefined;
     try {
-      await provider.prepare?.(language, signal, { ...operation, sourceReading: true }); ensureActive();
+      await provider.prepare?.(language, signal, { ...operation, sourceReading: !this.dependencies.narrativeSources }); ensureActive();
       // Retain one model only for this explicit action, across asynchronous
       // source reads/publication. Each chunk still owns its normal FIFO slot.
       const actionReading = reading;
       const analyze = async () => {
         const reading = actionReading;
+        const access = this.dependencies.narrativeSources;
+        if (access) {
+          const graph = this.dependencies.graphDelivery.current()!.graph;
+          const rootIds = new Set(getNarrativeSourceRoots(graph, entry.node.id, access.maxDepth));
+          for (const row of reading.plan.rows) {
+            const target = entry.slice.nodes.find(node => node.id === row.connection.to);
+            const node = target?.sourceToken && this.dependencies.sourceNodeTokens.resolve(target.sourceToken);
+            if (node) rootIds.add(node.id);
+          }
+          sourceLease = await access.capture({ graph, rootIds: [...rootIds], signal,
+            getCurrentGraph: () => this.dependencies.graphDelivery.current()?.graph });
+          ensureActive();
+          if (reading.sourceCaptureSha256 && reading.sourceCaptureSha256 !== sourceLease.captureSha256) throw new FunctionNarrativeError("cancelled");
+          reading.sourceCaptureSha256 = sourceLease.captureSha256;
+        }
         do {
           const offset = reading.calls.length;
           // At most two declarations per chunk. Evidence uses the same immutable
@@ -112,7 +132,8 @@ export class FunctionCallNarrativesHostDelivery {
             ensureActive(); const node = this.dependencies.sourceNodeTokens.resolve(token as SourceNodeToken);
             const graph = this.dependencies.graphDelivery.current()?.graph;
             if (!node || !graph || !createProjectCallableScope(graph.workspaceRoot)(node)) return undefined;
-            const source = node.filePath === entry.node.filePath ? entry.source : await this.dependencies.readSourceText(node.filePath).catch(() => undefined);
+            const source = node.filePath === entry.node.filePath ? entry.source : access
+              ? await access.readFileText(node.filePath, signal) : await this.dependencies.readSourceText(node.filePath).catch(() => undefined);
             ensureActive();
             if (source === undefined) return undefined;
             calleeRanges.set(node.id, resolveFunctionCallDeclarationRange(node, source));
@@ -120,27 +141,33 @@ export class FunctionCallNarrativesHostDelivery {
           }, token => {
             const location = this.dependencies.evidenceTokens.resolve(token as CodeFlowEvidenceToken);
             return location?.filePath === entry.node.filePath ? location.range : undefined;
-          });
+          }, sourceLease);
           const finalSummary = reading.plan.rows.length > 2 && offset === reading.plan.rows.length;
           context.callTask!.includeSummary = reading.plan.rows.length <= 2 || finalSummary;
           if (finalSummary) {
-            if (reading.allSourceDetails) context.sourceCallFlowProof = { inferred: reading.plan.rows.some(row => row.connection.confidence === "inferred"),
+            if (reading.allSourceDetails && !context.sourceEvidence) context.sourceCallFlowProof = { inferred: reading.plan.rows.some(row => row.connection.confidence === "inferred"),
               batches: reading.proofBatches };
             context.callTask!.calleeEvidence = reading.calleeEvidence;
-            context.callTask!.earlierModelReadings = reading.calls.slice(0, 8).map(call => ({ callId: call.callId,
-              inputs: call.inputs.slice(0, 100), output: call.output.slice(0, 100), effects: call.effects.slice(0, 100) }));
-            context.callTask!.sourceLimited ||= reading.plan.rows.length > 8 || reading.calleeEvidence.some(evidence => evidence.truncated);
+            context.callTask!.sourceLimited ||= reading.calleeEvidence.some(evidence => evidence.truncated);
             context.limited ||= context.callTask!.sourceLimited;
           }
+          // Every later request receives all six original fields from this action's actual responses.
+          context.callTask!.earlierModelReadings = reading.calls.map(({ callId, role, inputs, output, effects, reason }) => ({ callId, role, inputs, output, effects, reason }));
+          await sourceLease?.assertCurrent(signal);
           ensureActive();
           let abort = () => {};
-          const cancelled = new Promise<never>((_resolve, reject) => { abort = () => reject(new FunctionNarrativeError("cancelled")); signal.addEventListener("abort", abort, { once: true }); });
+          const cancelled = new Promise<never>((_resolve, reject) => { abort = () => reject(new FunctionNarrativeError("cancelled"));
+            if (!context.sourceEvidence) signal.addEventListener("abort", abort, { once: true }); });
           let response;
-          try { response = await Promise.race([requestFunctionNarrative(provider, context, language, signal, 180000, operation), cancelled]); }
+          try {
+            const generation = requestFunctionNarrative(provider, context, language, signal, 180000, operation);
+            response = context.sourceEvidence ? await generation : await Promise.race([generation, cancelled]);
+          }
           finally { signal.removeEventListener("abort", abort); }
           ensureActive();
           const chunk = parseFunctionCallNarrative(response.text, context, language);
-          if (!context.callTask!.includeSummary) {
+          await sourceLease?.assertCurrent(signal); ensureActive();
+          if (!context.callTask!.includeSummary && !context.sourceEvidence) {
             const source = context.sourceCallReadings?.read(context, language);
             // Model-authored strings, even with a source-looking model name,
             // cannot authorize a whole-flow recipe without matching the proof.
@@ -157,14 +184,14 @@ export class FunctionCallNarrativesHostDelivery {
           reading.limitations = [...new Set(chunk.limitations)].slice(0, 2);
           for (const target of context.callTask!.targets) {
             const snippet = context.snippets.find(candidate => candidate.id === target.calleeSnippet);
-            if (snippet && reading.calleeEvidence.length < 8) reading.calleeEvidence.push({ callId: target.callId, callee: target.callee,
-              code: snippet.text.slice(0, 450), truncated: snippet.truncated || snippet.text.length > 450 });
+            if (snippet && (context.sourceEvidence || reading.calleeEvidence.length < 8)) reading.calleeEvidence.push({ callId: target.callId, callee: target.callee,
+              code: context.sourceEvidence ? snippet.text : snippet.text.slice(0, 450), truncated: snippet.truncated || !context.sourceEvidence && snippet.text.length > 450 });
           }
           for (let index = 0; index < chunk.calls.length; index += 1) {
             const row = reading.plan.rows[offset + index], target = entry.slice.nodes.find(node => node.id === row.connection.to);
             const callee = target?.sourceToken && this.dependencies.sourceNodeTokens.resolve(target.sourceToken);
             reading.calls.push({ ...chunk.calls[index], connectionId: row.connection.id, occurrence: row.occurrence,
-              expression: row.expression.slice(0, 1200), callee: target?.name ?? "unknown", confidence: row.connection.confidence,
+              expression: row.expression, callee: target?.name ?? "unknown", confidence: row.connection.confidence,
               deferred: row.connection.deferred || row.connection.relation !== "call", callerEvidence: row.connection.evidenceToken,
               calleeEvidence: callee ? this.dependencies.evidenceTokens.createToken(callee.filePath, calleeRanges.get(callee.id) ?? callee.range) : undefined, calleeSourceToken: target?.sourceToken });
           }
@@ -174,12 +201,12 @@ export class FunctionCallNarrativesHostDelivery {
       if (provider.withRun) await provider.withRun(language, signal, analyze); else await analyze();
       // A ready response means process/resource cleanup finished too. A cancel
       // or root change during teardown cannot publish a late success.
-      ensureActive(); await this.send(request, reading, "ready", false);
+      await sourceLease?.assertCurrent(signal); ensureActive(); await this.send(request, reading, "ready", false);
     } catch (error) {
       if (this.pending === pending && this.active(request, entry)) {
-        const status = signal.aborted ? "cancelled" : error instanceof FunctionNarrativeError ? error.code : "failed";
+        const status = signal.aborted ? "cancelled" : getNarrativeSourceFailureStatus(error) ?? (error instanceof FunctionNarrativeError ? error.code : "failed");
         if (reading.hasSummary || reading.calls.length) await this.send(request, reading, status, false); else await failure(status);
       }
-    } finally { if (this.pending === pending) this.pending = undefined; }
+    } finally { sourceLease?.dispose(); if (this.pending === pending) this.pending = undefined; }
   }
 }

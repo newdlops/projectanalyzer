@@ -34,6 +34,7 @@ export function buildFunctionCallNarrativePrompt(context: FunctionNarrativeConte
     : "effectSyntax inventories explicit write/call statements and lexical ownership. Its order is source position, NOT proved evaluation/execution order, storage/logging/I/O success or normal completion. Preserve every statement/argument and mark unsupplied call implementations unknown. If limited, also read the remaining source; do not conclude there are no effects.");
   return [rules.join("\n") + "\nJSON schema:\n" + JSON.stringify(outputSchema ?? createFunctionCallNarrativeSchema(task, language)),
     JSON.stringify({ functionName: context.functionName, language: context.language,
+      ...(context.sourceEvidence ? { sourceEvidence: context.sourceEvidence } : {}),
       callTask: { ...task, targets: task.targets.map(target => ({ ...target,
         // The Host keeps exact zero-based ownership ranges. The model needs
         // the authored statement and lexical regions, not duplicated operands
@@ -56,7 +57,7 @@ export function parseFunctionCallNarrative(text: string, context: FunctionNarrat
   if (!isFunctionCallNarrativeLanguage(parsed, language)) throw new FunctionNarrativeError("language-mismatch");
   // Constrained decoding can reach a prose cap mid-sentence. Keep its complete
   // summary sentences; full call details/flow remain available alongside them.
-  if(parsed.summary&&!/[.!?。！？]$/u.test(parsed.summary.trim())){
+  if(!context.sourceEvidence&&parsed.summary&&!/[.!?。！？]$/u.test(parsed.summary.trim())){
     const endings=[...parsed.summary.matchAll(/[.!?。！？](?=\s|$)/gu)],last=endings.at(-1)?.index;
     if(last!==undefined&&last>=30)parsed.summary=parsed.summary.slice(0,last+1).trim();
   }

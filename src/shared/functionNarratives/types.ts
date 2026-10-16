@@ -54,6 +54,8 @@ export type FunctionCallSourceProofHandle = { readonly kind: "function-call-sour
 export type FunctionNarrativeContext = {
   functionName: string;
   language: string;
+  /** Complete action-source coverage with aliased graph relations; no absolute file identities. */
+  sourceEvidence?: import("../narrativeSources").NarrativeSourceEvidence;
   /** Independent call-reading task using the same on-demand provider/process lifecycle. */
   callTask?: import("../functionCallNarratives").FunctionCallNarrativeTask;
   /** Host-only syntax proof port; neither full source ownership nor this callback is serialized to a model. */

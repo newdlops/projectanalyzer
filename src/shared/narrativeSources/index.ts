@@ -3,5 +3,6 @@ export { SourceCaptureError, requireSourceActive } from "./errors";
 export type { SourceCaptureErrorCode } from "./errors";
 export type {
   SourceDocumentSnapshot, NarrativeSourceReader, NarrativeSourceGraph, SourceCaptureLimits,
-  CapturedSourceDeclaration, SourceCaptureGap, NarrativeSourceCapture, NarrativeSourceLease
+  CapturedSourceDeclaration, SourceCaptureGap, NarrativeSourceCapture, NarrativeSourceLease,
+  NarrativeSourceAccess, NarrativeSourceEvidence
 } from "./types";

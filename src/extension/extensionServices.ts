@@ -24,6 +24,9 @@ import { createConfiguredFunctionNarrativeProvider } from "../vscode/configuredF
 import { createModelTasksUi, type ModelTasksUi } from "../vscode/modelTasks";
 import { getGlobalModelTaskManager, type ModelTaskManager } from "../shared/modelTasks";
 import { createFunctionNarrativePageStore } from "../storage/functionNarrativePages";
+import { createNarrativeSourceAccess } from "../application/narrativeSources";
+import { VsCodeNarrativeSourceReader } from "../vscode/narrativeSources";
+import { readSourceFileSnapshot } from "../storage/sourceFiles";
 import { createManagedLocalModelCache, DEFAULT_FUNCTION_NARRATIVE_MODEL } from "../storage/localModels";
 import { FunctionNarrativeDecorationService } from "../vscode/functionNarrativeDecorations";
 import { ExplorerGraphPanelProvider } from "../webview/explorerGraphPanelProvider";
@@ -64,6 +67,11 @@ export function createExtensionServices(context: vscode.ExtensionContext): Exten
   const modelTasksUi = createModelTasksUi(vscode, modelTasks, config.uiLanguage);
   context.subscriptions.push(modelTasksUi, modelTasks);
   const functionNarrativeProvider = createConfiguredFunctionNarrativeProvider(localModels, modelTasks);
+  const narrativeSources = createNarrativeSourceAccess(new VsCodeNarrativeSourceReader(vscode.workspace, readSourceFileSnapshot), {
+    maxDepth: 8, maxDeclarations: 64, maxSourceBytes: 196_608,
+    maxFileBytes: Math.min(Math.floor(config.maxFileSizeKb * 1024), 1_048_576), maxTotalFileBytes: 4_194_304,
+    maxGraphNodes: 4096, maxEdges: 16_384
+  });
   const sourceHighlighter = new SourceHighlightService();
   const narrativeDecorations = new FunctionNarrativeDecorationService(vscode);
   context.subscriptions.push(sourceHighlighter);
@@ -108,6 +116,7 @@ export function createExtensionServices(context: vscode.ExtensionContext): Exten
   });
   const functionVisualizerPanelProvider = new FunctionVisualizerPanelProvider({
     functionNarrativeProvider,
+    narrativeSources,
     createFunctionNarrativePageStore,
     functionNarrativeSourcePresenter: narrativeDecorations.createPresenter(),
     config,
@@ -130,6 +139,7 @@ export function createExtensionServices(context: vscode.ExtensionContext): Exten
   context.subscriptions.push(moduleVisualizerPanelProvider);
   const explorerViewProvider = new ExplorerViewProvider({
     functionNarrativeProvider,
+    narrativeSources,
     createFunctionNarrativePageStore,
     functionNarrativeSourcePresenter: narrativeDecorations.createPresenter(),
     context,

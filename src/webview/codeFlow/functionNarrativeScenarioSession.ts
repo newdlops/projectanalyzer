@@ -30,14 +30,14 @@ export class FunctionNarrativeScenarioSession {
 
   /** Completes one page through bounded scenario/node requests; retries retain all validated work in that page. */
   public async analyzeNext(provider: FunctionNarrativeProvider, language: "ko" | "en", signal: AbortSignal,
-    options: { reselectModel: boolean }): Promise<FunctionNarrativeStoredPage | undefined> {
+    options: { reselectModel: boolean; assertSourceCurrent?(): Promise<void> }): Promise<FunctionNarrativeStoredPage | undefined> {
     if (this.complete) return undefined;
     return provider.withRun ? provider.withRun(language, signal, () => this.analyzePage(provider, language, signal, options))
       : this.analyzePage(provider, language, signal, options);
   }
   /** A page publishes only after final synthesis and releases its optional resource scope before returning. */
   private async analyzePage(provider: FunctionNarrativeProvider, language: "ko" | "en", signal: AbortSignal,
-    options: { reselectModel: boolean }): Promise<FunctionNarrativeStoredPage | undefined> {
+    options: { reselectModel: boolean; assertSourceCurrent?(): Promise<void> }): Promise<FunctionNarrativeStoredPage | undefined> {
     const batch = this.run.nextBatch();
     if (!batch) return undefined;
     if (!this.pending) {
@@ -72,7 +72,7 @@ export class FunctionNarrativeScenarioSession {
         // One immutable session already validated this snapshot/locale's whole
         // purpose. Later pages still prove their own calculations and alternate
         // before synthesis; repeating every route's purpose proof adds no facts.
-        if (this.purpose?.language !== language) {
+        if (!batch.sourceEvidence && this.purpose?.language !== language) {
           summaryTask.summaryTask!.sourceFunctionPurpose = buildFunctionNarrativeSourcePurpose(this.context, summaryTask, language);
         }
         if (this.purpose?.language === language) {
@@ -95,7 +95,9 @@ export class FunctionNarrativeScenarioSession {
     const narrative = pending.narrative;
     const index = this.pages.length;
     const page = { modelName: pending.modelName.slice(0, 100), offset: this.run.completed };
+    await options.assertSourceCurrent?.();
     await this.store.write(index, narrative);
+    await options.assertSourceCurrent?.();
     if (signal.aborted) throw new FunctionNarrativeError("cancelled");
     this.pages.push(page); this.run.commitBatch(); this.pending = undefined;
     for (const scenario of narrative.scenarios) for (const detail of scenario.nodeDetails ?? []) {

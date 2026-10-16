@@ -40,9 +40,9 @@ export function createLocalFunctionNarrativeProvider(options: LocalFunctionNarra
       return server ? manager.withResource(server, operation, signal) : operation();
     }, async generate(context, language, signal, generation) {
     if (signal.aborted || manager.disposed) throw new FunctionNarrativeError("cancelled");
-    const source = buildSourceFunctionNarrativeResponse(context, language);
+    const source = context.sourceEvidence ? undefined : buildSourceFunctionNarrativeResponse(context, language);
     if (source) return source;
-    const synthesis = buildPrimitiveNarrativeSynthesis(context, language);
+    const synthesis = context.sourceEvidence ? undefined : buildPrimitiveNarrativeSynthesis(context, language);
     const modelName = ("Local · " + basename(options.modelPath, ".gguf")).slice(0, 100);
     if (synthesis && context.summaryTask?.knownFunctionSummary) {
       return { modelName, text: JSON.stringify({ ...synthesis, summary: context.summaryTask.knownFunctionSummary }) };

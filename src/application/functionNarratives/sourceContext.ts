@@ -4,6 +4,18 @@ import type { FunctionLogicAnalysis } from "../../analyzer/functionLogic";
 import type { FunctionNarrativeContext, FunctionNarrativeSnippet } from "../../shared/functionNarratives";
 import { buildFunctionNarrativeSourceFlow } from "./sourceFlow";
 import { buildFunctionNarrativeScenarioGraph } from "./scenarioGraph";
+import { createCapturedNarrativeContext } from "../narrativeSources";
+import type { NarrativeSourceLease } from "../../shared/narrativeSources";
+
+/** Build routes against all complete action-owned declarations, preserving raw source and helper coverage. */
+export function buildCapturedFunctionNarrativeContext(node: SymbolNode, source: string, lease: NarrativeSourceLease,
+  analysis: FunctionLogicAnalysis): FunctionNarrativeContext {
+  const context = createCapturedNarrativeContext({ functionName: node.name, language: node.language, snippets: [], limited: false }, lease, node.id).context;
+  if (analysis.functionNode.id !== node.id || analysis.functionNode.filePath !== node.filePath) throw new TypeError("Source analysis owner mismatch");
+  context.sourceFlow = buildFunctionNarrativeSourceFlow(analysis, source, context);
+  context.scenarioGraph = buildFunctionNarrativeScenarioGraph(analysis, source, context);
+  return context;
+}
 
 /** Root-first excerpts preserve original one-based lines, including a separate truncated tail. */
 export function buildFunctionNarrativeContext(node: SymbolNode, source: string, related: readonly SymbolNode[] = [], analysis?: FunctionLogicAnalysis): FunctionNarrativeContext {

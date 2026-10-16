@@ -12,7 +12,7 @@ export function buildLocalNarrativeInput(context: FunctionNarrativeContext, lang
     completed: context.summaryTask.completed, omittedValues: context.summaryTask.omittedValues,
     // The wire omits fixed output fields. Keep their independently matched source
     // facts visible as task data so free prose can use the same concrete trace.
-    sourceVerifiedAnalysis: getPrimitiveWorksheetAnalysis(context, language) };
+    ...(context.sourceEvidence ? {} : { sourceVerifiedAnalysis: getPrimitiveWorksheetAnalysis(context, language) }) };
   const clean = (step: FunctionNarrativeFlowStep, index: number) => ({ ordinal: index + 1, kind: step.kind, code: step.code,
     reachedOnSelectedSourceRoute: true, ...(step.loweredPredicate ? { loweredPredicate: step.loweredPredicate } : {}),
     ...(step.writeTargets?.length ? { writeTargets: step.writeTargets } : {}),

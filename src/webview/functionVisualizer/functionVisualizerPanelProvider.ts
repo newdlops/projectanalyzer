@@ -34,6 +34,7 @@ export type FunctionVisualizerPanelProviderDependencies = {
   logger: ProjectAnalyzerLogger;
   sourceHighlighter: SourceHighlighter;
   functionNarrativeProvider?: FunctionNarrativeProvider;
+  narrativeSources?: import("../../shared/narrativeSources").NarrativeSourceAccess;
   functionNarrativeSourcePresenter?: import("../../shared/functionNarratives").FunctionNarrativeSourcePresenter;
   createFunctionNarrativePageStore?: import("../../shared/functionNarratives").FunctionNarrativePageStoreFactory;
 };
@@ -84,6 +85,7 @@ export class FunctionVisualizerPanelProvider {
     this.functionCallsDelivery = new FunctionCallsHostDelivery({ graphDelivery: this.graphDelivery,
       sourceNodeTokens: this.sourceNodeTokens, evidenceTokens: this.evidenceTokens, readSourceText,
       provider: dependencies.functionNarrativeProvider, getLanguage: () => this.uiLanguage,
+      narrativeSources: dependencies.narrativeSources,
       postNarratives: (payload) => this.postMessage({ type: "functionCalls/explanationLoaded", payload }),
       postMessage: (payload) => this.postMessage({ type: "functionCalls/loaded", payload }) });
     this.codeFlowDelivery = new CodeFlowHostDelivery({
@@ -97,6 +99,7 @@ export class FunctionVisualizerPanelProvider {
       readSourceText,
       scenarioInputProvider: createLocalScenarioProvider(),
       functionNarrativeProvider: dependencies.functionNarrativeProvider,
+      narrativeSources: dependencies.narrativeSources,
       functionNarrativeSourcePresenter: dependencies.functionNarrativeSourcePresenter,
       createFunctionNarrativePageStore: dependencies.createFunctionNarrativePageStore,
       openEvidenceLocation: ({ filePath, range }) =>

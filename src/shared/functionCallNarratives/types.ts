@@ -29,7 +29,7 @@ export type FunctionCallNarrativeTask = {
   /** Bounded original callee excerpts collected across earlier chunks; never model-authored evidence. */
   calleeEvidence?: Array<{ callId: string; callee: string; code: string; truncated: boolean }>;
   /** Earlier descriptions are explicitly model inferences, not new static facts. */
-  earlierModelReadings?: Array<Pick<FunctionCallReading, "callId" | "inputs" | "output" | "effects">>;
+  earlierModelReadings?: FunctionCallReading[];
 };
 export type FunctionCallReading = { callId: string; role: string; inputs: string; output: string; effects: string; reason: string };
 export type FunctionCallNarrativeChunk = { summary?: string; flow?: string; calls: FunctionCallReading[]; limitations: string[] };

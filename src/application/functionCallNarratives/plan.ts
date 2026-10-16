@@ -47,14 +47,8 @@ export function buildFunctionCallNarrativePlan(slice: FunctionCallsResponse, req
     rows = selected.map(connection => ({ callId: "", connection, expression: slice.control?.blocks.flatMap(block => block.calls).find(call => call.connectionId === connection.id)?.expression ?? connection.label, occurrence: 1 }));
   }
   rows.forEach((row, index) => { row.callId = "call-" + (index + 1); });
-  let characters = 0;
-  const sequence = rows.flatMap(row => {
-    const expression = row.expression.slice(0, 240), callee = names.get(row.connection.to)?.slice(0, 120) ?? "unknown";
-    characters += expression.length + callee.length + 60;
-    if (characters > 2600) { limited = true; return []; }
-    return [{ callId: row.callId, expression, callee, deferred: row.connection.deferred || row.connection.relation !== "call" }];
-  });
-  if (conditions.length > 12 || conditions.some(condition => condition.expression.length > 240 || condition.outcome.length > 120)) limited = true;
-  return { rows, facts: { scope: request.scope, signature: slice.control?.signature.slice(0, 1200) ?? "", sequence,
-    conditions: conditions.slice(0, 12).map(condition => ({ ...condition, expression: condition.expression.slice(0, 240), outcome: condition.outcome.slice(0, 120) })), routeStatus, terminal: terminal?.slice(0, 1200), sourceLimited: limited } };
+  const sequence = rows.map(row => ({ callId: row.callId, expression: row.expression, callee: names.get(row.connection.to) ?? "unknown",
+    deferred: row.connection.deferred || row.connection.relation !== "call" }));
+  return { rows, facts: { scope: request.scope, signature: slice.control?.signature ?? "", sequence,
+    conditions: conditions.map(condition => ({ ...condition })), routeStatus, terminal, sourceLimited: limited } };
 }

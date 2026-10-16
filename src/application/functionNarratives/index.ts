@@ -1,5 +1,5 @@
 /** Public source-reading API; internal helpers never depend on VS Code or Webview state. */
-export { buildFunctionNarrativeContext } from "./sourceContext";
+export { buildFunctionNarrativeContext, buildCapturedFunctionNarrativeContext } from "./sourceContext";
 export { buildFunctionNarrativeSourceFlow, type FunctionNarrativeFlowOptions } from "./sourceFlow";
 export { buildFunctionNarrativeScenarioGraph } from "./scenarioGraph";
 export { bindFunctionNarrativeGraph, initializeFunctionNarrativeNodes, createFunctionNarrativeNodeTask, createFunctionNarrativeSummaryTask, appendFunctionNarrativeNodes, finalizeFunctionNarrativeNodes } from "./nodeInterpretation";

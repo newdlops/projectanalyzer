@@ -8,12 +8,14 @@ import type { CodeFlowEvidenceTokenRegistry } from "../codeFlow";
 import { FunctionCallNarrativesHostDelivery } from "./narrativesHostDelivery";
 import type { FunctionNarrativeProvider } from "../../application/functionNarratives";
 import type { FunctionCallNarrativesRequest, FunctionCallNarrativesResponse } from "../../protocol/functionCallNarratives";
+import type { NarrativeSourceAccess } from "../../shared/narrativeSources";
 
 type Dependencies = {
   graphDelivery: WebviewGraphDelivery; sourceNodeTokens: SourceNodeTokenRegistry; evidenceTokens: CodeFlowEvidenceTokenRegistry;
   readSourceText(filePath: string): Promise<string | undefined>;
   postMessage(payload: FunctionCallsResponse): Promise<void>;
   provider?: FunctionNarrativeProvider; getLanguage?(): "ko" | "en";
+  narrativeSources?: NarrativeSourceAccess;
   postNarratives?(payload: FunctionCallNarrativesResponse): Promise<void>;
 };
 

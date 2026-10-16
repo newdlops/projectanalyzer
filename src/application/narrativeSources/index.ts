@@ -10,3 +10,7 @@ export type { CaptureNarrativeSourcesOptions } from "./capture";
 export { extractWholeSourceRange } from "./ranges";
 export { readWholeCallableSource } from "./declaration";
 export type { SourceDeclarationResolver, WholeDeclarationSource } from "./declaration";
+export { createNarrativeSourceAccess, getNarrativeSourceRoots } from "./access";
+export { createCapturedNarrativeContext } from "./context";
+export { getNarrativeSourceFailureStatus } from "./failure";
+export { sealNarrativeModelContext } from "./modelContext";

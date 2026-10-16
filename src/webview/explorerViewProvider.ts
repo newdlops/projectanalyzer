@@ -67,6 +67,7 @@ export type ExplorerViewProviderDependencies = {
   sourceHighlighter: SourceHighlighter;
   workspaceGraphCoordinator: WorkspaceGraphCoordinator;
   functionNarrativeProvider?: FunctionNarrativeProvider;
+  narrativeSources?: import("../shared/narrativeSources").NarrativeSourceAccess;
   functionNarrativeSourcePresenter?: import("../shared/functionNarratives").FunctionNarrativeSourcePresenter;
   createFunctionNarrativePageStore?: import("../shared/functionNarratives").FunctionNarrativePageStoreFactory;
 };
@@ -117,6 +118,7 @@ export class ExplorerViewProvider implements vscode.WebviewViewProvider {
     this.codeFlowDelivery = new CodeFlowHostDelivery({
       scenarioInputProvider: createLocalScenarioProvider(),
       functionNarrativeProvider: dependencies.functionNarrativeProvider,
+      narrativeSources: dependencies.narrativeSources,
       functionNarrativeSourcePresenter: dependencies.functionNarrativeSourcePresenter,
       createFunctionNarrativePageStore: dependencies.createFunctionNarrativePageStore,
       graphDelivery: this.graphDelivery,
