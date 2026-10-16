@@ -3,6 +3,7 @@ import type { GraphStore } from "../../graph/graphStore";
 import { createContentHash } from "../../shared/hash";
 import type { ProjectGraph, SymbolNode } from "../../shared/types";
 import { SourceCaptureError, type NarrativeSourceGraph } from "../../shared/narrativeSources";
+import { createSourceGraphValidation } from "./graphValidation";
 
 /** An existing indexed store avoids building a second full graph index per action. */
 export type WorkspaceSourceGraphInput = {
@@ -88,6 +89,11 @@ export function createWorkspaceSourceGraph(input: WorkspaceSourceGraphInput): Na
       for (const path of usedFiles) if (fileBindings.get(path) !== (currentFiles.has(path) ? binding(currentFiles.get(path)!) : undefined)) {
         throw new SourceCaptureError("source-changed", "Analyzed file identity changed");
       }
+    },
+    createValidation() {
+      this.assertCurrent(); const current = active();
+      return createSourceGraphValidation({ reference: new WeakRef(current.graph), getCurrentGraph: current.getCurrentGraph,
+        nodeIds: nodes.keys(), filePaths: usedFiles, outgoingOwners: outgoing.keys() });
     },
     dispose() { owner = undefined; nodes.clear(); outgoing.clear(); files.clear(); fileBindings.clear(); usedFiles.clear(); }
   };

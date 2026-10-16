@@ -61,7 +61,8 @@ export async function wholeNarrativeHostFixture(callCount = 12, overrides: Parti
       events.push('capture'); state.captures++;
       const lease = await base.capture(input); leases.push(lease);
       let disposed = false;
-      return { capture: lease.capture, captureSha256: lease.captureSha256, assertCurrent: signal => lease.assertCurrent(signal), dispose() {
+      return { capture: lease.capture, captureSha256: lease.captureSha256, assertCurrent: signal => lease.assertCurrent(signal),
+        createValidationReceipt: () => lease.createValidationReceipt(), dispose() {
         if (!disposed) { disposed = true; state.disposed++; events.push('source-disposed'); lease.dispose(); }
       } };
     } };

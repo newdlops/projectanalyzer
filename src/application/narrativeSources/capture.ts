@@ -7,6 +7,7 @@ import {
 } from "../../shared/narrativeSources";
 import { readWholeCallableSource, type SourceDeclarationResolver } from "./declaration";
 import { extractWholeSourceRange } from "./ranges";
+import { createSourceValidation } from "./validation";
 
 /** All requested root/caller/parent IDs are mandatory; dependencies expand lazily. */
 export type CaptureNarrativeSourcesOptions = {
@@ -125,6 +126,12 @@ export async function captureNarrativeSources(options: CaptureNarrativeSourcesOp
     files.clear(); await assertCurrent(signal);
     expectedCaptureHash = createContentHash(JSON.stringify(result));
     return { capture: result, captureSha256: expectedCaptureHash, assertCurrent,
+      createValidationReceipt() {
+        if (disposed) throw new SourceCaptureError("disposed", "Source capture lease was disposed");
+        unchanged(); graph.assertCurrent();
+        if (!graph.createValidation) throw new SourceCaptureError("source-changed", "Source graph cannot authorize cached results");
+        return createSourceValidation({ graph: graph.createValidation(), reader, versions: [...versions.values()], maximumFileBytes: limits.maxFileBytes });
+      },
       dispose() { if (!disposed) { disposed = true; files.clear(); versions.clear(); graph.dispose(); } } };
   } catch (error) { files.clear(); versions.clear(); graph.dispose(); throw error; }
 }

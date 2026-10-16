@@ -4,5 +4,5 @@ export type { SourceCaptureErrorCode } from "./errors";
 export type {
   SourceDocumentSnapshot, NarrativeSourceReader, NarrativeSourceGraph, SourceCaptureLimits,
   CapturedSourceDeclaration, SourceCaptureGap, NarrativeSourceCapture, NarrativeSourceLease,
-  NarrativeSourceAccess, NarrativeSourceEvidence
+  NarrativeSourceAccess, NarrativeSourceEvidence, NarrativeSourceValidation, NarrativeSourceGraphValidation
 } from "./types";

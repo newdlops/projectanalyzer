@@ -14,7 +14,7 @@ import type { WebviewGraphDelivery } from "../sidebarGraphDelivery";
 import type { SourceNodeTokenRegistry } from "../sourceNavigation";
 import type { CodeFlowEvidenceTokenRegistry } from "../codeFlow";
 import { getNarrativeSourceRoots, getNarrativeSourceFailureStatus } from "../../application/narrativeSources";
-import type { NarrativeSourceAccess, NarrativeSourceLease } from "../../shared/narrativeSources";
+import { SourceCaptureError, type NarrativeSourceAccess, type NarrativeSourceLease, type NarrativeSourceValidation } from "../../shared/narrativeSources";
 
 type Dependencies = {
   graphDelivery: WebviewGraphDelivery; sourceNodeTokens: SourceNodeTokenRegistry; evidenceTokens: CodeFlowEvidenceTokenRegistry;
@@ -24,17 +24,18 @@ type Dependencies = {
   postMessage(payload: FunctionCallNarrativesResponse): Promise<void>;
 };
 type Entry = { contextId: string; node: SymbolNode; source: string; slice: FunctionCallsResponse; lastRequestId: number };
-type Reading = { plan: FunctionCallNarrativePlan; calls: FunctionCallReadingEntry[]; summary?: string; flow?: string;
+type Reading = { contextId: string; plan: FunctionCallNarrativePlan; calls: FunctionCallReadingEntry[]; summary?: string; flow?: string;
   limitations: string[]; modelName?: string; language: "ko" | "en"; sourceLimited: boolean; hasSummary: boolean; allSourceDetails: boolean;
   proofBatches: FunctionCallSourceProofHandle[];
   sourceCaptureSha256?: string;
+  sourceValidation?: NarrativeSourceValidation;
   calleeEvidence: NonNullable<import("../../shared/functionCallNarratives").FunctionCallNarrativeTask["calleeEvidence"]> };
 
 /** Recent contexts authorize source reads; recent routes retain prose, never a resident model. */
 export class FunctionCallNarrativesHostDelivery {
   private readonly contexts = new Map<string, Entry>();
   private readonly readings = new Map<string, Reading>();
-  private pending?: { request: FunctionCallNarrativesRequest; controller: AbortController };
+  private pending?: { request: FunctionCallNarrativesRequest; controller: AbortController; language: "ko" | "en"; providerCompleted: boolean; settled: Promise<void>; settle(): void };
   public constructor(private readonly dependencies: Dependencies) {}
 
   /** Registers only a successfully delivered source snapshot; construction and static loading never invoke LLMs. */
@@ -43,13 +44,14 @@ export class FunctionCallNarrativesHostDelivery {
     const contextId = "call-reading:" + createContentHash(slice.graphVersion + "|" + node.id + "|" + source).slice(0, 32);
     const existing = this.contexts.get(slice.sourceToken);
     if (existing?.contextId === contextId) { existing.slice = slice; return contextId; }
-    for (const [key, entry] of this.contexts) if (entry.slice.graphVersion !== slice.graphVersion) this.contexts.delete(key);
+    if (existing) this.revokeContext(slice.sourceToken, existing);
+    for (const [key, entry] of this.contexts) if (entry.slice.graphVersion !== slice.graphVersion) this.revokeContext(key, entry);
     this.contexts.set(slice.sourceToken, { contextId, node, source, slice, lastRequestId: -1 });
-    while (this.contexts.size > 32) this.contexts.delete(this.contexts.keys().next().value!);
+    while (this.contexts.size > 32) { const key = this.contexts.keys().next().value!; this.revokeContext(key, this.contexts.get(key)!); }
     return contextId;
   }
   /** Root/disposal invalidation stops model setup and in-flight inference and drops source authority. */
-  public clear(): void { this.pending?.controller.abort(); this.pending = undefined; this.contexts.clear(); this.readings.clear(); }
+  public clear(): void { this.pending?.controller.abort(); this.pending = undefined; this.contexts.clear(); for (const reading of this.readings.values()) reading.sourceValidation?.dispose(); this.readings.clear(); }
   public cancel(request: FunctionCallNarrativesRequest): void {
     const pending = this.pending;
     if (pending && pending.request.graphVersion === request.graphVersion && pending.request.sourceToken === request.sourceToken
@@ -79,28 +81,35 @@ export class FunctionCallNarrativesHostDelivery {
     if (!entry || !this.active(request, entry)) { await failure("stale"); return; }
     const key = this.key(request, language), cached = this.readings.get(key);
     if (request.pageIndex !== undefined) {
-      if (cached && (cached.hasSummary || cached.calls.length)) await this.send(request, cached, "ready", true); else await failure("stale");
+      if (cached && (cached.hasSummary || cached.calls.length)) {
+        if (!await this.validateCache(request, entry, cached)) { if (this.dependencies.graphDelivery.matches(request.graphVersion)) await failure("stale"); return; }
+        await this.send(request, cached, "ready", true);
+      } else await failure("stale");
       return;
     }
     if (request.requestId <= entry.lastRequestId) return;
     entry.lastRequestId = request.requestId;
-    if (cached?.hasSummary && cached.calls.length === cached.plan.rows.length) { await this.send(request, cached, "ready", true); return; }
+    if (cached?.hasSummary && cached.calls.length === cached.plan.rows.length) {
+      if (!await this.validateCache(request, entry, cached)) { if (this.dependencies.graphDelivery.matches(request.graphVersion)) await failure("stale"); return; }
+      await this.send(request, cached, "ready", true); return;
+    }
     const provider = this.dependencies.provider;
     if (!provider) { await failure("unavailable"); return; }
     let reading = cached;
     try {
-      if (!reading) reading = { plan: buildFunctionCallNarrativePlan(entry.slice, request), calls: [], limitations: [], language,
+      if (!reading) reading = { contextId: entry.contextId, plan: buildFunctionCallNarrativePlan(entry.slice, request), calls: [], limitations: [], language,
         sourceLimited: entry.slice.limited, hasSummary: false, allSourceDetails: true, proofBatches: [], calleeEvidence: [] };
     } catch (error) { await failure(error instanceof FunctionNarrativeError ? error.code : "invalid-response"); return; }
     this.pending?.controller.abort();
-    const pending = { request, controller: new AbortController() }; this.pending = pending;
+    let settle!: () => void; const settled = new Promise<void>(resolve => { settle = resolve; });
+    const pending = { request, controller: new AbortController(), language, providerCompleted: false, settled, settle }; this.pending = pending;
     const signal = pending.controller.signal;
-    this.readings.set(key, reading); while (this.readings.size > 8) this.readings.delete(this.readings.keys().next().value!);
+    this.readings.set(key, reading); while (this.readings.size > 8) { const oldest = this.readings.keys().next().value!; this.readings.get(oldest)?.sourceValidation?.dispose(); this.readings.delete(oldest); }
     const operation = { label: entry.node.name, onProgress: (task: NonNullable<FunctionCallNarrativesResponse["task"]>) => {
       if (this.pending === pending && this.active(request, entry)) void this.dependencies.postMessage({ ...request, status: "working", task }).catch(() => {});
     } };
     const ensureActive = () => { if (signal.aborted || this.pending !== pending || !this.active(request, entry)) throw new FunctionNarrativeError("cancelled"); };
-    let sourceLease: NarrativeSourceLease | undefined;
+    let sourceLease: NarrativeSourceLease | undefined, bodyCompleted = false;
     try {
       await provider.prepare?.(language, signal, { ...operation, sourceReading: !this.dependencies.narrativeSources }); ensureActive();
       // Retain one model only for this explicit action, across asynchronous
@@ -120,7 +129,9 @@ export class FunctionCallNarrativesHostDelivery {
           sourceLease = await access.capture({ graph, rootIds: [...rootIds], signal,
             getCurrentGraph: () => this.dependencies.graphDelivery.current()?.graph });
           ensureActive();
-          if (reading.sourceCaptureSha256 && reading.sourceCaptureSha256 !== sourceLease.captureSha256) throw new FunctionNarrativeError("cancelled");
+          if (reading.sourceCaptureSha256 && reading.sourceCaptureSha256 !== sourceLease.captureSha256) throw new SourceCaptureError("source-changed", "Call narrative source snapshot changed");
+          if (reading.sourceValidation) await reading.sourceValidation.assertCurrent(signal);
+          else reading.sourceValidation = sourceLease.createValidationReceipt();
           reading.sourceCaptureSha256 = sourceLease.captureSha256;
         }
         do {
@@ -197,16 +208,37 @@ export class FunctionCallNarrativesHostDelivery {
           }
           if (!reading.hasSummary || reading.calls.length < reading.plan.rows.length) await this.send(request, reading, "progress", false);
         } while (!reading.hasSummary || reading.calls.length < reading.plan.rows.length);
+        bodyCompleted = true;
       };
       if (provider.withRun) await provider.withRun(language, signal, analyze); else await analyze();
+      pending.providerCompleted = true;
       // A ready response means process/resource cleanup finished too. A cancel
       // or root change during teardown cannot publish a late success.
       await sourceLease?.assertCurrent(signal); ensureActive(); await this.send(request, reading, "ready", false);
     } catch (error) {
+      const status = signal.aborted ? "cancelled" : getNarrativeSourceFailureStatus(error) ?? (error instanceof FunctionNarrativeError ? error.code : "failed");
+      if (this.contexts.get(request.sourceToken) === entry && this.dependencies.narrativeSources && (status === "stale" || bodyCompleted && !pending.providerCompleted)) {
+        this.revokeContext(request.sourceToken, entry); if (this.pending === pending && this.dependencies.graphDelivery.matches(request.graphVersion)) await failure(status); return;
+      }
       if (this.pending === pending && this.active(request, entry)) {
-        const status = signal.aborted ? "cancelled" : getNarrativeSourceFailureStatus(error) ?? (error instanceof FunctionNarrativeError ? error.code : "failed");
         if (reading.hasSummary || reading.calls.length) await this.send(request, reading, status, false); else await failure(status);
       }
-    } finally { sourceLease?.dispose(); if (this.pending === pending) this.pending = undefined; }
+    } finally { sourceLease?.dispose(); if (this.pending === pending) this.pending = undefined; pending.settle(); }
+  }
+
+  /** Every cached page checks compact source/graph records without preparing a model or recapturing declarations. */
+  private async validateCache(request: FunctionCallNarrativesRequest, entry: Entry, reading: Reading): Promise<boolean> {
+    const pending = this.pending;
+    if (reading.sourceValidation && pending && !pending.providerCompleted && reading.hasSummary && reading.calls.length === reading.plan.rows.length
+      && this.key(pending.request, pending.language) === this.key(request, reading.language)) await pending.settled;
+    try { await reading.sourceValidation?.assertCurrent(new AbortController().signal); return this.active(request, entry); }
+    catch { if (this.contexts.get(request.sourceToken) === entry) this.revokeContext(request.sourceToken, entry); return false; }
+  }
+
+  /** A stale declaration revokes every cached scope/locale under its original context. */
+  private revokeContext(sourceToken: string, entry: Entry): void {
+    if (this.contexts.get(sourceToken) === entry) this.contexts.delete(sourceToken);
+    if (this.pending?.request.sourceToken === sourceToken) this.pending.controller.abort();
+    for (const [key, reading] of this.readings) if (reading.contextId === entry.contextId) { reading.sourceValidation?.dispose(); this.readings.delete(key); }
   }
 }

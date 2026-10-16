@@ -16,8 +16,16 @@ export interface NarrativeSourceGraph {
   getOutgoingEdges(id: string, maximumEdges: number): readonly GraphEdge[];
   getFileContentHash(filePath: string): string | undefined;
   assertCurrent(): void;
+  /** Independent compact checker for stored results; it never owns a source body. */
+  createValidation?(): NarrativeSourceGraphValidation;
   dispose(): void;
 }
+
+/** Selected graph identity remains checkable after its acquisition authority is disposed. */
+export interface NarrativeSourceGraphValidation { assertCurrent(): void; dispose(): void }
+
+/** Cache validation retains versions/hashes, no declarations or model responses. */
+export interface NarrativeSourceValidation { assertCurrent(signal: AbortSignal): Promise<void>; dispose(): void }
 
 /** Limits reject incomplete resource admission rather than clipping any source. */
 export type SourceCaptureLimits = {
@@ -59,6 +67,7 @@ export interface NarrativeSourceLease {
   readonly capture: NarrativeSourceCapture;
   readonly captureSha256: string;
   assertCurrent(signal: AbortSignal): Promise<void>;
+  createValidationReceipt(): NarrativeSourceValidation;
   dispose(): void;
 }
 

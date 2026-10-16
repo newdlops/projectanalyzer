@@ -7,7 +7,7 @@ import type { ExtensionResponse } from "../../protocol/messages";
 import type { CodeFlowEvidenceToken } from "../../protocol/functionLogic";
 import type { SourceRange } from "../../shared/types";
 import { createContentHash } from "../../shared/hash";
-import type { NarrativeSourceLease } from "../../shared/narrativeSources";
+import { SourceCaptureError, type NarrativeSourceLease, type NarrativeSourceValidation } from "../../shared/narrativeSources";
 import { getNarrativeSourceFailureStatus } from "../../application/narrativeSources";
 
 // Unmanaged adapters retain a fallback deadline. Production adapters measure
@@ -17,6 +17,7 @@ type ReadyResult = Pick<FunctionNarrativesResponse, "narrative" | "snippets" | "
 type ActionSources = { context: FunctionNarrativeContext; lease: NarrativeSourceLease };
 type ContextEntry = { graphVersion: string; contextId: string; context: FunctionNarrativeContext; filePath: string; sourceHash?: string;
   loadSources?(signal: AbortSignal): Promise<ActionSources>; sourceCaptureSha256?: string;
+  sourceValidation?: NarrativeSourceValidation; invalidation?: Promise<void>;
   lastRequestId: number; reselectModel: boolean; cached: Map<string, ReadyResult>; sessions: Map<string, FunctionNarrativeScenarioSession> };
 export type FunctionNarrativesHostDependencies = {
   provider?: FunctionNarrativeProvider;
@@ -31,7 +32,7 @@ export type FunctionNarrativesHostDependencies = {
 /** At most eight bounded contexts and one pending inference; a new root clears all retained work. */
 export class FunctionNarrativesHostDelivery {
   private readonly contexts = new Map<string, ContextEntry>();
-  private pending?: { request: FunctionNarrativesRequest; controller: AbortController };
+  private pending?: { request: FunctionNarrativesRequest; controller: AbortController; language: "ko" | "en"; providerCompleted: boolean; settled: Promise<void>; settle(): void };
   private presentedFlowId?: string;
   public constructor(private readonly dependencies: FunctionNarrativesHostDependencies) {}
 
@@ -89,12 +90,14 @@ export class FunctionNarrativesHostDelivery {
   public async loadSource(request: FunctionNarrativeSourceRequest): Promise<ReturnType<FunctionNarrativesHostDelivery["resolveSource"]>> {
     const entry = this.contexts.get(request.flowId);
     if (!entry || entry.contextId !== request.contextId || entry.graphVersion !== request.graphVersion || !this.dependencies.isActive(request.graphVersion)) return undefined;
+    if (await this.validateCache(request.flowId, entry, request.language) !== "valid") return undefined;
     const session = entry.sessions.get(request.language);
     if (session) {
       const page = await session.readPage(request.pageIndex ?? 0);
       if (!page || this.contexts.get(request.flowId) !== entry || !this.dependencies.isActive(request.graphVersion)) return undefined;
       entry.cached.set(request.language, this.projectPage(entry, session, page, request.language));
     }
+    if (await this.validateCache(request.flowId, entry, request.language) !== "valid") return undefined;
     return this.resolveSource(request);
   }
 
@@ -107,10 +110,17 @@ export class FunctionNarrativesHostDelivery {
       await send({ status: "stale" }); return;
     }
     const language = this.dependencies.getLanguage();
+    const cacheCurrent = async () => {
+      const result = await this.validateCache(request.flowId, entry, request.pageLanguage ?? language);
+      if (result === "stale") await send({ status: "stale" });
+      return result === "valid";
+    };
     if (request.nodeId !== undefined) {
+      if (!await cacheCurrent()) return;
       const locale = request.pageLanguage ?? language;
       const session = entry.sessions.get(locale);
       const page = await session?.readNodePage(request.nodeId);
+      if (!await cacheCurrent()) return;
       if (this.contexts.get(request.flowId) !== entry || !this.dependencies.isActive(request.graphVersion)) return;
       if (!session || !page) { await send({ status: "unavailable" }); return; }
       // A quiet node lookup must not replace the visible page's source-action cache.
@@ -122,9 +132,11 @@ export class FunctionNarrativesHostDelivery {
     // Preserve every declared parameter; unsupported example size fails before download/inference instead of silently dropping inputs.
     if ((entry.context.parameters?.length ?? 0) > 32) { await send({ status: "context-too-large" }); return; }
     if (request.pageIndex !== undefined) {
+      if (!await cacheCurrent()) return;
       const locale = request.pageLanguage ?? language;
       const session = entry.sessions.get(locale);
       const page = await session?.readPage(request.pageIndex);
+      if (!await cacheCurrent()) return;
       if (!session || !page || this.contexts.get(request.flowId) !== entry || !this.dependencies.isActive(request.graphVersion)) { await send({ status: "stale" }); return; }
       // A later page request can finish first. Do not restore an older page's
       // native annotations after the browser has already selected another one.
@@ -136,9 +148,11 @@ export class FunctionNarrativesHostDelivery {
     if (entry.context.scenarioGraph && this.dependencies.createPageStore) {
       const session = entry.sessions.get(language);
       if (session?.complete) {
+        if (!await cacheCurrent()) return;
         // Reading a completed function must not revoke a different function's
         // pending execution slot. Keep cache-only work outside pending ownership.
         const first = await session.readPage(0);
+        if (!await cacheCurrent()) return;
         if (this.contexts.get(request.flowId) !== entry || !this.dependencies.isActive(request.graphVersion)
           || entry.lastRequestId !== request.requestId) return;
         if (!first) { await send({ status: "unavailable" }); return; }
@@ -150,12 +164,12 @@ export class FunctionNarrativesHostDelivery {
       await this.requestComplete(request, entry, language); return;
     }
     const cached = entry.cached.get(language);
-    if (cached) { this.presentSource(request.flowId, entry, cached); await send({ status: "ready", ...cached, cacheHit: true }); return; }
+    if (cached) { if (!await cacheCurrent()) return; this.presentSource(request.flowId, entry, cached); await send({ status: "ready", ...cached, cacheHit: true }); return; }
     const provider = this.dependencies.provider;
     if (!provider) { await send({ status: "unavailable" }); return; }
     this.pending?.controller.abort();
     const controller = new AbortController();
-    const pending = { request, controller }; this.pending = pending;
+    const pending = this.startPending(request, controller, language);
     let onAbort: () => void = () => {};
     const cancelled = new Promise<never>((_resolve, reject) => {
       onAbort = () => reject(new FunctionNarrativeError("cancelled"));
@@ -177,6 +191,7 @@ export class FunctionNarrativesHostDelivery {
       const generation = requestFunctionNarrative(provider, entry.context, language, controller.signal, 45000,
         { ...operation, reselectModel: entry.reselectModel });
       const response = sourceLease ? await generation : await Promise.race([generation, cancelled]);
+      pending.providerCompleted = true;
       if (controller.signal.aborted || this.pending !== pending || !stillCurrent()) return;
       const narrative = parseFunctionNarrative(response.text, entry.context, language);
       if (sourceLease) await sourceLease.assertCurrent(controller.signal);
@@ -197,6 +212,11 @@ export class FunctionNarrativesHostDelivery {
     } catch (error) {
       if (stillCurrent()) {
         const status = getNarrativeSourceFailureStatus(error) ?? (error instanceof FunctionNarrativeError ? error.code : "failed");
+        if (status === "stale" && entry.loadSources) {
+          await this.invalidateEntry(request.flowId, entry);
+          if (this.pending === pending && this.dependencies.isActive(request.graphVersion)) await send({ status: "stale" });
+          return;
+        }
         if (status !== "cancelled") entry.reselectModel = true;
         await send({ status });
       }
@@ -204,6 +224,7 @@ export class FunctionNarrativesHostDelivery {
       sourceLease?.dispose();
       controller.signal.removeEventListener("abort", onAbort);
       if (this.pending === pending) this.pending = undefined;
+      pending.settle();
     }
   }
 
@@ -216,8 +237,8 @@ export class FunctionNarrativesHostDelivery {
     let session = entry.sessions.get(language);
     const createdSession = !session;
     if (!session) { session = new FunctionNarrativeScenarioSession(entry.context, this.dependencies.createPageStore!()); entry.sessions.set(language, session); }
-    const controller = new AbortController(); const pending = { request, controller }; this.pending = pending;
-    let generated = false;
+    const controller = new AbortController(); const pending = this.startPending(request, controller, language);
+    let generated = false, bodyCompleted = false;
     const current = () => this.pending === pending && this.contexts.get(request.flowId) === entry && this.dependencies.isActive(request.graphVersion);
     const operation = { label: entry.context.functionName, onProgress: (task: NonNullable<FunctionNarrativesResponse["task"]>) => {
       if (current()) void send({ status: "working", task }).catch(() => {});
@@ -271,9 +292,11 @@ export class FunctionNarrativesHostDelivery {
             await send({ status: "progress", ...result, cacheHit: false });
           }
         }
+        bodyCompleted = true;
       };
       if (provider.withRun) await provider.withRun(language, controller.signal, analyze);
       else await analyze();
+      pending.providerCompleted = true;
       await sourceLease?.assertCurrent(controller.signal);
       if (controller.signal.aborted || !current()) return;
       const first = await session.readPage(0);
@@ -283,8 +306,13 @@ export class FunctionNarrativesHostDelivery {
         await send({ status: "ready", ...result, cacheHit: !generated });
       }
     } catch (error) {
+      const status = getNarrativeSourceFailureStatus(error) ?? (error instanceof FunctionNarrativeError ? error.code : "failed");
+      if (this.contexts.get(request.flowId) === entry && entry.loadSources && (status === "stale" || bodyCompleted && !pending.providerCompleted)) {
+          await this.invalidateEntry(request.flowId, entry);
+          if (this.pending === pending && this.dependencies.isActive(request.graphVersion)) await send({ status, coverage: { ...session.coverage, completed: 0, complete: false, sourceLimited: true } });
+          return;
+      }
       if (current()) {
-        const status = getNarrativeSourceFailureStatus(error) ?? (error instanceof FunctionNarrativeError ? error.code : "failed");
         if (status !== "cancelled") entry.reselectModel = true;
         const first = await session.readPage(0).catch(() => undefined);
         if (!current()) return;
@@ -292,7 +320,7 @@ export class FunctionNarrativesHostDelivery {
         if (first) entry.cached.set(language, result);
         await send({ status, ...result, cacheHit: false });
       }
-    } finally { sourceLease?.dispose(); if (this.pending === pending) this.pending = undefined; }
+    } finally { sourceLease?.dispose(); if (this.pending === pending) this.pending = undefined; pending.settle(); }
   }
 
   /** Fresh acquisition follows source-free preparation; a resumed action must retain its exact original capture. */
@@ -300,8 +328,11 @@ export class FunctionNarrativesHostDelivery {
     if (!entry.loadSources) return undefined;
     const loaded = await entry.loadSources(signal);
     try {
-      if (signal.aborted || entry.sourceCaptureSha256 && entry.sourceCaptureSha256 !== loaded.lease.captureSha256) throw new FunctionNarrativeError("cancelled");
+      if (signal.aborted) throw new FunctionNarrativeError("cancelled");
+      if (entry.sourceCaptureSha256 && entry.sourceCaptureSha256 !== loaded.lease.captureSha256) throw new SourceCaptureError("source-changed", "Narrative source snapshot changed");
       await loaded.lease.assertCurrent(signal);
+      if (entry.sourceValidation) await entry.sourceValidation.assertCurrent(signal);
+      else entry.sourceValidation = loaded.lease.createValidationReceipt();
       entry.context = loaded.context; entry.sourceCaptureSha256 = loaded.lease.captureSha256;
       return loaded.lease;
     } catch (error) { loaded.lease.dispose(); throw error; }
@@ -333,7 +364,43 @@ export class FunctionNarrativesHostDelivery {
   }
 
   /** Storage adapters revoke late writes and clean their own private files. */
-  private disposeEntry(entry: ContextEntry): void { for (const session of entry.sessions.values()) void session.dispose().catch(() => {}); }
+  private disposeEntry(entry: ContextEntry): void { entry.sourceValidation?.dispose(); entry.sourceValidation = undefined; for (const session of entry.sessions.values()) void session.dispose().catch(() => {}); }
+
+  /** Cached reads own no model; changed source revokes all locales before any stale page can be reused. */
+  private async validateCache(flowId: string, entry: ContextEntry, language?: "ko" | "en"): Promise<"valid" | "stale" | "inactive"> {
+    if (this.contexts.get(flowId) !== entry || !this.dependencies.isActive(entry.graphVersion)) return "inactive";
+    const pending = this.pending;
+    if (entry.sourceValidation && pending?.request.flowId === flowId && !pending.providerCompleted && pending.language === language
+      && (entry.sessions.get(language!)?.complete || !entry.context.scenarioGraph && entry.cached.has(language!))) await pending.settled;
+    if (this.contexts.get(flowId) !== entry) return entry.invalidation && this.dependencies.isActive(entry.graphVersion) ? "stale" : "inactive";
+    try {
+      await entry.sourceValidation?.assertCurrent(new AbortController().signal);
+      return this.contexts.get(flowId) === entry && this.dependencies.isActive(entry.graphVersion) ? "valid" : "inactive";
+    } catch {
+      if (this.contexts.get(flowId) !== entry || !this.dependencies.isActive(entry.graphVersion)) return "inactive";
+      await this.invalidateEntry(flowId, entry);
+      return this.dependencies.isActive(entry.graphVersion) ? "stale" : "inactive";
+    }
+  }
+
+  /** Cache readers may await teardown of a completed action without cancelling it or taking another model slot. */
+  private startPending(request: FunctionNarrativesRequest, controller: AbortController, language: "ko" | "en") {
+    let settle!: () => void; const settled = new Promise<void>(resolve => { settle = resolve; });
+    const pending = { request, controller, language, providerCompleted: false, settled, settle }; this.pending = pending; return pending;
+  }
+
+  /** Authority is removed synchronously; the failing action then awaits storage disposal. */
+  private invalidateEntry(flowId: string, entry: ContextEntry): Promise<void> {
+    if (entry.invalidation) return entry.invalidation;
+    if (this.contexts.get(flowId) === entry) this.contexts.delete(flowId);
+    if (this.pending?.request.flowId === flowId) this.pending.controller.abort();
+    entry.sourceValidation?.dispose(); entry.sourceValidation = undefined; entry.cached.clear();
+    const sessions = [...entry.sessions.values()]; entry.sessions.clear();
+    if (this.presentedFlowId === flowId) { this.dependencies.sourcePresenter?.clear(); this.presentedFlowId = undefined; }
+    // Even a storage cleanup failure cannot restore revoked cache authority.
+    entry.invalidation = Promise.allSettled(sessions.map(session => session.dispose())).then(() => {});
+    return entry.invalidation;
+  }
 
   /** Decorates only validated output on a Host-captured snapshot; private paths remain on this native boundary. */
   private presentSource(flowId: string, entry: ContextEntry, result: ReadyResult): void {
