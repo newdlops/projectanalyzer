@@ -1,8 +1,9 @@
 /** Snapshot-owned call-reading lifecycle: explicit generation, bounded chunks, partial resume and cache-only pages. */
-import { buildFunctionCallNarrativePlan, buildFunctionCallNarrativeContext, resolveFunctionCallDeclarationRange, parseFunctionCallNarrative, type FunctionCallNarrativePlan } from "../../application/functionCallNarratives";
+import { buildFunctionCallNarrativePlan, buildFunctionCallNarrativeContext, resolveFunctionCallDeclarationRange, parseFunctionCallNarrative, createCompleteFunctionCallNarrative, type FunctionCallNarrativePlan } from "../../application/functionCallNarratives";
 import { createProjectCallableScope } from "../../application/functionCalls";
 import type { FunctionNarrativeProvider } from "../../application/functionNarratives";
-import { requestFunctionNarrative } from "../../application/functionNarratives";
+import { requestFunctionNarrative, requestFunctionNarrativeCall } from "../../application/functionNarratives";
+import type { FunctionCallNarrativeChunk } from "../../shared/functionCallNarratives";
 import { FunctionNarrativeError, type FunctionCallSourceProofHandle } from "../../shared/functionNarratives";
 import type { SourceRange, SymbolNode } from "../../shared/types";
 import { createContentHash } from "../../shared/hash";
@@ -95,16 +96,20 @@ export class FunctionCallNarrativesHostDelivery {
     }
     const provider = this.dependencies.provider;
     if (!provider) { await failure("unavailable"); return; }
-    let reading = cached;
+    const native = Boolean(provider.generateCompleteCall);
+    if (native && (!provider.withRun || !this.dependencies.narrativeSources)) { await failure("unavailable"); return; }
+    // A resumed prefix belongs to a previous worker action. Native priors must come only from replies generated inside this fresh action.
+    let reading = native ? undefined : cached;
     try {
       if (!reading) reading = { contextId: entry.contextId, plan: buildFunctionCallNarrativePlan(entry.slice, request), calls: [], limitations: [], language,
         sourceLimited: entry.slice.limited, hasSummary: false, allSourceDetails: true, proofBatches: [], calleeEvidence: [] };
     } catch (error) { await failure(error instanceof FunctionNarrativeError ? error.code : "invalid-response"); return; }
+    if (native && cached) { cached.sourceValidation?.dispose(); this.readings.delete(key); }
     this.pending?.controller.abort();
     let settle!: () => void; const settled = new Promise<void>(resolve => { settle = resolve; });
     const pending = { request, controller: new AbortController(), language, providerCompleted: false, settled, settle }; this.pending = pending;
     const signal = pending.controller.signal;
-    this.readings.set(key, reading); while (this.readings.size > 8) { const oldest = this.readings.keys().next().value!; this.readings.get(oldest)?.sourceValidation?.dispose(); this.readings.delete(oldest); }
+    if (!native) this.retainReading(key, reading);
     const operation = { label: entry.node.name, onProgress: (task: NonNullable<FunctionCallNarrativesResponse["task"]>) => {
       if (this.pending === pending && this.active(request, entry)) void this.dependencies.postMessage({ ...request, status: "working", task }).catch(() => {});
     } };
@@ -112,10 +117,9 @@ export class FunctionCallNarrativesHostDelivery {
     let sourceLease: NarrativeSourceLease | undefined, bodyCompleted = false;
     try {
       await provider.prepare?.(language, signal, { ...operation, sourceReading: !this.dependencies.narrativeSources }); ensureActive();
-      // Retain one model only for this explicit action, across asynchronous
-      // source reads/publication. Each chunk still owns its normal FIFO slot.
+      // A native provider owns one FIFO slot/worker across capture, every call and summary, followed by mandatory actual child close.
       const actionReading = reading;
-      const analyze = async () => {
+      const analyzeCaptured = async () => {
         const reading = actionReading;
         const access = this.dependencies.narrativeSources;
         if (access) {
@@ -166,17 +170,23 @@ export class FunctionCallNarrativesHostDelivery {
           context.callTask!.earlierModelReadings = reading.calls.map(({ callId, role, inputs, output, effects, reason }) => ({ callId, role, inputs, output, effects, reason }));
           await sourceLease?.assertCurrent(signal);
           ensureActive();
-          let abort = () => {};
-          const cancelled = new Promise<never>((_resolve, reject) => { abort = () => reject(new FunctionNarrativeError("cancelled"));
-            if (!context.sourceEvidence) signal.addEventListener("abort", abort, { once: true }); });
-          let response;
-          try {
-            const generation = requestFunctionNarrative(provider, context, language, signal, 180000, operation);
-            response = context.sourceEvidence ? await generation : await Promise.race([generation, cancelled]);
+          let response, chunk: FunctionCallNarrativeChunk;
+          if (native) {
+            const task = createCompleteFunctionCallNarrative(context, language);
+            response = await requestFunctionNarrativeCall(provider, task.request, language, signal, 180000,
+              { ...operation, validate: reply => { task.decode(reply.text); } });
+            chunk = task.decode(response.text);
+          } else {
+            let abort = () => {};
+            const cancelled = new Promise<never>((_resolve, reject) => { abort = () => reject(new FunctionNarrativeError("cancelled"));
+              if (!context.sourceEvidence) signal.addEventListener("abort", abort, { once: true }); });
+            try {
+              const generation = requestFunctionNarrative(provider, context, language, signal, 180000, operation);
+              response = context.sourceEvidence ? await generation : await Promise.race([generation, cancelled]);
+            } finally { signal.removeEventListener("abort", abort); }
+            chunk = parseFunctionCallNarrative(response.text, context, language);
           }
-          finally { signal.removeEventListener("abort", abort); }
           ensureActive();
-          const chunk = parseFunctionCallNarrative(response.text, context, language);
           await sourceLease?.assertCurrent(signal); ensureActive();
           if (!context.callTask!.includeSummary && !context.sourceEvidence) {
             const source = context.sourceCallReadings?.read(context, language);
@@ -206,24 +216,44 @@ export class FunctionCallNarrativesHostDelivery {
               deferred: row.connection.deferred || row.connection.relation !== "call", callerEvidence: row.connection.evidenceToken,
               calleeEvidence: callee ? this.dependencies.evidenceTokens.createToken(callee.filePath, calleeRanges.get(callee.id) ?? callee.range) : undefined, calleeSourceToken: target?.sourceToken });
           }
-          if (!reading.hasSummary || reading.calls.length < reading.plan.rows.length) await this.send(request, reading, "progress", false);
+          if (!native && (!reading.hasSummary || reading.calls.length < reading.plan.rows.length)) await this.send(request, reading, "progress", false);
         } while (!reading.hasSummary || reading.calls.length < reading.plan.rows.length);
         bodyCompleted = true;
+      };
+      // Manager disposal has its own signal; source capture and asynchronous file I/O must observe it before they begin.
+      const analyze = async (ownedSignal?: AbortSignal) => {
+        const abort = () => pending.controller.abort();
+        ownedSignal?.addEventListener("abort", abort, { once: true }); if (ownedSignal?.aborted) abort();
+        try { await analyzeCaptured(); } finally { ownedSignal?.removeEventListener("abort", abort); }
       };
       if (provider.withRun) await provider.withRun(language, signal, analyze); else await analyze();
       pending.providerCompleted = true;
       // A ready response means process/resource cleanup finished too. A cancel
       // or root change during teardown cannot publish a late success.
-      await sourceLease?.assertCurrent(signal); ensureActive(); await this.send(request, reading, "ready", false);
+      await sourceLease?.assertCurrent(signal); ensureActive();
+      if (native) this.retainReading(key, reading);
+      await this.send(request, reading, "ready", false);
     } catch (error) {
       const status = signal.aborted ? "cancelled" : getNarrativeSourceFailureStatus(error) ?? (error instanceof FunctionNarrativeError ? error.code : "failed");
+      if (native) {
+        // No call/page from a failed action may authorize cache reads or seed the next worker's priors.
+        if (this.readings.get(key) === reading) this.readings.delete(key);
+        reading.sourceValidation?.dispose();
+      }
       if (this.contexts.get(request.sourceToken) === entry && this.dependencies.narrativeSources && (status === "stale" || bodyCompleted && !pending.providerCompleted)) {
         this.revokeContext(request.sourceToken, entry); if (this.pending === pending && this.dependencies.graphDelivery.matches(request.graphVersion)) await failure(status); return;
       }
       if (this.pending === pending && this.active(request, entry)) {
-        if (reading.hasSummary || reading.calls.length) await this.send(request, reading, status, false); else await failure(status);
+        if (!native && (reading.hasSummary || reading.calls.length)) await this.send(request, reading, status, false); else await failure(status);
       }
     } finally { sourceLease?.dispose(); if (this.pending === pending) this.pending = undefined; pending.settle(); }
+  }
+
+  /** Cache ownership transfers only after native cleanup succeeds; evicted validation receipts lose source authority. */
+  private retainReading(key: string, reading: Reading): void {
+    const previous = this.readings.get(key); if (previous && previous !== reading) previous.sourceValidation?.dispose();
+    this.readings.set(key, reading);
+    while (this.readings.size > 8) { const oldest = this.readings.keys().next().value!; this.readings.get(oldest)?.sourceValidation?.dispose(); this.readings.delete(oldest); }
   }
 
   /** Every cached page checks compact source/graph records without preparing a model or recapturing declarations. */

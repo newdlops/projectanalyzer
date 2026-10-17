@@ -13,7 +13,7 @@ export { buildFunctionNarrativeScenarioFrames, getFunctionNarrativeExampleConstr
 export { parseFunctionNarrative, buildFunctionNarrativePrompt } from "./structuredResponse";
 export { buildFunctionNarrativeExplanationGuidance, buildFunctionNarrativeRichGuidance, buildFunctionNarrativeEmptyRouteGuidance, numberFunctionNarrativeContext } from "./explanationGuidance";
 export { FunctionNarrativeError, type FunctionNarrativeProvider } from "./provider";
-export type { FunctionNarrativeModelResponse, FunctionNarrativeGenerationOptions, FunctionNarrativeOperationOptions, FunctionNarrativeRootRequest } from "./provider";
+export type { FunctionNarrativeModelResponse, FunctionNarrativeGenerationOptions, FunctionNarrativeOperationOptions, FunctionNarrativeRootRequest, FunctionNarrativeCallRequest } from "./provider";
 export { scheduleFunctionNarrativePreparation, scheduleFunctionNarrativeRequest, MODEL_INFERENCE_TIMEOUT_MS } from "./queuedProvider";
-export { requestFunctionNarrative, requestFunctionNarrativeRoot } from "./request";
+export { requestFunctionNarrative, requestFunctionNarrativeRoot, requestFunctionNarrativeCall } from "./request";
 export { createCompleteFunctionNarrativeRoot } from "./completeRoot";

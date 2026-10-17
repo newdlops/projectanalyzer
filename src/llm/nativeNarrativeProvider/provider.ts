@@ -1,4 +1,4 @@
-/** Bridge complete Host requests to one source-free-ready native action, with per-async-action ownership and no legacy response pipeline. */
+/** Bridge complete root/call Host requests to one source-free-ready native action, with per-async-action ownership and no legacy response pipeline. */
 import { AsyncLocalStorage } from "node:async_hooks";
 import { FunctionNarrativeError } from "../../shared/functionNarratives";
 import { getGlobalModelTaskManager } from "../../shared/modelTasks";
@@ -37,7 +37,7 @@ export function createNativeFunctionNarrativeProvider(options: NativeFunctionNar
   }
 
   /** Preserve the exact request and raw reply. Validation is Host-owned and a caught validation/request failure still fails this action. */
-  async function generate(request: FunctionNarrativeRootRequest, language: "ko" | "en", signal: AbortSignal,
+  async function generate(kind: "root" | "call", request: FunctionNarrativeRootRequest, language: "ko" | "en", signal: AbortSignal,
     generation?: FunctionNarrativeGenerationOptions): Promise<FunctionNarrativeModelResponse> {
     const action = owned(signal, language);
     if (action.pending) {
@@ -45,7 +45,7 @@ export function createNativeFunctionNarrativeProvider(options: NativeFunctionNar
     }
     action.pending = true;
     try {
-      const reply = await action.transport.generate({ requestId: "complete-root-" + action.requests++, payload: request }, action.signal);
+      const reply = await action.transport.generate({ requestId: "complete-" + kind + "-" + action.requests++, payload: request }, action.signal);
       owned(signal, language);
       const response = { modelName: reply.modelName, text: reply.text };
       generation?.validate?.(response); return response;
@@ -88,8 +88,12 @@ export function createNativeFunctionNarrativeProvider(options: NativeFunctionNar
     },
     async generate() { throw new FunctionNarrativeError("invalid-response", "native-provider-requires-complete-root"); },
     generateCompleteRoot(request, language, signal, generation) {
-      const promise = generate(request, language, signal, generation);
+      const promise = generate("root", request, language, signal, generation);
       // Even a caller that forgets to await generation cannot create an unhandled rejection after mandatory worker cleanup.
+      void promise.catch(() => {}); return promise;
+    },
+    generateCompleteCall(request, language, signal, generation) {
+      const promise = generate("call", request, language, signal, generation);
       void promise.catch(() => {}); return promise;
     }
   };

@@ -26,6 +26,14 @@ export function requestFunctionNarrativeRoot(provider: FunctionNarrativeProvider
     (operationSignal, operationOptions) => provider.generateCompleteRoot!(request, language, operationSignal, operationOptions), options.validate, options);
 }
 
+/** Native calls preserve the same owned abort/deadline/cleanup policy as complete roots and require an independent Host decoder. */
+export function requestFunctionNarrativeCall(provider: FunctionNarrativeProvider, request: FunctionNarrativeRootRequest, language: "ko" | "en",
+  signal: AbortSignal, fallbackTimeoutMs: number, options?: FunctionNarrativeGenerationOptions): Promise<FunctionNarrativeModelResponse> {
+  if (!provider.generateCompleteCall || !options?.validate) throw new FunctionNarrativeError("invalid-response");
+  return requestOperation(provider, true, signal, fallbackTimeoutMs,
+    (operationSignal, operationOptions) => provider.generateCompleteCall!(request, language, operationSignal, operationOptions), options.validate, options);
+}
+
 /** One deadline/abort policy serves both formats; captured-source operations cannot outlive their cleanup boundary. */
 async function requestOperation(provider: FunctionNarrativeProvider, awaitCleanup: boolean, signal: AbortSignal, fallbackTimeoutMs: number,
   generate: (signal: AbortSignal, options?: FunctionNarrativeGenerationOptions) => Promise<FunctionNarrativeModelResponse>,
