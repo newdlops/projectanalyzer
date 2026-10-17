@@ -19,8 +19,11 @@ export type FunctionCallContext = {
 };
 
 /** Joins each call to its narrowest source block, retaining only dominating branch prerequisites. */
-export function createFunctionCallContexts(analysis: FunctionLogicAnalysis, options: { sourceText?: string; maxDepth?: number } = {}): FunctionCallContext[] {
+export function createFunctionCallContexts(analysis: FunctionLogicAnalysis, options: { sourceText?: string; maxDepth?: number;
+  /** Complete model-source adapters enforce their own whole-request budget instead of diagram call/guard display limits. */
+  preserveWholeSource?: boolean } = {}): FunctionCallContext[] {
   const maxDepth = Math.max(1, Math.min(512, options.maxDepth ?? 512));
+  const ancestryLimit = options.preserveWholeSource ? maxDepth : Math.min(32, maxDepth);
   const syntaxGuards = options.sourceText === undefined ? undefined : analysis.language === "python"
     ? createPythonCallGuardReader(options.sourceText, maxDepth)
     : ["typescript", "javascript"].includes(analysis.language)
@@ -82,20 +85,20 @@ export function createFunctionCallContexts(analysis: FunctionLogicAnalysis, opti
     if (!changed) break;
   }
   const reachByTarget = new Map<string, Set<string>>();
-  return analysis.callsites.slice(0, 96).map((site) => {
+  return (options.preserveWholeSource ? analysis.callsites : analysis.callsites.slice(0, 96)).map((site) => {
     const block = site.blockId ? byId.get(site.blockId) : blocks.filter((candidate) => !["entry", "exit"].includes(candidate.kind)
       && candidate.filePath === site.filePath && contains(candidate, site)).sort((a, b) => span(a) - span(b))[0];
     const result: FunctionCallContext = { site, blockId: block?.id, guards: [], loops: [], deferred: site.relation === "event",
       limited: !block || !live.has(block.id) || analysis.blocks.length > blocks.length || changed };
     if (!block) return result;
     const ancestors = new Set<string>(); let parent = block.parentBlockId;
-    while (parent && ancestors.size < Math.min(32, maxDepth) && !ancestors.has(parent)) {
+    while (parent && ancestors.size < ancestryLimit && !ancestors.has(parent)) {
       ancestors.add(parent); const owner = byId.get(parent); if (!owner) { result.limited = true; break; }
       if (owner.kind === "callable") { result.deferred = true; break; }
       if (owner.kind === "loop") result.loops.unshift(owner.label);
       parent = owner.parentBlockId;
     }
-    if (parent && ancestors.size >= Math.min(32, maxDepth)) result.limited = true;
+    if (parent && ancestors.size >= ancestryLimit) result.limited = true;
     // A guard must occur on every route to this call. Branches that rejoin before
     // the call are not prerequisites; a call evaluating the predicate excludes itself.
     for (const owner of blocks) {
@@ -120,7 +123,7 @@ export function createFunctionCallContexts(analysis: FunctionLogicAnalysis, opti
       result.limited ||= expressionContext.limited;
     } else if (analysis.language === "python" && /\b(?:and|or|else)\b/u.test(block.label)) result.limited = true;
     result.limited ||= reachLimited;
-    if (result.guards.length > 12) { result.guards.length = 12; result.limited = true; }
+    if (!options.preserveWholeSource && result.guards.length > 12) { result.guards.length = 12; result.limited = true; }
     return result;
   });
 }

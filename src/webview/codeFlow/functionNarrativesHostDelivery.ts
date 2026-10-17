@@ -1,5 +1,6 @@
 /** Host-owned, snapshot-scoped LLM lifecycle and evidence projection, shared by both function surfaces. */
-import { FunctionNarrativeError, parseFunctionNarrative, requestFunctionNarrative, requestFunctionNarrativeRoot, type FunctionNarrativeProvider } from "../../application/functionNarratives";
+import { FunctionNarrativeError, parseFunctionNarrative, requestFunctionNarrative, requestFunctionNarrativeRoot, requestFunctionNarrativeCall, type FunctionNarrativeProvider } from "../../application/functionNarratives";
+import { collectFunctionNarrativeCallPriors, type CapturedFunctionCallPlan } from "../../application/functionCallNarratives";
 import type { FunctionNarrativeContext, FunctionNarrativeSourcePresenter, FunctionNarrativePageStoreFactory } from "../../shared/functionNarratives";
 import { FunctionNarrativeScenarioSession, type FunctionNarrativeStoredPage } from "./functionNarrativeScenarioSession";
 import type { FunctionNarrativesRequest, FunctionNarrativesResponse, FunctionNarrativeSourceRequest } from "../../protocol/functionNarratives";
@@ -14,7 +15,7 @@ import { getNarrativeSourceFailureStatus } from "../../application/narrativeSour
 // their three-minute execution bound after the global queue grants ownership.
 const SCENARIO_BATCH_DEADLINE_MS = 90000;
 type ReadyResult = Pick<FunctionNarrativesResponse, "narrative" | "snippets" | "evidenceTokens" | "modelName" | "limited" | "language" | "page" | "coverage">;
-type ActionSources = { context: FunctionNarrativeContext; lease: NarrativeSourceLease };
+type ActionSources = { context: FunctionNarrativeContext; lease: NarrativeSourceLease; calls?: CapturedFunctionCallPlan };
 type ContextEntry = { graphVersion: string; contextId: string; context: FunctionNarrativeContext; filePath: string; sourceHash?: string;
   loadSources?(signal: AbortSignal): Promise<ActionSources>; sourceCaptureSha256?: string;
   sourceValidation?: NarrativeSourceValidation; invalidation?: Promise<void>;
@@ -186,7 +187,7 @@ export class FunctionNarrativesHostDelivery {
       if (provider.prepare) await Promise.race([provider.prepare(language, controller.signal, operation), cancelled]);
       if (controller.signal.aborted || this.pending !== pending || !stillCurrent()) return;
       if (entry.loadSources) {
-        sourceLease = await this.acquireSources(entry, controller.signal);
+        sourceLease = (await this.acquireSources(entry, controller.signal))?.lease;
         await sourceLease?.assertCurrent(controller.signal);
       }
       if (controller.signal.aborted || this.pending !== pending || !stillCurrent()) return;
@@ -236,10 +237,12 @@ export class FunctionNarrativesHostDelivery {
     const send = (result: Omit<FunctionNarrativesResponse, keyof FunctionNarrativesRequest>) =>
       this.dependencies.postMessage({ type: "codeFlow/functionNarrativesLoaded", payload: { ...request, ...result } });
     if (!provider) { await send({ status: "unavailable" }); return; }
+    const nativePriors = Boolean(provider.generateCompleteRoot && provider.generateCompleteCall);
+    if (nativePriors && !entry.loadSources) { await send({ status: "unavailable" }); return; }
     let session = entry.sessions.get(language);
     if (!session) { session = new FunctionNarrativeScenarioSession(entry.context, this.dependencies.createPageStore!()); entry.sessions.set(language, session); }
     const controller = new AbortController(); const pending = this.startPending(request, controller, language);
-    let generated = false, bodyCompleted = false;
+    let generated = false, bodyCompleted = false, retainedNativeSession = false;
     const current = () => this.pending === pending && this.contexts.get(request.flowId) === entry && this.dependencies.isActive(request.graphVersion);
     const operation = { label: entry.context.functionName, onProgress: (task: NonNullable<FunctionNarrativesResponse["task"]>) => {
       if (current()) void send({ status: "working", task }).catch(() => {});
@@ -251,8 +254,27 @@ export class FunctionNarrativesHostDelivery {
       if (!current()) return;
       let actionSession = session;
       const capture = async () => {
-        if (entry.loadSources) sourceLease = await this.acquireSources(entry, controller.signal);
+        const loaded = entry.loadSources ? await this.acquireSources(entry, controller.signal) : undefined;
+        sourceLease = loaded?.lease;
         if (controller.signal.aborted || !current()) throw new FunctionNarrativeError("cancelled");
+        if (nativePriors) {
+          if (!loaded?.calls || !sourceLease) throw new FunctionNarrativeError("unavailable", "native-root-call-source-authority");
+          // No earlier action's root page or prior is resumed into a newly owned worker.
+          if (entry.sessions.get(language) === session) entry.sessions.delete(language);
+          entry.cached.delete(language); await actionSession.dispose(); delete entry.context.callPriors;
+          const calls = await collectFunctionNarrativeCallPriors(loaded.calls, language, controller.signal,
+            (request, validate) => requestFunctionNarrativeCall(provider, request, language, controller.signal, SCENARIO_BATCH_DEADLINE_MS, { ...operation, validate }),
+            () => sourceLease!.assertCurrent(controller.signal));
+          const ids = new Set(entry.context.snippets.map(snippet => snippet.id));
+          for (const snippet of calls.snippets) { if (ids.has(snippet.id)) throw new FunctionNarrativeError("invalid-response"); ids.add(snippet.id); }
+          entry.context.snippets = [...entry.context.snippets, ...calls.snippets];
+          if (calls.priors) entry.context.callPriors = calls.priors;
+          await sourceLease.assertCurrent(controller.signal);
+          // The session stays action-private: a concurrent page/node lookup cannot read a valid-looking prefix from this worker.
+          session = new FunctionNarrativeScenarioSession(entry.context, this.dependencies.createPageStore!());
+          actionSession = session; this.sourceBoundSessions.add(session);
+          return;
+        }
         // Admission/prepare can fail before the first capture. A later request must still replace that original preview session.
         if (sourceLease && !this.sourceBoundSessions.has(actionSession)) {
           if (entry.sessions.get(language) === session) entry.sessions.delete(language);
@@ -299,7 +321,7 @@ export class FunctionNarrativesHostDelivery {
           const first = await actionSession.readPage(0).catch(() => undefined);
           if (!current() || controller.signal.aborted) return;
           if (!first) throw new FunctionNarrativeError("invalid-response");
-          if (!actionSession.complete) {
+          if (!nativePriors && !actionSession.complete) {
             const result = this.projectPage(entry, actionSession, first, language);
             entry.cached.set(language, result); this.presentSource(request.flowId, entry, result);
             await send({ status: "progress", ...result, cacheHit: false });
@@ -323,10 +345,18 @@ export class FunctionNarrativesHostDelivery {
       const first = await session.readPage(0);
       if (first && current() && !controller.signal.aborted) {
         const result = this.projectPage(entry, session, first, language);
+        if (nativePriors) { entry.sessions.set(language, session); retainedNativeSession = true; }
         entry.cached.set(language, result); this.presentSource(request.flowId, entry, result);
         await send({ status: "ready", ...result, cacheHit: !generated });
       }
     } catch (error) {
+      if (nativePriors) {
+        retainedNativeSession = false;
+        entry.cached.delete(language); if (entry.sessions.get(language) === session) entry.sessions.delete(language);
+        try { await session.dispose(); } catch (cleanup) {
+          error = Object.assign(new FunctionNarrativeError(error instanceof FunctionNarrativeError ? error.code : "failed"), { cause: new AggregateError([error, cleanup], "Native root page rollback failed") });
+        }
+      }
       const status = getNarrativeSourceFailureStatus(error) ?? (error instanceof FunctionNarrativeError ? error.code : "failed");
       if (this.contexts.get(request.flowId) === entry && entry.loadSources && (status === "stale" || bodyCompleted && !pending.providerCompleted)) {
           await this.invalidateEntry(request.flowId, entry);
@@ -335,17 +365,23 @@ export class FunctionNarrativesHostDelivery {
       }
       if (current()) {
         if (status !== "cancelled") entry.reselectModel = true;
-        const first = await session.readPage(0).catch(() => undefined);
+        const first = nativePriors ? undefined : await session.readPage(0).catch(() => undefined);
         if (!current()) return;
-        const result = first ? this.projectPage(entry, session, first, language) : { coverage: session.coverage };
+        const result = first ? this.projectPage(entry, session, first, language) : { coverage: nativePriors ? { ...session.coverage, completed: 0, complete: false } : session.coverage };
         if (first) entry.cached.set(language, result);
         await send({ status, ...result, cacheHit: false });
       }
-    } finally { sourceLease?.dispose(); if (this.pending === pending) this.pending = undefined; pending.settle(); }
+    } finally {
+      if (nativePriors && !retainedNativeSession) {
+        // A late root change has no reader left to notify. Authority stays revoked even if its already-awaited cleanup failed.
+        await session.dispose().catch(() => {});
+      }
+      sourceLease?.dispose(); if (this.pending === pending) this.pending = undefined; pending.settle();
+    }
   }
 
   /** Fresh acquisition follows source-free preparation; a resumed action must retain its exact original capture. */
-  private async acquireSources(entry: ContextEntry, signal: AbortSignal): Promise<NarrativeSourceLease | undefined> {
+  private async acquireSources(entry: ContextEntry, signal: AbortSignal): Promise<ActionSources | undefined> {
     if (!entry.loadSources) return undefined;
     const loaded = await entry.loadSources(signal);
     try {
@@ -355,7 +391,7 @@ export class FunctionNarrativesHostDelivery {
       if (entry.sourceValidation) await entry.sourceValidation.assertCurrent(signal);
       else entry.sourceValidation = loaded.lease.createValidationReceipt();
       entry.context = loaded.context; entry.sourceCaptureSha256 = loaded.lease.captureSha256;
-      return loaded.lease;
+      return loaded;
     } catch (error) { loaded.lease.dispose(); throw error; }
   }
 

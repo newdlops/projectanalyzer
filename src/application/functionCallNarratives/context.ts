@@ -55,9 +55,9 @@ function legacyExcerpt(id: string, role: FunctionNarrativeSnippet["role"], sourc
 /** Two output targets per chunk; all captured source and prior facts remain available. */
 export async function buildFunctionCallNarrativeContext(parent: SymbolNode, source: string, slice: FunctionCallsResponse, plan: FunctionCallNarrativePlan, offset: number,
   readCallee: (token: string) => Promise<{ node: SymbolNode; source: string } | undefined>,
-  callerRange: (token: string) => SourceRange | undefined, sourceLease?: NarrativeSourceLease): Promise<FunctionNarrativeContext> {
+  callerRange: (token: string) => SourceRange | undefined, sourceLease?: NarrativeSourceLease, primarySnippetId = "parent"): Promise<FunctionNarrativeContext> {
   const parentRange = sourceLease?.capture.declarations.find(declaration => declaration.id === parent.id)?.range;
-  const snippets: FunctionNarrativeSnippet[] = [], root = excerpt("parent", "function", source, parentRange ?? resolveFunctionCallDeclarationRange(parent, source), Boolean(sourceLease), 4200, 100);
+  const snippets: FunctionNarrativeSnippet[] = [], root = excerpt(primarySnippetId, "function", source, parentRange ?? resolveFunctionCallDeclarationRange(parent, source), Boolean(sourceLease), 4200, 100);
   if (root) snippets.push(root);
   let limited = plan.facts.sourceLimited || !root || Boolean(root.truncated);
   const names = new Map(slice.nodes.map(node => [node.id, node]));

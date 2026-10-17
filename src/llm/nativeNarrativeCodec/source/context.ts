@@ -3,10 +3,11 @@ import { inputOptions, requireInput } from "../input/data";
 import { numberNativeSourceLines } from "../input/numbering";
 import { copyRootSource } from "./data";
 import type { NativeRootSourceContext, NativeRootSourceBindings } from "./types";
+import { requireNativeRootCallPriors } from "./priors";
 
 type RecordValue = Record<string, any>;
 const required = ["functionName", "language", "limited", "snippets", "detailLevel", "parameters", "sourceFlow"];
-const optional = ["sourceEvidence", "groundingLimited", "returnTypeText", "valueNames", "valueFacts", "scenarioBatch", "nodePreparation"];
+const optional = ["sourceEvidence", "groundingLimited", "returnTypeText", "valueNames", "valueFacts", "scenarioBatch", "nodePreparation", "callPriors"];
 const forbidden = new Set(["sourceWorksheet", "sourceExampleFacts", "sourceVerifiedAnalysis", "sourceCallReadings", "sourceProseReader", "checkedExamples", "nodeTask", "summaryTask"]);
 
 /** Check every declared record key after safe materialization; fields with computational capabilities cannot hide in nested evidence. */
@@ -43,6 +44,7 @@ export function ownNativeRootContext(input: NativeRootSourceContext): { context:
     integer(row.startLine, 1); integer(row.endLine, row.startLine); requireInput(row.truncated === false && typeof row.text === "string" && row.text.length > 0, "native-root-complete-source"); snippets.set(row.id, row);
   }
   const parent = context.snippets.find((snippet: RecordValue) => snippet.role === "function"); requireInput(parent, "native-root-parent-source");
+  if (Object.hasOwn(context, "callPriors")) requireNativeRootCallPriors(context.callPriors, new Set(snippets.keys()));
   const flow = inputOptions(context.sourceFlow, ["basis", "paths", "limited"]); requireInput(flow.basis === "source-control-flow" && typeof flow.limited === "boolean" && Array.isArray(flow.paths) && flow.paths.length === 1, "native-root-whole-route");
   const route = inputOptions(flow.paths[0], ["status", "confidence", "steps", "graph"], ["reason"]);
   requireInput(["source-terminal", "partial"].includes(route.status) && ["exact", "inferred", "unresolved"].includes(route.confidence) && Array.isArray(route.steps) && route.steps.length > 0 && route.steps.length <= 900);

@@ -1,0 +1,89 @@
+{
+  "purpose": "실제 root Host의 한 native action/worker 안에서 전체 호출 source와 원래6필드 응답을 읽고, 그 결과를 모든 root packet에 보존한다.",
+  "status": "같은worker call→root binding·private allpages·실패 rollback과 최종381회귀/913타입/158번들/원래168payload·문장·값 검증을 완료했다. 실제 neural qualification·정확도·전체 Host3초는 미완료다.",
+  "publicApi": [
+    "application/functionCallNarratives: createCapturedFunctionCallPlan(options)",
+    "application/functionCallNarratives: collectFunctionNarrativeCallPriors(plan, locale, signal, generate, assertCurrent)",
+    "FunctionNarrativeContext.callPriors 및 NativeRootSourceContext.callPriors",
+    "createCompleteFunctionCallNarrative.sourceTask는 별도 owned clone이며 decoder 소유권을 넘기지 않는다."
+  ],
+  "sourcePlan": [
+    "actual source-free ready 뒤 capture한 동일 snapshot을 사용한다. 화면용 source excerpt/96call/12guard/32ancestor 제한 대신 whole-source call contexts와 명시 maxDepth를 사용한다. 기존 화면의 기본 제한은 그대로다.",
+    "root 호출 분석은 화면의 작은 block budget과 별도로 max512blocks에서 다시 얻는다. 원문 전체 caller/callee/lexical parent/transitive helpers, 전체 call expression/signature/guard/loop와 confidence를 보존한다. source 프로그램을 실행하지 않는다.",
+    "모든 parser callsite를 포함하며 구현/target이 없으면 unresolved/sourceLimited로 남긴다. static 구조 순서이며 실제 실행 순서 또는 실제 실행 증명이 아니다.",
+    "max900call/512controlblocks·기존 target resolution/capture·전체 input byte/object/token budget을 유지한다. budget gap/target omission은 prefix로 숨기지 않고 whole-request 오류로 처리한다.",
+    "helper file cache는 이 lease에만 속한다. 매 source/model 단계 전후와 재사용마다 snapshot 및 owned signal을 확인한다."
+  ],
+  "sameAction": [
+    "같은 이미 열린 withRun에서 generateCompleteCall을2targets씩 순차 호출한다. helper가 worker를 생성하거나 nested FIFO action을 열지 않는다. 별도 call-flow summary pass를 추가하지 않는다.",
+    "다음 call packet과 모든 root packet에 원래 callId/role/inputs/output/effects/reason6필드 전체를 넘긴다. callId/기존 syntax input constant 복원 외에 model prose/값을 생성·보충·수정·자르지 않는다.",
+    "callPriors는 signature/sequence/전체targets/readings/각묶음원래limitations를 담는다. model-inference label은 provenance 증명이 아니다. actual Host가 이번 action의 직접 응답만 binding하며 완료 cache/이전 action의 prefix를 새 prior로 쓰지 않는다.",
+    "source snippet references·ordered/unique call identities·모든6필드·허용된record keys를 확인한다. bounded descriptor materialization은 getter/function/cycle을 실행하지 않는다."
+  ],
+  "publication": "native root session과 모든 pages는 action-private로 유지한다. concurrent page/node lookup도 partial page를 읽지 못한다. actual child close·outer manager settlement·final source freshness/read 뒤에만 cache/source authority를 넘긴다. 취소/실패 시 모든private page를 폐기하고 다음 action은 모든call/root pages를 새로 만든다. 반복된 session disposal은 같은 actual storage cleanup Promise를 기다린다.",
+  "compatibility": "새callPriors가 없는 기존168개 원래 whole records(112root/56call)의 payload bytes, 모든 raw fixture 값/문장과 inverse를 current public API에서 재확인했다.4176record corpus는 원래SHA를 유지했다. closed controller/private evaluator를 실행하지 않았다. 이는 새neural priors 의미/정확도 증명이 아니다.",
+  "timingLimit": "action receipt는 Host가 받은 ready line→actualclose→outer manager settlement 범위다. worker-ready 수신 지연, 실패 action 전체 receipt 및 withRun 이후 final freshness/read/publication/lease disposal까지 전체 Host 시간을 아직 증명하지 않았다. source checks나 문장을 제거하여3초로 표시하지 않는다.",
+  "qualificationStillRequired": [
+    "qualified actual neural worker/실제 같은action neural priors의 모든 source-mode/domain/loop/confidence/unknown/값/완전한 문장 의미",
+    "native whole token/byte/mask/EOS/window·수치/all6gradient/resource admission와 원래 fixed training",
+    "전체 outerHost<=3000ms",
+    "default provider 채택·download/integrity/custom models/FIFO/cancel/dispose·설치본 기능/실제 시각 QA·version/release/install"
+  ],
+  "provenance": "모든 새 fixture/원문/예제/prose/schema와 offline comparison은 known CPU exposure다. independent neural heldout/training 허가로 쓰지 않는다. 원래4176/fixed3280/52weights/408guards/13failed-family 및 모든 exclusion·sweep/resume/partial-checkpoint 금지는 보존한다.",
+  "product": "명시적 dependency injection 경로만 확장했다. 기본 configured provider/모델/제품0.0.1145/defaultout/설치본은 변경하지 않았다. 이번 UI/browser/server 작업은 없다.",
+  "goalComplete": false,
+  "verification": {
+    "regression": 381,
+    "newDistinct": 14,
+    "wholeSourcePlanCases": 5,
+    "priorDataCases": 4,
+    "actualRootHostCases": 5,
+    "cumulativeDistinctCpuChecks": 1063,
+    "exactTypeRoots": 913,
+    "sequentialTypePartitions": 10,
+    "relocatedSoleCodecFacade": 158,
+    "originalWholeSourceRecords": 168,
+    "originalPayloadBytesIdentical": 168,
+    "originalRawValuesAndFullProseIdentical": 168,
+    "packaging": 18,
+    "architectureModules": 61,
+    "runtimeEdges": 132,
+    "cycles": 0,
+    "finalRegressionScope": "root-call-final-v958",
+    "finalTypesScope": "root-call-types-v959",
+    "originalCompatibilityScope": "root-call-compat-v950",
+    "facadeScope": "root-call-bundle-v951",
+    "architectureScope": "root-call-architecture-v952",
+    "packagingScope": "root-call-package-v953",
+    "evidenceDirectory": ".local-models/experiments/three-second/root-call-progress-v954",
+    "actualNeuralReplies": false,
+    "fullInstalledProductVisualQa": false,
+    "readOnlyHeadOverlays": [
+      "src/llm/functionNarratives/localResponse.ts",
+      "src/llm/functionNarratives/responseSchema.ts"
+    ],
+    "untrackedUserRootsAndCacheExcluded": true
+  },
+  "memory": {
+    "initialObservedFreePercent": 54,
+    "initialObservedSwapUsedMiB": 41292.94,
+    "latestObservedFreePercent": 57,
+    "latestObservedSwapUsedMiB": 41443.19,
+    "observedFreePercentSamples": [
+      54,
+      36,
+      39,
+      42,
+      57
+    ],
+    "modelLoads": 0,
+    "neuralGateSatisfied": false,
+    "compilerAndTestOldSpaceMiB": 512,
+    "compilerAndTestChildrenSequential": true,
+    "finalCompilerPeakRssBytes": 588316672,
+    "finalTestPeakRssBytes": 263880704,
+    "typePeakRssBytes": 567001088,
+    "continuousMinimumOrPhysicalHardcapProven": false,
+    "swapCausalityProven": false
+  }
+}

@@ -12,12 +12,13 @@
   "publicApi": {
     "module": "src/application/functionNarratives/completeRoot/index.ts; application/functionNarratives public facade에서도 export한다.",
     "constructor": "createCompleteFunctionNarrativeRoot(context: FunctionNarrativeContext, locale: ko | en): { request: FunctionNarrativeRootRequest; decode(raw: string): FunctionNarrativePage }",
-    "requirements": "rich source context, parameters 및 정확히 한 source route가 필요하다. provider에 넘기는 request는 schema/messages 데이터뿐이다.",
+    "requirements": "rich source context, parameters 및 정확히 한 source route가 필요하다. callPriors를 제공하면 원래6필드·전체source targets/sequence/각묶음limitations를 그대로 보존한다. 이 data label은 provenance 권한이 아니다. provider에 넘기는 request는 schema/messages 데이터뿐이다.",
     "decode": "동일 source packet에 묶인 strict decoder가 모든 필드와 원래 문장·값을 검증한 뒤 Host graph/source identity를 연결한다. 실패는 FunctionNarrativeError(invalid-response)이며 legacy fallback이나 부분 페이지를 발행하지 않는다.",
     "ownership": "decoder, source bindings, exact-raw 캐시 및 page는 Host 소유다. 반환 page는 clone이며 request의 사후 변경은 restore 검증에서 거부한다.",
     "providerHook": "FunctionNarrativeProvider.generateCompleteRoot?는 raw transport capability다. requestFunctionNarrativeRoot는 취소 시 실제 transport settlement까지 기다리고 provider 자체 검사와 별도로 Host decoder를 호출한다.",
     "storageType": "FunctionNarrativePage = FunctionNarrative<FunctionNarrativeValue>. 기존 parser/evaluator의 generic 기본값은 string을 유지한다. 완전 native page의 runtime admission은 isFunctionNarrativePage로 구분한다.",
-    "adoption": "기본 provider, model, dtype, version, installed extension은 바꾸지 않는다. 실제 same-action neural call priors와 qualified native provider 연결 및 전체 outer manager 시간 검증은 별도 미완료 작업이다."
+    "adoption": "기본 provider, model, dtype, version, installed extension은 바꾸지 않는다. 같은worker call→root binding과 private allpages 경계의 CPU 구현은 docs/NATIVE_NARRATIVE_ROOT_CALLS.json을 따른다. 실제 neural qualification·정확도 및 worker-ready/실패/final Host I/O까지 전체 시간 검증은 별도 미완료다.",
+    "budget": "원문 전체 aggregate source budget을 넘으면 constructor의 context-too-large를 보존한다. malformed reply로 바꾸거나 source/prose prefix를 전달하지 않는다."
   },
   "visiblePlan": {
     "lane": "기존 developer tool UI의 상태 확장. ui-design-workflow 적용; 기존 VS Code token·definition list·버튼·간격을 재사용한다.",

@@ -32,8 +32,9 @@ test("actual Host ready waits for native child close and delayed outer manager s
       const start = performance.now(); await delay(25); const heldMs = performance.now() - start; outer.release(); await pending;
       assert.equal(h.replies().at(-1)?.status, "ready"); assert.equal(h.replies().at(-1)?.coverage?.complete, true); assert.equal(h.state.disposed, 1);
       assert.equal(receipts.length, 1); assert.ok(receipts[0].actionWholeHostMs >= heldMs); assert.equal(receipts[0].outerManagerSettlementObserved, true);
-      assert.equal(receipts[0].worker.requests, 2); assert.equal(receipts[0].worker.actualCloseObserved, true); assert.equal(packets.length, 2);
-      for (const packet of packets) {
+      assert.equal(receipts[0].worker.requests, 3); assert.equal(receipts[0].worker.actualCloseObserved, true); assert.equal(packets.length, 3);
+      assert.equal(packets.filter(packet => !packet.schema.anyOf).length, 1);
+      for (const packet of packets.filter(packet => packet.schema.anyOf)) {
         const content = packet.messages[1].content, marker = "SOURCE JSON:\n";
         const source = (unpackNativeSourceJson(JSON.parse(content.slice(content.lastIndexOf(marker) + marker.length))) as any)["SOURCE DATA:"];
         assert.ok(source.snippets.some((snippet: any) => snippet.text.includes("Parent 원문 😀 224")));
@@ -149,8 +150,9 @@ test("retry after pre-ready native admission failure binds the session to the la
     try {
       await h.delivery.requestFunctionNarratives(h.request); assert.equal(h.replies().at(-1)?.status, "unavailable"); assert.equal(h.state.captures, 0); assert.equal(events.length, 0);
       await h.delivery.requestFunctionNarratives({ ...h.request, requestId: 2 });
-      assert.equal(h.replies().at(-1)?.status, "ready"); assert.equal(h.state.captures, 1); assert.equal(h.writes(), 2); assert.equal(packets.length, 2);
-      for (const packet of packets) {
+      assert.equal(h.replies().at(-1)?.status, "ready"); assert.equal(h.state.captures, 1); assert.equal(h.writes(), 2); assert.equal(packets.length, 3);
+      assert.equal(packets.filter(packet => !packet.schema.anyOf).length, 1);
+      for (const packet of packets.filter(packet => packet.schema.anyOf)) {
         const content = packet.messages[1].content, marker = "SOURCE JSON:\n";
         const source = (unpackNativeSourceJson(JSON.parse(content.slice(content.lastIndexOf(marker) + marker.length))) as any)["SOURCE DATA:"];
         assert.ok(source.sourceEvidence); assert.ok(source.snippets.some((snippet: any) => snippet.text.includes("Parent 원문 😀 224")));

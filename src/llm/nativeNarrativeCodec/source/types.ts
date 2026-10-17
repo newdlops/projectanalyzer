@@ -5,7 +5,7 @@ import type { NativeInputJson, NativeRootInput } from "../input/types";
 
 export type NativeRootSourceContext = Pick<FunctionNarrativeContext,
   "functionName" | "language" | "limited" | "snippets" | "sourceEvidence" | "groundingLimited" |
-  "returnTypeText" | "valueNames" | "valueFacts" | "scenarioBatch" | "nodePreparation"> & {
+  "returnTypeText" | "valueNames" | "valueFacts" | "scenarioBatch" | "nodePreparation" | "callPriors"> & {
     detailLevel: "rich";
     parameters: NonNullable<FunctionNarrativeContext["parameters"]>;
     sourceFlow: NonNullable<FunctionNarrativeContext["sourceFlow"]>;

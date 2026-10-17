@@ -5,7 +5,7 @@ import { putCodec, requireCodec, sameCodec } from "../data";
 // Host-only occurrence bindings are included here; the serialized model source and complete packet keep their separate original 196608 limits.
 const MAX_SOURCE_CHARACTERS = 1048576;
 const optional = new Set([
-  "sourceEvidence", "groundingLimited", "returnTypeText", "valueNames", "valueFacts", "scenarioBatch", "nodePreparation",
+  "sourceEvidence", "groundingLimited", "returnTypeText", "valueNames", "valueFacts", "scenarioBatch", "nodePreparation", "callPriors",
   "parameters.*.type", "sourceFlow.paths.*.reason", "sourceFlow.paths.*.graph",
   ...["graphNodeId", "graphOccurrence", "loweredPredicate", "writeTargets", "branch"].map(key => "sourceFlow.paths.*.steps.*." + key),
   "sourceFlow.paths.*.steps.*.branch.inputCondition"

@@ -64,6 +64,16 @@ export type FunctionNarrativeSnippet = {
 };
 /** Host-only identity handle; source facts are held in an application-owned WeakMap, never in this record. */
 export type FunctionCallSourceProofHandle = { readonly kind: "function-call-source-proof" };
+/** Complete earlier model inferences from one root action. The data label itself grants no source or neural provenance authority. */
+export type FunctionNarrativeCallPriors = {
+  basis: "model-inference";
+  signature: string;
+  sequence: import("../functionCallNarratives").FunctionCallNarrativeTask["sequence"];
+  targets: import("../functionCallNarratives").FunctionCallNarrativeTarget[];
+  readings: import("../functionCallNarratives").FunctionCallReading[];
+  /** Each detail request's original limitations stay separate and whole. */
+  limitations: string[][];
+};
 export type FunctionNarrativeContext = {
   functionName: string;
   language: string;
@@ -71,6 +81,8 @@ export type FunctionNarrativeContext = {
   sourceEvidence?: import("../narrativeSources").NarrativeSourceEvidence;
   /** Independent call-reading task using the same on-demand provider/process lifecycle. */
   callTask?: import("../functionCallNarratives").FunctionCallNarrativeTask;
+  /** Host binds only this action's actual raw call replies; completed caches never seed a new root action. */
+  callPriors?: FunctionNarrativeCallPriors;
   /** Host-only syntax proof port; neither full source ownership nor this callback is serialized to a model. */
   sourceCallReadings?: { read(context: FunctionNarrativeContext, language: "ko" | "en"): import("../functionCallNarratives").FunctionCallNarrativeChunk | undefined;
     /** Captures only compact, checked facts; retaining this handle does not retain the original context or callee file. */

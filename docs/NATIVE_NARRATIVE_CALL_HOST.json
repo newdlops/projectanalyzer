@@ -1,6 +1,6 @@
 {
   "purpose": "실제 호출 Host가 complete source-only native call packet을 한 action의 실제 worker에 전달하고, 원래6필드 전체 응답을 다음 호출/마지막 호출 요약에 보존한다.",
-  "status": "구현·신규13개와 전체367개 CPU 회귀 통과. 실제 neural provenance/정확도와 root Host의 같은-action call priors 연결·전체 Host3초는 미완료다.",
+  "status": "호출 Host의 same-action6필드·transactional publication은 CPU 구현/검증했다. root Host의 같은worker binding은 docs/NATIVE_NARRATIVE_ROOT_CALLS.json을 따른다. 실제 neural provenance/정확도·전체Host3초는 미완료다.",
   "publicApi": [
     "src/application/functionCallNarratives: createCompleteFunctionCallNarrative(context, locale)",
     "FunctionNarrativeProvider.generateCompleteCall(request, locale, signal, options)",
@@ -16,7 +16,7 @@
   ],
   "rawReply": "공개 native codec과 별도 Host chunk/locale 검증만 사용한다. 모델의 모든 prose와 원래6필드를 보존한다. source-issued callId와 기존 schema의 명시적 syntax input constant 복원 외에 문장·값을 계산/합성/수정/자르기하지 않는다. legacy source answer/prose proof port 또는 summary clipping parser를 호출하지 않는다.",
   "provenanceLimit": "CPU fixture와 source/capability/model-name label은 neural provenance가 아니다. 실제 neural worker에는 기존 admit/ready/reply/close proof와 resource/numerical/token qualification이 별도로 필요하다. 여기서 actual은 실제 OS CPU 자식과 production Host 경로를 뜻한다.",
-  "rootBoundary": "호출 Host의 마지막 호출 요약에는 같은-action prior6가 연결됐다. complete root Host/원래 root source DTO에는 아직 같은-action neural call orchestration/binding을 추가해야 한다. 두 화면의 별도 action을 같은 action으로 합산하거나 완료 cache를 새 neural prior로 승격하지 않는다.",
+  "rootBoundary": "호출 Host의 마지막 호출 요약에는 같은-action prior6가 연결됐다. complete root Host/원문 DTO의 같은worker call→root binding CPU 구현은 docs/NATIVE_NARRATIVE_ROOT_CALLS.json을 따른다. 실제 neural provenance/의미/정확도 qualification은 미완료다. 두 화면의 별도 action을 같은 action으로 합산하거나 완료 cache를 새 neural prior로 승격하지 않는다.",
   "timingLimit": "provider receipt는 Host가 받은 ready line부터 actual close와 outer manager settlement까지다. worker-side ready 수신 지연, 실패 action 전체 receipt와 Host의 withRun 이후 final freshness/read/publication/lease disposal은 전체 Host3초 증거에 아직 포함되지 않았다.",
   "qualificationStillRequired": [
     "actual root/call 같은-action neural priors와 모든 source-mode/domain/loop/confidence/unknown/값/완전한 문장 의미",
@@ -48,5 +48,40 @@
   },
   "exposure": "모든 새 fixture/helper/raw prose/schema/source 예제는 known CPU exposure다. independent neural heldout/training 허가로 쓰지 않는다. 원래4176rows/fixed3280/52 rational weights/408guards/13failed-family 및 모든 exclusion·sweep/resume/partial-checkpoint 금지는 그대로다.",
   "product": "명시적 dependency injection만 확장했다. 기본 configured provider/모델/제품0.0.1145/defaultout/설치본은 변경하지 않았다.",
-  "goalComplete": false
+  "goalComplete": false,
+  "rootIntegration": {
+    "publicApi": "docs/NATIVE_NARRATIVE_ROOT_CALLS.json",
+    "verification": {
+      "regression": 381,
+      "newDistinct": 14,
+      "wholeSourcePlanCases": 5,
+      "priorDataCases": 4,
+      "actualRootHostCases": 5,
+      "cumulativeDistinctCpuChecks": 1063,
+      "exactTypeRoots": 913,
+      "sequentialTypePartitions": 10,
+      "relocatedSoleCodecFacade": 158,
+      "originalWholeSourceRecords": 168,
+      "originalPayloadBytesIdentical": 168,
+      "originalRawValuesAndFullProseIdentical": 168,
+      "packaging": 18,
+      "architectureModules": 61,
+      "runtimeEdges": 132,
+      "cycles": 0,
+      "finalRegressionScope": "root-call-final-v958",
+      "finalTypesScope": "root-call-types-v959",
+      "originalCompatibilityScope": "root-call-compat-v950",
+      "facadeScope": "root-call-bundle-v951",
+      "architectureScope": "root-call-architecture-v952",
+      "packagingScope": "root-call-package-v953",
+      "evidenceDirectory": ".local-models/experiments/three-second/root-call-progress-v954",
+      "actualNeuralReplies": false,
+      "fullInstalledProductVisualQa": false,
+      "readOnlyHeadOverlays": [
+        "src/llm/functionNarratives/localResponse.ts",
+        "src/llm/functionNarratives/responseSchema.ts"
+      ],
+      "untrackedUserRootsAndCacheExcluded": true
+    }
+  }
 }

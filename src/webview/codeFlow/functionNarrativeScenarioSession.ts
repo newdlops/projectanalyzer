@@ -19,6 +19,8 @@ export class FunctionNarrativeScenarioSession {
     finalSummary: boolean; summarized: Set<number> };
   /** One independently decoded complete page may retry storage without regenerating any model field. */
   private completePending?: { narrative: FunctionNarrativePage; modelName: string };
+  /** Capture replacement, rollback and context invalidation share the same actual storage cleanup instead of repeating it. */
+  private disposal?: Promise<void>;
   public constructor(private readonly context: FunctionNarrativeContext, private readonly store: FunctionNarrativePageStore) {
     this.run = new FunctionNarrativeScenarioRun(context);
   }
@@ -137,5 +139,9 @@ export class FunctionNarrativeScenarioSession {
     const index = this.nodePages.get(nodeId);
     return index === undefined ? Promise.resolve(undefined) : this.readPage(index);
   }
-  public dispose(): Promise<void> { this.pending = undefined; this.completePending = undefined; this.purpose = undefined; this.nodePages.clear(); return this.store.dispose(); }
+  public dispose(): Promise<void> {
+    if (this.disposal) return this.disposal;
+    this.pending = undefined; this.completePending = undefined; this.purpose = undefined; this.nodePages.clear();
+    return this.disposal = (async () => { await this.store.dispose(); })();
+  }
 }

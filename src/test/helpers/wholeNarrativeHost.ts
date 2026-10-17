@@ -17,14 +17,17 @@ import path from "node:path";
 import { RustAnalyzerBackend } from "../../analyzer/rust/rustAnalyzerBackend";
 
 /** Long comments test complete source independently of route/node budgets. No subject function executes. */
-export async function wholeNarrativeHostFixture(callCount = 12, overrides: Partial<SourceCaptureLimits> = {}) {
+export async function wholeNarrativeHostFixture(callCount = 12, overrides: Partial<SourceCaptureLimits> = {},
+  options: { callExpression?(index: number): string; beforeCalls?: string; afterCalls?: string } = {}) {
   const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'whole-source-host-'));
   const helperText = 'export function finish(value: string): string {\r\n'
     + Array.from({ length: 85 }, (_, index) => `  // Helper 원문 😀 ${index}: preserve this entire declaration and its original line ending.\r\n`).join('')
     + '  return value;\r\n}';
   const rootText = 'export function checkout(enabled: boolean): string {\r\n'
     + Array.from({ length: 225 }, (_, index) => `  // Parent 원문 😀 ${index}: every source character after the former excerpt boundary is required.\r\n`).join('')
-    + Array.from({ length: callCount }, (_, index) => `  const item${index} = finish("source-${index}");\r\n`).join('')
+    + (options.beforeCalls ?? '')
+    + Array.from({ length: callCount }, (_, index) => `  const item${index} = ${options.callExpression?.(index) ?? `finish("source-${index}")`};\r\n`).join('')
+    + (options.afterCalls ?? '')
     + '  if (enabled) return "enabled";\r\n  return "disabled";\r\n}';
   const callerText = 'export function outsideCaller(): string { return checkout(true); }';
   const files: SourceFile[] = [

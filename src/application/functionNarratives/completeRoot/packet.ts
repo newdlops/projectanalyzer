@@ -11,7 +11,7 @@ export function createCompleteFunctionNarrativeRoot(context: FunctionNarrativeCo
   if (context.detailLevel !== "rich" || !context.parameters || !context.sourceFlow) throw new FunctionNarrativeError("invalid-response");
   const source: NativeRootSourceContext = { functionName: context.functionName, language: context.language, limited: context.limited,
     detailLevel: "rich", parameters: context.parameters, snippets: context.snippets, sourceFlow: context.sourceFlow };
-  for (const key of ["sourceEvidence", "groundingLimited", "returnTypeText", "valueNames", "valueFacts", "scenarioBatch"] as const) {
+  for (const key of ["sourceEvidence", "groundingLimited", "returnTypeText", "valueNames", "valueFacts", "scenarioBatch", "callPriors"] as const) {
     if (context[key] !== undefined) Object.assign(source, { [key]: context[key] });
   }
   try {
@@ -25,5 +25,8 @@ export function createCompleteFunctionNarrativeRoot(context: FunctionNarrativeCo
         previous = { raw, page }; return structuredClone(page);
       } catch { throw new FunctionNarrativeError("invalid-response"); }
     } };
-  } catch { throw new FunctionNarrativeError("invalid-response"); }
+  } catch (error) {
+    if (error instanceof FunctionNarrativeError && error.code === "context-too-large") throw error;
+    throw new FunctionNarrativeError("invalid-response");
+  }
 }

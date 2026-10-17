@@ -3,4 +3,5 @@ export { buildFunctionCallNarrativePrompt, parseFunctionCallNarrative } from "./
 export { buildFunctionCallNarrativePlan, type FunctionCallNarrativePlan } from "./plan";
 export { buildFunctionCallNarrativeContext, resolveFunctionCallDeclarationRange } from "./context";
 export { buildSourceFunctionCallNarrativeResponse } from "./sourceReading";
-export { createCompleteFunctionCallNarrative } from "./complete";
+export { createCompleteFunctionCallNarrative, collectFunctionNarrativeCallPriors } from "./complete";
+export { createCapturedFunctionCallPlan, type CapturedFunctionCallPlan, type CapturedFunctionCallPlanOptions } from "./captured";

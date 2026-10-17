@@ -17,6 +17,7 @@ import {
 import { analyzeFunctionLogic } from "../../analyzer/functionLogic";
 import { buildFunctionNarrativeContext, buildCapturedFunctionNarrativeContext, addFunctionNarrativeValueGrounding, bindFunctionNarrativeGraph, type FunctionNarrativeProvider } from "../../application/functionNarratives";
 import { getNarrativeSourceRoots } from "../../application/narrativeSources";
+import { createCapturedFunctionCallPlan } from "../../application/functionCallNarratives";
 import type { NarrativeSourceAccess } from "../../shared/narrativeSources";
 import type { FunctionNarrativeContext } from "../../shared/functionNarratives";
 import type { FunctionNarrativesRequest, FunctionNarrativeSourceRequest } from "../../protocol/functionNarratives";
@@ -350,7 +351,18 @@ export class CodeFlowHostDelivery {
           getCurrentGraph: () => this.dependencies.graphDelivery.current()?.graph });
         try {
           const whole = buildCapturedFunctionNarrativeContext(node, sourceText, lease, analysis);
-          return { context: bindContext({ ...whole, returnTypeText: tutorModel.declaration.returnTypeText }), lease };
+          const context = bindContext({ ...whole, returnTypeText: tutorModel.declaration.returnTypeText });
+          // Call model inputs follow whole captured source, independently from the screen's smaller diagram/statement limits.
+          const calls = this.dependencies.functionNarrativeProvider?.generateCompleteRoot && this.dependencies.functionNarrativeProvider.generateCompleteCall ? createCapturedFunctionCallPlan({
+            graph: active.graph, source: sourceText, lease, primarySnippetId: context.snippets.find(snippet => snippet.role === "function")!.id,
+            analysis: analyzeFunctionLogic({ functionNode: node, sourceText, maxBlocks: 512 }),
+            createSourceToken: id => this.dependencies.sourceNodeTokens.createToken(id),
+            resolveSourceToken: token => this.dependencies.sourceNodeTokens.resolve(token),
+            createEvidenceToken: (file, range) => this.dependencies.evidenceTokens.createToken(file, range),
+            resolveEvidenceToken: token => this.dependencies.evidenceTokens.resolve(token),
+            readSourceText: (file, actionSignal) => access.readFileText(file, actionSignal)
+          }) : undefined;
+          return { context, lease, ...(calls ? { calls } : {}) };
         } catch (error) { lease.dispose(); throw error; }
       } : undefined;
       const contextId = this.narratives.register(payload.id, active.version, context, node.filePath, createContentHash(sourceText), loadSources);
