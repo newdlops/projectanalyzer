@@ -1,0 +1,20 @@
+{
+  "purpose": "실제 production Host의 complete-root provider capability를 공개 native action/stdio worker와 연결한다.",
+  "status": "명시적 provider adapter와 실제 CPU 자식/production Host 연결 검증을 완료했다. 실제 neural provider qualification·same-action prior6·전체 Host3초는 미완료다.",
+  "publicApi": "src/llm/nativeNarrativeProvider/index.ts: createNativeFunctionNarrativeProvider(options)",
+  "ownership": [
+    "생성과 prepare는 worker 생성·spawn·model/source I/O를 하지 않는다. source-free metadata만 저장한다.",
+    "withRun이 기존 global 또는 주입된 ModelTaskManager의 한 inference 작업 안에서 worker admission·ready·Host callback·모든 요청·actual child close·outer settlement를 소유한다.",
+    "모든 provider instance가 공유하는 AsyncLocalStorage와 private owner identity로 action별 transport를 격리한다. 같은 AbortSignal을 쓰는 별도 FIFO 작업도 worker를 공유하지 않으며, 만료된 async 작업·다른 provider/signal/locale·중첩 owner·동시 요청·await하지 않은 요청은 성공으로 바꾸지 않는다.",
+    "owned signal을 callback에 전달하고 Host가 이를 source/storage 취소로 연결하여 manager disposal을 전달한다.",
+    "raw schema/messages와 raw 응답을 그대로 전달한다. independent Host validation을 유지하고 caught request/validation failure도 action 실패로 남긴다. legacy generate는 거부한다."
+  ],
+  "timing": "완료 receipt는 기존 native action의 ready→actual close→outer settlement 범위다. 현재 Host의 withRun 이후 final source freshness/read/publication 및 실패 action 전체 시간은 별도이며 이 값을 전체 Host3초 증거로 쓰지 않는다.",
+  "admission": "Worker의 기존 kind별 admit/ready/reply/close proof와 현재 모든 resource/token/numerical/source qualification을 그대로 요구한다. callback 존재·fixture·kind label로 neural provenance를 증명하지 않는다.",
+  "scope": "명시적 dependency injection용 adapter다. 기본 configured provider/모델/설치본/제품 버전은 바꾸지 않는다. 이후 실제 call orchestration의 모든6필드 prior와 qualified neural provider를 연결해야 한다.",
+  "acceptance": ["actual Rust capture와 모든 pages가 native ready 뒤 생성되고, ready UI는 actual child close/outer settlement 뒤에만 발행됨", "다른 FIFO 작업은 이전 source/storage·cleanup 동안 spawn하지 않음", "manager disposal과 cancellation이 Host I/O 및 actual child 종료까지 기다림", "cleanup failure/malformed raw/stale source가 성공 또는 legacy fallback이 되지 않음", "default logs/receipts에 source/model text를 넣지 않음"],
+  "failureAndRetry": "descriptor 기반의 depth/노드 수 제한·visited set을 둔 반복 탐색으로 aggregate cleanup 안의 source revocation을 유지한다. 취소/disposal은 cancelled, stale source는 stale로 전달한다. ready 이전 admission 실패 뒤 재시도는 실제 captured context로 preview session을 다시 연결한다.",
+  "verification": {"regression":354,"newDistinct":19,"newProviderCases":7,"newProductionHostCases":9,"newFailureClassificationCases":3,"cumulativeDistinctCpuChecks":1036,"exactTypeRoots":899,"sequentialTypePartitions":10,"relocatedSoleCodecFacade":131,"packaging":18,"architectureModules":54,"runtimeEdges":125,"cycles":0,"evidenceDirectory":".local-models/experiments/three-second/native-provider-progress-v931","finalRegressionScope":"native-provider-final-v935","finalTypesScope":"native-provider-final-types-v934","facadeScope":"native-provider-bundle-v928","architectureScope":"native-provider-architecture-v929","packagingScope":"native-provider-package-v930","actualNeuralReplies":false,"fullInstalledProductVisualQa":false},
+  "memory": {"initialObservedFreePercent":37,"initialObservedSwapUsedMiB":41008,"latestObservedFreePercent":39,"latestObservedSwapUsedMiB":41068.31,"modelLoads":0,"neuralGateSatisfied":false,"cpuVerification":"512MiB Node old-space 이내의 순차 compiler/test jobs; 최종 compiler peak597606400B, test peak252133376B, 타입 묶음 peak565772288B를 관측했다. 실제 child peak/close를 별도 기록하며 force-killed child의 미관측 RSS/PID를 추정하지 않는다. 물리 hardcap·연속최소·swap 원인을 주장하지 않는다."},
+  "goalComplete": false
+}

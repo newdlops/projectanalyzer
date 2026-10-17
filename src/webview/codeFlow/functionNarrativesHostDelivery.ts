@@ -32,6 +32,8 @@ export type FunctionNarrativesHostDependencies = {
 /** At most eight bounded contexts and one pending inference; a new root clears all retained work. */
 export class FunctionNarrativesHostDelivery {
   private readonly contexts = new Map<string, ContextEntry>();
+  /** A registered preview is not a captured model context. Weak identity preserves valid pending work without retaining disposed sessions. */
+  private readonly sourceBoundSessions = new WeakSet<FunctionNarrativeScenarioSession>();
   private pending?: { request: FunctionNarrativesRequest; controller: AbortController; language: "ko" | "en"; providerCompleted: boolean; settled: Promise<void>; settle(): void };
   private presentedFlowId?: string;
   public constructor(private readonly dependencies: FunctionNarrativesHostDependencies) {}
@@ -235,7 +237,6 @@ export class FunctionNarrativesHostDelivery {
       this.dependencies.postMessage({ type: "codeFlow/functionNarrativesLoaded", payload: { ...request, ...result } });
     if (!provider) { await send({ status: "unavailable" }); return; }
     let session = entry.sessions.get(language);
-    const createdSession = !session;
     if (!session) { session = new FunctionNarrativeScenarioSession(entry.context, this.dependencies.createPageStore!()); entry.sessions.set(language, session); }
     const controller = new AbortController(); const pending = this.startPending(request, controller, language);
     let generated = false, bodyCompleted = false;
@@ -252,12 +253,13 @@ export class FunctionNarrativesHostDelivery {
       const capture = async () => {
         if (entry.loadSources) sourceLease = await this.acquireSources(entry, controller.signal);
         if (controller.signal.aborted || !current()) throw new FunctionNarrativeError("cancelled");
-        if (createdSession && sourceLease) {
+        // Admission/prepare can fail before the first capture. A later request must still replace that original preview session.
+        if (sourceLease && !this.sourceBoundSessions.has(actionSession)) {
           if (entry.sessions.get(language) === session) entry.sessions.delete(language);
           await actionSession.dispose();
           if (controller.signal.aborted || !current()) throw new FunctionNarrativeError("cancelled");
           session = new FunctionNarrativeScenarioSession(entry.context, this.dependencies.createPageStore!()); entry.sessions.set(language, session);
-          actionSession = session;
+          actionSession = session; this.sourceBoundSessions.add(session);
         }
       };
       // A complete native provider's source-free ready/cleanup scope encloses capture, every page, and storage reads.
@@ -277,7 +279,7 @@ export class FunctionNarrativesHostDelivery {
           await sourceLease?.assertCurrent(signal); return response;
         } } : {})
       };
-      const analyze = async () => {
+      const analyzeCaptured = async () => {
         if (provider.generateCompleteRoot) await capture();
         while (!actionSession.complete) {
           let onAbort = () => {};
@@ -304,6 +306,14 @@ export class FunctionNarrativesHostDelivery {
           }
         }
         bodyCompleted = true;
+      };
+      // Manager disposal owns a distinct signal. Relay it before capture and retain the relay through all awaited source/storage work.
+      const analyze = async (ownedSignal?: AbortSignal) => {
+        const abort = () => controller.abort();
+        ownedSignal?.addEventListener("abort", abort, { once: true });
+        if (ownedSignal?.aborted) abort();
+        try { await analyzeCaptured(); }
+        finally { ownedSignal?.removeEventListener("abort", abort); }
       };
       if (provider.withRun) await provider.withRun(language, controller.signal, analyze);
       else await analyze();

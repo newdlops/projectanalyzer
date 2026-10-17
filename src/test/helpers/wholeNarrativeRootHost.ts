@@ -10,11 +10,12 @@ import { wholeNarrativeHostFixture, wholeRootReply } from "./wholeNarrativeHost"
 
 /** Exercise published function registration and page generation rather than constructing a model context in the test. */
 export async function createWholeNarrativeRootHost(options: { callCount?: number; inspectContext?(context: FunctionNarrativeContext): void | Promise<void>;
+  provider?: FunctionNarrativeProvider;
   completeRoot?(request: FunctionNarrativeRootRequest, signal: AbortSignal, options?: FunctionNarrativeGenerationOptions): Promise<FunctionNarrativeModelResponse>;
   mutateDuringWrite?: boolean; release?: (signal: AbortSignal) => Promise<void>; read?(index: number): Promise<void>; dispose?(hasPages: boolean): Promise<void> } = {}) {
   const f = await wholeNarrativeHostFixture(options.callCount ?? 0), messages: ExtensionResponse[] = [], contexts: FunctionNarrativeContext[] = [];
   let writes = 0, stores = 0; const allPages: Array<Map<number, FunctionNarrativePage>> = [], opened: unknown[] = [];
-  const provider: FunctionNarrativeProvider = {
+  const provider: FunctionNarrativeProvider = options.provider ?? {
     async prepare() { f.events.push('prepare'); },
     async generate(context) {
       f.events.push('generate'); contexts.push(context);

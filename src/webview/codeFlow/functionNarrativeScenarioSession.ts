@@ -34,7 +34,7 @@ export class FunctionNarrativeScenarioSession {
   public async analyzeNext(provider: FunctionNarrativeProvider, language: "ko" | "en", signal: AbortSignal,
     options: { reselectModel: boolean; assertSourceCurrent?(): Promise<void> }): Promise<FunctionNarrativeStoredPage | undefined> {
     if (this.complete) return undefined;
-    return provider.withRun ? provider.withRun(language, signal, () => this.analyzePage(provider, language, signal, options))
+    return provider.withRun ? provider.withRun(language, signal, ownedSignal => this.analyzePage(provider, language, ownedSignal ?? signal, options))
       : this.analyzePage(provider, language, signal, options);
   }
   /** A page publishes only after final synthesis and releases its optional resource scope before returning. */

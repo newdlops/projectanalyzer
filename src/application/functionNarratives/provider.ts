@@ -22,8 +22,8 @@ export interface FunctionNarrativeProvider {
   readonly managesDeadlines?: boolean;
   /** Checked after preparation; adapters may require synthesis from completed node values before a page is published. */
   supportsFinalSummary?(signal: AbortSignal): boolean;
-  /** Optional page-scoped reuse; ownership remains with the FIFO scheduler and cleanup precedes resolution. */
-  withRun?<T>(language: "ko" | "en", signal: AbortSignal, operation: () => Promise<T>): Promise<T>;
+  /** Optional action scope; a native adapter supplies its FIFO-owned signal so manager disposal also cancels Host source/storage work. */
+  withRun?<T>(language: "ko" | "en", signal: AbortSignal, operation: (ownedSignal?: AbortSignal) => Promise<T>): Promise<T>;
   /** Optional cancellable setup runs once per explicit action, before inference deadlines; it receives no source. */
   prepare?(language: "ko" | "en", signal: AbortSignal, options?: FunctionNarrativeOperationOptions): Promise<void>;
   /** Invoked only by an explicit user action; text still needs independent structured validation. */
