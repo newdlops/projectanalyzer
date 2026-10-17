@@ -1,6 +1,6 @@
 {
   "purpose": "Original all-six resource gate completed; supervise the first fixed current3280 training.",
-  "status": "V999 actual all6 independently passed and CLOSED; V1010 fixed training actually live, not complete.",
+  "status": "V999 all6 resource gate CLOSED/pass; V1010 first failure CLOSED/audited; native-owner V1020 fixed training actually live, not complete.",
   "completedResourceScope": "current4176-owned-six-gradient-v999",
   "completedResourcePlanSha256": "f31528dbdfd58e5d54161aac0a8a51b389e9d5fc414ee87953b954f204d26587",
   "unchangedResourceNumerics": {
@@ -95,7 +95,42 @@
     "optimizerUpdates": 0,
     "reason": "Rebound loaded ACK retained V999 heartbeat globals; preserved before any model launch."
   },
-  "liveTraining": {
+  "supervisionInstructions": [
+    "StartV1022 progress/current checkpoint. Actual native-owner fixed training12211/PID71847 and observer94761/PID71889 were live at the saved tool poll; poll those same handles. V1010/50901/6421 are CLOSED and must never repoll/restart. Native10/bridge4 and full guard0 raw4+408 audit passed on CPU. Keep every original numerical/data/resource/guard/no-sweep/no-resume and full neural3sec requirement.",
+    "Retain exact2s owner reads/20s heartbeat/30percent loaded and one8GiB API/wired/cache256MiB. No signal or terminal inference from unknown.",
+    "Audit all original3280 updates and10 full408-owner guards plus actual cleanup/terminal before any fresh-source neural qualification."
+  ],
+  "remainingFullGoal": "Supervise only actual runner12211/PID71847 and observer94761/PID71889 with fresh observations. Do not restart on a polling timeout. V1010/50901/6421 are CLOSED and immutable: actual200 evaluated updates, 199 accepted records/report180; guard200 measured200of408/83295of219571 and its numerical decision was not reached because two actual2s ps PID timeouts produced unknown ownership. Actual final8/bothRNG/wired/base restoration and both tool terminals/PID absence were independently auditedV1016; no partial adapter. V1020 is a new fresh-base scope with only the substantive native owner reader/bridge correction, not a resume or model/dtype/LR/epoch/sampler/weight selection. All optimization/source/SDK/whole guard bodies and44300s predeclared bound are unchanged. Require all3280 actual evaluated updates/1180805 targets, 896 unweighted validation owners/315946 targets,52 fixed rationals,408 guards/148groups/219571 targets at0/200/600/1200/2000/2920/2944/3080/3112/3280 and all original independent old/new decisions. Keep13 permanent failed families and all4176/11440source occurrences/1055bodies/118structures/14whole teaching bodies/24root-parent specs and all retired/teaching exclusions before a later fresh-source admission. Only after actual full training/final adapter/full raw guards/final8/bothRNG/wired/base/actual terminal and PID-absence audit can fresh-source neural qualification proceed. Complete source/callers/lexical parents/transitive helpers and actual same-action prior6 must produce every correct value and complete model-authored explanation through complete tokenization/raw decode/all-page transactional storage/actual child close/outer ModelTaskManager/final public Host upperBound<=3000ms after source-free ready. Last actualAA52236742.311041999994ms/fullycorrect0of2 unchanged. No CPU source evaluation, prose synthesis/repair/clipping/placeholders. Qualified integration/download/integrity/custom models/FIFOcancel/dispose/full functional and installed visual QA/version/release/install remain unmet.",
+  "goalComplete": false,
+  "physicalHardcapOrContinuousMinimumProven": false,
+  "swapCausalityProven": false,
+  "closedTrainingAttemptV1010": {
+    "scope": "current4176-fixed-training-v1010",
+    "status": "closed-first-resource-observation-failure",
+    "actualRunnerSessionId": 50901,
+    "actualRunnerPid": 857,
+    "actualRunnerExitCode": 1,
+    "actualObserverSessionId": 6421,
+    "actualObserverPid": 1238,
+    "actualObserverExitCode": 0,
+    "bothActualPidsAbsent": true,
+    "actualEvaluatedOptimizerUpdates": 200,
+    "acceptedCompletedUpdateRecords": 199,
+    "lastReportedCompletedUpdate": 180,
+    "failedGuardMeasuredOwners": 200,
+    "failedGuardRequiredOwners": 408,
+    "failedGuardMeasuredTargets": 83295,
+    "failedGuardRequiredTargets": 219571,
+    "numericalGuardDecisionNotReached": true,
+    "actualAllocatorPeakBytes": 5562042826,
+    "actualFinalActiveBytes": 8,
+    "bothRngAndWiredRestored": true,
+    "partialAdapterFiles": [],
+    "completeTrainingPassed": false,
+    "allowedForNeuralEvaluation": false,
+    "goalComplete": false
+  },
+  "historicalTrainingEntryV1012": {
     "scope": "current4176-fixed-training-v1010",
     "runnerSessionId": 50901,
     "runnerPid": 857,
@@ -129,16 +164,81 @@
     "installed": false,
     "goalComplete": false
   },
-  "supervisionInstructions": [
-    "Poll only actual live runner50901 and observer6421; no restart on an observation timeout.",
-    "V999 and all closed CPU/preparation/tests/results remain immutable and cannot rerun or be repolled.",
-    "Keep one model8GiB API/wired/cache256MiB, original during30percent and current20s heartbeat. The before-import60percent fresh3 was actually69/70/70 for this new owner.",
-    "Current training is one fixed fresh-base1epoch LR1e-5 seed42 last16/rank8/scale20/dropout0, batch1/accumulation1, full6144 SDK padding and final-only destination adapter-small-model06-whole4176-v1010.",
-    "All3280 evaluated updates/1180805targets,896 unweighted validation owners/315946targets,52 rationals,408 full guards/148groups/219571targets and all10 original/final points must survive.44300s is the count-derived resource bound declared before training, not the neural3s boundary.",
-    "Only after actual terminal/absence/cleanup/full-guard/adapter audit can the next fresh-source neural admission be prepared."
-  ],
-  "remainingFullGoal": "All-six original resource admission is now independently complete. The one fixed fresh-base3280 training is actually live and not complete. Preserve4176 rows/3280 train/896 unweighted validation, 52 count-derived rationals, all408 guards at0/200/600/1200/2000/2920/2944/3080/3112/3280 and13 permanent failed-family bans. No model/dtype/LR/epoch/sampler/coefficient sweep, resume or partial checkpoint selection. After actual training terminal/guard/final8/bothRNG/wired/base/adapter audit, the complete fresh-source boundary excludes all4176 rows/11440 occurrences/1055 bodies/118 structures and14 whole teaching bodies/24 root-parent specs plus all prior teaching/retired/banned families. The actual qualified neural worker must read complete source/callers/lexical parents/transitive helpers and actual same-action original prior6, author every correct value and complete explanation, and finish whole tokenization/raw decode/transactional all-page storage/actual child close/outer ModelTaskManager/final public Host tail in upperBound<=3000ms after source-free ready. Last actual AA522 remains36742.311041999994ms andfullycorrect0/2. CPU source evaluation/prose synthesis/repair/clipping/placeholders cannot fill model answers. Qualified integration/download/integrity/custom models/FIFOcancel/dispose/full functional and installed visual QA/version/release/install remain unmet.",
-  "goalComplete": false,
-  "physicalHardcapOrContinuousMinimumProven": false,
-  "swapCausalityProven": false
+  "trainingFailureIndependentAudit": {
+    "file": "training-failure-progress-v1016/audit-result.json",
+    "sha256": "4d7f001e59812bbdb20fbfe2c309b59cff2ff4ef4adf1e2dce9d853202386366"
+  },
+  "liveTrainingV1020": {
+    "scope": "current4176-native-owner-training-v1020",
+    "runnerSessionId": 12211,
+    "runnerPid": 71847,
+    "observerSessionId": 94761,
+    "observerPid": 71889,
+    "actualToolObservationAt": {
+      "current_time": "2026-10-17 05:22:51 UTC"
+    },
+    "actualLiveAtSavedToolPoll": true,
+    "ownerStarted": "1792214381.860059",
+    "ownerCommand": "[\".local-models/experiments/three-second/env/bin/python\",\"-B\",\".local-models/experiments/three-second/current4176-native-owner-training-v1020/train.py\"]",
+    "nonce": "4f4feba2ab6c811c999e71fc0f079e8e9e69ab6c00dbb8b9eb90f2960e4c0ba3",
+    "planSha256": "c86c8a2143d27026a5555d30655f9efa18559b747a97cddb2346c26604d5101f",
+    "modelLoads": 1,
+    "latestAcceptedCompletedUpdate": 0,
+    "latestAcceptedTargets": 0,
+    "latestMemoryPhase": "guard-0-complete-owners-360",
+    "lastReportedAllocatorPeakBytes": 4310311972,
+    "currentDiscreteFreePercent": 61,
+    "currentNativeIdentityRead": {
+      "reader": "darwin-libproc-procargs2",
+      "pid": 71847,
+      "startedMonotonic": 710867.899539541,
+      "environmentSerialized": false,
+      "processSpawns": 0,
+      "before": {
+        "returnedBytes": 136,
+        "errno": 0,
+        "expectedBytes": 136
+      },
+      "arguments": {
+        "returnCode": 0,
+        "errno": 0,
+        "returnedBytes": 6108,
+        "maximumBufferBytes": 1048576,
+        "environmentSerialized": false,
+        "argc": 3,
+        "scannedArgumentPrefixBytes": 205
+      },
+      "after": {
+        "returnedBytes": 136,
+        "errno": 0,
+        "expectedBytes": 136
+      },
+      "uid": 501,
+      "completedMonotonic": 710867.900161375,
+      "startEpochSeconds": 1792214381,
+      "startMicroseconds": 860059,
+      "deadlineSeconds": 2.0,
+      "elapsedSeconds": 0.00143258401658386,
+      "timedOut": false
+    },
+    "currentSwapRead": {
+      "exitCode": 0,
+      "output": "total = 39936.00M  used = 38576.56M  free = 1359.44M  (encrypted)\n",
+      "error": "",
+      "timedOut": false
+    },
+    "initialEntryFreePercent": [
+      65,
+      60,
+      66
+    ],
+    "actualLoadedRegistrationFreePercent": 62,
+    "completeTrainingPassed": false,
+    "allowedForNeuralEvaluation": false,
+    "final8NotYetApplicable": true,
+    "adopted": false,
+    "installed": false,
+    "goalComplete": false
+  },
+  "nativeOwnerBoundaryApi": "docs/NATIVE_OWNER_READER.json"
 }

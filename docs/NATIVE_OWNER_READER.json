@@ -1,0 +1,121 @@
+{
+  "purpose": "Actual Darwin PID/start/complete argv for current local MLX owner control.",
+  "publicApi": {
+    "reader": "native-owner-reader-v1017/reader.py:NativeOwnerReader.read(pid,expected_argv)",
+    "bridge": "native-owner-bridge-v1019/bridge.py:actual_identity/read_owner/close"
+  },
+  "identity": {
+    "start": "Kernel epoch seconds.microseconds",
+    "command": "Complete canonical JSON argv; no environment serialized",
+    "doubleKernelPidStartUidRead": true,
+    "legacyPsCommandNamespaceAccepted": false
+  },
+  "resources": {
+    "originalOwnerReadDeadlineSeconds": 2,
+    "maximumOutstandingNativeReadThreads": 1,
+    "maximumArgumentBufferBytes": 1048576,
+    "originalCommandCharacters": 4096,
+    "expiredNativeResultsDiscarded": true,
+    "unknownNeverMeansExitSignalOrAdmission": true,
+    "identityReadProcessSpawns": 0,
+    "originalHeartbeatMaximumAgeSeconds": 20,
+    "originalBeforeImportFreePercent": 35,
+    "originalLoadedDuringFreePercent": 30,
+    "additionalEntryFresh60PercentSamples": 3,
+    "memoryApiAndWiredLimitBytes": 8589934592,
+    "cacheLimitBytes": 268435456,
+    "allocatorApiIsNotPhysicalHardcap": true
+  },
+  "localSdkAbi": {
+    "file": "native-owner-reader-v1017/abi-proof.json",
+    "sha256": "9a696a1e49df61163068f923efba826b20540aba74e5e58fc1e4c9e47041d171"
+  },
+  "actualCpuVerification": {
+    "nativeCases": 10,
+    "entryBridgeCases": 4,
+    "actualFixtureReads": 64,
+    "actualFixtureExitCode": 0,
+    "actualNativeAfterReapStatus": "absent",
+    "syntheticFixturesCannotGrantActualModelAdmission": true
+  },
+  "primarySources": [
+    "https://github.com/apple-oss-distributions/xnu/blob/main/bsd/sys/proc_info.h",
+    "https://github.com/apple-oss-distributions/xnu/blob/main/libsyscall/wrappers/libproc/libproc.h"
+  ],
+  "previousFailedScope": "V1010 remains CLOSED; actual failure and incomplete guard preservedV1016.",
+  "liveTraining": {
+    "scope": "current4176-native-owner-training-v1020",
+    "runnerSessionId": 12211,
+    "runnerPid": 71847,
+    "observerSessionId": 94761,
+    "observerPid": 71889,
+    "actualToolObservationAt": {
+      "current_time": "2026-10-17 05:22:51 UTC"
+    },
+    "actualLiveAtSavedToolPoll": true,
+    "ownerStarted": "1792214381.860059",
+    "ownerCommand": "[\".local-models/experiments/three-second/env/bin/python\",\"-B\",\".local-models/experiments/three-second/current4176-native-owner-training-v1020/train.py\"]",
+    "nonce": "4f4feba2ab6c811c999e71fc0f079e8e9e69ab6c00dbb8b9eb90f2960e4c0ba3",
+    "planSha256": "c86c8a2143d27026a5555d30655f9efa18559b747a97cddb2346c26604d5101f",
+    "modelLoads": 1,
+    "latestAcceptedCompletedUpdate": 0,
+    "latestAcceptedTargets": 0,
+    "latestMemoryPhase": "guard-0-complete-owners-360",
+    "lastReportedAllocatorPeakBytes": 4310311972,
+    "currentDiscreteFreePercent": 61,
+    "currentNativeIdentityRead": {
+      "reader": "darwin-libproc-procargs2",
+      "pid": 71847,
+      "startedMonotonic": 710867.899539541,
+      "environmentSerialized": false,
+      "processSpawns": 0,
+      "before": {
+        "returnedBytes": 136,
+        "errno": 0,
+        "expectedBytes": 136
+      },
+      "arguments": {
+        "returnCode": 0,
+        "errno": 0,
+        "returnedBytes": 6108,
+        "maximumBufferBytes": 1048576,
+        "environmentSerialized": false,
+        "argc": 3,
+        "scannedArgumentPrefixBytes": 205
+      },
+      "after": {
+        "returnedBytes": 136,
+        "errno": 0,
+        "expectedBytes": 136
+      },
+      "uid": 501,
+      "completedMonotonic": 710867.900161375,
+      "startEpochSeconds": 1792214381,
+      "startMicroseconds": 860059,
+      "deadlineSeconds": 2.0,
+      "elapsedSeconds": 0.00143258401658386,
+      "timedOut": false
+    },
+    "currentSwapRead": {
+      "exitCode": 0,
+      "output": "total = 39936.00M  used = 38576.56M  free = 1359.44M  (encrypted)\n",
+      "error": "",
+      "timedOut": false
+    },
+    "initialEntryFreePercent": [
+      65,
+      60,
+      66
+    ],
+    "actualLoadedRegistrationFreePercent": 62,
+    "completeTrainingPassed": false,
+    "allowedForNeuralEvaluation": false,
+    "final8NotYetApplicable": true,
+    "adopted": false,
+    "installed": false,
+    "goalComplete": false
+  },
+  "completeTrainingOrNeuralQualificationProven": false,
+  "continuousMinimumPhysicalHardcapOrSwapCausalityProven": false,
+  "goalComplete": false
+}

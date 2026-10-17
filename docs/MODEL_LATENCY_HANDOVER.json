@@ -1,8 +1,8 @@
 {
   "purpose": "로컬 모델의 전체 계산값·설명 완료 3초 목표를 이어가기 위한 핸드오버. 최신 실제 증거와 소유 프로세스 상태를 먼저 확인한다.",
-  "savedAtUtc": "2026-10-17T04:43:20.956405+00:00",
+  "savedAtUtc": "2026-10-17T05:25:20.913037+00:00",
   "workspace": "/Users/lky/project/projectanalyzer",
-  "resumeInstruction": "V1012 progress.json/checkpoint.activeCurrent4176TrainingV1012 first. Actual training runner50901/PID857 and observer6421/PID1238 are live at the saved tool poll. Poll those same handles; do not launch another model or restart. V999 all6 resource gate is CLOSED/pass, V1008 data/completed5 andV1011 ACK6 CPU checks passed. V1009 remains unlaunched with its preserved foreign-heartbeat defect; use only the already-live correctedV1010. Full neural accuracy/wholeHost3s is unmet.",
+  "resumeInstruction": "StartV1022 progress/current checkpoint. Actual native-owner fixed training12211/PID71847 and observer94761/PID71889 were live at the saved tool poll; poll those same handles. V1010/50901/6421 are CLOSED and must never repoll/restart. Native10/bridge4 and full guard0 raw4+408 audit passed on CPU. Keep every original numerical/data/resource/guard/no-sweep/no-resume and full neural3sec requirement.",
   "userIntent": {
     "product": "VS Code 함수 도우미 renderer 자원 최적화, 함수 흐름·시나리오 summary, Kotlin 지원",
     "model": "PC 로컬 LLM으로 맥락 설명. 모델 자동 다운로드 요구와 모델 요청 실패 문제를 다뤄 왔다.",
@@ -576,34 +576,34 @@
       "goalComplete": false
     },
     "latestProgressV1012": "Complete original six-gradient resource gate and first fixed3280 training entry; product0.0.1145 unchanged/unadopted/uninstalled.",
-    "prepublicationHeadV1012": "14827be7001f4de5508adfefa699291c25106306"
+    "prepublicationHeadV1012": "14827be7001f4de5508adfefa699291c25106306",
+    "latestProgressV1022": "Prior PID-observation failure audited/closed; native2s reader actual14 CPU checks and new unchanged fixed pass live. Product0.0.1145 unchanged."
   },
   "executionState": {
     "activeToolHandles": [
       {
-        "sessionId": 50901,
-        "pid": 857,
-        "scope": "current4176-fixed-training-v1010",
+        "sessionId": 12211,
+        "pid": 71847,
+        "scope": "current4176-native-owner-training-v1020",
         "role": "fixed-training-runner"
       },
       {
-        "sessionId": 6421,
-        "pid": 1238,
-        "scope": "current4176-fixed-training-v1010",
-        "role": "owner-pressure-observer"
+        "sessionId": 94761,
+        "pid": 71889,
+        "scope": "current4176-native-owner-training-v1020",
+        "role": "native-owner-pressure-observer"
       }
     ],
     "activeModelProcesses": [
       {
-        "pid": 857,
-        "sessionId": 50901,
-        "ownerStarted": "Sat Oct 17 13:38:16 2026",
-        "ownerCommand": ".local-models/experiments/three-second/env/bin/python -B .local-models/experiments/three-second/current4176-fixed-training-v1010/train.py",
-        "nonce": "6562057d86a17a440896ea32f393c38897e3341f96b07da48372b42910fbea82",
-        "scopeSha256": "b7eb12700d23663b9a7249aaf4cc2b925da8f2109e6479aec83077ac4bb42197",
+        "pid": 71847,
+        "sessionId": 12211,
+        "ownerStarted": "1792214381.860059",
+        "ownerCommand": "[\".local-models/experiments/three-second/env/bin/python\",\"-B\",\".local-models/experiments/three-second/current4176-native-owner-training-v1020/train.py\"]",
+        "nonce": "4f4feba2ab6c811c999e71fc0f079e8e9e69ab6c00dbb8b9eb90f2960e4c0ba3",
+        "scopeSha256": "c86c8a2143d27026a5555d30655f9efa18559b747a97cddb2346c26604d5101f",
         "modelLoads": 1,
-        "optimizerUpdatesAtRegistration": 0,
-        "scope": "current4176-fixed-training-v1010"
+        "scope": "current4176-native-owner-training-v1020"
       }
     ],
     "lastTurn": "progress: prepared exact original six-gradient scope with fresh nonce-bound 60percent entry, original loaded ACK and import/load pressure protection; CPU and actual OS boundaries verified; model entry denied and full neural/3sec unmet",
@@ -645,7 +645,105 @@
       "installed": false,
       "goalComplete": false
     },
-    "currentStateAuthority": "Current checkpoint/actual same tool polls andV1012 snapshot supersede older historical execution summaries and userIntent memory snapshots."
+    "currentStateAuthority": "Actual current checkpoint/tool polls andV1022 supersede historical live or closed snapshots.",
+    "currentSnapshotV1016": {
+      "scope": "current4176-fixed-training-v1010",
+      "status": "closed-first-resource-observation-failure",
+      "actualRunnerSessionId": 50901,
+      "actualRunnerPid": 857,
+      "actualRunnerExitCode": 1,
+      "actualObserverSessionId": 6421,
+      "actualObserverPid": 1238,
+      "actualObserverExitCode": 0,
+      "bothActualPidsAbsent": true,
+      "actualEvaluatedOptimizerUpdates": 200,
+      "acceptedCompletedUpdateRecords": 199,
+      "lastReportedCompletedUpdate": 180,
+      "failedGuardMeasuredOwners": 200,
+      "failedGuardRequiredOwners": 408,
+      "failedGuardMeasuredTargets": 83295,
+      "failedGuardRequiredTargets": 219571,
+      "numericalGuardDecisionNotReached": true,
+      "actualAllocatorPeakBytes": 5562042826,
+      "actualFinalActiveBytes": 8,
+      "bothRngAndWiredRestored": true,
+      "partialAdapterFiles": [],
+      "completeTrainingPassed": false,
+      "allowedForNeuralEvaluation": false,
+      "goalComplete": false
+    },
+    "currentSnapshotV1022": {
+      "scope": "current4176-native-owner-training-v1020",
+      "runnerSessionId": 12211,
+      "runnerPid": 71847,
+      "observerSessionId": 94761,
+      "observerPid": 71889,
+      "actualToolObservationAt": {
+        "current_time": "2026-10-17 05:22:51 UTC"
+      },
+      "actualLiveAtSavedToolPoll": true,
+      "ownerStarted": "1792214381.860059",
+      "ownerCommand": "[\".local-models/experiments/three-second/env/bin/python\",\"-B\",\".local-models/experiments/three-second/current4176-native-owner-training-v1020/train.py\"]",
+      "nonce": "4f4feba2ab6c811c999e71fc0f079e8e9e69ab6c00dbb8b9eb90f2960e4c0ba3",
+      "planSha256": "c86c8a2143d27026a5555d30655f9efa18559b747a97cddb2346c26604d5101f",
+      "modelLoads": 1,
+      "latestAcceptedCompletedUpdate": 0,
+      "latestAcceptedTargets": 0,
+      "latestMemoryPhase": "guard-0-complete-owners-360",
+      "lastReportedAllocatorPeakBytes": 4310311972,
+      "currentDiscreteFreePercent": 61,
+      "currentNativeIdentityRead": {
+        "reader": "darwin-libproc-procargs2",
+        "pid": 71847,
+        "startedMonotonic": 710867.899539541,
+        "environmentSerialized": false,
+        "processSpawns": 0,
+        "before": {
+          "returnedBytes": 136,
+          "errno": 0,
+          "expectedBytes": 136
+        },
+        "arguments": {
+          "returnCode": 0,
+          "errno": 0,
+          "returnedBytes": 6108,
+          "maximumBufferBytes": 1048576,
+          "environmentSerialized": false,
+          "argc": 3,
+          "scannedArgumentPrefixBytes": 205
+        },
+        "after": {
+          "returnedBytes": 136,
+          "errno": 0,
+          "expectedBytes": 136
+        },
+        "uid": 501,
+        "completedMonotonic": 710867.900161375,
+        "startEpochSeconds": 1792214381,
+        "startMicroseconds": 860059,
+        "deadlineSeconds": 2.0,
+        "elapsedSeconds": 0.00143258401658386,
+        "timedOut": false
+      },
+      "currentSwapRead": {
+        "exitCode": 0,
+        "output": "total = 39936.00M  used = 38576.56M  free = 1359.44M  (encrypted)\n",
+        "error": "",
+        "timedOut": false
+      },
+      "initialEntryFreePercent": [
+        65,
+        60,
+        66
+      ],
+      "actualLoadedRegistrationFreePercent": 62,
+      "completeTrainingPassed": false,
+      "allowedForNeuralEvaluation": false,
+      "final8NotYetApplicable": true,
+      "adopted": false,
+      "installed": false,
+      "goalComplete": false
+    }
   },
   "evidence": {
     "root": ".local-models/experiments/three-second/",
@@ -19746,6 +19844,14 @@
     "wholeGradientAndFixedTrainingV1007ToV1012": {
       "file": "fixed-training-actual-progress-v1012/progress.json",
       "sha256": "13b9f7c6d141a1a17d68ed88283477bd6ab75d526954da24c9d3fb6e3aa93026"
+    },
+    "firstFixedTrainingFailureV1016": {
+      "file": "training-failure-progress-v1016/audit-result.json",
+      "sha256": "4d7f001e59812bbdb20fbfe2c309b59cff2ff4ef4adf1e2dce9d853202386366"
+    },
+    "nativeOwnerAndFailureAuditV1013ToV1022": {
+      "file": "native-training-actual-progress-v1022/progress.json",
+      "sha256": "425440681617e9de6e81fda667df24f9eed1ecf7fb7818840e8793ab5034ce69"
     }
   },
   "preparedAssets": {
@@ -22265,34 +22371,98 @@
     },
     "fixedCurrentTrainingV1010": {
       "scope": "current4176-fixed-training-v1010",
-      "runnerSessionId": 50901,
-      "runnerPid": 857,
-      "observerSessionId": 6421,
-      "observerPid": 1238,
+      "status": "closed-first-resource-observation-failure",
+      "actualRunnerSessionId": 50901,
+      "actualRunnerPid": 857,
+      "actualRunnerExitCode": 1,
+      "actualObserverSessionId": 6421,
+      "actualObserverPid": 1238,
+      "actualObserverExitCode": 0,
+      "bothActualPidsAbsent": true,
+      "actualEvaluatedOptimizerUpdates": 200,
+      "acceptedCompletedUpdateRecords": 199,
+      "lastReportedCompletedUpdate": 180,
+      "failedGuardMeasuredOwners": 200,
+      "failedGuardRequiredOwners": 408,
+      "failedGuardMeasuredTargets": 83295,
+      "failedGuardRequiredTargets": 219571,
+      "numericalGuardDecisionNotReached": true,
+      "actualAllocatorPeakBytes": 5562042826,
+      "actualFinalActiveBytes": 8,
+      "bothRngAndWiredRestored": true,
+      "partialAdapterFiles": [],
+      "completeTrainingPassed": false,
+      "allowedForNeuralEvaluation": false,
+      "goalComplete": false
+    },
+    "nativeCurrentTrainingV1020": {
+      "scope": "current4176-native-owner-training-v1020",
+      "runnerSessionId": 12211,
+      "runnerPid": 71847,
+      "observerSessionId": 94761,
+      "observerPid": 71889,
       "actualToolObservationAt": {
-        "current_time": "2026-10-17 04:42:02 UTC"
+        "current_time": "2026-10-17 05:22:51 UTC"
       },
-      "ownerStarted": "Sat Oct 17 13:38:16 2026",
-      "ownerCommand": ".local-models/experiments/three-second/env/bin/python -B .local-models/experiments/three-second/current4176-fixed-training-v1010/train.py",
-      "nonce": "6562057d86a17a440896ea32f393c38897e3341f96b07da48372b42910fbea82",
-      "planSha256": "b7eb12700d23663b9a7249aaf4cc2b925da8f2109e6479aec83077ac4bb42197",
-      "actuallyLiveAtLastToolPoll": true,
+      "actualLiveAtSavedToolPoll": true,
+      "ownerStarted": "1792214381.860059",
+      "ownerCommand": "[\".local-models/experiments/three-second/env/bin/python\",\"-B\",\".local-models/experiments/three-second/current4176-native-owner-training-v1020/train.py\"]",
+      "nonce": "4f4feba2ab6c811c999e71fc0f079e8e9e69ab6c00dbb8b9eb90f2960e4c0ba3",
+      "planSha256": "c86c8a2143d27026a5555d30655f9efa18559b747a97cddb2346c26604d5101f",
       "modelLoads": 1,
-      "latestCompletedUpdate": 0,
-      "latestCompletedTargets": 0,
+      "latestAcceptedCompletedUpdate": 0,
+      "latestAcceptedTargets": 0,
       "latestMemoryPhase": "guard-0-complete-owners-360",
-      "lastReportedAllocatorPeakBytes": 4184843296,
-      "currentDiscreteFreePercent": 68,
+      "lastReportedAllocatorPeakBytes": 4310311972,
+      "currentDiscreteFreePercent": 61,
+      "currentNativeIdentityRead": {
+        "reader": "darwin-libproc-procargs2",
+        "pid": 71847,
+        "startedMonotonic": 710867.899539541,
+        "environmentSerialized": false,
+        "processSpawns": 0,
+        "before": {
+          "returnedBytes": 136,
+          "errno": 0,
+          "expectedBytes": 136
+        },
+        "arguments": {
+          "returnCode": 0,
+          "errno": 0,
+          "returnedBytes": 6108,
+          "maximumBufferBytes": 1048576,
+          "environmentSerialized": false,
+          "argc": 3,
+          "scannedArgumentPrefixBytes": 205
+        },
+        "after": {
+          "returnedBytes": 136,
+          "errno": 0,
+          "expectedBytes": 136
+        },
+        "uid": 501,
+        "completedMonotonic": 710867.900161375,
+        "startEpochSeconds": 1792214381,
+        "startMicroseconds": 860059,
+        "deadlineSeconds": 2.0,
+        "elapsedSeconds": 0.00143258401658386,
+        "timedOut": false
+      },
       "currentSwapRead": {
         "exitCode": 0,
-        "output": "total = 39936.00M  used = 38976.56M  free = 959.44M  (encrypted)\n",
+        "output": "total = 39936.00M  used = 38576.56M  free = 1359.44M  (encrypted)\n",
         "error": "",
         "timedOut": false
       },
-      "guardReports": [],
-      "final8NotYetApplicable": true,
+      "initialEntryFreePercent": [
+        65,
+        60,
+        66
+      ],
+      "actualLoadedRegistrationFreePercent": 62,
       "completeTrainingPassed": false,
       "allowedForNeuralEvaluation": false,
+      "final8NotYetApplicable": true,
       "adopted": false,
       "installed": false,
       "goalComplete": false
@@ -22322,10 +22492,10 @@
     "ownership": "준비 모델 하나 공유, 요청 UID별 fresh KV·grammar·sampler·detokenizer. 답변·소스 KV 재사용 금지."
   },
   "nextSession": {
-    "first": "V1012 progress.json/checkpoint.activeCurrent4176TrainingV1012 first. Actual training runner50901/PID857 and observer6421/PID1238 are live at the saved tool poll. Poll those same handles; do not launch another model or restart. V999 all6 resource gate is CLOSED/pass, V1008 data/completed5 andV1011 ACK6 CPU checks passed. V1009 remains unlaunched with its preserved foreign-heartbeat defect; use only the already-live correctedV1010. Full neural accuracy/wholeHost3s is unmet.",
-    "nextIndependentWork": "All-six original resource admission is now independently complete. The one fixed fresh-base3280 training is actually live and not complete. Preserve4176 rows/3280 train/896 unweighted validation, 52 count-derived rationals, all408 guards at0/200/600/1200/2000/2920/2944/3080/3112/3280 and13 permanent failed-family bans. No model/dtype/LR/epoch/sampler/coefficient sweep, resume or partial checkpoint selection. After actual training terminal/guard/final8/bothRNG/wired/base/adapter audit, the complete fresh-source boundary excludes all4176 rows/11440 occurrences/1055 bodies/118 structures and14 whole teaching bodies/24 root-parent specs plus all prior teaching/retired/banned families. The actual qualified neural worker must read complete source/callers/lexical parents/transitive helpers and actual same-action original prior6, author every correct value and complete explanation, and finish whole tokenization/raw decode/transactional all-page storage/actual child close/outer ModelTaskManager/final public Host tail in upperBound<=3000ms after source-free ready. Last actual AA522 remains36742.311041999994ms andfullycorrect0/2. CPU source evaluation/prose synthesis/repair/clipping/placeholders cannot fill model answers. Qualified integration/download/integrity/custom models/FIFOcancel/dispose/full functional and installed visual QA/version/release/install remain unmet.",
-    "notImplemented": "All-six original resource admission is now independently complete. The one fixed fresh-base3280 training is actually live and not complete. Preserve4176 rows/3280 train/896 unweighted validation, 52 count-derived rationals, all408 guards at0/200/600/1200/2000/2920/2944/3080/3112/3280 and13 permanent failed-family bans. No model/dtype/LR/epoch/sampler/coefficient sweep, resume or partial checkpoint selection. After actual training terminal/guard/final8/bothRNG/wired/base/adapter audit, the complete fresh-source boundary excludes all4176 rows/11440 occurrences/1055 bodies/118 structures and14 whole teaching bodies/24 root-parent specs plus all prior teaching/retired/banned families. The actual qualified neural worker must read complete source/callers/lexical parents/transitive helpers and actual same-action original prior6, author every correct value and complete explanation, and finish whole tokenization/raw decode/transactional all-page storage/actual child close/outer ModelTaskManager/final public Host tail in upperBound<=3000ms after source-free ready. Last actual AA522 remains36742.311041999994ms andfullycorrect0/2. CPU source evaluation/prose synthesis/repair/clipping/placeholders cannot fill model answers. Qualified integration/download/integrity/custom models/FIFOcancel/dispose/full functional and installed visual QA/version/release/install remain unmet.",
-    "completionStillMissing": "All-six original resource admission is now independently complete. The one fixed fresh-base3280 training is actually live and not complete. Preserve4176 rows/3280 train/896 unweighted validation, 52 count-derived rationals, all408 guards at0/200/600/1200/2000/2920/2944/3080/3112/3280 and13 permanent failed-family bans. No model/dtype/LR/epoch/sampler/coefficient sweep, resume or partial checkpoint selection. After actual training terminal/guard/final8/bothRNG/wired/base/adapter audit, the complete fresh-source boundary excludes all4176 rows/11440 occurrences/1055 bodies/118 structures and14 whole teaching bodies/24 root-parent specs plus all prior teaching/retired/banned families. The actual qualified neural worker must read complete source/callers/lexical parents/transitive helpers and actual same-action original prior6, author every correct value and complete explanation, and finish whole tokenization/raw decode/transactional all-page storage/actual child close/outer ModelTaskManager/final public Host tail in upperBound<=3000ms after source-free ready. Last actual AA522 remains36742.311041999994ms andfullycorrect0/2. CPU source evaluation/prose synthesis/repair/clipping/placeholders cannot fill model answers. Qualified integration/download/integrity/custom models/FIFOcancel/dispose/full functional and installed visual QA/version/release/install remain unmet.",
-    "publication": "Documentation-only publication receipt is saved under fixed-training-actual-progress-v1012/publication.json after actual push; no product/model release or install."
+    "first": "StartV1022 progress/current checkpoint. Actual native-owner fixed training12211/PID71847 and observer94761/PID71889 were live at the saved tool poll; poll those same handles. V1010/50901/6421 are CLOSED and must never repoll/restart. Native10/bridge4 and full guard0 raw4+408 audit passed on CPU. Keep every original numerical/data/resource/guard/no-sweep/no-resume and full neural3sec requirement.",
+    "nextIndependentWork": "Supervise only actual runner12211/PID71847 and observer94761/PID71889 with fresh observations. Do not restart on a polling timeout. V1010/50901/6421 are CLOSED and immutable: actual200 evaluated updates, 199 accepted records/report180; guard200 measured200of408/83295of219571 and its numerical decision was not reached because two actual2s ps PID timeouts produced unknown ownership. Actual final8/bothRNG/wired/base restoration and both tool terminals/PID absence were independently auditedV1016; no partial adapter. V1020 is a new fresh-base scope with only the substantive native owner reader/bridge correction, not a resume or model/dtype/LR/epoch/sampler/weight selection. All optimization/source/SDK/whole guard bodies and44300s predeclared bound are unchanged. Require all3280 actual evaluated updates/1180805 targets, 896 unweighted validation owners/315946 targets,52 fixed rationals,408 guards/148groups/219571 targets at0/200/600/1200/2000/2920/2944/3080/3112/3280 and all original independent old/new decisions. Keep13 permanent failed families and all4176/11440source occurrences/1055bodies/118structures/14whole teaching bodies/24root-parent specs and all retired/teaching exclusions before a later fresh-source admission. Only after actual full training/final adapter/full raw guards/final8/bothRNG/wired/base/actual terminal and PID-absence audit can fresh-source neural qualification proceed. Complete source/callers/lexical parents/transitive helpers and actual same-action prior6 must produce every correct value and complete model-authored explanation through complete tokenization/raw decode/all-page transactional storage/actual child close/outer ModelTaskManager/final public Host upperBound<=3000ms after source-free ready. Last actualAA52236742.311041999994ms/fullycorrect0of2 unchanged. No CPU source evaluation, prose synthesis/repair/clipping/placeholders. Qualified integration/download/integrity/custom models/FIFOcancel/dispose/full functional and installed visual QA/version/release/install remain unmet.",
+    "notImplemented": "Supervise only actual runner12211/PID71847 and observer94761/PID71889 with fresh observations. Do not restart on a polling timeout. V1010/50901/6421 are CLOSED and immutable: actual200 evaluated updates, 199 accepted records/report180; guard200 measured200of408/83295of219571 and its numerical decision was not reached because two actual2s ps PID timeouts produced unknown ownership. Actual final8/bothRNG/wired/base restoration and both tool terminals/PID absence were independently auditedV1016; no partial adapter. V1020 is a new fresh-base scope with only the substantive native owner reader/bridge correction, not a resume or model/dtype/LR/epoch/sampler/weight selection. All optimization/source/SDK/whole guard bodies and44300s predeclared bound are unchanged. Require all3280 actual evaluated updates/1180805 targets, 896 unweighted validation owners/315946 targets,52 fixed rationals,408 guards/148groups/219571 targets at0/200/600/1200/2000/2920/2944/3080/3112/3280 and all original independent old/new decisions. Keep13 permanent failed families and all4176/11440source occurrences/1055bodies/118structures/14whole teaching bodies/24root-parent specs and all retired/teaching exclusions before a later fresh-source admission. Only after actual full training/final adapter/full raw guards/final8/bothRNG/wired/base/actual terminal and PID-absence audit can fresh-source neural qualification proceed. Complete source/callers/lexical parents/transitive helpers and actual same-action prior6 must produce every correct value and complete model-authored explanation through complete tokenization/raw decode/all-page transactional storage/actual child close/outer ModelTaskManager/final public Host upperBound<=3000ms after source-free ready. Last actualAA52236742.311041999994ms/fullycorrect0of2 unchanged. No CPU source evaluation, prose synthesis/repair/clipping/placeholders. Qualified integration/download/integrity/custom models/FIFOcancel/dispose/full functional and installed visual QA/version/release/install remain unmet.",
+    "completionStillMissing": "Supervise only actual runner12211/PID71847 and observer94761/PID71889 with fresh observations. Do not restart on a polling timeout. V1010/50901/6421 are CLOSED and immutable: actual200 evaluated updates, 199 accepted records/report180; guard200 measured200of408/83295of219571 and its numerical decision was not reached because two actual2s ps PID timeouts produced unknown ownership. Actual final8/bothRNG/wired/base restoration and both tool terminals/PID absence were independently auditedV1016; no partial adapter. V1020 is a new fresh-base scope with only the substantive native owner reader/bridge correction, not a resume or model/dtype/LR/epoch/sampler/weight selection. All optimization/source/SDK/whole guard bodies and44300s predeclared bound are unchanged. Require all3280 actual evaluated updates/1180805 targets, 896 unweighted validation owners/315946 targets,52 fixed rationals,408 guards/148groups/219571 targets at0/200/600/1200/2000/2920/2944/3080/3112/3280 and all original independent old/new decisions. Keep13 permanent failed families and all4176/11440source occurrences/1055bodies/118structures/14whole teaching bodies/24root-parent specs and all retired/teaching exclusions before a later fresh-source admission. Only after actual full training/final adapter/full raw guards/final8/bothRNG/wired/base/actual terminal and PID-absence audit can fresh-source neural qualification proceed. Complete source/callers/lexical parents/transitive helpers and actual same-action prior6 must produce every correct value and complete model-authored explanation through complete tokenization/raw decode/all-page transactional storage/actual child close/outer ModelTaskManager/final public Host upperBound<=3000ms after source-free ready. Last actualAA52236742.311041999994ms/fullycorrect0of2 unchanged. No CPU source evaluation, prose synthesis/repair/clipping/placeholders. Qualified integration/download/integrity/custom models/FIFOcancel/dispose/full functional and installed visual QA/version/release/install remain unmet.",
+    "publication": "Documentation-only actual push receipt is native-training-actual-progress-v1022/publication.json; no product/model release/install."
   }
 }
