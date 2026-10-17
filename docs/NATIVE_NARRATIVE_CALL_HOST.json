@@ -83,5 +83,40 @@
       ],
       "untrackedUserRootsAndCacheExcluded": true
     }
+  },
+  "completionTiming": "docs/NATIVE_NARRATIVE_TIMING.json: 성공/실패 action 및 실제 공개 Host Promise 정산 receipt. 최종 freshness/read/publication/disposal과 전송 대기 중 취소를 관측한다. worker ready latency는 명시적 clock exchange의 상한만 사용한다. actual neural/전체3초 미완료.",
+  "timingVerificationV973": {
+    "regression": 400,
+    "newDistinct": 19,
+    "actionTimingCases": 9,
+    "actualHostTimingCases": 10,
+    "cumulativeDistinctCpuChecks": 1082,
+    "exactTypeRoots": 917,
+    "sequentialTypePartitions": 10,
+    "relocatedSoleCodecFacade": 177,
+    "packaging": 18,
+    "architectureModules": 63,
+    "runtimeEdges": 136,
+    "cycles": 0,
+    "finalRegressionScope": "host-settlement-final-regression-v970",
+    "finalTypesScope": "host-settlement-types-v964",
+    "facadeScope": "host-settlement-bundle-v965",
+    "architectureScope": "host-settlement-architecture-v966",
+    "packagingScope": "host-settlement-package-v967",
+    "original168Compatibility": "inherited unchanged public codec/root adapter hashes; not rerun",
+    "evidenceDirectory": ".local-models/experiments/three-second/host-settlement-progress-v973",
+    "finalCompilerPeakRssBytes": 603930624,
+    "finalTestPeakRssBytes": 290291712,
+    "typePeakRssBytes": 623394816,
+    "facadePeakRssBytes": 280625152,
+    "modelLoads": 0,
+    "actualNeuralReplies": false,
+    "fullInstalledProductVisualQa": false,
+    "readOnlyHeadOverlays": [
+      "src/llm/functionNarratives/localResponse.ts",
+      "src/llm/functionNarratives/responseSchema.ts"
+    ],
+    "untrackedUserRootsAndCacheExcluded": true,
+    "goalComplete": false
   }
 }

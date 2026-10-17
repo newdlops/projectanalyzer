@@ -9,7 +9,7 @@
     "owned signal을 callback에 전달하고 Host가 이를 source/storage 취소로 연결하여 manager disposal을 전달한다.",
     "raw schema/messages와 raw 응답을 그대로 전달한다. independent Host validation을 유지하고 caught request/validation failure도 action 실패로 남긴다. legacy generate는 거부한다."
   ],
-  "timing": "완료 receipt는 기존 native action의 ready→actual close→outer settlement 범위다. 현재 Host의 withRun 이후 final source freshness/read/publication 및 실패 action 전체 시간은 별도이며 이 값을 전체 Host3초 증거로 쓰지 않는다.",
+  "timing": "기존 onRunComplete.actionWholeHostMs는 Host ready receipt→actual close→outer settlement의 성공 action-only 값이다. onRunSettled는 실패와 준비 전 거부도 기록하고, onHostRunComplete는 최종 freshness/read/publication/disposal·실제 공개 Host Promise 정산까지 포함한다. requireReadyClock=true의 유효한 source-free monotonic exchange는 worker ready 지연의 구간을 제공하며 상한을 판단한다. docs/NATIVE_NARRATIVE_TIMING.json을 따른다. 실제 neural/전체Host3초 증거는 아직 없다.",
   "admission": "Worker의 기존 kind별 admit/ready/reply/close proof와 현재 모든 resource/token/numerical/source qualification을 그대로 요구한다. callback 존재·fixture·kind label로 neural provenance를 증명하지 않는다.",
   "scope": "명시적 dependency injection용 adapter다. 기본 configured provider/모델/설치본/제품 버전은 바꾸지 않는다. generateCompleteCall과 실제 call Host는 docs/NATIVE_NARRATIVE_CALL_HOST.json, 실제 root Host의 같은worker call→root binding/private allpages는 docs/NATIVE_NARRATIVE_ROOT_CALLS.json을 따른다. 실제 neural qualification·정확도·전체Host3초는 미완료다.",
   "acceptance": [
@@ -119,5 +119,39 @@
     "packagingScope": "native-call-package-v942",
     "actualNeuralReplies": false,
     "fullInstalledProductVisualQa": false
+  },
+  "timingVerificationV973": {
+    "regression": 400,
+    "newDistinct": 19,
+    "actionTimingCases": 9,
+    "actualHostTimingCases": 10,
+    "cumulativeDistinctCpuChecks": 1082,
+    "exactTypeRoots": 917,
+    "sequentialTypePartitions": 10,
+    "relocatedSoleCodecFacade": 177,
+    "packaging": 18,
+    "architectureModules": 63,
+    "runtimeEdges": 136,
+    "cycles": 0,
+    "finalRegressionScope": "host-settlement-final-regression-v970",
+    "finalTypesScope": "host-settlement-types-v964",
+    "facadeScope": "host-settlement-bundle-v965",
+    "architectureScope": "host-settlement-architecture-v966",
+    "packagingScope": "host-settlement-package-v967",
+    "original168Compatibility": "inherited unchanged public codec/root adapter hashes; not rerun",
+    "evidenceDirectory": ".local-models/experiments/three-second/host-settlement-progress-v973",
+    "finalCompilerPeakRssBytes": 603930624,
+    "finalTestPeakRssBytes": 290291712,
+    "typePeakRssBytes": 623394816,
+    "facadePeakRssBytes": 280625152,
+    "modelLoads": 0,
+    "actualNeuralReplies": false,
+    "fullInstalledProductVisualQa": false,
+    "readOnlyHeadOverlays": [
+      "src/llm/functionNarratives/localResponse.ts",
+      "src/llm/functionNarratives/responseSchema.ts"
+    ],
+    "untrackedUserRootsAndCacheExcluded": true,
+    "goalComplete": false
   }
 }

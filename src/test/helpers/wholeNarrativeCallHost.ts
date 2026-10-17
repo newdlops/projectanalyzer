@@ -11,7 +11,7 @@ import { functionCallReadingReply } from "../unit/helpers/functionCallReadingFix
 
 /** Keep real registries/projections; injecting a provider never bypasses source acquisition or strict response validation. */
 export async function createWholeNarrativeCallHost(providerFactory?: (fixture: Awaited<ReturnType<typeof wholeNarrativeHostFixture>>) => FunctionNarrativeProvider,
-  limits?: Parameters<typeof wholeNarrativeHostFixture>[1]) {
+  limits?: Parameters<typeof wholeNarrativeHostFixture>[1], postNarratives?: (message: FunctionCallNarrativesResponse) => Promise<void>) {
   const f = await wholeNarrativeHostFixture(12, limits), contexts: FunctionNarrativeContext[] = [], actualReplies: FunctionCallReading[] = [];
   const messages: FunctionCallNarrativesResponse[] = [], slices: FunctionCallsResponse[] = [];
   const provider = providerFactory?.(f) ?? { async prepare() { f.events.push('prepare'); }, async generate(context: FunctionNarrativeContext) {
@@ -30,6 +30,7 @@ export async function createWholeNarrativeCallHost(providerFactory?: (fixture: A
   const host = new FunctionCallsHostDelivery({ ...f, narrativeSources: f.access, provider, getLanguage: () => 'en',
     async readSourceText(filePath) { return f.files.find(file => file.path === filePath)?.content; },
     async postMessage(message) { slices.push(message); }, async postNarratives(message) {
+      await postNarratives?.(message);
       if (message.status === 'ready' && !message.cacheHit) assert.ok(f.events.includes('provider-released'));
       messages.push(message);
     } });

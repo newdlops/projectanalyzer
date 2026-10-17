@@ -8,25 +8,32 @@ import "./completeNativeNarrativeRoot";
 import "./completeNativeNarrativeCall";
 
 export type CompleteNativeFixtureExit = { pid: number; actualExitCode: number; processPeakRssBytes: number; modelLoads: 0 };
+export type CompleteNativeFixtureClock = { readyDelayMs?: number; offsetNs?: string; fault?: "missing" | "nonce" | "order" | "silent" | "exit" };
 
 /** Keep child configuration source-free and retain real exit/RSS reports until assertions finish; force-killed children have no invented exit report. */
 export async function withCompleteNativeNarrativeWorker<T>(run: (fixture: {
-  options(mode?: "complete" | "echo" | "hold" | "bad-reply" | "bad-close" | "slow-close" | "call" | "call-bad-second" | "call-hold-second" | "call-bad-close" | "call-slow-close" | "bad-root-second" | "hold-root-second"): NativeNarrativeWorkerOptions;
+  options(mode?: "complete" | "echo" | "hold" | "bad-reply" | "bad-close" | "slow-close" | "call" | "call-bad-second" | "call-hold-second" | "call-bad-close" | "call-slow-close" | "bad-root-second" | "hold-root-second", clock?: CompleteNativeFixtureClock): NativeNarrativeWorkerOptions;
   reports(): Promise<CompleteNativeFixtureExit[]>;
 }) => Promise<T>): Promise<T> {
   const directory = await fs.mkdtemp(path.join(os.tmpdir(), "complete-native-provider-")), script = path.join(directory, "worker.cjs");
   await fs.writeFile(script, String.raw`/** Explicit CPU fixture: all complete prose is authored against the supplied schema, never by evaluating source. */
 const fs=require('node:fs'),path=require('node:path'),readline=require('node:readline');
 const mode=process.argv[2],helper=process.argv[3],directory=process.argv[4],keep=setInterval(()=>{},1000);
+const clock=JSON.parse(process.argv[6]),now=()=>process.hrtime.bigint()+BigInt(clock?.offsetNs||'0');
 process.on('exit',code=>fs.writeFileSync(path.join(directory,'worker-'+process.pid+'.json'),JSON.stringify({pid:process.pid,actualExitCode:code,processPeakRssBytes:process.resourceUsage().maxRSS*1024,modelLoads:0}),{flag:'wx'}));
 if(mode==='hold')process.on('SIGTERM',()=>{});
 const callReply=require(process.argv[5]).completeNativeCallReply;
 const reply=mode.startsWith('call')?callReply:mode==='echo'||mode==='hold'||mode==='bad-reply'?undefined:require(helper).completeNativeUnverifiedReply;
 let packets=0,rootPackets=0;
 const write=value=>process.stdout.write(JSON.stringify(value)+'\n');
-write({ready:true,sourceFree:true,sampledTokens:0,sourceTokensProvided:0,sourceKvReused:false,fixture:true,modelLoads:0,workerPid:process.pid});
+const ready={ready:true,sourceFree:true,sampledTokens:0,sourceTokensProvided:0,sourceKvReused:false,fixture:true,modelLoads:0,workerPid:process.pid,
+ ...(clock&&clock.fault!=='missing'?{readyClock:{version:1,workerReadyNs:now().toString()}}:{})};
+setTimeout(()=>write(ready),clock?.readyDelayMs||0);
 const reader=readline.createInterface({input:process.stdin,crlfDelay:Infinity});
-reader.on('line',async line=>{try{const request=JSON.parse(line).requests[0],root=Boolean(request.payload.schema.anyOf);packets++;if(root)rootPackets++;
+reader.on('line',async line=>{try{const input=JSON.parse(line);if(input.nativeClock){const receivedNs=now();
+ if(clock?.fault==='exit')return process.exit(1);if(clock?.fault==='silent')return;
+ return write({nativeClock:{version:1,nonce:clock?.fault==='nonce'?'wrong':input.nativeClock.nonce,workerPid:process.pid,receivedNs:receivedNs.toString(),sentNs:(clock?.fault==='order'?receivedNs-1n:now()).toString()}});}
+ const request=input.requests[0],root=Boolean(request.payload.schema.anyOf);packets++;if(root)rootPackets++;
  if(mode==='hold'||mode==='call-hold-second'&&packets===2||mode==='hold-root-second'&&rootPackets===2&&root)return;
  const text=mode==='bad-reply'||mode==='call-bad-second'&&packets===2||mode==='bad-root-second'&&rootPackets===2&&root?'{}':mode==='echo'?JSON.stringify({payload:request.payload,text:'Raw 😀 "quoted"\r\n<literal>'}):(await(root?reply:callReply)(request.payload,process.pid*1000+packets)).text;
  write({fixture:true,replies:[{uid:request.uid,content:text}]});
@@ -36,8 +43,9 @@ reader.on('close',()=>{if(mode==='hold')return;write({closed:true,fixture:mode!=
 });
 `, { mode: 0o600 });
   try {
-    return await run({ options(mode = "complete") { return { kind: "test-fixture", command: process.execPath,
-      args: ["--max-old-space-size=256", script, mode, require.resolve("./completeNativeNarrativeRoot"), directory, require.resolve("./completeNativeNarrativeCall")], modelName: "Explicit complete native CPU fixture",
+    return await run({ options(mode = "complete", clock) { return { kind: "test-fixture", command: process.execPath,
+      args: ["--max-old-space-size=256", script, mode, require.resolve("./completeNativeNarrativeRoot"), directory, require.resolve("./completeNativeNarrativeCall"), JSON.stringify(clock ?? null)], modelName: "Explicit complete native CPU fixture",
+      requireReadyClock: clock !== undefined,
       killGraceMs: mode === "hold" ? 80 : 1000 }; },
     async reports() {
       const files = (await fs.readdir(directory)).filter(file => /^worker-\d+\.json$/u.test(file));

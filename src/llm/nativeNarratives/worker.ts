@@ -6,6 +6,7 @@ import { isNativeRecord, requireNative, serializeNativePacket, NATIVE_LINE_BYTES
 import type { NativeNarrativeClose, NativeNarrativeEvent, NativeNarrativeReady, NativeNarrativeReply, NativeNarrativeRequest,
   NativeNarrativeTransport, NativeNarrativeWorkerObservation, NativeNarrativeWorkerOptions } from "./types";
 import { combineNativeFailures } from "./failures";
+import { NativeReadyClockExchange, type NativeReadyClockBounds } from "./readyClock";
 
 type Pending = { uid: number; requestId: string; timer: ReturnType<typeof setTimeout>; resolve(reply: NativeNarrativeReply): void; reject(error: unknown): void };
 
@@ -18,6 +19,11 @@ export class NativeNarrativeWorker implements NativeNarrativeTransport {
   private preparation?: Promise<void>;
   private ready?: NativeNarrativeReady;
   private readyAt?: number;
+  private readyReceiptNs?: bigint;
+  private readyClock?: NativeReadyClockBounds;
+  private clockExchange?: NativeReadyClockExchange;
+  private clockTimer?: ReturnType<typeof setTimeout>;
+  private preparationComplete = false;
   private readyResolve?: () => void;
   private readyReject?: (error: unknown) => void;
   private closed?: Promise<void>;
@@ -46,6 +52,7 @@ export class NativeNarrativeWorker implements NativeNarrativeTransport {
     requireNative(typeof options.modelName === "string" && options.modelName.length > 0 && options.modelName.length <= 100, "worker-model-name");
     requireNative(Number.isInteger(options.requestTimeoutMs ?? 180000) && (options.requestTimeoutMs ?? 180000) > 0 && (options.requestTimeoutMs ?? 180000) <= 180000, "worker-timeout");
     requireNative(Number.isInteger(options.killGraceMs ?? 2000) && (options.killGraceMs ?? 2000) > 0 && (options.killGraceMs ?? 2000) <= 2000, "worker-kill-grace");
+    requireNative(options.requireReadyClock === undefined || typeof options.requireReadyClock === "boolean", "worker-clock-option");
     if (options.kind === "neural-worker") {
       requireNative((options.killGraceMs ?? 2000) === 2000, "worker-neural-kill-grace");
       for (const key of ["admit", "validateReady", "validateReply", "validateClosed"] as const) requireNative(typeof options[key] === "function", "worker-neural-proof");
@@ -56,6 +63,7 @@ export class NativeNarrativeWorker implements NativeNarrativeTransport {
   public get observation(): NativeNarrativeWorkerObservation {
     return { pid: this.child?.pid, state: this.state, kind: this.options.kind, requests: this.requests,
       actualCloseObserved: this.actualCloseObserved, sourceFreeReadyAtMonotonicMs: this.readyAt, closedCode: this.closedCode, closedSignal: this.closedSignal,
+      sourceFreeReadyReceiptNs: this.readyReceiptNs?.toString(), readyClock: this.readyClock && { ...this.readyClock },
       closedReceipt: this.closedReceipt && structuredClone(this.closedReceipt), runtimeErrorCode: this.runtimeError?.code,
       cleanupErrorCode: this.cleanupError?.code, stderrBytes: this.stderrBytes, neuralAuthorshipProven: false };
   }
@@ -129,23 +137,38 @@ export class NativeNarrativeWorker implements NativeNarrativeTransport {
       this.buffer = Buffer.concat([this.buffer, part]); cursor = end + (newline < 0 ? 0 : 1);
       if (newline < 0) break;
       try {
-        const receivedAt = performance.now();
+        const receivedAt = performance.now(), receivedNs = process.hrtime.bigint();
         const raw = new TextDecoder("utf-8", { fatal: true }).decode(this.buffer); this.buffer = Buffer.alloc(0);
-        this.options.journal?.({ direction: "output", pid: this.child?.pid, raw }); this.onLine(JSON.parse(raw), receivedAt);
+        this.options.journal?.({ direction: "output", pid: this.child?.pid, raw }); this.onLine(JSON.parse(raw), receivedAt, receivedNs);
       } catch (error) { this.stop(error instanceof FunctionNarrativeError ? error : new FunctionNarrativeError("invalid-response", "worker-reply")); return; }
     }
   }
 
   /** Every ready/response/receipt belongs to the same live process and pending UID. */
-  private onLine(reply: unknown, receivedAt: number): void {
+  private onLine(reply: unknown, receivedAt: number, receivedNs: bigint): void {
     requireNative(isNativeRecord(reply), "worker-reply-shape");
+    if (reply.nativeClock) {
+      requireNative(this.state === "starting" && this.clockExchange, "worker-unowned-clock");
+      this.readyClock = this.clockExchange!.complete(reply.nativeClock, receivedNs, this.child?.pid);
+      clearTimeout(this.clockTimer); this.clockExchange = undefined; this.event("clock-response"); this.finishPreparation(); return;
+    }
     if (reply.ready) {
       requireNative(this.state === "starting" && reply.ready === true && reply.sourceFree === true && Object.is(reply.sampledTokens, 0)
         && Object.is(reply.sourceTokensProvided, 0) && reply.sourceKvReused === false, "worker-ready-proof");
       if (this.options.kind === "test-fixture") requireNative(reply.fixture === true && Object.is(reply.modelLoads, 0) && reply.workerPid === this.child?.pid, "worker-fixture-proof");
       else requireNative(reply.fixture !== true && reply.modelLoads === 1, "worker-neural-ready");
       const ready = reply as NativeNarrativeReady;
-      this.options.validateReady?.(ready); this.ready = ready; this.readyAt = receivedAt; this.state = "ready"; this.event("ready"); this.readyResolve!(); return;
+      requireNative(!this.ready, "worker-duplicate-ready");
+      this.options.validateReady?.(ready); this.ready = ready; this.readyAt = receivedAt; this.readyReceiptNs = receivedNs;
+      if (this.options.requireReadyClock) {
+        this.clockExchange = new NativeReadyClockExchange(reply.readyClock, receivedNs);
+        const raw = this.clockExchange.packet();
+        this.clockTimer = setTimeout(() => this.stop(new FunctionNarrativeError("timeout", "worker-clock-timeout")), this.options.requestTimeoutMs ?? 180000); this.clockTimer.unref();
+        this.options.journal?.({ direction: "input", pid: this.child?.pid, raw: raw.slice(0, -1) }); this.event("clock-request");
+        this.clockExchange.sent(process.hrtime.bigint());
+        this.child!.stdin.write(raw, error => { if (error) this.stop(new FunctionNarrativeError("failed", "worker-clock-write")); });
+      } else this.finishPreparation();
+      return;
     }
     if (reply.closed) { requireNative(this.state === "closing" && !this.closedReceipt && reply.closed === true, "worker-close-receipt"); this.closedReceipt = reply; this.event("close-receipt"); return; }
     requireNative(this.state === "ready" && this.pending && this.ready, "worker-unowned-response");
@@ -157,6 +180,10 @@ export class NativeNarrativeWorker implements NativeNarrativeTransport {
     this.options.validateReply?.(reply, this.ready);
     const pending = this.pending; this.pending = undefined; clearTimeout(pending.timer); this.event("response", { uid: member.uid as number });
     pending.resolve({ requestId: pending.requestId, text: member.content, modelName: this.options.modelName });
+  }
+
+  private finishPreparation(): void {
+    this.state = "ready"; this.preparationComplete = true; this.event("ready"); this.readyResolve!();
   }
 
   /** Stop requests remain pending until close; the grace timer escalates only this owned process. */
@@ -171,7 +198,7 @@ export class NativeNarrativeWorker implements NativeNarrativeTransport {
 
   /** Resolve cleanup after the actual OS close and independent close validation; partial lines are never accepted. */
   private onClose(code: number | null, signal: NodeJS.Signals | null): void {
-    clearTimeout(this.killTimer); this.closedCode = code; this.closedSignal = signal; this.actualCloseObserved = true;
+    clearTimeout(this.killTimer); clearTimeout(this.clockTimer); this.closedCode = code; this.closedSignal = signal; this.actualCloseObserved = true;
     if (this.buffer.length || this.state !== "closing" || this.pending && !this.runtimeError) this.runtimeError ??= new FunctionNarrativeError("failed", "worker-exit");
     const proof: NativeNarrativeClose = { pid: this.child?.pid, code, signal, ready: this.ready, receipt: this.closedReceipt, expectedStop: this.expectedStop };
     try {
@@ -184,7 +211,7 @@ export class NativeNarrativeWorker implements NativeNarrativeTransport {
     this.closeFailure = combineNativeFailures([this.runtimeError, this.cleanupError]);
     this.buffer = Buffer.alloc(0); this.state = "closed"; this.parent?.removeEventListener("abort", this.abort); this.event("actual-close", { code, signal });
     const error = this.runtimeError ?? this.cleanupError ?? new FunctionNarrativeError("failed", "worker-exit");
-    if (!this.ready) this.readyReject?.(error);
+    if (!this.preparationComplete) this.readyReject?.(error);
     if (this.pending) { clearTimeout(this.pending.timer); this.pending.reject(error); this.pending = undefined; }
     this.closedResolve!();
   }

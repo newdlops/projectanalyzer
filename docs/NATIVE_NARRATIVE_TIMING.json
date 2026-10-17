@@ -1,0 +1,84 @@
+{
+  "purpose": "source-free worker ready부터 실제 root/call Host의 최종 Promise 정산까지, 성공·실패 경계를 source/model text 없이 관측한다.",
+  "status": "실제 CPU 자식과 production Host에 대한 계측 구현이다. 실제 neural qualification·전체 Host 3000ms 달성·출시 완료를 뜻하지 않는다.",
+  "publicApis": {
+    "worker": "NativeNarrativeWorkerOptions.requireReadyClock=true는 clock exchange를 완료하기 전 prepare를 완료하지 않는다.",
+    "action": "runNativeNarrativeAction.onSettled는 실제 outer ModelTaskManager.run Promise 정산 뒤 성공/실패 모두 호출된다.",
+    "provider": "onRunComplete는 호환되는 성공 action-only receipt다. onRunSettled는 실패도 포함한다. onHostRunComplete는 Host가 제공한 lifecycle을 통해 실제 공개 request Promise 정산 뒤 호출된다.",
+    "host": "FunctionNarrativeHostRun은 실제 공개 request가 반환하는 동일 Promise에 reaction을 등록한다. request 내부의 모든 await/finally와 provider.withRun 이후 작업을 포함한다. CodeFlowHostDelivery.requestFunctionNarratives와 FunctionCallsHostDelivery.explain은 이 Promise를 그대로 반환한다."
+  },
+  "clockProtocol": {
+    "contract": "양쪽 시계는 동일한 속도의 monotonic nanoseconds다. epoch는 같다고 가정하지 않는다. qualified worker는 실제 source-free ready 시점에 workerReadyNs를 기록하고 어떠한 source도 받지 않은 채 시계 요청에 응답해야 한다.",
+    "ready": {
+      "readyClock": {
+        "version": 1,
+        "workerReadyNs": "decimal unsigned nanoseconds"
+      }
+    },
+    "hostChallenge": {
+      "nativeClock": {
+        "version": 1,
+        "nonce": "fresh per-worker random UUID"
+      }
+    },
+    "workerResponse": {
+      "nativeClock": {
+        "version": 1,
+        "nonce": "same nonce",
+        "workerPid": "actual child PID",
+        "receivedNs": "worker receive timestamp",
+        "sentNs": "worker timestamp before response emission"
+      }
+    },
+    "offsetBounds": "O=Host-Worker에 대해 Hsend-Wrecv <= O <= Hrecv-Wsend. worker ready의 Host 시각 구간은 Wready+O이며 ready emission이 Host receipt 이전이라는 인과 경계와 교차한다.",
+    "durationBounds": "동일한 최종 Host hrtime endpoint에서 ready 구간을 뺀 lowerBound/upperBound/uncertaintyMs다. 3000ms 판단에는 upperBound를 사용해야 한다. single exact worker latency로 표시하지 않는다.",
+    "included": "ready emission→IPC/Host 수신 지연, ready proof와 observer, clock exchange, source capture, 전체 tokenization/inference/raw strict decode/transactional allpages, actual child close, outer manager settlement, final freshness/read/projection/publication/source disposal 및 actual public Host Promise settlement",
+    "failure": "필수 timestamp 누락·잘못된 nonce/PID/순서·유효하지 않은 bound·unsolicited reply·timeout·교환 중 종료는 whole action 실패다. source/model 요청을 먼저 보내거나 Host receipt만으로 worker ready를 대체하지 않는다.",
+    "legacy": "옵션이 없는 기존 worker의 입력 bytes는 유지한다. hostReadyReceiptMs는 Host 수신 이후 시간만 표시하고 workerReadyMs를 만들지 않는다. 이 값은 worker ready부터의 전체 3초 증거가 아니다.",
+    "trust": "clock label/숫자/fixture 자체는 neural provenance나 정확한 worker 구현 증거가 아니다. 실제 worker의 admit/ready/reply/close 검증과 monotonic clock 구현 검토·resource qualification이 별도로 필요하다."
+  },
+  "receipts": {
+    "action": "succeeded, duration, bounded worker observation, outerManagerSettlementObserved:true, neuralAuthorshipProven:false. queue 취소·admission 실패처럼 준비 시각이 없으면 duration={}이며 worker PID도 없을 수 있다.",
+    "host": "action snapshot, host.promise fulfilled/rejected, host.status ready/stale/cancelled/failed 등, 최종 duration, publicHostPromiseSettlementObserved:true, neuralAuthorshipProven:false. action 성공 후 최종 freshness/transport/disposal 실패는 Host 성공으로 바꾸지 않는다.",
+    "promiseSemantics": "fulfilled는 실패 status 전송을 정상 완료한 경우도 포함한다. ready 의미·action.succeeded·public Promise 결과·actual cleanup proof를 함께 평가한다. ready 전송 뒤 finally에서 dispose가 throw하면 공개 Promise는 rejected/failed다. final transport를 기다리는 중 취소는 action 성공과 구별하여 Host cancelled로 기록한다. 이미 전송을 시작한 메시지를 되돌렸다는 의미는 아니다.",
+    "privacy": "source/schema/messages/model prose/arbitrary closedReceipt/error message/cause를 넣지 않는다. timestamp/PID/state/요청 수/close code·signal/정해진 failure code만 보존한다. observer에는 독립 clone을 전달하고 observer throw나 중복 completion으로 결과를 바꾸지 않는다.",
+    "observerBoundary": "최종 duration endpoint는 명시적 진단 observer 호출 직전이다. 모델 설명을 계산·보정하거나 product UI에 진단 protocol을 노출하지 않는다. cache-only 요청은 새 native action receipt를 만들지 않는다."
+  },
+  "qualificationRemaining": "실제 neural worker의 이 protocol 채택·token/numerical/all6/resource qualification, 같은 action의 원래 prior6·모든 값/전체 문장 정확도와 전체 Host upperBound<=3000ms, 기본 provider 채택·다운로드/무결성/custom model/FIFO 취소·설치본 기능/시각 QA·version/release/install은 미완료다. 마지막 실제 AA522는36742.311041999994ms·완전정확0/2 그대로다.",
+  "memory": "모델/MLX 적재를 하지 않는 순차 CPU 검증이다. 추가V778 owner-free60percent fresh3 및 새 실제 handoff 전 고메모리 진입 금지와 기존 one8GiB/cache256MiB/import전35/during30percent를 유지한다.",
+  "goalComplete": false,
+  "verification": {
+    "regression": 400,
+    "newDistinct": 19,
+    "actionTimingCases": 9,
+    "actualHostTimingCases": 10,
+    "cumulativeDistinctCpuChecks": 1082,
+    "exactTypeRoots": 917,
+    "sequentialTypePartitions": 10,
+    "relocatedSoleCodecFacade": 177,
+    "packaging": 18,
+    "architectureModules": 63,
+    "runtimeEdges": 136,
+    "cycles": 0,
+    "finalRegressionScope": "host-settlement-final-regression-v970",
+    "finalTypesScope": "host-settlement-types-v964",
+    "facadeScope": "host-settlement-bundle-v965",
+    "architectureScope": "host-settlement-architecture-v966",
+    "packagingScope": "host-settlement-package-v967",
+    "original168Compatibility": "inherited unchanged public codec/root adapter hashes; not rerun",
+    "evidenceDirectory": ".local-models/experiments/three-second/host-settlement-progress-v973",
+    "finalCompilerPeakRssBytes": 603930624,
+    "finalTestPeakRssBytes": 290291712,
+    "typePeakRssBytes": 623394816,
+    "facadePeakRssBytes": 280625152,
+    "modelLoads": 0,
+    "actualNeuralReplies": false,
+    "fullInstalledProductVisualQa": false,
+    "readOnlyHeadOverlays": [
+      "src/llm/functionNarratives/localResponse.ts",
+      "src/llm/functionNarratives/responseSchema.ts"
+    ],
+    "untrackedUserRootsAndCacheExcluded": true,
+    "goalComplete": false
+  }
+}

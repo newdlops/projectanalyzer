@@ -49,9 +49,10 @@
       "outer manager settlement"
     ],
     "queueAndSourceFreePreparationExcluded": true,
-    "workerSideReadyToHostReceiptDelayMeasured": false,
-    "failedActionCompleteTimingReceiptProvided": false,
-    "actualNeuralWholeHostThreeSecondsProven": false
+    "workerSideReadyToHostReceiptDelayMeasured": "requireReadyClock=true의 유효한 monotonic exchange에 한해 CPU 구현/검증. 실제 neural qualification은 미완료.",
+    "failedActionCompleteTimingReceiptProvided": true,
+    "actualNeuralWholeHostThreeSecondsProven": false,
+    "fullHostCompletionPort": "docs/NATIVE_NARRATIVE_TIMING.json: 실제 root/call Host의 공개 Promise 정산까지 최종 I/O·정리를 포함하는 별도 receipt. 기존 wholeHostMs는 action-only."
   },
   "neuralAdmission": {
     "requiredCallbacks": [
@@ -113,5 +114,39 @@
     },
     "actualNeuralWholeHost3000msProven": false,
     "browserVisualQaPerformed": false
+  },
+  "timingVerificationV973": {
+    "regression": 400,
+    "newDistinct": 19,
+    "actionTimingCases": 9,
+    "actualHostTimingCases": 10,
+    "cumulativeDistinctCpuChecks": 1082,
+    "exactTypeRoots": 917,
+    "sequentialTypePartitions": 10,
+    "relocatedSoleCodecFacade": 177,
+    "packaging": 18,
+    "architectureModules": 63,
+    "runtimeEdges": 136,
+    "cycles": 0,
+    "finalRegressionScope": "host-settlement-final-regression-v970",
+    "finalTypesScope": "host-settlement-types-v964",
+    "facadeScope": "host-settlement-bundle-v965",
+    "architectureScope": "host-settlement-architecture-v966",
+    "packagingScope": "host-settlement-package-v967",
+    "original168Compatibility": "inherited unchanged public codec/root adapter hashes; not rerun",
+    "evidenceDirectory": ".local-models/experiments/three-second/host-settlement-progress-v973",
+    "finalCompilerPeakRssBytes": 603930624,
+    "finalTestPeakRssBytes": 290291712,
+    "typePeakRssBytes": 623394816,
+    "facadePeakRssBytes": 280625152,
+    "modelLoads": 0,
+    "actualNeuralReplies": false,
+    "fullInstalledProductVisualQa": false,
+    "readOnlyHeadOverlays": [
+      "src/llm/functionNarratives/localResponse.ts",
+      "src/llm/functionNarratives/responseSchema.ts"
+    ],
+    "untrackedUserRootsAndCacheExcluded": true,
+    "goalComplete": false
   }
 }

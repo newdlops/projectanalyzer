@@ -1,6 +1,7 @@
 /** Replaceable LLM boundary; application code supplies excerpts and never owns a model process. */
 import type { FunctionNarrativeContext } from "../../shared/functionNarratives";
 import type { ModelTaskProgress, ModelTaskResource } from "../../shared/modelTasks";
+import type { FunctionNarrativeRunLifecycle } from "./hostRun";
 
 export { FunctionNarrativeError, type FunctionNarrativeFailure } from "../../shared/functionNarratives";
 export type FunctionNarrativeModelResponse = { modelName: string; text: string };
@@ -25,7 +26,7 @@ export interface FunctionNarrativeProvider {
   /** Checked after preparation; adapters may require synthesis from completed node values before a page is published. */
   supportsFinalSummary?(signal: AbortSignal): boolean;
   /** Optional action scope; a native adapter supplies its FIFO-owned signal so manager disposal also cancels Host source/storage work. */
-  withRun?<T>(language: "ko" | "en", signal: AbortSignal, operation: (ownedSignal?: AbortSignal) => Promise<T>): Promise<T>;
+  withRun?<T>(language: "ko" | "en", signal: AbortSignal, operation: (ownedSignal?: AbortSignal) => Promise<T>, lifecycle?: FunctionNarrativeRunLifecycle): Promise<T>;
   /** Optional cancellable setup runs once per explicit action, before inference deadlines; it receives no source. */
   prepare?(language: "ko" | "en", signal: AbortSignal, options?: FunctionNarrativeOperationOptions): Promise<void>;
   /** Invoked only by an explicit user action; text still needs independent structured validation. */

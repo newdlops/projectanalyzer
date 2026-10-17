@@ -2,7 +2,7 @@
 import { buildFunctionCallNarrativePlan, buildFunctionCallNarrativeContext, resolveFunctionCallDeclarationRange, parseFunctionCallNarrative, createCompleteFunctionCallNarrative, type FunctionCallNarrativePlan } from "../../application/functionCallNarratives";
 import { createProjectCallableScope } from "../../application/functionCalls";
 import type { FunctionNarrativeProvider } from "../../application/functionNarratives";
-import { requestFunctionNarrative, requestFunctionNarrativeCall } from "../../application/functionNarratives";
+import { requestFunctionNarrative, requestFunctionNarrativeCall, FunctionNarrativeHostRun } from "../../application/functionNarratives";
 import type { FunctionCallNarrativeChunk } from "../../shared/functionCallNarratives";
 import { FunctionNarrativeError, type FunctionCallSourceProofHandle } from "../../shared/functionNarratives";
 import type { SourceRange, SymbolNode } from "../../shared/types";
@@ -76,7 +76,11 @@ export class FunctionCallNarrativesHostDelivery {
   }
 
   /** Only a non-page user request generates. Every chunk fixes at most two static callsites/visits. */
-  public async request(request: FunctionCallNarrativesRequest): Promise<void> {
+  public request(request: FunctionCallNarrativesRequest): Promise<void> {
+    const run = new FunctionNarrativeHostRun(); return run.observe(() => this.requestInternal(request, run));
+  }
+
+  private async requestInternal(request: FunctionCallNarrativesRequest, run: FunctionNarrativeHostRun): Promise<void> {
     const entry = this.contexts.get(request.sourceToken), language = request.pageLanguage ?? this.dependencies.getLanguage();
     const failure = (status: FunctionCallNarrativesResponse["status"]) => this.dependencies.postMessage({ ...request, status });
     if (!entry || !this.active(request, entry)) { await failure("stale"); return; }
@@ -226,15 +230,17 @@ export class FunctionCallNarrativesHostDelivery {
         ownedSignal?.addEventListener("abort", abort, { once: true }); if (ownedSignal?.aborted) abort();
         try { await analyzeCaptured(); } finally { ownedSignal?.removeEventListener("abort", abort); }
       };
-      if (provider.withRun) await provider.withRun(language, signal, analyze); else await analyze();
+      if (provider.withRun) await provider.withRun(language, signal, analyze, run.lifecycle); else await analyze();
       pending.providerCompleted = true;
       // A ready response means process/resource cleanup finished too. A cancel
       // or root change during teardown cannot publish a late success.
       await sourceLease?.assertCurrent(signal); ensureActive();
       if (native) this.retainReading(key, reading);
       await this.send(request, reading, "ready", false);
+      run.outcome("ready");
     } catch (error) {
       const status = signal.aborted ? "cancelled" : getNarrativeSourceFailureStatus(error) ?? (error instanceof FunctionNarrativeError ? error.code : "failed");
+      run.outcome(status);
       if (native) {
         // No call/page from a failed action may authorize cache reads or seed the next worker's priors.
         if (this.readings.get(key) === reading) this.readings.delete(key);
@@ -246,7 +252,10 @@ export class FunctionCallNarrativesHostDelivery {
       if (this.pending === pending && this.active(request, entry)) {
         if (!native && (reading.hasSummary || reading.calls.length)) await this.send(request, reading, status, false); else await failure(status);
       }
-    } finally { sourceLease?.dispose(); if (this.pending === pending) this.pending = undefined; pending.settle(); }
+    } finally {
+      try { sourceLease?.dispose(); }
+      finally { run.interrupted(signal.aborted); if (this.pending === pending) this.pending = undefined; pending.settle(); }
+    }
   }
 
   /** Cache ownership transfers only after native cleanup succeeds; evicted validation receipts lose source authority. */

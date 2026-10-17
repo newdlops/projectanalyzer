@@ -12,7 +12,8 @@ import { wholeNarrativeHostFixture, wholeRootReply } from "./wholeNarrativeHost"
 export async function createWholeNarrativeRootHost(options: { callCount?: number; inspectContext?(context: FunctionNarrativeContext): void | Promise<void>;
   provider?: FunctionNarrativeProvider;
   completeRoot?(request: FunctionNarrativeRootRequest, signal: AbortSignal, options?: FunctionNarrativeGenerationOptions): Promise<FunctionNarrativeModelResponse>;
-  mutateDuringWrite?: boolean; release?: (signal: AbortSignal) => Promise<void>; read?(index: number): Promise<void>; dispose?(hasPages: boolean): Promise<void> } = {}) {
+  mutateDuringWrite?: boolean; release?: (signal: AbortSignal) => Promise<void>; read?(index: number): Promise<void>; dispose?(hasPages: boolean): Promise<void>;
+  postMessage?(message: ExtensionResponse): Promise<void> } = {}) {
   const f = await wholeNarrativeHostFixture(options.callCount ?? 0), messages: ExtensionResponse[] = [], contexts: FunctionNarrativeContext[] = [];
   let writes = 0, stores = 0; const allPages: Array<Map<number, FunctionNarrativePage>> = [], opened: unknown[] = [];
   const provider: FunctionNarrativeProvider = options.provider ?? {
@@ -47,6 +48,7 @@ export async function createWholeNarrativeRootHost(options: { callCount?: number
       }, async read(index) { await options.read?.(index); return pages.get(index); }, async dispose() { await options.dispose?.(pages.size > 0); pages.clear(); } };
     },
     async postMessage(message) {
+      await options.postMessage?.(message);
       if (message.type === 'codeFlow/functionNarrativesLoaded' && message.payload.status === 'ready' && !message.payload.cacheHit) {
         assert.ok(f.events.includes('provider-released'), 'ready must follow provider-scope cleanup');
       }

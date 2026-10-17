@@ -4,7 +4,7 @@ import { FunctionNarrativeError } from "../../shared/functionNarratives";
 import { getGlobalModelTaskManager } from "../../shared/modelTasks";
 import type { FunctionNarrativeProvider, FunctionNarrativeOperationOptions, FunctionNarrativeModelResponse,
   FunctionNarrativeGenerationOptions, FunctionNarrativeRootRequest } from "../../application/functionNarratives";
-import { runNativeNarrativeAction, type NativeNarrativeTransport } from "../nativeNarratives";
+import { runNativeNarrativeAction, measureNativeReadyDuration, type NativeNarrativeTransport } from "../nativeNarratives";
 import type { NativeFunctionNarrativeProviderOptions, NativeFunctionNarrativeRunReceipt } from "./types";
 import { asNativeProviderFailure } from "./errors";
 
@@ -59,13 +59,24 @@ export function createNativeFunctionNarrativeProvider(options: NativeFunctionNar
       if (signal.aborted || manager.disposed) throw new FunctionNarrativeError("cancelled");
       prepared.set(signal, { label: metadata?.label, onProgress: metadata?.onProgress });
     },
-    async withRun(language, signal, operation) {
+    async withRun(language, signal, operation, lifecycle) {
       if (signal.aborted || manager.disposed) throw new FunctionNarrativeError("cancelled");
       const prior = actions.getStore();
       if (prior) throw new FunctionNarrativeError("failed", prior.active ? "native-provider-nested-action" : "native-provider-expired-action");
       const metadata = prepared.get(signal); prepared.delete(signal);
       const result = await runNativeNarrativeAction({ worker, manager, signal,
         label: metadata?.label ?? "Complete function narrative", onProgress: metadata?.onProgress,
+        onSettled(receipt) {
+          // Independent clones keep audit consumers from changing a later Host measurement or another observer's metadata.
+          const action = structuredClone(receipt); let completed = false;
+          try { options.onRunSettled?.(structuredClone(action)); } catch { /* Diagnostics are inert. */ }
+          try { lifecycle?.onSettled({ complete(host) {
+            if (completed) return; completed = true;
+            const duration = measureNativeReadyDuration(action.worker);
+            try { options.onHostRunComplete?.({ action: structuredClone(action), host: { ...host }, duration,
+              publicHostPromiseSettlementObserved: true, neuralAuthorshipProven: false }); } catch { /* The public Host Promise is already settled. */ }
+          } }); } catch { /* A lifecycle observer cannot rewrite native execution. */ }
+        },
         async execute({ transport, signal: ownedSignal }) {
           const action: Action = { owner, parent: signal, signal: ownedSignal, language, transport, active: true, pending: false, requests: 0 };
           try {

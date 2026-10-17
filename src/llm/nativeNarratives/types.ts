@@ -1,4 +1,5 @@
 /** Portable native-worker ports. Packet contents remain model input/output, never evaluator capabilities. */
+import type { NativeReadyClockBounds } from "./readyClock";
 export type NativeNarrativePacket = {
   schema: Record<string, unknown>;
   messages: ReadonlyArray<{ role: "system" | "user" | "assistant"; content: string }>;
@@ -16,6 +17,8 @@ export type NativeNarrativeEvent = Readonly<{ event: string; pid?: number; uid?:
 type WorkerOptions = {
   command: string; args: readonly string[]; modelName: string; cwd?: string;
   requestTimeoutMs?: number; killGraceMs?: number;
+  /** Require the source-free monotonic exchange before any source work; legacy ready-receipt timing cannot qualify worker-ready latency. */
+  requireReadyClock?: boolean;
   validateReady?(ready: NativeNarrativeReady): void;
   validateReply?(reply: Record<string, unknown>, ready: NativeNarrativeReady): void;
   validateClosed?(close: NativeNarrativeClose): void;
@@ -37,6 +40,8 @@ export type NativeNarrativeWorkerObservation = {
   kind: NativeNarrativeWorkerOptions["kind"]; requests: number; actualCloseObserved: boolean;
   /** Host monotonic receipt time of the complete source-free ready line, before proof/observer work. */
   sourceFreeReadyAtMonotonicMs?: number;
+  sourceFreeReadyReceiptNs?: string;
+  readyClock?: NativeReadyClockBounds;
   closedCode?: number | null; closedSignal?: NodeJS.Signals | null;
   closedReceipt?: Record<string, unknown>; runtimeErrorCode?: string; cleanupErrorCode?: string;
   stderrBytes: number; neuralAuthorshipProven: false;

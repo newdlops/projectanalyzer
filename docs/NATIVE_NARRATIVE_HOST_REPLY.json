@@ -22,13 +22,24 @@
   },
   "visiblePlan": {
     "lane": "기존 developer tool UI의 상태 확장. ui-design-workflow 적용; 기존 VS Code token·definition list·버튼·간격을 재사용한다.",
-    "priority": ["전체 설명", "mode 및 모델의 justification", "예시 또는 미평가 이유", "선택 노드의 완전한 구문·근거·효과·값", "source 및 graph navigation"],
+    "priority": [
+      "전체 설명",
+      "mode 및 모델의 justification",
+      "예시 또는 미평가 이유",
+      "선택 노드의 완전한 구문·근거·효과·값",
+      "source 및 graph navigation"
+    ],
     "flow": "명시적 Analyze → 검증된 저장 page → scenario/graph/node/source 선택 → cache-only 페이지 이동",
     "unavailable": "미평가 예제와 각 before/after 사유를 표시한다. scenario 및 graph/source 탐색은 유지하고 Apply example values는 disable한다. 자동 input 적용도 하지 않는다.",
     "loop": "선택한 방문·이전 반복 횟수·모델 의미 문장을 모두 표시한다. 여러 방문은 native details 안에 보존하고 기존 16개 disclosure 상태·포커스 registry를 사용한다. 실제 실행 증명으로 표현하지 않는다.",
     "states": "기존 pending/error/cancel/stale/cache/selected/focus 상태를 유지하고 native computed/loop/source-infeasible/unverified 및 긴 사유를 확인한다.",
     "responsive": "390x844/768x1024/1440x900에서 기존 1열 전환·긴 source와 prose의 wrapping을 확인한다. 실제 browser 도구의 가용 범위와 미검증 항목을 구분하여 기록한다.",
-    "acceptance": ["미평가 객체가 입력에 적용되거나 object Object로 표시되지 않음", "모든 원문 모델 문장과 unavailable 이유가 저장 왕복 후 동일", "actual Host source lease·allpages·provider cleanup·cache reads·stale rollback", "functional QA와 visual QA를 별도로 보고"]
+    "acceptance": [
+      "미평가 객체가 입력에 적용되거나 object Object로 표시되지 않음",
+      "모든 원문 모델 문장과 unavailable 이유가 저장 왕복 후 동일",
+      "actual Host source lease·allpages·provider cleanup·cache reads·stale rollback",
+      "functional QA와 visual QA를 별도로 보고"
+    ]
   },
   "memory": {
     "initialFreePercent": 39,
@@ -50,5 +61,40 @@
     "firstFailures": "v900 controller import, v901/v903 type errors, v904 fixture alias, v909/v912 fake DOM focus 비교 및 v910/v911 512MiB heap-limit 종료의 최초 결과를 보존했다.",
     "provenance": "모든 새 fixture/예제/화면 자료는 알려진 CPU 노출이며 학습 또는 독립 neural heldout으로 사용하지 않는다. 마지막 실제 AA522 whole Host 36742.311041999994ms·완전정확 0/2 실패를 유지한다."
   },
-  "goalComplete": false
+  "goalComplete": false,
+  "completionTiming": "docs/NATIVE_NARRATIVE_TIMING.json: 성공/실패 action 및 실제 공개 Host Promise 정산 receipt. 최종 freshness/read/publication/disposal과 전송 대기 중 취소를 관측한다. worker ready latency는 명시적 clock exchange의 상한만 사용한다. actual neural/전체3초 미완료.",
+  "timingVerificationV973": {
+    "regression": 400,
+    "newDistinct": 19,
+    "actionTimingCases": 9,
+    "actualHostTimingCases": 10,
+    "cumulativeDistinctCpuChecks": 1082,
+    "exactTypeRoots": 917,
+    "sequentialTypePartitions": 10,
+    "relocatedSoleCodecFacade": 177,
+    "packaging": 18,
+    "architectureModules": 63,
+    "runtimeEdges": 136,
+    "cycles": 0,
+    "finalRegressionScope": "host-settlement-final-regression-v970",
+    "finalTypesScope": "host-settlement-types-v964",
+    "facadeScope": "host-settlement-bundle-v965",
+    "architectureScope": "host-settlement-architecture-v966",
+    "packagingScope": "host-settlement-package-v967",
+    "original168Compatibility": "inherited unchanged public codec/root adapter hashes; not rerun",
+    "evidenceDirectory": ".local-models/experiments/three-second/host-settlement-progress-v973",
+    "finalCompilerPeakRssBytes": 603930624,
+    "finalTestPeakRssBytes": 290291712,
+    "typePeakRssBytes": 623394816,
+    "facadePeakRssBytes": 280625152,
+    "modelLoads": 0,
+    "actualNeuralReplies": false,
+    "fullInstalledProductVisualQa": false,
+    "readOnlyHeadOverlays": [
+      "src/llm/functionNarratives/localResponse.ts",
+      "src/llm/functionNarratives/responseSchema.ts"
+    ],
+    "untrackedUserRootsAndCacheExcluded": true,
+    "goalComplete": false
+  }
 }

@@ -1,5 +1,5 @@
 /** Host-owned, snapshot-scoped LLM lifecycle and evidence projection, shared by both function surfaces. */
-import { FunctionNarrativeError, parseFunctionNarrative, requestFunctionNarrative, requestFunctionNarrativeRoot, requestFunctionNarrativeCall, type FunctionNarrativeProvider } from "../../application/functionNarratives";
+import { FunctionNarrativeError, FunctionNarrativeHostRun, parseFunctionNarrative, requestFunctionNarrative, requestFunctionNarrativeRoot, requestFunctionNarrativeCall, type FunctionNarrativeProvider } from "../../application/functionNarratives";
 import { collectFunctionNarrativeCallPriors, type CapturedFunctionCallPlan } from "../../application/functionCallNarratives";
 import type { FunctionNarrativeContext, FunctionNarrativeSourcePresenter, FunctionNarrativePageStoreFactory } from "../../shared/functionNarratives";
 import { FunctionNarrativeScenarioSession, type FunctionNarrativeStoredPage } from "./functionNarrativeScenarioSession";
@@ -105,7 +105,11 @@ export class FunctionNarrativesHostDelivery {
   }
 
   /** Caches validated narratives per snapshot/locale; duplicate IDs cannot incur another model request. */
-  public async request(request: FunctionNarrativesRequest): Promise<void> {
+  public request(request: FunctionNarrativesRequest): Promise<void> {
+    const run = new FunctionNarrativeHostRun(); return run.observe(() => this.requestInternal(request, run));
+  }
+
+  private async requestInternal(request: FunctionNarrativesRequest, run: FunctionNarrativeHostRun): Promise<void> {
     const entry = this.contexts.get(request.flowId);
     const send = (result: Omit<FunctionNarrativesResponse, keyof FunctionNarrativesRequest>) =>
       this.dependencies.postMessage({ type: "codeFlow/functionNarrativesLoaded", payload: { ...request, ...result } });
@@ -164,7 +168,7 @@ export class FunctionNarrativesHostDelivery {
         await send({ status: "ready", ...result, cacheHit: true }); return;
       }
       this.pending?.controller.abort();
-      await this.requestComplete(request, entry, language); return;
+      await this.requestComplete(request, entry, language, run); return;
     }
     const cached = entry.cached.get(language);
     if (cached) { if (!await cacheCurrent()) return; this.presentSource(request.flowId, entry, cached); await send({ status: "ready", ...cached, cacheHit: true }); return; }
@@ -232,7 +236,7 @@ export class FunctionNarrativesHostDelivery {
   }
 
   /** Every source/node batch enters the shared queue independently, so long functions do not monopolize it. */
-  private async requestComplete(request: FunctionNarrativesRequest, entry: ContextEntry, language: "ko" | "en"): Promise<void> {
+  private async requestComplete(request: FunctionNarrativesRequest, entry: ContextEntry, language: "ko" | "en", run: FunctionNarrativeHostRun): Promise<void> {
     const provider = this.dependencies.provider;
     const send = (result: Omit<FunctionNarrativesResponse, keyof FunctionNarrativesRequest>) =>
       this.dependencies.postMessage({ type: "codeFlow/functionNarrativesLoaded", payload: { ...request, ...result } });
@@ -337,7 +341,7 @@ export class FunctionNarrativesHostDelivery {
         try { await analyzeCaptured(); }
         finally { ownedSignal?.removeEventListener("abort", abort); }
       };
-      if (provider.withRun) await provider.withRun(language, controller.signal, analyze);
+      if (provider.withRun) await provider.withRun(language, controller.signal, analyze, run.lifecycle);
       else await analyze();
       pending.providerCompleted = true;
       await sourceLease?.assertCurrent(controller.signal);
@@ -348,6 +352,7 @@ export class FunctionNarrativesHostDelivery {
         if (nativePriors) { entry.sessions.set(language, session); retainedNativeSession = true; }
         entry.cached.set(language, result); this.presentSource(request.flowId, entry, result);
         await send({ status: "ready", ...result, cacheHit: !generated });
+        run.outcome("ready");
       }
     } catch (error) {
       if (nativePriors) {
@@ -358,6 +363,7 @@ export class FunctionNarrativesHostDelivery {
         }
       }
       const status = getNarrativeSourceFailureStatus(error) ?? (error instanceof FunctionNarrativeError ? error.code : "failed");
+      run.outcome(status);
       if (this.contexts.get(request.flowId) === entry && entry.loadSources && (status === "stale" || bodyCompleted && !pending.providerCompleted)) {
           await this.invalidateEntry(request.flowId, entry);
           if (this.pending === pending && this.dependencies.isActive(request.graphVersion)) await send({ status, coverage: { ...session.coverage, completed: 0, complete: false, sourceLimited: true } });
@@ -372,11 +378,15 @@ export class FunctionNarrativesHostDelivery {
         await send({ status, ...result, cacheHit: false });
       }
     } finally {
-      if (nativePriors && !retainedNativeSession) {
-        // A late root change has no reader left to notify. Authority stays revoked even if its already-awaited cleanup failed.
-        await session.dispose().catch(() => {});
+      try {
+        if (nativePriors && !retainedNativeSession) {
+          // A late root change has no reader left to notify. Authority stays revoked even if its already-awaited cleanup failed.
+          await session.dispose().catch(() => {});
+        }
+        sourceLease?.dispose();
+      } finally {
+        run.interrupted(controller.signal.aborted); if (this.pending === pending) this.pending = undefined; pending.settle();
       }
-      sourceLease?.dispose(); if (this.pending === pending) this.pending = undefined; pending.settle();
     }
   }
 
