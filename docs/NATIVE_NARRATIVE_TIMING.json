@@ -40,7 +40,7 @@
   "receipts": {
     "action": "succeeded, duration, bounded worker observation, outerManagerSettlementObserved:true, neuralAuthorshipProven:false. queue 취소·admission 실패처럼 준비 시각이 없으면 duration={}이며 worker PID도 없을 수 있다.",
     "host": "action snapshot, host.promise fulfilled/rejected, host.status ready/stale/cancelled/failed 등, 최종 duration, publicHostPromiseSettlementObserved:true, neuralAuthorshipProven:false. action 성공 후 최종 freshness/transport/disposal 실패는 Host 성공으로 바꾸지 않는다.",
-    "promiseSemantics": "fulfilled는 실패 status 전송을 정상 완료한 경우도 포함한다. ready 의미·action.succeeded·public Promise 결과·actual cleanup proof를 함께 평가한다. ready 전송 뒤 finally에서 dispose가 throw하면 공개 Promise는 rejected/failed다. final transport를 기다리는 중 취소는 action 성공과 구별하여 Host cancelled로 기록한다. 이미 전송을 시작한 메시지를 되돌렸다는 의미는 아니다.",
+    "promiseSemantics": "fulfilled는 실패 status 전송의 정상 완료도 포함한다. action.succeeded·host.status·public Promise 결과·actual cleanup을 함께 평가한다. complete native root/call은 source disposal을 ready 전송 전에 완료하고, final transport와 compact source 검증 뒤에만 cache 권한을 넘긴다. ready 전송이 이미 시작된 경우 후속 실패 status의 브라우저 처리/표시 회수는 별도 제품 QA가 필요하다.",
     "privacy": "source/schema/messages/model prose/arbitrary closedReceipt/error message/cause를 넣지 않는다. timestamp/PID/state/요청 수/close code·signal/정해진 failure code만 보존한다. observer에는 독립 clone을 전달하고 observer throw나 중복 completion으로 결과를 바꾸지 않는다.",
     "observerBoundary": "최종 duration endpoint는 명시적 진단 observer 호출 직전이다. 모델 설명을 계산·보정하거나 product UI에 진단 protocol을 노출하지 않는다. cache-only 요청은 새 native action receipt를 만들지 않는다."
   },
@@ -80,5 +80,6 @@
     ],
     "untrackedUserRootsAndCacheExcluded": true,
     "goalComplete": false
-  }
+  },
+  "publicationContract": "docs/NATIVE_NARRATIVE_PUBLICATION.json: final source cleanup/transport/freshness 뒤 cache commit, pending cache/node prefetch 대기, 취소·stale·이전 요청의 늦은 실패에 대한 소유권을 따른다."
 }

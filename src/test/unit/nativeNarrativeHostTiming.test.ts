@@ -36,7 +36,7 @@ test("actual root Host timing includes final freshness, page read, ready publica
       await arrive(validation, pending); const tailStart = performance.now(); assert.equal(h.receipts.length, 1); assert.equal(h.hostReceipts.length, 0);
       assert.equal(h.receipts[0].worker.actualCloseObserved, true); await delay(25); validate.release();
       await arrive(reading, pending); assert.equal(h.hostReceipts.length, 0); await delay(25); read.release();
-      await arrive(publishing, pending); assert.equal(h.hostReceipts.length, 0); assert.equal(h.state.disposed, 0); await delay(25); publish.release(); await pending;
+      await arrive(publishing, pending); assert.equal(h.hostReceipts.length, 0); assert.equal(h.state.disposed, 1); await delay(25); publish.release(); await pending;
       const receipt = h.hostReceipts[0]; assert.equal(h.hostReceipts.length, 1); assert.equal(h.state.disposed, 1);
       assert.equal(receipt.host.status, "ready"); assert.equal(receipt.host.promise, "fulfilled"); assert.equal(receipt.publicHostPromiseSettlementObserved, true);
       assert.ok(receipt.duration.hostReadyReceiptMs! - receipt.action.duration.hostReadyReceiptMs! >= performance.now() - tailStart - 5);
@@ -117,7 +117,7 @@ test("actual call Host waits for final ready transport and source disposal befor
     }, undefined, async message => { if (message.status === "ready" && !message.cacheHit) { publishing.release(); await publish.promise; } });
     const pending = h.host.explain(h.request);
     try {
-      await arrive(publishing, pending); assert.equal(receipts.length, 0); assert.equal(h.state.disposed, 0); const held = performance.now();
+      await arrive(publishing, pending); assert.equal(receipts.length, 0); assert.equal(h.state.disposed, 1); const held = performance.now();
       await delay(25); publish.release(); await pending;
       const receipt = receipts[0]; assert.equal(receipts.length, 1); assert.equal(receipt.host.status, "ready"); assert.equal(receipt.action.worker?.requests, 7);
       assert.equal(h.state.disposed, 1); assert.ok(receipt.duration.hostReadyReceiptMs! - receipt.action.duration.hostReadyReceiptMs! >= performance.now() - held - 5);
@@ -143,14 +143,15 @@ test("call source staleness after successful action settlement produces a stale 
   });
 });
 
-test("source disposal throwing after ready publication is a rejected public Host Promise with a failed completion receipt", async t => {
+test("source disposal failure is recorded before any ready publication and the public Host delivers failed", async t => {
   await withCompleteNativeNarrativeWorker(async fixture => {
     const h = await createNativeRootCallHost(fixture, { callCount: 0, clock: {} }), capture = h.access.capture, failure = new Error("private disposal failure");
     h.access.capture = async input => { const lease = await capture(input); return { ...lease, dispose() { synchronousDisposal(); lease.dispose(); throw failure; } }; };
     try {
-      await assert.rejects(h.delivery.requestFunctionNarratives(h.request), error => error === failure);
-      assert.equal(h.hostReceipts.length, 1); const receipt = h.hostReceipts[0]; assert.equal(receipt.host.promise, "rejected"); assert.equal(receipt.host.status, "failed");
+      await h.delivery.requestFunctionNarratives(h.request);
+      assert.equal(h.hostReceipts.length, 1); const receipt = h.hostReceipts[0]; assert.equal(receipt.host.promise, "fulfilled"); assert.equal(receipt.host.status, "failed");
       assert.equal(receipt.action.succeeded, true); assert.equal(h.state.disposed, 1); assert.equal(JSON.stringify(receipt).includes("private disposal failure"), false);
+      assert.ok(!h.replies().some(reply => reply.status === "ready")); assert.equal(h.storedPages(), 0);
       t.diagnostic(JSON.stringify({ receipt, actualFixtureExits: await fixture.reports() }));
     } finally { await h.close(); }
   });

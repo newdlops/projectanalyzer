@@ -36,7 +36,7 @@ type Reading = { contextId: string; plan: FunctionCallNarrativePlan; calls: Func
 export class FunctionCallNarrativesHostDelivery {
   private readonly contexts = new Map<string, Entry>();
   private readonly readings = new Map<string, Reading>();
-  private pending?: { request: FunctionCallNarrativesRequest; controller: AbortController; language: "ko" | "en"; providerCompleted: boolean; settled: Promise<void>; settle(): void };
+  private pending?: { request: FunctionCallNarrativesRequest; controller: AbortController; language: "ko" | "en"; providerCompleted: boolean; publishing: boolean; settled: Promise<void>; settle(): void };
   public constructor(private readonly dependencies: Dependencies) {}
 
   /** Registers only a successfully delivered source snapshot; construction and static loading never invoke LLMs. */
@@ -84,7 +84,12 @@ export class FunctionCallNarrativesHostDelivery {
     const entry = this.contexts.get(request.sourceToken), language = request.pageLanguage ?? this.dependencies.getLanguage();
     const failure = (status: FunctionCallNarrativesResponse["status"]) => this.dependencies.postMessage({ ...request, status });
     if (!entry || !this.active(request, entry)) { await failure("stale"); return; }
-    const key = this.key(request, language), cached = this.readings.get(key);
+    const key = this.key(request, language), publishing = this.pending;
+    if (request.pageIndex !== undefined && publishing?.publishing && this.key(publishing.request, publishing.language) === key) {
+      await publishing.settled;
+      if (!this.active(request, entry)) { await failure("stale"); return; }
+    }
+    const cached = this.readings.get(key);
     if (request.pageIndex !== undefined) {
       if (cached && (cached.hasSummary || cached.calls.length)) {
         if (!await this.validateCache(request, entry, cached)) { if (this.dependencies.graphDelivery.matches(request.graphVersion)) await failure("stale"); return; }
@@ -111,7 +116,7 @@ export class FunctionCallNarrativesHostDelivery {
     if (native && cached) { cached.sourceValidation?.dispose(); this.readings.delete(key); }
     this.pending?.controller.abort();
     let settle!: () => void; const settled = new Promise<void>(resolve => { settle = resolve; });
-    const pending = { request, controller: new AbortController(), language, providerCompleted: false, settled, settle }; this.pending = pending;
+    const pending = { request, controller: new AbortController(), language, providerCompleted: false, publishing: false, settled, settle }; this.pending = pending;
     const signal = pending.controller.signal;
     if (!native) this.retainReading(key, reading);
     const operation = { label: entry.node.name, onProgress: (task: NonNullable<FunctionCallNarrativesResponse["task"]>) => {
@@ -119,6 +124,8 @@ export class FunctionCallNarrativesHostDelivery {
     } };
     const ensureActive = () => { if (signal.aborted || this.pending !== pending || !this.active(request, entry)) throw new FunctionNarrativeError("cancelled"); };
     let sourceLease: NarrativeSourceLease | undefined, bodyCompleted = false;
+    // Source cleanup is part of publication, and a throwing dispose must not be repeated from finally.
+    const releaseSource = () => { const lease = sourceLease; sourceLease = undefined; lease?.dispose(); };
     try {
       await provider.prepare?.(language, signal, { ...operation, sourceReading: !this.dependencies.narrativeSources }); ensureActive();
       // A native provider owns one FIFO slot/worker across capture, every call and summary, followed by mandatory actual child close.
@@ -235,8 +242,12 @@ export class FunctionCallNarrativesHostDelivery {
       // A ready response means process/resource cleanup finished too. A cancel
       // or root change during teardown cannot publish a late success.
       await sourceLease?.assertCurrent(signal); ensureActive();
-      if (native) this.retainReading(key, reading);
+      if (native) { releaseSource(); ensureActive(); pending.publishing = true; }
       await this.send(request, reading, "ready", false);
+      if (native) {
+        ensureActive(); await reading.sourceValidation?.assertCurrent(signal); ensureActive();
+        this.retainReading(key, reading);
+      }
       run.outcome("ready");
     } catch (error) {
       const status = signal.aborted ? "cancelled" : getNarrativeSourceFailureStatus(error) ?? (error instanceof FunctionNarrativeError ? error.code : "failed");
@@ -246,14 +257,14 @@ export class FunctionCallNarrativesHostDelivery {
         if (this.readings.get(key) === reading) this.readings.delete(key);
         reading.sourceValidation?.dispose();
       }
-      if (this.contexts.get(request.sourceToken) === entry && this.dependencies.narrativeSources && (status === "stale" || bodyCompleted && !pending.providerCompleted)) {
+      if (this.contexts.get(request.sourceToken) === entry && this.dependencies.narrativeSources && (status === "stale" || this.pending === pending && bodyCompleted && !pending.providerCompleted)) {
         this.revokeContext(request.sourceToken, entry); if (this.pending === pending && this.dependencies.graphDelivery.matches(request.graphVersion)) await failure(status); return;
       }
       if (this.pending === pending && this.active(request, entry)) {
         if (!native && (reading.hasSummary || reading.calls.length)) await this.send(request, reading, status, false); else await failure(status);
       }
     } finally {
-      try { sourceLease?.dispose(); }
+      try { releaseSource(); }
       finally { run.interrupted(signal.aborted); if (this.pending === pending) this.pending = undefined; pending.settle(); }
     }
   }

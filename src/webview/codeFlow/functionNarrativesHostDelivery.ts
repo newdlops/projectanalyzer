@@ -35,7 +35,7 @@ export class FunctionNarrativesHostDelivery {
   private readonly contexts = new Map<string, ContextEntry>();
   /** A registered preview is not a captured model context. Weak identity preserves valid pending work without retaining disposed sessions. */
   private readonly sourceBoundSessions = new WeakSet<FunctionNarrativeScenarioSession>();
-  private pending?: { request: FunctionNarrativesRequest; controller: AbortController; language: "ko" | "en"; providerCompleted: boolean; settled: Promise<void>; settle(): void };
+  private pending?: { request: FunctionNarrativesRequest; controller: AbortController; language: "ko" | "en"; providerCompleted: boolean; publishing: boolean; settled: Promise<void>; settle(): void };
   private presentedFlowId?: string;
   public constructor(private readonly dependencies: FunctionNarrativesHostDependencies) {}
 
@@ -235,7 +235,7 @@ export class FunctionNarrativesHostDelivery {
     }
   }
 
-  /** Every source/node batch enters the shared queue independently, so long functions do not monopolize it. */
+  /** Native requests retain one owned worker across all pages; final source/transport checks precede public cache ownership. */
   private async requestComplete(request: FunctionNarrativesRequest, entry: ContextEntry, language: "ko" | "en", run: FunctionNarrativeHostRun): Promise<void> {
     const provider = this.dependencies.provider;
     const send = (result: Omit<FunctionNarrativesResponse, keyof FunctionNarrativesRequest>) =>
@@ -247,11 +247,15 @@ export class FunctionNarrativesHostDelivery {
     if (!session) { session = new FunctionNarrativeScenarioSession(entry.context, this.dependencies.createPageStore!()); entry.sessions.set(language, session); }
     const controller = new AbortController(); const pending = this.startPending(request, controller, language);
     let generated = false, bodyCompleted = false, retainedNativeSession = false;
+    let publishedNativeResult: ReadyResult | undefined;
     const current = () => this.pending === pending && this.contexts.get(request.flowId) === entry && this.dependencies.isActive(request.graphVersion);
     const operation = { label: entry.context.functionName, onProgress: (task: NonNullable<FunctionNarrativesResponse["task"]>) => {
       if (current()) void send({ status: "working", task }).catch(() => {});
     } };
     let sourceLease: NarrativeSourceLease | undefined;
+    // Detach before disposal so a throwing adapter cannot be invoked twice or leak a ready response through finally.
+    const releaseSource = () => { const lease = sourceLease; sourceLease = undefined; lease?.dispose(); };
+    const ensureCurrent = () => { if (controller.signal.aborted || !current()) throw new FunctionNarrativeError("cancelled"); };
     try {
       if (!session.complete && provider.prepare) await this.prepareProvider(provider, language, controller.signal,
         { ...operation, sourceReading: !entry.loadSources && entry.context.detailLevel === "rich" }, Boolean(entry.loadSources));
@@ -348,23 +352,36 @@ export class FunctionNarrativesHostDelivery {
       if (controller.signal.aborted || !current()) return;
       const first = await session.readPage(0);
       if (first && current() && !controller.signal.aborted) {
+        if (nativePriors) { await sourceLease?.assertCurrent(controller.signal); ensureCurrent(); }
         const result = this.projectPage(entry, session, first, language);
-        if (nativePriors) { entry.sessions.set(language, session); retainedNativeSession = true; }
+        if (nativePriors) {
+          releaseSource(); ensureCurrent();
+          // No cache/page/source action can read this result until transport and its final compact source check finish.
+          pending.publishing = true;
+          await send({ status: "ready", ...result, cacheHit: !generated }); ensureCurrent();
+          await entry.sourceValidation?.assertCurrent(controller.signal); ensureCurrent();
+          entry.sessions.set(language, session); retainedNativeSession = true; publishedNativeResult = result;
+        }
         entry.cached.set(language, result); this.presentSource(request.flowId, entry, result);
-        await send({ status: "ready", ...result, cacheHit: !generated });
+        if (!nativePriors) await send({ status: "ready", ...result, cacheHit: !generated });
         run.outcome("ready");
       }
     } catch (error) {
       if (nativePriors) {
         retainedNativeSession = false;
-        entry.cached.delete(language); if (entry.sessions.get(language) === session) entry.sessions.delete(language);
+        // An older cancelled/failed publication may finish after a newer action has committed into this same context.
+        if (publishedNativeResult && entry.cached.get(language) === publishedNativeResult) {
+          entry.cached.delete(language);
+          if (this.presentedFlowId === request.flowId) { this.dependencies.sourcePresenter?.clear(); this.presentedFlowId = undefined; }
+        }
+        if (entry.sessions.get(language) === session) entry.sessions.delete(language);
         try { await session.dispose(); } catch (cleanup) {
           error = Object.assign(new FunctionNarrativeError(error instanceof FunctionNarrativeError ? error.code : "failed"), { cause: new AggregateError([error, cleanup], "Native root page rollback failed") });
         }
       }
       const status = getNarrativeSourceFailureStatus(error) ?? (error instanceof FunctionNarrativeError ? error.code : "failed");
       run.outcome(status);
-      if (this.contexts.get(request.flowId) === entry && entry.loadSources && (status === "stale" || bodyCompleted && !pending.providerCompleted)) {
+      if (this.contexts.get(request.flowId) === entry && entry.loadSources && (status === "stale" || this.pending === pending && bodyCompleted && !pending.providerCompleted)) {
           await this.invalidateEntry(request.flowId, entry);
           if (this.pending === pending && this.dependencies.isActive(request.graphVersion)) await send({ status, coverage: { ...session.coverage, completed: 0, complete: false, sourceLimited: true } });
           return;
@@ -383,7 +400,7 @@ export class FunctionNarrativesHostDelivery {
           // A late root change has no reader left to notify. Authority stays revoked even if its already-awaited cleanup failed.
           await session.dispose().catch(() => {});
         }
-        sourceLease?.dispose();
+        releaseSource();
       } finally {
         run.interrupted(controller.signal.aborted); if (this.pending === pending) this.pending = undefined; pending.settle();
       }
@@ -437,6 +454,8 @@ export class FunctionNarrativesHostDelivery {
   private async validateCache(flowId: string, entry: ContextEntry, language?: "ko" | "en"): Promise<"valid" | "stale" | "inactive"> {
     if (this.contexts.get(flowId) !== entry || !this.dependencies.isActive(entry.graphVersion)) return "inactive";
     const pending = this.pending;
+    // The browser can request node details immediately after receiving ready, before the transport Promise returns to this Host.
+    if (pending?.publishing && pending.request.flowId === flowId && pending.language === language) await pending.settled;
     if (entry.sourceValidation && pending?.request.flowId === flowId && !pending.providerCompleted && pending.language === language
       && (entry.sessions.get(language!)?.complete || !entry.context.scenarioGraph && entry.cached.has(language!))) await pending.settled;
     if (this.contexts.get(flowId) !== entry) return entry.invalidation && this.dependencies.isActive(entry.graphVersion) ? "stale" : "inactive";
@@ -453,7 +472,7 @@ export class FunctionNarrativesHostDelivery {
   /** Cache readers may await teardown of a completed action without cancelling it or taking another model slot. */
   private startPending(request: FunctionNarrativesRequest, controller: AbortController, language: "ko" | "en") {
     let settle!: () => void; const settled = new Promise<void>(resolve => { settle = resolve; });
-    const pending = { request, controller, language, providerCompleted: false, settled, settle }; this.pending = pending; return pending;
+    const pending = { request, controller, language, providerCompleted: false, publishing: false, settled, settle }; this.pending = pending; return pending;
   }
 
   /** Authority is removed synchronously; the failing action then awaits storage disposal. */

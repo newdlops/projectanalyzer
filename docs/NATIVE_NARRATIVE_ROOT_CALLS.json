@@ -120,5 +120,6 @@
     ],
     "untrackedUserRootsAndCacheExcluded": true,
     "goalComplete": false
-  }
+  },
+  "finalPublication": "docs/NATIVE_NARRATIVE_PUBLICATION.json의 final source cleanup/transport/freshness 이후 cache commit, 대기 중 cache/node 조회와 요청별 rollback 소유권을 따른다. actual neural/전체 Host3초/설치본 UI QA는 미완료다."
 }
