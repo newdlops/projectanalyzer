@@ -1,6 +1,7 @@
 /** Explicit, retained call-reading UI; static facts stay separate and cached pages never load a model. */
 import { isFunctionCallNarrativeChunk, isFunctionCallNarrativeLanguage, isFunctionCallNarrativeTextLanguage } from "../../shared/functionCallNarratives";
 import { isModelTaskProgress } from "../../shared/modelTasks";
+import { isNarrativePublicationId, isNarrativePublicationRevocation } from "../../shared/narrativePublications";
 export function getFunctionCallReadingBrowserSource(): string {
   // Serialized validators run without module imports. Include their shared
   // prose helper before accepting a completed reading or cached page.
@@ -9,6 +10,8 @@ export function getFunctionCallReadingBrowserSource(): string {
     ${isFunctionCallNarrativeChunk.toString()}
     ${isFunctionCallNarrativeTextLanguage.toString()}
     ${isFunctionCallNarrativeLanguage.toString()}
+    ${isNarrativePublicationId.toString()}
+    ${isNarrativePublicationRevocation.toString()}
     function createFunctionCallReading(options) {
       const { el, button, t } = options;
       const section = el("section", "calls-reading"), heading = el("h3"), actions = el("div", "calls-actions");
@@ -33,9 +36,16 @@ export function getFunctionCallReadingBrowserSource(): string {
         narrative:{...page.narrative,summary:latest.narrative.summary,flow:latest.narrative.flow,limitations:latest.narrative.limitations}});
       const keyFor = value => JSON.stringify([value.graphVersion, value.sourceToken, value.contextId, value.scope, value.connectionId,
         [...(value.choices || [])].sort((a,b)=>a.key.localeCompare(b.key))]);
+      /** The chosen page button may become disabled; restore a useful sibling without stealing focus from another control. */
+      function restorePageFocus(key){
+        if(!["reading-next","reading-previous"].includes(key)||document.activeElement!==document.body&&document.activeElement?.dataset?.callKey!==key)return;
+        const preferred=key==="reading-next"?next:previous,other=preferred===next?previous:next;
+        if(!pager.hidden){if(!preferred.disabled)preferred.focus();else if(!other.disabled)other.focus();}
+      }
       function stop() { if (pending) options.postMessage({ type:"functionCalls/cancelExplanation",payload:pending.request }); pending=undefined;pagePending=undefined;task=undefined;phase="cancelled";render(); }
       /** Validate bounded prose and metadata against currently displayed static relationships. */
       function valid(payload) {
+        if(payload.publicationRevoked!==undefined||payload.publicationId!==undefined&&!isNarrativePublicationId(payload.publicationId))return false;
         const data=payload.narrative,coverage=payload.coverage,page=payload.page;
         if(!data||!coverage||!page||!["ko","en"].includes(payload.language)||typeof payload.modelName!=="string"||payload.modelName.length>100||typeof payload.cacheHit!=="boolean")return false;
         const int=value=>Number.isSafeInteger(value)&&value>=0;
@@ -52,6 +62,17 @@ export function getFunctionCallReadingBrowserSource(): string {
         return isFunctionCallNarrativeChunk(normalized,undefined,coverage.complete?true:undefined)&&isFunctionCallNarrativeLanguage(normalized,payload.language);
       }
       function accept(payload) {
+        if(isNarrativePublicationRevocation(payload)&&payload.graphVersion===options.graphVersion()){
+          const same=value=>value?.publicationId===payload.publicationId&&value.graphVersion===payload.graphVersion&&value.sourceToken===payload.sourceToken&&value.contextId===payload.contextId&&value.language===payload.language;
+          for(const [key,value]of pages)if(same(value))pages.delete(key);
+          for(const [key,value]of saved)if(same(value))saved.delete(key);
+          if(same(result)){
+            const focused=document.activeElement,moveFocus=content.contains(focused)||pager.contains(focused);
+            if(pagePending?.publicationId===payload.publicationId)pagePending=undefined;
+            result=undefined;selected=0;phase=pending?"pending":payload.status;render();
+            if(moveFocus){if(!refresh.hidden)refresh.focus();else if(!start.hidden&&!start.disabled)start.focus();else if(!cancel.hidden)cancel.focus();else{status.tabIndex=-1;status.focus();}}
+          }
+        }
         const focusedKey=document.activeElement?.dataset?.callKey;
         const owner=[pending,pagePending].find(item=>item?.request.requestId===payload?.requestId);
         if(!owner||!view||keyFor(payload)!==baseKey||payload.graphVersion!==options.graphVersion())return;
@@ -69,6 +90,9 @@ export function getFunctionCallReadingBrowserSource(): string {
         if(payload.narrative){
           if(!valid(payload)){phase="invalid-response";stop();phase="invalid-response";render();return;}
           const prefix=baseKey+":"+payload.language+":";
+          // A fresh generation cannot inherit another generation's cached call entries under its new summary.
+          if(payload.publicationId){for(const [key,page]of pages)if(key.startsWith(prefix)&&page.publicationId!==payload.publicationId)pages.delete(key);
+            if(result?.language===payload.language&&result.publicationId!==payload.publicationId){result=undefined;selected=0;}}
           // A later chunk may complete on another page. Refresh shared prose in
           // retained pages too, so cache-only navigation cannot resurrect partial text.
           for(const [key,page] of pages)if(key.startsWith(prefix))pages.set(key,updateReading(page,payload));
@@ -78,6 +102,7 @@ export function getFunctionCallReadingBrowserSource(): string {
           remember(saved,baseKey+":"+payload.language,result);
         }else if(payload.status==="ready"||progress){phase="invalid-response";}
         render();
+        if(paging)restorePageFocus(owner.focusedKey);
         if(!progress&&focusedKey==="reading-cancel"){
           if(!start.hidden&&!start.disabled)start.focus();else{status.tabIndex=-1;status.focus();}
         }
@@ -88,12 +113,13 @@ export function getFunctionCallReadingBrowserSource(): string {
         const paging=pageIndex!==undefined;if(paging?pagePending:pending||start.disabled)return;
         const request={...view,requestId:++nextId,...(paging?{pageIndex,pageLanguage:result.language}:{})};
         const moveFocus=document.activeElement===start;
-        if(paging){const cached=pages.get(baseKey+":"+result.language+":"+pageIndex);if(cached){result=cached;selected=0;render();return;}pagePending={request};}
+        if(paging){const focusedKey=document.activeElement?.dataset?.callKey,cached=pages.get(baseKey+":"+result.language+":"+pageIndex);if(cached){result=cached;selected=0;render();restorePageFocus(focusedKey);return;}pagePending={request,publicationId:result.publicationId,focusedKey};}
         else {pending={request};task=undefined;}
         phase=paging?"page-loading":"pending";render();if(moveFocus)cancel.focus();
         options.postMessage({type:"functionCalls/explain",payload:request});
       }
       function render() {
+        section.setAttribute("aria-busy",pending||pagePending?"true":"false");
         const available=Boolean(view?.contextId),current=result?.language===options.language(),complete=current&&result?.coverage.complete;
         heading.textContent=t("calls-reading-title");help.textContent=t("calls-reading-help");help.hidden=Boolean(result);
         start.textContent=t(complete?"calls-reading-complete":current?"calls-reading-continue":view?.scope==="scenario"?"calls-reading-scenario":view?.scope==="call"?"calls-reading-call":"calls-reading-overview");
@@ -119,10 +145,11 @@ export function getFunctionCallReadingBrowserSource(): string {
           calls.forEach((call,index)=>{const option=el("option","",(result.page.offset+index+1)+". "+call.expression+(call.occurrence>1?" · "+t("calls-order-visit",{count:call.occurrence}):""));option.value=String(index);select.append(option);});
           select.value=String(selected);select.addEventListener("change",()=>{selected=Number(select.value);render();section.querySelector("select")?.focus();});label.append(select);content.append(label);
           const call=calls[selected];content.append(el("pre","calls-reading-code",call.expression),el("p","calls-reading-help",t("calls-reading-confidence-"+call.confidence)+(call.deferred?" · "+t("calls-deferred"):"")));
+          const rendered=result,current=()=>result===rendered&&keyFor(rendered)===baseKey&&rendered.graphVersion===options.graphVersion();
           const facts=el("dl","calls-reading-facts");for(const key of ["role","inputs","output","effects","reason"]){facts.append(el("dt","",t("calls-reading-"+key)),el("dd","",call[key]));}content.append(facts);
-          const sources=el("div","calls-actions");if(call.callerEvidence)sources.append(button(t("calls-site"),"reading-caller",()=>options.openEvidence(call.callerEvidence)));
-          if(call.calleeEvidence)sources.append(button(t("calls-reading-callee"),"reading-callee",()=>options.openEvidence(call.calleeEvidence)));
-          if(call.calleeSourceToken)sources.append(button(t("calls-reading-callee-flow"),"reading-callee-flow",()=>options.openFunction(options.node(options.connection(call.connectionId).to))));content.append(sources);
+          const sources=el("div","calls-actions");if(call.callerEvidence)sources.append(button(t("calls-site"),"reading-caller",()=>{if(current())options.openEvidence(call.callerEvidence);}));
+          if(call.calleeEvidence)sources.append(button(t("calls-reading-callee"),"reading-callee",()=>{if(current())options.openEvidence(call.calleeEvidence);}));
+          if(call.calleeSourceToken)sources.append(button(t("calls-reading-callee-flow"),"reading-callee-flow",()=>{if(current())options.openFunction(options.node(options.connection(call.connectionId).to));}));content.append(sources);
         }
         if(result.narrative.limitations.length){const list=el("ul","calls-reading-limitations");result.narrative.limitations.forEach(value=>list.append(el("li","",value)));content.append(list);}
         pageLabel.textContent=t("calls-reading-page",{page:result.page.index+1,count:result.page.count});

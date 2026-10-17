@@ -1,4 +1,5 @@
 /** Host-owned, snapshot-scoped LLM lifecycle and evidence projection, shared by both function surfaces. */
+import { randomUUID } from "node:crypto";
 import { FunctionNarrativeError, FunctionNarrativeHostRun, parseFunctionNarrative, requestFunctionNarrative, requestFunctionNarrativeRoot, requestFunctionNarrativeCall, type FunctionNarrativeProvider } from "../../application/functionNarratives";
 import { collectFunctionNarrativeCallPriors, type CapturedFunctionCallPlan } from "../../application/functionCallNarratives";
 import type { FunctionNarrativeContext, FunctionNarrativeSourcePresenter, FunctionNarrativePageStoreFactory } from "../../shared/functionNarratives";
@@ -14,7 +15,8 @@ import { getNarrativeSourceFailureStatus } from "../../application/narrativeSour
 // Unmanaged adapters retain a fallback deadline. Production adapters measure
 // their three-minute execution bound after the global queue grants ownership.
 const SCENARIO_BATCH_DEADLINE_MS = 90000;
-type ReadyResult = Pick<FunctionNarrativesResponse, "narrative" | "snippets" | "evidenceTokens" | "modelName" | "limited" | "language" | "page" | "coverage">;
+type ReadyResult = Pick<FunctionNarrativesResponse, "narrative" | "snippets" | "evidenceTokens" | "modelName" | "limited" | "language" | "page" | "coverage" | "publicationId">;
+type Publication = { id: string; requestId: number; language: "ko" | "en" };
 type ActionSources = { context: FunctionNarrativeContext; lease: NarrativeSourceLease; calls?: CapturedFunctionCallPlan };
 type ContextEntry = { graphVersion: string; contextId: string; context: FunctionNarrativeContext; filePath: string; sourceHash?: string;
   loadSources?(signal: AbortSignal): Promise<ActionSources>; sourceCaptureSha256?: string;
@@ -35,6 +37,8 @@ export class FunctionNarrativesHostDelivery {
   private readonly contexts = new Map<string, ContextEntry>();
   /** A registered preview is not a captured model context. Weak identity preserves valid pending work without retaining disposed sessions. */
   private readonly sourceBoundSessions = new WeakSet<FunctionNarrativeScenarioSession>();
+  /** Small Host metadata follows the session; no identity is sent to a model or persisted in its page JSON. */
+  private readonly sessionPublications = new WeakMap<FunctionNarrativeScenarioSession, Publication>();
   private pending?: { request: FunctionNarrativesRequest; controller: AbortController; language: "ko" | "en"; providerCompleted: boolean; publishing: boolean; settled: Promise<void>; settle(): void };
   private presentedFlowId?: string;
   public constructor(private readonly dependencies: FunctionNarrativesHostDependencies) {}
@@ -243,10 +247,11 @@ export class FunctionNarrativesHostDelivery {
     if (!provider) { await send({ status: "unavailable" }); return; }
     const nativePriors = Boolean(provider.generateCompleteRoot && provider.generateCompleteCall);
     if (nativePriors && !entry.loadSources) { await send({ status: "unavailable" }); return; }
+    const publication: Publication | undefined = nativePriors ? { id: "narrative-publication:" + randomUUID().replaceAll("-", ""), requestId: request.requestId, language } : undefined;
     let session = entry.sessions.get(language);
     if (!session) { session = new FunctionNarrativeScenarioSession(entry.context, this.dependencies.createPageStore!()); entry.sessions.set(language, session); }
     const controller = new AbortController(); const pending = this.startPending(request, controller, language);
-    let generated = false, bodyCompleted = false, retainedNativeSession = false;
+    let generated = false, bodyCompleted = false, retainedNativeSession = false, readyAttempted = false;
     let publishedNativeResult: ReadyResult | undefined;
     const current = () => this.pending === pending && this.contexts.get(request.flowId) === entry && this.dependencies.isActive(request.graphVersion);
     const operation = { label: entry.context.functionName, onProgress: (task: NonNullable<FunctionNarrativesResponse["task"]>) => {
@@ -280,6 +285,7 @@ export class FunctionNarrativesHostDelivery {
           await sourceLease.assertCurrent(controller.signal);
           // The session stays action-private: a concurrent page/node lookup cannot read a valid-looking prefix from this worker.
           session = new FunctionNarrativeScenarioSession(entry.context, this.dependencies.createPageStore!());
+          this.sessionPublications.set(session, publication!);
           actionSession = session; this.sourceBoundSessions.add(session);
           return;
         }
@@ -358,6 +364,7 @@ export class FunctionNarrativesHostDelivery {
           releaseSource(); ensureCurrent();
           // No cache/page/source action can read this result until transport and its final compact source check finish.
           pending.publishing = true;
+          readyAttempted = true;
           await send({ status: "ready", ...result, cacheHit: !generated }); ensureCurrent();
           await entry.sourceValidation?.assertCurrent(controller.signal); ensureCurrent();
           entry.sessions.set(language, session); retainedNativeSession = true; publishedNativeResult = result;
@@ -381,9 +388,10 @@ export class FunctionNarrativesHostDelivery {
       }
       const status = getNarrativeSourceFailureStatus(error) ?? (error instanceof FunctionNarrativeError ? error.code : "failed");
       run.outcome(status);
+      const failure = { status, ...(publication ? { publicationId: publication.id, language, ...(readyAttempted ? { publicationRevoked: true as const } : {}) } : {}) };
       if (this.contexts.get(request.flowId) === entry && entry.loadSources && (status === "stale" || this.pending === pending && bodyCompleted && !pending.providerCompleted)) {
           await this.invalidateEntry(request.flowId, entry);
-          if (this.pending === pending && this.dependencies.isActive(request.graphVersion)) await send({ status, coverage: { ...session.coverage, completed: 0, complete: false, sourceLimited: true } });
+          if ((this.pending === pending || readyAttempted) && this.dependencies.isActive(request.graphVersion)) await send({ ...failure, coverage: { ...session.coverage, completed: 0, complete: false, sourceLimited: true } });
           return;
       }
       if (current()) {
@@ -392,8 +400,8 @@ export class FunctionNarrativesHostDelivery {
         if (!current()) return;
         const result = first ? this.projectPage(entry, session, first, language) : { coverage: nativePriors ? { ...session.coverage, completed: 0, complete: false } : session.coverage };
         if (first) entry.cached.set(language, result);
-        await send({ status, ...result, cacheHit: false });
-      }
+        await send({ ...failure, ...result, cacheHit: false });
+      } else if (readyAttempted && this.dependencies.isActive(request.graphVersion)) await send(failure);
     } finally {
       try {
         if (nativePriors && !retainedNativeSession) {
@@ -443,6 +451,7 @@ export class FunctionNarrativesHostDelivery {
       if (!token) throw new FunctionNarrativeError("invalid-response"); return token;
     }));
     return { narrative: page.narrative, evidenceTokens, modelName: page.modelName, language,
+      ...(this.sessionPublications.has(session) ? { publicationId: this.sessionPublications.get(session)!.id } : {}),
       limited: entry.context.limited, snippets: entry.context.snippets.map(({ id, startLine, endLine }) => ({ id, startLine, endLine })),
       page: { index: page.index, count: session.pageCount, offset: page.offset }, coverage: session.coverage };
   }
@@ -482,9 +491,16 @@ export class FunctionNarrativesHostDelivery {
     if (this.pending?.request.flowId === flowId) this.pending.controller.abort();
     entry.sourceValidation?.dispose(); entry.sourceValidation = undefined; entry.cached.clear();
     const sessions = [...entry.sessions.values()]; entry.sessions.clear();
+    const publications = sessions.map(session => this.sessionPublications.get(session)).filter((value): value is Publication => Boolean(value));
     if (this.presentedFlowId === flowId) { this.dependencies.sourcePresenter?.clear(); this.presentedFlowId = undefined; }
     // Even a storage cleanup failure cannot restore revoked cache authority.
-    entry.invalidation = Promise.allSettled(sessions.map(session => session.dispose())).then(() => {});
+    entry.invalidation = Promise.allSettled(sessions.map(session => session.dispose())).then(async () => {
+      // Source staleness revokes every retained locale, including a newer generation actually invalidated by this context removal.
+      for (const publication of publications) await this.dependencies.postMessage({ type: "codeFlow/functionNarrativesLoaded", payload: {
+        graphVersion: entry.graphVersion, flowId: flowId as FunctionNarrativesRequest["flowId"], requestId: publication.requestId,
+        status: "stale", language: publication.language, publicationId: publication.id, publicationRevoked: true
+      } });
+    });
     return entry.invalidation;
   }
 

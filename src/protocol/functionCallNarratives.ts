@@ -5,6 +5,7 @@ import type { FunctionNarrativeFailure } from "../shared/functionNarratives";
 import type { SourceNodeToken } from "./sourceNavigation";
 import type { CodeFlowEvidenceToken } from "./functionLogic";
 import type { ModelTaskProgress } from "../shared/modelTasks";
+import type { NarrativePublicationMetadata } from "../shared/narrativePublications";
 export type FunctionCallNarrativesRequest = FunctionCallsRequest & {
   contextId: string;
   scope: FunctionCallNarrativeScope; connectionId?: string; choices?: Array<{ key: string; value: string }>;
@@ -16,7 +17,7 @@ export type FunctionCallReadingEntry = FunctionCallReading & {
   confidence: FunctionCallConnection["confidence"]; deferred: boolean;
   callerEvidence?: CodeFlowEvidenceToken; calleeEvidence?: CodeFlowEvidenceToken; calleeSourceToken?: SourceNodeToken;
 };
-export type FunctionCallNarrativesResponse = FunctionCallNarrativesRequest & {
+export type FunctionCallNarrativesResponse = FunctionCallNarrativesRequest & NarrativePublicationMetadata & {
   status: "ready" | "progress" | "working" | "stale" | FunctionNarrativeFailure;
   task?: ModelTaskProgress;
   modelName?: string; language?: "ko" | "en"; cacheHit?: boolean;

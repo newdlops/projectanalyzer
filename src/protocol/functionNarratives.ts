@@ -3,6 +3,7 @@ import type { CodeFlowId } from "./codeFlow";
 import type { CodeFlowEvidenceToken } from "./functionLogic";
 import type { FunctionNarrativePage, FunctionNarrativeSnippet } from "../shared/functionNarratives";
 import type { ModelTaskProgress } from "../shared/modelTasks";
+import type { NarrativePublicationMetadata } from "../shared/narrativePublications";
 
 export type FunctionNarrativesRequest = { graphVersion: string; flowId: CodeFlowId; requestId: number;
   /** Cache-only lookup for a graph node whose scenario lives on another saved page. */
@@ -22,7 +23,7 @@ export type FunctionNarrativeSourceRequest = {
   nodeIndex?: number;
   pageIndex?: number;
 };
-export type FunctionNarrativesResponse = FunctionNarrativesRequest & {
+export type FunctionNarrativesResponse = FunctionNarrativesRequest & NarrativePublicationMetadata & {
   status: "ready" | "progress" | "working" | "queue-full" | "unavailable" | "download-failed" | "cancelled" | "denied" | "timeout" | "invalid-response" | "language-mismatch" | "context-too-large" | "failed" | "stale";
   /** Correlated, source-free scheduler state; this never replaces cached narratives or marks generation complete. */
   task?: ModelTaskProgress;

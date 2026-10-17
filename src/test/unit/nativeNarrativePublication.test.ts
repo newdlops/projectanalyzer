@@ -2,46 +2,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { setTimeout as delay } from "node:timers/promises";
-import { createNativeFunctionNarrativeProvider, type NativeFunctionNarrativeHostReceipt } from "../../llm/nativeNarrativeProvider";
-import type { NativeNarrativeEvent } from "../../llm/nativeNarratives";
-import { unpackNativeInputMessages } from "../../llm/nativeNarrativeCodec";
-import { ModelTaskManager } from "../../shared/modelTasks";
 import { createNativeRootCallHost } from "../helpers/nativeRootCallHost";
-import { createWholeNarrativeCallHost } from "../helpers/wholeNarrativeCallHost";
 import { withCompleteNativeNarrativeWorker } from "../helpers/completeNativeNarrativeWorker";
 import { nativeGate } from "../helpers/nativeNarrativeWorker";
-
-type Fixture = Parameters<Parameters<typeof withCompleteNativeNarrativeWorker>[0]>[0];
-type Message = { requestId: number; status: string; cacheHit?: boolean; narrative?: unknown };
-type Hooks = { post?(message: Message): Promise<void>; read?(): Promise<void>; disposePages?(hasPages: boolean): Promise<void>; badClose?: boolean };
-
-/** Adapt existing real Host fixtures to the same public request/cache actions; models and analyzed programs never execute. */
-async function publicationHost(fixture: Fixture, surface: "root" | "call", hooks: Hooks = {}) {
-  if (surface === "root") {
-    const h = await createNativeRootCallHost(fixture, { callCount: 0, clock: {}, mode: hooks.badClose ? "bad-close" : "complete", io: {
-      read: hooks.read, dispose: hooks.disposePages, async postMessage(message) { if (message.type === "codeFlow/functionNarrativesLoaded") await hooks.post?.(message.payload); }
-    } });
-    return { access: h.access, files: h.files, state: h.state, events: h.events, receipts: h.hostReceipts, isReleased: () => h.receipts.length > 0,
-      request: (requestId: number, pageIndex?: number) => h.delivery.requestFunctionNarratives({ ...h.request, requestId, ...(pageIndex === undefined ? {} : { pageIndex, pageLanguage: "en" as const }) }),
-      cancel: (requestId: number) => h.delivery.cancelFunctionNarratives({ ...h.request, requestId }), replies: (): Message[] => h.replies(), storedPages: h.storedPages,
-      setComplete() { h.setMode("complete"); }, close: h.close };
-  }
-  const manager = new ModelTaskManager(), events: NativeNarrativeEvent[] = [], receipts: NativeFunctionNarrativeHostReceipt[] = [];
-  let released = false;
-  const h = await createWholeNarrativeCallHost(f => createNativeFunctionNarrativeProvider({ manager, worker: { ...fixture.options("call", {}),
-    onEvent: event => events.push(event), journal(event) {
-      const line = JSON.parse(event.raw); if (event.direction !== "input" || !line.requests) return;
-      if (line.requests[0].uid === 0) {
-        const content = unpackNativeInputMessages(line.requests[0].payload.messages)[1].content, marker = "SOURCE DATA:\n";
-        assert.deepEqual(JSON.parse(content.slice(content.lastIndexOf(marker) + marker.length)).callTask.earlierModelReadings, []);
-      }
-    } }, onRunComplete() { released = true; f.events.push("provider-released"); }, onHostRunComplete(receipt) { receipts.push(receipt); }
-  }), undefined, message => hooks.post?.(message) ?? Promise.resolve());
-  return { access: h.access, files: h.files, state: h.state, events, receipts, isReleased: () => released,
-    request: (requestId: number, pageIndex?: number) => h.host.explain({ ...h.request, requestId, ...(pageIndex === undefined ? {} : { pageIndex, pageLanguage: "en" as const }) }),
-    cancel: (requestId: number) => h.host.cancelExplanation({ ...h.request, requestId }), replies: (): Message[] => h.messages,
-    storedPages: () => 0, setComplete() {}, async close() { h.host.reset(); await manager.dispose(); } };
-}
+import { publicationHost } from "../helpers/nativePublicationHost";
 
 /** A phase that did not occur is an immediate failure, rather than an unbounded test wait after early Host completion. */
 async function arrived(gate: ReturnType<typeof nativeGate>, pending: Promise<void>): Promise<void> {

@@ -62,10 +62,10 @@ export function getFunctionNarrativeInterpretationBrowserSource(): string {
         for(let scenarioIndex=0;scenarioIndex<payload.narrative.scenarios.length;scenarioIndex++){
           const scenario=payload.narrative.scenarios[scenarioIndex];const details=[];
           for(let nodeIndex=0;nodeIndex<(scenario.nodeDetails?.length||0);nodeIndex++)if(scenario.nodeDetails[nodeIndex].nodeId===nodeId)details.push({detail:scenario.nodeDetails[nodeIndex],nodeIndex});
-          if(details.length)return {details,example:scenario.example,evaluation:scenario.evaluation,title:scenario.title,language:payload.language,pageIndex:payload.page?.index,scenarioIndex,ordinal:(payload.page?.offset||0)+scenarioIndex+1};
+          if(details.length)return {details,example:scenario.example,evaluation:scenario.evaluation,title:scenario.title,language:payload.language,publicationId:payload.publicationId,pageIndex:payload.page?.index,scenarioIndex,ordinal:(payload.page?.offset||0)+scenarioIndex+1};
         }
       }
-      function remember(payload,nodeId){const value=extract(payload,nodeId);if(value){cache.set(payload.language+":"+nodeId,value);while(cache.size>8)cache.delete(cache.keys().next().value);}refresh(false);}
+      function remember(payload,nodeId){const current=owner.result();if(!current||current.language!==payload.language||current.publicationId!==payload.publicationId)return;const value=extract(payload,nodeId);if(value){cache.set(payload.language+":"+nodeId,value);while(cache.size>8)cache.delete(cache.keys().next().value);}refresh(false);}
       function refresh(allowQuery=true) {
         if(disposed)return;
         const payload=owner.result(),scenario=owner.scenario();element.hidden=!scenario?.example;
@@ -84,7 +84,7 @@ export function getFunctionNarrativeInterpretationBrowserSource(): string {
         select.value=nodeId||"";select.disabled=!unique.size;
         const reached=scenario.graph?.nodeIds.includes(nodeId);
         const selectedDetails=(scenario.nodeDetails||[]).map((detail,nodeIndex)=>({detail,nodeIndex})).filter((item)=>item.detail.nodeId===nodeId);
-        const data=selectedDetails.length?{details:selectedDetails,example:scenario.example,evaluation:scenario.evaluation,language:payload.language,pageIndex:payload.page?.index,scenarioIndex:owner.index(),ordinal:(payload.page?.offset||0)+owner.index()+1}
+        const data=selectedDetails.length?{details:selectedDetails,example:scenario.example,evaluation:scenario.evaluation,language:payload.language,publicationId:payload.publicationId,pageIndex:payload.page?.index,scenarioIndex:owner.index(),ordinal:(payload.page?.offset||0)+owner.index()+1}
           :cached||extract(payload,nodeId);
         status.textContent=projectAnalyzerText(!reached?"narrative-node-skipped":data?data.evaluation?"narrative-mode-"+data.evaluation.mode:"narrative-example-basis":payload.coverage?.complete?"narrative-node-unavailable":"narrative-node-pending");body.replaceChildren();
         if(!data){if(nodeId&&allowQuery)owner.loadNode(nodeId);return;}
@@ -99,7 +99,7 @@ export function getFunctionNarrativeInterpretationBrowserSource(): string {
           const source=document.createElement("button");source.type="button";source.className="logic-guide-action logic-narrative-node-source";source.textContent=projectAnalyzerText("narrative-node-source",{line:detail.source.startLine});source.addEventListener("click",()=>owner.openNodeSource(data,nodeIndex));section.append(source);body.append(section);
         }
       }
-      return {element,refresh,remember,dispose(){disposed=true;unsubscribe?.();cache.clear();}};
+      return {element,refresh,remember,clear(){cache.clear();lastRead=undefined;optionSignature=undefined;body.replaceChildren();select.replaceChildren();status.textContent="";element.hidden=true;},dispose(){disposed=true;unsubscribe?.();cache.clear();}};
     }
   `;
 }

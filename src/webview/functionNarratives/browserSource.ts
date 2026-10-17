@@ -2,6 +2,7 @@
 import { createFunctionNarrativeValidator, isFunctionNarrativeLanguage, isFunctionNarrativeExample } from "../../shared/functionNarratives";
 import { getFunctionNarrativeInterpretationBrowserSource } from "./interpretationBrowserSource";
 import { isModelTaskProgress } from "../../shared/modelTasks";
+import { isNarrativePublicationId, isNarrativePublicationRevocation } from "../../shared/narrativePublications";
 
 export function getFunctionNarrativesBrowserSource(): string {
   return /* js */ `
@@ -11,13 +12,21 @@ export function getFunctionNarrativesBrowserSource(): string {
     const isFunctionNarrative = createFunctionNarrativeValidator(isFunctionNarrativeExample, true);
     ${isFunctionNarrativeLanguage.toString()}
     ${getFunctionNarrativeInterpretationBrowserSource()}
+    ${isNarrativePublicationId.toString()}
+    ${isNarrativePublicationRevocation.toString()}
     const functionNarrativeRequests = new Map();
     const functionNarrativeResults = new Map();
+    // Mounted widgets are observers, while retained cache entries outlive a particular mount.
+    const functionNarrativePublications = new Map();
     let nextFunctionNarrativeRequestId = 0;
     let nextFunctionNarrativeWidgetId = 0;
 
     /** Only the exact mounted request and active graph may accept a model result. */
     function acceptFunctionNarrativesResponse(payload) {
+      if(isNarrativePublicationRevocation(payload)&&state.graph?.version===payload.graphVersion){
+        for(const [key,saved]of functionNarrativeResults)if(saved.publicationId===payload.publicationId&&saved.graphVersion===payload.graphVersion&&saved.flowId===payload.flowId&&saved.language===payload.language)functionNarrativeResults.delete(key);
+        for(const observer of [...functionNarrativePublications.values()])if(observer.graphVersion===payload.graphVersion&&observer.flowId===payload.flowId)observer.revoke(payload);
+      }
       const pending = functionNarrativeRequests.get(payload?.requestId);
       if (!pending || pending.request.flowId !== payload.flowId || pending.request.graphVersion !== payload.graphVersion
         || state.graph?.version !== payload.graphVersion) return;
@@ -27,6 +36,7 @@ export function getFunctionNarrativesBrowserSource(): string {
 
     /** A response's snippet bounds and source token matrix must match every narrative step. */
     function validFunctionNarrativesResponse(payload) {
+      if(payload?.publicationRevoked!==undefined||payload?.publicationId!==undefined&&!isNarrativePublicationId(payload.publicationId))return false;
       const snippets = payload?.snippets;
       const completeRoot=Array.isArray(payload?.narrative?.scenarios)&&payload.narrative.scenarios.every(scenario=>scenario?.evaluation);
       if (!Array.isArray(snippets) || !snippets.length || snippets.length > (completeRoot ? 100000 : 5) || snippets.some((snippet) => !snippet
@@ -78,11 +88,25 @@ export function getFunctionNarrativesBrowserSource(): string {
       let task;
       let selectedScenarioIndex=0;let selectedScenarioIdentity;let initialExamplesApplied=false;let nodeRequest;let nodeLookupKey;
       const nodeReader=createFunctionNarrativeNodeReader(callbacks,{id:widgetId,result:()=>result,index:()=>selectedScenarioIndex,scenario:()=>result?.narrative.scenarios[selectedScenarioIndex],
-        loadNode:queryNode,openNodeSource(data,nodeIndex){if(disposed||state.graph?.version!==graphVersion)return;vscode.postMessage({type:"codeFlow/openFunctionNarrativeSource",payload:{graphVersion,flowId:tutor.functionId,contextId:tutor.narratives.contextId,language:data.language,scenarioIndex:data.scenarioIndex,stepIndex:0,nodeIndex,...(data.pageIndex!==undefined?{pageIndex:data.pageIndex}:{})}});}});
+        loadNode:queryNode,openNodeSource(data,nodeIndex){if(disposed||!result||data.language!==result.language||data.publicationId!==result.publicationId||state.graph?.version!==graphVersion)return;vscode.postMessage({type:"codeFlow/openFunctionNarrativeSource",payload:{graphVersion,flowId:tutor.functionId,contextId:tutor.narratives.contextId,language:data.language,scenarioIndex:data.scenarioIndex,stepIndex:0,nodeIndex,...(data.pageIndex!==undefined?{pageIndex:data.pageIndex}:{})}});}});
       element.append(nodeReader.element);
       // Retain only sixteen open disclosures across pages and languages. Capture native state
       // before replacement; queued toggle events never request work or mutate a new result.
       const evidenceOpenByKey = new Map(); const evidenceElements = new Map();
+      functionNarrativePublications.set(widgetId,{graphVersion,flowId:tutor.functionId,revoke:revokePublication});
+
+      /** Withdraw only this generation; a newer pending request and user-edited inputs retain their own ownership. */
+      function revokePublication(payload){
+        if(disposed||!result||result.publicationId!==payload.publicationId||result.language!==payload.language)return;
+        const focused=document.activeElement,moveFocus=results.contains(focused)||nodeReader.element.contains(focused)||pager.contains(focused);
+        const publicationId=result.publicationId;
+        if(nodeRequest){functionNarrativeRequests.delete(nodeRequest.requestId);nodeRequest=undefined;}
+        if(request&&functionNarrativeRequests.get(request.requestId)?.publicationId===publicationId){functionNarrativeRequests.delete(request.requestId);request=undefined;task=undefined;}
+        result=undefined;selectedScenarioIndex=0;selectedScenarioIdentity=undefined;nodeLookupKey=undefined;
+        evidenceOpenByKey.clear();evidenceElements.clear();nodeReader.clear();phase=request?"pending":payload.status;
+        render();
+        if(moveFocus){if(!refreshButton.hidden)refreshButton.focus();else if(!requestButton.hidden&&!requestButton.disabled)requestButton.focus();else if(!cancelButton.hidden)cancelButton.focus();else{status.tabIndex=-1;status.focus();}}
+      }
 
       /** Renders saved interpretations; only the first result fills empty example inputs automatically. */
       function render() {
@@ -127,6 +151,7 @@ export function getFunctionNarrativesBrowserSource(): string {
           if (result.limited) { const limit = document.createElement("p"); limit.className = "logic-summary-note"; limit.textContent = projectAnalyzerText("narrative-limited"); results.append(limit); }
           if (coverage?.complete && coverage.sourceLimited) { const limit = document.createElement("p"); limit.className = "logic-summary-note"; limit.textContent = projectAnalyzerText("narrative-source-incomplete"); results.append(limit); }
           for (let index = 0; index < result.narrative.scenarios.length; index += 1) {
+            const saved=result;
             const scenario = result.narrative.scenarios[index];
             const globalIndex = (result.page?.offset ?? 0) + index;
             const article = document.createElement("section"); article.className = "logic-narrative-scenario";
@@ -160,7 +185,7 @@ export function getFunctionNarrativesBrowserSource(): string {
               source.id = widgetId + "-source-" + globalIndex + "-" + stepIndex;
               source.textContent = projectAnalyzerText("narrative-source", { scenario: globalIndex + 1, step: stepIndex + 1, start: step.source.startLine, end: step.source.endLine });
               source.addEventListener("click", () => {
-                if (!disposed && state.graph?.version === graphVersion && tutor.narratives.contextId) {
+                if (!disposed && result===saved && state.graph?.version === graphVersion && tutor.narratives.contextId) {
                   vscode.postMessage({ type: "codeFlow/openFunctionNarrativeSource", payload: { graphVersion, flowId: tutor.functionId,
                     contextId: tutor.narratives.contextId, language: result.language, scenarioIndex: index, stepIndex,
                     ...(result.page ? { pageIndex: result.page.index } : {}) } });
@@ -192,7 +217,7 @@ export function getFunctionNarrativesBrowserSource(): string {
         const key=result.language+":"+(result.coverage?.completed||0)+":"+nodeId;if(key===nodeLookupKey)return;nodeLookupKey=key;
         if(nodeRequest)functionNarrativeRequests.delete(nodeRequest.requestId);
         nodeRequest={graphVersion,flowId:tutor.functionId,requestId:++nextFunctionNarrativeRequestId,nodeId,pageLanguage:result.language};
-        const requested=nodeRequest;functionNarrativeRequests.set(requested.requestId,{request:requested,accept(payload){if(disposed||nodeRequest!==requested)return;nodeRequest=undefined;if(payload.status==="ready"&&validFunctionNarrativesResponse(payload)&&isFunctionNarrativeLanguage(payload.narrative,payload.language))nodeReader.remember(payload,nodeId);}});
+        const requested=nodeRequest;functionNarrativeRequests.set(requested.requestId,{request:requested,publicationId:result.publicationId,accept(payload){if(disposed||nodeRequest!==requested)return;nodeRequest=undefined;if(payload.status==="ready"&&validFunctionNarrativesResponse(payload)&&isFunctionNarrativeLanguage(payload.narrative,payload.language))nodeReader.remember(payload,nodeId);}});
         vscode.postMessage({type:"codeFlow/requestFunctionNarratives",payload:requested});
       }
       function appendFacts(parent, copyKey, values) {
@@ -219,7 +244,7 @@ export function getFunctionNarrativesBrowserSource(): string {
         task = undefined;
         request = { graphVersion, flowId: tutor.functionId, requestId: ++nextFunctionNarrativeRequestId,
           ...(paging ? { pageIndex, pageLanguage: result.language } : {}) };
-        functionNarrativeRequests.set(request.requestId, { request, accept(payload) {
+        functionNarrativeRequests.set(request.requestId, { request, publicationId:paging?result.publicationId:undefined, accept(payload) {
           if (disposed || !request || request.requestId !== payload.requestId) return;
           if (payload.status === "working") {
             if (!paging && isModelTaskProgress(payload.task) && (!task || Number(payload.task.id.split(":")[1]) >= Number(task.id.split(":")[1]))) {
@@ -238,6 +263,7 @@ export function getFunctionNarrativesBrowserSource(): string {
             if (!validFunctionNarrativesResponse(payload)) phase = "invalid-response";
             else if (!isFunctionNarrativeLanguage(payload.narrative, payload.language)) phase = "language-mismatch";
             else {
+              if(result?.publicationId!==payload.publicationId){if(nodeRequest){functionNarrativeRequests.delete(nodeRequest.requestId);nodeRequest=undefined;}nodeReader.clear();nodeLookupKey=undefined;selectedScenarioIdentity=undefined;selectedScenarioIndex=0;}
               result = payload; functionNarrativeResults.set(key + ":" + payload.language, payload);
               while (functionNarrativeResults.size > 8) functionNarrativeResults.delete(functionNarrativeResults.keys().next().value);
             }
@@ -270,7 +296,7 @@ export function getFunctionNarrativesBrowserSource(): string {
       refreshButton.addEventListener("click", () => { if (!disposed && phase === "stale" && state.graph?.version === graphVersion) callbacks?.onRefreshFunction?.(tutor.narratives.sourceToken); });
       render();
       return { element,start:()=>startRequest(), refreshLanguage() { result = functionNarrativeResults.get(key + ":" + state.uiLanguage) || result; render(); },
-        dispose() { disposed = true; cancel();callbacks?.onNarrativeNotes?.(undefined);if(nodeRequest)functionNarrativeRequests.delete(nodeRequest.requestId);nodeReader.dispose(); } };
+        dispose() { disposed = true; functionNarrativePublications.delete(widgetId);cancel();callbacks?.onNarrativeNotes?.(undefined);if(nodeRequest)functionNarrativeRequests.delete(nodeRequest.requestId);nodeReader.dispose(); } };
     }
   `;
 }

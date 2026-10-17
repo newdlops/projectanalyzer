@@ -1,4 +1,5 @@
 /** Snapshot-owned call-reading lifecycle: explicit generation, bounded chunks, partial resume and cache-only pages. */
+import { randomUUID } from "node:crypto";
 import { buildFunctionCallNarrativePlan, buildFunctionCallNarrativeContext, resolveFunctionCallDeclarationRange, parseFunctionCallNarrative, createCompleteFunctionCallNarrative, type FunctionCallNarrativePlan } from "../../application/functionCallNarratives";
 import { createProjectCallableScope } from "../../application/functionCalls";
 import type { FunctionNarrativeProvider } from "../../application/functionNarratives";
@@ -30,6 +31,7 @@ type Reading = { contextId: string; plan: FunctionCallNarrativePlan; calls: Func
   proofBatches: FunctionCallSourceProofHandle[];
   sourceCaptureSha256?: string;
   sourceValidation?: NarrativeSourceValidation;
+  publication?: { id: string; request: FunctionCallNarrativesRequest; language: "ko" | "en" };
   calleeEvidence: NonNullable<import("../../shared/functionCallNarratives").FunctionCallNarrativeTask["calleeEvidence"]> };
 
 /** Recent contexts authorize source reads; recent routes retain prose, never a resident model. */
@@ -70,6 +72,7 @@ export class FunctionCallNarrativesHostDelivery {
     const count = Math.max(1, Math.ceil(reading.calls.length / 2)), index = request.pageIndex ?? Math.max(0, count - 1), offset = index * 2;
     if (index >= count) return this.dependencies.postMessage({ ...request, status: "stale" });
     return this.dependencies.postMessage({ ...request, status, language: reading.language, modelName: reading.modelName, cacheHit,
+      ...(reading.publication ? { publicationId: reading.publication.id } : {}),
       narrative: { summary: reading.summary, flow: reading.flow, calls: reading.calls.slice(offset, offset + 2), limitations: reading.limitations },
       page: { index, count, offset }, coverage: { completed: reading.calls.length, total: reading.plan.rows.length,
         complete: reading.hasSummary && reading.calls.length === reading.plan.rows.length, sourceLimited: reading.sourceLimited } });
@@ -82,7 +85,9 @@ export class FunctionCallNarrativesHostDelivery {
 
   private async requestInternal(request: FunctionCallNarrativesRequest, run: FunctionNarrativeHostRun): Promise<void> {
     const entry = this.contexts.get(request.sourceToken), language = request.pageLanguage ?? this.dependencies.getLanguage();
-    const failure = (status: FunctionCallNarrativesResponse["status"]) => this.dependencies.postMessage({ ...request, status });
+    let publicationId: string | undefined, readyAttempted = false;
+    const failure = (status: FunctionCallNarrativesResponse["status"]) => this.dependencies.postMessage({ ...request, status,
+      ...(publicationId ? { publicationId, language, ...(readyAttempted ? { publicationRevoked: true as const } : {}) } : {}) });
     if (!entry || !this.active(request, entry)) { await failure("stale"); return; }
     const key = this.key(request, language), publishing = this.pending;
     if (request.pageIndex !== undefined && publishing?.publishing && this.key(publishing.request, publishing.language) === key) {
@@ -113,6 +118,10 @@ export class FunctionCallNarrativesHostDelivery {
       if (!reading) reading = { contextId: entry.contextId, plan: buildFunctionCallNarrativePlan(entry.slice, request), calls: [], limitations: [], language,
         sourceLimited: entry.slice.limited, hasSummary: false, allSourceDetails: true, proofBatches: [], calleeEvidence: [] };
     } catch (error) { await failure(error instanceof FunctionNarrativeError ? error.code : "invalid-response"); return; }
+    if (native) {
+      publicationId = "narrative-publication:" + randomUUID().replaceAll("-", "");
+      reading.publication = { id: publicationId, request: structuredClone(request), language };
+    }
     if (native && cached) { cached.sourceValidation?.dispose(); this.readings.delete(key); }
     this.pending?.controller.abort();
     let settle!: () => void; const settled = new Promise<void>(resolve => { settle = resolve; });
@@ -243,6 +252,7 @@ export class FunctionCallNarrativesHostDelivery {
       // or root change during teardown cannot publish a late success.
       await sourceLease?.assertCurrent(signal); ensureActive();
       if (native) { releaseSource(); ensureActive(); pending.publishing = true; }
+      readyAttempted = native;
       await this.send(request, reading, "ready", false);
       if (native) {
         ensureActive(); await reading.sourceValidation?.assertCurrent(signal); ensureActive();
@@ -258,11 +268,12 @@ export class FunctionCallNarrativesHostDelivery {
         reading.sourceValidation?.dispose();
       }
       if (this.contexts.get(request.sourceToken) === entry && this.dependencies.narrativeSources && (status === "stale" || this.pending === pending && bodyCompleted && !pending.providerCompleted)) {
-        this.revokeContext(request.sourceToken, entry); if (this.pending === pending && this.dependencies.graphDelivery.matches(request.graphVersion)) await failure(status); return;
+        const revoked = this.revokeContext(request.sourceToken, entry); await this.publishRevocations(revoked);
+        if ((this.pending === pending || readyAttempted) && this.dependencies.graphDelivery.matches(request.graphVersion)) await failure(status); return;
       }
       if (this.pending === pending && this.active(request, entry)) {
         if (!native && (reading.hasSummary || reading.calls.length)) await this.send(request, reading, status, false); else await failure(status);
-      }
+      } else if (readyAttempted && this.dependencies.graphDelivery.matches(request.graphVersion)) await failure(status);
     } finally {
       try { releaseSource(); }
       finally { run.interrupted(signal.aborted); if (this.pending === pending) this.pending = undefined; pending.settle(); }
@@ -282,13 +293,28 @@ export class FunctionCallNarrativesHostDelivery {
     if (reading.sourceValidation && pending && !pending.providerCompleted && reading.hasSummary && reading.calls.length === reading.plan.rows.length
       && this.key(pending.request, pending.language) === this.key(request, reading.language)) await pending.settled;
     try { await reading.sourceValidation?.assertCurrent(new AbortController().signal); return this.active(request, entry); }
-    catch { if (this.contexts.get(request.sourceToken) === entry) this.revokeContext(request.sourceToken, entry); return false; }
+    catch { if (this.contexts.get(request.sourceToken) === entry) await this.publishRevocations(this.revokeContext(request.sourceToken, entry)); return false; }
   }
 
   /** A stale declaration revokes every cached scope/locale under its original context. */
-  private revokeContext(sourceToken: string, entry: Entry): void {
+  private revokeContext(sourceToken: string, entry: Entry): NonNullable<Reading["publication"]>[] {
+    const publications: NonNullable<Reading["publication"]>[] = [];
     if (this.contexts.get(sourceToken) === entry) this.contexts.delete(sourceToken);
     if (this.pending?.request.sourceToken === sourceToken) this.pending.controller.abort();
-    for (const [key, reading] of this.readings) if (reading.contextId === entry.contextId) { reading.sourceValidation?.dispose(); this.readings.delete(key); }
+    for (const [key, reading] of this.readings) if (reading.contextId === entry.contextId) {
+      if (reading.publication) publications.push(reading.publication);
+      reading.sourceValidation?.dispose(); this.readings.delete(key);
+    }
+    return publications;
+  }
+
+  /** Publish revocations independently of an in-flight request; the browser matches each Host-issued result identity. */
+  private async publishRevocations(publications: NonNullable<Reading["publication"]>[]): Promise<void> {
+    const seen = new Set<string>();
+    for (const publication of publications) {
+      if (seen.has(publication.id) || !this.dependencies.graphDelivery.matches(publication.request.graphVersion)) continue;
+      seen.add(publication.id);
+      await this.dependencies.postMessage({ ...publication.request, status: "stale", language: publication.language, publicationId: publication.id, publicationRevoked: true });
+    }
   }
 }
