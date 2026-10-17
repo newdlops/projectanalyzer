@@ -1,10 +1,9 @@
 {
-  "purpose": "원래 6개 whole-gradient resource admission을 새 실제 소유권·메모리 진입 절차로 실행하기 위한 준비다. 전체 neural 정확도/Host3초 목표는 유지한다.",
-  "status": "CPU 진입 계약과 실제 OS 경계 검증을 완료한 prepared-not-started 상태다. 6개 실제 gradient와 training은 미실행이며 실행 허가/성공으로 취급하지 않는다.",
-  "preparedScope": ".local-models/experiments/three-second/current4176-owned-six-gradient-v999",
-  "preparedPlanSha256": "f31528dbdfd58e5d54161aac0a8a51b389e9d5fc414ee87953b954f204d26587",
-  "entryContract": ".local-models/experiments/three-second/whole-gradient-headroom-v998/entry.py",
-  "unchangedNumerics": {
+  "purpose": "Original all-six resource gate completed; supervise the first fixed current3280 training.",
+  "status": "V999 actual all6 independently passed and CLOSED; V1010 fixed training actually live, not complete.",
+  "completedResourceScope": "current4176-owned-six-gradient-v999",
+  "completedResourcePlanSha256": "f31528dbdfd58e5d54161aac0a8a51b389e9d5fc414ee87953b954f204d26587",
+  "unchangedResourceNumerics": {
     "originalSelection": "current4176-gradient-selection-v757/selection.json",
     "allRowsExactlyRetained": 6,
     "retainedOriginalResourceOwners": 4,
@@ -15,8 +14,13 @@
     "fullVocabulary": 151936,
     "finiteF32GradientArraysPerOwner": 224,
     "gradientParametersPerOwner": 2883584,
-    "lora": { "layers": 16, "rank": 8, "scale": 20, "dropout": 0 },
-    "adamInitializationLearningRate": 0.00001,
+    "lora": {
+      "layers": 16,
+      "rank": 8,
+      "scale": 20,
+      "dropout": 0
+    },
+    "adamInitializationLearningRate": 1e-05,
     "sdkIteratorSeed": 42,
     "workBoundSeconds": 900,
     "optimizerUpdates": 0,
@@ -24,7 +28,7 @@
     "original52RationalWeightsRetained": true,
     "noNewModelDtypeLrEpochSamplerOrWeightSelection": true
   },
-  "ownershipAndEntry": [
+  "originalOwnershipAndEntryProtocol": [
     "새 runner는 CPU preflight에서 고정된 코드/전체 evidence/token/base asset bytes와 original baseline/source admission을 확인한다. 모델/MLX/tokenizer는 아직 import하지 않는다.",
     "실제 PID·start·command에 새 random nonce와 plan SHA를 결합한 intent를 발급한다. 숫자 PID 또는 오래된 ready 파일만으로 소유권을 정하지 않는다.",
     "V778의 원래 owner-free>=60percent 실제 관측3개·전체 간격2~15초·인접 간격0초초과10초이하·마지막 관측10초이내 조건을 유지한다. 외부 observer PID와 실제 도구 session을 결합하고 한 번만 소비한다.",
@@ -32,21 +36,17 @@
     "loaded-ready 이후에도 별도의 실제 loaded-model 관측/등록 ACK를 기다린다. ACK는 이 ready 파일의 SHA와 같은 PID/start/command/nonce/plan/session/observer에 일치해야 한다.",
     "메모리 부족이나 관측 불능은 실패이며 모델 성공/소유권 해제의 증거가 아니다. interrupt/강제 종료는 새로 확인한 같은 PID/start/command에만 가능하다. 다른 앱 종료나 시스템 설정 변경은 하지 않는다."
   ],
-  "beforeActualLaunch": [
-    "기존 실행이 모두 실제 terminal/외부 PID부재인지, original checkpoint에 다른 모델/도구가 없는지 확인한다. prepared runner/observer/plan/source hashes를 확인한다.",
-    "새 실제 여유 메모리 조건이 확인됐을 때만 새 runner를 최초 실행한다. CPU probe의 PID/nonce/scope·합성 테스트 samples 또는 오래된 grant를 사용하지 않는다.",
-    "실제 tool session/PID/entry intent를 확인한 뒤 새 observer를 최초 실행한다. V999 observer는 실제 새 owner에 대해서만 fresh3을 관측해 entry handoff를 작성한다.",
-    "actual loaded-ready와 live PID/RAM/swap을 확인한 뒤 global 모델 소유권을 등록하고 최신 heartbeat에 phase:loaded-model과 loadedReadySha256을 붙인 loaded-memory-ack.json을 새로 작성한다. launch 파일만으로 모델 소유권을 미리 등록하지 않는다.",
-    "같은 실제 handle을 terminal까지 감독한다. 관측 timeout이나 결과 파일을 terminal로 해석하지 않는다. 낮은 headroom으로 차단/실패한 scope를 재시작하지 않는다."
-  ],
-  "afterActualRunRequired": "6개 전체224 finiteF32 gradients와 모든target/EOS·rational·각probe model bytes 동일·실제 final8/양 RNG/wired 복원·actual child terminal/PID부재·canonical base assets/weights bytes 동일을 별도로 감사해야 한다. V771 partial5와 V774 partial2를 합치지 않는다. 전체 admission이 완성돼도 fixed training은 원래 별도 numerical/guard/resource 판정을 마친 뒤에만 준비한다.",
-  "verification": {
+  "historicalV1003CpuPreparation": {
     "portableEntryCasesPassed": 10,
     "actualOsBoundaryChecksPassed": 10,
     "preservedSandboxFirstAttempt": "owner-entry-integration-v1000:2/6, Python 내부 ps exit127; raw failure를 unknown으로 유지했다.",
     "actualReadOnlyOsDiagnosis": "동일 진단을 승인된 실행 경계에서 수행해 ps exit0과 실제 PID/start/command를 확인했다.",
     "freshActualCpuOwnerProbe": "fresh-owner-headroom-probe-v1002",
-    "freshActualFreePercentSamples": [40, 42, 43],
+    "freshActualFreePercentSamples": [
+      40,
+      42,
+      43
+    ],
     "headroomRuleSatisfied": false,
     "actualGradientOwnerHandoff": false,
     "admissionGrantedToAnyModel": false,
@@ -59,6 +59,86 @@
     "continuousMinimumOrPhysicalMemoryHardcapProven": false,
     "swapCausalityProven": false
   },
-  "remainingFullGoal": "원래4176rows/fixed3280/52rationals/408guards/13bans·teaching/retired/fresh-source exclusions와 sweep/resume/partial picking 금지를 유지한다. all6 실제 resource admission과 fixed training, actual qualified neural worker의 전체 source/caller/parent/helper·same-action prior6·모든 값과 완전한 문장 정확도·whole token/byte/mask/EOS/window·실제 child close/outer manager/final Host tail upperBound<=3000ms, qualified 통합/download/integrity/custommodel/FIFOcancel/dispose/설치본전체QA/version/release/install은 미완료다. 마지막 actual source36742.311041999994ms·완전정확0/2를 유지한다. CPU source evaluation/prose synthesis/repair/clipping/placeholder로 모델 답을 채우지 않는다.",
-  "goalComplete": false
+  "completedResourceAudit": {
+    "file": "whole-gradient-actual-progress-v1007/audit-result.json",
+    "sha256": "da50fcc3898ac3e6878861937347dddac070668b13261346c7e93a5409fa84d4",
+    "actualWholeGradients": 6,
+    "arraysPerProbe": 224,
+    "parametersPerProbe": 2883584,
+    "actualAllocatorPeakBytes": 6380761218,
+    "actualFinalActiveBytes": 8,
+    "actualBothRngRestored": true,
+    "wiredLimitRestored": true,
+    "bothActualTerminalsExit0": true,
+    "bothPidsActuallyAbsent": true,
+    "externalDiscreteFreePercentRange": [
+      59,
+      71
+    ]
+  },
+  "resourceEntryFreePercent": [
+    69,
+    67,
+    69
+  ],
+  "resourceLoadedFreePercent": 71,
+  "newCpuVerification": {
+    "dataAndCompletedUpdates": 5,
+    "currentScopeLoadedAck": 6,
+    "allFrameworkFree": true,
+    "syntheticReceiptsCannotGrantModelAdmission": true
+  },
+  "preservedUnlaunchedDefect": {
+    "scope": "current4176-fixed-training-v1009",
+    "evidence": "current4176-fixed-training-v1010/staging.json",
+    "modelLoads": 0,
+    "optimizerUpdates": 0,
+    "reason": "Rebound loaded ACK retained V999 heartbeat globals; preserved before any model launch."
+  },
+  "liveTraining": {
+    "scope": "current4176-fixed-training-v1010",
+    "runnerSessionId": 50901,
+    "runnerPid": 857,
+    "observerSessionId": 6421,
+    "observerPid": 1238,
+    "actualToolObservationAt": {
+      "current_time": "2026-10-17 04:42:02 UTC"
+    },
+    "ownerStarted": "Sat Oct 17 13:38:16 2026",
+    "ownerCommand": ".local-models/experiments/three-second/env/bin/python -B .local-models/experiments/three-second/current4176-fixed-training-v1010/train.py",
+    "nonce": "6562057d86a17a440896ea32f393c38897e3341f96b07da48372b42910fbea82",
+    "planSha256": "b7eb12700d23663b9a7249aaf4cc2b925da8f2109e6479aec83077ac4bb42197",
+    "actuallyLiveAtLastToolPoll": true,
+    "modelLoads": 1,
+    "latestCompletedUpdate": 0,
+    "latestCompletedTargets": 0,
+    "latestMemoryPhase": "guard-0-complete-owners-360",
+    "lastReportedAllocatorPeakBytes": 4184843296,
+    "currentDiscreteFreePercent": 68,
+    "currentSwapRead": {
+      "exitCode": 0,
+      "output": "total = 39936.00M  used = 38976.56M  free = 959.44M  (encrypted)\n",
+      "error": "",
+      "timedOut": false
+    },
+    "guardReports": [],
+    "final8NotYetApplicable": true,
+    "completeTrainingPassed": false,
+    "allowedForNeuralEvaluation": false,
+    "adopted": false,
+    "installed": false,
+    "goalComplete": false
+  },
+  "supervisionInstructions": [
+    "Poll only actual live runner50901 and observer6421; no restart on an observation timeout.",
+    "V999 and all closed CPU/preparation/tests/results remain immutable and cannot rerun or be repolled.",
+    "Keep one model8GiB API/wired/cache256MiB, original during30percent and current20s heartbeat. The before-import60percent fresh3 was actually69/70/70 for this new owner.",
+    "Current training is one fixed fresh-base1epoch LR1e-5 seed42 last16/rank8/scale20/dropout0, batch1/accumulation1, full6144 SDK padding and final-only destination adapter-small-model06-whole4176-v1010.",
+    "All3280 evaluated updates/1180805targets,896 unweighted validation owners/315946targets,52 rationals,408 full guards/148groups/219571targets and all10 original/final points must survive.44300s is the count-derived resource bound declared before training, not the neural3s boundary.",
+    "Only after actual terminal/absence/cleanup/full-guard/adapter audit can the next fresh-source neural admission be prepared."
+  ],
+  "remainingFullGoal": "All-six original resource admission is now independently complete. The one fixed fresh-base3280 training is actually live and not complete. Preserve4176 rows/3280 train/896 unweighted validation, 52 count-derived rationals, all408 guards at0/200/600/1200/2000/2920/2944/3080/3112/3280 and13 permanent failed-family bans. No model/dtype/LR/epoch/sampler/coefficient sweep, resume or partial checkpoint selection. After actual training terminal/guard/final8/bothRNG/wired/base/adapter audit, the complete fresh-source boundary excludes all4176 rows/11440 occurrences/1055 bodies/118 structures and14 whole teaching bodies/24 root-parent specs plus all prior teaching/retired/banned families. The actual qualified neural worker must read complete source/callers/lexical parents/transitive helpers and actual same-action original prior6, author every correct value and complete explanation, and finish whole tokenization/raw decode/transactional all-page storage/actual child close/outer ModelTaskManager/final public Host tail in upperBound<=3000ms after source-free ready. Last actual AA522 remains36742.311041999994ms andfullycorrect0/2. CPU source evaluation/prose synthesis/repair/clipping/placeholders cannot fill model answers. Qualified integration/download/integrity/custom models/FIFOcancel/dispose/full functional and installed visual QA/version/release/install remain unmet.",
+  "goalComplete": false,
+  "physicalHardcapOrContinuousMinimumProven": false,
+  "swapCausalityProven": false
 }
