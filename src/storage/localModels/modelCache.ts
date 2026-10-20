@@ -32,11 +32,11 @@ export function createManagedLocalModelCache(storageDirectory: string, model: Lo
         await mkdir(directory, { recursive: true, mode: 0o700 });
         release = await acquireDownloadLease(target + ".lock", signal, () => progress("waiting", 0));
         checkCancelled(signal);
-        const currentStamp = await fileStamp(target);
+        const currentStamp = await fileStamp(target, signal);
         if (currentStamp && currentStamp === verifiedStamp) return target;
         if (currentStamp) {
           if (await validFile(target, model, signal, (bytes) => progress("verifying", bytes))) {
-            verifiedStamp = await fileStamp(target); return target;
+            verifiedStamp = await fileStamp(target, signal); return target;
           }
           await rm(target, { force: true });
         }
@@ -45,7 +45,7 @@ export function createManagedLocalModelCache(storageDirectory: string, model: Lo
         // A cancelled final verification can complete without another network request.
         if (offset === model.bytes) {
           if (await validFile(partial, model, signal, (bytes) => progress("verifying", bytes))) {
-            await rename(partial, target); verifiedStamp = await fileStamp(target); return target;
+            await rename(partial, target); verifiedStamp = await fileStamp(target, signal); return target;
           }
           await rm(partial, { force: true }); offset = 0;
         }
@@ -54,7 +54,7 @@ export function createManagedLocalModelCache(storageDirectory: string, model: Lo
         await transfer(partial, offset, model, download, signal, progress);
         checkCancelled(signal);
         await rename(partial, target);
-        verifiedStamp = await fileStamp(target);
+        verifiedStamp = await fileStamp(target, signal);
         return target;
       } catch (error) {
         if (signal.aborted) throw new LocalModelError("cancelled");
@@ -62,7 +62,12 @@ export function createManagedLocalModelCache(storageDirectory: string, model: Lo
         if (["ENOSPC", "EACCES", "EPERM", "EROFS"].some((code) => hasCode(error, code))) throw new LocalModelError("storage");
         throw new LocalModelError("download");
       } finally {
-        await release?.(); parentSignal.removeEventListener("abort", abort); active.delete(controller);
+        try { await release?.(); }
+        finally {
+          parentSignal.removeEventListener("abort", abort); active.delete(controller);
+          // Lease cleanup can outlast verification; cancellation still revokes an undelivered result.
+          checkCancelled(signal);
+        }
       }
     }
   };
@@ -128,8 +133,10 @@ async function hashFile(filePath: string, hash: Hash, signal: AbortSignal, repor
 function validRange(header: string | undefined, start: number, total: number): boolean {
   return header === `bytes ${start}-${total - 1}/${total}`;
 }
-async function fileStamp(filePath: string): Promise<string | undefined> {
+/** Rechecks cancellation after filesystem I/O before a cache hit or completed download can be returned. */
+async function fileStamp(filePath: string, signal: AbortSignal): Promise<string | undefined> {
   const info = await stat(filePath).catch((error) => { if (hasCode(error, "ENOENT")) return undefined; throw error; });
+  checkCancelled(signal);
   return info ? `${info.size}:${info.mtimeMs}:${info.ctimeMs}:${info.ino}` : undefined;
 }
 function checkCancelled(signal: AbortSignal): void { if (signal.aborted) throw new LocalModelError("cancelled"); }

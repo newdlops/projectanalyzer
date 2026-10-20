@@ -2,6 +2,7 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { get, createServer, type IncomingMessage, type ServerResponse } from "node:http";
+import { promises as fs } from "node:fs";
 import { mkdtemp, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import * as path from "node:path";
@@ -172,3 +173,80 @@ test("extension disposal aborts an active transfer and rejects future requests",
     await assert.rejects(pending, cancelled); await assert.rejects(f.cache.ensure(new AbortController().signal, () => {}), cancelled);
   } finally { await f.dispose(); }
 });
+
+test("cancellation during a verified cache identity check does not return a model path", async (t) => {
+  const f = await fixture(whole);
+  try {
+    await f.cache.ensure(new AbortController().signal, () => {});
+    const controller = new AbortController();
+    const originalStat = fs.stat;
+    t.mock.method(fs, "stat", async (filePath: Parameters<typeof stat>[0]) => {
+      const info = await originalStat(filePath);
+      if (filePath === f.target) controller.abort();
+      return info;
+    });
+    await assert.rejects(f.cache.ensure(controller.signal, () => {}), cancelled);
+    assert.equal(f.ranges.length, 1);
+  } finally { t.mock.restoreAll(); await f.dispose(); }
+});
+
+test("disposal during a verified cache identity check revokes the pending request", async (t) => {
+  const f = await fixture(whole);
+  try {
+    await f.cache.ensure(new AbortController().signal, () => {});
+    const originalStat = fs.stat;
+    t.mock.method(fs, "stat", async (filePath: Parameters<typeof stat>[0]) => {
+      const info = await originalStat(filePath);
+      if (filePath === f.target) f.cache.dispose();
+      return info;
+    });
+    await assert.rejects(f.cache.ensure(new AbortController().signal, () => {}), cancelled);
+    assert.equal(f.ranges.length, 1);
+  } finally { t.mock.restoreAll(); await f.dispose(); }
+});
+
+test("cancellation after atomic completion keeps verified weights available for retry", async (t) => {
+  const f = await fixture(whole);
+  try {
+    const controller = new AbortController();
+    const originalStat = fs.stat;
+    t.mock.method(fs, "stat", async (filePath: Parameters<typeof stat>[0]) => {
+      const info = await originalStat(filePath);
+      if (filePath === f.target) controller.abort();
+      return info;
+    });
+    await assert.rejects(f.cache.ensure(controller.signal, () => {}), cancelled);
+    t.mock.restoreAll();
+    assert.deepEqual(await readFile(f.target), bytes);
+    await f.cache.ensure(new AbortController().signal, () => {});
+    assert.equal(f.ranges.length, 1);
+  } finally { t.mock.restoreAll(); await f.dispose(); }
+});
+
+for (const action of ["cancel", "dispose"] as const) {
+  test(`${action} while releasing the cache lease revokes the pending result`, async (t) => {
+    const f = await fixture(whole);
+    try {
+      await f.cache.ensure(new AbortController().signal, () => {});
+      const controller = new AbortController();
+      const originalRead = fs.readFile;
+      // Releasing the lease is the last asynchronous step, after the cache hit was verified.
+      t.mock.method(fs, "readFile", async (...args: Parameters<typeof readFile>) => {
+        const contents = await originalRead(...args);
+        if (args[0] === f.target + ".lock") {
+          if (action === "cancel") controller.abort(); else f.cache.dispose();
+        }
+        return contents;
+      });
+      await assert.rejects(f.cache.ensure(controller.signal, () => {}), cancelled);
+      t.mock.restoreAll();
+      assert.deepEqual(await readFile(f.target), bytes);
+      assert.deepEqual(await readdir(path.dirname(f.target)), [model.fileName]);
+      assert.equal(f.ranges.length, 1);
+      if (action === "cancel") {
+        await f.cache.ensure(new AbortController().signal, () => {});
+        assert.equal(f.ranges.length, 1);
+      }
+    } finally { t.mock.restoreAll(); await f.dispose(); }
+  });
+}
