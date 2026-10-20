@@ -13,6 +13,11 @@ function stop(): void {
   stopping = true; child.kill("SIGTERM");
   force = setTimeout(() => child.kill("SIGKILL"), 500); force.unref();
 }
+// A vanished parent may close diagnostics before stdin EOF arrives. Consume
+// that pipe error and drain remaining child output while shutdown reaps it.
+process.stderr.on("error", () => {
+  child.stderr!.unpipe(process.stderr); child.stderr!.resume(); stop();
+});
 child.stderr!.pipe(process.stderr);
 child.on("error", () => { process.exitCode = 1; });
 child.on("close", async code => {
