@@ -1,8 +1,8 @@
 {
   "purpose": "로컬 모델의 전체 계산값·설명 완료 3초 목표를 이어가기 위한 핸드오버. 최신 실제 증거와 소유 프로세스 상태를 먼저 확인한다.",
-  "savedAtUtc": "2026-10-20T07:38:59.919824Z",
+  "savedAtUtc": "2026-10-20T08:53:39.606364+00:00",
   "workspace": "/Users/lky/project/projectanalyzer",
-  "resumeInstruction": "전체 목표 ACTIVE/미완료. FIRST D2035/C2037은 이미 실제112/48384/213/native45 전체와 독립감사를 통과해 CLOSED이며 재실행하지 않는다. 다음 grouped G2042/C2043 실행계획은 실제FIRST proof/closure/닫힌 audit에 바인딩됐다: runtime-binding SHA3caf76f6403b7788b3a34de1ae002531bf24f93ce15ca611e87245bf47393f50. 2078메타데이터생성기의 상대경로오류는 최초실패를 보존하고2079에서정확히2곳의경로정규화만고쳐완료했다. 2080독립사전검사는37개원본소스불변·향후33개입력명세·실제FIRST선행증거와4가지잘못된선행조건/범위/시간변경거부를 확인했다. Model0/native0/timer0,CPU peak206880768B. 그룹 자체의수치비교는 아직실행하지않았다. 앞선 별도grouped기준파일 준비안내는 코드의실제요구가아닌계획상가정이었다. 원래grouped코드는실제FIRST저장native45를직접검증하고 자기실행에서45개를모두비교하므로 별도파일을만들지않는다. Whole의남은증거요구는그대로다. checkpoint.currentNextIndependentWorkField/currentPreparedCompleteGroupedFirstV2080/currentGroupedLaunchProcedureV2080를읽고 실제원래진입조건후 새G Model1 전체16/80/3072/213/45를한수명에서수행한다. 마지막ordinary55는60%미달이므로새actor는미시작이다. 원래60x3/35/30/8GiB/cache256MiB/전역등록/별도LoadedACK·G4560/W5760·다른작업/앱유지·모든sourceNN/wholeHost3000ms/제품출시요구를보존한다.",
+  "resumeInstruction": "checkpoint.currentNextIndependentWorkField, currentActualGroupedEntryDenialV2106, currentGroupedEntryDenialClosureV2106, currentActualClosedGroupedEntryDenialAuditV2106 및 currentGroupedEntryLifecycleV2106을 읽는다. G2042와 observer는 실제60x3 진입 timeout으로 종료됐으며 절대 재실행하지 않는다. C2043 성공 coordinate/audit도 이 실패에 실행하지 않는다. FIRST D2035/C2037은 독립 검증 완료·종료 상태로 유지한다. 다음은 원래120초/60x3/35/30/8GiB/cache256MiB 및 별도LoadedACK를 보존하면서 실제 도구·journal 연결 지연을 줄이는 새 완전 봉인 namespace 준비다. 새 native admission/Model/수치 또는 sourceNN 허가는 아직 없다. 전체 원래 grouped/Whole/transport/sourceNN/Host3000ms/product-release 목표를 유지한다.",
   "userIntent": {
     "product": "VS Code 함수 도우미 renderer 자원 최적화, 함수 흐름·시나리오 summary, Kotlin 지원",
     "model": "PC 로컬 LLM으로 맥락 설명. 모델 자동 다운로드 요구와 모델 요청 실패 문제를 다뤄 왔다.",
@@ -771,7 +771,9 @@
     "prepublicationHeadV2077": "a4bcc40ae327de07fa191b8cec19f6c6c16cdb82",
     "latestProgressV2077": "Actual full current FIRST D2035/C2037 independently qualified:112/48384/213/45 in one Model lifetime, actual runner/observer/auditor closed0, exact slot released, final8/RNG/wired restored. This publication changes only the handover. Grouped/whole bindings and later numerical/native/transport/sourceNN/Host3000ms/product release remain incomplete.",
     "prepublicationHeadV2081": "6778f8a929a4c860b44c6599aa9441dc1ff05985",
-    "latestProgressV2081": "Actual grouped runtime binding3caf76f6 created by corrected Model0 metadata producer2079 and independently preflighted2080 against real closed FIRST evidence. Four invalid prerequisite/scope/clock cases rejected;37 prepared sources unchanged;33 future independent input names retained. Correct unnecessary separate-grouped-baseline guidance; full45 original comparisons remain. Actual grouped/whole/sourceNN/Host3000ms/product release remain unqualified."
+    "latestProgressV2081": "Actual grouped runtime binding3caf76f6 created by corrected Model0 metadata producer2079 and independently preflighted2080 against real closed FIRST evidence. Four invalid prerequisite/scope/clock cases rejected;37 prepared sources unchanged;33 future independent input names retained. Correct unnecessary separate-grouped-baseline guidance; full45 original comparisons remain. Actual grouped/whole/sourceNN/Host3000ms/product release remain unqualified.",
+    "prepublicationHeadV2107": "5fd223ba088ecd6210f813b68301d2c44d459e84",
+    "latestProgressV2107": "Actual first grouped actor G2042 native60x3 entry denied after full idle validation and both real journals; runner closed1/observer closed0, Model0/clocks0. Independent audit21983 closed0 checks all18 raw rows and fresh native absence, then clears exactly two pending handles. G2042 closed/unrestartable; full numerical/sourceNN/Host3000ms/product release goal unmet."
   },
   "executionState": {
     "activeToolHandles": [],
@@ -13221,6 +13223,104 @@
       "otherUserAppsAndWorkPreserved": true,
       "firstStillQualifiedAndMustNotRestart": true,
       "sourceNeuralPermissionGranted": false,
+      "candidateAdopted": false,
+      "installed": false,
+      "goalStatus": "active",
+      "goalComplete": false
+    },
+    "currentSnapshotV2107": {
+      "evidenceKey": "actualGroupedNativeEntryDenialAndIndependentClosureV2105ToV2106",
+      "independentFailureAudit": {
+        "file": "current4176-grouped-entry-denial-v2106/audit-result.json",
+        "sha256": "aedc82a5a7115deffeebacc05ef196a7f21f7c4cad20d1f0eb1b31b20fbafdd0"
+      },
+      "independentFailureClosure": {
+        "file": "current4176-grouped-entry-denial-v2106/closure.json",
+        "sha256": "e3cbdcdeed9c1ae8c78ca91ef0bea03c332e858fbd5d3650ca0b1e0e6b69dcbb"
+      },
+      "actualClosedAuditToolChain": {
+        "file": "current4176-grouped-entry-denial-v2106/actual-closed-audit-tool-chain.json",
+        "sha256": "809706869981fe9d2f2141318d05a6e25b401cf7918be9905e6124ab00ba84ba"
+      },
+      "actualRunner": {
+        "pid": 87542,
+        "sessionId": 64272,
+        "exitCode": 1
+      },
+      "actualObserver": {
+        "pid": 92642,
+        "sessionId": 12075,
+        "exitCode": 0
+      },
+      "actualIndependentAuditor": {
+        "pid": 21983,
+        "sessionId": 56500,
+        "exitCode": 0
+      },
+      "initialOrdinaryFreePercent": 62,
+      "actualPreexecFreePercent": 70,
+      "ordinaryReadingsAreNotNativeAdmission": true,
+      "actualObserverRows": 18,
+      "actualValidNativeOsRows": 17,
+      "actualTerminalAbsenceRows": 1,
+      "actualFreePercentSequence": [
+        65,
+        66,
+        55,
+        60,
+        59,
+        56,
+        56,
+        59,
+        62,
+        61,
+        51,
+        52,
+        58,
+        59,
+        60,
+        52,
+        60
+      ],
+      "actualFreeRangePercent": [
+        51,
+        66
+      ],
+      "actualAtLeast60Samples": 7,
+      "actualMaximumConsecutiveAtLeast60Samples": 2,
+      "actualQualifying60x3Windows": 0,
+      "firstNativeObservationAfterIntentSeconds": 82.59056941594463,
+      "remainingEntryWindowAtFirstObservationSeconds": 37.40943058405537,
+      "originalEntryWindowSeconds": 120,
+      "actualNativeEntryAdmitted": false,
+      "actualModelLoads": 0,
+      "actualNumericalComparisons": 0,
+      "actualModelResourceClocksStarted": false,
+      "actualNewModelResourceChargeSeconds": 0,
+      "groupedResourceSecondsUnspent": 4560,
+      "first142DebtNotAppliedToGrouped": true,
+      "codeAndEvidencePinsVerified": 565,
+      "failureAuditEvidencePins": 578,
+      "reportedPreCommitAuditorPeakRssBytes": 180617216,
+      "wholeAuditorLifetimePeakRssUnknown": true,
+      "actualFreshNativeBothAbsent": true,
+      "actualPendingOnlyCleared": true,
+      "actualModelSlotAcquiredOrReleased": false,
+      "allFourOwnerArraysEmpty": true,
+      "g2042ClosedAndMustNotRestart": true,
+      "c2043SuccessCompletionNotInvoked": true,
+      "newFullySealedNamespaceRequiredBeforeAnotherModelAttempt": true,
+      "actualToolOrchestrationDelayNeedsReductionWithoutResettingOrExtending120Seconds": true,
+      "native60x3And35Preimport30LoadedAndSingle8GiBAndCache256MiBAndSeparateAckUnchanged": true,
+      "firstStillQualifiedAndMustNotRestart": true,
+      "wholeBaselineStillRequiresActualQualifiedGroupedResult": true,
+      "groupedNumericalQualificationGranted": false,
+      "sourceNeuralPermissionGranted": false,
+      "sourceNeuralRequests": 0,
+      "allocatorFinal8OrLoadedAckInvented": false,
+      "otherUserAppsAndWorkPreserved": true,
+      "materialCatalogueChangedMovedDeletedStagedOrRescanned": false,
+      "productVersion": "0.0.1145",
       "candidateAdopted": false,
       "installed": false,
       "goalStatus": "active",
@@ -34326,6 +34426,83 @@
       "installed": false,
       "goalStatus": "active",
       "goalComplete": false
+    },
+    "actualGroupedNativeEntryDenialAndIndependentClosureV2105ToV2106": {
+      "references": {
+        "runtimeBinding": {
+          "file": "current4176-grouped-complete-source-v2042/runtime-binding.json",
+          "sha256": "3caf76f6403b7788b3a34de1ae002531bf24f93ce15ca611e87245bf47393f50"
+        },
+        "actualLaunchTools": {
+          "file": "current4176-grouped-actual-launch-v2105/actual-initial-tools.json",
+          "sha256": "ceb38969fa46611524e50f7dfea59c179f1ce3ba4c30cf1812907f62acec5668"
+        },
+        "actualPreexecMemory": {
+          "file": "current4176-grouped-actual-launch-v2105/actual-preexec-memory.json",
+          "sha256": "10e6b1f790d107c6fe3f25bcbf9052184a71c93702c834d410d3bfd8770aaeca"
+        },
+        "actualClosedProbe": {
+          "file": "current4176-grouped-actual-launch-v2105/actual-probe-tool.json",
+          "sha256": "36e0d2b0802ac30009eaa683a1830e100e757cb758fbc68141af94111ab8605b"
+        },
+        "actualRunnerJournal": {
+          "file": "current4176-grouped-actual-launch-v2105/actual-runner-pending-tool.json",
+          "sha256": "4f102cd5e1262bf2b007ac848bf080125fec2ae02905a807dc6bf1c54bf30aea"
+        },
+        "actualObserverJournal": {
+          "file": "current4176-grouped-actual-launch-v2105/actual-observer-pending-tool.json",
+          "sha256": "2645da5ca578346e274b527196fc6e3b9a841c4a34e19425db53760740530201"
+        },
+        "actualClosedFailedTools": {
+          "file": "current4176-grouped-actual-launch-v2105/actual-closed-failed-tools-input.json",
+          "sha256": "8e6f4934b3f0ea04b73742bf792204e307e2d2f4b2217bf9841633cfa1461b4f"
+        },
+        "actualMonitorResult": {
+          "file": "current4176-grouped-complete-source-v2042/monitor-result.json",
+          "sha256": "3fda31cf54f4162388fb91606b9f18157d521e40513ceb888aafbe0061096cb5"
+        },
+        "actualFullMonitorRows": {
+          "file": "current4176-grouped-complete-source-v2042/monitor-observations.jsonl",
+          "sha256": "e5ca793838e43673fe67307962324449bcb7fae52c5c4fcf0c70c8ba141f6dd9"
+        },
+        "actualValidatedIdleSnapshot": {
+          "file": "current4176-grouped-complete-source-v2042/actual-entry-state-validated.json",
+          "sha256": "e813e897af8ef7ec7cd2684e524dff92b3cb1c85103aa483c12b77adcd9f5775"
+        },
+        "independentFailureAuditorSource": {
+          "file": "current4176-grouped-entry-denial-v2106/audit.py",
+          "sha256": "48d42f022d7f7c52cedbf1bd398362ea2dd7f5b32453c4dd4862ce59a70f0f9b"
+        },
+        "independentFailureAudit": {
+          "file": "current4176-grouped-entry-denial-v2106/audit-result.json",
+          "sha256": "aedc82a5a7115deffeebacc05ef196a7f21f7c4cad20d1f0eb1b31b20fbafdd0"
+        },
+        "independentFailureClosure": {
+          "file": "current4176-grouped-entry-denial-v2106/closure.json",
+          "sha256": "e3cbdcdeed9c1ae8c78ca91ef0bea03c332e858fbd5d3650ca0b1e0e6b69dcbb"
+        },
+        "actualFreshNativeAbsence": {
+          "file": "current4176-grouped-entry-denial-v2106/actual-native-absence.json",
+          "sha256": "9df55d66206e20c549cce8f7f5fcc016383a1172300434133c6eb424a0a629e4"
+        },
+        "actualClosedFailureAuditToolChain": {
+          "file": "current4176-grouped-entry-denial-v2106/actual-closed-audit-tool-chain.json",
+          "sha256": "809706869981fe9d2f2141318d05a6e25b401cf7918be9905e6124ab00ba84ba"
+        },
+        "actualWholeBaselineDependencyReview": {
+          "file": "current4176-grouped-resource-check-v2104/audit.json",
+          "sha256": "c227e9af183bdf9b04bb32c7d80426f7cb64af5597506f88929c7745a0952b25"
+        },
+        "actualQualifiedFullFirst": {
+          "file": "current4176-first-actual-launch-v2076/qualification.json",
+          "sha256": "c6b49a89669c2670f5722ec1b3ab137adc958ba306cb68743b0b3e52e6698535"
+        },
+        "publicationContext": {
+          "file": "current4176-grouped-entry-denial-handover-v2107/context.json",
+          "sha256": "7d592b28d6b2bf656dc6da4b5ab39040b1b53bcbfe75d8a9b0b0b96c643c23c8"
+        }
+      },
+      "meaning": "Actual Model0 native-entry denial and independent exact pending-only closure; no numerical qualification, live resource-clock proof, allocator/final8/LoadedACK, sourceNN quality or whole Host3000ms proof. First native observation followed intent by82.59056941594463seconds;17 valid51..66 readings produced at most2 consecutive>=60, so original120s60x3 admission correctly denied. Preserve every original complete scope and exact original thresholds."
     }
   },
   "preparedAssets": {
@@ -36966,10 +37143,10 @@
     "ownership": "준비 모델 하나 공유, 요청 UID별 fresh KV·grammar·sampler·detokenizer. 답변·소스 KV 재사용 금지."
   },
   "nextSession": {
-    "first": "Actual goal ACTIVE/unmet. Read checkpoint.currentNextIndependentWorkField, currentPreparedCompleteGroupedFirstV2080 and currentGroupedLaunchProcedureV2080. FIRST D2035/C2037 is independently qualified/CLOSED; never restart it. Grouped G2042/C2043 binding3caf76f6 is real and independently preflighted, but no grouped actor/native/Model/clock has started. Close any pending documentation delivery first, then require NEW real closed G journal probe, exact runner/observer pending journals, original fresh native60x3/35/30 and separate actual registration/LoadedACK before full grouped work. Latest ordinary55<60. No separate grouped expected-baseline file is required: original gate directly validates actual FIRST saved native45; preserve the full grouped45 and all remaining Whole obligations.",
-    "nextIndependentWork": "Next actual grouped stage is genuinely prepared: G2042/C2043 runtime-binding3caf76f6403b7788b3a34de1ae002531bf24f93ce15ca611e87245bf47393f50,565 complete code/evidence pins and seven fixed model assets. Corrected metadata2079/79989 actualclosed0 follows preserved2078 canonical-path failure;2080/89363 actualclosed0 preflight checks actual full FIRST evidence,37 unchanged prepared source files and33 FUTURE grouped independent inputs, and rejects wrong audit bytes/uncommitted FIRST release/missing6116case/extended clock. No grouped result files, Model/native/clock or qualification exists yet. Correct prior planning guidance: grouped validates actual FIRST stored native histories directly and compares both original paths for all45 itself; no extra grouped baseline artifact is consumed. Whole remaining baseline/evidence requirements are unchanged. Use currentPreparedCompleteGroupedFirstV2080/currentGroupedLaunchProcedureV2080 after genuine resource recovery (last ordinary55<60) and complete pending publication first. Preserve original actualfile probe, real runner+separateobserver journals/barrier, fresh native60x3/35preimport/30loaded, one8GiB/cache256MiB/globalregistration/readbacks/separateLoadedACK, then full16signatures32groups80adapters/3072launches34560members13824packed72signaturepacked/213whole/native45/final identity and independent33-file close. G4560=3600+960 and W5760 are unchanged; no completed FIRST142 debt is subtracted from G. FIRST D2035/C2037 remains independently qualified and must never restart; whole16cases6pairs192calls540streams and all framedA-B/outside9/sourceNN correctness/fullprose/entireHost<=3000ms/product-release/installedQA remain. No source Model/request or candidate-adoption permission. The FULL original goal is unchanged: complete source/callers/parents/transitivehelpers+actualsameactionprior6 input, NN-authored every correct value and full prose preserving all modes/domains/applicability/loopvisits/individual-before:null/confidence/unknowns, full tokenize/strict decode/all-page transaction, actual child cleanup/close and outerModelTaskManager.run/finalpublicHost total<=3000ms after source-free readiness. Old actual AA522source36742.311041999994ms and0/2fullycorrect remain the last source evidence. All current numerical/native/framed A/B closures, source-only separate modulegraph with no teacher/target/catalog access, actual source quality/wholeHost latency, product integration/download/integrity/custom models/FIFOcancel-recovery-dispose/fullfunctional+installedvisualQA/version/release/commit/push/install remain. Product0.0.1145/sourceauthorityf433ac9b620c4d8a6fde88cbb55e2bf42aaf1b0b/defaultprovider/model/out/install unchanged. Preserve user SPEC/localResponse/responseSchema and untracked operationValues/typedValues/tests/cache. Local docs/MODEL_TRAINING_MATERIALS.json already indexes current material27paths/142sealed dependencies, 4176actualrows with1MiB hashing; inventory is logical storage not RAM/reclaim proof. Do not delete/move/stage that catalogue or rescan the whole storage without a new need. Use checkpoint.pendingDocumentationPush as publication authority; when true stage ONLY docs/MODEL_LATENCY_HANDOVER.json, preserve frozen4sections and other user changes, record actual closed push and HEAD==origin after success. Keep full goal active/unmet.",
-    "notImplemented": "Current20 joint composition is independently accepted with the original19-history evidence limit, no19replay and strictAll20SavedRowsAvailable=false. Remaining: firstLoRA112x48384/213whole/native45, groupedfirst16signatures32groups80adapters 3072launches34560members13824packed72signaturepacked, whole-generator/framed4176fulltokens-bytes-mask-EOS-window-UID-offset-capacity-PRNG/FIFOcancel-recovery/dispose qualification remain mandatory. Currentstock345+standalone336 andcompletegrouped12096MLP/228model/277cohort=12601comparisons40881fulltensorpairs alreadyindependentlypassed 1054/1078; never replay completedprefix or inherit oldweights as currentmath. Current26fa finaladapter trained all3280updates/1180805targets,896unweightedvalidation/315946targets,52fixedrationals andall10full408owner guards remains unadopted. Preserveall4176/3280/896/52/408/13wholefailedfamilies andall11440sourceoccurrences 1055bodies118structures14wholeteachers24rootparents/alloriginal84/closed464/fivewhole retiredplans andall CPU-NN-teaching-retired-fresh-source exclusions. No sourceCPUeval/prosesynthesis/response-repair/clipping/placeholders/model-dtype-LR-epoch-sampler-coefficient sweeps/partialtrainingresume. QualifiedactualNNmustread complete source/callers/lexicalparents/transitivehelpers plusactualsame-actionoriginalprior6 andauthor EVERYcorrectvalue andFULLprose preservingalloriginalmodes/applicability/domains/loopvisits/individual-before:null/declareddisplaydomain/confidence/unknowns. Entiretokenization/strictrawdecode/allpagetransactionalstorage/actualmodelchildcleanup+close/outerModelTaskManager.run/finalpublicHosttailupperBound<=3000ms aftersource-free ready remains unproven. LastactualAA52236742.311041999994ms/fullycorrect0of2 unchanged. Qualifiedintegration/download/integrity/custommodels/FIFOcancel/dispose/fullfunctional/installedvisualQA/version/release/commit/push/install remain unmet. Product0.0.1145/defaultprovider-model/out/install/protectedusersource unchanged. No physicalmemoryhardcap/continuousminimum/swapcausality claim. Priorreleaseauthorization persists for a fullyqualifiedresult; no failed/unqualifiedcandidate adoption/install. Actual current FIRST remains unqualified; its closed V1894 preimport failure consumed no Model-resource time. New FIRST and followup source barriers/producer anchors are prepared only; all original full numerical, framed/A-B/outside9, source-neural, whole-Host3000ms and product/release/installed QA obligations remain.",
+    "first": "Actual goal ACTIVE/unmet. Read checkpoint.currentNextIndependentWorkField and currentGroupedEntryLifecycleV2106 plus actual failure audit/closure/closed tool-chain. G2042 and its observer are CLOSED after original native60x3 timeout; MUST NOT restart. Do not invoke C2043 success coordinate/audit for this denial. FIRST D2035/C2037 stays independently qualified and closed. Prepare a genuinely fresh fully sealed namespace retaining actual denial provenance, full original grouped scope/budgets/gates and reduced real tool/journal orchestration delay. First observation was82.59s after intent; never reset or extend original120s. No new native/Model/source permission exists. Close any pending documentation delivery before further Model work.",
+    "nextIndependentWork": "Actual G2042 runner64272/PID87542 CLOSED1 on original120s native60x3 timeout; observer12075/PID92642 CLOSED0. Genuine preexec70 passed; both real journals committed. Actual17 valid readings51..66 never reached three consecutive>=60; first observation was82.59056941594463seconds after intent. Native60x3 was NOT admitted. Model/import/clock/NN0; all4560=3600+960 remains unspent and FIRST142 is never subtracted. Actual full idle snapshot, all565 original code/evidence pins, both closed tools, outside ps and fresh bounded native absence independently precede clearing exactly two pending handles; no model slot was acquired/released. All four registries are empty. NEVER restart G2042/observer or invoke C2043 success coordination/audit on this denial. A genuinely fresh fully sealed namespace must retain this actual denial/closure, the full grouped scope and every original gate. Reduce real tool/journal orchestration delay without resetting/extending original120s or weakening60x3/35/30/one8GiB/cache256MiB/separate ACK. Independent FIRST D2035/C2037 stays qualified and closed. Whole expected baseline still requires actual qualified grouped result, not only FIRST. All original grouped/Whole/framedA-B/outside9/sourceNN/wholeHost3sec/product and release requirements remain. Other user work/apps and material catalogue stay preserved. The FULL original goal is unchanged: complete source/callers/parents/transitivehelpers+actualsameactionprior6 input, NN-authored every correct value and full prose preserving all modes/domains/applicability/loopvisits/individual-before:null/confidence/unknowns, full tokenize/strict decode/all-page transaction, actual child cleanup/close and outerModelTaskManager.run/finalpublicHost total<=3000ms after source-free readiness. Old actual AA522source36742.311041999994ms and0/2fullycorrect remain the last source evidence. All current numerical/native/framed A/B closures, source-only separate modulegraph with no teacher/target/catalog access, actual source quality/wholeHost latency, product integration/download/integrity/custom models/FIFOcancel-recovery-dispose/fullfunctional+installedvisualQA/version/release/commit/push/install remain. Product0.0.1145/sourceauthorityf433ac9b620c4d8a6fde88cbb55e2bf42aaf1b0b/defaultprovider/model/out/install unchanged. Preserve user SPEC/localResponse/responseSchema and untracked operationValues/typedValues/tests/cache. Local docs/MODEL_TRAINING_MATERIALS.json already indexes current material27paths/142sealed dependencies, 4176actualrows with1MiB hashing; inventory is logical storage not RAM/reclaim proof. Do not delete/move/stage that catalogue or rescan the whole storage without a new need. Use checkpoint.pendingDocumentationPush as publication authority; when true stage ONLY docs/MODEL_LATENCY_HANDOVER.json, preserve frozen4sections and other user changes, record actual closed push and HEAD==origin after success. Keep full goal active/unmet.",
+    "notImplemented": "Current20 joint composition is independently accepted with the original19-history evidence limit, no19replay and strictAll20SavedRowsAvailable=false. Full FIRST112/48384/213whole/native45 is independently qualified in actual D2035/C2037 at V2076, including all17 saved inputs, actual closed0 audit and committed slot release. Remaining: groupedfirst16signatures32groups80adapters 3072launches34560members13824packed72signaturepacked, whole-generator/framed4176fulltokens-bytes-mask-EOS-window-UID-offset-capacity-PRNG/FIFOcancel-recovery/dispose qualification remain mandatory. Currentstock345+standalone336 andcompletegrouped12096MLP/228model/277cohort=12601comparisons40881fulltensorpairs alreadyindependentlypassed 1054/1078; never replay completedprefix or inherit oldweights as currentmath. Current26fa finaladapter trained all3280updates/1180805targets,896unweightedvalidation/315946targets,52fixedrationals andall10full408owner guards remains unadopted. Preserveall4176/3280/896/52/408/13wholefailedfamilies andall11440sourceoccurrences 1055bodies118structures14wholeteachers24rootparents/alloriginal84/closed464/fivewhole retiredplans andall CPU-NN-teaching-retired-fresh-source exclusions. No sourceCPUeval/prosesynthesis/response-repair/clipping/placeholders/model-dtype-LR-epoch-sampler-coefficient sweeps/partialtrainingresume. QualifiedactualNNmustread complete source/callers/lexicalparents/transitivehelpers plusactualsame-actionoriginalprior6 andauthor EVERYcorrectvalue andFULLprose preservingalloriginalmodes/applicability/domains/loopvisits/individual-before:null/declareddisplaydomain/confidence/unknowns. Entiretokenization/strictrawdecode/allpagetransactionalstorage/actualmodelchildcleanup+close/outerModelTaskManager.run/finalpublicHosttailupperBound<=3000ms aftersource-free ready remains unproven. LastactualAA52236742.311041999994ms/fullycorrect0of2 unchanged. Qualifiedintegration/download/integrity/custommodels/FIFOcancel/dispose/fullfunctional/installedvisualQA/version/release/commit/push/install remain unmet. Product0.0.1145/defaultprovider-model/out/install/protectedusersource unchanged. No physicalmemoryhardcap/continuousminimum/swapcausality claim. Priorreleaseauthorization persists for a fullyqualifiedresult; no failed/unqualifiedcandidate adoption/install. Actual current FIRST D2035/C2037 is now independently qualified; the prior closed V1894 preimport failure still consumed no Model-resource time. The FIRST registration barrier completed its actual positive path. Followup barriers/producer anchors remain prepared only; all remaining original grouped-first/whole numerical, framed/A-B/outside9, source-neural, whole-Host3000ms and product/release/installed QA obligations remain.",
     "completionStillMissing": "Current20 joint composition is independently accepted with the original19-history evidence limit, no19replay and strictAll20SavedRowsAvailable=false. Full FIRST112/48384/213whole/native45 is independently qualified in actual D2035/C2037 at V2076, including all17 saved inputs, actual closed0 audit and committed slot release. Remaining: groupedfirst16signatures32groups80adapters 3072launches34560members13824packed72signaturepacked, whole-generator/framed4176fulltokens-bytes-mask-EOS-window-UID-offset-capacity-PRNG/FIFOcancel-recovery/dispose qualification remain mandatory. Currentstock345+standalone336 andcompletegrouped12096MLP/228model/277cohort=12601comparisons40881fulltensorpairs alreadyindependentlypassed 1054/1078; never replay completedprefix or inherit oldweights as currentmath. Current26fa finaladapter trained all3280updates/1180805targets,896unweightedvalidation/315946targets,52fixedrationals andall10full408owner guards remains unadopted. Preserveall4176/3280/896/52/408/13wholefailedfamilies andall11440sourceoccurrences 1055bodies118structures14wholeteachers24rootparents/alloriginal84/closed464/fivewhole retiredplans andall CPU-NN-teaching-retired-fresh-source exclusions. No sourceCPUeval/prosesynthesis/response-repair/clipping/placeholders/model-dtype-LR-epoch-sampler-coefficient sweeps/partialtrainingresume. QualifiedactualNNmustread complete source/callers/lexicalparents/transitivehelpers plusactualsame-actionoriginalprior6 andauthor EVERYcorrectvalue andFULLprose preservingalloriginalmodes/applicability/domains/loopvisits/individual-before:null/declareddisplaydomain/confidence/unknowns. Entiretokenization/strictrawdecode/allpagetransactionalstorage/actualmodelchildcleanup+close/outerModelTaskManager.run/finalpublicHosttailupperBound<=3000ms aftersource-free ready remains unproven. LastactualAA52236742.311041999994ms/fullycorrect0of2 unchanged. Qualifiedintegration/download/integrity/custommodels/FIFOcancel/dispose/fullfunctional/installedvisualQA/version/release/commit/push/install remain unmet. Product0.0.1145/defaultprovider-model/out/install/protectedusersource unchanged. No physicalmemoryhardcap/continuousminimum/swapcausality claim. Priorreleaseauthorization persists for a fullyqualifiedresult; no failed/unqualifiedcandidate adoption/install. Actual current FIRST D2035/C2037 is now independently qualified; the prior closed V1894 preimport failure still consumed no Model-resource time. The FIRST registration barrier completed its actual positive path. Followup barriers/producer anchors remain prepared only; all remaining original grouped-first/whole numerical, framed/A-B/outside9, source-neural, whole-Host3000ms and product/release/installed QA obligations remain.",
-    "publication": "Meaningful actual grouped-binding/preflight handover only, including correction of earlier unnecessary grouped-baseline guidance. Checkpoint.pendingDocumentationPush and lastDocumentationPublicationV2081 contain actual commit/push/remote receipts. Product source/default/version/out/install remain unchanged; actual grouped/whole/sourceNN/Host3000ms qualification is not claimed. Preserve frozen4/full goal/all original scopes and budgets."
+    "publication": "Meaningful actual G2042 entry-denial/independent-closure handover only. Actual commit/push/remote receipts are tracked by checkpoint.pendingDocumentationPush and lastDocumentationPublicationV2107 after delivery. Product source/default/version/out/install and all original numerical/sourceNN/wholeHost3000ms/release requirements remain unchanged."
   }
 }
