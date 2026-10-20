@@ -97,9 +97,11 @@ export class LocalNarrativeServer implements ModelTaskResource {
       try { await this.closed; } finally { clearTimeout(force); }
     } else await this.closed;
     const directory = this.directory;
-    this.child = undefined; this.closed = undefined; this.starting = undefined; this.directory = undefined;
+    this.child = undefined; this.closed = undefined; this.starting = undefined;
     this.socket = undefined; this.key = undefined; this.exitError = undefined; this.diagnostics = ""; this.prepared = false;
+    // A rejected deletion keeps its owned path so the scheduler's next release retries actual cleanup.
     if (directory) await rm(directory, { recursive: true, force: true });
+    this.directory = undefined;
   }
 
   /** Source-free readiness runs under the scheduler's preparation lease; it never generates a token. */
