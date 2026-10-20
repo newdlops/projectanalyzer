@@ -122,6 +122,30 @@ test("incorrect SHA-256 deletes the partial and never exposes an executable mode
   } finally { await f.dispose(); }
 });
 
+test("failed corrupt-partial removal preserves integrity failure and retries safely after permission recovery", async (t) => {
+  if (process.platform === "win32" || process.getuid?.() === 0) { t.skip("Requires effective POSIX directory permissions"); return; }
+  const bad = Buffer.from(bytes); bad[8] ^= 0xff;
+  const f = await fixture((_request, response, call) => {
+    response.writeHead(200, { "Content-Length": bytes.length }); response.end(call === 1 ? bad : bytes);
+  });
+  const replacement = createManagedLocalModelCache(f.directory, model, f.download);
+  try {
+    const failure: unknown = await f.cache.ensure(new AbortController().signal, (value) => {
+      // The real checksum failure follows the last write; deny unlink without mocking filesystem errors.
+      if (value.phase === "verifying" && value.completedBytes === bytes.length) chmodSync(path.dirname(f.target), 0o500);
+    }).catch((error: unknown) => error);
+    await assert.rejects(stat(f.target), { code: "ENOENT" });
+    assert.deepEqual(await readFile(f.target + ".part"), bad);
+    await assert.rejects(rm(f.target + ".part"), { code: "EACCES" });
+    assert.ok(failure instanceof LocalModelError); assert.equal(failure.code, "integrity");
+    await chmod(path.dirname(f.target), 0o700); f.cache.dispose();
+    assert.equal(await replacement.ensure(AbortSignal.timeout(2000), () => {}), f.target);
+    assert.deepEqual(await readFile(f.target), bytes); assert.deepEqual(f.ranges, ["", ""]);
+    await assert.rejects(stat(f.target + ".part"), { code: "ENOENT" });
+    await assert.rejects(stat(f.target + ".lock"), { code: "ENOENT" });
+  } finally { await chmod(path.dirname(f.target), 0o700); replacement.dispose(); await f.dispose(); }
+});
+
 test("oversized streaming responses and incorrect Content-Range cannot corrupt retained weights", async () => {
   const f = await fixture((_request, response, call) => {
     if (call === 1) { response.writeHead(200); response.end(Buffer.concat([bytes, Buffer.from("extra")])); }

@@ -123,7 +123,12 @@ async function transfer(filePath: string, offset: number, model: LocalModelDescr
   } catch (error) {
     // Network/cancellation partials can resume. Corrupt/oversized content cannot.
     if (error instanceof LocalModelError && error.code === "integrity") {
-      await file?.close(); file = undefined; await rm(filePath, { force: true });
+      await file?.close(); file = undefined;
+      try { await rm(filePath, { force: true }); }
+      catch {
+        // A denied unlink must not replace the actual integrity failure. Retained
+        // bytes stay untrusted; a later ensure must pass size/SHA checks before rename.
+      }
     }
     throw error;
   } finally { response.close(); await file?.close(); }
