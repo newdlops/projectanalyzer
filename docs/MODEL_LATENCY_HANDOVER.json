@@ -1,8 +1,8 @@
 {
   "purpose": "로컬 모델의 전체 계산값·설명 완료 3초 목표를 이어가기 위한 핸드오버. 최신 실제 증거와 소유 프로세스 상태를 먼저 확인한다.",
-  "savedAtUtc": "2026-10-20T14:46:24.687527Z",
+  "savedAtUtc": "2026-10-20T15:05:51.814710Z",
   "workspace": "/Users/lky/project/projectanalyzer",
-  "resumeInstruction": "checkpoint.currentIndependentLocalDirectoryCleanupFixV2135도 읽는다. 실제 권한 오류2건을 수정했고 대상29개/strict컴파일이 통과했다. 이는 Model/신경망/전체Host 증거가 아니다. checkpoint.currentNextIndependentWorkField와 currentIndependentTaskChildLifecycleQaV2133/currentPreparedCorrectedGroupedRuntimeV2129를 먼저 읽는다. 게시된 검사dd2cb86은 실제 작은Node 프로세스3경로·정상close6개·외부PID부재와 CPU24개/대상strict컴파일을 확인했다. 이는 Model/native/신경망/전체Host3000ms 증거가 아니다. 최초ordinary46%는 과거 사전확인이며 닫힌진입실패가 아니고 G2124는 아직시도되지 않았다. 기존865핀 바인딩/Model0사전검증/실제64차감·3536/960/4496을 유지한다. 다른 앱을 보존하고 메모리를 반복 조회하지 않는다. 문서 게시 후 실제현재frontier와 V2128/V2127/fresh60x3/120초/35·30/one8GiB/cache256MiB/별도LoadedACK를 모두 지킨다. 원래 전체16/80/3072/213/45 한수명과 독립34입력 C2125, 이후Whole/transport/완전sourceNN/전체Host3000ms/제품릴리스 전체목표는 미완료다.",
+  "resumeInstruction": "checkpoint.currentIndependentWatchdogDiagnosticCleanupV2137도 읽는다. 실제 출력파이프 단절2경로의 조기종료/남은자식 오류를 수정했고 대상31개/strict컴파일이 통과했다. 이는 Model/신경망/전체Host 증거가 아니다. checkpoint.currentIndependentLocalDirectoryCleanupFixV2135도 읽는다. 실제 권한 오류2건을 수정했고 대상29개/strict컴파일이 통과했다. 이는 Model/신경망/전체Host 증거가 아니다. checkpoint.currentNextIndependentWorkField와 currentIndependentTaskChildLifecycleQaV2133/currentPreparedCorrectedGroupedRuntimeV2129를 먼저 읽는다. 게시된 검사dd2cb86은 실제 작은Node 프로세스3경로·정상close6개·외부PID부재와 CPU24개/대상strict컴파일을 확인했다. 이는 Model/native/신경망/전체Host3000ms 증거가 아니다. 최초ordinary46%는 과거 사전확인이며 닫힌진입실패가 아니고 G2124는 아직시도되지 않았다. 기존865핀 바인딩/Model0사전검증/실제64차감·3536/960/4496을 유지한다. 다른 앱을 보존하고 메모리를 반복 조회하지 않는다. 문서 게시 후 실제현재frontier와 V2128/V2127/fresh60x3/120초/35·30/one8GiB/cache256MiB/별도LoadedACK를 모두 지킨다. 원래 전체16/80/3072/213/45 한수명과 독립34입력 C2125, 이후Whole/transport/완전sourceNN/전체Host3000ms/제품릴리스 전체목표는 미완료다.",
   "userIntent": {
     "product": "VS Code 함수 도우미 renderer 자원 최적화, 함수 흐름·시나리오 summary, Kotlin 지원",
     "model": "PC 로컬 LLM으로 맥락 설명. 모델 자동 다운로드 요구와 모델 요청 실패 문제를 다뤄 왔다.",
@@ -795,6 +795,18 @@
         "file": "current4176-local-directory-cleanup-v2135/result.json",
         "sha256": "59e8437205bed1329b0eb4c8ad6f4ea9220f26b3e67eb20708e92f2ccc22b273"
       }
+    },
+    "independentWatchdogDiagnosticCleanupCommitV2137": "9064ffd3c7cd2184bdae1b06e55ab96222ae00a4",
+    "prepublicationHeadV2138": "9064ffd3c7cd2184bdae1b06e55ab96222ae00a4",
+    "latestProgressV2138": "Actual diagnostic-pipe orphan cleanup fixed;2 actual failures before/31 passes after. No Model/native/neural/Host qualification.",
+    "independentWatchdogDiagnosticCleanupVerificationV2137": {
+      "result": {
+        "file": "current4176-watchdog-diagnostic-cleanup-v2137/result.json",
+        "sha256": "bd022097c37fd4a0fe6ab105a621f501bd14aa4c702e25a431f835b10cdc1d4a"
+      },
+      "actualBeforeFixFailures": 2,
+      "actualFinalTargetedPasses": 31,
+      "targetedStrictCompilePassed": true
     }
   },
   "executionState": {
@@ -14007,6 +14019,166 @@
         "sha256": "75a7ac80320e596b867f9520fc3c470c9e8589e41790c82e5faa91c4cc3272da"
       },
       "scope": "Product partial-start directory cleanup only; no Model/native/neural/full Host qualification."
+    },
+    "currentSnapshotV2138": {
+      "evidenceKey": "independentLocalWatchdogDiagnosticCleanupV2137",
+      "kind": "independent-local-watchdog-diagnostic-cleanup-v2137",
+      "pid": 37236,
+      "sourceCommit": "9064ffd3c7cd2184bdae1b06e55ab96222ae00a4",
+      "projectSourceSha256": {
+        "src/llm/functionNarratives/localServerWatchdog.ts": "ca476fdb357906f490b9b9bd6632ede28f487f97e3a02611e28c90e1871d13c1",
+        "src/test/unit/localNarrativeWatchdog.test.ts": "73628aff8b4d163566a2f850806118a9945d74d918a87a4a9bbd03f02abb2bb7"
+      },
+      "actualValidationTools": {
+        "file": "current4176-watchdog-diagnostic-cleanup-v2137/actual-validation-tools.json",
+        "sha256": "7868bd5ce842c933b3c84f3916ae9eb8d803ed28f668385c9624fe39f02e5531"
+      },
+      "actualPublicationTools": {
+        "file": "current4176-watchdog-diagnostic-cleanup-v2137/actual-publication-tools.json",
+        "sha256": "b2b115c12c0db7030006ea645e1b73e982512c4a923fabf96298ec693f394005"
+      },
+      "recorderSource": {
+        "file": "current4176-watchdog-handover-v2138/record_and_prepare.py",
+        "sha256": "c1f796605574378be8d3061dbabcae99031125d12002fdb342dc56414bf671db"
+      },
+      "beforeSourceSha256": "c2b49f172cf94e460ea51639b70a957f60aee969b924c5d2adf6eef9235d545f",
+      "actualBeforeFixRegressionsFailed": 2,
+      "actualPrematureWatchdogExitAndLiveChildCases": [
+        {
+          "actualInertWatchdogLifecycle": true,
+          "parentEof": true,
+          "watchdogPid": 9891,
+          "childPid": 9900,
+          "watchdogExit": {
+            "code": 1,
+            "signal": null
+          },
+          "childAliveAtWatchdogClose": true,
+          "diagnosticBytes": 26,
+          "modelLoads": 0
+        },
+        {
+          "actualInertWatchdogLifecycle": true,
+          "parentEof": false,
+          "watchdogPid": 10075,
+          "childPid": 10085,
+          "watchdogExit": {
+            "code": 1,
+            "signal": null
+          },
+          "childAliveAtWatchdogClose": true,
+          "diagnosticBytes": 26,
+          "modelLoads": 0
+        }
+      ],
+      "actualCorrectedReapedBeforeWatchdogExitCases": [
+        {
+          "actualInertWatchdogLifecycle": true,
+          "parentEof": true,
+          "watchdogPid": 14940,
+          "childPid": 14953,
+          "watchdogExit": {
+            "code": 0,
+            "signal": null
+          },
+          "childAliveAtWatchdogClose": false,
+          "diagnosticBytes": 26,
+          "modelLoads": 0
+        },
+        {
+          "actualInertWatchdogLifecycle": true,
+          "parentEof": false,
+          "watchdogPid": 15011,
+          "childPid": 15015,
+          "watchdogExit": {
+            "code": 0,
+            "signal": null
+          },
+          "childAliveAtWatchdogClose": false,
+          "diagnosticBytes": 26,
+          "modelLoads": 0
+        }
+      ],
+      "actualAdjacentInertNodeChildCases": [
+        {
+          "actualInertNodeChildLifecycle": true,
+          "case": "cleanup-failure-retry",
+          "childPids": [
+            15165,
+            15172
+          ],
+          "events": [
+            "old:online",
+            "old:close",
+            "next:online",
+            "next:close"
+          ],
+          "allChildrenClosed": true,
+          "modelLoads": 0
+        },
+        {
+          "actualInertNodeChildLifecycle": true,
+          "case": "shutdown-replacement",
+          "childPids": [
+            15186,
+            15196
+          ],
+          "events": [
+            "global-old:online",
+            "global-old:close",
+            "global-next:online",
+            "global-next:close"
+          ],
+          "allChildrenClosed": true,
+          "modelLoads": 0
+        },
+        {
+          "actualInertNodeChildLifecycle": true,
+          "case": "cancel-recovery",
+          "childPids": [
+            15220,
+            15229
+          ],
+          "events": [
+            "cancelled:online",
+            "cancelled:close",
+            "recovered:online",
+            "recovered:close"
+          ],
+          "allChildrenClosed": true,
+          "modelLoads": 0
+        }
+      ],
+      "actualSeparateOutsideFourteenFixturePidsAbsent": true,
+      "actualFinalTargetedTestsPassed": 31,
+      "actualFinalTargetedTestsSkipped": 0,
+      "actualNewWatchdogTests": 2,
+      "targetedStrictTypeScriptPassed": true,
+      "reportedTestMaximumResidentSetSizeBytes": 56573952,
+      "v8SettingsAreNotTotalRssCaps": true,
+      "original500MsForceFenceAndStopLogicUnchanged": true,
+      "diagnosticErrorDrainsAndStopsTheOwnedChild": true,
+      "ordinaryInitialMemoryPercent": 55,
+      "ordinarySnapshotNotNativeAdmissionOrClosedActorDenial": true,
+      "numericalRuntimeBinding": {
+        "file": "current4176-grouped-complete-source-v2124/runtime-binding.json",
+        "sha256": "06acd1d257b5e969a0570c9fc14c82507f253b3533d4082425e3502ffa07993d"
+      },
+      "numericalSourceQualification": {
+        "file": "current4176-grouped-runtime-bound-v2129/qualification.json",
+        "sha256": "b5c4430e35b08de0484c4ce0767ea7ba10fe4a4c83c5817aadd0162bc3fb1305"
+      },
+      "original865PinSourceAndActual64DebitWith3536And960And4496FenceUnchanged": true,
+      "newG2124StillNeverAttempted": true,
+      "actualNewModelLoads": 0,
+      "actualNativeAdmissionReads": 0,
+      "groupedResourceClockConsumed": false,
+      "fullProductSuiteAndActualModelIntegrationNotRun": true,
+      "productionOutVersionDefaultModelAndInstallationNotChanged": true,
+      "numericalQualificationGranted": false,
+      "sourceNeuralPermissionGranted": false,
+      "fullPublicHost3000MsProven": false,
+      "goalComplete": false
     }
   },
   "evidence": {
@@ -35840,6 +36012,165 @@
         "sha256": "75a7ac80320e596b867f9520fc3c470c9e8589e41790c82e5faa91c4cc3272da"
       },
       "scope": "Product partial-start directory cleanup only; no Model/native/neural/full Host qualification."
+    },
+    "independentLocalWatchdogDiagnosticCleanupV2137": {
+      "kind": "independent-local-watchdog-diagnostic-cleanup-v2137",
+      "pid": 37236,
+      "sourceCommit": "9064ffd3c7cd2184bdae1b06e55ab96222ae00a4",
+      "projectSourceSha256": {
+        "src/llm/functionNarratives/localServerWatchdog.ts": "ca476fdb357906f490b9b9bd6632ede28f487f97e3a02611e28c90e1871d13c1",
+        "src/test/unit/localNarrativeWatchdog.test.ts": "73628aff8b4d163566a2f850806118a9945d74d918a87a4a9bbd03f02abb2bb7"
+      },
+      "actualValidationTools": {
+        "file": "current4176-watchdog-diagnostic-cleanup-v2137/actual-validation-tools.json",
+        "sha256": "7868bd5ce842c933b3c84f3916ae9eb8d803ed28f668385c9624fe39f02e5531"
+      },
+      "actualPublicationTools": {
+        "file": "current4176-watchdog-diagnostic-cleanup-v2137/actual-publication-tools.json",
+        "sha256": "b2b115c12c0db7030006ea645e1b73e982512c4a923fabf96298ec693f394005"
+      },
+      "recorderSource": {
+        "file": "current4176-watchdog-handover-v2138/record_and_prepare.py",
+        "sha256": "c1f796605574378be8d3061dbabcae99031125d12002fdb342dc56414bf671db"
+      },
+      "beforeSourceSha256": "c2b49f172cf94e460ea51639b70a957f60aee969b924c5d2adf6eef9235d545f",
+      "actualBeforeFixRegressionsFailed": 2,
+      "actualPrematureWatchdogExitAndLiveChildCases": [
+        {
+          "actualInertWatchdogLifecycle": true,
+          "parentEof": true,
+          "watchdogPid": 9891,
+          "childPid": 9900,
+          "watchdogExit": {
+            "code": 1,
+            "signal": null
+          },
+          "childAliveAtWatchdogClose": true,
+          "diagnosticBytes": 26,
+          "modelLoads": 0
+        },
+        {
+          "actualInertWatchdogLifecycle": true,
+          "parentEof": false,
+          "watchdogPid": 10075,
+          "childPid": 10085,
+          "watchdogExit": {
+            "code": 1,
+            "signal": null
+          },
+          "childAliveAtWatchdogClose": true,
+          "diagnosticBytes": 26,
+          "modelLoads": 0
+        }
+      ],
+      "actualCorrectedReapedBeforeWatchdogExitCases": [
+        {
+          "actualInertWatchdogLifecycle": true,
+          "parentEof": true,
+          "watchdogPid": 14940,
+          "childPid": 14953,
+          "watchdogExit": {
+            "code": 0,
+            "signal": null
+          },
+          "childAliveAtWatchdogClose": false,
+          "diagnosticBytes": 26,
+          "modelLoads": 0
+        },
+        {
+          "actualInertWatchdogLifecycle": true,
+          "parentEof": false,
+          "watchdogPid": 15011,
+          "childPid": 15015,
+          "watchdogExit": {
+            "code": 0,
+            "signal": null
+          },
+          "childAliveAtWatchdogClose": false,
+          "diagnosticBytes": 26,
+          "modelLoads": 0
+        }
+      ],
+      "actualAdjacentInertNodeChildCases": [
+        {
+          "actualInertNodeChildLifecycle": true,
+          "case": "cleanup-failure-retry",
+          "childPids": [
+            15165,
+            15172
+          ],
+          "events": [
+            "old:online",
+            "old:close",
+            "next:online",
+            "next:close"
+          ],
+          "allChildrenClosed": true,
+          "modelLoads": 0
+        },
+        {
+          "actualInertNodeChildLifecycle": true,
+          "case": "shutdown-replacement",
+          "childPids": [
+            15186,
+            15196
+          ],
+          "events": [
+            "global-old:online",
+            "global-old:close",
+            "global-next:online",
+            "global-next:close"
+          ],
+          "allChildrenClosed": true,
+          "modelLoads": 0
+        },
+        {
+          "actualInertNodeChildLifecycle": true,
+          "case": "cancel-recovery",
+          "childPids": [
+            15220,
+            15229
+          ],
+          "events": [
+            "cancelled:online",
+            "cancelled:close",
+            "recovered:online",
+            "recovered:close"
+          ],
+          "allChildrenClosed": true,
+          "modelLoads": 0
+        }
+      ],
+      "actualSeparateOutsideFourteenFixturePidsAbsent": true,
+      "actualFinalTargetedTestsPassed": 31,
+      "actualFinalTargetedTestsSkipped": 0,
+      "actualNewWatchdogTests": 2,
+      "targetedStrictTypeScriptPassed": true,
+      "reportedTestMaximumResidentSetSizeBytes": 56573952,
+      "v8SettingsAreNotTotalRssCaps": true,
+      "original500MsForceFenceAndStopLogicUnchanged": true,
+      "diagnosticErrorDrainsAndStopsTheOwnedChild": true,
+      "ordinaryInitialMemoryPercent": 55,
+      "ordinarySnapshotNotNativeAdmissionOrClosedActorDenial": true,
+      "numericalRuntimeBinding": {
+        "file": "current4176-grouped-complete-source-v2124/runtime-binding.json",
+        "sha256": "06acd1d257b5e969a0570c9fc14c82507f253b3533d4082425e3502ffa07993d"
+      },
+      "numericalSourceQualification": {
+        "file": "current4176-grouped-runtime-bound-v2129/qualification.json",
+        "sha256": "b5c4430e35b08de0484c4ce0767ea7ba10fe4a4c83c5817aadd0162bc3fb1305"
+      },
+      "original865PinSourceAndActual64DebitWith3536And960And4496FenceUnchanged": true,
+      "newG2124StillNeverAttempted": true,
+      "actualNewModelLoads": 0,
+      "actualNativeAdmissionReads": 0,
+      "groupedResourceClockConsumed": false,
+      "fullProductSuiteAndActualModelIntegrationNotRun": true,
+      "productionOutVersionDefaultModelAndInstallationNotChanged": true,
+      "numericalQualificationGranted": false,
+      "sourceNeuralPermissionGranted": false,
+      "fullPublicHost3000MsProven": false,
+      "goalComplete": false
     }
   },
   "preparedAssets": {
@@ -38480,10 +38811,10 @@
     "ownership": "준비 모델 하나 공유, 요청 UID별 fresh KV·grammar·sampler·detokenizer. 답변·소스 KV 재사용 금지."
   },
   "nextSession": {
-    "first": "Read actual checkpoint.currentNextIndependentWorkField and currentIndependentLocalDirectoryCleanupFixV2135. Published product commit2afb23f retains its directory until actual deletion succeeds. Two real filesystem-permission regressions failed before the fix; final29 targeted CPU tests and strict TypeScript passed with no skips. The next FIFO owner stayed blocked until successful deletion. The six inert Node children from adjacent scheduler regressions closed and were absent in an outside ps check. These filesystem/CPU/PID results and timings are not Model/native/neural/full-public-Host proof. Ordinary56% after testing is a past snapshot below60, not admission or a closed actor denial. G2124 remains unattempted; preserve the865-pin binding, actual64 debit and3536/960/4496 fences, all fresh native gates and the full original objective. Preserve other apps and avoid repeated memory polling. Read actual checkpoint.currentNextIndependentWorkField and currentIndependentTaskChildLifecycleQaV2133. Published test commitdd2cb86a36c40240a2b8e14bbed005453d35cb32 adds three actual inert Node child cases: genuine filesystem cleanup rejection/retry, failed global shutdown/replacement, and cancellation/FIFO recovery. All six actual children closed normally; each predecessor close preceded its successor online event, and an outside ps read found all six PIDs absent. Final24 CPU tests(3new+21prior) and targeted strict TypeScript passed. These inert CPU children/PIDs/timings are not Model/native/neural/full-public-Host proof. Initial ordinary46% was a past precheck below60%, not current readiness or a closed G2124 denial; G2124 was never attempted and no grouped Model clock was spent. Retain the same865-pin qualified source and actual64 debit, preserve other apps and avoid memory-fishing. Read the actual checkpoint.currentNextIndependentWorkField and currentIndependentTaskCleanupFixV2131. Independent product commit61a6867fc0d880e4c87bc1d465709da9685bcf1f retains failed cleanup ownership until serialized retry succeeds, preserves the first page/cancel error and prevents global-manager replacement after failed shutdown. Four original regressions and a separate first-error review case really failed before their fixes; final21 CPU tests(6new+15existing) and targeted strict TypeScript passed. Initial ordinary47% was a past precheck below60%, not current native readiness or a closed G2124 entry denial. No G2124 guard/actor/observer/registrar ran and no resource time was consumed; do not create a replacement namespace or repeat an exclusive main because of this ordinary snapshot. Numerical binding865 and qualificationV2129 remain unchanged. Preserve other apps, do not memory-fish, and use the actual current frontier rather than the historical frontier stored in an earlier launch-procedure record. This CPU fix is not actual neural/child-process/full-Host3000ms or installed qualification. Read checkpoint.currentNextIndependentWorkField and currentPreparedCorrectedGroupedRuntimeV2129 first. G2109 actually loaded one Model, failed the unchanged strict Split/Slice sibling guard, and closed runner1/observer0; independent failure closure released all four registries. Never restart G2109 or C2110 success mains. Its actual63.73781354201492seconds are conservatively charged64: keep original3600/960/4560 declarations plus strict3536/960/4496; FIRST142 is not charged to GROUPED. The genuine diagnostic view correction, real extra clock/observer/registrar/independent closure and automatic actual-output LoadedACK dispatcher are bound to new G2124/C2125. Actual binding06acd1d257b5e969a0570c9fc14c82507f253b3533d4082425e3502ffa07993d retains865 pins and7 assets; independent full on-disk Model0 preflight34 inputs and7 rejection cases passed. This is no native/Model/numerical/automatic-LoadedACK qualification. Finish actual documentation commit/push/remote equality first. Then use V2128 launcher.js/guard.py and V2127 dispatcher with the actual frontier, fresh native60x3/120seconds/35/30,one8GiB Model,cache256MiB and a separate real LoadedACK. G2124 must run all16/80/3072/213/45 scopes again in one lifetime; no16-prefix inheritance. Require all34 real independent C2125 inputs including the extra start. FIRST and G2042 stay closed. Only genuine new grouped qualification can precede a Whole binding to C2125, transport, real full-source NN correctness/full public Host3000ms and all product release work. ",
-    "nextIndependentWork": "Read actual checkpoint.currentNextIndependentWorkField and currentIndependentLocalDirectoryCleanupFixV2135. Published product commit2afb23f retains its directory until actual deletion succeeds. Two real filesystem-permission regressions failed before the fix; final29 targeted CPU tests and strict TypeScript passed with no skips. The next FIFO owner stayed blocked until successful deletion. The six inert Node children from adjacent scheduler regressions closed and were absent in an outside ps check. These filesystem/CPU/PID results and timings are not Model/native/neural/full-public-Host proof. Ordinary56% after testing is a past snapshot below60, not admission or a closed actor denial. G2124 remains unattempted; preserve the865-pin binding, actual64 debit and3536/960/4496 fences, all fresh native gates and the full original objective. Preserve other apps and avoid repeated memory polling. Read actual checkpoint.currentNextIndependentWorkField and currentIndependentTaskChildLifecycleQaV2133. Published test commitdd2cb86a36c40240a2b8e14bbed005453d35cb32 adds three actual inert Node child cases: genuine filesystem cleanup rejection/retry, failed global shutdown/replacement, and cancellation/FIFO recovery. All six actual children closed normally; each predecessor close preceded its successor online event, and an outside ps read found all six PIDs absent. Final24 CPU tests(3new+21prior) and targeted strict TypeScript passed. These inert CPU children/PIDs/timings are not Model/native/neural/full-public-Host proof. Initial ordinary46% was a past precheck below60%, not current readiness or a closed G2124 denial; G2124 was never attempted and no grouped Model clock was spent. Retain the same865-pin qualified source and actual64 debit, preserve other apps and avoid memory-fishing. Read the actual checkpoint.currentNextIndependentWorkField and currentIndependentTaskCleanupFixV2131. Independent product commit61a6867fc0d880e4c87bc1d465709da9685bcf1f retains failed cleanup ownership until serialized retry succeeds, preserves the first page/cancel error and prevents global-manager replacement after failed shutdown. Four original regressions and a separate first-error review case really failed before their fixes; final21 CPU tests(6new+15existing) and targeted strict TypeScript passed. Initial ordinary47% was a past precheck below60%, not current native readiness or a closed G2124 entry denial. No G2124 guard/actor/observer/registrar ran and no resource time was consumed; do not create a replacement namespace or repeat an exclusive main because of this ordinary snapshot. Numerical binding865 and qualificationV2129 remain unchanged. Preserve other apps, do not memory-fish, and use the actual current frontier rather than the historical frontier stored in an earlier launch-procedure record. This CPU fix is not actual neural/child-process/full-Host3000ms or installed qualification. Read checkpoint.currentNextIndependentWorkField and currentPreparedCorrectedGroupedRuntimeV2129 first. G2109 actually loaded one Model, failed the unchanged strict Split/Slice sibling guard, and closed runner1/observer0; independent failure closure released all four registries. Never restart G2109 or C2110 success mains. Its actual63.73781354201492seconds are conservatively charged64: keep original3600/960/4560 declarations plus strict3536/960/4496; FIRST142 is not charged to GROUPED. The genuine diagnostic view correction, real extra clock/observer/registrar/independent closure and automatic actual-output LoadedACK dispatcher are bound to new G2124/C2125. Actual binding06acd1d257b5e969a0570c9fc14c82507f253b3533d4082425e3502ffa07993d retains865 pins and7 assets; independent full on-disk Model0 preflight34 inputs and7 rejection cases passed. This is no native/Model/numerical/automatic-LoadedACK qualification. Finish actual documentation commit/push/remote equality first. Then use V2128 launcher.js/guard.py and V2127 dispatcher with the actual frontier, fresh native60x3/120seconds/35/30,one8GiB Model,cache256MiB and a separate real LoadedACK. G2124 must run all16/80/3072/213/45 scopes again in one lifetime; no16-prefix inheritance. Require all34 real independent C2125 inputs including the extra start. FIRST and G2042 stay closed. Only genuine new grouped qualification can precede a Whole binding to C2125, transport, real full-source NN correctness/full public Host3000ms and all product release work. The FULL original goal is unchanged: complete source/callers/parents/transitivehelpers+actualsameactionprior6 input, NN-authored every correct value and full prose preserving all modes/domains/applicability/loopvisits/individual-before:null/confidence/unknowns, full tokenize/strict decode/all-page transaction, actual child cleanup/close and outerModelTaskManager.run/finalpublicHost total<=3000ms after source-free readiness. Old actual AA522source36742.311041999994ms and0/2fullycorrect remain the last source evidence. All current numerical/native/framed A/B closures, source-only separate modulegraph with no teacher/target/catalog access, actual source quality/wholeHost latency, product integration/download/integrity/custom models/FIFOcancel-recovery-dispose/fullfunctional+installedvisualQA/version/release/commit/push/install remain. Product0.0.1145/sourceauthorityf433ac9b620c4d8a6fde88cbb55e2bf42aaf1b0b/defaultprovider/model/out/install unchanged. Preserve user SPEC/localResponse/responseSchema and untracked operationValues/typedValues/tests/cache. Local docs/MODEL_TRAINING_MATERIALS.json already indexes current material27paths/142sealed dependencies, 4176actualrows with1MiB hashing; inventory is logical storage not RAM/reclaim proof. Do not delete/move/stage that catalogue or rescan the whole storage without a new need. Use checkpoint.pendingDocumentationPush as publication authority; when true stage ONLY docs/MODEL_LATENCY_HANDOVER.json, preserve frozen4sections and other user changes, record actual closed push and HEAD==origin after success. Keep full goal active/unmet.",
+    "first": "Read actual checkpoint.currentNextIndependentWorkField and currentIndependentWatchdogDiagnosticCleanupV2137. Published product commit9064ffd handles a vanished diagnostic pipe by draining output and stopping its own child. Two actual broken-pipe cases with/without parent EOF failed before the fix: watchdog exit1 while the actual inert child remained alive. After the fix both watchers exited0 only after their children were absent, and private directories were removed. Final31 targeted CPU tests and strict TypeScript passed without skips; a separate outside ps review found all14 fixture PIDs absent. The inert children have independent short fallback lifetimes; the test uses PID0 absence probes and never terminates a reparented grandchild by PID. These process/PID/timing results are not Model/native/neural/full public Host qualification. Initial ordinary55% was a past snapshot below60, not admission or a closed actor denial. Preserve other apps, the same unattempted G2124/865 pins, actual64 debit and3536/960/4496 fences and all original scopes. Read actual checkpoint.currentNextIndependentWorkField and currentIndependentLocalDirectoryCleanupFixV2135. Published product commit2afb23f retains its directory until actual deletion succeeds. Two real filesystem-permission regressions failed before the fix; final29 targeted CPU tests and strict TypeScript passed with no skips. The next FIFO owner stayed blocked until successful deletion. The six inert Node children from adjacent scheduler regressions closed and were absent in an outside ps check. These filesystem/CPU/PID results and timings are not Model/native/neural/full-public-Host proof. Ordinary56% after testing is a past snapshot below60, not admission or a closed actor denial. G2124 remains unattempted; preserve the865-pin binding, actual64 debit and3536/960/4496 fences, all fresh native gates and the full original objective. Preserve other apps and avoid repeated memory polling. Read actual checkpoint.currentNextIndependentWorkField and currentIndependentTaskChildLifecycleQaV2133. Published test commitdd2cb86a36c40240a2b8e14bbed005453d35cb32 adds three actual inert Node child cases: genuine filesystem cleanup rejection/retry, failed global shutdown/replacement, and cancellation/FIFO recovery. All six actual children closed normally; each predecessor close preceded its successor online event, and an outside ps read found all six PIDs absent. Final24 CPU tests(3new+21prior) and targeted strict TypeScript passed. These inert CPU children/PIDs/timings are not Model/native/neural/full-public-Host proof. Initial ordinary46% was a past precheck below60%, not current readiness or a closed G2124 denial; G2124 was never attempted and no grouped Model clock was spent. Retain the same865-pin qualified source and actual64 debit, preserve other apps and avoid memory-fishing. Read the actual checkpoint.currentNextIndependentWorkField and currentIndependentTaskCleanupFixV2131. Independent product commit61a6867fc0d880e4c87bc1d465709da9685bcf1f retains failed cleanup ownership until serialized retry succeeds, preserves the first page/cancel error and prevents global-manager replacement after failed shutdown. Four original regressions and a separate first-error review case really failed before their fixes; final21 CPU tests(6new+15existing) and targeted strict TypeScript passed. Initial ordinary47% was a past precheck below60%, not current native readiness or a closed G2124 entry denial. No G2124 guard/actor/observer/registrar ran and no resource time was consumed; do not create a replacement namespace or repeat an exclusive main because of this ordinary snapshot. Numerical binding865 and qualificationV2129 remain unchanged. Preserve other apps, do not memory-fish, and use the actual current frontier rather than the historical frontier stored in an earlier launch-procedure record. This CPU fix is not actual neural/child-process/full-Host3000ms or installed qualification. Read checkpoint.currentNextIndependentWorkField and currentPreparedCorrectedGroupedRuntimeV2129 first. G2109 actually loaded one Model, failed the unchanged strict Split/Slice sibling guard, and closed runner1/observer0; independent failure closure released all four registries. Never restart G2109 or C2110 success mains. Its actual63.73781354201492seconds are conservatively charged64: keep original3600/960/4560 declarations plus strict3536/960/4496; FIRST142 is not charged to GROUPED. The genuine diagnostic view correction, real extra clock/observer/registrar/independent closure and automatic actual-output LoadedACK dispatcher are bound to new G2124/C2125. Actual binding06acd1d257b5e969a0570c9fc14c82507f253b3533d4082425e3502ffa07993d retains865 pins and7 assets; independent full on-disk Model0 preflight34 inputs and7 rejection cases passed. This is no native/Model/numerical/automatic-LoadedACK qualification. Finish actual documentation commit/push/remote equality first. Then use V2128 launcher.js/guard.py and V2127 dispatcher with the actual frontier, fresh native60x3/120seconds/35/30,one8GiB Model,cache256MiB and a separate real LoadedACK. G2124 must run all16/80/3072/213/45 scopes again in one lifetime; no16-prefix inheritance. Require all34 real independent C2125 inputs including the extra start. FIRST and G2042 stay closed. Only genuine new grouped qualification can precede a Whole binding to C2125, transport, real full-source NN correctness/full public Host3000ms and all product release work. ",
+    "nextIndependentWork": "Read actual checkpoint.currentNextIndependentWorkField and currentIndependentWatchdogDiagnosticCleanupV2137. Published product commit9064ffd handles a vanished diagnostic pipe by draining output and stopping its own child. Two actual broken-pipe cases with/without parent EOF failed before the fix: watchdog exit1 while the actual inert child remained alive. After the fix both watchers exited0 only after their children were absent, and private directories were removed. Final31 targeted CPU tests and strict TypeScript passed without skips; a separate outside ps review found all14 fixture PIDs absent. The inert children have independent short fallback lifetimes; the test uses PID0 absence probes and never terminates a reparented grandchild by PID. These process/PID/timing results are not Model/native/neural/full public Host qualification. Initial ordinary55% was a past snapshot below60, not admission or a closed actor denial. Preserve other apps, the same unattempted G2124/865 pins, actual64 debit and3536/960/4496 fences and all original scopes. Read actual checkpoint.currentNextIndependentWorkField and currentIndependentLocalDirectoryCleanupFixV2135. Published product commit2afb23f retains its directory until actual deletion succeeds. Two real filesystem-permission regressions failed before the fix; final29 targeted CPU tests and strict TypeScript passed with no skips. The next FIFO owner stayed blocked until successful deletion. The six inert Node children from adjacent scheduler regressions closed and were absent in an outside ps check. These filesystem/CPU/PID results and timings are not Model/native/neural/full-public-Host proof. Ordinary56% after testing is a past snapshot below60, not admission or a closed actor denial. G2124 remains unattempted; preserve the865-pin binding, actual64 debit and3536/960/4496 fences, all fresh native gates and the full original objective. Preserve other apps and avoid repeated memory polling. Read actual checkpoint.currentNextIndependentWorkField and currentIndependentTaskChildLifecycleQaV2133. Published test commitdd2cb86a36c40240a2b8e14bbed005453d35cb32 adds three actual inert Node child cases: genuine filesystem cleanup rejection/retry, failed global shutdown/replacement, and cancellation/FIFO recovery. All six actual children closed normally; each predecessor close preceded its successor online event, and an outside ps read found all six PIDs absent. Final24 CPU tests(3new+21prior) and targeted strict TypeScript passed. These inert CPU children/PIDs/timings are not Model/native/neural/full-public-Host proof. Initial ordinary46% was a past precheck below60%, not current readiness or a closed G2124 denial; G2124 was never attempted and no grouped Model clock was spent. Retain the same865-pin qualified source and actual64 debit, preserve other apps and avoid memory-fishing. Read the actual checkpoint.currentNextIndependentWorkField and currentIndependentTaskCleanupFixV2131. Independent product commit61a6867fc0d880e4c87bc1d465709da9685bcf1f retains failed cleanup ownership until serialized retry succeeds, preserves the first page/cancel error and prevents global-manager replacement after failed shutdown. Four original regressions and a separate first-error review case really failed before their fixes; final21 CPU tests(6new+15existing) and targeted strict TypeScript passed. Initial ordinary47% was a past precheck below60%, not current native readiness or a closed G2124 entry denial. No G2124 guard/actor/observer/registrar ran and no resource time was consumed; do not create a replacement namespace or repeat an exclusive main because of this ordinary snapshot. Numerical binding865 and qualificationV2129 remain unchanged. Preserve other apps, do not memory-fish, and use the actual current frontier rather than the historical frontier stored in an earlier launch-procedure record. This CPU fix is not actual neural/child-process/full-Host3000ms or installed qualification. Read checkpoint.currentNextIndependentWorkField and currentPreparedCorrectedGroupedRuntimeV2129 first. G2109 actually loaded one Model, failed the unchanged strict Split/Slice sibling guard, and closed runner1/observer0; independent failure closure released all four registries. Never restart G2109 or C2110 success mains. Its actual63.73781354201492seconds are conservatively charged64: keep original3600/960/4560 declarations plus strict3536/960/4496; FIRST142 is not charged to GROUPED. The genuine diagnostic view correction, real extra clock/observer/registrar/independent closure and automatic actual-output LoadedACK dispatcher are bound to new G2124/C2125. Actual binding06acd1d257b5e969a0570c9fc14c82507f253b3533d4082425e3502ffa07993d retains865 pins and7 assets; independent full on-disk Model0 preflight34 inputs and7 rejection cases passed. This is no native/Model/numerical/automatic-LoadedACK qualification. Finish actual documentation commit/push/remote equality first. Then use V2128 launcher.js/guard.py and V2127 dispatcher with the actual frontier, fresh native60x3/120seconds/35/30,one8GiB Model,cache256MiB and a separate real LoadedACK. G2124 must run all16/80/3072/213/45 scopes again in one lifetime; no16-prefix inheritance. Require all34 real independent C2125 inputs including the extra start. FIRST and G2042 stay closed. Only genuine new grouped qualification can precede a Whole binding to C2125, transport, real full-source NN correctness/full public Host3000ms and all product release work. The FULL original goal is unchanged: complete source/callers/parents/transitivehelpers+actualsameactionprior6 input, NN-authored every correct value and full prose preserving all modes/domains/applicability/loopvisits/individual-before:null/confidence/unknowns, full tokenize/strict decode/all-page transaction, actual child cleanup/close and outerModelTaskManager.run/finalpublicHost total<=3000ms after source-free readiness. Old actual AA522source36742.311041999994ms and0/2fullycorrect remain the last source evidence. All current numerical/native/framed A/B closures, source-only separate modulegraph with no teacher/target/catalog access, actual source quality/wholeHost latency, product integration/download/integrity/custom models/FIFOcancel-recovery-dispose/fullfunctional+installedvisualQA/version/release/commit/push/install remain. Product0.0.1145/sourceauthorityf433ac9b620c4d8a6fde88cbb55e2bf42aaf1b0b/defaultprovider/model/out/install unchanged. Preserve user SPEC/localResponse/responseSchema and untracked operationValues/typedValues/tests/cache. Local docs/MODEL_TRAINING_MATERIALS.json already indexes current material27paths/142sealed dependencies, 4176actualrows with1MiB hashing; inventory is logical storage not RAM/reclaim proof. Do not delete/move/stage that catalogue or rescan the whole storage without a new need. Use checkpoint.pendingDocumentationPush as publication authority; when true stage ONLY docs/MODEL_LATENCY_HANDOVER.json, preserve frozen4sections and other user changes, record actual closed push and HEAD==origin after success. Keep full goal active/unmet.",
     "notImplemented": "Current20 joint composition is independently accepted with the original19-history evidence limit, no19replay and strictAll20SavedRowsAvailable=false. Full FIRST112/48384/213whole/native45 is independently qualified in actual D2035/C2037 at V2076, including all17 saved inputs, actual closed0 audit and committed slot release. Remaining: groupedfirst16signatures32groups80adapters 3072launches34560members13824packed72signaturepacked, whole-generator/framed4176fulltokens-bytes-mask-EOS-window-UID-offset-capacity-PRNG/FIFOcancel-recovery/dispose qualification remain mandatory. Currentstock345+standalone336 andcompletegrouped12096MLP/228model/277cohort=12601comparisons40881fulltensorpairs alreadyindependentlypassed 1054/1078; never replay completedprefix or inherit oldweights as currentmath. Current26fa finaladapter trained all3280updates/1180805targets,896unweightedvalidation/315946targets,52fixedrationals andall10full408owner guards remains unadopted. Preserveall4176/3280/896/52/408/13wholefailedfamilies andall11440sourceoccurrences 1055bodies118structures14wholeteachers24rootparents/alloriginal84/closed464/fivewhole retiredplans andall CPU-NN-teaching-retired-fresh-source exclusions. No sourceCPUeval/prosesynthesis/response-repair/clipping/placeholders/model-dtype-LR-epoch-sampler-coefficient sweeps/partialtrainingresume. QualifiedactualNNmustread complete source/callers/lexicalparents/transitivehelpers plusactualsame-actionoriginalprior6 andauthor EVERYcorrectvalue andFULLprose preservingalloriginalmodes/applicability/domains/loopvisits/individual-before:null/declareddisplaydomain/confidence/unknowns. Entiretokenization/strictrawdecode/allpagetransactionalstorage/actualmodelchildcleanup+close/outerModelTaskManager.run/finalpublicHosttailupperBound<=3000ms aftersource-free ready remains unproven. LastactualAA52236742.311041999994ms/fullycorrect0of2 unchanged. Qualifiedintegration/download/integrity/custommodels/FIFOcancel/dispose/fullfunctional/installedvisualQA/version/release/commit/push/install remain unmet. Product0.0.1145/defaultprovider-model/out/install/protectedusersource unchanged. No physicalmemoryhardcap/continuousminimum/swapcausality claim. Priorreleaseauthorization persists for a fullyqualifiedresult; no failed/unqualifiedcandidate adoption/install. Actual current FIRST D2035/C2037 is now independently qualified; the prior closed V1894 preimport failure still consumed no Model-resource time. The FIRST registration barrier completed its actual positive path. Followup barriers/producer anchors remain prepared only; all remaining original grouped-first/whole numerical, framed/A-B/outside9, source-neural, whole-Host3000ms and product/release/installed QA obligations remain.",
     "completionStillMissing": "Current20 joint composition is independently accepted with the original19-history evidence limit, no19replay and strictAll20SavedRowsAvailable=false. Full FIRST112/48384/213whole/native45 is independently qualified in actual D2035/C2037 at V2076, including all17 saved inputs, actual closed0 audit and committed slot release. Remaining: groupedfirst16signatures32groups80adapters 3072launches34560members13824packed72signaturepacked, whole-generator/framed4176fulltokens-bytes-mask-EOS-window-UID-offset-capacity-PRNG/FIFOcancel-recovery/dispose qualification remain mandatory. Currentstock345+standalone336 andcompletegrouped12096MLP/228model/277cohort=12601comparisons40881fulltensorpairs alreadyindependentlypassed 1054/1078; never replay completedprefix or inherit oldweights as currentmath. Current26fa finaladapter trained all3280updates/1180805targets,896unweightedvalidation/315946targets,52fixedrationals andall10full408owner guards remains unadopted. Preserveall4176/3280/896/52/408/13wholefailedfamilies andall11440sourceoccurrences 1055bodies118structures14wholeteachers24rootparents/alloriginal84/closed464/fivewhole retiredplans andall CPU-NN-teaching-retired-fresh-source exclusions. No sourceCPUeval/prosesynthesis/response-repair/clipping/placeholders/model-dtype-LR-epoch-sampler-coefficient sweeps/partialtrainingresume. QualifiedactualNNmustread complete source/callers/lexicalparents/transitivehelpers plusactualsame-actionoriginalprior6 andauthor EVERYcorrectvalue andFULLprose preservingalloriginalmodes/applicability/domains/loopvisits/individual-before:null/declareddisplaydomain/confidence/unknowns. Entiretokenization/strictrawdecode/allpagetransactionalstorage/actualmodelchildcleanup+close/outerModelTaskManager.run/finalpublicHosttailupperBound<=3000ms aftersource-free ready remains unproven. LastactualAA52236742.311041999994ms/fullycorrect0of2 unchanged. Qualifiedintegration/download/integrity/custommodels/FIFOcancel/dispose/fullfunctional/installedvisualQA/version/release/commit/push/install remain unmet. Product0.0.1145/defaultprovider-model/out/install/protectedusersource unchanged. No physicalmemoryhardcap/continuousminimum/swapcausality claim. Priorreleaseauthorization persists for a fullyqualifiedresult; no failed/unqualifiedcandidate adoption/install. Actual current FIRST D2035/C2037 is now independently qualified; the prior closed V1894 preimport failure still consumed no Model-resource time. The FIRST registration barrier completed its actual positive path. Followup barriers/producer anchors remain prepared only; all remaining original grouped-first/whole numerical, framed/A-B/outside9, source-neural, whole-Host3000ms and product/release/installed QA obligations remain.",
-    "publication": "Actual local-directory cleanup handover. checkpoint.pendingDocumentationPush and lastDocumentationPublicationV2136 are publication authority after genuine commit/push/remote equality. Stage only docs/MODEL_LATENCY_HANDOVER.json; preserve all other work. No Model/native/neural/Host qualification."
+    "publication": "Actual watchdog diagnostic-pipe cleanup handover. checkpoint.pendingDocumentationPush and lastDocumentationPublicationV2138 are publication authority after genuine document commit/push/remote equality. Stage only docs/MODEL_LATENCY_HANDOVER.json. Preserve all other work and the full original goal."
   }
 }
