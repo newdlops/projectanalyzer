@@ -4,7 +4,7 @@ import { createHash } from "node:crypto";
 import { get, createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { promises as fs } from "node:fs";
 import { chmodSync } from "node:fs";
-import { chmod, mkdtemp, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import * as path from "node:path";
 import test, { type TestContext } from "node:test";
@@ -13,6 +13,7 @@ import { createManagedLocalModelCache } from "../../storage/localModels";
 import { LocalModelError, type LocalModelDescriptor, type LocalModelProgress } from "../../shared/localModels";
 import type { OpenModelDownload } from "../../storage/localModels/download";
 import { acquireDownloadLease } from "../../storage/localModels/downloadLease";
+import { startModelCacheLeaseChild, type ModelCacheLeaseChild } from "./helpers/modelCacheLeaseChild";
 
 const bytes = Buffer.from("GGUF fixture weights ".repeat(8000));
 const model: LocalModelDescriptor = { id: "fixture", name: "Fixture", fileName: "fixture.gguf", url: "http://127.0.0.1/fixture",
@@ -423,4 +424,119 @@ test("unreadable lease metadata reports storage failure while another real lease
   } finally {
     await chmod(f.target + ".lock", 0o600).catch(() => {}); await release?.(); await f.dispose();
   }
+});
+
+/** Read the real kernel disposition after the child's genuine close event, retaining the actual errno. */
+function absentLeaseChild(pid: number): { status: "absent"; code: string } {
+  try { process.kill(pid, 0); }
+  catch (error) {
+    assert.equal((error as NodeJS.ErrnoException).code, "ESRCH");
+    return { status: "absent", code: (error as NodeJS.ErrnoException).code! };
+  }
+  throw new Error("Actual closed lease-child PID is still present");
+}
+
+test("cross-process lease blocks cache delivery until its live owner releases and closes", { timeout: 7000 }, async (t) => {
+  const f = await fixture(whole); let holder: ModelCacheLeaseChild | undefined;
+  const controller = new AbortController(); let pending: Promise<unknown> | undefined;
+  try {
+    await f.cache.ensure(new AbortController().signal, () => {});
+    holder = await startModelCacheLeaseChild(f.target + ".lock");
+    const owner = JSON.parse(await readFile(f.target + ".lock", "utf8")); assert.equal(owner.pid, holder.pid);
+    let waiting!: () => void, settled = false;
+    const observedWaiting = new Promise<void>((resolve) => { waiting = resolve; });
+    pending = f.cache.ensure(controller.signal, (value) => { if (value.phase === "waiting") waiting(); })
+      .then(value => { settled = true; return value; }, error => { settled = true; return error; });
+    await Promise.race([observedWaiting, pending.then(() => { throw new Error("Cache settled before observing its live lease owner"); })]);
+    await new Promise<void>(resolve => setImmediate(resolve));
+    assert.equal(settled, false); assert.doesNotThrow(() => process.kill(holder!.pid, 0));
+    const close = await holder.release(); const outside = absentLeaseChild(holder.pid);
+    assert.equal(await pending, f.target); assert.equal(f.ranges.length, 1);
+    await assert.rejects(stat(f.target + ".lock"), { code: "ENOENT" });
+    t.diagnostic(JSON.stringify({ case: "live-owner", acquired: holder.acquired, released: holder.released, scriptSha256: holder.scriptSha256,
+      productionModulePath: holder.productionModulePath, close, outside, actualModelLoads: 0 }));
+  } finally { controller.abort(); await holder?.dispose(); await pending; await f.dispose(); }
+});
+
+test("cross-process lease recovers a genuinely exited owner without redownloading verified weights", { timeout: 7000 }, async (t) => {
+  const f = await fixture(whole); let holder: ModelCacheLeaseChild | undefined;
+  const controller = new AbortController(); let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    await f.cache.ensure(new AbortController().signal, () => {});
+    holder = await startModelCacheLeaseChild(f.target + ".lock");
+    const before = await readFile(f.target + ".lock", "utf8"); assert.equal(JSON.parse(before).pid, holder.pid);
+    const close = await holder.exitWithoutRelease(); const outside = absentLeaseChild(holder.pid);
+    assert.equal(holder.released, undefined);
+    assert.equal(await readFile(f.target + ".lock", "utf8"), before);
+    timer = setTimeout(() => controller.abort(), 1500);
+    assert.equal(await f.cache.ensure(controller.signal, () => {}), f.target);
+    await assert.rejects(stat(f.target + ".lock"), { code: "ENOENT" }); assert.equal(f.ranges.length, 1);
+    t.diagnostic(JSON.stringify({ case: "exited-owner", acquired: holder.acquired, scriptSha256: holder.scriptSha256,
+      productionModulePath: holder.productionModulePath, close, outside, actualModelLoads: 0 }));
+  } finally { if (timer) clearTimeout(timer); controller.abort(); await holder?.dispose(); await f.dispose(); }
+});
+
+test("cross-process lease wait cancellation preserves the real live owner's lease", { timeout: 7000 }, async (t) => {
+  const f = await fixture(whole); let holder: ModelCacheLeaseChild | undefined;
+  try {
+    await f.cache.ensure(new AbortController().signal, () => {});
+    holder = await startModelCacheLeaseChild(f.target + ".lock");
+    const before = await readFile(f.target + ".lock", "utf8"); assert.equal(JSON.parse(before).pid, holder.pid);
+    const controller = new AbortController();
+    await assert.rejects(f.cache.ensure(controller.signal, (value) => { if (value.phase === "waiting") controller.abort(); }), cancelled);
+    assert.equal(await readFile(f.target + ".lock", "utf8"), before); assert.doesNotThrow(() => process.kill(holder!.pid, 0));
+    const close = await holder.release(); const outside = absentLeaseChild(holder.pid);
+    assert.equal(await f.cache.ensure(new AbortController().signal, () => {}), f.target); assert.equal(f.ranges.length, 1);
+    t.diagnostic(JSON.stringify({ case: "cancel-wait", acquired: holder.acquired, released: holder.released, scriptSha256: holder.scriptSha256,
+      productionModulePath: holder.productionModulePath, close, outside, actualModelLoads: 0 }));
+  } finally { await holder?.dispose(); await f.dispose(); }
+});
+
+test("cross-process lease blocks a cold-cache transfer before any HTTP request", { timeout: 7000 }, async (t) => {
+  const f = await fixture(whole); let holder: ModelCacheLeaseChild | undefined;
+  const controller = new AbortController(); let pending: Promise<unknown> | undefined;
+  try {
+    await mkdir(path.dirname(f.target), { recursive: true });
+    holder = await startModelCacheLeaseChild(f.target + ".lock");
+    assert.equal(JSON.parse(await readFile(f.target + ".lock", "utf8")).pid, holder.pid);
+    let waiting!: () => void;
+    const observedWaiting = new Promise<void>((resolve) => { waiting = resolve; });
+    pending = f.cache.ensure(controller.signal, (value) => { if (value.phase === "waiting") waiting(); }).catch(error => error);
+    await Promise.race([observedWaiting, pending.then(() => { throw new Error("Cold-cache request escaped its live lease owner"); })]);
+    assert.equal(f.ranges.length, 0); await assert.rejects(stat(f.target), { code: "ENOENT" });
+    await assert.rejects(stat(f.target + ".part"), { code: "ENOENT" });
+    const close = await holder.release(); const outside = absentLeaseChild(holder.pid);
+    assert.equal(await pending, f.target); assert.deepEqual(await readFile(f.target), bytes);
+    assert.equal(f.ranges.length, 1); await assert.rejects(stat(f.target + ".lock"), { code: "ENOENT" });
+    t.diagnostic(JSON.stringify({ case: "cold-cache", acquired: holder.acquired, released: holder.released,
+      scriptSha256: holder.scriptSha256, productionModulePath: holder.productionModulePath, close, outside, actualModelLoads: 0 }));
+  } finally { controller.abort(); await holder?.dispose(); await pending; await f.dispose(); }
+});
+
+test("cross-process dead lease recovery resumes a retained partial with a validated Range", { timeout: 7000 }, async (t) => {
+  const prefix = bytes.subarray(0, 19000);
+  const f = await fixture((request, response, call) => {
+    if (call === 1) { response.writeHead(200); response.end(prefix); } else ranged(request, response);
+  });
+  let holder: ModelCacheLeaseChild | undefined;
+  const controller = new AbortController(); let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    // The first real HTTP request owns the retained prefix. The distinct child
+    // then acquires its lease and exits before resuming; no child-produced bytes are invented.
+    await assert.rejects(f.cache.ensure(new AbortController().signal, () => {}),
+      (error) => error instanceof LocalModelError && error.code === "download");
+    assert.equal((await stat(f.target + ".part")).size, prefix.length);
+    holder = await startModelCacheLeaseChild(f.target + ".lock");
+    assert.equal(JSON.parse(await readFile(f.target + ".lock", "utf8")).pid, holder.pid);
+    const close = await holder.exitWithoutRelease(); const outside = absentLeaseChild(holder.pid);
+    assert.equal(holder.released, undefined); assert.equal((await stat(f.target + ".part")).size, prefix.length);
+    timer = setTimeout(() => controller.abort(), 1500);
+    assert.equal(await f.cache.ensure(controller.signal, () => {}), f.target);
+    assert.deepEqual(f.ranges, ["", "bytes=19000-"]); assert.deepEqual(await readFile(f.target), bytes);
+    await assert.rejects(stat(f.target + ".lock"), { code: "ENOENT" });
+    await assert.rejects(stat(f.target + ".part"), { code: "ENOENT" });
+    t.diagnostic(JSON.stringify({ case: "partial-resume", acquired: holder.acquired,
+      scriptSha256: holder.scriptSha256, productionModulePath: holder.productionModulePath, close, outside,
+      partialBytesWrittenByEarlierParentRequest: prefix.length, actualModelLoads: 0 }));
+  } finally { if (timer) clearTimeout(timer); controller.abort(); await holder?.dispose(); await f.dispose(); }
 });
