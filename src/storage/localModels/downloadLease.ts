@@ -5,7 +5,7 @@ import { setTimeout as delay } from "node:timers/promises";
 import { LocalModelError } from "../../shared/localModels";
 
 /** Acquires an exclusive PID/token lease, waiting abortably for another extension host. */
-export async function acquireDownloadLease(filePath: string, signal: AbortSignal, waiting: () => void): Promise<() => Promise<void>> {
+export async function acquireDownloadLease(filePath: string, signal: AbortSignal, waiting: () => void | Promise<void>): Promise<() => Promise<void>> {
   const token = randomUUID();
   const deadline = Date.now() + 30 * 60 * 1000;
   while (!signal.aborted) {
@@ -29,7 +29,7 @@ export async function acquireDownloadLease(filePath: string, signal: AbortSignal
         if (Date.now() - info.mtimeMs > 30000) { await rm(filePath, { force: true }); continue; }
       }
       if (Date.now() >= deadline) throw new LocalModelError("busy");
-      waiting();
+      await waiting();
       try { await delay(250, undefined, { signal }); }
       catch { throw new LocalModelError("cancelled"); }
     }

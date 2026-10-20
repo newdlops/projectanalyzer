@@ -3,10 +3,11 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { get, createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { promises as fs } from "node:fs";
-import { mkdtemp, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
+import { chmodSync } from "node:fs";
+import { chmod, mkdtemp, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import * as path from "node:path";
-import test from "node:test";
+import test, { type TestContext } from "node:test";
 import { setTimeout as delay } from "node:timers/promises";
 import { createManagedLocalModelCache } from "../../storage/localModels";
 import { LocalModelError, type LocalModelDescriptor, type LocalModelProgress } from "../../shared/localModels";
@@ -250,3 +251,71 @@ for (const action of ["cancel", "dispose"] as const) {
     } finally { t.mock.restoreAll(); await f.dispose(); }
   });
 }
+
+/** Deny real directory removal only after the cache has read an existing verified target. */
+function blockLeaseRemoval(t: TestContext, target: string): void {
+  const originalStat = fs.stat;
+  t.mock.method(fs, "stat", async (filePath: Parameters<typeof stat>[0]) => {
+    const info = await originalStat(filePath);
+    if (filePath === target) await chmod(path.dirname(target), 0o500);
+    return info;
+  });
+}
+
+test("filesystem lease cleanup failures use the storage error category", async (t) => {
+  if (process.platform === "win32" || process.getuid?.() === 0) { t.skip("Requires effective POSIX directory permissions"); return; }
+  const f = await fixture(whole);
+  try {
+    await f.cache.ensure(new AbortController().signal, () => {});
+    blockLeaseRemoval(t, f.target);
+    await assert.rejects(f.cache.ensure(new AbortController().signal, () => {}),
+      (error) => error instanceof LocalModelError && error.code === "storage");
+    assert.deepEqual(await readFile(f.target), bytes);
+  } finally { t.mock.restoreAll(); await chmod(path.dirname(f.target), 0o700); await f.dispose(); }
+});
+
+test("filesystem lease cleanup preserves an earlier download failure", async (t) => {
+  if (process.platform === "win32" || process.getuid?.() === 0) { t.skip("Requires effective POSIX directory permissions"); return; }
+  const f = await fixture((_request, response) => { response.writeHead(200); response.end(bytes.subarray(0, 19000)); });
+  try {
+    await assert.rejects(f.cache.ensure(new AbortController().signal, (value) => {
+      if (value.phase === "downloading" && value.completedBytes > 0) chmodSync(path.dirname(f.target), 0o500);
+    }), (error) => error instanceof LocalModelError && error.code === "download");
+  } finally { await chmod(path.dirname(f.target), 0o700); await f.dispose(); }
+});
+
+test("filesystem lease cleanup retries a retained release on the next request", async (t) => {
+  if (process.platform === "win32" || process.getuid?.() === 0) { t.skip("Requires effective POSIX directory permissions"); return; }
+  const f = await fixture(whole);
+  try {
+    await f.cache.ensure(new AbortController().signal, () => {});
+    blockLeaseRemoval(t, f.target);
+    await assert.rejects(f.cache.ensure(new AbortController().signal, () => {}));
+    t.mock.restoreAll(); await chmod(path.dirname(f.target), 0o700);
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 1000);
+    try { assert.equal(await f.cache.ensure(controller.signal, () => {}), f.target); }
+    finally { clearTimeout(timer); }
+    await assert.rejects(stat(f.target + ".lock"), { code: "ENOENT" });
+    assert.equal(f.ranges.length, 1);
+  } finally { t.mock.restoreAll(); await chmod(path.dirname(f.target), 0o700); await f.dispose(); }
+});
+
+test("retained lease cleanup serializes simultaneous cache retries", async (t) => {
+  if (process.platform === "win32" || process.getuid?.() === 0) { t.skip("Requires effective POSIX directory permissions"); return; }
+  const f = await fixture(whole);
+  try {
+    await f.cache.ensure(new AbortController().signal, () => {});
+    blockLeaseRemoval(t, f.target);
+    await assert.rejects(f.cache.ensure(new AbortController().signal, () => {}));
+    t.mock.restoreAll(); await chmod(path.dirname(f.target), 0o700);
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 1000);
+    try {
+      const paths = await Promise.all([f.cache.ensure(controller.signal, () => {}), f.cache.ensure(controller.signal, () => {})]);
+      assert.deepEqual(paths, [f.target, f.target]);
+    } finally { clearTimeout(timer); }
+    await assert.rejects(stat(f.target + ".lock"), { code: "ENOENT" });
+    assert.equal(f.ranges.length, 1);
+  } finally { t.mock.restoreAll(); await chmod(path.dirname(f.target), 0o700); await f.dispose(); }
+});
