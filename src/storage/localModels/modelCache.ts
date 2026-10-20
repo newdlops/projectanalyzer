@@ -13,25 +13,9 @@ export function createManagedLocalModelCache(storageDirectory: string, model: Lo
   const target = path.join(directory, model.fileName);
   const partial = target + ".part";
   const active = new Set<AbortController>();
-  // A failed unlink still owns its PID/token lease. Keep its release callback
-  // until actual removal succeeds, and serialize retries across this cache's callers.
-  const pendingLeaseReleases = new Set<() => Promise<void>>();
-  let leaseReleaseAttempt: Promise<void> | undefined;
   let disposed = false;
   // Recheck file identity cheaply within a host; a changed file must pass SHA-256 again.
   let verifiedStamp: string | undefined;
-
-  /** Await every retained release once at a time; a rejected attempt stays available for the next request. */
-  async function releaseLeases(): Promise<void> {
-    while (pendingLeaseReleases.size) {
-      if (leaseReleaseAttempt) { await leaseReleaseAttempt; continue; }
-      const release = pendingLeaseReleases.values().next().value!;
-      const attempt = Promise.resolve().then(release).then(() => { pendingLeaseReleases.delete(release); });
-      leaseReleaseAttempt = attempt;
-      try { await attempt; }
-      finally { if (leaseReleaseAttempt === attempt) leaseReleaseAttempt = undefined; }
-    }
-  }
 
   return { model, dispose() { disposed = true; for (const controller of active) controller.abort(); },
     async ensure(parentSignal, report) {
@@ -48,14 +32,7 @@ export function createManagedLocalModelCache(storageDirectory: string, model: Lo
       };
       try {
         await mkdir(directory, { recursive: true, mode: 0o700 });
-        await releaseLeases();
-        checkCancelled(signal);
-        release = await acquireDownloadLease(target + ".lock", signal, async () => {
-          progress("waiting", 0);
-          // A concurrent request may have failed cleanup after this caller
-          // began waiting. Retry that same owned lease instead of waiting on our own PID.
-          await releaseLeases();
-        });
+        release = await acquireDownloadLease(target + ".lock", signal, () => progress("waiting", 0));
         checkCancelled(signal);
         const currentStamp = await fileStamp(target, signal);
         if (currentStamp && currentStamp === verifiedStamp) return target;
@@ -85,12 +62,8 @@ export function createManagedLocalModelCache(storageDirectory: string, model: Lo
         failure = signal.aborted ? new LocalModelError("cancelled") : cacheFailure(error);
         throw failure;
       } finally {
-        try {
-          if (release) {
-            pendingLeaseReleases.add(release);
-            await releaseLeases();
-          }
-        } catch (error) {
+        try { await release?.(); }
+        catch (error) {
           // Retain the first operation failure while keeping cleanup retryable.
           // A successful cache hit cannot deliver a path until its lease is released.
           if (!failure) throw cacheFailure(error);

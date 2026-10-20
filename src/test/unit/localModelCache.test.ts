@@ -12,6 +12,7 @@ import { setTimeout as delay } from "node:timers/promises";
 import { createManagedLocalModelCache } from "../../storage/localModels";
 import { LocalModelError, type LocalModelDescriptor, type LocalModelProgress } from "../../shared/localModels";
 import type { OpenModelDownload } from "../../storage/localModels/download";
+import { acquireDownloadLease } from "../../storage/localModels/downloadLease";
 
 const bytes = Buffer.from("GGUF fixture weights ".repeat(8000));
 const model: LocalModelDescriptor = { id: "fixture", name: "Fixture", fileName: "fixture.gguf", url: "http://127.0.0.1/fixture",
@@ -318,4 +319,108 @@ test("retained lease cleanup serializes simultaneous cache retries", async (t) =
     await assert.rejects(stat(f.target + ".lock"), { code: "ENOENT" });
     assert.equal(f.ranges.length, 1);
   } finally { t.mock.restoreAll(); await chmod(path.dirname(f.target), 0o700); await f.dispose(); }
+});
+
+test("replacement cache recovers a failed release after the old cache is disposed", async (t) => {
+  if (process.platform === "win32" || process.getuid?.() === 0) { t.skip("Requires effective POSIX directory permissions"); return; }
+  const f = await fixture(whole);
+  const replacement = createManagedLocalModelCache(f.directory, model, f.download);
+  try {
+    await f.cache.ensure(new AbortController().signal, () => {});
+    blockLeaseRemoval(t, f.target);
+    await assert.rejects(f.cache.ensure(new AbortController().signal, () => {}),
+      (error) => error instanceof LocalModelError && error.code === "storage");
+    t.mock.restoreAll(); await chmod(path.dirname(f.target), 0o700); f.cache.dispose();
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 1000);
+    try { assert.equal(await replacement.ensure(controller.signal, () => {}), f.target); }
+    finally { clearTimeout(timer); }
+    await assert.rejects(stat(f.target + ".lock"), { code: "ENOENT" });
+    assert.equal(f.ranges.length, 1);
+  } finally { t.mock.restoreAll(); await chmod(path.dirname(f.target), 0o700); replacement.dispose(); await f.dispose(); }
+});
+
+test("replacement cache already waiting recovers a peer's failed release", { timeout: 5000 }, async (t) => {
+  if (process.platform === "win32" || process.getuid?.() === 0) { t.skip("Requires effective POSIX directory permissions"); return; }
+  const f = await fixture(whole);
+  const replacement = createManagedLocalModelCache(f.directory, model, f.download);
+  const controller = new AbortController();
+  let inspected!: () => void, allowFailure!: () => void, waiting!: () => void;
+  const inspectedTarget = new Promise<void>((resolve) => { inspected = resolve; });
+  const finishInspection = new Promise<void>((resolve) => { allowFailure = resolve; });
+  const peerWaiting = new Promise<void>((resolve) => { waiting = resolve; });
+  let first: Promise<void> | undefined, second: Promise<unknown> | undefined;
+  try {
+    await f.cache.ensure(new AbortController().signal, () => {});
+    const originalStat = fs.stat;
+    t.mock.method(fs, "stat", async (filePath: Parameters<typeof stat>[0]) => {
+      const info = await originalStat(filePath);
+      if (filePath === f.target) {
+        await chmod(path.dirname(f.target), 0o500); inspected(); await finishInspection;
+      }
+      return info;
+    });
+    first = assert.rejects(f.cache.ensure(new AbortController().signal, () => {}),
+      (error) => error instanceof LocalModelError && error.code === "storage");
+    await inspectedTarget;
+    second = replacement.ensure(controller.signal, (value) => { if (value.phase === "waiting") waiting(); }).catch(error => error);
+    await peerWaiting; allowFailure(); await first;
+    t.mock.restoreAll(); await chmod(path.dirname(f.target), 0o700); f.cache.dispose();
+    const timer = setTimeout(() => controller.abort(), 1000);
+    try { assert.equal(await second, f.target); }
+    finally { clearTimeout(timer); }
+    await assert.rejects(stat(f.target + ".lock"), { code: "ENOENT" });
+    assert.equal(f.ranges.length, 1);
+  } finally {
+    allowFailure(); controller.abort(); t.mock.restoreAll(); await chmod(path.dirname(f.target), 0o700);
+    await Promise.allSettled([first, second]); replacement.dispose(); await f.dispose();
+  }
+});
+
+test("unreadable lease metadata cannot complete a cache request or discard its pending release", async (t) => {
+  if (process.platform === "win32" || process.getuid?.() === 0) { t.skip("Requires effective POSIX directory permissions"); return; }
+  const f = await fixture(whole);
+  const replacement = createManagedLocalModelCache(f.directory, model, f.download);
+  try {
+    await f.cache.ensure(new AbortController().signal, () => {});
+    const originalStat = fs.stat;
+    t.mock.method(fs, "stat", async (filePath: Parameters<typeof stat>[0]) => {
+      const info = await originalStat(filePath);
+      if (filePath === f.target) await chmod(f.target + ".lock", 0o000);
+      return info;
+    });
+    await assert.rejects(f.cache.ensure(new AbortController().signal, () => {}),
+      (error) => error instanceof LocalModelError && error.code === "storage");
+    t.mock.restoreAll(); await chmod(f.target + ".lock", 0o600); f.cache.dispose();
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 1000);
+    try { assert.equal(await replacement.ensure(controller.signal, () => {}), f.target); }
+    finally { clearTimeout(timer); }
+    await assert.rejects(stat(f.target + ".lock"), { code: "ENOENT" });
+    assert.equal(f.ranges.length, 1);
+  } finally {
+    t.mock.restoreAll(); await chmod(f.target + ".lock", 0o600).catch(() => {});
+    replacement.dispose(); await f.dispose();
+  }
+});
+
+test("unreadable lease metadata reports storage failure while another real lease remains owned", async (t) => {
+  if (process.platform === "win32" || process.getuid?.() === 0) { t.skip("Requires effective POSIX directory permissions"); return; }
+  const f = await fixture(whole);
+  let release: (() => Promise<void>) | undefined;
+  try {
+    await f.cache.ensure(new AbortController().signal, () => {});
+    release = await acquireDownloadLease(f.target + ".lock", new AbortController().signal, () => {});
+    await chmod(f.target + ".lock", 0o000);
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 1000);
+    try {
+      await assert.rejects(f.cache.ensure(controller.signal, () => {}),
+        (error) => error instanceof LocalModelError && error.code === "storage");
+    } finally { clearTimeout(timer); }
+    await chmod(f.target + ".lock", 0o600);
+    assert.equal((await stat(f.target + ".lock")).isFile(), true);
+  } finally {
+    await chmod(f.target + ".lock", 0o600).catch(() => {}); await release?.(); await f.dispose();
+  }
 });
