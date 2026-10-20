@@ -37,6 +37,8 @@ export class ModelTaskManager {
   private idleRelease?: ReturnType<typeof setImmediate>;
   /** Cleanup is serialized even when idle release and a new request arrive together. */
   private releasing: Promise<void> = Promise.resolve();
+  /** A rejected release retains its resource; reusing that identity must still retry cleanup before execution. */
+  private cleanupFailed = false;
   private shutdownFinished = false;
   public constructor(private readonly options: { maxWaiting?: number; historyLimit?: number; now?: () => number;
     onTransition?: (record: ModelTaskRecord) => void } = {}) {
@@ -69,10 +71,19 @@ export class ModelTaskManager {
       if (this.idle && this.resource === resource && !this.retained.has(resource)) cleanup = this.releaseResource();
       return cleanup;
     };
-    const abort = () => { void detach(); };
+    const abort = () => { void detach().catch(() => { /* The scope finalizer still observes this failure; ownership remains retained. */ }); };
     signal?.addEventListener("abort", abort, { once: true });
+    let operationFailed = false;
     try { return await operation(); }
-    finally { signal?.removeEventListener("abort", abort); await detach(); }
+    catch (error) { operationFailed = true; throw error; }
+    finally {
+      signal?.removeEventListener("abort", abort);
+      try { await detach(); }
+      catch (error) {
+        // Failed cleanup retains its owner; it must not replace an earlier page failure.
+        if (!operationFailed) throw error;
+      }
+    }
   }
 
   /** Enqueues a bounded operation; queue waiting never starts its execution deadline. */
@@ -171,10 +182,12 @@ export class ModelTaskManager {
   }
   private async execute(job: Job): Promise<void> {
     const timer = job.timeoutMs === undefined ? undefined : setTimeout(() => this.stop(job, "timeout"), Math.max(1, job.timeoutMs));
-    let value: unknown, failure: unknown, failed = false;
+    // A failed acquisition must not retry that same cleanup again in this job's finalizer.
+    let value: unknown, failure: unknown, failed = false, acquired = false;
     try {
       await this.releasing;
-      if (this.resource !== job.resource) { await this.releaseResource(); this.resource = job.resource; }
+      if (this.cleanupFailed || this.resource !== job.resource) { await this.releaseResource(); this.resource = job.resource; }
+      acquired = true;
       value = await Promise.resolve().then(() => {
         if (job.controller.signal.aborted) throw new ModelTaskError(job.reason ?? "cancelled");
         return job.execute(job.controller.signal);
@@ -184,23 +197,41 @@ export class ModelTaskManager {
       clearTimeout(timer);
       // A failed/cancelled completion must stop a warm process too. Await it
       // before publishing the outcome or allowing the next owner to run.
-      if (failed || job.reason) await this.releaseResource();
+      if (acquired && (failed || job.reason)) {
+        try { await this.releaseResource(); }
+        catch { /* Preserve the request's first failure/cancellation; the failed resource still blocks the next acquisition. */ }
+      }
       // Awaiting execute includes its process/temp-file cleanup; only now may
       // another task take ownership of local model memory.
       this.settle(job, value, failed || Boolean(job.reason), job.reason ? new ModelTaskError(job.reason) : failure);
       this.active = undefined; this.publish(); this.pump();
-      if (this.idle && this.resource && !this.retained.has(this.resource)) {
+      if (this.idle && this.resource && !this.cleanupFailed && !this.retained.has(this.resource)) {
         // Let the awaiting caller enqueue its next bounded chunk in the same
         // turn. No idle timeout, background polling or retained idle model.
-        this.idleRelease = setImmediate(() => { this.idleRelease = undefined; if (this.idle && this.resource && !this.retained.has(this.resource)) void this.releaseResource(); });
+        this.idleRelease = setImmediate(() => {
+          this.idleRelease = undefined;
+          if (this.idle && this.resource && !this.cleanupFailed && !this.retained.has(this.resource)) {
+            void this.releaseResource().catch(() => { /* Keep the failed owner for the next explicit acquisition or shutdown attempt. */ });
+          }
+        });
       }
     }
   }
-  /** One cleanup chain prevents a newly queued adapter from racing an idle teardown. */
+  /** Serialize cleanup and retain its owner until success; a rejection is never proof that model memory was released. */
   private releaseResource(): Promise<void> {
-    const resource = this.resource; this.resource = undefined;
-    if (resource) this.releasing = this.releasing.then(() => resource.release()).catch(() => { /* Adapter cleanup must be bounded and best-effort. */ });
-    return this.releasing;
+    const resource = this.resource;
+    if (!resource) return this.releasing;
+    const release = this.releasing.then(async () => {
+      // Another serialized cleanup may already have released this exact owner.
+      if (this.resource !== resource) return;
+      try { await resource.release(); }
+      catch (error) { this.cleanupFailed = true; throw error; }
+      this.resource = undefined; this.cleanupFailed = false;
+    });
+    // Waiters can reach the retained-owner check after a rejection. The caller
+    // still receives that rejection; only a later successful retry clears it.
+    this.releasing = release.catch(() => {});
+    return release;
   }
   private settle(job: Job, value: unknown, failed: boolean, failure: unknown): void {
     job.parent.removeEventListener("abort", job.abortParent);
