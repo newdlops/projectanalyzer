@@ -4,6 +4,27 @@ All notable user-visible changes to Project Analyzer: Code Flow are recorded in
 this file. The changelog starts with the first distribution-documented build;
 earlier local development builds were not tracked here.
 
+## 0.0.1146 - 2026-10-29
+
+### Checkpoint
+
+- Fix packaging of nested call-reading helpers while preserving module caching,
+  virtual file locations and external dependency resolution in the shipped facade.
+- Exclude the Cargo cache entry when a build uses a directory symlink, keeping
+  generated cache paths out of package secret scanning and distribution.
+- Keep the existing package file budget by sharing bundled analysis internals
+  across their two public facades without duplicating module identities.
+- Record completed Korean/English experimental runtime integration: 935 compiled
+  occurrences and 12 roles per locale, with whole source and binding checks.
+- Record removal of one retired experimental weight and 756 regenerable Python
+  caches, approximately 2.89 GiB of allocated file space.
+- Preserve the last committed product implementation and managed/custom model
+  behavior in this checkpoint package. Experimental model assets and runtime
+  changes remain outside the shipped extension.
+- Document remaining limits separately: the latest experimental action stopped
+  before model loading at a descriptor-count boundary; accurate 3-second model
+  explanations and comparable activation measurements remain unproven.
+
 ## 0.0.1145 - 2026-10-10
 
 ### Fixed

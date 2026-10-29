@@ -37,6 +37,8 @@ src/**
 scripts/**
 engine/analyzer/src/**
 engine/analyzer/target/**
+# A shared Cargo cache may appear as a directory symlink rather than a tree.
+engine/analyzer/target
 engine/analyzer/Cargo.toml
 engine/analyzer/Cargo.lock
 out/test/**
@@ -53,7 +55,7 @@ out/llm/functionNarratives/localServer.js
 out/llm/functionNarratives/localWire.js
 out/llm/functionNarratives/responseSchema.js
 
-# Call-reading helpers share their facade's directory and are bundled at prepublish.
+# The call-reading helper tree is bundled into its public facade at prepublish.
 out/application/functionCallNarratives/context.js
 out/application/functionCallNarratives/plan.js
 out/application/functionCallNarratives/prompt.js
@@ -65,6 +67,8 @@ out/application/functionCallNarratives/sourceBodyReading.js
 out/application/functionCallNarratives/sourceCallerReading.js
 out/application/functionCallNarratives/sourceAsyncReading.js
 out/application/functionCallNarratives/sourceFinallyReading.js
+out/application/functionCallNarratives/captured/**
+out/application/functionCallNarratives/complete/**
 
 # Callee syntax helpers are bundled into their existing public analyzer facade.
 out/analyzer/functionCalls/contexts.js
@@ -80,6 +84,12 @@ out/analyzer/functionCalls/sourceParameters.js
 out/analyzer/functionCalls/sourceReturns.js
 out/analyzer/functionCalls/sourceEvidence.js
 out/analyzer/functionCalls/sourceEffects.js
+
+# Preserve both public analysis facades and their single shared module cache.
+out/analyzer/functionLogic/**
+!out/analyzer/functionLogic/index.js
+!out/analyzer/functionLogic/typescriptFunctionLogicSyntax.js
+!out/analyzer/functionLogic/__function-logic-bundle.js
 
 # Dormant feature modules are not reached by the extension entrypoint. Keep their
 # editable sources/tests; the runtime-closure checker catches future wiring.

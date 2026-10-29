@@ -1,0 +1,107 @@
+{
+  "kind": "completed-work-release-checkpoint",
+  "version": "0.0.1146",
+  "date": "2026-10-29",
+  "productCodeBaseline": "d396c5a2c0873afe1a7ccfdde977a5a09e97be48",
+  "scope": {
+    "release": "Last committed product implementation with completed-work documentation and version metadata.",
+    "uncommittedSourceWork": "Preserved in the original worktree and excluded from the release snapshot.",
+    "experimentalRuntimeAndModelAssetsShipped": false,
+    "previousLongRunningGoal": "Cleared by the user; not resumed by this release.",
+    "packagingChanges": "Resolve nested CommonJS modules, preserve one shared cache behind existing analysis facades, and exclude Cargo cache symlinks. Product feature sources stay at the recorded baseline."
+  },
+  "completedExperimentalWork": {
+    "locales": [
+      "ko",
+      "en"
+    ],
+    "compiledOccurrencesPerLocale": 935,
+    "rolesPerLocale": 12,
+    "originalTypedSourcesRetained": 11,
+    "additionalTypedFlowSources": 1,
+    "additionalCompiledFlowOccurrences": 3,
+    "completeRuntimeDefinitionsPerLocale": 25,
+    "wholeSourceInversePairs": 61,
+    "wholeAnalysisModules": 161,
+    "literalImportOccurrences": 418,
+    "wholeCodeAndBindingReviewsPassed": true,
+    "independentDefinitionRealmsCheckedPerLocale": 5,
+    "wholeCodeReviewPeakRssBytes": 194838528,
+    "evidence": {
+      "workingHandoverSha256": "2e1901ad784514d277a23951f44d60595ca71d76bf9b563dc7a741fc8119c99f",
+      "wholeSelectedCodeReviewSha256": "4e7afaf2147555f61ac7664150febc9059f757d0fbdc081a180022a04e467379",
+      "runtimeBindingReviewSha256": "8a0b48ab36ea1f1e2b9c24ee7d9a0d19bc3dda3040672f958c643abcb6213a31",
+      "dualRealmReviewSha256": "5c28d5bc5c557436f4389cd6f05ac596dce5f49f262d969e29054f60e88f871d"
+    }
+  },
+  "completedStorageCleanup": {
+    "removedFiles": 757,
+    "retiredExperimentalWeightFiles": 1,
+    "regenerablePythonBytecodeFiles": 756,
+    "allocatedBytesRemovedEstimate": 3104210944,
+    "allocatedGiBRemovedEstimate": 2.891021728515625,
+    "notMeasuredNetPhysicalReclamation": true,
+    "currentModelsTrainingCorporaAndExperimentResultsPreserved": true,
+    "receiptSha256": "fb44905f51c146c79ff942389d390ab237537b582e73283a27f95ecc41cf4c71"
+  },
+  "unresolvedExperimentalWork": {
+    "latestAttempt": "Stopped before source permission and model loading at the original control descriptor limit.",
+    "requiredControlPathUnion": 4109,
+    "originalControlLimit": 4096,
+    "knownControlOverflow": 13,
+    "allSixStageToolsAndNineteenMetadataWritersTerminal": true,
+    "lastActualReplyHasSourceMeaningErrors": true,
+    "lastActualPublicParentIntervalMs": [
+      5312.178334,
+      5312.634333
+    ],
+    "public3000MsTargetMet": false,
+    "newSourceModelLoadsInLatestAttempt": 0,
+    "newOptimizerSteps": 0,
+    "newWeightUpdates": 0,
+    "currentActivationFraction": null,
+    "matchedPreviousActivationDelta": null,
+    "matchedHeldoutLossDelta": null,
+    "matchedHeldoutAccuracyDelta": null,
+    "originalWholeModelGoalCompleted": false
+  },
+  "releaseValidation": {
+    "releaseMetadataCheckPassed": true,
+    "rustUnitTests": {
+      "passed": 88,
+      "failed": 0
+    },
+    "productNodeTestsBeforePackaging": {
+      "total": 1621,
+      "passed": 1594,
+      "failed": 27,
+      "status": "failed",
+      "source": "Recorded product baseline; no pending source changes included.",
+      "logSha256": "23d7e301a5936f2706d5c78777697c11f67f988f2eb2aea220897b79cfee90fc"
+    },
+    "packagingTests": {
+      "total": 92,
+      "passed": 92,
+      "failed": 0,
+      "logSha256": "ae6ae8ef5167bc8104aab5bf54284e49b0eb6e7b4c5e6bec6564255a158cd929"
+    },
+    "postBundleAnalysisTests": {
+      "total": 33,
+      "passed": 33,
+      "failed": 0,
+      "logSha256": "59b8938bc419c680e3497e9fd8aaf38c2f8dc9d14b0825a0c67fff04a9d132f9"
+    },
+    "compiledRuntimePackageCheckPassed": true,
+    "vsceSecretScanRetained": true,
+    "sourceAndExperimentalAssetsExcludedFromVsix": true,
+    "allProductTestsPassed": false
+  },
+  "artifact": {
+    "file": "function-analysis-0.0.1146-darwin-arm64.vsix",
+    "target": "darwin-arm64",
+    "sha256": "104d28cb41fe37c12bdaef4850c430789cbe6eb722b55011d94c0b486cf8188f",
+    "bytes": 4008051,
+    "files": 499,
+    "maximumFiles": 512
+  }
+}
