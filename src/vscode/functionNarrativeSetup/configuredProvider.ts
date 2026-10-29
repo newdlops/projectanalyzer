@@ -16,7 +16,7 @@ export type ConfiguredNarrativeApi = FunctionNarrativeVsCodeApi & {
   ProgressLocation: typeof vscode.ProgressLocation;
 };
 type LocalFactory = typeof createLocalFunctionNarrativeProvider;
-type ProviderSettings = { provider: "local" | "vscode"; binary: string; model: string };
+type ProviderSettings = { provider: "local" | "vscode"; binary: string; model: string; maxContextTokens: number; memoryReservePercent: number };
 /** The actual provider's resource scope begins at required model preparation/inference and closes with the owning action. */
 type RunScope = { closed: boolean; ready?: Promise<void>; finish?: () => void; lease?: Promise<void> };
 
@@ -44,6 +44,8 @@ export function createConfiguredNarrativeProvider(api: ConfiguredNarrativeApi, m
     managesDeadlines: true,
     supportsFinalSummary: signal => !signal.aborted && !manager.disposed && (boundProviders.has(signal)
       ? boundProviders.get(signal)?.supportsFinalSummary?.(signal) === true : settingsFor(signal).provider === "local"),
+    supportsFunctionPurpose: signal => !signal.aborted && !manager.disposed && (boundProviders.has(signal)
+      ? boundProviders.get(signal)?.supportsFunctionPurpose?.(signal) === true : settingsFor(signal).provider === "local"),
     async withRun(_language, signal, operation) {
       if (signal.aborted || manager.disposed) throw new FunctionNarrativeError("cancelled");
       settingsFor(signal);
@@ -78,7 +80,7 @@ export function createConfiguredNarrativeProvider(api: ConfiguredNarrativeApi, m
     async generate(context, language, signal, options) {
       if (signal.aborted || manager.disposed) throw new FunctionNarrativeError("cancelled");
       const binding = settingsFor(signal);
-      if (binding.provider === "local") {
+      if (binding.provider === "local" && !context.functionPurposeTask) {
         const source = buildSourceFunctionNarrativeResponse(context, language);
         if (source) { options?.validate?.(source); return source; }
       }
@@ -98,7 +100,8 @@ export function createConfiguredNarrativeProvider(api: ConfiguredNarrativeApi, m
     if (!binding) {
       const config = api.workspace.getConfiguration("projectAnalyzer.functionNarratives");
       binding = { provider: config.get<string>("provider", "local") === "vscode" ? "vscode" : "local",
-        binary: config.get<string>("localBinary", ""), model: config.get<string>("localModel", "") };
+        binary: config.get<string>("localBinary", ""), model: config.get<string>("localModel", ""),
+        maxContextTokens: config.get<number>("localContextTokens", 32768), memoryReservePercent: config.get<number>("localMemoryReservePercent", 25) };
       settings.set(signal, binding);
     }
     return binding;
@@ -128,8 +131,9 @@ export function createConfiguredNarrativeProvider(api: ConfiguredNarrativeApi, m
     const customExists = configuredModel && (await stat(configuredModel).catch(() => undefined))?.isFile();
     const modelPath = customExists ? configuredModel : await prepareManaged(language, signal);
     if (signal.aborted) throw new FunctionNarrativeError("cancelled");
-    const key = binaryPath + "\0" + modelPath;
-    if (local?.key !== key) local = { key, provider: localFactory({ binaryPath, modelPath }) };
+    const key = JSON.stringify([binaryPath, modelPath, binding.maxContextTokens, binding.memoryReservePercent]);
+    if (local?.key !== key) local = { key, provider: localFactory({ binaryPath, modelPath,
+      maxContextTokens: binding.maxContextTokens, memoryReservePercent: binding.memoryReservePercent }) };
     return local.provider;
   }
 

@@ -1,0 +1,252 @@
+{
+  "kind": "local-narrative-output-quality-assessment",
+  "createdAt": "2026-10-29T09:13:50.424Z",
+  "conclusion": {
+    "qualityQualified": false,
+    "severity": "P2",
+    "meaning": "Important omission in a whole-function summary; observed per-scenario values remain correct. Priority is semantic completeness and source grounding.",
+    "populationQualityScore": null,
+    "productCodeChangedDuringAssessment": false
+  },
+  "scope": {
+    "model": "Qwen3.5-4B-Q4_K_M",
+    "language": "en",
+    "programs": 1,
+    "seed": 42,
+    "temperature": 0.2,
+    "baselineExecutions": 2,
+    "purposeOnlyDiagnosticExecutions": 1,
+    "independentFailureRateEstimated": false,
+    "sourceSha256": "f5b888012b5e53e27bb5703549283ca8997e418f70d5df4630f5782069125fa4",
+    "sourceLines": {
+      "function": 230,
+      "helper": 88,
+      "caller": 1
+    },
+    "evidenceDirectory": "/private/tmp/projectanalyzer-context-validation-D6nZxq",
+    "evaluatedBaseline": "42cc7fb8894fc8c4dd898bf9343940e6aa335178 plus context changes; unrelated working schema/normalizer edits excluded"
+  },
+  "observedSuccesses": {
+    "perScenarioExamples": [
+      {
+        "enabled": true,
+        "result": "enabled",
+        "correct": true
+      },
+      {
+        "enabled": false,
+        "result": "disabled",
+        "correct": true
+      }
+    ],
+    "coverage": {
+      "completed": 2,
+      "discovered": 2,
+      "total": 2,
+      "complete": true,
+      "sourceLimited": false
+    },
+    "sourceLinesMissing": false
+  },
+  "findings": [
+    {
+      "id": "Q1",
+      "severity": "P2",
+      "dimension": "Whole-function completeness",
+      "confidence": "confirmed",
+      "actualSummary": "The checkout function evaluates the enabled parameter. When enabled is true, it returns the string enabled after a helper call.",
+      "actualCharacters": 127,
+      "missing": "The enabled=false return of disabled is absent from the shared summary.",
+      "propagation": {
+        "sameSummaryInTwoPages": true,
+        "sameSummaryInBothEntryNodes": true
+      },
+      "repeatedWithSameFixedSeed": true,
+      "referenceSummary": "Call finish(\"source-0\"), then return \"enabled\" when enabled is true and \"disabled\" otherwise.",
+      "referenceCharacters": 93,
+      "summaryCharacterLimit": 240
+    },
+    {
+      "id": "Q2",
+      "severity": "P3",
+      "dimension": "Syntax explanation",
+      "confidence": "confirmed by source comparison",
+      "syntaxFields": 6,
+      "codeOnlyFields": 4,
+      "exactTargetCodeCopies": 2,
+      "wholeStatementCopiesForPredicateTargets": 2,
+      "observation": "Four syntax fields repeat source code instead of explaining declaration/call or conditional semantics. Two literal-return syntax fields provide explanations.",
+      "entries": [
+        {
+          "page": 0,
+          "code": "const item0 = finish(\"source-0\");",
+          "syntax": "const item0 = finish(\"source-0\");"
+        },
+        {
+          "page": 0,
+          "code": "enabled",
+          "syntax": "if (enabled) return \"enabled\";"
+        },
+        {
+          "page": 0,
+          "code": "return \"enabled\";",
+          "syntax": "The function returns the string literal 'enabled' when the condition is met."
+        },
+        {
+          "page": 1,
+          "code": "const item0 = finish(\"source-0\");",
+          "syntax": "const item0 = finish(\"source-0\");"
+        },
+        {
+          "page": 1,
+          "code": "enabled",
+          "syntax": "if (enabled) return \"enabled\";"
+        },
+        {
+          "page": 1,
+          "code": "return \"disabled\";",
+          "syntax": "The function returns the string literal 'disabled' because the enabled condition was false."
+        }
+      ]
+    },
+    {
+      "id": "Q3",
+      "severity": "P3",
+      "dimension": "Assumption classification",
+      "confidence": "confirmed",
+      "assumptions": [
+        {
+          "page": 0,
+          "conditions": [
+            "enabled => true"
+          ],
+          "items": [
+            "The boolean value of enabled is provided by the caller and assumed to be true in this scenario.",
+            "The function assumes standard TypeScript execution without external runtime interference."
+          ]
+        },
+        {
+          "page": 1,
+          "conditions": [
+            "enabled => false"
+          ],
+          "items": [
+            "The finish helper call does not alter the enabled parameter value.",
+            "The enabled input value remains constant throughout the function execution."
+          ]
+        }
+      ],
+      "totalItems": 4,
+      "knownScenarioOrSourceFacts": 3,
+      "genericEnvironmentBoilerplate": 1,
+      "observation": "The selected true input and preservation of enabled are known from the scenario/source. Generic runtime interference is not a concrete missing source dependency. These do not belong in unverified assumptions for this fixture."
+    },
+    {
+      "id": "Q4",
+      "severity": "P3",
+      "dimension": "Source-grounded wording",
+      "confidence": "confirmed wording, interpretation requires care",
+      "baselineWording": "The helper function is invoked with the source identifier to retrieve the initial data item.",
+      "diagnosticWording": "The checkout function returns a string indicating whether the checkout is enabled or disabled based on the enabled parameter, after performing a helper call that retrieves a source item.",
+      "sourceFact": "finish(value: string) returns value without a lookup or external read; source-0 is the literal argument.",
+      "observation": "Retrieving a source item adds a data-retrieval meaning that the identity helper does not establish. The output does not explicitly claim a database or network operation; those stronger claims are not attributed to it."
+    }
+  ],
+  "confirmedMechanism": [
+    {
+      "file": "src/webview/codeFlow/functionNarrativeScenarioSession.ts",
+      "line": 105,
+      "fact": "The first completed scenario summary is stored as the session purpose after structured validation and a length check; no whole-function semantic coverage test is present."
+    },
+    {
+      "file": "src/webview/codeFlow/functionNarrativeScenarioSession.ts",
+      "line": 95,
+      "fact": "Later paths receive the cached text as knownFunctionSummary."
+    },
+    {
+      "file": "src/application/functionNarratives/structuredResponse.ts",
+      "line": 110,
+      "fact": "Changing knownFunctionSummary is rejected. This preserves an incomplete earlier summary as well as correct ones."
+    },
+    {
+      "file": "src/application/functionNarratives/nodeInterpretation.ts",
+      "line": 126,
+      "fact": "The same summary is copied into the structural entry node of each scenario."
+    },
+    {
+      "file": "src/llm/functionNarratives/localProvider.ts",
+      "line": 47,
+      "fact": "For captured sourceEvidence, synthesis is disabled, so the existing dedicated purpose-only prompt path at line 64 is not selected in this flow."
+    },
+    {
+      "file": "src/llm/functionNarratives/localPrompt.ts",
+      "line": 168,
+      "fact": "knownFunctionSummary is described as a validated purpose even though the relevant checks establish structure/ownership rather than semantic completeness."
+    }
+  ],
+  "exploratoryComparison": {
+    "completed": true,
+    "sameModelAndFixtureSource": true,
+    "inputAudits": [
+      {
+        "name": "function",
+        "lines": 230,
+        "missingLineOrdinals": []
+      },
+      {
+        "name": "helper",
+        "lines": 88,
+        "missingLineOrdinals": []
+      },
+      {
+        "name": "caller",
+        "lines": 1,
+        "missingLineOrdinals": []
+      }
+    ],
+    "metrics": [
+      {
+        "promptTokens": 8722,
+        "cachedTokens": 0,
+        "outputTokens": 41,
+        "promptMs": 6452.48,
+        "outputMs": 670.784,
+        "generationMs": 7922.940166,
+        "contextTokens": 16384
+      }
+    ],
+    "summary": "The checkout function returns a string indicating whether the checkout is enabled or disabled based on the enabled parameter, after performing a helper call that retrieves a source item.",
+    "characters": 186,
+    "outcomeCoverage": "Both enabled and disabled are now named; their true/false mapping is implicit rather than stated as a full condition/result pair.",
+    "sourceGrounding": "Still describes an item retrieval not established by the helper source.",
+    "qualityQualified": false,
+    "factorsChangedTogether": [
+      "Whole-function task instead of scenario synthesis",
+      "Summary-only response schema",
+      "Removal of route task metadata",
+      "Prompt token count"
+    ],
+    "inference": "Task framing and cached-summary policy are justified first repair targets. This one comparison does not isolate the cause of the initial omission or estimate a general quality rate.",
+    "shutdownComplete": true,
+    "evidenceFile": "quality-summary-check.json",
+    "evidenceSha256": "391ebed72b8655f5067e73613c9e4e6d04dfaff0575bbfadaa0e3a119c9bed18"
+  },
+  "assessmentBoundaries": [
+    "The observed correct examples include source/schema constraints; they are not an independent measure of unconstrained model reasoning.",
+    "Six model calls in one analysis are dependent stages, not six independent quality samples.",
+    "Two identical fixed-seed runs demonstrate recurrence under the same conditions, not a population failure frequency.",
+    "Korean output and other function shapes have not been assessed in this quality study."
+  ],
+  "recommendedPriority": [
+    "Create/qualify a whole-function summary before promoting it into immutable cross-path state.",
+    "Keep source-confirmed facts separate from actual unknown assumptions and require explanatory syntax text.",
+    "Check free-prose action claims against the provided helper source, including identity helpers and unused local results."
+  ],
+  "acceptanceCriteria": [
+    "The global summary expresses both distinct return outcomes and their conditions in this fixture.",
+    "The helper is described as returning its argument; no unsupported retrieval behavior is added.",
+    "Syntax fields explain language behavior and may include code as evidence, but code alone is insufficient.",
+    "Assumptions contain only concrete information absent from the supplied source, and may be empty.",
+    "A path-specific incomplete summary cannot become an uncorrectable global purpose merely because it fits 240 characters."
+  ]
+}

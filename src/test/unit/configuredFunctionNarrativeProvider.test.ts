@@ -24,7 +24,7 @@ const context: FunctionNarrativeContext = { functionName: "inspect", language: "
 /** Only external VS Code/model ports are substituted; native setup and executable preflight are real. */
 function fixture(options: { modelPath?: string; binary?: string; provider?: string; cancel?: boolean; fail?: "integrity" | "storage";
   localProvider?: FunctionNarrativeProvider; manager?: ModelTaskManager } = {}) {
-  const config: Record<string, string> = { localBinary: options.binary ?? process.execPath, localModel: options.modelPath ?? "", provider: options.provider ?? "local" };
+  const config: Record<string, string | number> = { localBinary: options.binary ?? process.execPath, localModel: options.modelPath ?? "", provider: options.provider ?? "local" };
   const observed = { ensures: 0, local: [] as Array<{ binaryPath: string; modelPath: string }>, inferences: 0, progress: [] as Array<{ message?: string; increment?: number }>, titles: [] as string[], errors: [] as string[], selections: 0 };
   const api = {
     workspace: { getConfiguration(section: string) { assert.equal(section, "projectAnalyzer.functionNarratives"); return { get(key: string, fallback: string) { return config[key] ?? fallback; } }; } },
@@ -69,7 +69,7 @@ test("first explicit local setup downloads automatically, remains source-free an
   f.config.provider = "vscode";
   await f.provider.generate(context, "ko", controller.signal); await f.provider.generate(context, "ko", controller.signal);
   assert.equal(f.observed.ensures, 1); assert.equal(f.observed.selections, 0); assert.equal(f.observed.inferences, 2);
-  assert.deepEqual(f.observed.local, [{ binaryPath: process.execPath, modelPath: "/managed/fixture.gguf" }]);
+  assert.deepEqual(f.observed.local, [{ binaryPath: process.execPath, modelPath: "/managed/fixture.gguf", maxContextTokens: 32768, memoryReservePercent: 25 }]);
 });
 
 test("explicit local readiness is delegated inside the owning run while source-reading preparation stays lazy", async () => {
@@ -103,6 +103,19 @@ test("a configured existing GGUF skips managed download and native progress", as
     await f.provider.generate(context, "en", new AbortController().signal);
     assert.equal(f.observed.ensures, 0); assert.deepEqual(f.observed.titles, []); assert.equal(f.observed.local[0].modelPath, modelPath);
   } finally { await rm(directory, { recursive: true, force: true }); }
+});
+
+test("context settings stay bound across batches and select a new local controller on the next analysis", async () => {
+  const f = fixture(), signal = new AbortController().signal;
+  await f.provider.generate(context, "en", signal);
+  f.config.localContextTokens = 65536; f.config.localMemoryReservePercent = 20;
+  await f.provider.generate(context, "en", signal);
+  assert.equal(f.observed.local.length, 1);
+  await f.provider.generate(context, "en", new AbortController().signal);
+  assert.deepEqual(f.observed.local, [
+    { binaryPath: process.execPath, modelPath: "/managed/fixture.gguf", maxContextTokens: 32768, memoryReservePercent: 25 },
+    { binaryPath: process.execPath, modelPath: "/managed/fixture.gguf", maxContextTokens: 65536, memoryReservePercent: 20 }
+  ]);
 });
 
 test("a missing configured model falls back to automatic preparation without rewriting machine settings", async () => {
@@ -225,11 +238,10 @@ test("a scope acquisition failure preserves its category without inference or an
 
 test("source pages resume with the original model purpose producer without repeating model setup or exposing producer metadata in prompts", async () => {
   const manager = new ModelTaskManager(); let purposes = 0;
-  const local: FunctionNarrativeProvider = { supportsFinalSummary: () => true, async generate(task, language) {
-    assert.ok(task.summaryTask); purposes++;
-    const { buildPrimitiveNarrativeSynthesis } = await import("../../application/functionNarratives");
-    const synthesis = buildPrimitiveNarrativeSynthesis(task, language); assert.ok(synthesis);
-    return { modelName: "Original model", text: JSON.stringify({ ...synthesis, summary: "활성 여부에 따라 0을 조기 반환하거나 amount에 5를 더해 반환합니다." }) };
+  const local: FunctionNarrativeProvider = { supportsFinalSummary: () => true, supportsFunctionPurpose: () => true, async generate(task) {
+    assert.equal(task.functionPurposeTask, true); purposes++;
+    assert.equal(task.sourceFlow, undefined); assert.equal(task.summaryTask, undefined);
+    return { modelName: "Original model", text: JSON.stringify({ summary: "활성 여부에 따라 0을 조기 반환하거나 amount에 5를 더해 반환합니다." }) };
   } }, f = fixture({ localProvider: local, manager }), pages = new Map<number, FunctionNarrativePage>();
   // Defaults remain outside the body-only purpose contract; this fixture still
   // requires a real model purpose and verifies its cached producer lifecycle.

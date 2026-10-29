@@ -71,7 +71,7 @@ test("one explicit generation analyzes all eight paths and exposes bounded cache
   assert.equal(f.state.disposed, 1);
 });
 
-test("the native deadline adapter retains one whole-function scope and final synthesis, then cache reads stay inert", async () => {
+test("the legacy deadline adapter retains one whole-function scope without promoting scenario summaries, then cache reads stay inert", async () => {
   let active = false, scopes = 0, releases = 0;
   let scopeFailure: unknown;
   const phases: string[] = [];
@@ -106,7 +106,7 @@ test("the native deadline adapter retains one whole-function scope and final syn
     assert.equal(f.messages.at(-1)!.status, "ready", scopeFailure instanceof Error ? scopeFailure.stack : phases.join(","));
     assert.equal(phases[0], "nodes"); assert.equal(phases.at(-1), "summary"); assert.equal(scopes, 1); assert.equal(releases, 1);
     assert.equal(phases.filter(phase => phase === "summary").length, 8);
-    assert.deepEqual(purposes, [undefined, ...Array(7).fill("Final source synthesis.")]);
+    assert.deepEqual(purposes, Array(8).fill(undefined), "a provider without whole-purpose capability cannot promote its first route summary");
     assert.equal(f.messages.at(-1)!.narrative!.summary, "Final source synthesis.");
     const count = phases.length;
     await f.delivery.request({ ...request, requestId: 2, pageIndex: 0, pageLanguage: "en" });

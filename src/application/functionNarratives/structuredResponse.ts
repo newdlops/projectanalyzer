@@ -4,6 +4,7 @@ import { FunctionNarrativeError } from "./provider";
 import { buildFunctionCallNarrativePrompt } from "../functionCallNarratives";
 import { buildFunctionNarrativeExplanationGuidance, buildFunctionNarrativeRichGuidance, buildFunctionNarrativeEmptyRouteGuidance, numberFunctionNarrativeContext } from "./explanationGuidance";
 import { buildFunctionNarrativeScenarioFrames, getFunctionNarrativeExampleConstraints } from "./scenarioFrames";
+import { assertFunctionNarrativeQuality } from "./quality";
 
 /** Source is untrusted data. The request neither enables tools nor executes code. */
 export function buildFunctionNarrativePrompt(context: FunctionNarrativeContext, language: "ko" | "en"): [string, string] {
@@ -132,5 +133,6 @@ export function parseFunctionNarrative(text: string, context: FunctionNarrativeC
       ...frames.flatMap((frame) => [frame.title, ...frame.when, frame.outcome])];
     if (!isFunctionNarrativeLanguage(narrative, language, literals)) throw new FunctionNarrativeError("language-mismatch");
   }
+  assertFunctionNarrativeQuality(narrative, context);
   return narrative;
 }

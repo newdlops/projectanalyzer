@@ -141,7 +141,7 @@ export class FunctionNarrativesHostDelivery {
     if (request.requestId <= entry.lastRequestId) return;
     entry.lastRequestId = request.requestId;
     // Preserve every declared parameter; unsupported example size fails before download/inference instead of silently dropping inputs.
-    if ((entry.context.parameters?.length ?? 0) > 32) { await send({ status: "context-too-large" }); return; }
+    if ((entry.context.parameters?.length ?? 0) > 32) { await send({ status: "parameter-limit" }); return; }
     if (request.pageIndex !== undefined) {
       if (!await cacheCurrent()) return;
       const locale = request.pageLanguage ?? language;
@@ -304,6 +304,7 @@ export class FunctionNarrativesHostDelivery {
       // Each inference still queues independently; cancellation overrides retention.
       const boundedProvider: FunctionNarrativeProvider = {
         supportsFinalSummary: signal => provider.supportsFinalSummary?.(signal) === true,
+        supportsFunctionPurpose: signal => provider.supportsFunctionPurpose?.(signal) === true,
         async generate(context, locale, signal, options) {
           await sourceLease?.assertCurrent(signal);
           const response = await requestFunctionNarrative(provider, context, locale, signal, SCENARIO_BATCH_DEADLINE_MS, { ...options, ...operation });

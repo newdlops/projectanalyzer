@@ -2,6 +2,8 @@
 import type { FunctionNarrativeContext, FunctionNarrativeFlowStep } from "../../shared/functionNarratives";
 import { createFunctionCallNarrativeSchema, getFunctionCallFixedReason, getFunctionCallFixedOutput, getFunctionCallFixedEffects } from "../../shared/functionCallNarratives";
 import { buildFunctionNarrativeScenarioFrames, getFunctionNarrativeExampleConstraints, hasCompletePrimitiveWorksheet, getPrimitiveWorksheetAnalysis } from "../../application/functionNarratives";
+import { createDeclaredValueSchema } from "./typedValues";
+import { readSourcePrimitiveWrite } from "./operationValues";
 
 export function createLocalNarrativeSchema(context: FunctionNarrativeContext, language: "ko" | "en" = "en"): Record<string, unknown> {
   if (context.callTask) {
@@ -159,7 +161,8 @@ export function createLocalNarrativeSchema(context: FunctionNarrativeContext, la
   function targetValues(target: FunctionNarrativeFlowStep) {
     const name = target.kind === "return" ? "result" : target.writeTargets?.length === 1 ? target.writeTargets[0] : undefined;
     if (!name || context.valueNames?.length && !context.valueNames.includes(name)) return values;
-    const literal = target.kind === "mutation" && target.confidence === "exact" ? primitiveLiteral(target.code) : undefined;
+    const literal = target.kind === "mutation" && target.confidence === "exact"
+      ? readSourcePrimitiveWrite(context.language, target.code, name) : undefined;
     const after = target.kind === "return" ? resultValueSchema() : literal ? { const: literal.value }
       : numericWrite(name, target) ? { anyOf: [{ type: "number" }, { type: "null" }] } : values.items.properties.after;
     const declares = (code: string) => /^(?:val|var|let|const)\s+([\p{L}_$][\p{L}\p{N}_$]*)\b/u.exec(code)?.[1] === name;
@@ -334,31 +337,8 @@ export function createLocalNarrativeSchema(context: FunctionNarrativeContext, la
     return (language === "ko" ? "이 steps 슬롯의 소스 데이터: " : "Source data for this steps slot: ") + operation + ". " + timing;
   }
 
-  /** Only explicit primitive type spellings constrain values; aliases and compound types stay unknown. */
+  /** Use the same declared JSON-kind contract that response normalization verifies. */
   function inputValueSchema(type: string | undefined, nonNull = false): Record<string, unknown> {
-    const text = (type ?? "").replace(/\s/gu, "");
-    const nullable = context.language === "kotlin" && text.endsWith("?");
-    const primitive = nullable ? text.slice(0, -1) : text;
-    let value: Record<string, unknown> = {};
-    if (context.language === "kotlin") {
-      if (/^(?:kotlin\.)?(?:Int|Long|Short|Byte)$/u.test(primitive)) value = { type: "integer" };
-      else if (/^(?:kotlin\.)?(?:Double|Float)$/u.test(primitive)) value = { type: "number" };
-      else if (/^(?:kotlin\.)?Boolean$/u.test(primitive)) value = { type: "boolean" };
-      else if (/^(?:kotlin\.)?String$/u.test(primitive)) value = { type: "string", maxLength: 1200 };
-    } else if (["typescript", "javascript"].includes(context.language)) {
-      if (primitive === "number" || primitive === "boolean") value = { type: primitive };
-      else if (primitive === "string") value = { type: "string", maxLength: 1200 };
-    } else if (context.language === "python") {
-      if (primitive === "int") value = { type: "integer" };
-      else if (primitive === "float") value = { type: "number" };
-      else if (primitive === "bool") value = { type: "boolean" };
-      else if (primitive === "str") value = { type: "string", maxLength: 1200 };
-    }
-    if (nullable && value.type && !nonNull) return { anyOf: [value, { type: "null" }] };
-    if (!value.type && nonNull) return { anyOf: [
-      { type: "string", maxLength: 1200 }, { type: "number" }, { type: "boolean" },
-      { type: "array", items: {} }, { type: "object", additionalProperties: true }
-    ] };
-    return value;
+    return createDeclaredValueSchema(context.language, type, nonNull);
   }
 }

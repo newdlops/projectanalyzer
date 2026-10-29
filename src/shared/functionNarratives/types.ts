@@ -115,6 +115,8 @@ export type FunctionNarrativeContext = {
   valueNames?: string[];
   /** The current production reading contract; absent on legacy callers/cached responses. */
   detailLevel?: "rich";
+  /** Dedicated source-wide purpose request; no scenario result is eligible for purpose caching. */
+  functionPurposeTask?: true;
   /** Private node preparation never publishes its provisional paragraph/result. */
   nodePreparation?: boolean;
   /** Internal bounded node task; the original scenario/example is held fixed across chunks. */
@@ -123,7 +125,7 @@ export type FunctionNarrativeContext = {
     reading?: { explanation: string; priorState: Array<{ name: string; value: string }> } };
   /** Internal final synthesis uses completed node values; speculative primary prose is never carried forward. */
   summaryTask?: { inputs: FunctionNarrativeExample["inputs"]; steps: FunctionNarrativeStep[];
-    /** Validated purpose from this same source snapshot/locale, never provisional preparation text. */
+    /** Qualified source-wide purpose from this snapshot/locale, never a promoted scenario/preparation summary. */
     knownFunctionSummary?: string;
     /** Original validated producer for a cached purpose; Host-only, never prompt evidence. */
     knownModelName?: string;

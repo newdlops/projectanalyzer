@@ -1,6 +1,6 @@
 /** One scheduler-owned local model serves consecutive requests through a private Unix socket, then exits on idle. */
 import { spawn, type ChildProcess } from "node:child_process";
-import { access, mkdtemp, writeFile, rm } from "node:fs/promises";
+import { access, mkdtemp, writeFile, rm, stat } from "node:fs/promises";
 import { constants } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import { tmpdir } from "node:os";
@@ -9,11 +9,16 @@ import { request } from "node:http";
 import type { ModelTaskManager, ModelTaskResource } from "../../shared/modelTasks";
 import { FunctionNarrativeError } from "../../shared/functionNarratives";
 import { detectLocalNarrativeAcceleration } from "./localAcceleration";
+import { LOCAL_NARRATIVE_BASE_CONTEXT, LOCAL_NARRATIVE_OUTPUT_TOKENS, assertLocalNarrativeMemory,
+  estimateLocalNarrativePromptTokens, localNarrativeContextSettings, readLocalNarrativeMemory, selectLocalNarrativeContext,
+  type LocalNarrativeContextOptions } from "./context";
 
-type ServerOptions = { binaryPath: string; modelPath: string };
+type ServerOptions = LocalNarrativeContextOptions & { binaryPath: string; modelPath: string };
 export type LocalNarrativeMetrics = { promptTokens: number; cachedTokens: number; outputTokens: number; promptMs: number; outputMs: number;
   /** Full response latency after model readiness, including template/transport work, in milliseconds. */
-  generationMs: number };
+  generationMs: number;
+  /** Actual context allocated for this request, in tokens; contains no source. */
+  contextTokens?: number };
 type Json = Record<string, any>;
 const servers = new WeakMap<ModelTaskManager, Map<string, LocalNarrativeServer>>();
 
@@ -22,11 +27,17 @@ export async function getLocalNarrativeServer(manager: ModelTaskManager, options
   if (process.platform === "win32" || !/^(?:llama-completion|llama-cli)$/u.test(basename(options.binaryPath))) return undefined;
   const binaryPath = join(dirname(options.binaryPath), "llama-server");
   if (!await access(binaryPath, constants.X_OK).then(() => true, () => false)) return undefined;
-  const key = binaryPath + "\0" + options.modelPath;
+  const settings = localNarrativeContextSettings(options);
+  // A caller-owned OS boundary cannot inherit another provider's earlier
+  // observation source. Its provider already memoizes this controller.
+  // Keep telemetry callbacks/managers out of idle pooled options as well.
+  const controllerOptions = { binaryPath, modelPath: options.modelPath, ...settings };
+  if (options.memory) return new LocalNarrativeServer({ ...controllerOptions, memory: options.memory });
+  const key = JSON.stringify([binaryPath, options.modelPath, settings.maxContextTokens, settings.memoryReservePercent]);
   let pool = servers.get(manager);
   if (!pool) { pool = new Map(); servers.set(manager, pool); }
   let server = pool.get(key);
-  if (!server) { server = new LocalNarrativeServer({ binaryPath, modelPath: options.modelPath }); pool.set(key, server); }
+  if (!server) { server = new LocalNarrativeServer(controllerOptions); pool.set(key, server); }
   // Inactive controllers retain only paths. The manager owns the sole live process.
   while (pool.size > 8) pool.delete(pool.keys().next().value!);
   return server;
@@ -44,7 +55,15 @@ export class LocalNarrativeServer implements ModelTaskResource {
   private exitError?: FunctionNarrativeError;
   private acceleration?: string[];
   private prepared = false;
-  public constructor(private readonly options: ServerOptions) {}
+  private contextTokens = LOCAL_NARRATIVE_BASE_CONTEXT;
+  private requiredPromptTokens = 0;
+  private modelContextTokens?: number;
+  private readonly settings;
+  private readonly memory;
+  public constructor(private readonly options: ServerOptions) {
+    this.settings = localNarrativeContextSettings(options);
+    this.memory = options.memory ?? readLocalNarrativeMemory;
+  }
 
   /** True only after the runner health check; idle cleanup clears it with the owned process. */
   public get isPrepared(): boolean { return this.prepared; }
@@ -63,13 +82,28 @@ export class LocalNarrativeServer implements ModelTaskResource {
     const promptText = /^qwen3[.\-]/iu.test(basename(this.options.modelPath))
       && template.body.prompt.endsWith("<|im_start|>assistant\n")
       ? template.body.prompt + "<think>\n\n</think>\n\n" : template.body.prompt;
+    const tokenized = await this.json("POST", "/tokenize", { content: promptText, add_special: true, parse_special: true }, signal);
+    // Old companions can lack this endpoint. Their fallback counts UTF-8 bytes
+    // conservatively instead of assuming a language-dependent chars/token ratio.
+    const tokens = tokenized.status === 404 ? estimateLocalNarrativePromptTokens(promptText, "")
+      : tokenized.status === 200 && Array.isArray(tokenized.body.tokens) && tokenized.body.tokens.every(Number.isSafeInteger)
+        ? tokenized.body.tokens.length : NaN;
+    const contextTokens = selectLocalNarrativeContext({ promptTokens: tokens, settings: this.settings,
+      memory: await this.memory(signal), residentTokens: this.contextTokens, modelContextTokens: this.modelContextTokens });
+    if (contextTokens !== this.contextTokens) {
+      // The resource identity stays with the FIFO owner while the old process
+      // is reaped. Never hold two model processes during a context change.
+      await this.release();
+      this.requiredPromptTokens = tokens;
+      await this.prepare(signal);
+    }
     const reply = await this.json("POST", "/completion", { prompt: promptText, json_schema: schema,
       // Raw completion does not infer ChatML message spans from its prompt.
       // These exact delimiters let recurrent checkpoints retain source evidence
       // before the changing final user message; other templates stay untouched.
       ...(/^qwen3[.\-]/iu.test(basename(this.options.modelPath)) ? { message_delimiters:
         ["system", "user", "assistant"].map(role => ({ role, delimiter: "<|im_start|>" + role + "\n" })) } : {}),
-      n_predict: 2400, temperature: 0.2, seed: 42, cache_prompt: true, id_slot: 0, stream: false }, signal);
+      n_predict: LOCAL_NARRATIVE_OUTPUT_TOKENS, temperature: 0.2, seed: 42, cache_prompt: true, id_slot: 0, stream: false }, signal);
     if (reply.status !== 200) {
       const detail = classifyRunnerFailure(JSON.stringify(reply.body.error ?? {})) ?? "runner-response";
       throw new FunctionNarrativeError(detail === "input-window" ? "context-too-large" : "failed", detail);
@@ -82,7 +116,7 @@ export class LocalNarrativeServer implements ModelTaskResource {
     if (timing && onMetrics) {
       try { onMetrics({ promptTokens: timing.prompt_n ?? 0, cachedTokens: timing.cache_n ?? 0,
         outputTokens: timing.predicted_n ?? 0, promptMs: timing.prompt_ms ?? 0, outputMs: timing.predicted_ms ?? 0,
-        generationMs: performance.now() - started }); }
+        generationMs: performance.now() - started, contextTokens: this.contextTokens }); }
       catch { /* A source-free measurement observer cannot invalidate model work. */ }
     }
     return reply.body.content.trim();
@@ -99,6 +133,7 @@ export class LocalNarrativeServer implements ModelTaskResource {
     const directory = this.directory;
     this.child = undefined; this.closed = undefined; this.starting = undefined;
     this.socket = undefined; this.key = undefined; this.exitError = undefined; this.diagnostics = ""; this.prepared = false;
+    this.contextTokens = LOCAL_NARRATIVE_BASE_CONTEXT; this.requiredPromptTokens = 0;
     // A rejected deletion keeps its owned path so the scheduler's next release retries actual cleanup.
     if (directory) await rm(directory, { recursive: true, force: true });
     this.directory = undefined;
@@ -113,6 +148,9 @@ export class LocalNarrativeServer implements ModelTaskResource {
   /** Source-free loading is bounded by the caller's execution deadline, never started during activation. */
   private async start(signal: AbortSignal): Promise<void> {
     if (signal.aborted) throw new FunctionNarrativeError("cancelled");
+    const model = await stat(this.options.modelPath).catch(() => { throw new FunctionNarrativeError("unavailable", "model-not-found"); });
+    this.contextTokens = selectLocalNarrativeContext({ promptTokens: this.requiredPromptTokens, settings: this.settings,
+      memory: await this.memory(signal), modelBytes: model.size, modelContextTokens: this.modelContextTokens });
     const acceleration = this.acceleration ?? await detectLocalNarrativeAcceleration(this.options.binaryPath, signal);
     if (signal.aborted) throw new FunctionNarrativeError("cancelled");
     this.acceleration ??= acceleration;
@@ -123,7 +161,7 @@ export class LocalNarrativeServer implements ModelTaskResource {
     await writeFile(keyPath, this.key + "\n", { mode: 0o600 });
     if (signal.aborted) throw new FunctionNarrativeError("cancelled");
     const args = ["--model", this.options.modelPath, "--host", this.socket, "--api-key-file", keyPath, "--no-webui",
-      "--offline", "--no-warmup", "--ctx-size", "8192", "--parallel", "1", "--threads", "2", "--threads-batch", "2", "--threads-http", "1", "--poll", "0",
+      "--offline", "--no-warmup", "--ctx-size", String(this.contextTokens), "--parallel", "1", "--threads", "2", "--threads-batch", "2", "--threads-http", "1", "--poll", "0",
       ...this.acceleration,
       ...(/^qwen3[.\-]/iu.test(basename(this.options.modelPath)) ? ["--chat-template", "chatml", "--no-jinja", "--reasoning", "off"] : [])];
     // The watchdog observes parent-pipe EOF too, so a crashed/reloaded Host
@@ -146,7 +184,13 @@ export class LocalNarrativeServer implements ModelTaskResource {
         if (this.exitError) throw this.exitError;
         return { status: 503, body: {} };
       });
-      if (health.status === 200) return;
+      if (health.status === 200) {
+        const info = await this.json("GET", "/v1/models", undefined, signal);
+        const trained = info.status === 200 ? info.body.data?.[0]?.meta?.n_ctx_train : undefined;
+        if (Number.isSafeInteger(trained) && trained > 0) this.modelContextTokens = trained;
+        assertLocalNarrativeMemory(await this.memory(signal), this.settings);
+        return;
+      }
       await new Promise<void>((resolve, reject) => {
         const timer = setTimeout(done, 100);
         const abort = () => { clearTimeout(timer); signal.removeEventListener("abort", abort); reject(new FunctionNarrativeError("cancelled")); };
@@ -166,7 +210,8 @@ export class LocalNarrativeServer implements ModelTaskResource {
         const chunks: Buffer[] = []; let bytes = 0;
         response.on("data", (chunk: Buffer) => {
           bytes += chunk.length;
-          if (bytes > 196608) { connection.destroy(); reject(new FunctionNarrativeError("invalid-response", "output-limit")); }
+          // Token IDs for a 128K context need more room than a short JSON reply.
+          if (bytes > (path === "/tokenize" ? 2097152 : 196608)) { connection.destroy(); reject(new FunctionNarrativeError("invalid-response", "output-limit")); }
           else chunks.push(chunk);
         });
         response.on("error", () => reject(new FunctionNarrativeError("failed", "runner-connection")));

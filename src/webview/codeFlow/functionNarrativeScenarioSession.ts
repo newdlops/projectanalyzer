@@ -3,6 +3,7 @@ import { FunctionNarrativeError, FunctionNarrativeScenarioRun, parseFunctionNarr
   createFunctionNarrativeNodeTask, createFunctionNarrativeSummaryTask, appendFunctionNarrativeNodes, finalizeFunctionNarrativeNodes,
   selectPrimitiveNarrativeAlternative, buildFunctionNarrativeSourcePurpose, hasCompleteSourceWorksheet, createCompleteFunctionNarrativeRoot, type FunctionNarrativeProvider } from "../../application/functionNarratives";
 import type { FunctionNarrative, FunctionNarrativePage, FunctionNarrativeContext, FunctionNarrativePageStore } from "../../shared/functionNarratives";
+import { createFunctionNarrativePurposeTask, parseFunctionNarrativePurpose } from "../../application/functionNarratives";
 
 export type FunctionNarrativeStoredPage = { narrative: FunctionNarrativePage; modelName: string; offset: number; index: number };
 
@@ -56,6 +57,12 @@ export class FunctionNarrativeScenarioSession {
       return this.writePage(this.completePending.narrative, this.completePending.modelName, signal, options);
     }
     if (this.completePending) throw new FunctionNarrativeError("invalid-response");
+    if (batch.sourceEvidence && batch.detailLevel === "rich" && this.purpose?.language !== language && provider.supportsFunctionPurpose?.(signal)) {
+      const task = createFunctionNarrativePurposeTask(this.context);
+      const response = await provider.generate(task, language, signal, { reselectModel: options.reselectModel });
+      if (signal.aborted) throw new FunctionNarrativeError("cancelled");
+      this.purpose = { language, text: parseFunctionNarrativePurpose(response.text, task, language), modelName: response.modelName.slice(0, 100) };
+    }
     if (!this.pending) {
       const finalSummary = batch.detailLevel === "rich" && provider.supportsFinalSummary?.(signal) === true;
       const preparation = finalSummary ? { ...batch, nodePreparation: true } : batch;
@@ -85,11 +92,18 @@ export class FunctionNarrativeScenarioSession {
         const summaryTask = createFunctionNarrativeSummaryTask(batch, path, scenario);
         if (hasCompleteSourceWorksheet(summaryTask)) summaryTask.summaryTask!.sourceAlternative =
           selectPrimitiveNarrativeAlternative(this.context, path, summaryTask.summaryTask!.inputs, language);
-        // One immutable session already validated this snapshot/locale's whole
-        // purpose. Later pages still prove their own calculations and alternate
-        // before synthesis; repeating every route's purpose proof adds no facts.
+        // Only the dedicated source-wide request can populate purpose. A short
+        // scenario summary is never promoted to immutable cross-page state.
         if (!batch.sourceEvidence && this.purpose?.language !== language) {
           summaryTask.summaryTask!.sourceFunctionPurpose = buildFunctionNarrativeSourcePurpose(this.context, summaryTask, language);
+          // Legacy source recipes already prove the whole graph and may finish
+          // without weights. Only an unproved purpose needs a separate request.
+          if (!summaryTask.summaryTask!.sourceFunctionPurpose && provider.supportsFunctionPurpose?.(signal)) {
+            const task = createFunctionNarrativePurposeTask(this.context);
+            const response = await provider.generate(task, language, signal, { reselectModel: false });
+            if (signal.aborted) throw new FunctionNarrativeError("cancelled");
+            this.purpose = { language, text: parseFunctionNarrativePurpose(response.text, task, language), modelName: response.modelName.slice(0, 100) };
+          }
         }
         if (this.purpose?.language === language) {
           summaryTask.summaryTask!.knownFunctionSummary = this.purpose.text;
@@ -102,7 +116,9 @@ export class FunctionNarrativeScenarioSession {
         // completed node work private and resumes this exact stage next time.
         Object.assign(scenario, completed.scenarios[0], { nodeDetails: scenario.nodeDetails, graph: scenario.graph });
         pending.narrative.summary = completed.summary; pending.narrative.limitations = completed.limitations;
-        if (completed.summary.length <= 240) this.purpose = { language, text: completed.summary, modelName: response.modelName.slice(0, 100) };
+        if (summaryTask.summaryTask!.sourceFunctionPurpose && completed.summary === summaryTask.summaryTask!.sourceFunctionPurpose) {
+          this.purpose = { language, text: completed.summary, modelName: response.modelName.slice(0, 100) };
+        }
         pending.modelName = response.modelName; pending.summarized.add(pending.scenarioIndex);
       }
       if (path) finalizeFunctionNarrativeNodes(batch, path, scenario, pending.narrative.summary);

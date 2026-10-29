@@ -54,6 +54,10 @@ out/llm/functionNarratives/localResponse.js
 out/llm/functionNarratives/localServer.js
 out/llm/functionNarratives/localWire.js
 out/llm/functionNarratives/responseSchema.js
+out/llm/functionNarratives/quality.js
+out/llm/functionNarratives/context/**
+out/llm/functionNarratives/operationValues/**
+out/llm/functionNarratives/typedValues/**
 
 # The call-reading helper tree is bundled into its public facade at prepublish.
 out/application/functionCallNarratives/context.js

@@ -182,6 +182,56 @@ loop/exception transfer, inferred/partial/truncated evidence, 긴 식과 알 수
 초기 준비 문구는 저장하지 않는다. 각 시나리오의 상세 문단·대안은 계속 모델이 새로 작성한다.
 기존 노드 구문·동작·근거·효과·인용을 모두 유지하며 화면 배치도 유지한다.
 
+### 전체 목적과 시나리오 설명의 품질 경계
+
+캡처한 전체 소스를 사용하는 rich 로컬 분석은 선택 경로·예시 입력·완료 노드 값을 제외한
+`functionPurposeTask`를 먼저 요청한다. `supportsFunctionPurpose`를 제공하는 adapter만 이
+형식을 받는다. 같은 snapshot·언어에서 이 별도 요청의 목적을 240자 이내로 확인한 뒤
+각 페이지의 `knownFunctionSummary`로 재사용한다. 시나리오 최종 요약은 짧다는 이유만으로
+전체 목적에 승격하지 않는다. 기존 source-only 경로는 전체 graph를 확인한 source recipe를
+계속 사용할 수 있다. 목적 단계나 후속 단계가 실패하면 성공한 목적만 해당 session에 남고,
+실패 응답은 저장·게시하지 않는다.
+
+`analyzer/narrativeQuality`는 TypeScript/JavaScript 전체 선언에서 primitive 구문과
+직접 연결된 identity helper의 소스 사실을 읽는다. helper의 유일한 문장이 formal 인수의
+반환이고, 이름이 유일하며 호출 관계가 exact/resolved일 때만 그 계약을 제공한다. 불완전한
+캡처·inferred 호출·default/rest 인수·property 접근·외부 binding·지원 밖 제어 구문은
+닫힌 범위의 근거가 되지 않는다. 분기 반환은 반복 기반 queue와 visited set으로 읽으며,
+1,024개 상태·경로당 128개 문장·16개 조건/반환의 예산을 넘으면 반환 coverage를 미확인으로
+유지한다. 원본 소스와 인용은 자르거나 변경하지 않는다.
+
+로컬 grammar와 prompt는 이 사실을 사용해 소스로 알려진 입력 선택·일반 실행 전제를
+`assumptions`에서 제외한다. 지원되는 닫힌 범위에서는 assumptions/limitations가 []이며,
+미확인 helper·외부 결과가 있는 범위의 배열은 유지한다. 모델의 `syntax`가 code 또는 인용한
+소스 구문을 그대로 복사하면 거부한다. identity helper에 근거 없는 조회·검색 의미를 붙이거나,
+닫힌 소스에 없는 else 블록을 설명하거나, exact literal return의 result 값에 따옴표를 중복
+인코딩한 응답도 게시하지 않는다. 고정된 소스 해설을 제외한 설명은 모델이 작성하며, 품질 오류에는 같은
+FIFO 자원·deadline에서 최대 한 번 재생성을 허용한다. 두 번째 실패는 기존 실패 상태로
+전달하고 임의의 문장이나 값으로 수리하지 않는다.
+
+지원되는 primitive 구문에는 런타임 타입 검사 연산이 없으므로, Boolean 값의 분기를
+타입 검사라고 설명하면 거부한다. 같은 블록에서 바로 뒤의 if 판단보다 먼저 실행되는
+identity 호출에는 해당 인수·반환·저장 위치를 별도의 소스 사실로 제공한다. 리터럴 인수를
+받는 이 호출을 뒤 조건의 참/거짓 때문에 실행한다고 설명하는 응답도 거부한다. 소스로
+확인된 리터럴 반환값·identity 인수의 저장값·변경되지 않은 Boolean 입력 행은 생성 전
+grammar에 고정해 중복 인코딩이나 값 칸의 설명문을 막는다. 이 고정 값은 모델의 계산 성과로
+세지 않는다. 목적 coverage는 지원되는 닫힌 범위의 짧은 결과에 적용하며, literal Boolean
+guard와 모순되는 반복 guard 경로는 제외한다. 지원 밖 제어 구문이나 예산 초과에서 일부
+반환만 골라 coverage를 확인하지 않는다.
+
+`application/functionNarratives/sourceQualityReading`은 전체 본문이 리터럴 identity 인수의
+지역 저장들 → Boolean 입력의 단일 조기 반환 → 리터럴 최종 반환인 경우를 독립적으로
+확인한다. exact terminal 경로에서만 현재 입력의 문단·경로 근거·상태 변화·대안을 소스로
+구성한다. 전체 문단 600자 또는 analysis 각 220자 예산을 넘거나 추가 연산·inferred 단계가
+있으면 이 recipe를 사용하지 않는다. 리터럴 반환의 구문·동작·근거·효과도 확인된 소스
+표현식으로 구성해 실제로 없는 result 지역 변수 대입이나 출력 동작을 만들지 않는다.
+이 문단과 리터럴 설명 역시 모델의 자연어 추론 성과로 세지 않는다. 함수 전체 목적과
+helper·조건 구문의 문장은 모델이 작성한다.
+
+이 검사는 알려진 결함의 source/prose 역할을 제한한다. 모든 자연어 문장의 의미, 런타임의
+실제 결과 또는 지원 밖 구문의 정확성을 증명하지 않는다. 실제 모델 검증의 범위와 결과는
+`LOCAL_NARRATIVE_QUALITY_VALIDATION.json`에 기록한다.
+
 ### 0.0.1142 모델 준비 이후 전체 설명 완료 시간
 
 3초 목표의 기준은 **모델 준비 완료 → 전체 설명의 생성·decode·검증 완료**다. 다운로드,
@@ -1906,6 +1956,22 @@ Kotlin도 예시 입력을 편집·삭제·추가할 수 있으며 **모델 예�
 VS Code 연결 모델을 쓰려면 `projectAnalyzer.functionNarratives.provider`를 `vscode`로 바꾼다.
 여러 등록 모델 중 선택하며 필요한 접근 동의는 VS Code UI를 따른다. 접근 실패, 잘못된
 응답 또는 timeout 후 재시도는 다른 모델을 선택할 수 있다. 로그인·API key를 자동 처리하지 않는다.
+
+### 로컬 입력 문맥과 메모리 여유
+
+로컬 문맥 상한은 `projectAnalyzer.functionNarratives.localContextTokens`로 조절한다.
+기본 상한은 32,768토큰이며 8,192~131,072 범위에서 설정할 수 있다. 서버는 8K로
+시작해 실제 입력 토큰과 응답 예산에 맞춰 필요한 만큼 확장한다. 서버가 제공하는
+모델의 학습 문맥 한도도 적용한다. 기존 프로세스가 종료된 뒤 더 큰 문맥으로 준비하므로
+두 모델을 동시에 실행하지 않는다. 커스텀 CLI/구형 서버는 UTF-8 바이트 기반 추정을
+사용할 수 있다. 소스 수집/구조 한도는 이 토큰 설정과 별도로 적용한다.
+
+`projectAnalyzer.functionNarratives.localMemoryReservePercent`는 기본 25%이며 20~30%
+범위에서 다른 앱과 운영체제를 위한 여유를 정한다. 할당 추정 예산 또는 관측된 여유가
+부족하면 해당 요청을 멈추고 완료된 시나리오는 보존한다. 설정 변경은 다음 분석부터
+적용한다. 모델별 실제 메모리와 다른 앱의 동시 사용량까지 고정할 수는 없다.
+입력 문맥, 메모리 부족, 함수 예시 입력 32개 제한은 서로 다른 오류로 안내한다.
+추정 방식과 실행 계약은 [로컬 문맥 명세](LOCAL_NARRATIVE_CONTEXT.md)를 따른다.
 
 ### 모델 작업 확인과 취소
 

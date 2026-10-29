@@ -1,7 +1,7 @@
 /** Correlated source-reading LLM requests; browser input contains no source, model prompt or filesystem path. */
 import type { CodeFlowId } from "./codeFlow";
 import type { CodeFlowEvidenceToken } from "./functionLogic";
-import type { FunctionNarrativePage, FunctionNarrativeSnippet } from "../shared/functionNarratives";
+import type { FunctionNarrativePage, FunctionNarrativeSnippet, FunctionNarrativeFailure } from "../shared/functionNarratives";
 import type { ModelTaskProgress } from "../shared/modelTasks";
 import type { NarrativePublicationMetadata } from "../shared/narrativePublications";
 
@@ -24,7 +24,7 @@ export type FunctionNarrativeSourceRequest = {
   pageIndex?: number;
 };
 export type FunctionNarrativesResponse = FunctionNarrativesRequest & NarrativePublicationMetadata & {
-  status: "ready" | "progress" | "working" | "queue-full" | "unavailable" | "download-failed" | "cancelled" | "denied" | "timeout" | "invalid-response" | "language-mismatch" | "context-too-large" | "failed" | "stale";
+  status: "ready" | "progress" | "working" | FunctionNarrativeFailure | "stale";
   /** Correlated, source-free scheduler state; this never replaces cached narratives or marks generation complete. */
   task?: ModelTaskProgress;
   modelName?: string;

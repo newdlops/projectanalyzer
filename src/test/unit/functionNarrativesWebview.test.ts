@@ -220,3 +220,29 @@ test("download failure restores a focused retry action with localized resumable-
     widget.dispose();
   } finally { runtime.restore(); }
 });
+
+test("context, memory and argument limits remain distinct localized failures with a focused retry action", () => {
+  for (const locale of ["ko", "en"] as const) for (const [status, expected] of [
+    ["context-too-large", locale === "ko" ? "로컬 문맥 상한" : "Local Context Tokens"],
+    ["memory-pressure", locale === "ko" ? "메모리 여유" : "configured reserve"],
+    ["parameter-limit", locale === "ko" ? "입력 매개변수 32개" : "32 input parameters"]
+  ]) {
+    const runtime = installSidebarWebviewRuntime();
+    try {
+      const posts: Array<{ type: string; payload: Record<string, unknown> }> = [];
+      const browser = new Function("state", "vscode", getBrowserLocalizationSource() + getFunctionNarrativesBrowserSource()
+        + "return {create:createFunctionNarratives,accept:acceptFunctionNarrativesResponse,locale:applyProjectAnalyzerLanguage};")({ graph: { version: "fixture" }, uiLanguage: locale }, { postMessage(message: typeof posts[number]) { posts.push(message); } });
+      browser.locale(locale);
+      const widget = browser.create({ functionId: flowId, narratives: { available: true, contextId } }, {});
+      document.getElementById("narrative-root")!.append(widget.element);
+      runtime.focusRenderedByClassNth("narrative-root", "logic-narrative-request", 0);
+      runtime.clickRenderedByClassNth("narrative-root", "logic-narrative-request", 0);
+      browser.accept({ ...posts[0].payload, status });
+      assert.ok(runtime.getRenderedText("narrative-root").some(text => text.includes(expected)));
+      assert.equal(runtime.getFocusedElementId(), runtime.getRenderedIdentityByClassNth("narrative-root", "logic-narrative-request", 0));
+      runtime.clickRenderedByClassNth("narrative-root", "logic-narrative-request", 0);
+      assert.equal(posts.length, 2);
+      widget.dispose();
+    } finally { runtime.restore(); }
+  }
+});

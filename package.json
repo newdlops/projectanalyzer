@@ -2,7 +2,7 @@
   "name": "function-analysis",
   "displayName": "%extension.displayName%",
   "description": "%extension.description%",
-  "version": "0.0.1146",
+  "version": "0.0.1147",
   "publisher": "newdlops",
   "private": true,
   "license": "MIT",
@@ -144,6 +144,23 @@
           "default": "",
           "scope": "machine",
           "description": "%configuration.functionNarratives.localModel%"
+        },
+        "projectAnalyzer.functionNarratives.localContextTokens": {
+          "type": "integer",
+          "default": 32768,
+          "minimum": 8192,
+          "maximum": 131072,
+          "multipleOf": 1024,
+          "scope": "machine",
+          "description": "%configuration.functionNarratives.localContextTokens%"
+        },
+        "projectAnalyzer.functionNarratives.localMemoryReservePercent": {
+          "type": "integer",
+          "default": 25,
+          "minimum": 20,
+          "maximum": 30,
+          "scope": "machine",
+          "description": "%configuration.functionNarratives.localMemoryReservePercent%"
         },
         "projectAnalyzer.enabled": {
           "type": "boolean",

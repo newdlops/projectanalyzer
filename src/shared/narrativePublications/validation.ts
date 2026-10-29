@@ -10,5 +10,5 @@ export function isNarrativePublicationRevocation(value: unknown): boolean {
   return record.publicationRevoked === true && isNarrativePublicationId(record.publicationId) && record.narrative === undefined
     && typeof record.graphVersion === "string" && record.graphVersion.length > 0 && record.graphVersion.length <= 512
     && Number.isSafeInteger(record.requestId) && (record.requestId as number) >= 0 && ["ko", "en"].includes(record.language as string)
-    && ["failed", "stale", "cancelled", "timeout", "invalid-response", "language-mismatch", "context-too-large", "unavailable", "denied", "download-failed", "queue-full"].includes(record.status as string);
+    && ["failed", "stale", "cancelled", "timeout", "invalid-response", "language-mismatch", "context-too-large", "parameter-limit", "memory-pressure", "unavailable", "denied", "download-failed", "queue-full"].includes(record.status as string);
 }

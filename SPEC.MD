@@ -1595,6 +1595,21 @@ Webview는 Project Graph, 파일 시스템, VS Code API에 직접 접근하지 �
   text로 encode한다. 계산식을 숫자로 수리하지 않는다. return 식의 연산은 모델이 설명한 뒤
   result 값을 쓰며 exact literal return/write·변경되지 않은 Boolean input guard·선언 전 표시는 source-owned
   사실을 사용한다. object/array 고정 결과는 값으로 비교하고 원래 JSON 순서를 복원한다.
+  단일 exact primitive write는 낮춰진 리터럴 operand뿐 아니라 전체 `val`/`var`/`let`/`const`
+  선언과 직접 대입의 RHS도 source-owned literal로 확인한다. 현재 구문의 유일한 write target과
+  전체 LHS가 같고 숫자·Boolean·null의 지원 표기일 때만 적용하며, alias·호출·접근·대입 chain·
+  복합 계산·언어별 숫자 suffix는 기존 unknown fallback을 유지한다. 문장·소스는 바꾸지 않고
+  잘못된 initializer 값은 응답 정규화에서 수리하지 않고 거부한다.
+  `operationValues.checkSourceExample`는 실제 JSON 예시와 같은 source owner의 exact 경로를
+  반복 기반으로 확인한다. primitive 입력·단순 지역 대입/증감·배열/문자열 길이·명시적인
+  primitive 배열 읽기에서 확인된 조건과 최종 primitive 결과만 비교한다. 예시가 선택 경로에
+  도달할 수 없거나 확인된 결과와 다르면 거부하며, 확인된 판단 노드에는 모델이 작성한
+  `condition` 값을 요구한다. 다른 선택적 값 행과 모든 설명 문장은 유지한다. 실제 source
+  binding의 `condition` 이름은 synthetic 판단과 혼동하지 않는다. alias·opaque 호출/연산·
+  inferred/잘린 source·finally continuation·지원 범위를 넘는 숫자 반올림/overflow는 unknown을
+  유지한다. 최대 step 인자와 visited occurrence set을 두며, node preparation의 null 결과를
+  완성된 결과로 판정하지 않는다. 고정 값 행의 name/after는 locale에 독립적인 source 사실로
+  확인하고, 선언/반환 전 같은 localized before 문구와 모델 문장은 수리하지 않는다.
   제한·생략 없는 exact primitive path이며 calls/accesses/unknown identifiers가 없을 때만
   assumptions/limitations를 []로 고정한다. 그 외 경로는 기존 미확인 정보 계약을 유지한다.
   이 계약은 모델 문장이나 실제 실행의 정확성 보장이 아니다.
@@ -1688,7 +1703,27 @@ Webview는 Project Graph, 파일 시스템, VS Code API에 직접 접근하지 �
   넘긴다. 0.0.1120에서는 Kotlin Int의 0 방향 정수 나눗셈/나머지도 다루며, 0 divisor와
   overflow는 모델 분석으로 넘긴다. nested control block은 함수 scope의 기존 binding
   갱신만 허용하고 그 안의 선언·shadowing·nested callable은 거부한다. source는 실행하지 않는다.
-  동일 snapshot·언어의 검증된 목적 요약 240자 하나만 재사용한다. 완료된 노드의 code·값과
+  동일 snapshot·언어의 검증된 목적 요약 240자 하나만 재사용한다. 캡처 소스의 rich local
+  경로에서는 `supportsFunctionPurpose`가 있는 provider에 선택 경로·예시·완료 값이 없는
+  `functionPurposeTask`를 먼저 요청한다. 별도 source-wide 응답이나 전체 graph source recipe만
+  재사용할 수 있으며, 시나리오 summary는 길이만으로 전체 목적에 승격하지 않는다.
+  `analyzer/narrativeQuality`의 반복 기반 TypeScript/JavaScript 구문 검사는 전체 선언과
+  exact/resolved identity helper를 읽는다. 닫힌 primitive 범위만 assumptions/limitations를 []로
+  제한하고, 코드뿐인 syntax·근거 없는 identity-helper 조회 의미·존재하지 않는 else 블록·
+  exact literal return의 잘못된 결과 인코딩을 거부한다. 최대 4개의 짧은 literal 결과가 있는
+  목적은 모든 결과의 언급도 확인한다. 품질 오류에는 같은 FIFO/deadline 안에서 한 번만
+  재생성하고, 실패 문장·값을 임의로 바꾸지 않는다. source 누락·inferred 호출·지원 밖 구문은
+  닫힌 범위의 근거가 아니며, 이 검사가 모든 자연어 의미나 실행 정확성을 증명하지는 않는다.
+  닫힌 범위의 Boolean 분기를 런타임 타입 검사라고 부르거나, 같은 블록의 뒤 조건을
+  앞선 리터럴 identity 호출의 원인으로 설명하면 거부한다. 해당 identity 인수의 저장값·
+  exact literal return·변경되지 않은 Boolean 입력 행은 생성 전에 source-owned 값으로
+  고정하며, 비고정 설명 문장은 모델이 작성한다. 이 값을 모델의 계산 성과로 간주하지 않는다.
+  전체 본문이 literal identity 인수의 저장들 → Boolean 입력의 조기 literal return →
+  마지막 literal return인 recipe는 exact terminal 경로에서만 문단/analysis도 소스로
+  구성한다. 600/220자 상한을 넘거나 추가 연산·inferred 단계가 있으면 사용하지 않는다.
+  확인된 literal return의 네 설명 필드도 소스로 구성하며, 함수 목적과 helper/조건 해설은
+  모델이 작성한다. source-owned 문장은 모델의 자연어 추론 성과에 포함하지 않는다.
+  완료된 노드의 code·값과
   독립 source trace가 모두 일치하고 누락된 값이 없으면 최종 pathReason/stateChange를
   concrete 조건 대입·모든 지역 before/after·반환 근거로 고정할 수 있다. 220자를 넘는
   근거는 자르지 않고 기존 LLM에 맡긴다. 이 고정 근거는 현재 task에도 전달해 문단의
@@ -1803,6 +1838,14 @@ Webview는 Project Graph, 파일 시스템, VS Code API에 직접 접근하지 �
   입력 크기·깊이·유한 숫자·금지 key 검사와 Host의 source/route 검증은 유지한다. 소스 언어의
   객체·배열 리터럴 문자열을 JSON으로 추측 변환하거나 실행하지 않는다. node/call과 connected
   provider의 기존 응답 계약은 유지한다.
+  Kotlin의 명시적 primitive array(`IntArray`, `DoubleArray`, `BooleanArray` 등)와
+  `Array<T>`, TypeScript/JavaScript의 postfix array(`number[]`, `readonly string[]`,
+  중첩 `T[][]`)는 grammar와 로컬 응답 정규화에서 실제 JSON 배열과 알려진 element kind를
+  함께 요구한다. Kotlin nullable 배열과 nullable element를 분리하며 non-null 경로는 배열 자체의
+  null만 제외한다. 미확인 element alias는 JSON 종류를 추측하지 않고, array shape만
+  유지한다. 배열 길이·원소 값·설명은 모델이 작성하고 scalar나 배열 리터럴 문자열을
+  배열로 복구하지 않는다. 기존 portable 크기·깊이·금지 key 한도와 source/route 검증은
+  유지한다. 이 kind 검증은 실행 완료·원소의 언어별 숫자 범위·설명 의미의 증명이 아니다.
   선택 가능한 VS Code adapter는 연결된 Chat model의 token 한도를 확인한 뒤 실제
   `sendRequest`/response stream을 사용한다. 모델 학습·API key 보관은 하지 않는다.
 - `shared/modelTasks.ModelTaskManager`는 한 Extension Host의 Guide·호출 해설·local/connected

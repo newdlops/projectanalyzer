@@ -1,0 +1,100 @@
+{
+  "kind": "validated-local-vsix-release",
+  "version": "0.0.1147",
+  "createdAt": "2026-10-29T10:51:59.293274+00:00",
+  "parentCommit": "42cc7fb8894fc8c4dd898bf9343940e6aa335178",
+  "distribution": {
+    "channel": "local-vsix",
+    "target": "darwin-arm64",
+    "extensionId": "newdlops.function-analysis"
+  },
+  "scope": [
+    "Adaptive complete-source context and 20–30% memory reserve",
+    "Source-grounded narrative quality and separate whole-function purpose",
+    "Declared JSON values and source-backed example validation",
+    "Bundle helper exclusions preserving the 512-file package budget"
+  ],
+  "validation": {
+    "releaseMetadata": true,
+    "typescriptCompilation": true,
+    "rust": {
+      "passed": 88,
+      "failed": 0,
+      "logSha256": "a4af6f80a5c3a43c8713b1a9a4722ee8cac691135b4e187b38480e10c6d6b5d6"
+    },
+    "packaging": {
+      "counts": {
+        "tests": 92,
+        "pass": 92,
+        "fail": 0
+      },
+      "logSha256": "a54d2ddad36411c9c5ac9dac0486cb0d15a0c3f3865c32f2b255b506cb9ae95b"
+    },
+    "fullNodeSuite": {
+      "counts": {
+        "tests": 1684,
+        "pass": 1657,
+        "fail": 27
+      },
+      "allPassed": false,
+      "failureNamesIdenticalToBaseline": true,
+      "newFailures": [],
+      "failureNames": [
+        "Function Guide builds nested object input representatives from declared fields",
+        "Function Guide type baseline bypasses unknown dynamic callsite arguments",
+        "a concurrent cache lookup cannot see a partial native root page and cancellation removes all pages before a fresh retry",
+        "a source change combined with an actual native close-proof failure still revokes the complete Host cache as stale",
+        "actual native Host cancellation reaps a noncooperative child before releasing FIFO ownership and never publishes a partial answer",
+        "bad-close from the actual native child cannot publish Host ready or fall back to legacy generation",
+        "call-bad-close discards every private call/page and closes its actual child",
+        "cancelled native calls expose no prefix and a retry regenerates priors only from its new actual worker action",
+        "cancelling a live native request keeps the next FIFO action unspawned until actual force-kill close",
+        "failure receipt waits for rejected outer manager settlement and retains body plus cleanup failures",
+        "manager disposal cancels the same root action's real call-source file I/O and waits for I/O and actual child close",
+        "manager disposal propagates its owned signal into actual Host page I/O and waits for both that I/O and actual child close",
+        "manager disposal reaches actual call capture I/O and waits for that I/O and real child close",
+        "native action preserves distinct body and cleanup errors and cannot record scheduler success",
+        "native call source mutation combined with close-proof failure remains stale and revokes all cache authority",
+        "native cancellation during source or storage I/O waits for that callback and the actual worker close",
+        "native worker disposal blocks shutdown until actual close and callback cleanup finish",
+        "projects and evaluates advanced private Scenario calls from TS and JS roots without graph method edges",
+        "ready clock exit fails before source work and settles after actual child close",
+        "ready clock missing fails before source work and settles after actual child close",
+        "ready clock nonce fails before source work and settles after actual child close",
+        "ready clock order fails before source work and settles after actual child close",
+        "ready clock silent fails before source work and settles after actual child close",
+        "root cancellation has a failed-action receipt only after actual child close and all Host cleanup",
+        "root cleanup from an older close-proof failure cannot revoke a newer successful request",
+        "source mutation after call priors plus invalid native close proof remains stale and never sends a root packet",
+        "unawaited native work fails its action instead of releasing a successful owner with a live request"
+      ],
+      "logSha256": "6d295ec4d24afe0b5cb0792f78668d169b29e03982b6fd394477b82ad6b92eeb",
+      "baselineLogSha256": "23d7e301a5936f2706d5c78777697c11f67f988f2eb2aea220897b79cfee90fc",
+      "testConcurrency": 2
+    },
+    "postBundle": {
+      "counts": {
+        "tests": 132,
+        "pass": 132,
+        "fail": 0
+      },
+      "logSha256": "6eeb9c859d5d32de3b6e68f429b75b790c0ea5d758ef3eb592a543c8abf97182"
+    },
+    "compiledRuntimeClosure": true,
+    "secretScanRetained": true,
+    "sourceModelAssetsExcludedFromVsix": true,
+    "qualityEvidence": "LOCAL_NARRATIVE_QUALITY_VALIDATION.json",
+    "contextEvidence": "LOCAL_NARRATIVE_CONTEXT_VALIDATION.json"
+  },
+  "artifact": {
+    "version": "0.0.1147",
+    "sha256": "3ee0b8844a5a61bc5339b05a75175cd48225e990e9d3f27f83f0b2164fd115ec",
+    "bytes": 4033520,
+    "files": 503,
+    "unpackedBytes": 17333745,
+    "containsPrivateModelAssets": false,
+    "containsSourceTests": false,
+    "file": "function-analysis-0.0.1147-darwin-arm64.vsix"
+  },
+  "localEvidenceDirectory": "/private/tmp/projectanalyzer-release-1147-b1t5y51x"
+}

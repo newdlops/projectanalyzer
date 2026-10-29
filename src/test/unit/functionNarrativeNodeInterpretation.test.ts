@@ -67,7 +67,7 @@ test("an oversized parameter list reports its bound before preparing or running 
   const f = fixture({ async prepare() { prepared++; }, async generate(input) { generated++; return reply(input); } }, context);
   try {
     await f.delivery.request(request);
-    assert.equal(f.messages.at(-1)!.status, "context-too-large");
+    assert.equal(f.messages.at(-1)!.status, "parameter-limit");
     assert.equal(prepared, 0); assert.equal(generated, 0);
   } finally { f.delivery.clear(); }
 });

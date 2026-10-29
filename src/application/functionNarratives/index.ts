@@ -17,4 +17,7 @@ export type { FunctionNarrativeModelResponse, FunctionNarrativeGenerationOptions
 export { scheduleFunctionNarrativePreparation, scheduleFunctionNarrativeRequest, MODEL_INFERENCE_TIMEOUT_MS } from "./queuedProvider";
 export { requestFunctionNarrative, requestFunctionNarrativeRoot, requestFunctionNarrativeCall } from "./request";
 export { createCompleteFunctionNarrativeRoot } from "./completeRoot";
+export { buildFunctionNarrativeQualityReading } from "./sourceQualityReading";
+export { createFunctionNarrativePurposeTask, parseFunctionNarrativePurpose, assertFunctionNarrativeQuality,
+  readNarrativeQualityFacts, findFunctionNarrativeLiteralReturn, functionNarrativeQualityRepair } from "./quality";
 export { FunctionNarrativeHostRun, type FunctionNarrativeHostStatus, type FunctionNarrativeHostSettlement, type FunctionNarrativeRunCompletion, type FunctionNarrativeRunLifecycle } from "./hostRun";

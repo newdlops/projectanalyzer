@@ -10,7 +10,9 @@ export function modelTaskFailureText(code: string | undefined, language: "ko" | 
     "queue-full": "대기열 가득 참", unavailable: "실행 도구·모델 미확인", denied: "모델 접근 거부", "context-too-large": "입력 한도 초과", failed: "모델 실행 실패", timeout: "실행 시간 초과", cancelled: "취소" };
   const en: Record<string, string> = { "invalid-response": "Response validation failed", "language-mismatch": "Response language mismatch", "download-failed": "Model preparation failed",
     "queue-full": "Queue full", unavailable: "Runner/model unavailable", denied: "Model access declined", "context-too-large": "Input limit exceeded", failed: "Model execution failed", timeout: "Execution timed out", cancelled: "Cancelled" };
-  return code ? (language === "ko" ? ko : en)[code] ?? (language === "ko" ? "실패" : "Failed") : "";
+  const limits: Record<string, string> = language === "ko" ? { "memory-pressure": "메모리 여유 부족", "parameter-limit": "함수 입력 매개변수 한도 초과" }
+    : { "memory-pressure": "Insufficient memory headroom", "parameter-limit": "Function input parameter limit" };
+  return code ? limits[code] ?? (language === "ko" ? ko : en)[code] ?? (language === "ko" ? "실패" : "Failed") : "";
 }
 
 /** A categorical hint lets users choose a concrete recovery without seeing private runner output. */
@@ -22,5 +24,9 @@ export function modelTaskDiagnosticText(code: string | undefined, language: "ko"
   const en: Record<string, string> = { "memory-allocation": "Memory allocation failed; stop other model work, then retry", "input-window": "Model input window exceeded",
     "model-load": "Model file could not load", "runner-arguments": "Runner option unsupported", "response-grammar": "Response grammar preparation failed",
     "runner-not-found": "Runner not found", "model-not-found": "Model file not found", "output-limit": "Response size limit exceeded", "spawn-failed": "Process could not start" };
-  return (language === "ko" ? ko : en)[code] ?? code;
+  const context: Record<string, string> = language === "ko" ? { "memory-reserve": "설정한 메모리 여유 비율 미달", "memory-observation": "메모리 여유 확인 실패",
+    "context-memory-budget": "문맥 확장에 필요한 메모리 부족", "configured-context-limit": "설정한 로컬 문맥 상한 초과", "model-context-limit": "모델의 학습 문맥 한도 초과", "runner-tokenization": "모델 입력 토큰 수 확인 실패" }
+    : { "memory-reserve": "Configured memory reserve not available", "memory-observation": "Memory headroom could not be measured",
+      "context-memory-budget": "Insufficient memory for this context", "configured-context-limit": "Configured local context ceiling exceeded", "model-context-limit": "Model's trained context limit exceeded", "runner-tokenization": "Prompt token count could not be measured" };
+  return context[code] ?? (language === "ko" ? ko : en)[code] ?? code;
 }

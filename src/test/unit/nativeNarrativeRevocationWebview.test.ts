@@ -8,7 +8,7 @@ const revoked = (ready: Record<string, any>, status = "failed") => ({ ...ready, 
 const rootCount = (f: ReturnType<typeof installRootPublicationUi>) => f.runtime.countRenderedByClass("narrative-root", "logic-narrative-scenario");
 const callCount = (f: ReturnType<typeof installCallPublicationUi>) => f.runtime.countRenderedByClass("narrative-root", "calls-reading-facts");
 
-for (const status of ["failed", "stale", "cancelled"]) {
+for (const status of ["failed", "stale", "cancelled", "memory-pressure", "parameter-limit"]) {
 test("root late " + status + " publication clears prose, graph notes, source actions and the cached mount without altering edited inputs", () => {
   const f = installRootPublicationUi();
   try {
@@ -35,6 +35,28 @@ test("call late " + status + " publication clears saved pages and source actions
   } finally { f.dispose(); }
 });
 }
+
+test("a memory-limited call request displays its cause and permits retry instead of remaining pending", () => {
+  const f = installCallPublicationUi();
+  try {
+    f.click("request"); const response = f.response();
+    f.widget.accept({ ...response, status: "memory-pressure", narrative: undefined });
+    assert.ok(f.runtime.getRenderedText("narrative-root").some(text => text.includes("configured reserve")));
+    f.click("request"); assert.equal(f.posts.filter(post => post.type === "functionCalls/explain").length, 2);
+  } finally { f.dispose(); }
+});
+
+test("memory admission failure retains completed Guide scenarios for continuation", () => {
+  const f = installRootPublicationUi();
+  try {
+    f.click("request"); const partial = f.response(); partial.status = "progress"; partial.coverage.complete = false;
+    f.browser.accept(partial);
+    f.browser.accept({ ...partial, status: "memory-pressure", narrative: undefined });
+    assert.equal(rootCount(f), 1);
+    assert.ok(f.runtime.getRenderedText("narrative-root").some(text => text.includes("configured reserve")));
+    f.click("request"); assert.equal(f.posts.filter(post => post.type === "codeFlow/requestFunctionNarratives").length, 2);
+  } finally { f.dispose(); }
+});
 
 test("root rejects an old publication failure after a newer generation and preserves its own graph notes", () => {
   const f = installRootPublicationUi();

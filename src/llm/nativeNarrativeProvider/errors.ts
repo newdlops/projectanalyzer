@@ -2,7 +2,7 @@
 import { ModelTaskError } from "../../shared/modelTasks";
 import { FunctionNarrativeError, type FunctionNarrativeFailure } from "../../shared/functionNarratives";
 
-const failures = new Set<string>(["unavailable", "download-failed", "queue-full", "cancelled", "denied", "timeout", "invalid-response", "language-mismatch", "context-too-large", "failed"]);
+const failures = new Set<string>(["unavailable", "download-failed", "queue-full", "cancelled", "denied", "timeout", "invalid-response", "language-mismatch", "context-too-large", "parameter-limit", "memory-pressure", "failed"]);
 
 /** Native action aggregates are real failures, not response JSON. Keep their full cause graph private for Host source-revocation handling. */
 export function asNativeProviderFailure(error: unknown): unknown {

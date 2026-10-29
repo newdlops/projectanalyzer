@@ -25,6 +25,8 @@ export interface FunctionNarrativeProvider {
   readonly managesDeadlines?: boolean;
   /** Checked after preparation; adapters may require synthesis from completed node values before a page is published. */
   supportsFinalSummary?(signal: AbortSignal): boolean;
+  /** Supports a dedicated source-wide purpose request, independently of scenario synthesis. */
+  supportsFunctionPurpose?(signal: AbortSignal): boolean;
   /** Optional action scope; a native adapter supplies its FIFO-owned signal so manager disposal also cancels Host source/storage work. */
   withRun?<T>(language: "ko" | "en", signal: AbortSignal, operation: (ownedSignal?: AbortSignal) => Promise<T>, lifecycle?: FunctionNarrativeRunLifecycle): Promise<T>;
   /** Optional cancellable setup runs once per explicit action, before inference deadlines; it receives no source. */

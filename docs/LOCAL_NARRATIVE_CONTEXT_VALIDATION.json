@@ -1,0 +1,506 @@
+{
+  "kind": "local-narrative-context-validation",
+  "createdAt": "2026-10-29T08:45:17.351Z",
+  "baselineCommit": "42cc7fb8894fc8c4dd898bf9343940e6aa335178",
+  "status": "functional-validation-passed-with-summary-quality-finding",
+  "reservePercentUsedForLiveChecks": 20,
+  "configuredDefaultReservePercent": 25,
+  "typeScriptCheckPassed": true,
+  "isolatedUnitTests": {
+    "tests": 111,
+    "passed": 111,
+    "failed": 0,
+    "log": "unit-tests-unsandboxed.log",
+    "sha256": "9215f4b235802c142c5c9e1905cc77732ac19ec77a93ab9bb3ccc8a99a3bb729"
+  },
+  "bundledUnitTests": {
+    "tests": 39,
+    "passed": 39,
+    "failed": 0,
+    "log": "bundled-tests.log",
+    "sha256": "62c4d6bac47391b5b7c9677291ece238a772f6397f2c50733d2b78b4bba220bf"
+  },
+  "sourceFiles": [
+    {
+      "file": "package.json",
+      "sha256": "0e38ee8ae6892af57b96ac61e7300e6ec4d0878b94eace85456fd54ef44cf107",
+      "matchesWorkspace": true
+    },
+    {
+      "file": "package.nls.json",
+      "sha256": "6783b8839c2a1aeab613c098b07581be9a70dc0a96178f965a015e1a50403353",
+      "matchesWorkspace": true
+    },
+    {
+      "file": "package.nls.ko.json",
+      "sha256": "a6e05d07cc53022ac43327067003610a755e1afd9b8123ca97f7df8ebefeab85",
+      "matchesWorkspace": true
+    },
+    {
+      "file": "src/llm/functionNarratives/localPrompt.ts",
+      "sha256": "4a8cfc6cc65933017d839ad36ca4cfc30c5e4cdfab82dc62edcc331ef7f1b3b9",
+      "matchesWorkspace": true
+    },
+    {
+      "file": "src/llm/functionNarratives/localProvider.ts",
+      "sha256": "efa8887202d31d3c36dd0950f2cbfd9cf0bc8e204e0046c4f8f2bc15d256fa78",
+      "matchesWorkspace": true
+    },
+    {
+      "file": "src/llm/functionNarratives/localServer.ts",
+      "sha256": "a5d86da8a7afe91ec73f54f129dedb44998ac933e6c9fb14fb90458ee00e4ed5",
+      "matchesWorkspace": true
+    },
+    {
+      "file": "src/llm/nativeNarrativeProvider/errors.ts",
+      "sha256": "d5325aefefa6f6c193ce7d39bbd694e7d0447332ff4ab3fb968ef4ed43b5769c",
+      "matchesWorkspace": true
+    },
+    {
+      "file": "src/localization/functionNarrativeCatalog.ts",
+      "sha256": "6090c9bfd96d3b938ee33d3673fbc5e5590ea39ca651fa07530875c50cf4f382",
+      "matchesWorkspace": true
+    },
+    {
+      "file": "src/protocol/functionNarratives.ts",
+      "sha256": "86fb98a2f7e204bbbfc36f353ef8de4e46f55df9199d5163c941e6f2b9709ce9",
+      "matchesWorkspace": true
+    },
+    {
+      "file": "src/shared/functionNarratives/errors.ts",
+      "sha256": "d687c22f3b7135e78f1fb14fea8a7af6d6438255073f89a7bd9363ec3c2df464",
+      "matchesWorkspace": true
+    },
+    {
+      "file": "src/shared/narrativePublications/validation.ts",
+      "sha256": "e634f4ebe61985d2d8bfaf82ca95d40fdd1884ecf8593a930d300bf63ad792da",
+      "matchesWorkspace": true
+    },
+    {
+      "file": "src/test/unit/configuredFunctionNarrativeProvider.test.ts",
+      "sha256": "42f8d96c96a0403d613f1c22c3b540e370723103460142609ca09026e7ff6bed",
+      "matchesWorkspace": true
+    },
+    {
+      "file": "src/test/unit/functionNarrativeNodeInterpretation.test.ts",
+      "sha256": "2b7c86f00178f95d8b364993fb9eb2d42a8765e7a302012124d481d0d7713814",
+      "matchesWorkspace": true
+    },
+    {
+      "file": "src/test/unit/functionNarrativesWebview.test.ts",
+      "sha256": "efb35f35a2536bfbb4e43e5b8e76d1ec5fdbeea95e4fc189e2b86f75673cb7cb",
+      "matchesWorkspace": true
+    },
+    {
+      "file": "src/test/unit/localFunctionNarrativeProvider.test.ts",
+      "sha256": "6ace2e9568a9bed31165f6d90b48695c78ca4c851477ebbb04e36ac42d1e8b02",
+      "matchesWorkspace": true
+    },
+    {
+      "file": "src/test/unit/localNarrativeServer.test.ts",
+      "sha256": "454cae2273d3e0e9594f9299f948cb93878249b1ae8c0321683580c8b10eb87a",
+      "matchesWorkspace": true
+    },
+    {
+      "file": "src/test/unit/narrativePublicationValidation.test.ts",
+      "sha256": "d7953359cb9d391c0bca9b28b3bdcbd131d62acaea287f395b0c5a0548609c5e",
+      "matchesWorkspace": true
+    },
+    {
+      "file": "src/test/unit/nativeNarrativeRevocationWebview.test.ts",
+      "sha256": "2105524641594f2e4e42cdf640900099f3d010824101938f95bfb944cc28ed7b",
+      "matchesWorkspace": true
+    },
+    {
+      "file": "src/vscode/functionNarrativeSetup/configuredProvider.ts",
+      "sha256": "427a3710fe4f453cb8dfa4891e205ea6d7a83821e31e853cdc588c6ae568c6f9",
+      "matchesWorkspace": true
+    },
+    {
+      "file": "src/vscode/modelTasks/copy.ts",
+      "sha256": "806d507b10704ebb55aaeab15c6dbe2aa598d046498c04a228127408d82ccf86",
+      "matchesWorkspace": true
+    },
+    {
+      "file": "src/webview/codeFlow/functionNarrativesHostDelivery.ts",
+      "sha256": "8b7a334c1e55b4d36f8fc04831da853c30233325e3e4ca852346319eedc0105a",
+      "matchesWorkspace": true
+    },
+    {
+      "file": "src/webview/functionCalls/readingBrowserSource.ts",
+      "sha256": "53d1c701a583210a1b73e4473d18840153e90ac7d2bae30169c07d38fd680ca2",
+      "matchesWorkspace": true
+    },
+    {
+      "file": "src/webview/functionNarratives/browserSource.ts",
+      "sha256": "51c8c2c3888925903468cecabc8a48a8b59332133e19dd6d078d611b62140e09",
+      "matchesWorkspace": true
+    },
+    {
+      "file": "src/test/unit/localNarrativeContext.test.ts",
+      "sha256": "05437cf51300ee0b49137982c8ede3b579273d45840836fca3702e069801229f",
+      "matchesWorkspace": true
+    },
+    {
+      "file": "src/llm/functionNarratives/context/index.ts",
+      "sha256": "09d36e6a9c4837ba4eb800fe1bc04337b6073d0d417fb4b61d8dec1d21c751ef",
+      "matchesWorkspace": true
+    },
+    {
+      "file": "src/llm/functionNarratives/context/memory.ts",
+      "sha256": "829bbc3a50607058aaca90b21444ebfe6acccc7bcd1001af72367eecd17af991",
+      "matchesWorkspace": true
+    },
+    {
+      "file": "src/llm/functionNarratives/context/policy.ts",
+      "sha256": "fe3bacf5e4fbea652b78145c736f6893d1b553c7bde292d87b0af2afa4513756",
+      "matchesWorkspace": true
+    },
+    {
+      "file": "src/llm/functionNarratives/context/types.ts",
+      "sha256": "42761f5d4b4e536a7cf522f05ea66ed31ea6dcd0fae996dfea7d33c02b72f8a7",
+      "matchesWorkspace": true
+    }
+  ],
+  "unrelatedSourceIncluded": false,
+  "protectedExistingFilesUnchanged": true,
+  "regressionFixed": {
+    "issue": "A caller-supplied memory probe could reuse another provider controller and use its earlier probe.",
+    "reproducedBeforeFix": true,
+    "regressionTest": "another provider's memory boundary cannot be replaced by a previously pooled controller",
+    "fix": "Caller-owned memory probes get their own memoized controller. Pooled options retain only paths and normalized context settings."
+  },
+  "liveUnbundled": {
+    "passed": true,
+    "runtimeForm": "unbundled",
+    "source": {
+      "bytes": 22538,
+      "lines": 230,
+      "sha256": "f5b888012b5e53e27bb5703549283ca8997e418f70d5df4630f5782069125fa4"
+    },
+    "contextTokens": [
+      16384
+    ],
+    "largestPromptTokens": 10334,
+    "modelCalls": 6,
+    "examples": [
+      {
+        "enabled": true,
+        "result": "enabled",
+        "correct": true
+      },
+      {
+        "enabled": false,
+        "result": "disabled",
+        "correct": true
+      }
+    ],
+    "pages": [
+      {
+        "index": 0,
+        "status": "ready",
+        "cacheHit": true
+      },
+      {
+        "index": 1,
+        "status": "ready",
+        "cacheHit": true
+      }
+    ],
+    "pagingDidNotGenerate": true,
+    "generationSeconds": 42.487959791,
+    "sampledFreePercent": [
+      45,
+      46,
+      47,
+      46,
+      46,
+      44
+    ],
+    "afterFreePercent": 52,
+    "peakOwnedWatchdogs": 1,
+    "activeOwnedWatchdogs": 0,
+    "modelProcessesExited": true,
+    "shutdownComplete": true,
+    "inputAudits": [
+      {
+        "sourceLines": 230,
+        "missingLineOrdinals": [],
+        "promptBytes": 41281,
+        "tailPreserved": true,
+        "sourcePreserved": true
+      },
+      {
+        "sourceLines": 230,
+        "missingLineOrdinals": [],
+        "promptBytes": 40105,
+        "tailPreserved": true,
+        "sourcePreserved": true
+      },
+      {
+        "sourceLines": 230,
+        "missingLineOrdinals": [],
+        "promptBytes": 41076,
+        "tailPreserved": true,
+        "sourcePreserved": true
+      },
+      {
+        "sourceLines": 230,
+        "missingLineOrdinals": [],
+        "promptBytes": 41287,
+        "tailPreserved": true,
+        "sourcePreserved": true
+      },
+      {
+        "sourceLines": 230,
+        "missingLineOrdinals": [],
+        "promptBytes": 40114,
+        "tailPreserved": true,
+        "sourcePreserved": true
+      },
+      {
+        "sourceLines": 230,
+        "missingLineOrdinals": [],
+        "promptBytes": 41173,
+        "tailPreserved": true,
+        "sourcePreserved": true
+      }
+    ],
+    "summary": "The checkout function evaluates the enabled parameter. When enabled is true, it returns the string enabled after a helper call."
+  },
+  "liveBundled": {
+    "passed": true,
+    "runtimeForm": "bundled",
+    "source": {
+      "bytes": 22538,
+      "lines": 230,
+      "sha256": "f5b888012b5e53e27bb5703549283ca8997e418f70d5df4630f5782069125fa4"
+    },
+    "contextTokens": [
+      16384
+    ],
+    "largestPromptTokens": 10334,
+    "modelCalls": 6,
+    "examples": [
+      {
+        "enabled": true,
+        "result": "enabled",
+        "correct": true
+      },
+      {
+        "enabled": false,
+        "result": "disabled",
+        "correct": true
+      }
+    ],
+    "pages": [
+      {
+        "index": 0,
+        "status": "ready",
+        "cacheHit": true
+      },
+      {
+        "index": 1,
+        "status": "ready",
+        "cacheHit": true
+      }
+    ],
+    "pagingDidNotGenerate": true,
+    "generationSeconds": 88.10788833299998,
+    "sampledFreePercent": [
+      33,
+      33,
+      40,
+      33,
+      32,
+      31
+    ],
+    "afterFreePercent": 39,
+    "peakOwnedWatchdogs": 1,
+    "activeOwnedWatchdogs": 0,
+    "modelProcessesExited": true,
+    "shutdownComplete": true,
+    "inputAudits": [
+      {
+        "sources": [
+          {
+            "name": "function",
+            "lines": 230,
+            "missingLineOrdinals": []
+          },
+          {
+            "name": "caller",
+            "lines": 1,
+            "missingLineOrdinals": []
+          },
+          {
+            "name": "helper",
+            "lines": 88,
+            "missingLineOrdinals": []
+          }
+        ],
+        "promptBytes": 41281,
+        "tailPreserved": true,
+        "sourcePreserved": true
+      },
+      {
+        "sources": [
+          {
+            "name": "function",
+            "lines": 230,
+            "missingLineOrdinals": []
+          },
+          {
+            "name": "caller",
+            "lines": 1,
+            "missingLineOrdinals": []
+          },
+          {
+            "name": "helper",
+            "lines": 88,
+            "missingLineOrdinals": []
+          }
+        ],
+        "promptBytes": 40105,
+        "tailPreserved": true,
+        "sourcePreserved": true
+      },
+      {
+        "sources": [
+          {
+            "name": "function",
+            "lines": 230,
+            "missingLineOrdinals": []
+          },
+          {
+            "name": "caller",
+            "lines": 1,
+            "missingLineOrdinals": []
+          },
+          {
+            "name": "helper",
+            "lines": 88,
+            "missingLineOrdinals": []
+          }
+        ],
+        "promptBytes": 41076,
+        "tailPreserved": true,
+        "sourcePreserved": true
+      },
+      {
+        "sources": [
+          {
+            "name": "function",
+            "lines": 230,
+            "missingLineOrdinals": []
+          },
+          {
+            "name": "caller",
+            "lines": 1,
+            "missingLineOrdinals": []
+          },
+          {
+            "name": "helper",
+            "lines": 88,
+            "missingLineOrdinals": []
+          }
+        ],
+        "promptBytes": 41287,
+        "tailPreserved": true,
+        "sourcePreserved": true
+      },
+      {
+        "sources": [
+          {
+            "name": "function",
+            "lines": 230,
+            "missingLineOrdinals": []
+          },
+          {
+            "name": "caller",
+            "lines": 1,
+            "missingLineOrdinals": []
+          },
+          {
+            "name": "helper",
+            "lines": 88,
+            "missingLineOrdinals": []
+          }
+        ],
+        "promptBytes": 40114,
+        "tailPreserved": true,
+        "sourcePreserved": true
+      },
+      {
+        "sources": [
+          {
+            "name": "function",
+            "lines": 230,
+            "missingLineOrdinals": []
+          },
+          {
+            "name": "caller",
+            "lines": 1,
+            "missingLineOrdinals": []
+          },
+          {
+            "name": "helper",
+            "lines": 88,
+            "missingLineOrdinals": []
+          }
+        ],
+        "promptBytes": 41173,
+        "tailPreserved": true,
+        "sourcePreserved": true
+      }
+    ],
+    "summary": "The checkout function evaluates the enabled parameter. When enabled is true, it returns the string enabled after a helper call."
+  },
+  "memoryPressure": {
+    "passed": true,
+    "osMemorySimulated": true,
+    "simulatedFreePercent": 18.75,
+    "status": "memory-pressure",
+    "modelCalls": 0,
+    "ownedWatchdogStarts": 0,
+    "shutdownComplete": true
+  },
+  "configuredCeiling": {
+    "passed": true,
+    "contextTokens": 8192,
+    "status": "context-too-large",
+    "modelCalls": 0,
+    "ownedWatchdogStarts": 1,
+    "modelProcessesExited": true,
+    "shutdownComplete": true
+  },
+  "remainingFindings": [
+    {
+      "category": "output-quality",
+      "kind": "whole-function-summary-incomplete",
+      "observation": "The shared summary explicitly describes the enabled=true return but omits the enabled=false return. Both per-scenario expected values were correct.",
+      "bundledSummaryMatchesUnbundled": true,
+      "fixed": false
+    }
+  ],
+  "measurementScope": {
+    "source": "Synthetic public TypeScript function with helper and caller; actual production source capture, configured provider, model, Host validation and saved pages.",
+    "model": "Qwen3.5-4B-Q4_K_M",
+    "actual128KModelRun": false,
+    "upper128KTransportTest": "Mock companion with a 120000-token tokenizer response; 131072-token context selected.",
+    "latency": "Sum of generationMs excludes initial readiness and includes context replacement. Machine workload was not controlled; the two runs are not a performance comparison.",
+    "nativeVsCodeInstallationTested": false,
+    "installedVersionUnchanged": "0.0.1146"
+  },
+  "environment": {
+    "sandboxRun": {
+      "tests": 111,
+      "passed": 99,
+      "failed": 12,
+      "reason": "Local socket runner exits in the sandbox; the same source passed all 111 tests with the required execution permission."
+    },
+    "evidenceDirectory": "/private/tmp/projectanalyzer-context-validation-D6nZxq",
+    "probeScript": "whole-host-check.cjs",
+    "probeScriptSha256": "85652934c0f9906191ca533db95f2996cc544d64a33f31ddaa3c74ae56201c01"
+  }
+}

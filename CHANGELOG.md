@@ -4,6 +4,32 @@ All notable user-visible changes to Project Analyzer: Code Flow are recorded in
 this file. The changelog starts with the first distribution-documented build;
 earlier local development builds were not tracked here.
 
+## 0.0.1147 - 2026-10-29
+
+### Improved
+
+- Size local model context from the complete prompt and token budget, with a
+  configurable ceiling and 20–30% memory reserve (25% by default).
+- Keep complete source evidence and distinguish memory pressure, context limits
+  and the separate function-example parameter limit in localized retry guidance.
+- Generate the whole-function purpose independently of selected scenarios, so
+  the first branch cannot become the immutable summary for all pages.
+- Ground identity-helper descriptions, syntax explanations and assumptions in
+  source facts, with one bounded quality regeneration under the same deadline.
+- Preserve exact literal values and simple Boolean return directions with checked
+  source readings. These source-owned fields are not model training results.
+- Validate declared JSON array kinds, primitive initializers and source-backed
+  example decisions without silently rewriting invalid model values.
+
+### Validation
+
+- Verify the explanation changes with 108 related checks and actual Qwen3.5-4B
+  Korean/English two-path runs, preserving the complete source and cache-only
+  page navigation. Detailed evidence and limitations are recorded in the docs.
+- Pass 132 post-bundle checks, 88 Rust checks and 92 packaging checks. The full
+  Node suite retains the same 27 named failures as 0.0.1146; no new failures were
+  introduced in this local VSIX checkpoint.
+
 ## 0.0.1146 - 2026-10-29
 
 ### Checkpoint

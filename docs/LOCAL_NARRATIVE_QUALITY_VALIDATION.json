@@ -1,0 +1,312 @@
+{
+  "createdAt": "2026-10-29T10:23:46.111186+00:00",
+  "scope": "Fix the four findings in LOCAL_NARRATIVE_QUALITY_ASSESSMENT.json",
+  "baselineCommit": "42cc7fb8894fc8c4dd898bf9343940e6aa335178",
+  "validationTarget": "Current working tree including pre-existing typedValues/operationValues work; no commit, push or installation in this task.",
+  "model": {
+    "name": "Qwen3.5-4B-Q4_K_M",
+    "seed": 42,
+    "temperature": 0.2,
+    "threads": 2,
+    "threadsBatch": 2,
+    "outputTokenBudget": 2400,
+    "weightUpdatesPerformed": false
+  },
+  "fixture": {
+    "entrypoint": "createWholeNarrativeRootHost",
+    "path": "src/test/helpers/wholeNarrativeRootHost.ts",
+    "rootFunctionLines": 230,
+    "helperLines": 88,
+    "callerLines": 1,
+    "scenariosPerLanguage": 2,
+    "source": "Synthetic TypeScript; independent literal identity helper and Boolean early/fall-through returns.",
+    "boundaries": "Production source capture, Host, configured provider and actual GGUF server; transient fixture page store."
+  },
+  "checks": {
+    "typescriptCompilation": "passed (npx tsc -p tsconfig.json)",
+    "typescriptNoEmit": "passed (npm run check)",
+    "relatedUnitAndIntegrationTests": {
+      "passed": 108,
+      "failed": 0,
+      "artifact": "/private/tmp/projectanalyzer-quality-fix-4j7yf8hv/regression-tests.log",
+      "sha256": "21176c842c889da619d3cc205043938944de7ece7422b5eabef7236013a42f75"
+    },
+    "diffWhitespace": "passed (git diff --check)",
+    "browserVisualQA": "Not run; backend source/prose logic only."
+  },
+  "results": [
+    {
+      "language": "en",
+      "passed": true,
+      "artifact": "/private/tmp/projectanalyzer-quality-fix-4j7yf8hv/live-whole-host.json",
+      "sha256": "3945aa86e3843a7dc345d0fa116bc53caaa1a89203d6d4a6a84b253b33ab1b0c",
+      "checks": {
+        "twoPagesReadyAndCacheOnly": true,
+        "sameWholePurposeNamesBothOutcomes": true,
+        "allSixSyntaxFieldsAreSentencesRatherThanCodeCopies": true,
+        "knownFactsExcludedFromAssumptions": true,
+        "identityHelpersDescribeUnchangedArguments": true,
+        "exampleResultsMatchBothBooleanOutcomes": true,
+        "completeSourcePreservedAtIngressAndEveryModelRequest": true,
+        "singleWatchdogAndAllOwnedProcessesExited": true,
+        "originalFourAreasAlsoManuallyReviewed": true,
+        "sourceOwnedCausalParagraphAndAlternativesManuallyReviewed": true
+      },
+      "modelCalls": 7,
+      "hostGenerationRequests": 7,
+      "internalQualityRegenerations": 0,
+      "contextTokens": [
+        16384
+      ],
+      "maximumInputTokens": 10640,
+      "reservePercent": 25,
+      "sampledMemoryFreePercent": {
+        "min": 70.0,
+        "max": 80.0
+      },
+      "purpose": "The function returns \"enabled\" if the boolean argument enabled is true, otherwise it returns \"disabled\". An initial call to finish(\"source-0\") executes before this decision but does not affect the outcome.",
+      "examples": [
+        {
+          "enabled": true,
+          "result": "enabled",
+          "correct": true
+        },
+        {
+          "enabled": false,
+          "result": "disabled",
+          "correct": true
+        }
+      ],
+      "syntaxFields": {
+        "total": 6,
+        "modelAuthored": 4,
+        "sourceOwnedLiteralReturns": 2,
+        "codeOnly": 0
+      },
+      "assumptions": 0,
+      "modelPids": [
+        {
+          "pid": 93425,
+          "exited": true
+        },
+        {
+          "pid": 93443,
+          "exited": true
+        }
+      ],
+      "source": {
+        "bytes": 22538,
+        "lines": 230,
+        "sha256": "f5b888012b5e53e27bb5703549283ca8997e418f70d5df4630f5782069125fa4"
+      }
+    },
+    {
+      "language": "ko",
+      "passed": true,
+      "artifact": "/private/tmp/projectanalyzer-quality-fix-4j7yf8hv/live-whole-host-ko.json",
+      "sha256": "5954d92a05231b72f7b95558de433b99b9e7c05054241ac763630e3e1dad1bac",
+      "checks": {
+        "twoPagesReadyAndCacheOnly": true,
+        "sameWholePurposeNamesBothOutcomes": true,
+        "allSixSyntaxFieldsAreSentencesRatherThanCodeCopies": true,
+        "knownFactsExcludedFromAssumptions": true,
+        "identityHelpersDescribeUnchangedArguments": true,
+        "exampleResultsMatchBothBooleanOutcomes": true,
+        "completeSourcePreservedAtIngressAndEveryModelRequest": true,
+        "singleWatchdogAndAllOwnedProcessesExited": true,
+        "originalFourAreasAlsoManuallyReviewed": true,
+        "sourceOwnedCausalParagraphAndAlternativesManuallyReviewed": true
+      },
+      "modelCalls": 8,
+      "hostGenerationRequests": 7,
+      "internalQualityRegenerations": 1,
+      "contextTokens": [
+        16384
+      ],
+      "maximumInputTokens": 11115,
+      "reservePercent": 25,
+      "sampledMemoryFreePercent": {
+        "min": 64.0,
+        "max": 78.0
+      },
+      "purpose": "이 함수는 boolean 인자 enabled 가 참이면 \"enabled\", 거짓이면 \"disabled\"를 반환하며, 실행 전에는 finish 함수를 통해 \"source-0\" 값을 item0 에 저장합니다.",
+      "examples": [
+        {
+          "enabled": true,
+          "result": "enabled",
+          "correct": true
+        },
+        {
+          "enabled": false,
+          "result": "disabled",
+          "correct": true
+        }
+      ],
+      "syntaxFields": {
+        "total": 6,
+        "modelAuthored": 4,
+        "sourceOwnedLiteralReturns": 2,
+        "codeOnly": 0
+      },
+      "assumptions": 0,
+      "modelPids": [
+        {
+          "pid": 88665,
+          "exited": true
+        },
+        {
+          "pid": 88682,
+          "exited": true
+        }
+      ],
+      "source": {
+        "bytes": 22538,
+        "lines": 230,
+        "sha256": "f5b888012b5e53e27bb5703549283ca8997e418f70d5df4630f5782069125fa4"
+      }
+    }
+  ],
+  "provenance": {
+    "modelAuthored": [
+      "Dedicated whole-function purpose",
+      "Identity-call and Boolean-condition operation text, syntax, reason and effect"
+    ],
+    "sourceOwned": [
+      "Source frames, citations and exact code",
+      "Closed-scope empty assumptions/limitations",
+      "Literal return values and four literal-return prose fields",
+      "Known identity argument binding values and unchanged Boolean rows",
+      "Complete recognized Boolean/literal recipe paragraphs and analysis"
+    ],
+    "notMeasured": [
+      "Parameter activation",
+      "Weight learning",
+      "General model accuracy",
+      "Arithmetic reasoning accuracy",
+      "Controlled speed improvement"
+    ]
+  },
+  "preservedEarlierEvidence": [
+    {
+      "artifact": "/private/tmp/projectanalyzer-quality-fix-4j7yf8hv/live-whole-host-ko-initial.json",
+      "sha256": "2894c26974dcd4bdc34bb62c871614064161ff54e953e9fdac0558a9aa158849"
+    },
+    {
+      "artifact": "/private/tmp/projectanalyzer-quality-fix-4j7yf8hv/live-whole-host-ko-literal-rejected.json",
+      "sha256": "2894c26974dcd4bdc34bb62c871614064161ff54e953e9fdac0558a9aa158849"
+    },
+    {
+      "artifact": "/private/tmp/projectanalyzer-quality-fix-4j7yf8hv/live-whole-host-ko-role-review.json",
+      "sha256": "5e57be09538ff08e1a588843c58342ebeb47e83bf6ca2c4f3452c68dc0a7b025"
+    },
+    {
+      "artifact": "/private/tmp/projectanalyzer-quality-fix-4j7yf8hv/live-whole-host-ko-memory-rejected.json",
+      "sha256": "ef8793419d57dcdacd371dab8cec1584d20a6ef89ff97fbd1f05da2317b2714f"
+    },
+    {
+      "artifact": "/private/tmp/projectanalyzer-quality-fix-4j7yf8hv/live-whole-host-ko-before-source-recipe.json",
+      "sha256": "9374b14ed0b43e25f0e708a8ed3cc8629bdcb012383f60bf5d0a7ee241cf44a5"
+    },
+    {
+      "artifact": "/private/tmp/projectanalyzer-quality-fix-4j7yf8hv/live-whole-host-before-source-recipe.json",
+      "sha256": "9a17bb67da317b788b4eb7781f5835db7fa8d9ff6a1baf8b35ced6112fa38af3"
+    }
+  ],
+  "earlierFailures": [
+    "Initial Korean ready response double-encoded the false-path literal; the example-result check failed.",
+    "The first strict literal guard refused two invalid generations rather than publishing them.",
+    "Manual review found unsupported runtime-type checks, inverted causal prose and a synthetic result label described as a local variable; these motivated the bounded source recipe.",
+    "One memory admission refused context growth with zero NN completions; its owned process exited. The same 25% reserve was retained after available memory recovered."
+  ],
+  "limitations": [
+    "One synthetic program in two languages; dependent staged generations are not independent statistical quality samples.",
+    "Source-owned values/prose are not neural reasoning or training achievements.",
+    "Unsupported source structures keep model generation and genuine uncertainty; generic natural-language correctness remains unproved.",
+    "Other applications remained active; timing and sampled memory are observations rather than performance guarantees.",
+    "Installed extension remains the existing release; verification used current development output."
+  ],
+  "sourceFiles": [
+    {
+      "path": "src/analyzer/narrativeQuality/index.ts",
+      "sha256": "a98d3a5617c8784d83c512c2b49a90da0439968d9193d0f4f4a5ba13dd49abd7"
+    },
+    {
+      "path": "src/analyzer/narrativeQuality/types.ts",
+      "sha256": "62551d5cc4172e259bb2c698920d0e0640e1addf7eafd6a76e49eb5a6628e3ba"
+    },
+    {
+      "path": "src/analyzer/narrativeQuality/typescript.ts",
+      "sha256": "d1521091d45e2c182bde42d27daeff2c574d9a8e6cfa14e0f4dc555e4a962063"
+    },
+    {
+      "path": "src/application/functionNarratives/quality.ts",
+      "sha256": "7fa3f09c2cd182c1e74fd93b252c3b04155fcca1da4c3e724a1840937971cf0f"
+    },
+    {
+      "path": "src/application/functionNarratives/sourceQualityReading.ts",
+      "sha256": "f1e502c721322a0995817c0bf1dac182f27ed628d68a7a5615c2e918423fd889"
+    },
+    {
+      "path": "src/application/functionNarratives/index.ts",
+      "sha256": "ac53140541663a156b214f7ed5eeb9d5ee539db947741e45cd7d80fc9fdd5aeb"
+    },
+    {
+      "path": "src/application/functionNarratives/provider.ts",
+      "sha256": "94bc8d07c0ce970c24d181baaee3f7694798328b5158a4fc27e28f82cdea3d9f"
+    },
+    {
+      "path": "src/application/functionNarratives/request.ts",
+      "sha256": "dfcab6a07bb03905031ad75c8050d3642fb932d593af1f19ae71048272de4ff7"
+    },
+    {
+      "path": "src/application/functionNarratives/structuredResponse.ts",
+      "sha256": "6ff025d49ea0f91c717c5ae1d1b0e12e3ebc90def6ffcaf06c759bfb5a0e1553"
+    },
+    {
+      "path": "src/llm/functionNarratives/quality.ts",
+      "sha256": "38e32e15394603ca2ef6554aac19f30042df3ba382425712f222fa75dd2e1db0"
+    },
+    {
+      "path": "src/llm/functionNarratives/localProvider.ts",
+      "sha256": "fbfed3e7e82f0ead185d2c544498e571372c342a18e5a39354c65d5725405d35"
+    },
+    {
+      "path": "src/llm/functionNarratives/localPrompt.ts",
+      "sha256": "1cfa4de21e41527421d853ce3be6b61aedd12a7cd046adf8c1a9c75a81d74bac"
+    },
+    {
+      "path": "src/shared/functionNarratives/types.ts",
+      "sha256": "3043e99c392a793cbea7c8de97b9322a49d13d7a4168ff911a717ee638a50894"
+    },
+    {
+      "path": "src/vscode/functionNarrativeSetup/configuredProvider.ts",
+      "sha256": "32f3c930a0444aa9141183162caa5c4f77697716b3579645fbe3944ad63d6531"
+    },
+    {
+      "path": "src/webview/codeFlow/functionNarrativeScenarioSession.ts",
+      "sha256": "80e068d5323679d6beac48272af11b621356de26b560a9fae29cd48e2afe3f95"
+    },
+    {
+      "path": "src/webview/codeFlow/functionNarrativesHostDelivery.ts",
+      "sha256": "5c303fccddb859dc1437f27d9d596ee8477e61a128649b0e17259c97b191e3e8"
+    },
+    {
+      "path": "src/test/unit/functionNarrativeQuality.test.ts",
+      "sha256": "af78512fe15aea6f410767cdab378e893e39b10e39fce6d80125b63171f63bb3"
+    },
+    {
+      "path": "src/test/helpers/wholeNarrativeRootHost.ts",
+      "sha256": "922747b6d429104784318d6ecd73245dada4d8e96aff65bf14bd1c2fab85cab5"
+    }
+  ],
+  "probeSources": [
+    {
+      "path": "/private/tmp/projectanalyzer-quality-fix-4j7yf8hv/whole-host-check.cjs",
+      "sha256": "0e166eea71f3f3737af242fd1b089e03037e01ec8f46a10cb1b8d23a473dbc63"
+    },
+    {
+      "path": "/private/tmp/projectanalyzer-quality-fix-4j7yf8hv/whole-host-check-ko.cjs",
+      "sha256": "042eda94894ad6df6ec3fde6f0d9419941b9b3d829ad919ff92c9c5b645166c2"
+    }
+  ]
+}

@@ -4,6 +4,7 @@ import { parseFunctionCallNarrative } from "../functionCallNarratives";
 import { parseFunctionNarrative } from "./structuredResponse";
 import { FunctionNarrativeError, type FunctionNarrativeProvider, type FunctionNarrativeGenerationOptions, type FunctionNarrativeModelResponse, type FunctionNarrativeRootRequest } from "./provider";
 import { sealNarrativeModelContext } from "../narrativeSources";
+import { parseFunctionNarrativePurpose } from "./quality";
 
 /** Managed providers time actual execution only; fallback timers protect adapters without a scheduler. */
 export async function requestFunctionNarrative(provider: FunctionNarrativeProvider, context: FunctionNarrativeContext, language: "ko" | "en",
@@ -11,7 +12,8 @@ export async function requestFunctionNarrative(provider: FunctionNarrativeProvid
   if (signal.aborted) throw new FunctionNarrativeError("cancelled");
   sealNarrativeModelContext(context);
   const validate = (response: FunctionNarrativeModelResponse) => {
-    if (context.callTask) parseFunctionCallNarrative(response.text, context, language);
+    if (context.functionPurposeTask) parseFunctionNarrativePurpose(response.text, context, language);
+    else if (context.callTask) parseFunctionCallNarrative(response.text, context, language);
     else parseFunctionNarrative(response.text, context, language);
   };
   return requestOperation(provider, Boolean(context.sourceEvidence), signal, fallbackTimeoutMs,

@@ -82,7 +82,7 @@ export function getFunctionCallReadingBrowserSource(): string {
           }
           return;
         }
-        const statuses=["ready","progress","queue-full","stale","unavailable","download-failed","cancelled","denied","timeout","invalid-response","language-mismatch","context-too-large","failed"];
+        const statuses=["ready","progress","queue-full","stale","unavailable","download-failed","cancelled","denied","timeout","invalid-response","language-mismatch","context-too-large","parameter-limit","memory-pressure","failed"];
         if(!statuses.includes(payload.status))return;
         const progress=payload.status==="progress",paging=owner===pagePending;
         if(!progress){if(paging)pagePending=undefined;else{pending=undefined;task=undefined;}}

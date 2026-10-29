@@ -7,16 +7,18 @@ import { join } from "node:path";
 import { createLocalFunctionNarrativeProvider } from "../../llm/functionNarratives";
 import type { FunctionNarrativeContext } from "../../shared/functionNarratives";
 import { getGlobalModelTaskManager } from "../../shared/modelTasks";
+import type { LocalNarrativeContextOptions } from "../../llm/functionNarratives/context";
 
 const context: FunctionNarrativeContext = { functionName: "describe", language: "kotlin", limited: false,
   snippets: [{ id: "root", role: "function", startLine: 1, endLine: 1, text: 'fun describe() = "ready"', truncated: false }] };
 
 /** A fake external runner reads the actual private prompt file, but never evaluates source code. */
-async function fixture(body: string | ((directory: string) => string), modelName = "fixture.gguf") {
+async function fixture(body: string | ((directory: string) => string), modelName = "fixture.gguf", options: LocalNarrativeContextOptions = {}) {
   const directory = await mkdtemp(join(tmpdir(), "function-llm-test-"));
   const binaryPath = join(directory, "runner"); const modelPath = join(directory, modelName);
   await writeFile(binaryPath, `#!${process.execPath}\n${typeof body === "string" ? body : body(directory)}`, { mode: 0o700 }); await writeFile(modelPath, "GGUF fixture");
-  return { directory, provider: createLocalFunctionNarrativeProvider({ binaryPath, modelPath }) };
+  return { directory, provider: createLocalFunctionNarrativeProvider({ binaryPath, modelPath,
+    memory: async () => ({ totalBytes: 64 * 1024 ** 3, availableBytes: 48 * 1024 ** 3 }), ...options }) };
 }
 
 test("local LLM adapter starts only on request and reads Kotlin from a private file without shell interpolation", async () => {
@@ -42,11 +44,25 @@ test("Qwen3.5 uses tool-free ChatML and disables reasoning while retaining local
   const f = await fixture(`const args = process.argv.slice(2);
     const value = (flag) => args[args.indexOf(flag) + 1];
     if (value('--chat-template') !== 'chatml' || !args.includes('--no-jinja') || value('--reasoning') !== 'off'
-      || value('--ctx-size') !== '8192' || value('--threads') !== '2' || value('--threads-batch') !== '2'
+      || Number(value('--ctx-size')) < 8192 || Number(value('--ctx-size')) > 32768 || value('--threads') !== '2' || value('--threads-batch') !== '2'
       || value('--predict') !== '2400' || !args.includes('--single-turn') || !args.includes('--offline')) process.exit(2);
     process.stdout.write('{"summary":"new model"}');`, "Qwen3.5-4B-Q4_K_M.gguf");
   try { assert.equal((await f.provider.generate(context, "en", new AbortController().signal)).text, '{"summary":"new model"}'); }
   finally { await rm(f.directory, { recursive: true, force: true }); }
+});
+
+test("legacy CLI context grows for long source without omitting its tail, and an explicit smaller ceiling never starts the runner", async () => {
+  const body = `const fs=require('node:fs'),args=process.argv.slice(2),value=flag=>args[args.indexOf(flag)+1];
+    fs.writeFileSync(require('node:path').join(require('node:path').dirname(value('--model')),'ran'),'yes');
+    if(Number(value('--ctx-size'))<=8192||Number(value('--ctx-size'))>32768||!fs.readFileSync(value('--file'),'utf8').includes('END_OF_SOURCE'))process.exit(2);
+    process.stdout.write('{"summary":"long source"}');`;
+  const longContext = { ...context, snippets: [{ ...context.snippets[0], text: 'fun describe() { /* ' + "source ".repeat(1800) + 'END_OF_SOURCE */ return "ready" }' }] };
+  const expanded = await fixture(body), limited = await fixture(body, "fixture.gguf", { maxContextTokens: 8192 });
+  try {
+    assert.equal((await expanded.provider.generate(longContext, "en", new AbortController().signal)).text, '{"summary":"long source"}');
+    await assert.rejects(limited.provider.generate(longContext, "en", new AbortController().signal), { code: "context-too-large", detailCode: "configured-context-limit" });
+    await assert.rejects(readFile(join(limited.directory, "ran")), { code: "ENOENT" });
+  } finally { await rm(expanded.directory, { recursive: true, force: true }); await rm(limited.directory, { recursive: true, force: true }); }
 });
 
 test("different local model configurations run FIFO without cancelling the previous request", async () => {

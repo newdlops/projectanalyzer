@@ -11,7 +11,7 @@ test("publication identity accepts only the Host's bounded opaque shape", () => 
 });
 
 test("publication withdrawal allows every terminal failure and excludes ready, progress and working", () => {
-  for (const status of ["failed", "stale", "cancelled", "timeout", "invalid-response", "language-mismatch", "context-too-large", "unavailable", "denied", "download-failed", "queue-full"]) assert.equal(isNarrativePublicationRevocation({ ...envelope, status }), true);
+  for (const status of ["failed", "stale", "cancelled", "timeout", "invalid-response", "language-mismatch", "context-too-large", "parameter-limit", "memory-pressure", "unavailable", "denied", "download-failed", "queue-full"]) assert.equal(isNarrativePublicationRevocation({ ...envelope, status }), true);
   for (const status of ["ready", "progress", "working", "idle", undefined]) assert.equal(isNarrativePublicationRevocation({ ...envelope, status }), false);
 });
 
